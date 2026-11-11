@@ -57,6 +57,11 @@ const MEBIBYTE: u64 = 1 << 20;
 /// in mebibytes.
 const MOST_MEBIBYTES: u64 = 1 << 16;
 
+/// The largest descriptor limit the searches for the smallest landing limit try,
+/// so that a machine on which no commit lands at any limit the control examines
+/// is told apart from one whose flip is below that ceiling.
+const FURTHEST_DESCRIPTOR_LIMIT_SEARCHED: u64 = 1024;
+
 /// How many steps a memory sweep takes between its smallest and its largest limit.
 const MEMORY_STEPS: u64 = 10;
 
@@ -333,6 +338,38 @@ fn spread(low: u64, high: u64, count: u64) -> Vec<u64> {
     return values;
 }
 
+/// What:
+///  The limits from `low` to the smallest under which a commit lands,
+///  each run once with the sweep's own breadth,
+///  and one case on its own at twice that smallest landing limit,
+///  with the recovery checked.
+/// Why:
+///  The smallest limit under which a commit lands is the limit at which the outcome flips,
+///  and the flip is one descriptor wide:
+///  measured on a loaded host on 2026-11-11,
+///  a commit run one at a time refused at 23 twice and landed at 24 twice.
+///  The flip moves with everything else that holds a descriptor while a commit runs,
+///  because a step that waits holding one keeps it held into the next step,
+///  so the search that finds it can answer a limit that the next case refuses,
+///  and `SWEEP_WIDTH` cases at once move it further still.
+///  The landing this control needs is therefore asked for at twice the limit the search landed at,
+///  where a commit needs the same descriptors it needed at the boundary and the limit leaves as much room again,
+///  which is a landing rather than the boundary's coin flip:
+///  the caller counts it with the batch's landings,
+///  so it supplies the landing exactly when the batch refused every limit.
+///  The batch proves the rest of the promise:
+///  every limit fails with a message or lands,
+///  and the repository recovers after each.
+///  Twice a figure the search measured is the only margin this control states.
+fn sweep_up_to_the_smallest_landing(label: &str, low: u64, lands_at: u64, limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>)) -> (usize, usize) {
+    let values: Vec<u64> = (low..=lands_at).collect();
+    let (landed, refused): (usize, usize) = sweep(label, values.as_slice(), limits_for, false);
+    let (service, wrapper): (Vec<Limit>, Vec<Limit>) = limits_for(lands_at.saturating_mul(2));
+    let alone: Case = run_case(format!("{label}-twice-the-smallest-landing-{lands_at}").as_str(), service.as_slice(), wrapper.as_slice(), false, true);
+    assert!(alone.verdict.is_ok(), "twice the smallest landing limit left the repository unrecovered: {:?}", alone.verdict);
+    return (landed + usize::from(alone.landed), refused + usize::from(!alone.landed));
+}
+
 /// A descriptor limit of each size on the wrapper,
 /// from the smallest under which a commit lands downward:
 /// the commit fails with a
@@ -340,11 +377,11 @@ fn spread(low: u64, high: u64, count: u64) -> Vec<u64> {
 /// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
-    let lands_at: u64 = smallest_working(3, 1024, &|value| { return lands_with("nofile-wrapper", value, wrapper_descriptors); });
-    let values: Vec<u64> = (3..=lands_at).collect();
-    let (landed, refused): (usize, usize) = sweep("nofile-wrapper", values.as_slice(), wrapper_descriptors, false);
+    let lands_at: u64 = smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &|value| { return lands_with("nofile-wrapper", value, wrapper_descriptors); });
+    assert!(lands_at < FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, "no commit landed under any descriptor limit up to {FURTHEST_DESCRIPTOR_LIMIT_SEARCHED}, so this control has no landing to be close to exhaustion");
+    let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-wrapper", 3, lands_at, wrapper_descriptors);
     assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
-    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion");
+    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
 }
 
 /// A descriptor limit of each size on the commit service,
@@ -355,12 +392,12 @@ fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_re
 /// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository() {
-    let starts_at: u64 = smallest_service_limit(LimitKind::OpenFiles, 1024);
-    let lands_at: u64 = smallest_working(starts_at, 1024, &|value| { return lands_with("nofile-service", value, service_descriptors); });
-    let values: Vec<u64> = (starts_at..=lands_at).collect();
-    let (landed, refused): (usize, usize) = sweep("nofile-service", values.as_slice(), service_descriptors, false);
+    let starts_at: u64 = smallest_service_limit(LimitKind::OpenFiles, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED);
+    let lands_at: u64 = smallest_working(starts_at, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &|value| { return lands_with("nofile-service", value, service_descriptors); });
+    assert!(lands_at < FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, "no commit landed under any descriptor limit up to {FURTHEST_DESCRIPTOR_LIMIT_SEARCHED}, so this control has no landing to be close to exhaustion");
+    let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-service", starts_at, lands_at, service_descriptors);
     assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
-    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion");
+    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
 }
 
 /// Whether a process limit makes the next start fail for this user (a privileged test run is exempt from `RLIMIT_NPROC`),
