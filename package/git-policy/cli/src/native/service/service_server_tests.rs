@@ -213,7 +213,10 @@ fn a_restart_says_each_batch_it_settled() {
     let entries = crate::service_timing::capture::entries_of(|| { let _reports = settle_open_batches(&context, None); });
     assert_eq!(entries.len(), 2, "{entries:?}");
     assert_eq!(entries[0].priority, Priority::Info);
-    assert!(entries[0].message.starts_with("batch 41 is not on its branch, so its commit "), "{}", entries[0].message);
+    // The line says which repository the batch is in before anything about it,
+    //  so a reader looking at a whole machine's journal cannot take it for a batch of another repository.
+    let named: String = format!("batch 41 in the repository at {}", worktree.display());
+    assert!(entries[0].message.starts_with(format!("{named} is not on its branch, so its commit ").as_str()), "{}", entries[0].message);
     assert!(entries[0].message.contains(" is kept at refs/cli-git/kept/41"), "{}", entries[0].message);
     assert_eq!(entries[1].priority, Priority::Warning);
     assert!(entries[1].message.starts_with("settled the batch an earlier service left open batch=41 decision="), "{}", entries[1].message);

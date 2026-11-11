@@ -535,7 +535,11 @@ impl PushRetries {
         if let Some(directory) = self.store.as_deref()
             && let Err(reason) = save(directory, &StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt })
         {
-            crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
+            crate::service_warn!(
+                "the plan to push {:?} again {} could not be kept for a restart: {reason}",
+                item.branch_ref,
+                crate::service_timing::in_the_repository_at(item.repository.as_path())
+            );
         }
     }
 

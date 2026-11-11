@@ -463,7 +463,11 @@ impl WorkHandlers for GitHandlers {
                 if !report.is_empty()
                     && let Err(reason) = record_push_report(newest.git_dir.as_path(), newest.branch_ref.as_str(), newest.oid.as_str(), report.as_str())
                 {
-                    crate::service_error!("what the push of {} did could not be recorded for the person: {reason}", newest.oid);
+                    crate::service_error!(
+                        "what the push of {} {} did could not be recorded for the person: {reason}",
+                        newest.oid,
+                        crate::service_timing::in_the_repository_at(newest.repository.as_path())
+                    );
                 }
                 Verdict::Done
             }
@@ -483,7 +487,10 @@ impl WorkHandlers for GitHandlers {
                 None => {
                     // A rejection by the server whose reason is not known is tried again, and named so that it can be learned.
                     if let Some(line) = unrecognised_rejection(result.shown.as_str()) {
-                        crate::service_warn!("the server rejected the push for a reason this release does not know, so it is tried again: {line}");
+                        crate::service_warn!(
+                            "the server rejected the push {} for a reason this release does not know, so it is tried again: {line}",
+                            crate::service_timing::in_the_repository_at(newest.repository.as_path())
+                        );
                     }
                     Verdict::Retry(result.shown)
                 }

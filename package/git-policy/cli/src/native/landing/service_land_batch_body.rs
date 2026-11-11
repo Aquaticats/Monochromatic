@@ -211,7 +211,7 @@ pub(crate) fn land_batch_body(
         // What the conclusion's cleanup compares is the client's to lose: a copy is kept in the journal before the branch moves, so
         //  a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`).
         let conclusion_began: Instant = Instant::now();
-        crate::conclusion_state_copy::keep_of_intent(intent.cleanup.as_ref(), context.journal.as_path(), seq);
+        crate::conclusion_state_copy::keep_of_intent(intent.cleanup.as_ref(), context.journal.as_path(), seq, repository);
         timing.reads_split.conclusion += conclusion_began.elapsed();
         let journal_began: Instant = Instant::now();
         let written = write_intent(context.journal.as_path(), &intent);
@@ -248,10 +248,16 @@ pub(crate) fn land_batch_body(
         match witness_of(first.index.as_path()) {
             Ok(witness) => {
                 if let Err(error) = write_start(context.journal.as_path(), seq, &witness) {
-                    crate::service_error!("batch {seq}: the index file the landing saw could not be recorded ({error}); a restart will not replay the index update");
+                    crate::service_error!(
+                        "batch {seq} {}: the index file the landing saw could not be recorded ({error}); a restart will not replay the index update",
+                        crate::service_timing::in_the_repository_at(repository)
+                    );
                 }
             }
-            Err(error) => crate::service_error!("batch {seq}: the index file cannot be looked at ({error}); a restart will not replay the index update"),
+            Err(error) => crate::service_error!(
+                "batch {seq} {}: the index file cannot be looked at ({error}); a restart will not replay the index update",
+                crate::service_timing::in_the_repository_at(repository)
+            ),
         }
         timing.reads_split.witness += witness_began.elapsed();
         reach("before-ref");
@@ -303,7 +309,7 @@ pub(crate) fn land_batch_body(
                     }
                 };
                 let within_bound: bool = Instant::now() < deadline;
-                crate::service_land_hold_a_batch::say_it_waits(seq, first.reference.as_str(), old.as_str(), within_bound);
+                crate::service_land_hold_a_batch::say_it_waits(seq, repository, first.reference.as_str(), old.as_str(), within_bound);
                 match wait_out_the_reference_locks(lock_roots.as_slice(), &crate::stale_ref_locks::Judge::here(), deadline) {
                     // Nothing stands any more and the bound for waiting on one has not passed: the branch is where it was,
                     //  so the write may be tried again.

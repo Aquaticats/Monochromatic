@@ -409,7 +409,11 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool
             item.branch_ref
         );
         if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
-            crate::service_error!("the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
+            crate::service_error!(
+                "the abandoned push of {} {} could not be recorded for the person: {problem}",
+                item.oid,
+                crate::service_timing::in_the_repository_at(item.repository.as_path())
+            );
             told = false;
         }
     }
@@ -521,7 +525,11 @@ impl Replanning {
         return match crate::push_retry_store::save(directory, &crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt }) {
             Ok(()) => true,
             Err(reason) => {
-                crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
+                crate::service_warn!(
+                    "the plan to push {:?} again {} could not be kept for a restart: {reason}",
+                    item.branch_ref,
+                    crate::service_timing::in_the_repository_at(item.repository.as_path())
+                );
                 false
             }
         };

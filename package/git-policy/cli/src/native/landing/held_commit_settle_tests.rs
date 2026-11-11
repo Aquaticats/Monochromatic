@@ -426,3 +426,37 @@ fn a_record_left_by_a_kill_after_its_replayed_landing_is_recognized_and_removed(
     assert_eq!(head_of(repo.as_path()), landed, "the branch was not moved again");
     remove(root.as_path());
 }
+
+/// What:
+///  The line a restart writes about a held batch names the repository of that batch,
+///  says the commit is kept,
+///  and worded as a commit a lock holds, never as one it refused.
+/// Why:
+///   The host run of the 0.6.1-alpha.10 release printed this line for a passing fixture,
+///  and with no repository in it,
+///  the coordinator read it as a commit on this repository's own `main` that failed.
+///  The owner's rule is "Commits should never fail",
+///  and a held commit does not:
+///  it is kept, waits for the lock and lands when the lock clears,
+///  which is what every word of the line has to say.
+#[test]
+fn the_line_about_a_settled_hold_names_its_repository_and_says_the_commit_is_kept() {
+    let (root, repo, context) = repository("held-settle-names-repository");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    std::fs::write(lock.as_path(), "").expect("the lock a killed Git leaves");
+    let intent_text: String = std::fs::read_to_string(batch_path(held.journal.as_path(), 1, OPEN_EXTENSION).as_path()).expect("the batch's intent");
+    let intent: Intent = crate::service_journal::parse_intent(intent_text.as_str()).expect("the intent this control wrote");
+    let mut report: Option<crate::service_land_finish::RecoveryReport> = None;
+    let entries = crate::service_timing::capture::entries_of(|| {
+        report = super::settle_a_recorded_hold(&context, held.journal.as_path(), &intent);
+    });
+    assert!(report.is_some(), "the batch still waits for the lock, so the restart reports it as held");
+    assert_eq!(entries.len(), 1, "the settlement writes one line: {entries:?}");
+    let said: &str = entries[0].message.as_str();
+    assert!(said.contains(format!("in the repository at {}", repo.display()).as_str()), "the line names the repository: {said}");
+    assert!(said.contains("is still held"), "the commit waits for the lock: {said}");
+    assert!(said.contains("is kept"), "the line says the commit is kept: {said}");
+    assert!(!said.contains("refus"), "a commit that is kept is not one that was refused: {said}");
+    remove(root.as_path());
+}

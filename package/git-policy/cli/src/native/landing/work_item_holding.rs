@@ -225,7 +225,10 @@ pub struct BlockedVerdict {
 pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) {
     let id: String = item.id();
     if create_private_directory_all(state_directory(work_dir, BLOCKED).as_path()).is_err() {
-        crate::service_error!("the blocked verdict of the push record {id} cannot be kept");
+        crate::service_error!(
+            "the blocked verdict of the push record {id} {} cannot be kept",
+            crate::service_timing::in_the_repository_at(item.repository.as_path())
+        );
         return;
     }
     let record: String = blocked_record(item.branch_ref.as_str(), item.oid.as_str(), reason);

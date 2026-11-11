@@ -96,7 +96,10 @@ fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: 
     let item: crate::work_item::WorkItem = push_item_of(repository, git_dir, reference, commit, parent);
     let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
     if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, "") {
-        crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
+        crate::service_error!(
+            "the push of the landed commit {commit} {} could not be held for its gate ({reason})",
+            crate::service_timing::in_the_repository_at(repository)
+        );
     }
 }
 
@@ -137,6 +140,9 @@ pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
         return;
     }
     if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, request.holder.as_str()) {
-        crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");
+        crate::service_error!(
+            "the push of the landed commit {commit} {} could not be held for its gate ({reason})",
+            crate::service_timing::in_the_repository_at(request.repository.as_path())
+        );
     }
 }

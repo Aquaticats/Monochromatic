@@ -188,7 +188,10 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
         let branch: &str = due.item.branch_ref.as_str();
         let commit: &str = due.item.oid.as_str();
         if !is_acceptable(&due.item, git_dir) {
-            crate::service_warn!("the push of {branch} is not tried again: its repository or branch record is no longer acceptable");
+            crate::service_warn!(
+                "the push of {branch} {} is not tried again: its repository or branch record is no longer acceptable",
+                crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+            );
             replanning.forget(git_dir, branch);
             continue;
         }
@@ -199,7 +202,12 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
             Verdict::Done => {
                 clear_push_failures_before_awaiting(git_dir, branch, pushing_since).await;
                 replanning.forget(git_dir, branch);
-                crate::service_log!("the push of {branch:?} landed on try {} push_ms={}", due.attempt + 1, began.elapsed().as_millis());
+                crate::service_log!(
+                    "the push of {branch:?} {} landed on try {} push_ms={}",
+                    crate::service_timing::in_the_repository_at(due.item.repository.as_path()),
+                    due.attempt + 1,
+                    began.elapsed().as_millis()
+                );
             }
             Verdict::Retry(text) => {
                 // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
@@ -216,14 +224,25 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                     }
                 };
                 if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, outcome, said.as_str()).await {
-                    crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                    crate::service_error!(
+                        "the failed push of {commit} {} could not be recorded for the person: {reason}",
+                        crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+                    );
                 }
             }
             Verdict::Failed(text) => {
-                crate::service_warn!("the push of {branch:?} failed on try {} and needs you: {}", due.attempt + 1, text.lines().next().unwrap_or_default());
+                crate::service_warn!(
+                    "the push of {branch:?} {} failed on try {} and needs you: {}",
+                    crate::service_timing::in_the_repository_at(due.item.repository.as_path()),
+                    due.attempt + 1,
+                    text.lines().next().unwrap_or_default()
+                );
                 replanning.forget(git_dir, branch);
                 if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, text.as_str()).await {
-                    crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
+                    crate::service_error!(
+                        "the failed push of {commit} {} could not be recorded for the person: {reason}",
+                        crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+                    );
                 }
             }
             Verdict::Skipped(text) => {
@@ -231,7 +250,10 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
                 if !text.is_empty()
                     && let Err(reason) = record_push_skip_awaiting(git_dir, branch, commit, text.as_str()).await
                 {
-                    crate::service_error!("the skipped push of {commit} could not be recorded for the person: {reason}");
+                    crate::service_error!(
+                        "the skipped push of {commit} {} could not be recorded for the person: {reason}",
+                        crate::service_timing::in_the_repository_at(due.item.repository.as_path())
+                    );
                 }
             }
         }

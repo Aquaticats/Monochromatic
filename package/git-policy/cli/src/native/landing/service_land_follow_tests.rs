@@ -317,7 +317,7 @@ fn concluded_merge_with_the_scratch_gone(name: &str) -> (PathBuf, PathBuf, Clean
     let cleanup: Cleanup = Cleanup { git_dir, scratch: scratch.clone(), reftable: false };
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(journal.as_path()).expect("journal");
-    let kept: PathBuf = crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 7).expect("the landing keeps what the cleanup compares");
+    let kept: PathBuf = crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 7, repo.as_path()).expect("the landing keeps what the cleanup compares");
     std::fs::remove_dir_all(scratch.as_path()).expect("the service removes the client's scratch directory");
     return (root, repo, cleanup, kept);
 }
@@ -340,7 +340,7 @@ fn a_copy_of_the_conclusion_state_that_fails_half_way_publishes_nothing() {
     let cleanup: Cleanup = Cleanup { git_dir, scratch, reftable: false };
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(journal.as_path()).expect("journal");
-    assert!(crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 9).is_none(), "a copy that cannot be made keeps nothing");
+    assert!(crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 9, repo.as_path()).is_none(), "a copy that cannot be made keeps nothing");
     assert!(!crate::conclusion_state_copy::path_of(&journal, 9).exists(), "the name the cleanup reads is never taken by a partial copy");
     assert!(!journal.join("9.cleanup.tmp").exists(), "the staging copy goes with the failure");
     remove(root.as_path());

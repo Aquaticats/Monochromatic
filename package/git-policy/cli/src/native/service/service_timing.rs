@@ -29,6 +29,7 @@ use crate::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWrit
 use crate::lfs_output_mask::mask_userinfo_text;
 use crate::quiet_ledger::longest_healthy;
 use crate::transaction_step_durations::{StepFigure, steps_word};
+use std::path::Path;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -441,6 +442,26 @@ pub fn started_line(release: &str, protocol: u32, instance: Option<&str>) -> Str
 /// a client of another release found this service and asked it to finish its batch and exit.
 pub fn retire_line(release: &str) -> String {
     return format!("retire requested by a client; this service is release {release:?} and exits after its batch");
+}
+
+/// What:
+///  The words a line uses to name the repository it is about:
+///  `in the repository at <worktree root>`.
+/// Why:
+///   One service per worktree writes into a journal read across the whole machine,
+///  and a control's fixture runs the same service:
+///  a line that says only `batch 41` can be read as one about the repository its reader is in,
+///  which is how the host run of 0.6.1-alpha.10 had a held fixture commit read as a failed commit on this repository's own `main`.
+///  Every line about a batch, a landing, a push or a held commit names the repository it is about,
+///  and names it beside the batch or the branch,
+///  before anything about the outcome.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// inTheRepositoryAt('/home/x/repo') // 'in the repository at /home/x/repo'
+/// ```
+pub fn in_the_repository_at(repository: &Path) -> String {
+    return format!("in the repository at {}", repository.display());
 }
 
 /// Why a service ended.

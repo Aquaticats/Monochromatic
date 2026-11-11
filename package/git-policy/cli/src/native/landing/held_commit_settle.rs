@@ -247,10 +247,18 @@ fn index_lock_of(held: &Held, intent: &Intent) -> Option<crate::service_index_lo
     match crate::service_land_start::witness_of(intent.index.as_path()) {
         Ok(witness) => {
             if let Err(error) = crate::service_journal::write_start(held.journal.as_path(), intent.seq, &witness) {
-                crate::service_warn!("batch {}: the index file the settlement saw could not be recorded ({error}); the entries are left to the owed record", intent.seq);
+                crate::service_warn!(
+                    "batch {} {}: the index file the settlement saw could not be recorded ({error}); the entries are left to the owed record",
+                    intent.seq,
+                    crate::service_timing::in_the_repository_at(intent.repository.as_path())
+                );
             }
         }
-        Err(error) => crate::service_warn!("batch {}: the index file cannot be looked at ({error}); the entries are left to the owed record", intent.seq),
+        Err(error) => crate::service_warn!(
+            "batch {} {}: the index file cannot be looked at ({error}); the entries are left to the owed record",
+            intent.seq,
+            crate::service_timing::in_the_repository_at(intent.repository.as_path())
+        ),
     }
     return Some(lock);
 }
@@ -286,7 +294,11 @@ fn install_entries(git: &GitContext, held: &Held, intent: &Intent, lock: crate::
         }
         Err(code) => {
             drop(lock);
-            crate::service_error!("batch {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is", intent.seq);
+            crate::service_error!(
+                "batch {} {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is",
+                intent.seq,
+                crate::service_timing::in_the_repository_at(intent.repository.as_path())
+            );
             false
         }
         Ok(_) => crate::service_land_finish::follow_up(git, intent.repository.as_path(), intent, lock, held.journal.as_path()),
@@ -555,6 +567,56 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
 }
 
 /// What:
+///  The line the service writes about a recorded hold it has just settled,
+///  worded by what became of the commit.
+/// Why:
+///   A held commit is kept and waits:
+///  it lands when the lock is gone and never ends because the lock was there,
+///  so the line says which repository the batch belongs to and what became of the branch,
+///  never a state a reader can take for a failed commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// settledWords(seq, held, settled) // 'batch 7 in the repository at /repo is still held: ...'
+/// ```
+fn settled_words(seq: u64, held: &Held, settled: &Settled) -> String {
+    let repository: String = crate::service_timing::in_the_repository_at(held.repository.as_path());
+    let branch: String = held.reference.clone();
+    return match settled {
+        Settled::WaitsForLocks(locks) => format!(
+            "batch {seq} {repository} is still held: the commit {} is kept, {branch} has not moved yet, and it waits for {}. The branch moves as \
+soon as the lock is gone, on this command or the next one in that worktree.",
+            held.new,
+            crate::held_commit_words::locks_named(locks.as_slice())
+        ),
+        Settled::Landed { commit } => {
+            format!("batch {seq} {repository} was held: the lock is gone, and the commit {commit} is on {branch} now")
+        }
+        Settled::LandedTheIndexWaits { commit } => format!(
+            "batch {seq} {repository} was held: the lock is gone, and the commit {commit} is on {branch} now; the index catches up on the \
+next command in that worktree"
+        ),
+        Settled::Conflicts { commit, paths } => {
+            let mut named: Vec<String> = Vec::new();
+            for path in paths {
+                named.push(String::from_utf8_lossy(path).into_owned());
+            }
+            format!(
+                "batch {seq} {repository} is still held: the commit {commit} is kept, and it does not combine with {branch} as it is now on \
+{}",
+                named.join(", ")
+            )
+        }
+        Settled::Cannot { commit, because } => format!(
+            "batch {seq} {repository} is still held: the commit {commit} is kept, and this command cannot move {branch}, because {because}"
+        ),
+        Settled::AlreadyThere { commit } => {
+            format!("batch {seq} {repository} is not held any more: {branch} already names {commit}")
+        }
+    };
+}
+
+/// What:
 ///  Settles the batch a restart found open when a record says a reference lock kept it off its branch,
 ///  and answers the report of a batch still waiting.
 /// Why:
@@ -573,7 +635,7 @@ pub fn settle_a_recorded_hold(git: &GitContext, journal: &Path, intent: &Intent)
     let held: Held = record_of(intent, journal)?;
     let settled: Settled = one(git, &held, Clearing::Proved);
     let seq: u64 = intent.seq;
-    crate::service_log!("batch {seq} is held behind a reference lock: {settled:?}");
+    crate::service_log!("{}", settled_words(seq, &held, &settled));
     let still_held: bool = crate::held_commit_record::path_of(intent.git_dir.as_path(), seq).exists();
     if !still_held {
         return None;

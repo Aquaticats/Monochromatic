@@ -236,10 +236,10 @@ fn git_took_it(answered: std::io::Result<crate::transaction_git::GitOutput>) -> 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// console.warn(`batch ${seq}: ${reason}`)
+/// console.warn(`batch ${seq} in the repository at ${repo}: ${reason}`)
 /// ```
-fn left(seq: u64, reason: &str) {
-    crate::service_warn!("batch {seq}: {reason}");
+fn left(seq: u64, repository: &Path, reason: &str) {
+    crate::service_warn!("batch {seq} {}: {reason}", crate::service_timing::in_the_repository_at(repository));
 }
 
 /// What:
@@ -272,7 +272,7 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
         // No scratch reference at all: the landing made no objects, or its branch write removed it.
         RefValue::Absent => return ScratchRefRemoval::Removed,
         RefValue::Unasked => {
-            left(seq, format!("{scratch} cannot be read, so nothing is removed").as_str());
+            left(seq, repository, format!("{scratch} cannot be read, so nothing is removed").as_str());
             return ScratchRefRemoval::Left;
         }
     };
@@ -280,29 +280,38 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
     match &already {
         RefValue::Names(named) if *named == tip => {}
         RefValue::Names(named) => {
-            left(seq, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
+            left(seq, repository, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
             return ScratchRefRemoval::Left;
         }
         RefValue::Unasked => {
-            left(seq, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
+            left(seq, repository, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
             return ScratchRefRemoval::Left;
         }
         RefValue::Absent => {
             if !write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str()]) {
                 left(
                     seq,
+                    repository,
                     format!("the commit {tip} of a batch that did not land could not be kept at {kept}, so its scratch reference {scratch} is left as it is").as_str(),
                 );
                 return ScratchRefRemoval::Left;
             }
-            crate::service_log!("batch {}: the commit {tip} of a batch that did not land is kept at {}", seq, kept);
+            crate::service_log!(
+                "batch {} {}: the commit {tip} of a batch that did not land is kept at {kept}",
+                seq,
+                crate::service_timing::in_the_repository_at(repository)
+            );
         }
     }
     if write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()]) {
-        crate::service_log!("batch {}: the scratch reference {scratch} of a batch that did not land is removed", seq);
+        crate::service_log!(
+            "batch {} {}: the scratch reference {scratch} of a batch that did not land is removed",
+            seq,
+            crate::service_timing::in_the_repository_at(repository)
+        );
         return ScratchRefRemoval::Removed;
     }
-    left(seq, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
+    left(seq, repository, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
     return ScratchRefRemoval::Left;
 }
 
@@ -333,7 +342,7 @@ pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, reposit
         // No scratch reference at all: the landing made no objects, or its branch write removed it.
         RefValue::Absent => return ScratchRefRemoval::Removed,
         RefValue::Unasked => {
-            left(seq, format!("{scratch} cannot be read, so nothing is removed").as_str());
+            left(seq, repository, format!("{scratch} cannot be read, so nothing is removed").as_str());
             return ScratchRefRemoval::Left;
         }
     };
@@ -341,29 +350,38 @@ pub(crate) async fn clear_after_dropped_batch_awaiting(git: &GitContext, reposit
     match &already {
         RefValue::Names(named) if *named == tip => {}
         RefValue::Names(named) => {
-            left(seq, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
+            left(seq, repository, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
             return ScratchRefRemoval::Left;
         }
         RefValue::Unasked => {
-            left(seq, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
+            left(seq, repository, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
             return ScratchRefRemoval::Left;
         }
         RefValue::Absent => {
             if !write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str()]).await {
                 left(
                     seq,
+                    repository,
                     format!("the commit {tip} of a batch that did not land could not be kept at {kept}, so its scratch reference {scratch} is left as it is").as_str(),
                 );
                 return ScratchRefRemoval::Left;
             }
-            crate::service_log!("batch {}: the commit {tip} of a batch that did not land is kept at {}", seq, kept);
+            crate::service_log!(
+                "batch {} {}: the commit {tip} of a batch that did not land is kept at {kept}",
+                seq,
+                crate::service_timing::in_the_repository_at(repository)
+            );
         }
     }
     if write_ref_awaiting(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()]).await {
-        crate::service_log!("batch {}: the scratch reference {scratch} of a batch that did not land is removed", seq);
+        crate::service_log!(
+            "batch {} {}: the scratch reference {scratch} of a batch that did not land is removed",
+            seq,
+            crate::service_timing::in_the_repository_at(repository)
+        );
         return ScratchRefRemoval::Removed;
     }
-    left(seq, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
+    left(seq, repository, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
     return ScratchRefRemoval::Left;
 }
 
@@ -461,7 +479,11 @@ pub(crate) async fn clear_after_a_failed_landing_awaiting(context: &LandContext,
         Some(true) => return ScratchRefRemoval::Removed,
         Some(false) => {}
         None => {
-            left(seq, "the record of this batch's intent cannot be read, so its scratch reference is left as it is and a restart settles the batch");
+            left(
+                seq,
+                first.repository.as_path(),
+                "the record of this batch's intent cannot be read, so its scratch reference is left as it is and a restart settles the batch",
+            );
             return ScratchRefRemoval::Left;
         }
     }
