@@ -334,7 +334,8 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
 /// and the queue answers an id it already knows as known in every state.
 /// The moment a hand-over writes is a millisecond,
 /// so two hand-overs of one path asked for inside one millisecond would otherwise share a name
-/// and the second would be dropped: its filling would never run,
+/// and the second would be dropped:
+/// its filling would never run,
 /// and a filling that failed could not be asked for again.
 /// The control writes `HAND_OVERS` records as fast as it can:
 /// a record takes far less than a millisecond to write,
