@@ -4,7 +4,7 @@
 //! and the
 //! landing's follow-up then runs `git reset --no-refresh` on the same file.
 
-use super::support::{Edit, Plan, Scene, finish, git_with, index_bytes, landing_reset, landing_reset_copy, named, scene};
+use super::support::{Edit, Plan, Scene, copy_of, finish, git_reset, git_with, index_bytes, landing_reset, landing_reset_copy, named, scene};
 use super::*;
 use crate::recording_git::{recorded_starts, recording_context};
 use crate::repo_read_hook::SWITCH_VARIABLE;
@@ -49,6 +49,11 @@ fn follow_up_falls_back(scene: &Scene, label: &str) {
     assert!(!starts.iter().any(|start| { return start.starts_with("reset -q"); }), "{label}: the fallback still asks for -q or a refresh: {starts:?}");
     held.release_with(built.path()).expect("installed");
     assert!(git_output(scene.repo.as_path(), &["diff", "--cached", "--quiet", scene.new.as_str(), "--", "a"]).status.success(), "{label}: the path is not at the commit");
+}
+
+/// Whether an index file carries the untracked cache.
+fn has_untracked(bytes: &[u8]) -> bool {
+    return crate::index_reset_support_probe::extension_of(bytes, b"UNTR", 20).is_some();
 }
 
 /// A split index (`link` extension).
@@ -133,6 +138,35 @@ fn configuration_the_update_does_not_reproduce_is_left_to_git() {
         declines(&scene, format!("{key}={value}").as_str());
         finish(scene);
     }
+}
+
+/// What:
+///  `feature.manyFiles` beside `core.untrackedCache=keep`:
+///  real Git adds the untracked cache the index does not have,
+///  so the landing leaves the file to `git reset --no-refresh`,
+///  which ends with Git's own index.
+/// Why:
+///  Git sets the untracked-cache default from `feature.manyFiles` before it reads `core.untrackedCache`,
+///  and `keep` is a value its boolean reader refuses, so it leaves that default alone (`repo-settings.c` of Git
+///  2.56.0).
+///  A landing that read `keep` as "leave the file's extensions as they are" installed an index without the cache
+///  Git adds,
+///  so the person's index stopped being the file Git writes.
+#[test]
+fn feature_manyfiles_with_an_untracked_cache_kept_lets_git_add_the_cache() {
+    let scene: Scene = changed_a("index-fallback-manyfiles-keep");
+    for (key, value) in [("feature.manyFiles", "true"), ("core.untrackedCache", "keep")] {
+        git(scene.repo.as_path(), &["config", key, value]);
+    }
+    assert!(!has_untracked(index_bytes(scene.repo.as_path()).as_slice()), "the scene starts without the cache, or the case proves nothing");
+    // Real Git's own reset is the statement of what this configuration does; the control below depends on it.
+    let control: PathBuf = copy_of(&scene);
+    git_reset(control.as_path(), scene.new.as_str(), &named(&["a"]));
+    assert!(has_untracked(index_bytes(control.as_path()).as_slice()), "real Git adds the untracked cache here");
+    declines(&scene, "feature.manyFiles with core.untrackedCache=keep");
+    follow_up_falls_back(&scene, "feature.manyFiles with core.untrackedCache=keep");
+    assert!(has_untracked(index_bytes(scene.repo.as_path()).as_slice()), "the follow-up ends with the cache Git adds");
+    finish(scene);
 }
 
 /// A file in the commit where the index has a directory of files is a conflict Git settles.
