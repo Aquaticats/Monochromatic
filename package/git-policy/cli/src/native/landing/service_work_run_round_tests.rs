@@ -107,17 +107,62 @@ fn a_forget_of_an_abandoned_round_keeps_the_plan_a_later_round_wrote() {
     let mut first: PushRetries = PushRetries::restored(Duration::from_secs(1), store.as_path());
     let pause: Duration = first.schedule(here.as_path(), &item(main), 1, now);
     let _taken: Vec<Assignment> = plan_the_round(std::slice::from_ref(&here), &mut first, now + pause);
-    // The round's job holds this clone, and it is still running when the caller stops waiting for it.
+    // The round's job holds this clone and the changes of its drain, and it is still running when the caller stops waiting.
     let abandoned: PushRetries = first.clone();
+    let asked: u64 = crate::push_retry_store::micros_now();
+    let forget: RetryChange = RetryChange::Forget { git_dir: here.clone(), branch_ref: String::from(main), asked };
     assert_eq!(load(store.as_path()).len(), 1, "round one's plan is on disk");
     // A later wake drains the same branch again, its push fails retryably, and its worker writes that plan.
     let later: StoredPlan = StoredPlan { git_dir: here.clone(), item: item(main), attempt: 2 };
     save(store.as_path(), &later).expect("the later round's worker keeps its plan before the person is told");
     // The abandoned round's job resumes and applies the forget of the push it took.
     let mut resumed: PushRetries = abandoned;
-    resumed.apply(vec![RetryChange::Forget { git_dir: here.clone(), branch_ref: String::from(main) }]);
+    resumed.apply(vec![forget]);
     assert_eq!(load(store.as_path()), vec![later], "the plan the later round wrote is still on disk after the late forget");
     let restarted: PushRetries = PushRetries::restored(Duration::from_secs(1), store.as_path());
     assert_eq!(restarted.directories(), vec![here], "a kill and a restart still find the retry the later round promised");
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A forget a round could not write is written by a later round, and the round keeps a wake until it is.
+/// Why:
+///   A plan job the system gave no thread for,
+/// or one whose answer cannot be read,
+/// changes the plan in memory only,
+/// and the worker's plan stays on disk, which is what a kill needs.
+/// A forget asks for the plan to go,
+/// so a forget left only in memory is a statement on disk that says the opposite:
+/// a service started after a kill would restore the plan and run the push that had landed,
+/// which is why the plan of a push that ended must not outlive the round that forgot it.
+/// The round therefore names the branch for a new write,
+/// and the next round writes it, with a wake until it does.
+#[test]
+fn a_forget_a_round_could_not_write_is_written_by_a_later_round() {
+    use crate::push_retry_store::{load, micros_now};
+
+    let root: PathBuf = crate::test_support::fixture("forget-a-round-could-not-write");
+    let store: PathBuf = root.join("push-retries");
+    let here: PathBuf = root.join("repo/.git");
+    let main: &str = "refs/heads/main";
+    let now: Instant = Instant::now();
+    // A worker kept the plan of its branch before the person was told a retry comes, and the round took what was due.
+    let mut first: PushRetries = PushRetries::restored(Duration::from_secs(1), store.as_path());
+    let pause: Duration = first.schedule(here.as_path(), &item(main), 1, now);
+    let _taken: Vec<Assignment> = plan_the_round(std::slice::from_ref(&here), &mut first, now + pause);
+    assert_eq!(load(store.as_path()).len(), 1, "the worker's plan is on disk");
+    // The push landed, so the round's only change is the forget of its branch, and the job that applies it answers nothing:
+    //  the round applies it in memory, and the plan of the push that ended is still on disk.
+    let mut kept: PushRetries = first.clone();
+    kept.apply_without_writing(vec![RetryChange::Forget { git_dir: here.clone(), branch_ref: String::from(main), asked: micros_now() }]);
+    assert_eq!(load(store.as_path()).len(), 1, "a write that gave no answer leaves the plan the worker wrote on disk");
+    assert!(
+        kept.next_wait(here.as_path(), Instant::now()).is_some(),
+        "the round names the branch whose forget it could not write, so a later round writes it"
+    );
+    // The next round writes the forget it was handed, with no change of its own.
+    kept.apply(Vec::new());
+    assert!(load(store.as_path()).is_empty(), "a later round's write removes the plan of the push that ended");
+    assert!(kept.next_wait(here.as_path(), Instant::now()).is_none(), "no wake remains once the forget is written");
     crate::test_support::remove(root.as_path());
 }

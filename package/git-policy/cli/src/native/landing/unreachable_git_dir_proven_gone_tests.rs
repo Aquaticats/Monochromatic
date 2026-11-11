@@ -190,7 +190,7 @@ fn a_deleted_repository_ends_its_plans() {
     );
     assert_eq!(drained.changes.len(), 1, "one change, and it drops the branch: {:?}", drained.changes);
     assert!(
-        matches!(&drained.changes[0], RetryChange::Forget { git_dir: named, branch_ref } if named.as_path() == git_dir.as_path() && branch_ref == BRANCH),
+        matches!(&drained.changes[0], RetryChange::Forget { git_dir: named, branch_ref, .. } if named.as_path() == git_dir.as_path() && branch_ref == BRANCH),
         "the plan of the branch ends where it was kept: {:?}",
         drained.changes
     );

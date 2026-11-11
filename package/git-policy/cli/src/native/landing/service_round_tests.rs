@@ -421,7 +421,7 @@ fn rendered(answer: &RoundAnswer, directories: &[Assignment]) -> Vec<String> {
     for change in &answer.changes {
         said.push(match change {
             RetryChange::Plan { git_dir, item, attempt, .. } => format!("plan {} {} {attempt}", index_of(git_dir.as_path()), item.branch_ref),
-            RetryChange::Forget { git_dir, branch_ref } => format!("forget {} {branch_ref}", index_of(git_dir.as_path())),
+            RetryChange::Forget { git_dir, branch_ref, .. } => format!("forget {} {branch_ref}", index_of(git_dir.as_path())),
         });
     }
     return said;

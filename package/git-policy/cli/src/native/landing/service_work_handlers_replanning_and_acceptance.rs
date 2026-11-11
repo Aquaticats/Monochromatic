@@ -470,7 +470,10 @@ impl Replanning {
     /// its push landed,
     /// or the person must act.
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
+        // The instant is the worker's own, so a forget an abandoned job writes late is still judged against the plans
+        //  that were there when this round drained the branch.
+        let asked: u64 = crate::push_retry_store::micros_now();
+        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), asked });
     }
 
     /// What:

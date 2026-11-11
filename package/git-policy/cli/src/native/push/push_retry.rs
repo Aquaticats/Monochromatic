@@ -27,6 +27,10 @@
 //! a login the service does not have and a hook on the server that
 //!  declined the push stop the retry until the next commit (owner decision,
 //! 2026-11-03).
+//! A removal the round that asked for it could not write is owed to a later round,
+//! and the branch is named until that write happens,
+//! so the plan of a push that ended never outlives the round that forgot it
+//!  (`UnwrittenForget`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -323,7 +327,7 @@ impl Retrying {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef } };
+/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; asked } };
 /// ```
 #[derive(Clone, Debug)]
 pub enum RetryChange {
@@ -348,6 +352,14 @@ pub enum RetryChange {
         git_dir: PathBuf,
         /// The branch reference.
         branch_ref: String,
+        /// When the worker asked for the branch's plans to end,
+        /// in microseconds since the epoch.
+        /// Why:
+        ///   A forget is applied by a job that is never cancelled,
+        /// so it may be written long after the round that asked for it ended;
+        /// this instant is what tells the plans it read from the ones a later round wrote,
+        /// which stay.
+        asked: u64,
     },
 }
 
@@ -461,15 +473,31 @@ pub struct PushRetries {
     /// so that a restarted service rebuilds it;
     /// nothing for a list kept in memory only.
     store: Option<PathBuf>,
-    /// When the round that owns this list began its work,
-    /// in microseconds since the epoch,
-    /// which is what its forgets are judged against.
+    /// The forgets this list applied without writing them,
+    /// each with the instant it was asked and the number of writes that came to nothing.
     /// Why:
-    ///   A round's forget is applied by a job that is never cancelled,
-    /// so it may write long after the round ended;
-    /// a plan written at or after this instant is a statement that round never read,
-    /// and its forget must not take it.
-    taken: u64,
+    ///   A plan job that gives no answer changed the list and not the journal,
+    /// and a forget asks for a file to go:
+    /// the file the worker wrote is still there,
+    /// so a service started after a kill would restore the plan of a push that had landed.
+    /// The branch is named here until a round's write removes it,
+    /// and the list keeps a wake for it meanwhile (`next_wait`).
+    unwritten: Vec<UnwrittenForget>,
+}
+
+/// A forget the list applied without writing it.
+#[derive(Clone, Debug)]
+struct UnwrittenForget {
+    /// The Git directory whose service pushes.
+    git_dir: PathBuf,
+    /// The branch reference its plan ends.
+    branch_ref: String,
+    /// When the worker asked for the branch's plans to end,
+    /// in microseconds since the epoch.
+    asked: u64,
+    /// How many writes of it have come to nothing,
+    /// which is the pause before the next one.
+    tries: u32,
 }
 
 /// Methods over the list.
@@ -481,7 +509,7 @@ impl PushRetries {
 
     /// A list with this first pause.
     pub fn with_first_pause(first: Duration) -> Self {
-        return Self { first, waiting: Vec::new(), store: None, taken: micros_now() };
+        return Self { first, waiting: Vec::new(), store: None, unwritten: Vec::new() };
     }
 
     /// What:
@@ -502,7 +530,7 @@ impl PushRetries {
     /// const retries = new PushRetries(first, dir); for (const saved of await load(dir)) retries.plan(saved, now + pauseBefore(saved.attempt, first));
     /// ```
     pub fn restored(first: Duration, directory: &Path) -> Self {
-        let mut list: Self = Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()), taken: micros_now() };
+        let mut list: Self = Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()), unwritten: Vec::new() };
         let now: Instant = Instant::now();
         for saved in load(directory) {
             list.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, first) });
@@ -519,24 +547,6 @@ impl PushRetries {
     /// The pause before the first new try.
     pub fn first(&self) -> Duration {
         return self.first;
-    }
-
-    /// What:
-    ///  Marks the beginning of the round this list plans,
-    /// so that the forgets of that round are judged against it.
-    /// Why:
-    ///   The round's job takes a clone of this list and may write its forget long after the round ended;
-    /// the instant travels with the clone,
-    /// so a plan a later round wrote is newer than the statement the late forget read.
-    /// A round takes the instant before it reads what is due,
-    /// because a worker's plan is written before the round applies its changes.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// retries.beginRound()
-    /// ```
-    pub fn begin_round(&mut self) {
-        self.taken = micros_now();
     }
 
     /// The directory the plan is kept in,
@@ -557,9 +567,16 @@ impl PushRetries {
     /// Plan try number `attempt` of the branch of `item` for `due`,
     /// replacing any plan for the same branch.
     fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant) {
+        self.plan_writing(git_dir, item, attempt, due, true);
+    }
+
+    /// `plan` with the write of the plan's own file given,
+    /// so that a round whose job gave no answer changes the list alone.
+    fn plan_writing(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant, write: bool) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, item.branch_ref.as_str());
         self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due });
-        if let Some(directory) = self.store.as_deref()
+        if write
+            && let Some(directory) = self.store.as_deref()
             && let Err(reason) = save(directory, &StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt })
         {
             crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
@@ -570,16 +587,17 @@ impl PushRetries {
     /// its push landed,
     /// or the person must act.
     pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.forget_keeping(git_dir, branch_ref, &[]);
+        self.forget_keeping(git_dir, branch_ref, &[], micros_now());
     }
 
     /// `forget` for a branch whose plan the rest of this round keeps,
     /// under the file names in `keep`:
-    /// those are newer statements than the forget and stay on disk.
-    pub fn forget_keeping(&mut self, git_dir: &Path, branch_ref: &str, keep: &[String]) {
+    /// those are newer statements than the forget and stay on disk,
+    /// as does every plan written at or since `asked`.
+    pub fn forget_keeping(&mut self, git_dir: &Path, branch_ref: &str, keep: &[String], asked: u64) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
         if let Some(directory) = self.store.as_deref() {
-            remove_except(directory, git_dir, branch_ref, keep, self.taken);
+            remove_except(directory, git_dir, branch_ref, keep, asked);
         }
     }
 
@@ -607,6 +625,38 @@ impl PushRetries {
     /// }
     /// ```
     pub fn apply(&mut self, changes: Vec<RetryChange>) {
+        // A forget an earlier round could not write goes first: it is the older statement about its branch.
+        self.write_the_forgets_that_were_left();
+        self.apply_changes_writing(changes, true);
+    }
+
+    /// What:
+    ///  `apply` with the writes of the plan's own files given:
+    /// the list changes and the journal is left as it is.
+    /// Why:
+    ///   A task of the runtime may not write storage itself,
+    /// and a job that gave no answer may have written or not,
+    /// so the list keeps what the workers asked.
+    /// A plan a worker asked for is already on disk, because the worker writes it before the person is told a retry comes;
+    ///  a forget is not,
+    /// so the branch is named for a later round's write, which is what keeps a killed service from restoring the plan of a
+    ///  push that had landed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// applyWithoutWriting(changes) // the list changes; every forget is owed to a later round
+    /// ```
+    pub fn apply_without_writing(&mut self, changes: Vec<RetryChange>) {
+        self.apply_changes_writing(changes, false);
+    }
+
+    /// What:
+    ///  Apply what the workers asked,
+    /// in the order they asked it,
+    /// writing the plan's own files or not.
+    /// Why:
+    ///   See `apply` and `apply_without_writing`.
+    fn apply_changes_writing(&mut self, changes: Vec<RetryChange>, write: bool) {
         for index in 0..changes.len() {
             // A service killed here has applied the changes before this one and nothing after it.
             #[cfg(test)]
@@ -618,35 +668,67 @@ impl PushRetries {
                     if planned_again_after(changes.as_slice(), index, git_dir, item.branch_ref.as_str()) {
                         continue;
                     }
-                    self.plan(git_dir.as_path(), item, *attempt, *due)
+                    self.plan_writing(git_dir.as_path(), item, *attempt, *due, write)
                 }
-                RetryChange::Forget { git_dir, branch_ref } => {
+                RetryChange::Forget { git_dir, branch_ref, asked } => {
                     let keep: Vec<String> = last_plan_after(changes.as_slice(), index, git_dir, branch_ref).into_iter().collect();
-                    self.forget_keeping(git_dir.as_path(), branch_ref.as_str(), keep.as_slice());
+                    if write {
+                        self.forget_keeping(git_dir.as_path(), branch_ref.as_str(), keep.as_slice(), *asked);
+                    } else {
+                        self.forget_owed_to_a_later_round(git_dir.as_path(), branch_ref.as_str(), *asked);
+                    }
                 }
             }
         }
     }
 
     /// What:
-    ///  Apply what the workers of a round asked,
-    /// without writing the plan's own files:
-    /// the list changes here and the journal keeps what it holds.
+    ///  Drop the branch's plans from the list and name the branch for a later round's write.
     /// Why:
-    ///   A caller that polls the runtime may not write storage itself,
-    /// and a job the system gave no thread for wrote nothing,
-    ///  while the worker of each plan already wrote the file it promised:
-    /// the list is what this call must keep,
-    /// and the next round writes the plan's files again when a thread can start.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// applyWithoutWriting(changes) // the store is out of the way for the length of the apply
-    /// ```
-    pub fn apply_without_writing(&mut self, changes: Vec<RetryChange>) {
-        let store: Option<PathBuf> = self.store.take();
-        self.apply(changes);
-        self.store = store;
+    ///  A round whose job gave no answer may have written the forget or not,
+    /// and the list cannot read which;
+    /// naming the branch writes the same removal twice at worst,
+    /// and leaving it unnamed would keep the plan of a push that ended on disk for a service started after a kill.
+    fn forget_owed_to_a_later_round(&mut self, git_dir: &Path, branch_ref: &str, asked: u64) {
+        self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
+        if self.store.is_none() {
+            return;
+        }
+        for owed in &mut self.unwritten {
+            if owed.git_dir == git_dir && owed.branch_ref == branch_ref {
+                owed.asked = owed.asked.max(asked);
+                return;
+            }
+        }
+        self.unwritten.push(UnwrittenForget {
+            git_dir: git_dir.to_path_buf(),
+            branch_ref: branch_ref.to_owned(),
+            asked,
+            // The first write of it is due one first pause from now, which is what the loop's wake reads.
+            tries: 1,
+        });
+    }
+
+    /// What:
+    ///  Write the removals an earlier round could not write,
+    /// and keep the ones whose write came to nothing.
+    /// Why:
+    ///   A plan file that names its branch and is still there is the one a restarted service would run;
+    /// the write of its removal is tried again after the pause `next_wait` names,
+    /// so the branch is named until its plan is really gone.
+    fn write_the_forgets_that_were_left(&mut self) {
+        let Some(directory) = self.store.clone() else {
+            self.unwritten.clear();
+            return;
+        };
+        let mut left: Vec<UnwrittenForget> = Vec::new();
+        for mut owed in std::mem::take(&mut self.unwritten) {
+            if remove_except(directory.as_path(), owed.git_dir.as_path(), owed.branch_ref.as_str(), &[], owed.asked) {
+                owed.tries = owed.tries.saturating_add(1);
+                left.push(owed);
+            }
+        }
+        self.unwritten = left;
     }
 
     /// Remove and return the plans of this Git directory that are due at `now`.
@@ -664,8 +746,9 @@ impl PushRetries {
         return due;
     }
 
-    /// How long until the first plan of this Git directory is due (zero for one already due),
-    /// or nothing when none waits.
+    /// How long until the first plan of this Git directory is due (zero for one already due)
+    /// or the first removal a round could not write is tried again,
+    /// or nothing when neither waits.
     pub fn next_wait(&self, git_dir: &Path, now: Instant) -> Option<Duration> {
         let mut soonest: Option<Duration> = None;
         for entry in &self.waiting {
@@ -677,6 +760,17 @@ impl PushRetries {
                 Some(earlier) => earlier.min(wait),
                 None => wait,
             });
+        }
+        // A removal a round could not write is a statement on disk that its own list contradicts, so it is due too, after a
+        //  pause that grows with each write that came to nothing.
+        for owed in &self.unwritten {
+            if owed.git_dir == git_dir {
+                let wait: Duration = pause_before(owed.tries.max(1), self.first);
+                soonest = Some(match soonest {
+                    Some(earlier) => earlier.min(wait),
+                    None => wait,
+                });
+            }
         }
         return soonest;
     }

@@ -71,13 +71,14 @@ async fn apply_awaiting(retries: PushRetries, changes: Vec<RetryChange>) -> Push
     return match run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, (retries, changes), apply_in_a_job).await {
         TheAnswerOfAJobAwaited::Ran(back) => back,
         // The plan of this round is kept here and no file is written from a task of the runtime; the workers' own plans
-        //  stand on disk, and the round after this one writes this one's.
+        //  stand on disk, the forgets it asked for are owed to the round after this one, and that round writes them.
         TheAnswerOfAJobAwaited::NotRun => {
             crate::service_warn!("the plan of this round's pushes was not written, because the system gave no thread for it; the round keeps it and the next round writes it");
             apply_without_writing(kept, asked)
         }
         // The job started on another thread or gave no answer within its ceiling, so what it wrote is not known; the list
-        //  keeps the round's changes, which is what the loop's wake for these directories reads.
+        //  keeps the round's changes, which is what the loop's wake for these directories reads, and names each branch whose
+        //  forget it cannot prove so that a later round writes it.
         TheAnswerOfAJobAwaited::NoAnswer => {
             crate::service_warn!("the plan of this round's pushes gave no answer, so whether the journal holds it is not known; the round keeps it and the next round writes it");
             apply_without_writing(kept, asked)
@@ -153,8 +154,6 @@ fn round_of_wakes(wakes: Vec<Wake>, handlers: &GitHandlers) -> (Vec<PathBuf>, Ar
 /// const assignments = planTheRound(directories, retries, takenAt);
 /// ```
 fn plan_the_round(directories: &[PathBuf], retries: &mut PushRetries, taken_at: Instant) -> Vec<Assignment> {
-    // The round began now, and the plans its workers write are newer than anything an earlier round's late forget read.
-    retries.begin_round();
     let first: Duration = retries.first();
     let mut assignments: Vec<Assignment> = Vec::new();
     for directory in directories {

@@ -180,6 +180,7 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
         // A save is the newest statement of its branch, so every other file of it goes.
         None,
     );
+    // A file a save could not remove is read again by the next start, which is what `load` says.
     return Ok(());
 }
 
@@ -192,7 +193,7 @@ pub fn name_of(plan: &StoredPlan) -> String {
 /// Removes the files of the plan of a branch;
 /// one that cannot be removed stays and is read again by the next start.
 pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
-    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], &[], None);
+    let _left: bool = remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], &[], None);
 }
 
 /// What:
@@ -213,8 +214,8 @@ pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
 /// ```ts
 /// removeFilesOf(gitDir, branchRef, keys, keep, roundBeganAt)
 /// ```
-pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &[String], written_before: u64) {
-    remove_files_of(
+pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &[String], written_before: u64) -> bool {
+    return remove_files_of(
         directory,
         git_dir,
         branch_ref,
@@ -242,10 +243,14 @@ pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &
 /// since deleting it needs permission on its directory alone.
 ///  The names in `keep` are the plans a round is about to write,
 /// which a forget of the same round must not take,
-///  and `written_before` is the instant that round began,
-/// so a statement a later round wrote is not taken either.
-fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: &[String], written_before: Option<u64>) {
-    let Ok(listing) = std::fs::read_dir(directory) else { return };
+///  and `written_before` is the instant the forget was asked,
+/// so a statement written since is not taken either.
+/// Answers whether a plan of the branch that this removal covers is still there,
+/// which is what a caller that tries the removal again reads:
+/// a file it left because it is newer, unreadable or another branch's is not one it covers.
+fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: &[String], written_before: Option<u64>) -> bool {
+    let Ok(listing) = std::fs::read_dir(directory) else { return false };
+    let mut left: bool = false;
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if keep.contains(&name) || !names_the_branch(keys, name.as_str()) {
@@ -253,12 +258,15 @@ fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[S
         }
         let path: PathBuf = entry.path();
         let Some(saved): Option<u64> = saved_of_the_branch(path.as_path(), git_dir, branch_ref) else { continue };
-        // A plan written at or since the forgetting round began is a newer statement than the one that round read.
-        if written_before.is_some_and(|began: u64| saved >= began) {
+        // A plan written at or since the forget was asked is a newer statement than the one that forget read.
+        if written_before.is_some_and(|asked: u64| saved >= asked) {
             continue;
         }
-        let _removed = std::fs::remove_file(path);
+        if std::fs::remove_file(path).is_err() {
+            left = true;
+        }
     }
+    return left;
 }
 
 /// The instant the plan in `path` records,
