@@ -101,6 +101,73 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A killed merge's recovery judges a path by the entry Git wrote, and two review findings stand as recorded (2026-11-11T00:38:51-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-merge-carry-review-round-2-findings`,
+from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `ee545033ad`.
+The review of the branch the integration already carries is
+`~/temp/agent/kimi-reviews/merge-carry-review-round-2-findings-round-133/review.md`,
+its four findings summarised in `~/temp/agent/pi-runs/kimi-findings-round-133.md` under
+`## merge-carry-review-round-2-findings-round-133`;
+all four are about the carry.
+Two were reproduced here and two are read from the code.
+
+- **A save that accepts the whole merge was replaced by the older captured layer after a kill (real, fixed).**
+  The apply reads the entry every path Git's own update wrote
+  (`merge_isolation_apply.rs`, `landed_of`),
+  and the carry writes a path only while that entry still stands;
+  a recovery passed an empty reading,
+  and `the_file_git_landed` answers `true` for a path the reading does not name,
+  so a killed merge's recovery judged every path by its bytes alone
+  (`merge_isolation_recovery_carry.rs`).
+  The reading is now published into the merge's record before the marker a kill stops at
+  (`rewrite_merge_intent`, `merge_isolation_journal.rs`,
+  staged beside the record and renamed over it, with no flush on the merge's own path),
+  and both recovery carries pass `intent.landed`.
+  Control `a_save_after_the_kill_that_accepts_the_whole_merge_stands`
+  (`binary_merge_carries_edits_kill_tests.rs`)
+  failed before the fix with the older line back in the file and passes after it;
+  the review's program printed `REPRODUCED` against `ee545033ad` and `NOT REPRODUCED` after.
+  A record written before that reading carries none: an earlier release's,
+  and one a machine crash left at the state before the rename.
+  There the recovery judges a path by its bytes, as this branch did before.
+- **A save that lands between Git's write and the reading is read as Git's own (real window, no change).**
+  No evidence this command can read tells the two apart:
+  the save leaves the merge's own bytes in the entry Git made.
+  The carry then merges the older layer into the file,
+  so both sides stand in it and the path is named;
+  nothing either side wrote is discarded.
+  Control `a_save_that_lands_before_the_reading_keeps_both_sides`
+  pins what that leaves.
+  `SPEC.md`, "Recovery", records the window and why it stays.
+- **A live merge record does not restore a previous release's aside (recorded limit, no change).**
+  A private name an earlier release wrote carries no merge key,
+  so no record claims it;
+  it is left where it is and named with the path it belongs to,
+  and the person moves it back.
+  Putting an unclaimed name back is the hazard the round-two finding 3 removed:
+  it brings back a file the person deleted.
+  The bytes stay at a path the command prints.
+  `SPEC.md`, "Recovery" now states the claiming rule, which it did not before.
+- **An unreadable holder is ignored before the aside is unlinked (recorded limit, no change).**
+  `SPEC.md:12967-12971` states it with the removal's proof:
+  "a process in another user namespace, or one that cannot be read, is not seen,
+  so a file such a process holds open is removed with its private name".
+  Measured on this host: 782 of 1507 processes have a descriptor directory this user cannot read,
+  so counting one as a possible holder would keep every aside forever.
+  The tolerance is the owner's of 2026-11-07, "Service removes it", applied to the same scan.
+
+The reproductions are the review's programs with three changes:
+Git is called as plain `git`,
+every command gets a throwaway `HOME` and `XDG_RUNTIME_DIR`,
+and a fixture commit is built from plumbing (`add`, `write-tree`, `commit-tree`, `update-ref`),
+because a porcelain commit starts the commit service,
+which cannot start from a runtime directory that has no session bus.
+
+Next action:
+land this branch;
+the integration's own red tests are untouched by it.
+
 ### A Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`: three findings, all reproduced and fixed (2026-11-10T19:04:54-05:00)
 
 Branch `fix/git-policy-cli-kimi-all-waits-findings`,
