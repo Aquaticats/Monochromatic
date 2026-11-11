@@ -94,6 +94,11 @@ pub mod worktree_clean_content_attribute_sources;
 #[cfg(unix)]
 pub mod worktree_remove_plan;
 
+/// The directories one removal holds open,
+/// the last look at them before the destroy,
+/// and the lock that keeps a worktree.
+pub mod worktree_removal_holds_the_worktree;
+
 /// The removal of a clean subvolume worktree by one ioctl,
 /// and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]

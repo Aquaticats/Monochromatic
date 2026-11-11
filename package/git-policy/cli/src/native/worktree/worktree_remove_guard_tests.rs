@@ -333,7 +333,8 @@ fn a_worktree_with_a_populated_submodule_is_left_to_git() {
 /// and that emptying refuses a nested subvolume,
 ///  so a pool still standing when the destroy ran left a removal that could never finish:
 /// the files gone,
-///  the registration and the whole pool left to `git worktree prune` (a Sonnet finding, F1).
+///  the registration and the whole pool left to `git worktree prune` (a Sonnet finding,
+/// F1).
 ///  The member planted here is the one shape a pool holds,
 /// a copy of the worktree an add takes its ignored state from.
 #[test]
@@ -365,7 +366,8 @@ fn the_snapshots_ahead_are_gone_before_the_subvolume_is_destroyed() {
 /// and the destroy cannot be
 ///  undone,
 /// so a pool that cannot go first has to stop the removal while the worktree is still there
-///  (a Sonnet finding, F1).
+///  (a Sonnet finding,
+/// F1).
 #[test]
 fn a_removal_whose_snapshots_ahead_cannot_be_cleared_refuses_before_the_subvolume_goes() {
     let root: PathBuf = fixture("remove-guard-snapshots-ahead-blocked");

@@ -194,7 +194,8 @@ pub(crate) fn incomplete_report(target: &Path, registration: &Registration, comm
 /// and the emptying
 ///  refuses a nested subvolume,
 /// so a pool that cannot go first has to stop the removal while nothing has happened yet
-///  (a Sonnet finding, F1).
+///  (a Sonnet finding,
+/// F1).
 ///  The pool is the wrapper's own,
 /// so the person is told which folder holds it and the one command that takes each member,
 ///  and that nothing of the worktree was removed.

@@ -29,7 +29,8 @@ use std::path::PathBuf;
 /// so every such removal ended as "the files are gone and the
 ///  registration is not",
 /// with the whole pool left behind until the person ran `git worktree prune`
-///  (a Sonnet finding, F1).
+///  (a Sonnet finding,
+/// F1).
 ///  A pool is the wrapper's own cache of the worktree,
 /// and a later add that finds none makes its own.
 #[test]

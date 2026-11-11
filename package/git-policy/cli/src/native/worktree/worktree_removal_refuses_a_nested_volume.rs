@@ -11,11 +11,14 @@
 //!  rename took it out of the person's way,
 //! the directory stayed for ever under the service's own name with every file of it,
 //! and the
-//!  command said the files were gone (a Sonnet finding, F5).
-//! Git's own removal is no answer: it unlinks the inner
+//!  command said the files were gone (a Sonnet finding,
+//! F5).
+//! Git's own removal is no answer:
+//! it unlinks the inner
 //!  worktree's files and leaves its empty subvolume,
 //! so the one worktree inside another keeps nothing
-//!  (a Sonnet finding, F2).
+//!  (a Sonnet finding,
+//! F2).
 //! The removal therefore proves the kernel can take the whole tree before it renames anything,
 //! with the
 //!  same walk the emptying makes,
@@ -76,8 +79,12 @@ pub(crate) fn refusal_for_nested_volume(target: &Path, common_dir: &Path, found:
 /// const worktree = registrationAt(commonDir, path); // Registration | undefined
 /// ```
 fn registration_at(common_dir: &Path, path: &Path) -> Option<Registration> {
-    let found: Vec<Registration> = registrations_of(common_dir).ok()?;
-    return found.into_iter().find(|one: &Registration| { return one.worktree == path; });
+    for one in registrations_of(common_dir).ok()? {
+        if one.worktree == path {
+            return Some(one);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -115,7 +122,8 @@ fn named_worktree_report(target: &Path, worktree: &Registration) -> String {
 ///   A subvolume of the person's own is the same to the kernel as a nested worktree,
 /// and a mount point stops the
 ///  deletion too,
-/// so the report names it and every way to move, unmount or delete it.
+/// so the report names it and every way to move,
+/// unmount or delete it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -24,12 +24,16 @@
 //!  no process works inside it,
 //!  every ignored file of it is also in the worktree the merge ran in,
 //!  and Git removes it without `--force`.
-//!  The ignored files are the one hole Git leaves: `git worktree remove` deletes what Git ignores
-//!  without a word, and the btrfs destroy takes the whole directory,
+//!  The ignored files are the one hole Git leaves:
+//! `git worktree remove` deletes what Git ignores
+//!  without a word,
+//! and the btrfs destroy takes the whole directory,
 //!  so a file the person wrote there after the add would go with it.
 //!  The source is the proof available (`worktree_landed_ignored_files.rs`):
-//!  an ignored file this repository's worktree holds with the same kind, mode and bytes is state the repository already has,
-//!  and one it does not hold that way may be the person's, so the worktree stays and the file is named.
+//!  an ignored file this repository's worktree holds with the same kind,
+//! mode and bytes is state the repository already has,
+//!  and one it does not hold that way may be the person's,
+//! so the worktree stays and the file is named.
 //!  Ignored directories are the build state this sweep exists to give back and go with the worktree.
 //!  What is left is Git's own decision in Git's own words:
 //!  the removal runs real `git worktree remove` unless the btrfs destroy applies,
@@ -37,7 +41,8 @@
 //!  and what the person reads here is Git's sentence.
 //!  Everything else is named with its reason and left alone.
 //!  A commit a reference lock holds in a landed worktree lives in that worktree's own Git directory
-//!  and on its per-worktree reference, and both go with the removal,
+//!  and on its per-worktree reference,
+//! and both go with the removal,
 //!  so every held commit reaches `refs/cli-git/kept/<batch>` of the common Git directory before a candidate is examined
 //!  (`worktree_removal_held_commits.rs`),
 //!  and the person reads where the commit is before reading that the worktree went.

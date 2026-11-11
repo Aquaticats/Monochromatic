@@ -124,7 +124,8 @@ fn head_of(main: &Path) -> String {
     return git_text(main, &["rev-parse", "HEAD"]);
 }
 
-/// The worktree's own Git directory, as Git's pointer names it.
+/// The worktree's own Git directory,
+/// as Git's pointer names it.
 fn admin_of(worktree: &Path) -> PathBuf {
     let pointer: String = std::fs::read_to_string(worktree.join(".git")).expect("the worktree's pointer");
     let path: &str = pointer.trim().strip_prefix("gitdir: ").expect("a pointer to its Git directory");
@@ -133,7 +134,8 @@ fn admin_of(worktree: &Path) -> PathBuf {
 
 /// What:
 ///  The state a commit that met a reference lock leaves in the worktree:
-///  a commit no branch names, held by the worktree's own reference and named by a held record.
+///  a commit no branch names,
+/// held by the worktree's own reference and named by a held record.
 /// Why:
 ///   Both of those go with the removal,
 ///  so a sweep that removes the worktree without keeping the commit loses it.
@@ -525,7 +527,8 @@ fn the_fixture_git_is_the_host_git() {
 ///   A removal that destroyed the files and could not empty the registration is what a sweep reported as "left the
 ///  worktree ... in place" while the path was gone,
 /// which sends the person to a worktree that is no longer
-///  there and says nothing about the registration the printer would have to finish (a Sonnet finding, F1).
+///  there and says nothing about the registration the printer would have to finish (a Sonnet finding,
+/// F1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

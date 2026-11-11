@@ -141,11 +141,13 @@ fn btrfs_a_worktree_git_would_refuse_or_that_is_no_subvolume_is_left_alone() {
 /// Why:
 ///   The kernel refuses `BTRFS_IOC_SNAP_DESTROY` for a subvolume that contains another one,
 /// so the destroy could never
-///  complete: the rename took the worktree out of the person's way,
+///  complete:
+/// the rename took the worktree out of the person's way,
 /// the directory stayed under the service's
 ///  own name for ever with every file of the worktree inside it,
 /// and the command said the files were gone
-///  (a Sonnet finding, F5).
+///  (a Sonnet finding,
+/// F5).
 /// Git's own removal is no answer here either:
 /// it unlinks the inner worktree's files and leaves its empty
 ///  subvolume.

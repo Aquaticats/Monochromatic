@@ -14,9 +14,12 @@
 //!  (`subvolume_remove_walk.rs`).
 //! So the pool was the one thing that made a finished removal end as "the files are
 //!  gone and the registration is not",
-//! with the whole pool left to `git worktree prune` (a Sonnet finding, F1), and the sweep after
+//! with the whole pool left to `git worktree prune` (a Sonnet finding,
+//! F1),
+//! and the sweep after
 //!  a merge reported that state as a worktree left in place.
-//! Nothing else takes the pool: the sweep of the repository scratch directory cannot reach a folder inside a worktree's
+//! Nothing else takes the pool:
+//! the sweep of the repository scratch directory cannot reach a folder inside a worktree's
 //!  administrative directory,
 //! and a fill names only a worktree that still exists.
 //! The pool is the wrapper's own cache of the worktree being
@@ -78,8 +81,8 @@ pub(crate) type DestroyASnapshot<'a> = dyn Fn(&Path) -> std::io::Result<()> + 'a
 /// ```
 pub(crate) fn clear_the_snapshots_ahead(admin: &Path) -> Result<(), String> {
     let taken: Option<PathBuf> = take_the_pool_out_of_its_name(pool_folder(admin).as_path(), REMOVING_PREFIX)?;
-    let Some(taken) = taken else { return Ok(()) };
-    return clear_the_snapshots_ahead_with(taken.as_path(), &destroy_a_snapshot_ahead, &remove_tree);
+    let Some(moved) = taken else { return Ok(()) };
+    return clear_the_snapshots_ahead_with(moved.as_path(), &destroy_a_snapshot_ahead, &remove_tree);
 }
 
 /// What:
@@ -145,7 +148,10 @@ pub(crate) fn clear_the_snapshots_ahead_with(taken: &Path, destroy: &DestroyASna
             }
         }
     }
-    return remove(taken).map_err(|error| format!("the folder {taken} of the snapshots the wrapper made ahead of an add cannot be removed ({error})", taken = taken.display()));
+    return match remove(taken) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("the folder {taken} of the snapshots the wrapper made ahead of an add cannot be removed ({error})", taken = taken.display())),
+    };
 }
 
 /// Controls of the clear stay out of the release executable.

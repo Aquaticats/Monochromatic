@@ -5,7 +5,8 @@
 //!   The pool is the wrapper's own cache of that worktree,
 //! and the removal is the only thing that takes it,
 //! so a pool that
-//!  stayed behind was a registration nothing could empty (a Sonnet finding, F1).
+//!  stayed behind was a registration nothing could empty (a Sonnet finding,
+//! F1).
 //! These run on a plain directory tree:
 //! a member that is no subvolume is still a name the wrapper made,
 //! and the pool goes
@@ -31,7 +32,8 @@ const A_MEMBER: &str = ".cli-git-worktree-ahead-0123456789abcdef-000001a1cae683d
 /// Why:
 ///   The removal empties the registration after the destroy,
 /// and that emptying refuses a nested subvolume,
-///  so the pool has to be gone before it (a Sonnet finding, F1).
+///  so the pool has to be gone before it (a Sonnet finding,
+/// F1).
 #[test]
 fn the_pool_of_a_worktree_that_is_going_away_goes_with_its_members() {
     let root: PathBuf = fixture("ahead-pool-cleared");

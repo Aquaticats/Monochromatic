@@ -411,7 +411,9 @@ fn remove_recorded_registration(worktrees: &File, id: &OsStr, admin: &Path, reco
     // The snapshots ahead of an add are this program's own and stand in the registration, and the walk below refuses every
     // nested subvolume, so they go first: a removal this program began on an earlier build left them here, and nothing a
     // person put in the registration is touched by this clear.
-    clear_the_snapshots_ahead(handle_path(&held).as_path()).map_err(|reason| { return format!("its snapshots ahead of an add cannot be removed ({reason}): {}", admin.display()); })?;
+    if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held).as_path()) {
+        return Err(format!("its snapshots ahead of an add cannot be removed ({reason}): {}", admin.display()));
+    }
     step_reason(verify_below(&held, admin), admin, "it holds something this command does not delete")?;
     step_reason(empty_directory(&held, admin), admin, "its content cannot be removed")?;
     drop(held);
