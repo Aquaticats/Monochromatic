@@ -12,7 +12,7 @@
 //! // const argument = Buffer.from(bytes); const shown = bytes.toString('utf8');
 //! ```
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
 /// What:
@@ -59,6 +59,24 @@ pub fn os_from_path_bytes(bytes: &[u8]) -> OsString {
 pub fn path_bytes_of(path: &Path) -> &[u8] {
     use std::os::unix::ffi::OsStrExt;
     return path.as_os_str().as_bytes();
+}
+
+/// What:
+///  The bytes of one command-line argument,
+/// so a token that is a value (a message,
+/// a message file's name) reaches Git as it was typed.
+///  `&[u8]` borrows from `argument`.
+/// Why:
+///   An argument is bytes and not text: a commit message or a file name the person typed may hold a byte that is not
+///  UTF-8, and a spelling with replacement characters names another message and another file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.from(argument)
+/// ```
+pub fn argument_bytes(argument: &OsStr) -> &[u8] {
+    // The encoded form is the operating system's own bytes on Unix and the one reversible form elsewhere.
+    return argument.as_encoded_bytes();
 }
 
 /// What:

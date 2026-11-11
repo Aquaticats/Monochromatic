@@ -68,10 +68,12 @@ pub struct PreparationRequest<'request> {
     /// The commit's own scratch directory,
     /// which holds the file the native-commit configuration travels in and is removed with the commit.
     pub scratch: &'request Path,
-    /// Kept global options of the invocation.
-    pub global_args: &'request [String],
-    /// Commit arguments without pathspecs or `--only`.
-    pub commit_args: &'request [String],
+    /// Kept global options of the invocation,
+    /// each with its own bytes.
+    pub global_args: &'request [OsString],
+    /// Commit arguments without pathspecs or `--only`,
+    /// each with its own bytes.
+    pub commit_args: &'request [OsString],
     /// The object directory Git writes its new objects into;
     /// nothing leaves them in the shadow's own store.
     ///  The commit service names the real one,
@@ -155,7 +157,7 @@ fn native_commit_arguments(request: &PreparationRequest) -> Result<Vec<OsString>
     // The caller's directory changes already applied when the wrapper placed the shadow, and the shadow names its own repository:
     //  forwarding a `-C`, `--git-dir`, `--work-tree` or `--bare` would move Git away from the shadow or name the real repository
     //  beside it. The configuration options the caller wrote stay, because they are the person's settings for the commit.
-    let own_globals: Vec<OsString> = request.global_args.iter().map(OsString::from).collect();
+    let own_globals: Vec<OsString> = request.global_args.to_vec();
     let mut arguments: Vec<OsString> = crate::repository_selection::without_repository_selection(own_globals.as_slice());
     arguments.push(git_dir_option(request.shadow));
     let configuration: Vec<OsString> = crate::native_commit_configuration::native_commit_configuration(
@@ -167,7 +169,7 @@ fn native_commit_arguments(request: &PreparationRequest) -> Result<Vec<OsString>
     arguments.push(OsString::from("-c"));
     arguments.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));
     arguments.push(OsString::from("commit"));
-    arguments.extend(request.commit_args.iter().map(OsString::from));
+    arguments.extend(request.commit_args.iter().cloned());
     return Ok(arguments);
 }
 

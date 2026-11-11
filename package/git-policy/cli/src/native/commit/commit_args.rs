@@ -12,6 +12,10 @@
 //!  (deleted on 2026-10-13 in `642b6d72cb`),
 //! including its use of `lastIndexOf`,
 //!  so a `-m` value equal to a pathspec is removed from the same position.
+//!  A token is bytes and never text:
+//! a message or a file name the person typed may hold a byte that is not UTF-8,
+//!  and a transform that spelled such a token would hand Git another message and another file
+//!  (`path_bytes.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,10 +23,15 @@
 //! const commitArgs = withoutAllFlag(invocation.commitArgs);
 //! ```
 
+/// One argument as the operating system holds it,
+/// and the bytes it is made of.
+use std::ffi::{OsStr, OsString};
 /// Pathspec separator token,
 /// shared with the escape hatch module.
 /// The pathspec separator that ends option parsing in Git and in the incumbent.
 const PATHSPEC_SEPARATOR: &str = "--";
+/// One token of a command line as bytes.
+use crate::path_bytes::{argument_bytes, os_from_path_bytes};
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
 
@@ -70,7 +79,85 @@ const SHORT_VALUE_OPTIONS: [&str; 6] = ["-m", "-F", "-C", "-c", "-t", "-U"];
 
 /// Short commit options with an optional attached value (`-S[<keyid>]`,
 /// `-u[<mode>]`).
-const OPTIONAL_VALUE_LETTERS: [char; 2] = ['S', 'u'];
+const OPTIONAL_VALUE_LETTERS: [u8; 2] = [b'S', b'u'];
+
+/// What:
+///  Whether one token is one of `options`,
+/// compared as the bytes Git compares.
+/// Why:
+///   An option's spelling is text,
+/// so a token holding a byte that is not UTF-8 is no option at all,
+///  and the comparison never reads the bytes as characters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// options.some((option) => token.equals(Buffer.from(option)))
+/// ```
+pub(crate) fn is_one_of(token: &[u8], options: &[&str]) -> bool {
+    for option in options {
+        if option.as_bytes() == token {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether one byte is a letter whose short option takes an optional value.
+/// Why:
+///   `position` takes this function by path where a closure would otherwise stand,
+/// and `S` and `u` end a cluster rather than naming a flag.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isOptionalValueLetter = (letter: number) => OPTIONAL_VALUE_LETTERS.includes(letter);
+/// ```
+fn is_optional_value_letter(letter: &u8) -> bool {
+    return OPTIONAL_VALUE_LETTERS.contains(letter);
+}
+
+/// What:
+///  Whether one byte is a letter whose short option takes the next token as its value.
+/// Why:
+///   The letters are read from the one list of short value options,
+/// so the list and the cluster rule cannot disagree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const carriesAValue = (letter) => ['-m', '-F', '-C', '-c', '-t', '-U'].includes('-' + letter)
+/// ```
+fn is_a_short_value_letter(letter: u8) -> bool {
+    // The second byte of each spelling is the letter; the first is the dash.
+    return SHORT_VALUE_OPTIONS.iter().any(|option| option.as_bytes()[1] == letter);
+}
+
+/// What:
+///  The letters of a cluster token,
+/// without its leading dash.
+/// Why:
+///  Every rule about a cluster counts letters from the one after the dash.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// token.toString().slice(1)
+/// ```
+fn cluster_letters(token: &[u8]) -> &[u8] {
+    return &token[1..];
+}
+
+/// What:
+///  Whether a token is a short cluster: one dash and at least one letter.
+/// Why:
+///   A lone `-` is a path and a `--…` token is a long option,
+/// and neither is a cluster.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// token[0] === '-' && token[1] !== '-' && token.length > 1
+/// ```
+fn is_a_short_cluster(token: &[u8]) -> bool {
+    return token.starts_with(b"-") && !token.starts_with(b"--") && token.len() > 1;
+}
 
 /// What:
 ///  Finds the first value-taking short option letter inside a cluster token.
@@ -90,13 +177,13 @@ const OPTIONAL_VALUE_LETTERS: [char; 2] = ['S', 'u'];
 /// ```ts
 /// findValueOptionIndex(token)
 /// ```
-fn find_value_option_index(letters: &[char]) -> Option<usize> {
-    for (index, letter) in letters.iter().enumerate().skip(1) {
+fn find_value_option_index(token: &[u8]) -> Option<usize> {
+    // The dash is not a letter, so the search starts after it.
+    for (index, letter) in token.iter().enumerate().skip(1) {
         if OPTIONAL_VALUE_LETTERS.contains(letter) {
             return None;
         }
-        let option: String = format!("-{letter}");
-        if SHORT_VALUE_OPTIONS.contains(&option.as_str()) {
+        if is_a_short_value_letter(*letter) {
             return Some(index);
         }
     }
@@ -109,28 +196,29 @@ fn find_value_option_index(letters: &[char]) -> Option<usize> {
 ///   `-amhello` becomes `-a`,
 /// `-m`,
 /// `hello`,
-/// so the value is a token of its own.
+/// so the value is a token of its own,
+///  and a value holding a byte that is not UTF-8 arrives whole.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// normaliseInlineShort('-amhello') // ['-a', '-m', 'hello']
 /// ```
-fn normalise_inline_short(token: &str) -> Vec<String> {
-    if !token.starts_with('-') || token.starts_with("--") || token.len() <= 2 {
-        return vec![String::from(token)];
+fn normalise_inline_short(token: &OsStr) -> Vec<OsString> {
+    let bytes: &[u8] = argument_bytes(token);
+    if !is_a_short_cluster(bytes) || bytes.len() <= 2 {
+        return vec![token.to_os_string()];
     }
-    let letters: Vec<char> = token.chars().collect();
-    let Some(value_index) = find_value_option_index(letters.as_slice()) else {
-        return vec![String::from(token)];
+    let Some(value_index) = find_value_option_index(bytes) else {
+        return vec![token.to_os_string()];
     };
-    let mut tokens: Vec<String> = Vec::new();
-    for letter in &letters[1..value_index] {
-        tokens.push(format!("-{letter}"));
+    let mut tokens: Vec<OsString> = Vec::new();
+    for letter in cluster_letters(bytes).iter().take(value_index - 1) {
+        tokens.push(os_from_path_bytes(&[b'-', *letter]));
     }
-    tokens.push(format!("-{}", letters[value_index]));
-    let inline: String = letters[value_index + 1..].iter().collect();
+    tokens.push(os_from_path_bytes(&[b'-', bytes[value_index]]));
+    let inline: &[u8] = &bytes[value_index + 1..];
     if !inline.is_empty() {
-        tokens.push(inline);
+        tokens.push(os_from_path_bytes(inline));
     }
     return tokens;
 }
@@ -149,19 +237,20 @@ fn normalise_inline_short(token: &str) -> Vec<String> {
 /// takesNextToken('-qm'); // true
 /// takesNextToken('-mhello'); // false
 /// ```
-pub(crate) fn takes_next_token(token: &str) -> bool {
-    if token.starts_with("--") {
-        return COMMIT_VALUE_OPTIONS.contains(&token);
+pub(crate) fn takes_next_token(token: &OsStr) -> bool {
+    let bytes: &[u8] = argument_bytes(token);
+    if bytes.starts_with(b"--") {
+        return is_one_of(bytes, &COMMIT_VALUE_OPTIONS);
     }
-    if !token.starts_with('-') || token.len() < 2 {
+    if !is_a_short_cluster(bytes) {
         return false;
     }
-    let letters: Vec<char> = token.chars().skip(1).collect();
+    let letters: &[u8] = cluster_letters(bytes);
     for (index, letter) in letters.iter().enumerate() {
         if OPTIONAL_VALUE_LETTERS.contains(letter) {
             return false;
         }
-        if SHORT_VALUE_OPTIONS.contains(&format!("-{letter}").as_str()) {
+        if is_a_short_value_letter(*letter) {
             return index + 1 == letters.len();
         }
     }
@@ -181,14 +270,14 @@ pub(crate) fn takes_next_token(token: &str) -> bool {
 /// ```ts
 /// separatorIndex(['-m', '--', '--', 'a.txt']); // 2
 /// ```
-pub fn separator_index(region: &[String]) -> Option<usize> {
+pub fn separator_index(region: &[OsString]) -> Option<usize> {
     let mut index: usize = 0;
     while index < region.len() {
-        let token: &str = region[index].as_str();
-        if token == PATHSPEC_SEPARATOR {
+        let token: &[u8] = argument_bytes(region[index].as_os_str());
+        if token == PATHSPEC_SEPARATOR.as_bytes() {
             return Some(index);
         }
-        if takes_next_token(token) {
+        if takes_next_token(region[index].as_os_str()) {
             index += 1;
         }
         index += 1;
@@ -207,26 +296,46 @@ pub fn separator_index(region: &[String]) -> Option<usize> {
 /// ```ts
 /// normaliseCommitArgs(['-amhello', 'file.ts']); // ['-a', '-m', 'hello', 'file.ts']
 /// ```
-pub fn normalise_commit_args(args: &[String]) -> Vec<String> {
+pub fn normalise_commit_args(args: &[OsString]) -> Vec<OsString> {
     let separator: Option<usize> = separator_index(args);
-    let (region, tail): (&[String], &[String]) = match separator {
+    let (region, tail): (&[OsString], &[OsString]) = match separator {
         Some(index) => (&args[..index], &args[index..]),
         None => (args, &[]),
     };
-    let mut normalised: Vec<String> = Vec::new();
+    let mut normalised: Vec<OsString> = Vec::new();
     let mut value_next: bool = false;
     for token in region {
-        // The value of an option is the person's text and is never read as a cluster of options.
+        // The value of an option is the person's bytes and is never read as a cluster of options.
         if value_next {
             normalised.push(token.clone());
             value_next = false;
             continue;
         }
-        normalised.extend(normalise_inline_short(token));
-        value_next = takes_next_token(token);
+        normalised.extend(normalise_inline_short(token.as_os_str()));
+        value_next = takes_next_token(token.as_os_str());
     }
     normalised.extend(tail.iter().cloned());
     return normalised;
+}
+
+/// What:
+///  The name half of a global option,
+/// without the value an `=` attached to it.
+/// Why:
+///   `--git-dir=/somewhere` redirects Git exactly as `--git-dir /somewhere` does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = token.startsWith('--') && token.includes('=') ? token.slice(0, token.indexOf('=')) : token
+/// ```
+fn global_name(token: &[u8]) -> &[u8] {
+    if !token.starts_with(b"--") {
+        return token;
+    }
+    let Some(at) = token.iter().position(|byte| *byte == b'=') else {
+        return token;
+    };
+    return &token[..at];
 }
 
 /// What:
@@ -243,26 +352,22 @@ pub fn normalise_commit_args(args: &[String]) -> Vec<String> {
 /// ```ts
 /// splitCommitInvocation({ args, subcommandIndex });
 /// ```
-pub fn split_commit_invocation(args: &[String], subcommand_index: usize) -> (Vec<String>, Vec<String>) {
-    let globals: &[String] = &args[..subcommand_index];
-    let mut kept: Vec<String> = Vec::new();
+pub fn split_commit_invocation(args: &[OsString], subcommand_index: usize) -> (Vec<OsString>, Vec<OsString>) {
+    let globals: &[OsString] = &args[..subcommand_index];
+    let mut kept: Vec<OsString> = Vec::new();
     let mut index: usize = 0;
     while index < globals.len() {
-        let token: &str = globals[index].as_str();
-        let name: &str = if token.starts_with("--") && token.contains('=') {
-            &token[..token.find('=').unwrap_or(token.len())]
-        } else {
-            token
-        };
-        let separated: bool = VALUE_TAKING_GLOBAL_OPTIONS.contains(&token);
-        if REDIRECTING_VALUE_OPTIONS.contains(&name) || token == "--bare" {
+        let token: &[u8] = argument_bytes(globals[index].as_os_str());
+        let name: &[u8] = global_name(token);
+        let separated: bool = is_one_of(token, &VALUE_TAKING_GLOBAL_OPTIONS);
+        if is_one_of(name, &REDIRECTING_VALUE_OPTIONS) || token == b"--bare" {
             if separated {
                 index += 1;
             }
             index += 1;
             continue;
         }
-        kept.push(String::from(token));
+        kept.push(globals[index].clone());
         if separated {
             if let Some(value) = globals.get(index + 1) {
                 kept.push(value.clone());
@@ -285,51 +390,50 @@ pub fn split_commit_invocation(args: &[String], subcommand_index: usize) -> (Vec
 /// ```ts
 /// withoutAllFlag(['-am', 'x']); // ['-m', 'x']
 /// ```
-pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
-    let normalised: Vec<String> = normalise_commit_args(commit_args);
-    let mut kept: Vec<String> = Vec::new();
+pub fn without_all_flag(commit_args: &[OsString]) -> Vec<OsString> {
+    let normalised: Vec<OsString> = normalise_commit_args(commit_args);
+    let mut kept: Vec<OsString> = Vec::new();
     let mut value_next: bool = false;
     let mut after_separator: bool = false;
     for token in normalised {
+        let bytes: &[u8] = argument_bytes(token.as_os_str());
         if after_separator || value_next {
             kept.push(token);
             value_next = false;
             continue;
         }
-        if token == PATHSPEC_SEPARATOR {
+        if bytes == PATHSPEC_SEPARATOR.as_bytes() {
             after_separator = true;
             kept.push(token);
             continue;
         }
-        if token == "--all" {
+        if bytes == b"--all" {
             continue;
         }
-        if token.starts_with('-') && !token.starts_with("--") && token.len() > 1 {
-            let letters: Vec<char> = token[1..].chars().collect();
+        if is_a_short_cluster(bytes) {
+            let letters: &[u8] = cluster_letters(bytes);
             let value_start: Option<usize> = letters.iter().position(is_optional_value_letter);
-            let flags: &[char] = match value_start {
+            let flags: &[u8] = match value_start {
                 Some(index) => &letters[..index],
-                None => &letters[..],
+                None => letters,
             };
-            let mut cluster: String = String::from("-");
+            let mut cluster: Vec<u8> = vec![b'-'];
             for letter in flags {
-                if *letter != 'a' {
+                if *letter != b'a' {
                     cluster.push(*letter);
                 }
             }
             if let Some(index) = value_start {
-                for letter in &letters[index..] {
-                    cluster.push(*letter);
-                }
+                cluster.extend_from_slice(&letters[index..]);
             }
-            if cluster == "-" {
+            if cluster == b"-" {
                 continue;
             }
-            value_next = COMMIT_VALUE_OPTIONS.contains(&cluster.as_str());
-            kept.push(cluster);
+            value_next = is_one_of(cluster.as_slice(), &COMMIT_VALUE_OPTIONS);
+            kept.push(os_from_path_bytes(cluster.as_slice()));
             continue;
         }
-        value_next = COMMIT_VALUE_OPTIONS.contains(&token.as_str());
+        value_next = is_one_of(bytes, &COMMIT_VALUE_OPTIONS);
         kept.push(token);
     }
     return kept;
@@ -349,27 +453,29 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 /// ```ts
 /// privateExplicitCommitArgs({ args, pathspecs });
 /// ```
-pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Vec<String> {
-    let mut without_file: Vec<String> = Vec::new();
+pub fn private_explicit_commit_args(args: &[OsString], pathspecs: &[OsString]) -> Vec<OsString> {
+    let mut without_file: Vec<OsString> = Vec::new();
     let mut index: usize = 0;
     while index < args.len() {
-        let token: &str = args[index].as_str();
-        if token == "--pathspec-from-file" {
+        let token: &[u8] = argument_bytes(args[index].as_os_str());
+        if token == b"--pathspec-from-file" {
             index += 2;
             continue;
         }
-        if token.starts_with("--pathspec-from-file=") || token == "--pathspec-file-nul" {
+        if token.starts_with(b"--pathspec-from-file=") || token == b"--pathspec-file-nul" {
             index += 1;
             continue;
         }
-        without_file.push(String::from(token));
+        without_file.push(args[index].clone());
         index += 1;
     }
     for pathspec in pathspecs.iter().rev() {
-        // The last token equal to the pathspec goes, as `.rposition(...)` found it.
+        let wanted: &[u8] = argument_bytes(pathspec.as_os_str());
+        // The last token equal to the pathspec goes, as `.rposition(...)` found it, and the paths are compared as bytes so
+        //  two names that read the same with replacement characters are still two paths.
         let mut last_position: Option<usize> = None;
         for (position, token) in without_file.iter().enumerate() {
-            if token == pathspec {
+            if argument_bytes(token.as_os_str()) == wanted {
                 last_position = Some(position);
             }
         }
@@ -380,7 +486,7 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
     // Only the separator and the `-o` and `--only` the person typed in option position go; the same text as the value of an option
     //  (`-m --`) is the person's and stays.
     let separator: Option<usize> = separator_index(without_file.as_slice());
-    let mut kept: Vec<String> = Vec::new();
+    let mut kept: Vec<OsString> = Vec::new();
     let mut value_next: bool = false;
     for (position, token) in without_file.into_iter().enumerate() {
         let past_separator: bool = match separator {
@@ -399,8 +505,9 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
             value_next = false;
             continue;
         }
-        value_next = takes_next_token(token.as_str());
-        if token == "-o" || token == "--only" {
+        let bytes: &[u8] = argument_bytes(token.as_os_str());
+        value_next = takes_next_token(token.as_os_str());
+        if bytes == b"-o" || bytes == b"--only" {
             continue;
         }
         kept.push(token);
@@ -420,29 +527,14 @@ pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Ve
 /// ```ts
 /// privateSelectionCommitArgs({ args, pathspecs });
 /// ```
-pub fn private_selection_commit_args(args: &[String], pathspecs: &[String]) -> Vec<String> {
-    let mut kept: Vec<String> = Vec::new();
+pub fn private_selection_commit_args(args: &[OsString], pathspecs: &[OsString]) -> Vec<OsString> {
+    let mut kept: Vec<OsString> = Vec::new();
     for token in private_explicit_commit_args(args, pathspecs) {
-        if !["-i", "-p", "--include", "--interactive", "--patch"].contains(&token.as_str()) {
+        if !is_one_of(argument_bytes(token.as_os_str()), &["-i", "-p", "--include", "--interactive", "--patch"]) {
             kept.push(token);
         }
     }
     return kept;
-}
-
-/// What:
-///  Whether a letter of a short-option cluster takes an optional value.
-///  `&char` borrows the letter,
-/// as `position` hands it over.
-/// Why:
-///   `position` takes this function by path where a closure would otherwise stand.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isOptionalValueLetter = (letter: string) => OPTIONAL_VALUE_LETTERS.includes(letter);
-/// ```
-fn is_optional_value_letter(letter: &char) -> bool {
-    return OPTIONAL_VALUE_LETTERS.contains(letter);
 }
 
 /// What:
@@ -457,11 +549,11 @@ fn is_optional_value_letter(letter: &char) -> bool {
 /// resolvePrivateCommitArgs({ args, pathspecs, mode, selectedPrivately });
 /// ```
 pub fn resolve_private_commit_args(
-    args: &[String],
-    pathspecs: &[String],
+    args: &[OsString],
+    pathspecs: &[OsString],
     mode: TransactionMode,
     selected_privately: bool,
-) -> Vec<String> {
+) -> Vec<OsString> {
     if mode == TransactionMode::ExplicitPath {
         return private_explicit_commit_args(args, pathspecs);
     }
