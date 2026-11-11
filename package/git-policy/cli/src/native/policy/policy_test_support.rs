@@ -25,6 +25,8 @@ use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
+use crate::rule_linked_worktree::GuardedCommand;
+use crate::repository_facts_abort_discard::AbortDiscard;
 use crate::rule_worktree_dirty::DirtyScope;
 /// The image's real Git,
 ///  which prepares candidates for scripted facts.
@@ -45,6 +47,9 @@ pub(crate) struct ScriptedFacts {
     pub(crate) index: Result<IndexVsHead, String>,
     /// The answer to `sequencer_state`.
     pub(crate) sequencer: Result<SequencerState, String>,
+    /// The answer to `abort_discard`,
+    ///  whatever the command.
+    pub(crate) abort_discard: Result<AbortDiscard, String>,
     /// The answer to `worktree_dirty`,
     /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
@@ -125,6 +130,11 @@ impl RepositoryFacts for ScriptedFacts {
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
         self.asked.push(String::from("sequencer"));
         return self.sequencer.clone();
+    }
+
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        self.asked.push(format!("abort-discard:{command:?}"));
+        return self.abort_discard.clone();
     }
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
@@ -225,6 +235,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         location: Ok(main_worktree("/r", "")),
         index: Ok(IndexVsHead::Matches),
         sequencer: Ok(SequencerState::NotInProgress),
+        abort_discard: Ok(AbortDiscard::NothingWaiting),
         dirty: Ok(false),
         selection: Ok(StagedSelection {
             selected: 0,

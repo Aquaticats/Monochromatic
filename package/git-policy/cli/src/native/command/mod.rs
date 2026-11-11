@@ -134,6 +134,12 @@ pub mod rule_linked_worktree;
 /// The rejection texts of the linked-worktree-only policy.
 pub mod rule_linked_worktree_messages;
 
+/// The operation each abort form undoes, and whether that operation waits.
+pub mod rule_abort_operation;
+
+/// The plain-language texts of the abort carve-out.
+pub mod rule_abort_messages;
+
 /// The transform that stops a `checkout` or `switch` replacing an ignored file.
 pub mod rule_keep_ignored_files;
 

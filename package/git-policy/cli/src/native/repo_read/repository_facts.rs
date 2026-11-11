@@ -59,6 +59,10 @@ use crate::rule_commit_sequencer::{
     SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
     sequencer_state, sequencer_state_when_query_fails,
 };
+/// What one abort form would discard besides the operation's own state.
+use crate::repository_facts_abort_discard::AbortDiscard;
+/// The discarding-command forms, which the abort carve-out reads.
+use crate::rule_linked_worktree::GuardedCommand;
 /// The transaction Git context.
 use crate::transaction_git::GitContext;
 /// The common directory of a location's identity.
@@ -134,6 +138,11 @@ pub trait RepositoryFacts {
     /// Whether a merge,
     ///  cherry-pick or revert awaits its concluding commit.
     fn sequencer_state(&mut self) -> Result<SequencerState, String>;
+    /// What the abort form `command` would discard besides the state of the operation it undoes,
+    /// and whether that operation waits at all.
+    /// Asked before an abort form runs,
+    /// so the person's own work is saved first and the operation's own state is let go.
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String>;
     /// Whether `git switch <target>` or `git checkout <target>` would create a local
     /// branch from the one remote branch of that name.
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String>;
@@ -510,6 +519,10 @@ impl RepositoryFacts for GitFacts {
             cherry_pick_head: head_file_exists(paths[1].as_slice()),
             revert_head: head_file_exists(paths[2].as_slice()),
         }));
+    }
+
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        return crate::repository_facts_abort_discard::abort_discard(self, command);
     }
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {

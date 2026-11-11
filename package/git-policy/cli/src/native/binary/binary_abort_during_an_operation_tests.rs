@@ -46,12 +46,6 @@ fn plain(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
         + &String::from_utf8_lossy(output.stderr.as_slice());
 }
 
-/// The repository-relative top level of a linked worktree's repository.
-fn top_level(fixture: &Fixture, directory: &Path) -> PathBuf {
-    let text: String = plain(fixture, directory, &["rev-parse", "--show-toplevel"]);
-    return PathBuf::from(text.trim());
-}
-
 /// The common Git directory of the repository a directory belongs to.
 fn common_dir(fixture: &Fixture, directory: &Path) -> PathBuf {
     let text: String = plain(fixture, directory, &["rev-parse", "--path-format=absolute", "--git-common-dir"]);
@@ -199,13 +193,14 @@ fn every_abort_form_is_left_to_git_where_nothing_is_in_progress() {
     ] {
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
         let said: String = stderr_of(&observed);
+        let lowered: String = said.to_lowercase();
         assert!(!rejected(&observed), "{arguments:?} is left to Git: {said}");
         assert_ne!(observed.code, Some(0), "{arguments:?} with nothing in progress exits nonzero: {said}");
         assert!(
-            said.contains("no merge to abort")
-                || said.contains("No rebase in progress")
-                || said.contains("no cherry-pick or revert in progress")
-                || said.contains("not in progress"),
+            lowered.contains("no merge to abort")
+                || lowered.contains("no rebase in progress")
+                || lowered.contains("no cherry-pick or revert in progress")
+                || lowered.contains("not in progress"),
             "{arguments:?} carries Git's own words: {said}"
         );
     }
@@ -272,7 +267,12 @@ fn a_cherry_pick_abort_runs_during_a_conflicted_pick() {
     remove(&fixture);
 }
 
-/// An `am` that stopped at a conflicting patch is undone by its own abort.
+/// An `am` that stopped at a conflicting patch is undone by its own abort,
+///  and the resolution it would discard is saved first.
+/// A patch that cannot be applied at all is not this control's case:
+///  `git am` then leaves the index and the worktree alone,
+///  and its abort keeps the edits it finds (measured with Git 2.56.0),
+///  so there is nothing for the wrapper to save.
 #[test]
 fn an_am_abort_runs_during_a_conflicted_patch() {
     let fixture: Fixture = fixture("abort-am");
@@ -282,7 +282,7 @@ fn an_am_abort_runs_during_a_conflicted_patch() {
     git(
         &fixture,
         linked.as_path(),
-        &["format-patch", "--output-directory", patches.to_str().expect("UTF-8 path"), "side", "--max-count=1"],
+        &["format-patch", "--full-index", "--output-directory", patches.to_str().expect("UTF-8 path"), "side", "--max-count=1"],
     );
     let patch: PathBuf = std::fs::read_dir(patches.as_path())
         .expect("patch directory")
@@ -290,9 +290,14 @@ fn an_am_abort_runs_during_a_conflicted_patch() {
         .map(|entry| { return entry.path(); })
         .next()
         .expect("one patch");
-    attempt(&fixture, linked.as_path(), &["am", patch.to_str().expect("UTF-8 path")]);
+    let before: Vec<u8> = std::fs::read(linked.join("a.txt")).expect("the file before the am");
+    // `--3way` is what makes the patch conflict in the index;
+    //  without it Git refuses the patch and changes neither the index nor the file.
+    attempt(&fixture, linked.as_path(), &["am", "--3way", patch.to_str().expect("UTF-8 path")]);
+    let applying: String = plain(&fixture, linked.as_path(), &["rev-parse", "--path-format=absolute", "--git-path", "rebase-apply/applying"]);
+    assert!(Path::new(applying.trim()).exists(), "the am stopped and waits: {applying}");
     let during: String = plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]);
-    assert!(!during.trim().is_empty(), "the am stopped: {during}");
+    assert!(during.contains("UU a.txt"), "the patch conflicted: {during}");
     std::fs::write(linked.join("a.txt"), b"resolved by hand\n").expect("the resolution");
     let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["am", "--abort"]);
     let said: String = stderr_of(&observed);
@@ -304,5 +309,6 @@ fn an_am_abort_runs_during_a_conflicted_patch() {
         "the hand edit is saved: {copies:?} ({said})"
     );
     assert_eq!(plain(&fixture, linked.as_path(), &["status", "--porcelain=v1"]).trim(), "", "the am is undone: {said}");
+    assert_eq!(std::fs::read(linked.join("a.txt")).expect("the file after the abort"), before, "the file holds what stood before the am: {said}");
     remove(&fixture);
 }

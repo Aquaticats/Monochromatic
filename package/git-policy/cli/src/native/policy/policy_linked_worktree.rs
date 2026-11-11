@@ -49,6 +49,8 @@ use crate::discarded_prune::Limits;
 use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
 /// The two commands that are recorded and never refused.
 use crate::policy_audited::record_audited;
+/// The abort carve-out: the operation's own state is what an abort lets go, the person's own work is saved first.
+use crate::abort_discard_guard::{AbortVerdict, judge_abort_discard};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
@@ -173,6 +175,42 @@ pub(crate) fn check_linked_worktree(
         }
         record_audit_with_facts(&location.identity, command, AuditOutcome::Exempt, seen, None, why.as_slice());
         return clean();
+    }
+    // A merge, a rebase, a cherry-pick, a revert or an `am` that waits for its conflicts is undone by its own abort,
+    //  and the state it left makes `git status` unclean by itself: the operation's own work is what the abort is for, and
+    //  the person's own work is copied beside the audit log before the command runs. Where nothing waits, Git refuses the
+    //  abort itself and discards nothing, so the command is left to Git. The exemption above runs first, because an
+    //  exempt repository is one no guard reads.
+    match judge_abort_discard(facts, command, &location.identity, now_milliseconds(), discarded_limits) {
+        AbortVerdict::NotApplicable => {}
+        AbortVerdict::LeftToGit => {
+            // The command discards nothing this policy knows of, so it runs, and the line says the guard left it alone.
+            record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
+            return clean();
+        }
+        AbortVerdict::Allowed { notice, copies } => {
+            if copies.is_empty() {
+                record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
+            } else {
+                let mut places: Vec<String> = Vec::new();
+                for copy in &copies {
+                    let saved_to: String = match copy.saved_to.as_ref() {
+                        Some(place) => place.display().to_string(),
+                        None => String::from("none"),
+                    };
+                    places.push(format!("{} => {}", copy.path, saved_to));
+                }
+                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedAbort, seen, None, places.as_slice());
+            }
+            if !notice.is_empty() {
+                notices.push(notice);
+            }
+            return clean();
+        }
+        AbortVerdict::CopyFailed(message) => {
+            record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+            return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
+        }
     }
     // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
     // `--no-checkout`): there is no tracked work to carry over, so the status, which lists every file as a staged deletion, is not read.

@@ -82,7 +82,9 @@ const TAG: &str = "discardAudit";
 pub enum AuditOutcome {
     /// The wrapper refused the command.
     Rejected,
-    /// The worktree was clean (or the form only reads),
+    /// The worktree was clean,
+    /// the form only reads,
+    /// or the only changes are those of the operation a discarded command undoes,
     /// so the command ran.
     Allowed,
     /// The repository lies under an allowlisted tool cache.
@@ -91,6 +93,9 @@ pub enum AuditOutcome {
     Hatch,
     /// The command took a side of conflicted files after the wrapper saved a copy of each.
     SavedConflict,
+    /// The command undid an operation that waited for its conflicts,
+    /// after the wrapper saved a copy of the work that was not the operation's own.
+    SavedAbort,
     /// The form is recorded and was never refused:
     ///  it runs as Git runs it,
     ///  by the owner's decision,
@@ -108,6 +113,7 @@ impl AuditOutcome {
             AuditOutcome::Exempt => return "exempt",
             AuditOutcome::Hatch => return "hatch",
             AuditOutcome::SavedConflict => return "saved-conflict",
+            AuditOutcome::SavedAbort => return "saved-abort",
             AuditOutcome::Logged => return "logged",
         }
     }

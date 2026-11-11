@@ -149,3 +149,40 @@ fn a_merge_finished_in_a_linked_worktree_leaves_no_conflict_entry_behind() {
         "no conflict entry may survive the merge: {left} (in {git_dir}, {said})"
     );
 }
+
+/// Where rerere is off, nothing writes `MERGE_RR` at all:
+/// not the `git merge` that stopped, and not the finish the wrapper runs after its second pass,
+/// in a linked worktree as in the main one.
+/// A cache left there would be the wrapper's own, because native Git writes none:
+/// measured with Git 2.56.0 on a conflicted merge, `MERGE_RR` is absent with
+/// `rerere.enabled` false and holds one entry per conflicted path with it true.
+#[test]
+fn a_merge_finished_in_a_linked_worktree_writes_no_rerere_cache_where_rerere_is_off() {
+    let fixture: Fixture = fixture("word-merge-rr-off");
+    let repo: PathBuf = super::word_merge::prepared(&fixture, super::word_merge::Stop::Merge, &[super::word_merge::ADJACENT]);
+    let enabled: String = String::from_utf8_lossy(
+        direct(&fixture)
+            .current_dir(repo.as_path())
+            .args(["config", "--get", "rerere.enabled"])
+            .output()
+            .expect("native Git starts")
+            .stdout
+            .as_slice(),
+    )
+    .trim()
+    .to_string();
+    assert_eq!(enabled, "", "the fixture must not enable rerere");
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "merged", linked.to_str().expect("UTF-8 path"), "main"]);
+    let wrapped: super::support::Observed = super::support::run_wrapped(&fixture, linked.as_path(), &["merge", "--no-edit", "topic"]);
+    let said: String = super::support::stderr_of(&wrapped);
+    let git_dir: String = {
+        let answer = direct(&fixture).current_dir(linked.as_path()).args(["rev-parse", "--absolute-git-dir"]).output().expect("native Git starts");
+        String::from_utf8_lossy(answer.stdout.as_slice()).trim().to_string()
+    };
+    let left: String = bytes_of(Path::new(git_dir.as_str()).join("MERGE_RR").as_path());
+    let _ = std::fs::remove_dir_all(&linked);
+    super::commit::remove_settled(&fixture);
+    assert_eq!(wrapped.code, Some(0), "{said}");
+    assert_eq!(left, "(absent)", "no rerere cache may be written where rerere is off (in {git_dir}, {said})");
+}

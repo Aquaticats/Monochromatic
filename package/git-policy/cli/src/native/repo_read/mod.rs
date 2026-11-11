@@ -33,6 +33,9 @@ pub mod repository_facts;
 ///  counted from real Git's own listings.
 pub mod repository_facts_staged_selection;
 
+/// What one abort form would discard besides the state of the operation it undoes.
+pub mod repository_facts_abort_discard;
+
 /// Files-backend ref reads that answer without a Git process or decline.
 pub mod ref_files;
 
