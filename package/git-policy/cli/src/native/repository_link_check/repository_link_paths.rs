@@ -43,20 +43,17 @@ fn path_option_value(prefix: &[OsString], index: usize, name: &str) -> Option<(P
 }
 
 /// What:
-///  The directory a command runs in and the Git directory,
-///  work tree and common directory its global
-///  options name,
-///  before the ones its environment adds.
+///  The directory a command runs in,
+///  and the Git directory,
+///  work tree and common directory its global options name.
 ///  `&[OsString]` borrows the tokens before the subcommand;
 ///  `(PathBuf, Vec<PathBuf>)` is that directory and the named ones.
 /// Why:
 ///   One walk answers both:
 ///  a `-C` moves the directory for every question after it,
-///  and a
-///  relative Git directory or work tree is from the directory the chain ends in.
-///  A value
-///  that takes an argument is stepped over,
-///  so a path is never read out of one.
+///  and a relative Git directory or work tree is read from the directory the chain ends in.
+///  A value that takes an argument is stepped over,
+///  so no path is read out of one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
