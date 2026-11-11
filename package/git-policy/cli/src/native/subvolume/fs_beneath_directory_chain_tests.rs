@@ -103,6 +103,13 @@ fn a_path_at_the_bound_is_kept_and_one_past_it_is_not() {
     let walked: String = chain.directory(one_past.as_slice()).map(identity_text).expect("a path past the bound is answered");
     assert_eq!(chain.held_names().len(), 0, "the chain keeps nothing of a path past its bound");
     assert_ne!(kept, walked, "the two paths end in different directories");
+    // The answer a path past the bound left is not the one a shallower path gets afterwards: the chain opens that path
+    //  again and keeps it, so nothing of the deep walk leaks into it.
+    let shallow: Vec<OsString> = at_bound.iter().take(2).cloned().collect();
+    let resumed: String = chain.directory(shallow.as_slice()).map(identity_text).expect("a shallow path after a deep one is answered");
+    assert_eq!(chain.held_names().len(), 2, "the chain keeps the two directories of the shallow path");
+    let direct_shallow: File = open_directory_beneath(&held, shallow.as_slice()).expect("the shallow path, directly");
+    assert_eq!(resumed, identity_text(&direct_shallow), "the shallow path answers the directory its names lead to");
     remove(root.as_path());
 }
 
