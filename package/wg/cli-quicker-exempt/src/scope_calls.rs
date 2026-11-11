@@ -4,13 +4,24 @@
 //! attaching processes to a scope that exists,
 //! giving a live scope new limits,
 //! and stopping an empty scope.
-//! All are calls of `org.freedesktop.systemd1.Manager` on the user bus.
+//! All are calls of `org.freedesktop.systemd1.Manager` on the user manager's private socket.
 
 /// The limits a scope carries.
 use crate::inherited_limits::InheritedLimits;
+/// Escaping of untrusted text.
+use crate::log_line::sanitize;
+/// Why a process is kept outside the tunnel.
+use crate::update_entry_points::MatchReason;
 
-/// What `systemctl status` shows for every scope the watcher creates.
-const DESCRIPTION: &str = "wg-quicker update traffic that bypasses the tunnel";
+/// What `systemctl status` shows for the slice that holds the scopes.
+const SLICE_DESCRIPTION: &str = "wg-quicker: scopes holding the processes whose traffic leaves outside the WireGuard tunnel";
+
+/// What `systemctl status` shows for one scope:
+/// the cgroup it was adopted from and the method that moved it,
+/// so no one reads a test run's scope as an update run of its own.
+pub fn scope_description(origin: &str, reason: MatchReason) -> String {
+    return sanitize(&format!("wg-quicker: adopted from {origin} (moved because it is {})", reason.method_label()));
+}
 
 /// The arguments every manager call starts with.
 fn manager_call(method: &str, signature: &str) -> Vec<String> {
@@ -54,19 +65,21 @@ pub fn ensure_slice_arguments(slice: &str) -> Vec<String> {
     arguments.push("fail".to_string());
     arguments.push("1".to_string());
     arguments.extend(["Description", "s"].map(str::to_string));
-    arguments.push(DESCRIPTION.to_string());
+    arguments.push(SLICE_DESCRIPTION.to_string());
     arguments.push("0".to_string());
     return arguments;
 }
 
 /// Builds the arguments for `StartTransientUnit` of a scope that adopts `pids` and carries `limits`.
+/// `description` names the origin cgroup and the method that moved the processes,
+/// which is what `systemctl status` shows for the scope.
 /// The scope is delegated,
 /// because the manager refuses `AttachProcessesToUnit` for a unit that is not
 /// (`bus_unit_method_attach_processes` in systemd v259.10 `src/core/dbus-unit.c`,
 /// line 1592),
 /// and `CollectMode=inactive-or-failed` makes the manager forget the scope as soon as it stops or fails,
 /// so a scope that failed to start leaves no unit behind.
-pub fn create_arguments(scope_name: &str, slice: &str, pids: &[i32], limits: &InheritedLimits) -> Vec<String> {
+pub fn create_arguments(scope_name: &str, slice: &str, pids: &[i32], limits: &InheritedLimits, description: &str) -> Vec<String> {
     let limit_properties = limits.properties();
     let mut device_properties: Vec<(&'static str, Vec<(String, u64)>)> = Vec::new();
     for (name, entries) in limits.device_properties() {
@@ -84,7 +97,7 @@ pub fn create_arguments(scope_name: &str, slice: &str, pids: &[i32], limits: &In
     arguments.push(pids.len().to_string());
     arguments.extend(pids.iter().map(i32::to_string));
     arguments.extend(["Description", "s"].map(str::to_string));
-    arguments.push(DESCRIPTION.to_string());
+    arguments.push(description.to_string());
     arguments.extend(["Delegate", "b", "true"].map(str::to_string));
     arguments.extend(["CollectMode", "s", "inactive-or-failed"].map(str::to_string));
     for (name, value) in limit_properties {

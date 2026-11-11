@@ -12,8 +12,15 @@
 //! The sweep resets the failed ones and stops the running ones whose cgroup holds no process.
 //! It never touches a scope that holds a process,
 //! rechecks each one right before the stop,
-//! and never touches the per-origin scopes of the current design,
-//! whose names are paths and not two numbers.
+//! and never takes a scope that holds a process for a leftover.
+//! The scopes that hold the processes of one origin are swept too,
+//! and so are the ones an earlier build named with a second `.scope`:
+//! the manager stops a scope when its last process exits,
+//! but a scope that was created for a process that was already exiting stays empty for ever,
+//! and a scope whose name this build no longer writes would otherwise never be found again.
+//! A running scope of that design is only ever stopped while its cgroup holds no process,
+//! which the manager cannot report for an active scope that adopted a process,
+//! because the start job attaches the processes before the scope becomes active.
 //! It runs on its own thread,
 //! so the watcher enforces its policy while the manager works through the stops,
 //! and logs its counts once.
@@ -86,10 +93,16 @@ impl SweepSetup {
 pub struct SweepReport {
     /// Scopes of the earlier design the manager listed.
     pub listed: usize,
+    /// Scopes that hold the processes of one origin,
+    /// current spelling or an earlier one,
+    /// that the manager listed.
+    pub origins_listed: usize,
     /// Failed units reset.
     pub reset: usize,
     /// Running scopes with no process that were stopped.
     pub stopped: usize,
+    /// Running origin scopes with no process that were stopped.
+    pub origins_stopped: usize,
     /// Running scopes that hold a process,
     /// left alone.
     pub held: usize,
@@ -127,6 +140,23 @@ pub fn is_old_style_scope_name(name: &str, prefix: &str) -> bool {
         return false;
     };
     return is_digits(pid) && is_digits(start_time);
+}
+
+/// Reports whether a unit name is a scope that holds the processes of one origin:
+/// the prefix, a name made from a cgroup path, and `.scope`.
+/// The names of the earlier design are two runs of digits, which a path never is,
+/// so the two kinds never overlap.
+pub fn is_origin_scope_name(name: &str, prefix: &str) -> bool {
+    if is_old_style_scope_name(name, prefix) {
+        return false;
+    }
+    let Some(rest) = name.strip_prefix(prefix) else {
+        return false;
+    };
+    let Some(stem) = rest.strip_suffix(OLD_SCOPE_SUFFIX) else {
+        return false;
+    };
+    return !stem.is_empty();
 }
 
 /// One unit of the manager's list.
@@ -184,7 +214,7 @@ fn user_arguments(verb: &str, names: &[&str]) -> Vec<String> {
 }
 
 /// Resets the failed units.
-fn reset_failed(setup: &SweepSetup, units: &[ListedUnit], report: &mut SweepReport) {
+fn reset_failed(setup: &SweepSetup, units: &[&ListedUnit], report: &mut SweepReport) {
     let mut failed: Vec<&str> = Vec::new();
     for unit in units {
         if unit.active == "failed" {
@@ -199,12 +229,36 @@ fn reset_failed(setup: &SweepSetup, units: &[ListedUnit], report: &mut SweepRepo
     }
 }
 
+/// The scopes of the earlier design that the sweep may reset and stop,
+/// and the origin scopes it may stop while they hold nothing.
+struct SweepTargets<'a> {
+    /// The scopes of the earlier design.
+    per_process: Vec<&'a ListedUnit>,
+    /// The scopes that hold the processes of one origin.
+    origins: Vec<&'a ListedUnit>,
+}
+
+/// Splits the listed units into the two designs.
+fn targets<'a>(setup: &SweepSetup, units: &'a [ListedUnit]) -> SweepTargets<'a> {
+    let mut split = SweepTargets { per_process: Vec::new(), origins: Vec::new() };
+    for unit in units {
+        if is_old_style_scope_name(&unit.name, &setup.prefix) {
+            split.per_process.push(unit);
+        } else if is_origin_scope_name(&unit.name, &setup.prefix) {
+            split.origins.push(unit);
+        }
+    }
+    return split;
+}
+
 /// Stops the running scopes that hold no process.
 /// Each is read again right before its batch is sent,
 /// and a scope that holds a process by then is left alone.
-fn stop_empty(setup: &SweepSetup, units: &[ListedUnit], populated: &dyn Fn(&Path) -> Option<bool>, report: &mut SweepReport) {
+/// An origin scope that an earlier build named with a second `.scope` is stopped by the same rule,
+/// so the older spelling does not leave a scope nothing can ever use again.
+fn stop_empty(setup: &SweepSetup, targets: &SweepTargets<'_>, populated: &dyn Fn(&Path) -> Option<bool>, report: &mut SweepReport) {
     let mut empty: Vec<&ListedUnit> = Vec::new();
-    for unit in units {
+    for unit in &targets.per_process {
         if unit.active != "active" {
             continue;
         }
@@ -214,6 +268,27 @@ fn stop_empty(setup: &SweepSetup, units: &[ListedUnit], populated: &dyn Fn(&Path
             None => report.unreadable += 1,
         }
     }
+    let mut empty_origins: Vec<&ListedUnit> = Vec::new();
+    for unit in &targets.origins {
+        if unit.active != "active" {
+            continue;
+        }
+        match populated(&scope_cgroup_directory(&setup.cgroup_root, setup.uid, &setup.slice, &unit.name)) {
+            Some(false) => empty_origins.push(unit),
+            Some(true) => report.held += 1,
+            None => report.unreadable += 1,
+        }
+    }
+    let stopped = stop_batches(setup, &empty, populated, report, "empty scopes");
+    report.stopped = report.stopped.saturating_add(stopped);
+    let stopped_origins = stop_batches(setup, &empty_origins, populated, report, "empty origin scopes");
+    report.origins_stopped = report.origins_stopped.saturating_add(stopped_origins);
+}
+
+/// Sends the stops of one design in batches,
+/// reading each scope again right before its batch goes out.
+fn stop_batches(setup: &SweepSetup, empty: &[&ListedUnit], populated: &dyn Fn(&Path) -> Option<bool>, report: &mut SweepReport, what: &str) -> usize {
+    let mut stopped: usize = 0;
     for batch in empty.chunks(STOP_BATCH) {
         let mut names: Vec<&str> = Vec::new();
         for unit in batch {
@@ -227,10 +302,11 @@ fn stop_empty(setup: &SweepSetup, units: &[ListedUnit], populated: &dyn Fn(&Path
             continue;
         }
         match setup.client.run(setup.uid, setup.gid, &user_arguments("stop", &names)) {
-            Ok(_output) => report.stopped += names.len(),
-            Err(error) => note_problem(report, format!("stopping {} empty scopes failed: {error}", names.len())),
+            Ok(_output) => stopped = stopped.saturating_add(names.len()),
+            Err(error) => note_problem(report, format!("stopping {} {what} failed: {error}", names.len())),
         }
     }
+    return stopped;
 }
 
 /// Sweeps with a given reader of the populated state,
@@ -244,8 +320,8 @@ pub fn sweep_with(setup: &SweepSetup, populated: &dyn Fn(&Path) -> Option<bool>)
         "--plain".to_string(),
         "--no-legend".to_string(),
         "--no-pager".to_string(),
-        // The pattern narrows the manager's list; every name it returns is checked again below.
-        format!("{}[0-9]*-[0-9]*{OLD_SCOPE_SUFFIX}", setup.prefix),
+        // The pattern narrows the manager's list; every name it returns is classified again below.
+        format!("{}*{OLD_SCOPE_SUFFIX}", setup.prefix),
     ];
     let listing = match setup.client.run_limited(setup.uid, setup.gid, &arguments, LIST_OUTPUT_BYTES) {
         Ok(text) => text,
@@ -254,15 +330,12 @@ pub fn sweep_with(setup: &SweepSetup, populated: &dyn Fn(&Path) -> Option<bool>)
             return report;
         }
     };
-    let mut units: Vec<ListedUnit> = Vec::new();
-    for unit in parse_listing(&listing) {
-        if is_old_style_scope_name(&unit.name, &setup.prefix) {
-            units.push(unit);
-        }
-    }
-    report.listed = units.len();
-    reset_failed(setup, &units, &mut report);
-    stop_empty(setup, &units, populated, &mut report);
+    let units: Vec<ListedUnit> = parse_listing(&listing);
+    let split = targets(setup, &units);
+    report.listed = split.per_process.len();
+    report.origins_listed = split.origins.len();
+    reset_failed(setup, &split.per_process, &mut report);
+    stop_empty(setup, &split, populated, &mut report);
     return report;
 }
 
@@ -274,13 +347,20 @@ pub fn sweep_leftover_scopes(setup: &SweepSetup) -> SweepReport {
 /// The line for the log,
 /// or `None` when the manager held no scope of the earlier design and nothing went wrong.
 pub fn describe_sweep(report: &SweepReport) -> Option<String> {
-    if report.listed == 0 && report.problems.is_empty() {
+    if report.listed == 0
+        && report.origins_listed == 0
+        && report.stopped == 0
+        && report.origins_stopped == 0
+        && report.reset == 0
+        && report.problems.is_empty()
+    {
         return None;
     }
     let mut line = format!(
-        "wg-quicker-exempt: swept the scopes of the earlier design: {} listed, {} failed units reset, {} empty running scopes stopped, \
+        "wg-quicker-exempt: swept the leftover scopes: {} of the earlier design listed, {} failed units reset, {} empty and stopped; \
+{} scopes of one origin listed, {} of them empty and stopped; \
 {} scopes that hold a process left alone (they end with their processes), {} left alone because their state could not be read",
-        report.listed, report.reset, report.stopped, report.held, report.unreadable
+        report.listed, report.reset, report.stopped, report.origins_listed, report.origins_stopped, report.held, report.unreadable
     );
     for problem in &report.problems {
         line.push_str("; ");
@@ -299,6 +379,6 @@ pub fn spawn_sweep(setup: SweepSetup) {
         }
     });
     if let Err(error) = started {
-        log_line(&format!("wg-quicker-exempt: the sweep of the scopes of the earlier design could not start: {error}"));
+        log_line(&format!("wg-quicker-exempt: the sweep of the leftover scopes could not start: {error}"));
     }
 }

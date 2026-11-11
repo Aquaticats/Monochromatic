@@ -35,6 +35,11 @@ impl Adopter for IdleAdopter {
         return Ok(());
     }
 
+    /// No scope of an origin runs in this fixture.
+    fn existing_scope_name(&self, _uid: u32, _slice: &str, _origin: &str) -> Option<String> {
+        return None;
+    }
+
     /// No process matches in the fake tree,
     /// so no move is requested.
     fn adopt(&self, _request: &AdoptRequest<'_>) -> Result<Joined, AdoptError> {

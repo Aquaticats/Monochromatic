@@ -75,6 +75,11 @@ impl Adopter for ScriptedAdopter {
         return Ok(());
     }
 
+    /// No scope of an origin runs in this fixture.
+    fn existing_scope_name(&self, _uid: u32, _slice: &str, _origin: &str) -> Option<String> {
+        return None;
+    }
+
     /// Adoption is not under test here.
     fn adopt(&self, _request: &AdoptRequest<'_>) -> Result<Joined, AdoptError> {
         return Err(AdoptError::Failed("adoption is not under test".to_string()));

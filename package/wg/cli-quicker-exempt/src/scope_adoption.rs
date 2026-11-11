@@ -21,9 +21,12 @@ use crate::process_info::parse_stat_fields;
 /// delimited so a cause ends them where the line does.
 use crate::report_cause::quote_name;
 /// The arguments of the manager calls.
-use crate::scope_calls::{attach_arguments, create_arguments, ensure_slice_arguments, set_properties_arguments, stop_arguments};
-/// Where a scope lives in the cgroup filesystem.
-use crate::scope_naming::scope_cgroup_directory;
+use crate::scope_calls::{attach_arguments, create_arguments, ensure_slice_arguments, scope_description, set_properties_arguments, stop_arguments};
+/// The names of the scope of an origin.
+use crate::scope_naming::{origin_scope_names, scope_cgroup_directory};
+/// Why a process is kept outside the tunnel,
+/// which the scope's description names.
+use crate::update_entry_points::MatchReason;
 /// The client run as the user.
 use crate::user_client::{ClientError, UserClient};
 /// Syscall and process failures.
@@ -57,8 +60,15 @@ pub struct AdoptRequest<'a> {
     /// Limits a new scope carries,
     /// read from the origin cgroup the processes leave.
     pub limits: &'a InheritedLimits,
-    /// Name of the scope of this origin.
+    /// Name of the scope of this origin,
+    /// as `origin_scope_names` resolves a scope that is already running under an earlier spelling.
     pub scope_name: &'a str,
+    /// The cgroup the processes leave,
+    /// which the scope's description names.
+    pub origin: &'a str,
+    /// The method that matched them,
+    /// which the scope's description names.
+    pub reason: MatchReason,
     /// Start time of the first process as it was read when it was matched,
     /// so a pid that another process took over later counts as gone.
     /// `None` skips that check.
@@ -147,6 +157,10 @@ impl std::fmt::Display for AdoptError {
 pub trait Adopter {
     /// Creates the slice when it does not exist.
     fn ensure_slice(&self, uid: u32, gid: u32, slice: &str, slice_directory: &Path) -> io::Result<()>;
+    /// The name of the scope of `origin` that is running right now,
+    /// current spelling or an earlier one,
+    /// so its later processes join it instead of one more scope with the same cap.
+    fn existing_scope_name(&self, uid: u32, slice: &str, origin: &str) -> Option<String>;
     /// Moves the requested processes into the scope of their origin,
     /// creating the scope with the request's limits when it does not exist.
     fn adopt(&self, request: &AdoptRequest<'_>) -> Result<Joined, AdoptError>;
@@ -348,6 +362,17 @@ impl Adopter for BusctlAdopter {
         return Ok(());
     }
 
+    /// The first of the origin's scope names whose cgroup directory exists,
+    /// so a scope that earlier builds named differently still receives the origin's processes.
+    fn existing_scope_name(&self, uid: u32, slice: &str, origin: &str) -> Option<String> {
+        for name in origin_scope_names(origin, uid) {
+            if scope_cgroup_directory(&self.cgroup_root, uid, slice, &name).is_dir() {
+                return Some(name);
+            }
+        }
+        return None;
+    }
+
     /// Attaches the pids to the scope of their origin when it exists,
     /// and creates it with the origin's limits when it does not,
     /// then waits until the first pid is in the slice.
@@ -369,7 +394,8 @@ impl Adopter for BusctlAdopter {
                 Err(_ended) => {}
             }
         }
-        self.call(request, *first, &create_arguments(request.scope_name, request.slice, request.pids, request.limits))?;
+        let description = scope_description(request.origin, request.reason);
+        self.call(request, *first, &create_arguments(request.scope_name, request.slice, request.pids, request.limits, &description))?;
         return self.settle(request, *first, Joined::Created);
     }
 

@@ -11,6 +11,7 @@ use crate::application_targets::{
     is_odytty_service_name,
     is_pi_service_name,
     is_qure_service_name,
+    is_in_updates_slice,
     is_socket_marked_cgroup,
     is_toolchain_updates_slice_name,
     scan_application_targets,
@@ -786,4 +787,20 @@ fn scan_discovers_pi_agent_units() -> io::Result<()> {
     assert_eq!(targets, vec![agent_unit]);
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
+}
+
+/// The updates slice is a place in the cgroup tree:
+/// the slice itself and what lies below it are inside,
+/// and a unit the user named after it is not,
+/// because a name is a name the user chooses.
+#[test]
+fn the_slice_is_matched_by_whole_path_components() {
+    let slice = format!("/user.slice/user-1000.slice/user@1000.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}");
+    assert!(is_in_updates_slice(&slice, 1000));
+    assert!(is_in_updates_slice(&format!("{slice}/x.scope"), 1000));
+    assert!(is_in_updates_slice(&format!("{slice}/x.scope/app.slice/y"), 1000));
+    for outside in [format!("{slice}-task.scope"), format!("{slice}x"), "/user.slice/user-1000.slice/user@1000.service/app.slice/x.scope".to_string()] {
+        assert!(!is_in_updates_slice(&outside, 1000), "{outside}");
+    }
+    assert!(!is_in_updates_slice(&slice, 2000), "another user's slice is another place");
 }

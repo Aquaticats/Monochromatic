@@ -157,21 +157,22 @@ fn failed_units_are_reset_and_empty_scopes_stopped_and_a_populated_scope_survive
     let report = sweep_leftover_scopes(&place.setup);
     assert_eq!(
         report,
-        SweepReport { listed: 10, reset: 3, stopped: 3, held: 2, unreadable: 1, problems: vec![] },
+        SweepReport { listed: 10, origins_listed: 1, reset: 3, stopped: 3, origins_stopped: 1, held: 2, unreadable: 1, problems: vec![] },
         "{report:?}"
     );
     assert_eq!(
         changes(&place),
-        [
-            "--user reset-failed wg-quicker-update-1-10.scope wg-quicker-update-2-10.scope wg-quicker-update-3-10.scope",
-            "--user stop wg-quicker-update-4-10.scope wg-quicker-update-5-10.scope wg-quicker-update-6-10.scope",
+        vec![
+            "--user reset-failed wg-quicker-update-1-10.scope wg-quicker-update-2-10.scope wg-quicker-update-3-10.scope".to_string(),
+            "--user stop wg-quicker-update-4-10.scope wg-quicker-update-5-10.scope wg-quicker-update-6-10.scope".to_string(),
+            format!("--user stop {CURRENT_DESIGN_SCOPE}"),
         ]
     );
     let everything = calls(&place).join("\n");
-    for survivor in ["-7-10", "-8-10", "-9-10", "-11-10", "app.slice"] {
+    for survivor in ["-7-10", "-8-10", "-9-10", "-11-10"] {
         assert!(!changes(&place).join("\n").contains(survivor), "{survivor} was named in a change: {everything}");
     }
-    assert!(calls(&place)[0].contains("list-units --all --plain --no-legend --no-pager wg-quicker-update-[0-9]*-[0-9]*.scope"), "{everything}");
+    assert!(calls(&place)[0].contains("list-units --all --plain --no-legend --no-pager wg-quicker-update-*.scope"), "{everything}");
 }
 
 /// A scope that gains a process between the first read and the stop is left alone,
@@ -267,8 +268,17 @@ fn the_populated_state_comes_from_cgroup_events() {
 #[test]
 fn the_log_line_states_the_counts_and_is_silent_when_there_was_nothing() {
     assert_eq!(describe_sweep(&SweepReport::default()), None);
-    let line = describe_sweep(&SweepReport { listed: 9, reset: 4, stopped: 3, held: 1, unreadable: 1, problems: vec!["x failed".to_string()] }).expect("a line");
-    for phrase in ["9 listed", "4 failed units reset", "3 empty running scopes stopped", "1 scopes that hold a process left alone", "1 left alone because their state could not be read", "; x failed"] {
+    let line = describe_sweep(&SweepReport { listed: 9, origins_listed: 2, reset: 4, stopped: 3, origins_stopped: 1, held: 1, unreadable: 1, problems: vec!["x failed".to_string()] }).expect("a line");
+    for phrase in [
+        "9 of the earlier design listed",
+        "4 failed units reset",
+        "3 empty and stopped",
+        "2 scopes of one origin listed",
+        "1 of them empty and stopped",
+        "1 scopes that hold a process left alone",
+        "1 left alone because their state could not be read",
+        "; x failed",
+    ] {
         assert!(line.contains(phrase), "missing {phrase:?} in {line}");
     }
     assert!(describe_sweep(&SweepReport { problems: vec!["listing failed".to_string()], ..SweepReport::default() }).is_some());

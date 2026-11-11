@@ -57,6 +57,10 @@ struct Recorded {
     gid: u32,
     /// Limits the scope should carry.
     limits: InheritedLimits,
+    /// The origin cgroup the processes left.
+    origin: String,
+    /// Why the process matched.
+    reason: MatchReason,
 }
 
 /// Records adoptions and answers from a script,
@@ -79,9 +83,21 @@ impl Adopter for ScriptedAdopter {
         return Ok(());
     }
 
+    /// These fixtures keep no scope under an earlier spelling of its name.
+    fn existing_scope_name(&self, _uid: u32, _slice: &str, _origin: &str) -> Option<String> {
+        return None;
+    }
+
     /// Records the request and answers from the script.
     fn adopt(&self, request: &AdoptRequest<'_>) -> Result<Joined, AdoptError> {
-        self.requests.borrow_mut().push(Recorded { scope_name: request.scope_name.to_string(), pids: request.pids.to_vec(), gid: request.gid, limits: request.limits.clone() });
+        self.requests.borrow_mut().push(Recorded {
+            scope_name: request.scope_name.to_string(),
+            pids: request.pids.to_vec(),
+            gid: request.gid,
+            limits: request.limits.clone(),
+            origin: request.origin.to_string(),
+            reason: request.reason,
+        });
         return self.script.borrow_mut().pop_front().unwrap_or(Ok(Joined::Created));
     }
 
@@ -257,6 +273,33 @@ fn an_executable_under_the_install_roots_is_adopted() {
     make_process(&fixture.proc_root, &Fake { pid: 21, exe: "/usr/bin/node", args: &["node", "x.js"], ..mise(21) });
     assert!(matches!(fixture.routing.consider(20), Outcome::Adopted { reason: MatchReason::ToolchainPath, .. }));
     assert_eq!(fixture.routing.consider(21), Outcome::Ignored);
+}
+
+/// A unit the user named after the slice is not the slice:
+/// its processes are moved like any other,
+/// because the policy reads the slice as a place in the cgroup tree and not as text in a name.
+#[test]
+fn a_unit_named_after_the_slice_is_still_moved() {
+    let mut fixture = fixture("named-like-the-slice", vec![]);
+    let lookalike = format!("/user.slice/user-1000.slice/user@1000.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}-task.scope");
+    let deeper = format!("/user.slice/user-1000.slice/user@1000.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}/x.scope");
+    make_process(&fixture.proc_root, &Fake { cgroup: &lookalike, ..mise(40) });
+    make_process(&fixture.proc_root, &Fake { cgroup: &deeper, ..mise(41) });
+    assert!(matches!(fixture.routing.consider(40), Outcome::Adopted { pid: 40, .. }));
+    assert_eq!(fixture.routing.consider(41), Outcome::AlreadyInSlice);
+    assert_eq!(fixture.requests.borrow().len(), 1);
+}
+
+/// The origin cgroup and the method that matched reach the adoption,
+/// which is what the scope's description says for a person reading `systemctl status`.
+#[test]
+fn the_origin_and_the_method_reach_the_adoption() {
+    let mut fixture = fixture("origin-recorded", vec![]);
+    make_process(&fixture.proc_root, &mise(45));
+    assert!(matches!(fixture.routing.consider(45), Outcome::Adopted { .. }));
+    let recorded = fixture.requests.borrow();
+    assert_eq!(recorded[0].origin, SCOPE);
+    assert_eq!(recorded[0].reason, MatchReason::MiseTask);
 }
 
 /// A forged first word does not get a process moved.

@@ -11,6 +11,9 @@ use crate::inherited_limits::{DeviceLimits, InheritedLimits};
 use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter, BusctlAdopter, Joined, LimitRequest};
 /// The arguments under test.
 use crate::scope_calls::{attach_arguments, create_arguments, ensure_slice_arguments, set_properties_arguments, stop_arguments};
+/// Why a process matched,
+/// which the scope description names.
+use crate::update_entry_points::MatchReason;
 /// Where a scope lives.
 use crate::scope_naming::scope_cgroup_directory;
 /// The client the adopter runs.
@@ -26,6 +29,8 @@ use std::time::{Duration, Instant};
 const SLICE: &str = "app-monochromatic\\x2dupdates.slice";
 /// Scope used by the tests.
 const SCOPE: &str = "wg-quicker-update-app.slice-claude\\x2dcode\\x2dbash.scope";
+/// Origin cgroup used by the tests.
+const ORIGIN: &str = "/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash";
 
 /// The limits of the cgroup the processes left,
 /// all of the kinds a scope carries.
@@ -44,7 +49,7 @@ fn all_limits() -> InheritedLimits {
 /// and with the limits as typed properties that the property count covers.
 #[test]
 fn the_create_arguments_follow_busctl_syntax() {
-    let arguments = create_arguments(SCOPE, SLICE, &[10, 11], &InheritedLimits::default());
+    let arguments = create_arguments(SCOPE, SLICE, &[10, 11], &InheritedLimits::default(), "wg-quicker: a description of the test scope");
     assert_eq!(
         arguments,
         [
@@ -68,7 +73,7 @@ fn the_create_arguments_follow_busctl_syntax() {
             "11",
             "Description",
             "s",
-            "wg-quicker update traffic that bypasses the tunnel",
+            "wg-quicker: a description of the test scope",
             "Delegate",
             "b",
             "true",
@@ -78,7 +83,7 @@ fn the_create_arguments_follow_busctl_syntax() {
             "0",
         ]
     );
-    let limited = create_arguments(SCOPE, SLICE, &[10], &all_limits());
+    let limited = create_arguments(SCOPE, SLICE, &[10], &all_limits(), "the test description");
     assert_eq!(limited[9], "9");
     for (name, value) in [("CPUQuotaPerSecUSec", "8000000"), ("MemoryMax", "1073741824"), ("TasksMax", "500"), ("IOWeight", "10")] {
         assert!(limited.windows(3).any(|window| return window == [name, "t", value]), "{name}");
@@ -128,7 +133,7 @@ fn per_device_limits_are_sent_as_arrays_of_device_paths_and_numbers() {
     let mut limits = InheritedLimits::default();
     limits.io_devices.insert("259:0".to_string(), DeviceLimits { read_bandwidth: Some(1_048_576), write_iops: Some(500), ..DeviceLimits::default() });
     limits.io_devices.insert("8:0".to_string(), DeviceLimits { read_bandwidth: Some(2_097_152), ..DeviceLimits::default() });
-    let created = create_arguments(SCOPE, SLICE, &[10], &limits);
+    let created = create_arguments(SCOPE, SLICE, &[10], &limits, "the test description");
     assert_eq!(created[9], "7", "five fixed properties and two kinds of device limit");
     let read_at = created.iter().position(|argument| return argument == "IOReadBandwidthMax").expect("the read bandwidth property");
     assert_eq!(created[read_at..read_at + 7], ["IOReadBandwidthMax", "a(st)", "2", "/dev/block/259:0", "1048576", "/dev/block/8:0", "2097152"]);
@@ -291,7 +296,21 @@ fn own_ids() -> (u32, u32) {
 /// Builds a request for the given pids and limits.
 fn request<'a>(limits: &'a InheritedLimits, pids: &'a [i32]) -> AdoptRequest<'a> {
     let (uid, gid) = own_ids();
-    return AdoptRequest { pids, uid, gid, slice: SLICE, limits, scope_name: SCOPE, first_start_time: None };
+    return AdoptRequest { pids, uid, gid, slice: SLICE, limits, scope_name: SCOPE, origin: ORIGIN, reason: MatchReason::ToolchainPath, first_start_time: None };
+}
+
+/// A scope that an earlier build named with a second `.scope` is found before a new one is made,
+/// so the origin's later processes join the running scope and share its cap.
+#[test]
+fn a_scope_named_by_an_earlier_build_is_found() {
+    let place = place("legacy-name", &accepting_all);
+    let (uid, _gid) = own_ids();
+    let origin = "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p1-i2.scope";
+    assert_eq!(place.adopter.existing_scope_name(uid, SLICE, origin), None);
+    let earlier = "wg-quicker-update-app.slice-run\\x2dp1\\x2di2.scope.scope";
+    let directory = scope_cgroup_directory(&place.adopter.cgroup_root, uid, SLICE, earlier);
+    std::fs::create_dir_all(&directory).expect("make the scope of the earlier build");
+    assert_eq!(place.adopter.existing_scope_name(uid, SLICE, origin), Some(earlier.to_string()));
 }
 
 /// The manager that creates and populates the scope and moves pid 77 into it.
@@ -528,7 +547,7 @@ fn a_pid_taken_over_by_another_process_is_vanished() {
     let place = place("reused", &|_paths| return Manager { create: "echo 'Access denied' >&2; exit 1".to_string(), ..accepting() });
     let (uid, gid) = own_ids();
     let limits = all_limits();
-    let same = AdoptRequest { pids: &[77], uid, gid, slice: SLICE, limits: &limits, scope_name: SCOPE, first_start_time: Some(99) };
+    let same = AdoptRequest { pids: &[77], uid, gid, slice: SLICE, limits: &limits, scope_name: SCOPE, origin: ORIGIN, reason: MatchReason::ToolchainPath, first_start_time: Some(99) };
     assert!(matches!(place.adopter.adopt(&same), Err(AdoptError::Failed(_))));
     let other = AdoptRequest { first_start_time: Some(100), ..same };
     assert_eq!(place.adopter.adopt(&other), Err(AdoptError::Vanished));
@@ -669,14 +688,15 @@ fn the_real_manager_creates_attaches_and_follows_limits() {
     let slice = "app-wgtest\\x2dshared.slice";
     let scope = format!("wg-quicker-update-wgtest-{first_pid}.scope");
     let (uid, gid) = own_ids();
+    let origin = format!("/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/wgtest-origin-{first_pid}.scope");
     let adopter = BusctlAdopter::new();
     let mut limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(2_000_000), tasks_max: Some(64), io_weight: Some(10), ..InheritedLimits::default() };
     let device = a_whole_block_device();
     if let Some(name) = &device {
         limits.io_devices.insert(name.clone(), DeviceLimits { read_bandwidth: Some(1_048_576), write_iops: Some(500), ..DeviceLimits::default() });
     }
-    let created = adopter.adopt(&AdoptRequest { pids: &[first_pid], uid, gid, slice, limits: &limits, scope_name: &scope, first_start_time: None });
-    let attached = adopter.adopt(&AdoptRequest { pids: &[second_pid], uid, gid, slice, limits: &limits, scope_name: &scope, first_start_time: None });
+    let created = adopter.adopt(&AdoptRequest { pids: &[first_pid], uid, gid, slice, limits: &limits, scope_name: &scope, origin: &origin, reason: MatchReason::ToolchainPath, first_start_time: None });
+    let attached = adopter.adopt(&AdoptRequest { pids: &[second_pid], uid, gid, slice, limits: &limits, scope_name: &scope, origin: &origin, reason: MatchReason::ToolchainPath, first_start_time: None });
     let directory = scope_cgroup_directory(Path::new("/sys/fs/cgroup"), uid, slice, &scope);
     let read = |name: &str| return std::fs::read_to_string(directory.join(name)).unwrap_or_default().trim().replace('\n', " | ");
     let (created_cpu, created_memory, created_tasks, created_weight, created_bfq) = (read("cpu.max"), read("memory.max"), read("pids.max"), read("io.weight"), read("io.bfq.weight"));

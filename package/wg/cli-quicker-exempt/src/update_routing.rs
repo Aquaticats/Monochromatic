@@ -12,7 +12,7 @@
 
 /// Slice and cgroup names,
 /// and the cgroups that carry the mark themselves.
-use crate::application_targets::{is_socket_marked_cgroup, TOOLCHAIN_UPDATES_SLICE};
+use crate::application_targets::{is_in_updates_slice, is_socket_marked_cgroup, TOOLCHAIN_UPDATES_SLICE};
 /// The limits the scope carries.
 use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
@@ -246,7 +246,7 @@ impl UpdateRouting {
         {
             return Outcome::Ignored;
         }
-        if info.cgroup.contains(TOOLCHAIN_UPDATES_SLICE) {
+        if is_in_updates_slice(&info.cgroup, self.setup.uid) {
             self.handled.insert(key);
             return Outcome::AlreadyInSlice;
         }
@@ -290,7 +290,12 @@ impl UpdateRouting {
         if pids.first() != Some(&pid) {
             return Outcome::Ignored;
         }
-        let scope_name = origin_scope_name(&info.cgroup, self.setup.uid);
+        // The origin's scope may be running under an earlier spelling of its name,
+        // and its later processes join it there instead of one more scope with the same cap.
+        let scope_name = match self.setup.adopter.existing_scope_name(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &info.cgroup) {
+            Some(name) => name,
+            None => origin_scope_name(&info.cgroup, self.setup.uid),
+        };
         let destination = scope_cgroup_path(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &scope_name);
         let limits = match read_inherited_limits(&self.setup.cgroup_root, &info.cgroup, &destination) {
             Ok(limits) => limits,
@@ -306,6 +311,8 @@ impl UpdateRouting {
             slice: TOOLCHAIN_UPDATES_SLICE,
             limits: &limits,
             scope_name: &scope_name,
+            origin: &info.cgroup,
+            reason,
             first_start_time: Some(info.start_time),
         };
         return match self.setup.adopter.adopt(&request) {

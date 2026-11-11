@@ -167,6 +167,21 @@ pub fn is_toolchain_updates_slice_name(name: &str) -> bool {
     return name == TOOLCHAIN_UPDATES_SLICE;
 }
 
+/// The cgroup path of the updates slice of `uid`,
+/// as `/proc/<pid>/cgroup` spells it.
+pub fn updates_slice_cgroup(uid: u32) -> String {
+    return format!("/user.slice/user-{uid}.slice/user@{uid}.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}");
+}
+
+/// Reports whether `cgroup` is the updates slice itself or lies below it.
+/// Whole path components are compared:
+/// a unit the user named after the slice is somewhere else,
+/// and a process in it is moved like any other.
+pub fn is_in_updates_slice(cgroup: &str, uid: u32) -> bool {
+    let slice = updates_slice_cgroup(uid);
+    return cgroup == slice || cgroup.starts_with(&format!("{slice}/"));
+}
+
 /// Reports a `pi-<name>.service` agent unit,
 /// the unit a Pi agent run of this repository lives in.
 /// The name must carry something after the prefix:
