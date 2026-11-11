@@ -1127,7 +1127,7 @@ fn a_merge_side_link_keeps_the_persons_edited_regular_file_whole() {
     let found: std::fs::Metadata = std::fs::symlink_metadata(repo.join("a.txt")).expect("a.txt is there");
     assert!(!found.file_type().is_symlink(), "the person's regular file stands there: {words}");
     assert_eq!(text_at(repo.as_path(), "a.txt").as_deref(), Some(person), "the person's bytes are kept whole: {words}");
-    assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "their edit is still unsaved");
+    assert_eq!(status(&fixture, repo.as_path()), " T a.txt\n", "their regular file is their unsaved change of kind");
     let held: String = git_text(&fixture, repo.as_path(), &["ls-tree", "HEAD", "--", "a.txt"]);
     assert!(held.starts_with("120000 "), "the merge's link is in the merge commit: {held}");
     assert!(words.contains("a.txt holds your own bytes"), "the line says what stands there: {words}");
