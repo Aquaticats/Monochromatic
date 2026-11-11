@@ -131,7 +131,7 @@ function membershipOfCommandLine(commandLine: readonly string[],): PoolMembershi
       commandLine,
       option: NAME_OPTION,
     },),
-    ...(pool.inAPool ? { pool, } : {}),
+    ...(pool.holds === 'a-pool' ? { pool, } : {}),
   },);
 }
 
@@ -295,7 +295,7 @@ export function poolOfExecStart({ shown, }: { readonly shown: string },): PoolMe
     option: '--model',
   },);
   if ((provider === '') || (model === '')) {
-    return { inAPool: false, };
+    return { holds: 'no-pool', };
   }
   return poolNamed({
     provider,
@@ -305,6 +305,9 @@ export function poolOfExecStart({ shown, }: { readonly shown: string },): PoolMe
 
 /**
  Reads every Pi run going now, from the launchers and from systemd.
+
+ A unit whose own command line could not be read holds a slot in every pool its name could be running on, which is what the
+ caller counts: a guessed single pool read that one pool full and the others empty.
 
  @param run - how a command is run, which a test replaces
 

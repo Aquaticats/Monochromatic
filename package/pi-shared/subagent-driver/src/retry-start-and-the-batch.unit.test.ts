@@ -30,6 +30,7 @@ import {
   NO_SLOT_EXIT_STATUS,
   PoolGateOptionsError,
   PROVIDER_POOLS,
+  poolsHeldBy,
   RetryStartOptionsError,
   batchEntriesIn,
   entryLineOf,
@@ -577,7 +578,9 @@ await describe({
             const named = poolOfExecStart({
               shown: '{ path=node ; argv[]=node x.ts --provider=neuralwatt --model=deepseek-v4.1-flash ; }',
             },);
-            expect(poolNamesOf(named,),).toEqual(['neuralwatt',],);
+            expect(poolsHeldBy({ membership: named, },).map(function nameOf(pool,) {
+              return pool.name;
+            },),).toEqual(['neuralwatt',],);
             expect(poolOfExecStart({
               shown: '{ argv[]=node x.ts --provider neuralwatt --model deepseek-v4.1-flash ; }',
             },).holds,).toBe('a-pool',);

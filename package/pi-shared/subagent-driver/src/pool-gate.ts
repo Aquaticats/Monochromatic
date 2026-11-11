@@ -83,7 +83,7 @@ export function poolChoiceFor({
   readonly tallies: PoolTallies;
   readonly resumes: boolean;
 },): PoolChoice {
-  if (!requested.inAPool) {
+  if (requested.holds !== 'a-pool') {
     return { destination: 'its-own-provider', };
   }
   if (requested.pool

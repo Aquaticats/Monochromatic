@@ -18,19 +18,20 @@ export {
   NEURALWATT_KIMI_FLEX,
   NEURALWATT_STANDARD,
   OPENCODE_GO,
-  POOL_OF_A_RUN_NAMING_NO_POOL,
   PROVIDER_OF_A_RUN_NAMING_NONE,
   PROVIDER_POOLS,
   type PoolMembership,
   type ProviderPool,
   membershipOf,
   poolNamed,
+  poolsARunOfThatNameCouldHold,
 } from './pool-limits.ts';
 export {
   NO_POOL_HAS_ROOM,
   type PoolTallies,
   firstDefaultPoolWithRoom,
   poolHasRoom,
+  poolsHeldBy,
   summaryTextOf,
   talliesOf,
 } from './pool-tallies.ts';

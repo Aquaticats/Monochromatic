@@ -80,10 +80,18 @@ in the order above.
 A run is counted from its launcher's own command line while the launcher is still running,
 and from the unit's `ExecStart` once the launcher has gone,
 so a launcher that has not made its unit yet still holds its slot.
-An audit (`sol-`) and a Kimi run on a provider no pool holds are counted in no pool,
-because neither competes for those slots.
-A run whose pool cannot be read at all is counted in `opencode-go`,
-which is what the launcher this replaced did.
+An audit (`sol-`) is counted in no pool,
+because an audit runs on another account and competes for none of these slots.
+
+A run whose pool cannot be read holds a slot in every pool it could be running on,
+and the command names the unit it could not read on standard error:
+every pool for an ordinary run,
+the Kimi flex pool alone for a run named `kimi-`,
+and no pool for an audit.
+Holding a slot in each is the safe direction:
+a guessed single pool read that pool full while the others read empty,
+which is how runs sat on standard Neuralwatt while the count said it had room.
+A count can therefore read fuller than the runs really are.
 
 ### `start-pi-run-when-a-pool-has-room`
 

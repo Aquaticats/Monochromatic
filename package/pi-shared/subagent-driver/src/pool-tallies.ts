@@ -9,6 +9,7 @@
 
 import type { GoingRun, } from './going-runs.ts';
 import {
+  type PoolMembership,
   type ProviderPool,
   PROVIDER_POOLS,
 } from './pool-limits.ts';
@@ -29,7 +30,33 @@ export type PoolTallies = {
 };
 
 /**
+ Reads the pools one membership holds a slot in.
+
+ @param membership - a run's membership
+
+ @returns one entry per pool it holds, and nothing for a run no pool holds
+
+ @example
+ ```ts
+ const pools = poolsHeldBy({ membership: poolNamed({ provider: 'neuralwatt', model: 'deepseek-v4.1-flash', },), },);
+ ```
+ */
+export function poolsHeldBy({
+  membership,
+}: {
+  readonly membership: PoolMembership;
+},): readonly ProviderPool[] {
+  if (membership.holds === 'a-pool') {
+    return [membership.pool,];
+  }
+  return (membership.holds === 'some-pools') ? membership.pools : [];
+}
+
+/**
  Counts the runs going now by the pool each holds a slot in.
+
+ A run whose pool could not be read holds a slot in every pool it could be running on, so each of those is one closer to full:
+ under-counting a pool is what let a run be started into room it did not have.
 
  @param runs - the runs going now
 
@@ -51,15 +78,10 @@ export function talliesOf({ runs, }: { readonly runs: readonly GoingRun[] },): P
     ] as const;
   },),);
   for (const run of runs) {
-    if (run.membership
-      .inAPool) {
+    for (const pool of poolsHeldBy({ membership: run.membership, },)) {
       counts.set(
-        run.membership
-          .pool
-          .name,
-        (counts.get(run.membership
-          .pool
-          .name,) ?? 0) + 1,
+        pool.name,
+        (counts.get(pool.name,) ?? 0) + 1,
       );
     }
   }

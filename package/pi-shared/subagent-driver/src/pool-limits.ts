@@ -132,13 +132,6 @@ export const PROVIDER_OF_A_RUN_NAMING_NONE = 'neuralwatt';
 export const MODEL_OF_A_RUN_NAMING_NONE = 'deepseek-v4.1-flash';
 
 /**
- The pool a run is counted in when neither a launcher process nor its unit's own command line names one. The scratch launcher
- kept this answer for every unit whose launcher had gone, which is how runs sat on standard Neuralwatt while it read empty until
- 2026-11-11; reading the unit's `--provider` and `--model` replaced that, and this is only what is left when that read fails.
- */
-export const POOL_OF_A_RUN_NAMING_NO_POOL: ProviderPool = OPENCODE_GO;
-
-/**
  The start of the run name of an audit. Audits run on other accounts and are in no pool, so a counted pool never holds one.
  */
 export const AUDIT_RUN_PREFIX = 'sol-';
@@ -151,14 +144,50 @@ export const AUDIT_RUN_PREFIX = 'sol-';
 export const KIMI_RUN_PREFIX = 'kimi-';
 
 /**
- What a run's pool membership is: the pool it holds a slot in, or the fact that no shared pool holds it.
+ What a run's pool membership is: the pool it holds a slot in, every pool it could be running on when nothing could be read
+ about it, or the fact that no shared pool holds it.
+
+ A run whose pool is unknown holds a slot in each pool it could be running on, never in one guessed pool: the scratch launcher
+ answered `opencode-go` for every unit whose launcher had gone, which is how runs sat on standard Neuralwatt while its count read
+ empty until 2026-11-11.
  */
 export type PoolMembership =
   | {
-    readonly inAPool: true;
+    readonly holds: 'a-pool';
     readonly pool: ProviderPool;
   }
-    | { readonly inAPool: false };
+    | {
+      readonly holds: 'some-pools';
+      readonly pools: readonly ProviderPool[];
+    }
+    | { readonly holds: 'no-pool' };
+
+/**
+ Reads every pool a run of one name could be running on, for a run whose own command line could not be read.
+
+ The name is the only evidence left, and it is the same evidence that decides whether a readable run is in a pool at all: an
+ audit runs on another account, a Kimi run on a provider no pool of the DeepSeek kind holds, and any other run could name any
+ model and so could be on any pool. Holding a slot in each of them holds the room that run may have taken; guessing one pool
+ under-counted the others and is what this replaces.
+
+ @param runName - the run's name
+
+ @returns every pool such a run could hold, or nothing when its name rules every pool out
+
+ @example
+ ```ts
+ const pools = poolsARunOfThatNameCouldHold({ runName: 'copy-route', },);
+ ```
+ */
+export function poolsARunOfThatNameCouldHold({ runName }: { readonly runName: string },): readonly ProviderPool[] {
+  if (runName.startsWith(AUDIT_RUN_PREFIX,)) {
+    return [];
+  }
+  if (runName.startsWith(KIMI_RUN_PREFIX,)) {
+    return [NEURALWATT_KIMI_FLEX,];
+  }
+  return PROVIDER_POOLS;
+}
 
 /**
  Reads the pool a run's command line names.
@@ -187,8 +216,8 @@ export function poolNamed({
   const found = PROVIDER_POOLS.find(function isNamed(pool,) {
     return (pool.provider === provider) && (pool.model === model);
   },);
-  return (found === undefined) ? { inAPool: false, } : {
-    inAPool: true,
+  return (found === undefined) ? { holds: 'no-pool', } : {
+    holds: 'a-pool',
     pool: found,
   };
 }
@@ -200,7 +229,8 @@ export function poolNamed({
 
  @param pool - the pool its command line names, when one was read
 
- @returns the pool it holds a slot in, or that no shared pool holds it
+ @returns the pool it holds a slot in, every pool it could be running on when nothing names one, or that no shared pool holds
+ it
 
  @example
  ```ts
@@ -215,16 +245,17 @@ export function membershipOf({
   readonly pool?: PoolMembership;
 }): PoolMembership {
   if (runName.startsWith(AUDIT_RUN_PREFIX,)) {
-    return { inAPool: false, };
+    return { holds: 'no-pool', };
   }
   if (pool !== undefined) {
     return pool;
   }
-  if (runName.startsWith(KIMI_RUN_PREFIX,)) {
-    return { inAPool: false, };
-  }
-  return {
-    inAPool: true,
-    pool: POOL_OF_A_RUN_NAMING_NO_POOL,
+  /**
+   Every pool a run of this name could hold, which is where it holds a slot while nothing names one.
+   */
+  const couldHold = poolsARunOfThatNameCouldHold({ runName, },);
+  return (couldHold.length === 0) ? { holds: 'no-pool', } : {
+    holds: 'some-pools',
+    pools: couldHold,
   };
 }

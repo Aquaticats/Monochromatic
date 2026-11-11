@@ -146,17 +146,19 @@ async function writeStandIns({
   folder,
   units,
   execStart,
+  execStartFails = false,
 }: {
   readonly folder: string;
   readonly units: string;
   readonly execStart: string;
+  readonly execStartFails?: boolean;
 }): Promise<void> {
   await writeProgram({
     folder,
     name: 'systemctl',
     body: [
       'case "$*" in',
-      `  *--property=ExecStart*) printf '%s\\n' "${execStart}" ;;`,
+      `  *--property=ExecStart*) ${execStartFails ? String.raw`printf '%s\n' 'No such unit' >&2; exit 1` : `printf '%s\\n' "${execStart}"`} ;;`,
       `  *list-units*) printf '%s' "${units}" ;;`,
       '  *) exit 0 ;;',
       'esac',
@@ -537,6 +539,28 @@ await describe({
         },);
         expect(ran.status,).not.toBe(0,);
         expect(ran.stderr,).toContain('--turn-cap is required',);
+      },
+    },),
+    it({
+      name: 'counts a unit whose own command line could not be read in every pool it could be running on, saying which it could not read',
+      fn: async () => {
+        await using folder = await makeBareFolder();
+        await writeStandIns({
+          folder: folder.bins,
+          units: 'pi-copy-route.service x\n',
+          execStart: '',
+          execStartFails: true,
+        },);
+        /**
+         What the gate answered.
+         */
+        const ran = await runTheGate({
+          folder,
+          words: ['--counts-only', '--runs-folder=/nowhere',],
+        },);
+        expect(ran.status,).toBe(0,);
+        expect(ran.stdout.trim(),).toBe('neuralwatt 1/20, neuralwatt-flex 1/22, opencode-go 1/20, neuralwatt-kimi-flex 1/22',);
+        expect(ran.stderr,).toContain('pool of unit pi-copy-route.service not read',);
       },
     },),
   ],
