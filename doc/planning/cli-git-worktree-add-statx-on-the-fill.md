@@ -218,6 +218,17 @@ before and after:
 - the directories the proof opens:
   2,024 to 2,024.
 
+The same pair run again on the binaries built from the branch tip,
+at 2026-11-11T00:20:59Z and 2026-11-11T00:21:58Z,
+states the same sizes:
+195,010 calls to 114,085,
+`statx` 86,555 to 54,956,
+`openat2` 24,541 to 4,492,
+`close` 36,208 to 11,391,
+and `getdents64` 9,863 to 9,866.
+The first pair was measured on the build made before the linter's style pass,
+so this page quotes both rather than one.
+
 What is left is the two proofs' one read per tracked file,
 one device check per directory each walk opens,
 and one read per stand-in candidate.
