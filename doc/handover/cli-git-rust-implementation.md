@@ -117,6 +117,38 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Cleanup runs continuously, and what a Claude Code restart loses (2026-11-11T17:30:24-05:00)
+
+The owner, 2026-11-11 at about 17:2x:
+"Make the cleanups a systemd service that runs continuously."
+This replaces the once-a-day schedule of `doc/planning/lean-build-dirs.md` option F
+(`cargo-shadow-lean.timer`, 04:30, written by `cargo-shadow lean timer-install` from `src/lean_timer_units.rs`).
+As a stopgap the coordinator rewrote `~/.config/systemd/user/cargo-shadow-lean.service` by hand:
+`Type=simple`, `Restart=always`, `RestartSec=60`, `RuntimeMaxSec=12600` per pass, `StartLimitIntervalSec=0`,
+the same CPU, memory, task, disk-weight, nice and idle-I/O limits as before,
+and `[Install] WantedBy=default.target`;
+the timer is disabled with `--now`, and the service is enabled and running (its journal shows image removals).
+Never run `cargo-shadow lean timer-install` until round 226's branch `feat/cargo-shadow-lean-runs-continuously` lands:
+that installer writes the daily timer back.
+Round 226 makes the installer write the continuous service, with tests, the README section F and the planning doc;
+the coordinator merges it and runs the new install, which replaces the stopgap file.
+A manual pass started as `cargo-shadow-lean-at-17-30` through `mise exec` failed at once
+(`mise ERROR "cargo-shadow" couldn't exec process: No such file or directory`);
+the service calls `.cache/toolchain-bin/cargo-shadow` by its full path and is not affected.
+
+The owner asked at 17:3x when Claude Code can be restarted.
+Every launcher (`start-pi-run-in-worktree.ts`), its `retry-start-until-a-slot-frees.ts` and its batch starter run as background shells of the coordinator's Claude Code process,
+while each Pi agent runs in its own `pi-*` unit.
+Probe at 17:3x: a throwaway `systemd-run --user --wait` client sent SIGTERM exited, and its unit kept running,
+so the Pi agents survive a restart.
+What a restart loses:
+each launcher's after-run steps (the wake-wait resume of an agent that ended with its work still running, and the immediate worktree removal, which the 15-minute removal timer also does),
+the one launcher in its wake wait at the time (`qwen-audit-alpha-10-commit-path`, round 217),
+and the session-only crons (`36b34a30`, the hourly fill until 19:55, and `b00d10e8`, which deletes it).
+After a restart the coordinator lists `pi-*` runs that ended with no launcher outcome, resumes those that left work running, and recreates the fill cron if it is before 19:55.
+Lasting fix, open: launchers run as their own systemd user units (AGENTS.md says long background runs get their own unit),
+so a restart of the coordinator loses nothing.
+
 ### The owner's answers of 2026-11-11T16:35-05:00, through the question tool
 
 Eight choices, each asked with its options, pros, cons and a ranking; the owner's picks, verbatim:
