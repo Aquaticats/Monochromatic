@@ -8987,7 +8987,7 @@ and cannot be disabled or assigned a severity through repository config.
   The commit is not made,
   nothing is staged by it,
   and the message names every refused token as Git named it;
-  and a token that begins with a hyphen also says that options belong before `--`
+  a token that begins with a hyphen also says that options belong before `--`
   (`git commit --message <text> -- <paths>`).
   Every other failure of that staging start keeps its engine-failure report
   (`commit_pathspec_matching_nothing.rs`;
