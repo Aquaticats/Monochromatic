@@ -19,8 +19,11 @@ How to read it:
  "Carries the intent" means the integration has the same change or a later design that
  replaces it,
  and the commit or file that does is named.
+ A group whose commits serve two designs can be carried in part,
+ and each part then carries its own verdict.
  "Still wanted and missing" names the reason it is wanted.
- "Unclear" names what would settle it.
+ "Unclear" names what would settle it,
+ and no group needed it.
  Each branch section ends with a proposal for the coordinator.
 
 ## How the verdicts were reached
@@ -698,8 +701,10 @@ One filtered test run was made to re-check the `#4487` control the pass names:
 14 passed,
 6854 skipped,
 `a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read` among them.
-The crate was built for that run and Clippy was not run for it,
-because no Rust file of this port differs from the integration's.
+The crate was built for that run.
+`mise run //package/git-policy/cli:native:clippy` on the same branch finishes in
+1m 43s with warnings denied and none printed,
+although no Rust file of this port differs from the integration's.
 
 ## What was run
 
