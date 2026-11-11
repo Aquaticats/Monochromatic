@@ -1,7 +1,7 @@
 # What a worktree removal costs the person and the volume
 
 Status:
-measured on this machine on 2026-11-10 between 17:41 and 18:50 (-05:00),
+measured on this machine on 2026-11-10 between 17:41 and 19:23 (-05:00),
 and one half of it implemented on branch
 `perf/git-policy-cli-worktree-removal-delete-load`:
 a `git worktree remove --force` of a subvolume worktree now destroys the
@@ -183,9 +183,9 @@ one removal per sample,
   so the one-call route is not what this branch adds.
 - `L`,
   wrapped `git worktree list`:
-  6 to 12 ms warm,
-  and 2,427 ms for the first one,
-  which is the cold page cache rather than the wrapper.
+  6 to 12 ms in every sample but the first,
+  which took 2,427 ms and came straight after the clone.
+  What made that one slow was not probed.
 
 The one deterministic result in that list is the count of destroys:
 before,
@@ -202,10 +202,74 @@ into the tree (see "Where the seconds go").
 The totals cannot separate these arms on this host;
 the parts below can.
 
+## What each route does, counted in system calls
+
+Wall-clock times on this host wobble by a factor of five for the same work (see below),
+so each route was counted instead,
+with `strace -f -c` under the same cgroup and in the same fixture,
+one removal per trace,
+same 63,087-entry tree and the same branch binary,
+at 2026-11-10T19:19:43-05:00 and 2026-11-10T19:22:52-05:00.
+
+- A forced removal of a subvolume worktree:
+  `ioctl` 2 (the destroy is one of them),
+  `unlinkat` 9,
+  `unlink` 1,
+  `rmdir` 2,
+  `statx` 249,
+  `openat2` 7,
+  `fstat` 87.
+- The same forced removal of an ordinary-directory worktree:
+  `unlink` 63,089,
+  `rmdir` 2,034,
+  `newfstatat` 90,979,
+  `getdents64` 4,138,
+  `openat` 2,596.
+- A clean removal of a subvolume worktree,
+  which runs the proof and then the destroy:
+  `statx` 39,377,
+  `openat2` 12,057,
+  `fstat` 2,124,
+  `getdents64` 4,101,
+  `ioctl` 2,
+  `unlinkat` 9,
+  `rmdir` 2.
+
+The two routes for the same tree differ by 63,080 `unlink` calls and 2,032 `rmdir` calls:
+that is Git's deletion,
+one system call per entry and one per directory,
+and it is the work the one-call route does not do.
+The force removes the other cost:
+39,128 `statx` calls,
+12,050 `openat2` calls,
+2,037 `fstat` calls and 4,065 `getdents64` calls
+that the cleanliness proof makes over the 23,082 tracked files and the one listing run.
+None of those counts moves with the load,
+which is why this section is the evidence and the timings below are not.
+
+Both subvolume removals also make 25,500 and 26,279 `newfstatat` calls,
+and those are not the wrapper's proof either:
+every `git worktree remove` runs one
+`git -C <worktree> --no-optional-locks status --porcelain=v1 --untracked-files=no`
+for the removal's audit record
+(`removal_facts` in `src/native/worktree/worktree_audit.rs`,
+called from `src/native/policy/policy_audited.rs`),
+and Git's status stats the tracked files of the worktree it is asked about.
+That run is the same for both routes,
+and no part of this branch changed it.
+For comparison,
+`git worktree list` in the same fixture makes 77 `newfstatat` calls and 83 `statx` calls,
+and `git status --short` makes 25,278 and 89.
+The 24,355 calls that name a path under `package/` are that status walk,
+not a scan of the repository the command runs in.
+
 ## Where the seconds go
 
 Every value in this section is one step timed on its own,
 in the same fixture.
+The times say what a person waits for and how the parts are shaped;
+they cannot size the change,
+because the same unchanged work appears below at 2.3 s and at 41.0 s.
 
 - The kernel's own destroy of an identical tree:
   5.0 ms to 52.9 ms,
@@ -238,9 +302,11 @@ in the same fixture.
   0.8 s,
   4.1 s,
   4.3 s and 10.9 s (median 4.2 s).
-  The destroy commits a transaction that also has to flush the metadata of what was written
-  into the tree moments before;
-  the unlink route meets the same backlog one entry at a time.
+  That is consistent with the destroy waiting for the commit that carries the metadata of what was
+  written into the tree moments before,
+  and the unlink route meeting the same backlog one entry at a time;
+  nothing here measured the transaction,
+  so it is an explanation and not a result.
 - Real Git's unlink of the same tree took 7.7 s,
   10.3 s and 25.6 s in the same probe.
 - What the person's process is doing while the unlink runs:
@@ -362,7 +428,10 @@ and that proof,
 is inside `check_clean_worktree`,
 so a forced removal deletes the worktree it was given whatever it holds.
 The destroy therefore deletes the same set of files as the command the person asked for,
-in one call instead of one system call per entry,
+in one call instead of one system call per entry
+(9 `unlinkat` calls against 63,089 `unlink` calls for the same tree,
+counted under "What each route does,
+counted in system calls"),
 and states on standard error that nothing was
 checked for changes first.
 
@@ -380,10 +449,21 @@ and the removal of the registration through held descriptors.
 A conversion's recorded copy beside the worktree still refuses the removal,
 forced or not.
 
-What the change is worth here:
-in the settled probe the forced removal took 0.7 s to 2.3 s where the same tree's clean removal
-took 4.8 s to 11.6 s and its unlink took 7.7 s to 25.6 s,
-because the force removes the proof and the one call removes the per-entry work.
+What the change is worth here,
+in the parts probe,
+which times the three steps on three trees made the same way,
+three times each:
+the forced removal took 0.7 s,
+2.3 s and 9.5 s,
+the clean removal of the same tree took 4.8 s,
+10.2 s and 11.6 s,
+and its unlink took 7.7 s,
+10.3 s and 25.6 s.
+Three samples per arm on a volume whose unpaired spread is 2.3 s to 41.0 s are not an effect size.
+What the three do show is the shape:
+the force removes the proof,
+which is the largest single step of a served removal that is not forced,
+and the one call removes the per-entry work.
 The forced form is also the one this wrapper's own reports tell a person to run
 (`git worktree remove --force <path>` appears in its checkout and copy reports),
 so it is the removal agents actually run on a worktree they have worked in.
@@ -406,6 +486,20 @@ so a 5,000-entry worktree pays 0.2 s to 3.3 s and a 200,000-entry one pays 7 s t
 The 24 to 26 plain worktrees above pay that on every removal,
 and converting each one once
 makes the one-call route reachable for it from then on.
+
+## A limit the forced form reaches more often
+
+A worktree that holds a nested subvolume of its own,
+such as a worktree added inside a directory of another one,
+loses that subvolume differently by each route:
+the destroy leaves the nested subvolume in place with nothing naming it,
+because btrfs does not delete a nested subvolume with its parent,
+while real Git unlinks the nested subvolume's files and then fails to remove its root.
+Neither route was measured here,
+and the wrapper's existing walk of a conversion's old tree already refuses to enter a nested subvolume
+for the same reason (`src/native/subvolume/subvolume_remove_walk.rs`).
+A forced removal of a worktree that holds another worktree is now served where it was Git's,
+so a person meets this more often.
 
 ## What I could not do
 
@@ -456,12 +550,19 @@ makes the one-call route reachable for it from then on.
    nothing is deleted that the removal cannot prove it moved.
    It is the only route left for the 24 to 26 plain worktrees and for a mount without
    `user_subvol_rm_allowed`.
-2. Should the cleanliness proof be cheaper than seconds?
-   It is now the largest single step of a served removal that is not forced.
-   The alternative is to let real Git decide with one `git status --porcelain` run,
-   as its own
-   `check_clean_worktree` does,
-   which would replace 23,082 stat calls and one listing run with one child.
+2. Should the cleanliness proof reuse the answer the audit already pays for?
+   It is the largest single step of a served removal that is not forced:
+   39,377 `statx` calls,
+   12,057 `openat2` calls and 2,124 `fstat` calls in the counted run above.
+   The same command already runs
+   `git -C <worktree> --no-optional-locks status --porcelain=v1 --untracked-files=no`
+   for the audit record,
+   and Git's own `check_clean_worktree` decides cleanliness with exactly one such run.
+   The proof is stricter than that run in ways `worktree_clean.rs` documents
+   (stat fields,
+   conversion settings,
+   the ignored-file question),
+   so shortening it is a design change and not a tweak.
 3. Should the plain worktrees be converted now,
    and by which route:
    the existing `convert-worktree-to-subvolume` (a full copy each),

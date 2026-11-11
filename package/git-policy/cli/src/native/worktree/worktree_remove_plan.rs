@@ -68,8 +68,8 @@ fn is_force(token: &OsString) -> bool {
 /// so those forms stay with Git.
 /// The forced form is served because Git's own
 ///  `--force` removal deletes exactly the worktree the destroy deletes,
-/// and because a worktree that holds changes is the
-///  one carrying the largest ignored trees.
+/// and because a forced removal is the form
+///  the wrapper's own reports tell a person to run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

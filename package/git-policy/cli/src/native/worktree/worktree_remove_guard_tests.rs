@@ -539,6 +539,39 @@ fn a_worktree_with_a_leftover_conversion_stage_is_refused() {
 }
 
 /// What:
+///  A forced removal of a worktree with a conversion's recorded copy beside it is refused,
+///  exactly as the option-free one is,
+///  and nothing is destroyed.
+/// Why:
+///   The destroy deletes the registration,
+/// and the conversion's journal lives in it,
+/// so the copy would be left with nothing naming it;
+/// `--force` answers for the worktree
+///  it was given and not for a copy that is not in it.
+#[test]
+fn a_forced_removal_of_a_worktree_with_a_leftover_conversion_stage_is_refused() {
+    let root: PathBuf = fixture("remove-forced-leftover-stage");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    std::fs::write(worktree.join("tracked.txt"), b"unsaved work\n").expect("a change");
+    let converting: PathBuf = crate::worktree_convert::converting_path(worktree.as_path());
+    std::fs::create_dir_all(converting.join("d")).expect("a copy beside the worktree");
+    std::fs::write(converting.join("d/copy"), b"a copy\n").expect("its file");
+    let stage = crate::worktree_convert_leftover_stage_record::LeftoverStage {
+        original: crate::fs_beneath::identity_of(&std::fs::File::open(converting.as_path()).expect("the copy")).expect("identity"),
+        created: None,
+    };
+    crate::worktree_convert_leftover_stage_record::record_leftover_stage(worktree.as_path(), &stage);
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &forced_plan_named(worktree.as_path(), "../wt"));
+    let RemoveOutcome::Refused(report) = outcome else { panic!("a forced removal with a recorded copy is refused, but it was {outcome:?}") };
+    assert!(report.contains("convert-worktree-to-subvolume"), "the report names the command that finishes or discards it: {report}");
+    assert!(worktree.join("tracked.txt").is_file(), "the worktree is untouched");
+    assert!(converting.join("d/copy").is_file(), "and so is the copy");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A record whose stage is gone does not stop the removal:
 ///  the record alone says what a conversion may have left,
 ///  not what is

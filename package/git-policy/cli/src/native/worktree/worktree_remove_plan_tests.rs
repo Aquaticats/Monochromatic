@@ -35,8 +35,12 @@ fn the_plan_names_one_directory_and_no_option() {
 /// Why:
 ///   Git deletes a dirty worktree only with `-f`/`--force` (`remove_worktree`,
 ///  `if (!force) check_clean_worktree(...)`),
-///  and those worktrees are the ones with the largest ignored trees,
-///  so a forced removal is today the slowest one while every other command waits on the volume.
+///  so before this the forced removal,
+/// which the wrapper's own reports tell a person to run,
+///  always left every entry of the tree to real Git to unlink.
+/// How much a worktree of that shape holds was not measured here;
+/// the page
+///  `doc/planning/cli-git-worktree-removal-cost-and-disk-time.md` is where it is measured.
 #[test]
 fn a_forced_removal_names_the_directory_and_the_force() {
     let root: PathBuf = fixture("remove-plan-forced");
