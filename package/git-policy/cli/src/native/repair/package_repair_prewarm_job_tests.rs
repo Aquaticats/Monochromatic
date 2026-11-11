@@ -387,8 +387,8 @@ fn the_filling_never_writes_the_worktrees_lock() {
         let after: Option<Vec<u8>> = std::fs::read(lock.as_path()).ok();
         let described: String = after.as_ref().map_or(String::from("no lock"), |bytes| return format!("{} bytes", bytes.len()));
         assert_eq!(after, left, "the worktree's {LOCK_FILE} holds exactly the bytes the filling found ({state}): {described}");
-        if let Some(before) = before {
-            assert_eq!(identity_of(lock.as_path()), before, "nothing wrote the worktree's {LOCK_FILE}, so no kill can leave it rewritten or cut short ({state})");
+        if let Some(left_before) = before {
+            assert_eq!(identity_of(lock.as_path()), left_before, "nothing wrote the worktree's {LOCK_FILE}, so no kill can leave it rewritten or cut short ({state})");
         }
         if state == "matching" {
             assert_eq!(verdict, Verdict::Done, "a lock that matches its manifest lets the clean run, and the copy is published");
@@ -523,7 +523,8 @@ const FILLING_DEADLINE: std::time::Duration = std::time::Duration::from_secs(10)
 ///   A named pipe is the one foreign object whose plain open waits for a writer that may never come,
 ///   which is what the filling must never do at a name anyone can write.
 fn named_pipe_at(path: &Path) {
-    /// The bytes of a pathname, for the C interface.
+    /// The bytes of a pathname,
+    /// for the C interface.
     use std::os::unix::ffi::OsStrExt as _;
     let named: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a fixture path holds no NUL byte");
     // SAFETY: the string is NUL-terminated and outlives the call, and the name is a fresh path in the fixture.
@@ -567,11 +568,11 @@ fn a_named_pipe_at_the_marker_name_never_holds_the_filling() {
     let marker: PathBuf = super::marker_of(staged.as_path());
     named_pipe_at(marker.as_path());
     let covered: PathBuf = root.clone();
-    let filled: Option<Result<Filled, String>> = crate::test_support::finished_within_at(FILLING_DEADLINE, move || {
+    let waiting: Option<Result<Filled, String>> = crate::test_support::finished_within_at(FILLING_DEADLINE, move || {
         let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE } };
         return super::fill_one_in_a_control(&fill, &entry);
     });
-    let filled: Result<Filled, String> = filled.expect("the filling must not wait on a named pipe at the marker name");
+    let filled: Result<Filled, String> = waiting.expect("the filling must not wait on a named pipe at the marker name");
     assert_eq!(filled, Ok(Filled::Published), "the copy is published under names of this run's own");
     assert!(marker.exists(), "the named pipe this filling did not make is left where it is");
     remove(covered.as_path());

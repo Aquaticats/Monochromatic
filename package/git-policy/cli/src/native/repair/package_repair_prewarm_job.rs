@@ -179,9 +179,11 @@ Both are the wrapper's own and are removed or published when the filling ends.\n
 /// A named pipe at that name would hold a plain read for ever,
 /// because opening one for reading waits for a writer that may never come,
 /// and one foreign object at the name would then stop the service's filling with no end
-/// (SPEC.md, "Every wait has a bound").
+/// (SPEC.md,
+/// "Every wait has a bound").
 /// `read_regular_file` opens without waiting and reads only what the descriptor proves is a file,
-/// so a pipe, a socket or a link is somebody else's and answers at once.
+/// so a pipe,
+/// a socket or a link is somebody else's and answers at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -310,9 +312,11 @@ fn a_name_of_this_runs_own(usual: &Path) -> PathBuf {
 /// whatever it holds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TheMarkersAnswer {
-    /// This run created the marker, so it is this run's to remove.
+    /// This run created the marker,
+    /// so it is this run's to remove.
     WrittenByThisRun,
-    /// Another writer had the name already, so this run wrote nothing there.
+    /// Another writer had the name already,
+    /// so this run wrote nothing there.
     WrittenByAnother,
 }
 
