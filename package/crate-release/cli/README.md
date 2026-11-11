@@ -109,6 +109,11 @@ and both matter to whoever waits for it:
   a skipped job is no failure,
   and a run is a pass only when the run itself concluded with success.
 
+An alpha release leaves part of that out,
+in both workflows,
+because it is never published to crates.io
+("What an alpha release leaves out").
+
 A release that fails before the push leaves `main` as it was.
 A push that finds a path the release depends on changed on `main` pushes nothing,
 names the paths,
@@ -200,6 +205,11 @@ What a version that does not go to crates.io skips:
   the crates.io lookup:
   the report says `crates.io <version>: skipped, <reason>` and the result depends on the workflow run and the GitHub release.
 
+An alpha also leaves out the release command's `cargo check`,
+which no other version does,
+whether it goes to crates.io or not
+("What an alpha release leaves out").
+
 A release that does go to crates.io is refused,
 by the release command on the runner before any file is edited and by the dispatch command before it spends a run,
 when a crate of the registry that it depends on is not at such a version.
@@ -209,6 +219,68 @@ and a dependency without a version does not (a published manifest drops it).
 The refusal names each dependency,
 its version and the manifests that hold it.
 An alpha or a beta release has no such need.
+
+## What an alpha release leaves out
+
+The owner's standing rule,
+2026-11-11,
+verbatim:
+
+> make the release pipeline avoid running any extra work for alphas.
+
+It stands on his earlier words,
+all still in force:
+
+> Standing rule.
+> Alphas don't even have to resolve all flakes.
+
+> Release now,
+> fixes in alpha.11
+
+> didn't I also say reviews and mutation testings don't block publishing?
+
+An alpha is the version the label rule calls `-alpha.N` ("Labels and crates.io"),
+and no other:
+the release pipeline reads that one rule through `isAlphaVersion`
+in `src/crates-io-version-label.ts`
+rather than parsing a version a second time,
+and a unit test holds both callers to it.
+A release of an alpha runs
+
+- no dispatch gate.
+  A crate whose registry entry names one does not wait for it,
+  in a real run and in a `--dry-run` alike.
+  The gate holds the checks only the developer machine can make,
+  and it is the last thing before a run nothing can take back,
+  which is a crates.io publish;
+  an alpha never reaches crates.io,
+  so it has no such publish to protect.
+  What waiting costs when it runs:
+  3286 seconds,
+  measured 2026-11-10
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "When the btrfs controls run").
+- no `cargo check`.
+  The release command commits the bump without compiling the crate.
+  `cargo-publish.yml` builds the binary of that same commit on both Linux targets after the push,
+  and that build is the compile evidence an alpha gets.
+  A crate that does not compile therefore leaves its bump on `main` with no GitHub release,
+  and the fix lands in the next alpha,
+  which is what "fixes in alpha.11" asks for.
+- no `cargo publish --dry-run`,
+  which every version that never goes to crates.io leaves out.
+
+The release command prints one `no <step>: <why>` line for each step it leaves out,
+before the first step runs,
+so the log of a real release and the log of its `--dry-run` describe the same run
+and no step disappears without a word.
+
+Every other version,
+including a beta,
+behaves exactly as it did.
+The narrowing of the owner's 2026-11-10 choice
+that a wrapper release waits for the btrfs controls
+is in `package/git-policy/cli/README.md` ("Development").
 
 ## Starting a release
 
@@ -254,6 +326,9 @@ Each entry holds
   run from the crate's own directory.
   Every word must hold text and the list must not be empty,
   because a release that waits for nothing is nobody's check.
+  An alpha release does not run it
+  ("What an alpha release leaves out"),
+  and every other release does.
 
 Only `crateDir` and `scope` are required.
 Unknown fields are refused.
@@ -313,11 +388,13 @@ it
 
 1.  edits the `version` of the `[package]` table in `<crate-dir>/Cargo.toml`;
 2.  edits the exact pin (`version = "=<from>"`) of the crate in each `--pin-file` manifest;
-3.  runs `cargo check` (with one `--bin` per `--check-bin`) in the crate directory;
+3.  runs `cargo check` (with one `--bin` per `--check-bin`) in the crate directory,
+    unless the version is an alpha ("What an alpha release leaves out");
 4.  runs `cargo update --workspace` in each `--lock-dir`,
     in order,
     which records the new version of the workspace member without moving any other locked version;
-5.  runs `cargo publish --dry-run --locked --allow-dirty` in the crate directory;
+5.  runs `cargo publish --dry-run --locked --allow-dirty` in the crate directory,
+    for a version that goes to crates.io ("Labels and crates.io");
 6.  commits the manifests and the `Cargo.lock` beside each of them,
     and the `Cargo.lock` of each `--lock-dir`,
     with the message
@@ -464,6 +541,10 @@ shows the line that names the gate and its status,
 and never calls `gh`.
 A `--dry-run` skips the gate and prints that it did,
 because a dry run runs nothing the gate's evidence would cover.
+An alpha release skips it in a real run too,
+and prints `no dispatch gate: ...` saying so,
+so a dry run of an alpha claims no missing evidence it would have had
+("What an alpha release leaves out").
 Only `monochromatic-git-policy-cli` names one:
 `node bin/native-release-host-controls.ts`,
 the btrfs controls that cannot run in the container gate
