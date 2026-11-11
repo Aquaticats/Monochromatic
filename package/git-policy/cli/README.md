@@ -692,39 +692,22 @@ Read-only commands,
      a submodule
      and a changed `.gitattributes` file still send the add the slow way,
      and so does a dirty linked worktree.
-     When the source is clean and this repository's commit service runs,
-     that snapshot is the one the service made ahead
-     (`worktree_snapshot_ahead.rs`):
-     the wrapper keeps up to three copies of a worktree in
-     `<git-dir>/monochromatic-git-policy-cli/ahead`,
-     one add asks for the next one when it takes one,
-     and an add
-     takes the newest whose files still equal the source's index,
-     which is one rename rather than the btrfs call that
-     forces a transaction commit of the whole filesystem
-     (5,413.0 ms at the median on this volume).
-     A copy that fell behind
-     the index is refused and handed to the service for deletion,
-     and nothing of the source it copied is lost by
-     that:
-     it is a copy,
-     and the source was never written.
-     A source with uncommitted changes is never served this way,
-     because its
-     snapshot carries its own index,
-     which is one instant with its files,
-     so that snapshot has to be taken on the add's own path.
-     When
-     no copy comes within 60 s (`SNAPSHOT_AHEAD_CEILING`,
-     the time the owner allows an add),
-     the rung ends and Git's own
-     checkout makes the worktree,
-     and one line says so.
-     The ignored files the new worktree carries are the source's as of when the service made the
-     copy,
-     which is what "the moment of the add" means for a worktree served this way:
-     a file you write into an
-     ignored directory between the copy and the add is not in the new worktree,
+     Every add takes its own snapshot on its own path,
+     which is the btrfs call that forces a transaction commit of the whole filesystem
+     (5,413.0 ms at the median on this volume,
+     and the owner allows an add 60 s).
+     An earlier release installed a copy its commit service had made ahead of the add
+     and then named every ignored entry that changed after that copy;
+     the owner answered a request to keep that with "Fresh snapshot every add" (2026-11-11),
+     measured at 5.4 s at the median and 26 s at worst in the fixture that asked him,
+     so nothing is taken from that pool now and the pool receives nothing from an add.
+     A source with uncommitted changes takes the same snapshot:
+     its snapshot carries its own index,
+     which is one instant with its files.
+     The ignored files the new worktree carries are the source's as of that snapshot,
+     which is what "the moment of the add" means:
+     a file you write into an ignored directory between the snapshot and the swap is not in the new
+     worktree,
      and the source keeps it.
   2. Clones (`FICLONE`) of every tracked file of a clean worktree,
      with its index,
@@ -1143,31 +1126,22 @@ A worktree whose exclusive figure is small and whose total is large is one of ma
 That is why the wrapper now removes them when their branches land.
 
 **The copies a repository keeps ahead of an add.**
-A repository whose commit service runs keeps up to three snapshots of a worktree waiting in
- `<git-dir>/monochromatic-git-policy-cli/ahead`,
- so that an add takes one instead of forcing a btrfs commit of the whole
- filesystem on the person's thread.
-The names begin with `.cli-git-worktree-ahead-` and no Git command ever lists them,
- because they are inside
- the Git directory.
-An add removes what no add claimed for ten minutes,
- and one nothing claimed yet is removed by the commit service as
- the next add asks for a copy.
-To see them:
+No add takes one.
+An earlier release kept up to three snapshots of a worktree waiting in
+ `<git-dir>/monochromatic-git-policy-cli/ahead` and installed one,
+ so that the person's thread skipped the btrfs commit of the whole filesystem;
+ the owner answered a request to keep that with "Fresh snapshot every add" (2026-11-11),
+ and every add now forces that commit itself.
+A folder left by an earlier release still holds what earlier adds did not claim,
+ and a removal of the worktree clears it as it always did.
+To see one:
 
 ```sh
-# the copies a commit service made ahead for this repository's adds
 ls --almost-all .git/monochromatic-git-policy-cli/ahead
 
 # what one of them holds, and what only it holds
 btrfs filesystem du --summarize .git/monochromatic-git-policy-cli/ahead/<name>
 ```
-
-A copy that waits here pins the source's rewritten blocks the way a worktree's own snapshot does,
- which is why it is
- removed after ten minutes and why a repository keeps three at most.
-A copy can be up to ten minutes older than the add that takes it,
- so the new worktree's ignored files are the source's as of the moment the copy was made.
 An add that takes one says so on standard error,
  with the copy's age,
  how many ignored files the source wrote after it,

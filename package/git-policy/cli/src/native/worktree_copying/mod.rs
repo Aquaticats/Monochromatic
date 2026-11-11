@@ -119,6 +119,12 @@ pub mod worktree_copy_stage_made_object;
 #[cfg(target_os = "linux")]
 pub mod worktree_copy_stage_entries_the_record_accounts_for;
 
+/// What the filesystem says about the snapshot a command recorded before making it:
+/// the source it is taken from,
+/// and the transaction that creation must be later than.
+#[cfg(unix)]
+pub mod worktree_copy_stage_snapshot_origin;
+
 /// Whether that record proves the folder standing at a container's name,
 /// and the words a sweep says about a stage it keeps or removes.
 #[cfg(unix)]

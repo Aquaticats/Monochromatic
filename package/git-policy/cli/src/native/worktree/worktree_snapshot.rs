@@ -35,7 +35,6 @@ use crate::worktree_add_plan::AddPlan;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_clean_content::ConversionEnvironment;
 pub use crate::worktree_snapshot_index_step::CopyState;
-use crate::worktree_snapshot_ahead::{AheadLook, AheadService, look_for_a_snapshot_ahead};
 use crate::worktree_snapshot_index_step::{Proof, install_index, read_own_index};
 use crate::worktree_snapshot_placeholders::{HandOver, open_below_stand_ins, remove_snapshot_placeholders};
 use crate::worktree_snapshot_source::SnapshotSource;
@@ -325,12 +324,13 @@ pub fn record_made_of_the_stage(source: &SnapshotSource, stage: &Path, made: Opt
 /// Why:
 ///   Each step is one the later steps depend on;
 /// the first failure ends the rung with its reason.
-/// The stage is a snapshot the service made ahead when one came
-///  proving equal to the source's index,
-/// and this add's own snapshot otherwise,
-/// because one
-///  `BTRFS_IOC_SNAP_CREATE_V2` forces a btrfs transaction commit on the thread that calls it
-/// (`worktree_snapshot_ahead.rs`).
+/// Every add takes its own snapshot of the source's ignored files,
+/// never one the commit service made earlier:
+/// a copy taken ahead is the source as of an older instant,
+/// and the owner answered a request to keep installing one with "Fresh snapshot every add" (2026-11-11),
+/// measured at 5.4 s at the median and 26 s at worst against his bound of 60 s for an add.
+/// One `BTRFS_IOC_SNAP_CREATE_V2` forces a btrfs transaction commit on the thread that calls it,
+/// which is what that bound pays for.
 /// The index is installed before the source's `.git` goes,
 /// so a copy the source changed under can still read the index it carries.
 ///
@@ -338,31 +338,26 @@ pub fn record_made_of_the_stage(source: &SnapshotSource, stage: &Path, made: Opt
 /// ```ts
 /// await takeSnapshot({ source, plan, stage, admin, pointer, environment, service });
 /// ```
-pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8], environment: &ConversionEnvironment, service: &AheadService<'_>) -> Result<Snapshotted, SnapshotFailure> {
-    // The record comes first, and names the container and the instant while it holds no object yet: the identity of an
-    //  object cannot be read before it exists, and a kill between the creation below and the record of the identity left a
-    //  whole snapshot nothing could prove the wrapper made (`worktree_copy_stage_reaping_proof_and_words.rs`).
-    if let Err(error) = crate::worktree_copy_stage_made_object::record_creating_at(source.common_dir.as_path(), stage, std::time::SystemTime::now()) {
+pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8], environment: &ConversionEnvironment) -> Result<Snapshotted, SnapshotFailure> {
+    // The record comes first, and names the container, the instant, and the source and transaction the snapshot below must
+    // follow, while it holds no object yet: the identity of an object cannot be read before it exists, and a kill between
+    // the creation below and the record of the identity left a whole snapshot nothing could prove the wrapper made
+    // (`worktree_copy_stage_reaping_proof_and_words.rs`). The binding record this rung wrote a moment ago was flushed, so
+    // the journal's own subvolume carries the last committed transaction, and the snapshot made now is later than it.
+    let origin: Option<crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin> =
+        crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path(), source.common_dir.as_path());
+    if let Err(error) = crate::worktree_copy_stage_made_object::record_creating_at(source.common_dir.as_path(), stage, std::time::SystemTime::now(), origin.as_ref()) {
         warn(TAG, format!("monochromatic-git-policy-cli: the creation of the stage {} could not be recorded ({}); a stage a kill leaves behind will be reported and not removed", stage.display(), error.0).as_str());
     }
-    let ahead_entered: bool = begin_step("snapshotAhead");
-    let look: AheadLook = look_for_a_snapshot_ahead(source, plan, stage, environment, service);
-    end_step(ahead_entered);
-    let (made, proven, claimed_at): (Option<ObjectId>, Option<Proof>, Option<u128>) = match look {
-        AheadLook::Claimed { made, proof, copied_at_millis } => (Some(made), Some(proof), Some(copied_at_millis)),
-        AheadLook::None => {
-            let snapshot_ioctl_entered: bool = begin_step("snapshotIoctl");
-            let snapshot_ioctl_outcome = snapshot_create_at(source.root.as_path(), stage);
-            end_step(snapshot_ioctl_entered);
-            if let Err(error) = snapshot_ioctl_outcome {
-                return Err(SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None });
-            }
-            (identity_of_name(stage), None, None)
-        }
-        // The rung ends here and the caller makes the worktree the way Git does, saying why: the bound the owner set for an
-        //  add is 60 s and nothing here waits on a filesystem call indefinitely.
-        AheadLook::TimedOut(reason) => return Err(SnapshotFailure { reason, stage: None }),
-    };
+    let snapshot_ioctl_entered: bool = begin_step("snapshotIoctl");
+    let snapshot_ioctl_outcome = snapshot_create_at(source.root.as_path(), stage);
+    end_step(snapshot_ioctl_entered);
+    if let Err(error) = snapshot_ioctl_outcome {
+        return Err(SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None });
+    }
+    let made: Option<ObjectId> = identity_of_name(stage);
+    // The add's own snapshot needs no earlier proof of the index: this rung walks the copy it just made.
+    let proven: Option<Proof> = None;
     // From here the stage exists and this process made it; its identity is what a later removal checks, so it is recorded
     // before the next step can be killed.
     record_made_of_the_stage(source, stage, made);
@@ -405,7 +400,7 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     {
         warn(TAG, format!("monochromatic-git-policy-cli: the trash {} cannot say what it is ({reason}), so a kill before its record leaves it for the next pass to name and the person to remove", manifest.name).as_str());
     }
-    return Ok(Snapshotted { stage: stage_id, trash, taken_over: pruned.taken_over, state, claimed_at });
+    return Ok(Snapshotted { stage: stage_id, trash, taken_over: pruned.taken_over, state });
 }
 
 /// What a snapshot that was taken left for the steps after it.
@@ -423,11 +418,6 @@ pub struct Snapshotted {
     pub taken_over: usize,
     /// What the index step settled about the copy.
     pub state: CopyState,
-    /// The millisecond the name of the copy this add claimed says it was made in,
-    /// or nothing for a snapshot the add took itself;
-    /// the ignored state of the new worktree is that instant's,
-    /// and the entries the source wrote after it are named to the person.
-    pub claimed_at: Option<u128>,
 }
 
 /// Why a snapshot could not be taken,
