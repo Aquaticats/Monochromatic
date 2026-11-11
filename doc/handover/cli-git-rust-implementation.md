@@ -101,6 +101,158 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The merge keeps a directory of the person's, a mode and a link, and its hints run where they were asked (2026-11-10T19:33:11-05:00)
+
+Branch `fix/git-policy-cli-merge-keeps-a-directory-at-the-merge-path` (`1d90bcc0f3`).
+It first merged `fix/git-policy-cli-merge-notice-for-a-deleted-file` (`b617957d82`),
+and took that branch's kept-path lines as they stood.
+The defects are the three the earlier report's last section lists,
+the mode-only drop,
+the directory at a path the merge writes,
+and the hint commands this wrapper's policy refuses,
+plus one this work measured beside them.
+That report is `~/temp/agent/pi-runs/merge-notice-for-a-deleted-file-1/final-report.md`.
+
+What the built wrapper did in throwaway repositories before any fix,
+with the script `~/temp/agent/pi-runs/merge-dir/reproduce.ts`,
+whose runs each have their own `HOME` and `XDG_RUNTIME_DIR` and commit service in that folder:
+
+- A staged `a.txt/nested/file.txt` where the branch adds the file `a.txt`.
+  A true merge exited 0.
+  `a.txt` held the branch's file.
+  The person's file and its index entry were gone,
+  and `git status` was empty.
+  The same directory untracked was refused by Git's own update (exit 1) with its files kept.
+  The same staged directory on a fast-forward was worse:
+  exit 0,
+  the branch moved,
+  the file and its entry gone.
+- A symbolic link at `a.txt` where the branch adds a file.
+  The merge exited 0.
+  `a.txt` was then a link whose target was the person's target text followed by the merge's lines between
+  conflict markers,
+  so the link they made was gone and the line said the file held both sides.
+- A `chmod +x` with the same blob on a path the merge changes.
+  The merge exited 0.
+  `a.txt` came back `100644`,
+  with no line at all.
+- Every hint named `git restore`,
+  `git restore --source=HEAD --staged --worktree --` or `git rm --force --`.
+  This wrapper's `linked-worktree-only` policy refuses all of them in a main worktree,
+  and in a linked worktree that holds uncommitted changes:
+  measured exit 1,
+  with the finding naming `--no-enforce-worktree`.
+
+Which step removed the person's files:
+the forwarded Git,
+not the carry and not its clear.
+With no exact path overlap (`a.txt/nested/file.txt` against `a.txt`) the wrapper made no capture and wrote
+nothing,
+so `git merge --ff-only` for a true merge,
+and the forwarded `git merge` of a fast-forward,
+were the only writers,
+and both replace such a directory.
+Native Git refuses this for an untracked file there and accepts it for a staged one.
+
+What each is now:
+
+- A directory standing where the merge puts a file,
+  holding anything the merge does not delete itself,
+  stops the merge before the first byte of the worktree,
+  the index or the branch changes.
+  The line names the path and the files below it.
+  The check is `merge_isolation_a_directory_the_merge_replaces.rs`,
+  called from `attempt_round` before every forward,
+  because a fast-forward is native Git's own merge.
+  A directory whose every file the merge deletes stays the branch's own,
+  judged by `the_directory_holds_only_what_the_merge_deletes`,
+  which is the rule recovery already applied to that shape,
+  so nothing Git would have handled safely is refused.
+- Two sides of different kinds,
+  a symbolic link on one side and a file on the other,
+  keep the person's side whole and are named
+  (`the_same_kind_of_entry` in `merge_isolation_carry_layers.rs`).
+- A mode the person set without touching the bytes is written with the merge's content:
+  the file's mode for an unsaved change,
+  and the index entry for a staged one
+  (`plan_worktree_awaiting` and `plan_index_awaiting` in `merge_isolation_carry_plans.rs`).
+- The merge's hints name the command with the flag the policy asks for,
+  so the line runs as written in a main worktree and in a linked one.
+  The files are `merge_isolation_carry_kept_path.rs`,
+  `merge_isolation_moved.rs`,
+  `merge_isolation_recovery_install.rs` and `merge_isolation_recovery_cleanup.rs`.
+  This answers item 1 of that report the other way.
+  Naming the hatch is what makes the line runnable,
+  and the policy that owns the hatch is the one that names it on refusal.
+- `SPEC.md` says all three in "A merge whose paths hold the person's own work carries it forward",
+  and cites the measured loss as the reason for the refusal.
+
+Evidence:
+
+- `native:test:binary:host -- merge`:
+  `Summary [ 312.879s] 157 tests run: 157 passed (5 slow), 779 skipped`.
+- `native:test:host -- merge_isolation_carry`:
+  `Summary [ 0.370s] 26 tests run: 26 passed, 6271 skipped`.
+- `native:clippy` exit 0.
+  `lint:monochromatic-lint --max-warnings 0` on the twelve changed paths exit 0.
+  The linter still names one `markdown/semantic-line-breaks` finding at `SPEC.md` line 59,
+  which `aa67a4adcf` brought and which this branch's diff does not touch.
+- Failing first,
+  against the pre-fix tree with the tests in place:
+  `Summary [ 6.889s] 6 tests run: 0 passed, 6 failed, 929 skipped`.
+  The six:
+  `a_directory_the_person_has_where_the_merge_adds_a_path_is_named_and_kept`,
+  `a_directory_the_person_staged_where_the_merge_adds_a_path_keeps_its_entries`,
+  `a_symbolic_link_the_person_has_where_the_merge_adds_a_path_stays_a_link`,
+  whose target was `<<<<<<< your changes\nkeep.txt=======\nadded by feature\n>>>>>>> the merge\n`,
+  `a_mode_change_on_a_path_the_merge_changes_is_kept`,
+  `a_deletion_in_a_linked_worktree_is_named_with_a_command_that_runs_there`,
+  refused by `linked-worktree-only` for uncommitted changes,
+  and `an_edit_the_person_staged_in_a_file_the_merge_deletes_is_named_with_git_rm`.
+  `a_staged_directory_on_a_fast_forward_path_keeps_its_entries` came after the first fix and failed first
+  against it:
+  `left: Some(0)`,
+  `right: Some(0)`,
+  the merge made and the staged file gone.
+- Measured again with the rebuilt wrapper after the fixes:
+  the untracked and staged cases,
+  on a true merge and on a fast-forward,
+  each exit 1 with a line naming `a.txt` and `a.txt/nested/file.txt` and saying nothing changed.
+  The file,
+  its index entry and `HEAD` are as they were.
+  The link stays a link to `somewhere.txt`,
+  and the line says the merge's version is in the merge commit.
+  `chmod +x` comes back `755` over the merged bytes,
+  with `git status` saying ` M a.txt`.
+
+Limits and unknowns:
+
+- The refusal costs the merge.
+  It exits 1 where native Git would have exited 0 and lost the file.
+  The owner's "Manual merge should never fail too" is therefore not met for this one shape.
+  Carrying the directory aside to a name this command invents is the alternative the brief allowed,
+  and this work did not take it:
+  a directory has no layer a carry can merge,
+  and the aside name,
+  its record and its kill points are a change of their own.
+  The refusal is the answer `SPEC.md` already gave in "Recovery",
+  so a killed merge's finish and a live merge now judge the shape alike.
+- The check walks the directory with `std::fs` to name what stands below it,
+  so a directory that changes between that walk and the line is named as it was read.
+  Nothing is written either way.
+- Ignored files below such a directory are listed and refuse the merge too,
+  because the carry cannot hold them and Git's update deletes them with the rest.
+  No control covers an ignored file on its own.
+- The claim at `merge_isolation_carry_writes.rs:352`,
+  and the three `take_asides` lines that report names,
+  are untouched;
+  each needs a rename race or a stranded take to reproduce.
+
+Next action:
+review and merge this branch,
+then run the whole binary suite once,
+which this work ran only for the merge modules.
+
 ### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-keeps-edits-through-a-kill-and-a-save`
