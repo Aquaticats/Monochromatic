@@ -1,4 +1,4 @@
-# Two wrapper controls wait on a guessed wall clock and on flushes the service defers
+# Wrapper controls that wait on a guessed wall clock or on flushes the service defers
 
 Two families of `package/git-policy/cli` controls passed alone and failed inside a larger run on 2026-11-09
 (load average about 48 on eight processors,
@@ -19,6 +19,12 @@ not product waits:
 neither control claimed what it measured.
 The product's own bound on each of them is below,
 and both fixes keep it.
+
+A third family joined them on 2026-11-10
+(a library control of the Markdown notice guard,
+recorded under "The Markdown notice controls judged the host's scheduler"):
+it too rested on a wall clock the host decides,
+and it too passed alone.
 
 ## The adoption controls measured the disk
 
@@ -70,6 +76,39 @@ The same guessed hold failed the other way as well:
 a healthy second add that took longer than 15 s expired the hold,
 and the control reported a repository-wide lock that is not there.
 
+## The Markdown notice controls judged the host's scheduler (2026-11-10T15:40:00-05:00)
+
+`markdown::markdown_linter_guard::tests::audit_a_blocked_notice_write_does_not_hold_a_finished_result`
+failed in the whole library run on `main` at `b4ed7deb73`:
+
+```text
+# mise run //package/git-policy/cli:native:test:host
+        FAIL [   1.642s] (3007/6209) monochromatic-git-policy-cli markdown::markdown_linter_guard::tests::audit_a_blocked_notice_write_does_not_hold_a_finished_result
+    thread 'markdown::markdown_linter_guard::tests::audit_a_blocked_notice_write_does_not_hold_a_finished_result' (615614) panicked at src/native/markdown/markdown_linter_guard_tests.rs:149:5:
+    assertion `left == right` failed
+      left: Err(Ceiling(50ms))
+     right: Ok(7)
+```
+
+The control gave the guard a 50 ms ceiling
+and waited `ceiling * 10`,
+500 ms,
+for the answer,
+so its verdict asked the host to start the job's thread inside the ceiling it gave the guard.
+`wait_for` (`markdown_linter_guard.rs`) judges the ceiling in its loop and takes the answer after it,
+so a host that starts that thread late reaches the ceiling first
+and the guard then reports a ceiling for a job that has answered.
+The same shape sat in the sibling control,
+which waited `ceiling * 10` for a guard that must reach the ceiling.
+
+Measured on 2026-11-10 in a scope of three processors:
+with the job's body sleeping 200 ms
+(a scratch change,
+reverted),
+the control failed with those same two lines
+(`Err(Ceiling(50ms))` against `Ok(7)`),
+and the whole module passed 9 of 9 in 2.5 s without that sleep.
+
 ## The fixes
 
 The adoption controls' setup batch now lands inside a landing task,
@@ -113,8 +152,24 @@ and it is not what decides a healthy run:
 the wait ends at the event,
 however slow the host is.
 
+The finished-result Markdown notice control now gives the guard a ceiling no wait reaches
+(`ROOMY`,
+3,600 s),
+because the ceiling is not what it is about;
+its sibling keeps the 50 ms ceiling,
+which is its subject.
+Both wait `ANSWER_WITHIN` (60 s) for the guard's answer
+while a notice write is held for `WRITE_HELD_FOR` (240 s),
+so only a guard that waits for the held write reaches the wait,
+and the write ending can never be the answer such a guard owes.
+A broken guard is still found in 60 s,
+under the runner's per-test bound.
+
 ## Verification
 
+- The Markdown notice controls' constants:
+  `markdown_linter_guard::`,
+  `Summary [2.459s] 9 tests run: 9 passed, 6218 skipped`.
 - `mise run //package/git-policy/cli:native:test:host -- adoption_tests`:
   23 of 23 pass,
   0.784 s (`Summary [0.784s] 23 tests run: 23 passed`).
@@ -130,9 +185,27 @@ however slow the host is.
   and the repair control with its fixture `pnpm` exiting before the repair marks itself started,
   then with it marking itself started and ending at once
   (the two quoted messages).
+- Both Markdown notice controls were shown failing with
+  `collect_returned_sink`'s `recv` in place of `recv_timeout(NOTICE_POLL)`
+  (a guard that waits for the write),
+  and each named its own subject:
+
+```text
+# mise run //package/git-policy/cli:native:test:host -- markdown_linter_guard::tests::audit_a_blocked_notice_write
+a notice write must not hold a finished result: Err(Timeout)
+```
 
 ## What is not claimed
 
+- The failing run's own stall was not measured:
+  no trace of that host names the microseconds the job's thread lost,
+  and the reproduced failure stands in for it.
+  What both show is the control's verdict resting on scheduling,
+  not anything the guard did differently.
+- The guard still judges the ceiling before it takes an answer that has already arrived.
+  Reading such an answer first is a product question,
+  not what these controls measured,
+  and no control here asks for it.
 - No product wait was changed.
   The service already queued the landing's record flushes,
   and the recovery still makes its own on the thread that asks
@@ -158,3 +231,6 @@ however slow the host is.
 `doc/handover/cli-git-rust-implementation.md` listed both controls as open under `AGENTS.md` `SUF`;
 that entry is gone with this record,
 which holds the measured cause and the two arrangement fixes.
+The Markdown notice controls were added to this record on 2026-11-10;
+that handover was not the place the coordinator kept them,
+and the failing run's own log names the control.

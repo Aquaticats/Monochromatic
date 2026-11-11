@@ -31,6 +31,7 @@
 //! const lane = SlowLane.start(handlers, busy); lane.ask(wake); // for await (const wake of inbox) await drainSlow(wake.gitDir)
 //! ```
 
+use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
 use crate::service_work::{CLAIM_LEASE, GitHandlers};
@@ -41,6 +42,7 @@ use crate::service_work_handlers_replanning_and_acceptance::{
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 /// What:
@@ -80,9 +82,24 @@ impl SlowLane {
     /// const lane = SlowLane.start(handlers, busy); // tokio.spawn(run(lane, handlers.copy(), busy))
     /// ```
     pub fn start(handlers: &GitHandlers, busy: Arc<AtomicUsize>) -> SlowLane {
+        return SlowLane::start_with_slice(handlers, busy, HOUSEKEEPING_OF_ONE_ROUND);
+    }
+
+    /// What:
+    ///  Start the lane with the housekeeping one look at a repository may start given,
+    /// which the shipped service takes from `HOUSEKEEPING_OF_ONE_ROUND`.
+    /// Why:
+    ///   A control states a slice it can spend in a moment,
+    /// so the bound that separates one look from the next is a state the control reaches instead of a duration it waits out.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const lane = SlowLane.startWithSlice(handlers, busy, slice);
+    /// ```
+    fn start_with_slice(handlers: &GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration) -> SlowLane {
         let (inbox, taken): (UnboundedSender<Wake>, UnboundedReceiver<Wake>) = unbounded_channel::<Wake>();
         let owned: GitHandlers = handlers.for_round(std::collections::HashMap::<PathBuf, ReviewKey>::new());
-        let _running: tokio::task::JoinHandle<()> = tokio::spawn(run_awaiting(taken, owned, busy));
+        let _running: tokio::task::JoinHandle<()> = tokio::spawn(run_awaiting(taken, owned, busy, housekeeping));
         return SlowLane { inbox };
     }
 
@@ -107,12 +124,17 @@ impl SlowLane {
 /// which is the bound the lane exists for:
 /// a push never waits here,
 /// because a push is never claimed here.
+///  A look that could not start every housekeeping item it found leaves the rest `pending` and asks to be looked at again
+///  (`housekeeping_of_one_round.rs`),
+/// so one repository's backlog is taken in slices:
+/// the repositories queued with it are looked at first,
+/// and it is looked at again after the pause the drain asked for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for await (const wake of inbox) { busy.add(1); for (const one of [wake, ...drain(inbox)]) await lookOnce(one); busy.sub(1) }
+/// for await (const wake of inbox) { busy.add(1); let left = [wake, ...drain(inbox)]; while (left.length) { left = await lookOnce(housekeeping, left) } busy.sub(1) }
 /// ```
-async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>) {
+async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration) {
     loop {
         let Some(first) = inbox.recv().await else { return };
         busy.fetch_add(1, Ordering::SeqCst);
@@ -120,17 +142,35 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
         while let Ok(queued) = inbox.try_recv() {
             wakes.push(queued);
         }
-        let mut looked_at: Vec<PathBuf> = Vec::new();
-        for (git_dir, review_key) in wakes {
-            if looked_at.contains(&git_dir) {
-                continue;
+        while !wakes.is_empty() {
+            let mut left: Vec<Wake> = Vec::new();
+            let mut soonest: Option<Duration> = None;
+            let mut looked_at: Vec<PathBuf> = Vec::new();
+            for (git_dir, review_key) in std::mem::take(&mut wakes) {
+                if looked_at.contains(&git_dir) {
+                    continue;
+                }
+                looked_at.push(git_dir.clone());
+                let mut keys: std::collections::HashMap<PathBuf, ReviewKey> = std::collections::HashMap::new();
+                if let Some(key) = review_key.clone() {
+                    keys.insert(git_dir.clone(), key);
+                }
+                if let Some(wait) = drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping).await {
+                    soonest = Some(match soonest {
+                        Some(already) => already.min(wait),
+                        None => wait,
+                    });
+                    left.push((git_dir, review_key));
+                }
             }
-            looked_at.push(git_dir.clone());
-            let mut keys: std::collections::HashMap<PathBuf, ReviewKey> = std::collections::HashMap::new();
-            if let Some(key) = review_key {
-                keys.insert(git_dir.clone(), key);
+            // Nothing was left for a later look, so the lane waits for the next wake.
+            let Some(wait) = soonest else { break };
+            tokio::time::sleep(wait).await;
+            // A wake that arrived during the look is served with the repository that asked to be looked at again.
+            wakes = left;
+            while let Ok(queued) = inbox.try_recv() {
+                wakes.push(queued);
             }
-            drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys)).await;
         }
         busy.fetch_sub(1, Ordering::SeqCst);
     }
@@ -139,27 +179,35 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 /// What:
 ///  Run every slow kind that waits for this repository,
 /// for the directory itself and for the common directory of a bare repository,
-/// as the round runs the pushes.
+/// as the round runs the pushes,
+/// and answer how soon it asks to be looked at again.
 /// Why:
 ///   The records of a bare repository's worktrees sit in its common directory's work directory,
 /// and the round reaches that directory too (`drain_common_records_planned_awaiting`),
 /// so the lane must reach it or those records are never run.
+/// A directory whose look left housekeeping for a later one names the pause it wants (`housekeeping_of_one_round.rs`),
+/// and the earlier of the two looks is what the lane waits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await drainSlow(gitDir); if (bareCommon(gitDir)) await drainSlow(common)
 /// ```
-pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H) {
-    drain_the_slow_kinds_awaiting(git_dir, handlers).await;
-    let Some(common) = common_directory_of(git_dir) else { return };
+pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
+    let own: Option<Duration> = drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping).await;
+    let Some(common) = common_directory_of(git_dir) else { return own };
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
-        return;
+        return own;
     }
-    drain_the_slow_kinds_awaiting(common.as_path(), handlers).await;
+    let shared: Option<Duration> = drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping).await;
+    return match (own, shared) {
+        (Some(one), Some(other)) => Some(one.min(other)),
+        (one, other) => one.or(other),
+    };
 }
 
 /// What:
-///  One drain of the slow kinds of one directory.
+///  One drain of the slow kinds of one directory,
+/// and what it left for a later one.
 /// Why:
 ///   The drain of the pushes plans the pushes that are tried again,
 /// and the plan belongs to the loop that owns it;
@@ -167,14 +215,16 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + ?Sized>(git_d
 /// so it is given a plan that keeps nothing and its answer is dropped unread.
 /// Every slow kind settles itself and none of them reads the plan
 ///  (`service_work_drain_pending_claims.rs`).
+///  A look starts housekeeping for no longer than the slice it was given,
+/// and says when to look again when it left some of it for a later one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS)
+/// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS, housekeeping)
 /// ```
-async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H) {
+async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
     let mut nothing_to_plan: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
-    drain_pending_awaiting(git_dir, handlers, CLAIM_LEASE, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS).await;
+    return drain_pending_awaiting(git_dir, handlers, CLAIM_LEASE, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
 }
 
 /// Controls for the lane stay out of the release executable.

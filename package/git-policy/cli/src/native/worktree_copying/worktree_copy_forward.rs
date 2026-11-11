@@ -476,8 +476,10 @@ fn run_settled(
         overlay: overlay.to_vec(),
         // Every copy query names absolute paths and leaves the caller's global options out.
         global_prefix: Vec::new(),
-        // The copy queries send no input, so no scratch directory is needed.
-        common_dir: None,
+        // The copy queries send no input, so they need no scratch directory; the package repair that runs after the copy
+        //  keeps the `Cargo.lock` bytes a clean displaces under the repository's Git directory, so the directory the
+        //  identity names is handed on (`package_repair_cargo_lock.rs`).
+        common_dir: common_directory(&facts.identity).map(Path::to_path_buf),
     };
     let invocation: Invocation = Invocation {
         identity: facts.identity.clone(),

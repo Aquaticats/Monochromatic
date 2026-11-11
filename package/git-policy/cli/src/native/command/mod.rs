@@ -15,9 +15,13 @@
 /// Git 2.56.0 `parse-options` tokenization of one command's argument region.
 pub mod command_options;
 
-/// Long-option matching:
+/// Which row one long token names:
 ///  exact names,
 ///  unique abbreviations and `no-` negation.
+pub(crate) mod command_options_long_resolution;
+
+/// Long-option matching:
+///  one token read into the tokenizer's record of the options Git applied.
 pub(crate) mod command_options_long;
 
 /// Final-state and position questions over a tokenized region.

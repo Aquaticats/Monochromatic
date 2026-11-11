@@ -19,13 +19,16 @@
 //!       `HEAD` from two file reads,
 //!  and the number of tracked paths that differ,
 //!  from one `git status` that reads the
-//!       index and never walks the untracked or ignored files
-//!       (measured:
-//! 20 ms on this repository's own worktree).
+//!       index and never walks the untracked or ignored files,
+//!  read under a two-second bound
+//!       (`CHANGED_PATHS_CEILING`)
+//!  so a disk other sessions are hammering cannot hold the removal.
 //!  What it does not
 //!       count,
 //! it says it does not count,
-//!  so a reader is never told the worktree was clean.
+//!  so a reader is never told the worktree was clean,
+//!  and a read the bound
+//!       ends leaves the count out.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,7 +36,7 @@
 //! ```
 
 use crate::discard_audit_facts::AuditFact;
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, run_metadata_git_within};
 use crate::hooks_path_values::{path_answer, without_trailing_newlines};
 use crate::transaction_git::GitContext;
 /// `OsString`/`OsStr` are owned/borrowed operating-system text of raw bytes,
@@ -41,6 +44,7 @@ use crate::transaction_git::GitContext;
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// The sentence the record carries about what it counted.
 const COUNTED_TRACKED_ONLY: &str = "tracked changes only";
@@ -52,6 +56,35 @@ const COUNTED_TRACKED_ONLY: &str = "tracked changes only";
 ///  so the read is bounded as well as
 ///       non-blocking.
 const POINTER_BYTES: u64 = 4096;
+
+/// The longest the one Git read of a removal's audit line may hold the removal,
+///  whatever the read shows.
+/// Why:
+///   The count is a best-effort fact about what the removal takes,
+///  and the owner asked for it
+///       "without making the removal slow";
+///  the read is a whole `git status` of the target,
+///  which parses the
+///       index and stats every tracked path,
+///  so a disk other sessions are hammering makes it take seconds.
+///  Measured
+///       on 2026-11-11 on a linked worktree of this repository's size
+///  (23,194 tracked paths,
+///  3.1 MB index):
+///       0.29 to 0.43 s with a warm page cache,
+///  in six runs over two fixtures,
+///  and more than 5 s
+///       under the load of other sessions,
+///  where the removal printed the wait notice for this read.
+///  Two
+///       seconds is 4.6 times the warm figure,
+///  and below the 5 seconds after which a wait is announced
+///       (`PLUMBING_NOTICE_GRACE`),
+///  so a best-effort fact is never announced as a wait.
+///  A read the bound ends
+///       answers nothing and the line leaves the count out,
+///  which is what a fact Git could not answer does here.
+const CHANGED_PATHS_CEILING: Duration = Duration::from_secs(2);
 
 /// What:
 ///  The Git directory a linked worktree's `.git` names,
@@ -183,10 +216,13 @@ pub fn worktree_head(target: &Path) -> Option<String> {
 ///  The query names the target with its own `-C`,
 ///  so the invocation's
 ///       global options cannot point it at another repository.
+///  It is read under `CHANGED_PATHS_CEILING`,
+///  so a status that takes seconds answers nothing
+///       instead of holding the removal the line describes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const output = await runGit(['-C', target, '--no-optional-locks', 'status', '--porcelain=v1', '--untracked-files=no']);
+/// const output = await runGitWithin(['-C', target, '--no-optional-locks', 'status', '--porcelain=v1', '--untracked-files=no'], CHANGED_PATHS_CEILING);
 /// ```
 pub fn changed_paths(context: &GitContext, target: &Path) -> Option<usize> {
     let arguments: Vec<OsString> = vec![
@@ -197,8 +233,13 @@ pub fn changed_paths(context: &GitContext, target: &Path) -> Option<usize> {
         OsString::from("--porcelain=v1"),
         OsString::from("--untracked-files=no"),
     ];
-    let output: MetadataOutput =
-        run_metadata_git(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice()).ok()?;
+    let output: MetadataOutput = run_metadata_git_within(
+        context.real_git.as_path(),
+        arguments.as_slice(),
+        context.overlay.as_slice(),
+        CHANGED_PATHS_CEILING,
+    )
+    .ok()?;
     if !output.success {
         return None;
     }

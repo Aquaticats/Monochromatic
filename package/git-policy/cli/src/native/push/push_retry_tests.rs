@@ -6,6 +6,7 @@
 //! and the plans of the branches waiting for one.
 
 use super::*;
+use crate::push_retry_store::{StoredPlan, load, remove, save};
 use crate::work_item::WorkKind;
 
 fn item(branch: &str) -> WorkItem {
@@ -71,20 +72,65 @@ fn a_plan_is_per_branch_and_due_after_its_pause() {
 }
 
 /// What:
-///  A forget ends the plan a branch had,
-/// while the plans of other branches stay.
+///  A forget ends the plan a branch had in the list,
+/// while the plans of other branches stay,
+/// and the branch's file goes with the worker's own removal.
 /// Why:
 ///   A landed push makes an earlier failure of its branch untrue,
 /// and the other branches' retries are still wanted.
+/// The list writes nothing (`PushRetries::forget`):
+/// the worker that decided the branch needs no new try removes its file
+/// (`Replanning::forget`),
+/// so a round's replay of that forget cannot reach the journal after a later round planned the branch again.
 #[test]
-fn a_plan_written_before_the_forget_is_removed_by_it() {
+fn a_forget_drops_the_branch_from_the_list_and_the_worker_takes_its_file() {
     let root: PathBuf = crate::test_support::fixture("retry-forget-older");
     let here: &Path = Path::new("/srv/repo/.git");
-    save(root.as_path(), &StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/main"), attempt: 1 }).expect("saved");
+    let main: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/main"), attempt: 1 };
     let other: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/topic"), attempt: 1 };
+    save(root.as_path(), &main).expect("saved");
     save(root.as_path(), &other).expect("saved");
-    let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());
+    let first: Duration = Duration::from_secs(10);
+    let mut retries: PushRetries = PushRetries::restored(first, root.as_path());
     retries.forget(here, "refs/heads/main");
-    assert_eq!(load(root.as_path()), vec![other], "only the forgotten branch's plan is gone");
+    let mut due: Vec<String> = retries.take_due(here, Instant::now() + Duration::from_secs(60)).into_iter().map(|one| { return one.item.branch_ref; }).collect();
+    due.sort();
+    assert_eq!(due, vec![String::from("refs/heads/topic")], "the list kept the other branch's retry and dropped the forgotten one");
+    assert_eq!(load(root.as_path()).len(), 2, "the list writes nothing, so the file is the worker's to remove");
+    remove(root.as_path(), here, "refs/heads/main");
+    assert_eq!(load(root.as_path()), vec![other], "only the forgotten branch's plan is gone with the worker's removal");
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A forget a round applies late leaves the plan a later round wrote for the same branch.
+/// Why:
+///  Finding 4 of the review of `bc3d54f9cd`:
+/// the job that applies a round's changes can be left behind at its ceiling,
+/// so a forget of an older round reaches the journal while a later round is planning the same branch again;
+/// the record in the file names that branch,
+/// so a removal that takes every file of the branch takes the newer plan too,
+/// and a service killed before that try is due finds nothing where its notice promised a retry.
+/// The list is the round's own statement about the branch,
+/// and it is the worker that decided the change that writes or removes the plan's file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await save(dir, planB); retries.apply([forget(gitDir, branch)]); expect(await load(dir)).toEqual([planB]);
+/// ```
+#[test]
+fn a_forget_applied_after_a_later_plan_leaves_that_plan_on_disk() {
+    let root: PathBuf = crate::test_support::fixture("retry-forget-after-later-plan");
+    let here: &Path = Path::new("/srv/repo/.git");
+    let branch: &str = "refs/heads/main";
+    let later: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item(branch), attempt: 4 };
+    // The later round's worker wrote the plan it promised before its notice reached the person.
+    save(root.as_path(), &later).expect("the later round's plan");
+    let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());
+    assert!(retries.next_wait(here, Instant::now()).is_some(), "the plan the later round wrote is what this service is trying");
+    // The older round's forget reaches the journal now, after the later plan was published.
+    retries.apply(vec![RetryChange::Forget { git_dir: here.to_path_buf(), branch_ref: branch.to_owned(), only_while_unreachable: false, taken: None }]);
+    assert!(retries.next_wait(here, Instant::now()).is_none(), "the list of this process forgot the branch, which is the older round's statement");
+    assert_eq!(load(root.as_path()), vec![later], "a plan a later round wrote is not taken away by an earlier round's forget");
     crate::test_support::remove(root.as_path());
 }

@@ -68,6 +68,8 @@ fn every_foreign_lock_wait_is_the_measured_whole_minute() {
 /// so that the loop in `landing/service_commit.rs` stays under the line limit;
 /// that move is d5af173797,
 /// which kept every condition and every message as it was.
+/// The decision the loop asks is `landing/service_commit_rebuild_ceiling.rs` (`0bafaea12d`),
+/// so `may_rebuild` is read where it is written.
 #[test]
 fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     assert_eq!(MOVED_BRANCH_REBUILD_CEILING, ANSWER_CEILING);
@@ -79,7 +81,7 @@ fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     let answered: &str = include_str!("../landing/service_commit_after_a_moved_branch.rs");
     let commit: &str = include_str!("../landing/service_commit.rs");
     assert!(answered.contains("may_rebuild"), "the answer to a moved branch takes this ceiling");
-    assert!(!answered.contains("REBUILD_ATTEMPTS") && !commit.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
+    assert!(!answered.contains("REBUILD_ATTEMPTS") && !commit.contains("REBUILD_ATTEMPTS") && !decision.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
 }
 
 /// The scratch repository's `git commit` is stopped at three times the slowest `git commit` step record:

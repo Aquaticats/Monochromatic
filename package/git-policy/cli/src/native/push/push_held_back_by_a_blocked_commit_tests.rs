@@ -502,3 +502,106 @@ fn an_older_passed_record_does_not_publish_a_newer_undecided_commit() {
     assert_ne!(remote_branch(&world), base, "the base was published before the release, so this case tells a stop from a push");
     remove(world.root.as_path());
 }
+
+/// What:
+///  A commit that lands after the service's push read the worktree's verdicts is not published by that push.
+/// Why:
+///   The push reads the held and blocked records and then pushes the branch,
+///  and the branch can move in between:
+///  a commit that lands there has its own gate still running,
+///  so publishing it would publish a commit that gate may keep local,
+///  and no later verdict could take it back.
+/// The push therefore sends the commit the branch named before that reading,
+///  never the branch's reference,
+/// and the newer commit goes out with its own push once its gate answers.
+///  The stand-in below lands the commit and puts its live record back at the push's first question about the upstream,
+/// which is after
+///  the service read the worktree.
+#[test]
+#[cfg(unix)]
+fn a_commit_that_lands_after_the_verdicts_were_read_is_not_published() {
+    let world: World = world("commit-after-the-reading");
+    let first: String = commit(&world, "first\n");
+    let racing: String = commit(&world, "racing\n");
+    let work: PathBuf = work_directory(world.repo.join(".git").as_path());
+    let racing_item: crate::work_item::WorkItem = push_item_of(&world, racing.as_str());
+    hold(work.as_path(), &racing_item, crate::held_push_holder_and_verdict::this_command().as_str()).expect("the racing commit's gate still runs");
+    // The record of the commit whose gate runs is put aside, so the service reads a worktree that holds none, and the branch is
+    //  put back to what it was at that reading.
+    let held: PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(racing_item.id());
+    let staged: PathBuf = world.root.join("staged-held-record");
+    std::fs::rename(held.as_path(), staged.as_path()).expect("the live record waits beside the worktree");
+    git(&world.repo, &["update-ref", "refs/heads/main", first.as_str()]);
+    let marker: PathBuf = world.root.join("stand-in-ran");
+    let script: String = format!(
+        "#!/bin/sh\ncase \"$*\" in\n  *'@{{upstream}}'*)\n    if [ ! -e '{marker}' ]; then\n      '{real}' -C '{repo}' update-ref refs/heads/main '{racing}'\n      mv '{staged}' '{held}'\n      : > '{marker}'\n    fi\n    ;;\nesac\nexec '{real}' \"$@\"\n",
+        marker = marker.display(),
+        real = crate::test_support::REAL_GIT,
+        repo = world.repo.display(),
+        racing = racing,
+        staged = staged.display(),
+        held = held.display(),
+    );
+    let stand_in: PathBuf = world.root.join("git-stand-in");
+    crate::test_support::executable(stand_in.as_path(), script.as_bytes());
+    let mut context: crate::transaction_git::GitContext = git_context();
+    context.real_git = stand_in;
+    // Every question the push asks starts the stand-in, so the one that lands the commit is the push's own question about the
+    //  upstream, which it asks after the service read the worktree (`repo_read_hook.rs` answers a query in process otherwise).
+    let handlers: crate::service_work::GitHandlers =
+        crate::service_work::GitHandlers::new(context).with_push_environment(&[(crate::repo_read_hook::SWITCH_VARIABLE, "off")]);
+    let first_item: crate::work_item::WorkItem = push_item_of(&world, first.as_str());
+    let verdict: crate::service_work::Verdict = handlers.push(std::slice::from_ref(&first_item));
+
+    assert!(marker.exists(), "the stand-in moved the branch and put the live record back after the reading");
+    assert!(held.exists(), "the racing commit's own gate still runs");
+    println!("post-reading commit: verdict={verdict:?}; remote={}", remote_branch(&world));
+    assert!(matches!(verdict, crate::service_work::Verdict::Done), "the push ran and delivered the commit it was for: {verdict:?}");
+    assert_eq!(remote_branch(&world), first, "the push sent the commit the branch named before the reading");
+    assert!(remote_has(&world, first.as_str()), "the commit the push was for reached the remote");
+    assert!(!remote_has(&world, racing.as_str()), "BUG: the push published the commit whose own gate had not answered");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A refused commit whose durable verdict could not be written is not published by a later push of its branch.
+/// Why:
+///   The gate writes its refusal into the held record first and the verdict every push reads second,
+///  so a storage failure on the second leaves the record alone with the refusal.
+/// Forgetting that record would leave neither,
+///  `is_blocked` would read false,
+///  and the branch's next push would publish the very commit the gate refused.
+/// The record therefore stays,
+///  and it is read as the verdict it states.
+#[test]
+fn a_refusal_whose_verdict_could_not_be_written_is_not_published_by_a_later_push() {
+    let world: World = world("refusal-whose-verdict-could-not-be-written");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused: String = commit(&world, "refused\n");
+    let later: String = commit(&world, "later\n");
+    let work: PathBuf = work_directory(world.repo.join(".git").as_path());
+    let refused_item: crate::work_item::WorkItem = push_item_of(&world, refused.as_str());
+    hold(work.as_path(), &refused_item, crate::held_push_holder_and_verdict::this_command().as_str()).expect("the push is held while the gate decides");
+    assert!(
+        crate::work_item::record_refusal(work.as_path(), refused_item.id().as_str(), "final-newline: the file does not end with a newline"),
+        "the gate's words are written into the record it holds"
+    );
+    // The one place a durable verdict lives cannot be used: its name is a regular file.
+    std::fs::write(state_directory(work.as_path(), crate::work_item_holding::BLOCKED).as_path(), "not a directory")
+        .expect("a file in the verdict directory's place");
+    assert!(!block(work.as_path(), &refused_item, "final-newline: the file does not end with a newline"), "the verdict cannot be kept");
+    assert!(
+        state_directory(work.as_path(), crate::work_item::HELD).join(refused_item.id()).exists(),
+        "the refusal survives only in the record the gate held"
+    );
+
+    // A later commit lands on the same branch, and the service pushes the branch for it.
+    let later_item: crate::work_item::WorkItem = push_item_of(&world, later.as_str());
+    let handlers: crate::service_work::GitHandlers = crate::service_work::GitHandlers::new(git_context());
+    let verdict: crate::service_work::Verdict = handlers.push(std::slice::from_ref(&later_item));
+
+    println!("unkept refusal: verdict={verdict:?}; refused={refused}; later={later}; remote={}", remote_branch(&world));
+    assert!(!remote_has(&world, refused.as_str()), "BUG: the branch's push published the commit whose refusal could not be written beside it");
+    assert_eq!(remote_branch(&world), base, "the branch's push stops before the refused commit, and publishes nothing past it");
+    remove(world.root.as_path());
+}

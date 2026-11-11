@@ -5,7 +5,9 @@
 
 use crate::service_protocol::Cleanup;
 use super::*;
+use crate::claim_time::ClaimTime;
 use crate::test_support::{fixture, remove};
+use std::time::Duration;
 
 fn intent(seq: u64) -> Intent {
     return Intent {
@@ -31,6 +33,33 @@ fn intent(seq: u64) -> Intent {
 fn an_intent_round_trips_through_its_text() {
     let sent: Intent = intent(7);
     assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent));
+}
+
+/// What:
+///  A written record carries the reading of the clocks it was written by,
+///  and that reading belongs to this boot and was taken when the record was written.
+/// Why:
+///   A cleanup that asks how old a finished record is reads that reading,
+/// so it judges the age on the monotonic clock a client's own wait is measured on
+/// and never on a wall clock that may have stepped (`service_journal_record_age.rs`).
+/// The key is spelled here and not read from the product,
+/// because this control has to run on the release before records carried a reading.
+#[test]
+fn a_written_record_carries_the_reading_of_the_clock_it_was_written_by() {
+    let root: PathBuf = fixture("service-journal-stamped");
+    write_intent(root.as_path(), &intent(1)).expect("an intent");
+    let text: String = std::fs::read_to_string(batch_path(root.as_path(), 1, OPEN_EXTENSION)).expect("the written record");
+    let stamped: &str = text
+        .lines()
+        .find(|line| { return line.starts_with("stamp="); })
+        .expect("the record carries the reading of the clocks it was written by")
+        .trim_start_matches("stamp=");
+    let written: ClaimTime = ClaimTime::decode(stamped).expect("a reading this release can read");
+    let now: ClaimTime = ClaimTime::read();
+    assert!(!now.is_past_the_boot_of(&written), "the record is of this boot");
+    assert!(now.elapsed_since(&written) < Duration::from_secs(60), "the reading was taken when the record was written, not when it is read");
+    assert_eq!(parse_intent(text.as_str()), Some(intent(1)), "every reader of a record skips the line it does not know");
+    remove(root.as_path());
 }
 
 /// The index rule and the conclusion state of a commit Git built survive a restart,

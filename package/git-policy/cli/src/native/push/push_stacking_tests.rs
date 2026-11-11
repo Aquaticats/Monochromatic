@@ -219,6 +219,47 @@ fn a_conflict_publishes_nothing_and_names_the_paths() {
     remove(&race.root);
 }
 
+/// A push that failed only because another push of the same commit landed first ends with success,
+/// because the remote holds what it sends:
+/// the commit's auto-push publishes the branch while the person's own push is on its way.
+#[test]
+fn a_push_the_remote_already_holds_ends_with_success() {
+    let race = race("ps-remote-already-holds");
+    // The value the person's remote-tracking ref holds before their push: their push's own update of the
+    //  tracking ref is the one that failed, so the file still says this.
+    let before = oid(&race.local, "HEAD");
+    commit_file(&race.local, "local.txt", "local\n");
+    let landed = oid(&race.local, "HEAD");
+    // What the commit's auto-push does before the person's push reaches the remote.
+    git(&race.local, &["push", "--quiet", "origin", "HEAD"]);
+    git(&race.local, &["update-ref", "refs/remotes/origin/main", before.as_str()]);
+    let (code, err) = stack(&race, &region(&race));
+    assert_eq!(code, Some(0), "{err}");
+    assert!(err.contains("already holds everything this push sends"), "{err}");
+    assert_eq!(oid(&race.remote, &race.default), landed, "the remote holds the pushed commit");
+    remove(&race.root);
+}
+
+/// A push whose branch the remote moved past keeps Git's failure,
+/// because the remote does not hold the object it sends.
+#[test]
+fn a_push_the_remote_moved_past_keeps_its_failure() {
+    let race = race("ps-remote-moved-past");
+    commit_file(&race.local, "local.txt", "local\n");
+    let pushed = oid(&race.local, "HEAD");
+    git(&race.local, &["push", "--quiet", "origin", "HEAD"]);
+    // Another session commits above the pushed commit, so the remote holds it but stands above it.
+    git(&race.rival, &["pull", "--quiet", "--ff-only"]);
+    commit_file(&race.rival, "rival.txt", "rival\n");
+    git(&race.rival, &["push", "--quiet", "origin", "HEAD"]);
+    let (code, err) = stack(&race, &region(&race));
+    assert_eq!(code, None, "{err}");
+    assert_eq!(err, "");
+    assert!(reachable(&race, &pushed, &oid(&race.remote, &race.default)), "the remote holds the pushed commit");
+    assert_ne!(oid(&race.remote, &race.default), pushed, "but not as the value this push sends");
+    remove(&race.root);
+}
+
 /// A failure that is not a divergence of the destination is left exactly as the push reported it.
 #[test]
 fn a_failure_that_is_not_a_divergence_prints_and_changes_nothing() {

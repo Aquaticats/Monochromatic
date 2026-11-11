@@ -50,6 +50,8 @@ use crate::package_repair_cargo_lock::{read_lock, restore_lock};
 use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories_awaiting, read_workspace_awaiting};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolRun, run_tool_awaiting};
 use crate::package_repair_prewarm::{PrewarmEntry, common_directory_awaiting, hand_over_in_a_job};
+/// Whether a directory a clean deletes from is still inside the worktree it serves.
+use crate::package_repair_touches_only_its_own_worktree::is_inside_the_worktree;
 /// The jobs of one workspace and what their runs take,
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "package_repair_cargo_jobs.rs"]
@@ -106,7 +108,7 @@ pub enum BuildStatePlan {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type StateFacts = { sourceBuild?: string; sourceBuildExists: boolean; destinationBuildExists: boolean; destinationTargetExists: boolean };
+/// type StateFacts = { sourceBuild?: string; sourceBuildExists: boolean; destinationBuildExists: boolean; destinationTargetExists: boolean; destinationBuildIsInside: boolean; destinationTargetIsInside: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StateFacts {
@@ -119,6 +121,10 @@ pub struct StateFacts {
     pub destination_build_exists: bool,
     /// Whether the worktree's target directory exists.
     pub destination_target_exists: bool,
+    /// Whether the worktree's build directory is still inside the worktree once its links are followed.
+    pub destination_build_is_inside: bool,
+    /// Whether the worktree's target directory is still inside the worktree once its links are followed.
+    pub destination_target_is_inside: bool,
 }
 
 /// What:
@@ -140,6 +146,11 @@ pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts:
         return BuildStatePlan::Nothing(String::from("the source and the worktree share one build directory, which a clean would damage"));
     }
     if destination.build_directory.starts_with(destination_root) {
+        // A copied `target/` can be a link to a directory outside the worktree, and a clean through it would delete the
+        //  files of the checkout that link names, which this repair does not serve.
+        if !facts.destination_build_is_inside || !facts.destination_target_is_inside {
+            return BuildStatePlan::Nothing(String::from("the build state is reached through a link that leaves the worktree, and a clean there would delete another directory's files"));
+        }
         return if facts.destination_build_exists || facts.destination_target_exists {
             BuildStatePlan::CleanOnly
         } else {
@@ -156,22 +167,65 @@ pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts:
 }
 
 /// What:
-///  The arguments of the clean that removes exactly the members' own artifacts.
+///  The arguments of the clean that removes exactly the members' own artifacts,
+/// for the add's own clean.
 /// Why:
 ///   `--offline` keeps the clean from reaching the network;
 /// one `--package` per member keeps registry and git dependencies.
-///  `--locked` is not used:
+///  `--locked` is not used here:
 /// a committed `Cargo.lock` that no longer matches its manifest (several do here) would make the clean
 ///  fail,
 /// and the person's own clean would not;
-/// the file is put back as checked out instead (`restore_lock`).
+/// the file is put back as checked out instead (`restore_lock`),
+/// which `SPEC.md` records as the reason this stands where the worktree was just made and nobody
+/// has it yet.
+/// The filling of a build directory after the add has returned passes `--locked` instead
+/// (`package_repair_prewarm_job.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function cleanArguments(members: string[]): string[];
 /// ```
 pub fn clean_arguments(members: &[String]) -> Vec<OsString> {
+    return clean_arguments_of(members, false);
+}
+
+/// What:
+///  The arguments of the clean the commit service runs on a copy of a worktree's build state:
+/// the same clean,
+/// with `--locked`.
+/// Why:
+///   That clean runs after the add returned,
+///  when the person may be working in the worktree,
+/// and `--locked` keeps Cargo from rewriting the worktree's tracked `Cargo.lock` at all,
+/// so the person's own file is never in the way of the clean.
+/// A lock that no longer matches its manifest makes such a clean refuse,
+/// and its caller asks Cargo to resolve the workspace first (`package_repair_prewarm_job.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lockedCleanArguments(members: string[]): string[];
+/// ```
+pub fn locked_clean_arguments(members: &[String]) -> Vec<OsString> {
+    return clean_arguments_of(members, true);
+}
+
+/// What:
+///  The clean's arguments,
+/// with `--locked` when the caller's lock must not be rewritten.
+/// Why:
+///   One list builds both faces,
+/// so the members and the switches each clean names can never drift apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cleanArgumentsOf = (members, locked) => ['clean', '--offline', ...(locked ? ['--locked'] : []), ...members.flatMap((m) => ['--package', m])];
+/// ```
+fn clean_arguments_of(members: &[String], locked: bool) -> Vec<OsString> {
     let mut arguments: Vec<OsString> = ["clean", "--offline"].iter().map(OsString::from).collect();
+    if locked {
+        arguments.push(OsString::from("--locked"));
+    }
     for member in members {
         arguments.push(OsString::from("--package"));
         arguments.push(OsString::from(member));
@@ -183,13 +237,15 @@ pub fn clean_arguments(members: &[String]) -> Vec<OsString> {
 ///  The command a person runs in a workspace to do what the repair could not.
 /// Why:
 ///   A printed line must work as pasted,
-/// so the directory change is part of it.
+/// so the directory change is part of it,
+/// and the filling of a build directory reports the same command the add's repair does
+/// (`package_repair_prewarm_job.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function manualCommand(root: string, members: string[]): string;
 /// ```
-fn manual_command(root: &Path, members: &[String]) -> String {
+pub fn manual_command(root: &Path, members: &[String]) -> String {
     let mut words: Vec<String> = Vec::new();
     for word in clean_arguments(members) {
         words.push(shell_quote(word.as_encoded_bytes()));
@@ -261,6 +317,8 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
         source_build,
         destination_build_exists: workspace.build_directory.exists(),
         destination_target_exists: workspace.target_directory.exists(),
+        destination_build_is_inside: is_inside_the_worktree(destination_root, workspace.build_directory.as_path()),
+        destination_target_is_inside: is_inside_the_worktree(destination_root, workspace.target_directory.as_path()),
     };
     let plan: BuildStatePlan = plan_build_state(workspace, destination_root, &facts);
     debug(TAG, format!("{}: {plan:?}", workspace.root.display()).as_str());

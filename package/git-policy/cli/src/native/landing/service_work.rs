@@ -410,6 +410,29 @@ async fn branch_exists_awaiting(git: &PushGit, branch_ref: &str) -> Option<bool>
 }
 
 /// What:
+///  The commit a branch reference names,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The question starts Git,
+/// and the synchronous query enters the runtime and is refused from there.
+/// A reference that names no commit is the answer "nothing",
+/// which is what a branch that was deleted reads as.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tip = await branchTipOnTheRuntime(git, item.branchRef);
+/// ```
+async fn branch_tip_awaiting(git: &PushGit, branch_ref: &str) -> Option<String> {
+    let asked: String = format!("{branch_ref}^{{commit}}");
+    let answer = crate::auto_push_single_flight::run_query_awaiting(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["rev-parse", "--verify", "--quiet", asked.as_str()])).await.ok()?;
+    if answer.code != Some(0) {
+        return None;
+    }
+    let named: String = String::from_utf8_lossy(answer.stdout.as_slice()).trim().to_owned();
+    return (!named.is_empty()).then_some(named);
+}
+
+/// What:
 ///  The lines of a push's own output that only a reconcile writes,
 /// joined as they were printed.
 /// Why:
@@ -450,6 +473,22 @@ impl WorkHandlers for GitHandlers {
         return Box::pin(async move {
         let Some(newest) = items.last() else { return Verdict::Done };
         let git: PushGit = self.push_git_awaiting(newest).await;
+        // The commit this push may send is fixed before the worktree's records are read. Every commit's record is written before its
+        //  branch moves, so every commit of the branch at this reading has a record in the reading, while a commit that lands after
+        //  it has none; sending the branch's reference instead would publish that later commit before its own gate answered, and that
+        //  gate may keep it local.
+        let Some(sent_up_to) = branch_tip_awaiting(&git, newest.branch_ref.as_str()).await else {
+            // The branch named no commit at that reading, so nothing of it can be sent: it is either gone, which is said with wherever
+            //  the commit still lives, or Git could not be asked, and the push is tried again. Never is the branch's reference sent
+            //  instead, because it may name a commit by now.
+            return match branch_exists_awaiting(&git, newest.branch_ref.as_str()).await {
+                Some(false) => Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await),
+                _ => Verdict::Retry(format!(
+                    "the commit {} was not pushed: {} named no commit in this repository when the push read it, and the push is tried again",
+                    newest.oid, newest.branch_ref
+                )),
+            };
+        };
         // The verdicts a post-commit gate kept are the worktree's own records: they are what makes this push stop before a commit the
         //  gate refused, however far the branch has moved since.
         let work: PathBuf = work_directory(newest.git_dir.as_path());
@@ -458,7 +497,7 @@ impl WorkHandlers for GitHandlers {
         //  record is what keeps the tip where the gate has not answered yet (`work_item_holding.rs`).
         let undecided: Vec<String> = crate::work_item_holding::undecided_commits(work.as_path(), newest.branch_ref.as_str());
         let mut output: Vec<u8> = Vec::new();
-        return match push_once_awaiting(&git, newest.branch_ref.as_str(), newest.oid.as_str(), blocked.as_slice(), undecided.as_slice(), &mut output).await {
+        return match push_once_awaiting(&git, newest.branch_ref.as_str(), sent_up_to.as_str(), blocked.as_slice(), undecided.as_slice(), &mut output).await {
             // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
@@ -466,6 +505,11 @@ impl WorkHandlers for GitHandlers {
             //  service keeps, and the words go to the person's record with the promise that plan keeps.
             Ok(result) if result.outcome == AutoPushOutcome::HeldBack => Verdict::Retry(result.shown),
             Ok(result) if result.exit_code == 0 => {
+                // A matching push can carry a sibling the remote refused while this branch arrived: the branch is done, and the
+                //  refused sibling is published nowhere, so the journal is the only place a person can learn it.
+                for line in crate::matching_push_delivered_the_recorded_branch::refused_lines(result.shown.as_str()) {
+                    crate::service_warn!("a branch of this push was refused and was not published: {line}");
+                }
                 // A push that reconciled a moved remote published a merge and said what became of the local branch in its own
                 //  output; the command that ran the push returned long before it ended, so those words go to a record the next
                 //  command shows once. A push that simply landed says nothing and leaves no record.

@@ -18,6 +18,10 @@
 /// beside the landing loop.
 pub mod service_scratch_release_removal;
 
+/// The collection of the repository scratch directory a killed command left,
+/// beside the landing loop.
+pub mod service_repository_scratch_sweep;
+
 /// The fill of the shadow pool a commit takes its private repository from,
 /// beside the landing loop.
 pub mod service_shadow_pool_fill;
@@ -64,6 +68,10 @@ pub mod service_journal;
 /// The text form of a batch intent:
 /// written and parsed.
 pub mod service_journal_intent_text_and_parse;
+
+/// How old a finished batch's record is,
+/// read from the clocks the record itself carries.
+pub mod service_journal_record_age;
 
 /// Test-only fault points of the commit service.
 pub mod service_fault;
@@ -144,6 +152,14 @@ pub mod service_client_waiting_words;
 
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
+
+/// The signals a waiting commit answers by withdrawing its request,
+/// and the flag they set for the wait.
+pub mod service_client_interrupted;
+
+/// Why a request a commit sent is given up,
+/// and the failure that says what became of the commit.
+pub mod service_client_why_withdrawn;
 
 /// Connecting to the service,
 /// reading one line from it,
