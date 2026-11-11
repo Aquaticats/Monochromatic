@@ -404,6 +404,19 @@ pub const OBJECT_STEP_CEILING: Duration = Duration::from_secs(10 * 60);
 /// one minute is 17 times the longest.
 pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
 
+/// The longest the after-commit work waits for one step that reads or writes state which is not a Git command:
+/// the plan of the pushes waiting for a new try,
+/// the applied changes of a round,
+/// the note of a repository to look at when the service starts again,
+/// and the common directory that names a round's lane.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a step can wait in the kernel with no end on a filesystem that stopped answering,
+/// so the wait is bounded and the work is planned again by the next round.
+/// No measurement fixes the value:
+/// it is the wait a client's own start is granted (`START_CEILING`),
+/// because a state step that outlasts it is one the round after it serves better.
+pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
+
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
 /// `cargo metadata`,
 /// `cargo clean`,
