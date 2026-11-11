@@ -459,7 +459,10 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   named,
   and a pipe there (or at `lean-progress`) held the run until someone opened the other end,
   past any deadline.
-  The staging file is now opened with `NOFOLLOW` and `NONBLOCK` after any link or pipe at the name is removed,
+  A hard link at the staging name lost the contents of the other name of that file the same way,
+  and is handled the same way.
+  The staging file is now opened with `NOFOLLOW` and `NONBLOCK` after any name that is not a regular file with one name is
+  removed,
   and the record is read through a `NONBLOCK` descriptor,
   so a pipe is read for what it holds and never waited on.
   Why this matters:

@@ -1267,7 +1267,9 @@ and each of the two long passes continues where it stopped:
   so a run killed in the middle leaves the position it last recorded,
   and `lean run --dry-run` never moves it.
 - Neither name of the record is ever opened through a link or waited on as a pipe.
-  A symbolic link or a pipe at `lean-progress.new` is removed and this run writes its own file there,
+  A symbolic link,
+  a hard link (a second name for a file this run does not own),
+  or a pipe at `lean-progress.new` is removed and this run writes its own file there,
   so the text never lands in the file a link names and no open waits for the other end of a pipe;
   a pipe at `lean-progress` itself is read for what it already holds,
   which is not this version's header,

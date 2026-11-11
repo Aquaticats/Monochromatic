@@ -28,8 +28,9 @@
 /// Files,
 /// paths,
 /// the descriptor the two record files are opened on,
-/// and the rename that replaces the record.
-use std::{fs, io::{self, Read, Write}, os::fd::OwnedFd, path::{Path, PathBuf}};
+/// the rename that replaces the record,
+/// and the count of names a file has.
+use std::{fs, io::{self, Read, Write}, os::fd::OwnedFd, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
 /// Imports `rustix::fs::{Mode, OFlags, open}` for this file:
 /// both record files are opened with the flags that make a link and a pipe answer at once.
@@ -283,10 +284,12 @@ pub enum LongPass {
 /// The staging name is fixed and lives in this tool's own state directory,
 /// so whatever else is at that name is not a file to write through:
 /// following a link would put this text into the file of the user's that it names,
+/// truncating a file another name shares would do the same through that other name,
 /// and opening a pipe would hold the run until a reader arrived.
 /// The open therefore never follows a link and never waits on a pipe,
-/// a link or a pipe already at the name is removed first so this run can create its own file,
-/// and the staging file a killed run left behind is a regular file and is simply replaced.
+/// a name that is a link (symbolic or hard),
+/// a pipe or a socket is removed first so this run can create its own file,
+/// and the staging file a killed run left behind is a regular file with one name and is simply replaced.
 /// A name that is still not writable after that is reported and the run carries on without a position:
 /// a lost position costs one pass from the front,
 /// never the run.
@@ -296,12 +299,14 @@ pub enum LongPass {
 /// const writeStaging = (staging: string, text: string): void => { rmSync(staging, { force: true }); writeFileSync(staging, text, { flag: 'wx', mode: 0o600 }); };
 /// ```
 fn write_staging(staging: &Path, text: &str) -> io::Result<()> {
-    match fs::symlink_metadata(staging) {
-        Ok(metadata) if metadata.is_file() => {}
-        // A directory at the name is not this run's to remove, so the open below refuses it and says why.
-        Ok(_) => fs::remove_file(staging)?,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+    let replace: bool = match fs::symlink_metadata(staging) {
+        Ok(metadata) => !metadata.is_file() || metadata.nlink() > 1,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
         Err(error) => return Err(error),
+    };
+    if replace {
+        // Unlinking one name of a file another name shares leaves that other name its contents.
+        fs::remove_file(staging)?;
     }
     let flags: OFlags = OFlags::WRONLY | OFlags::CREATE | OFlags::TRUNC | OFlags::CLOEXEC | OFlags::NONBLOCK | OFlags::NOFOLLOW;
     let opened: OwnedFd = open(staging, flags, Mode::from_raw_mode(RECORD_MODE)).map_err(io::Error::from)?;
