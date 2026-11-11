@@ -78,18 +78,45 @@ fn without_all_flag_keeps_everything_after_the_separator() {
     );
 }
 
-/// The explicit-path removal drops the last occurrence of each pathspec,
-/// so a message equal to a
-///  pathspec is lost when it is the later token (the incumbent's `lastIndexOf` behavior).
+/// The explicit-path removal drops the last occurrence of each pathspec that is a path,
+/// so the message the person typed stays even when it spells a pathspec:
+/// native Git reads `git commit a.txt -m a.txt` as the path `a.txt` and the message `a.txt`.
 #[test]
-fn explicit_removal_takes_the_last_occurrence_of_each_pathspec() {
+fn explicit_removal_keeps_a_message_that_equals_a_pathspec() {
     assert_eq!(
         private_explicit_commit_args(&args(&["a.txt", "-m", "a.txt"]), &args(&["a.txt"])),
-        args(&["a.txt", "-m"])
+        args(&["-m", "a.txt"])
     );
     assert_eq!(
         private_explicit_commit_args(&args(&["-m", "a.txt", "a.txt"]), &args(&["a.txt"])),
         args(&["-m", "a.txt"])
+    );
+    assert_eq!(
+        private_explicit_commit_args(
+            &args(&["a.txt", "-m", "a.txt", "a.txt"]),
+            &args(&["a.txt", "a.txt"])
+        ),
+        args(&["-m", "a.txt"])
+    );
+}
+
+/// Git reads every unambiguous prefix of a long option,
+/// so an abbreviated `--message` still takes the next token as its value and a value that spells
+///  `-o` or `--only` is never removed as that flag.
+#[test]
+fn an_abbreviated_value_option_takes_the_next_token() {
+    assert!(takes_next_token("--mess"));
+    assert!(takes_next_token("--auth"));
+    assert!(!takes_next_token("--mess=hello"));
+    assert!(!takes_next_token("--no-message"));
+    assert!(!takes_next_token("--n"));
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--mess", "-o", "--", "a.txt"]), &args(&["a.txt"])),
+        args(&["--mess", "-o"])
+    );
+    assert_eq!(
+        private_explicit_commit_args(&args(&["--mess", "a.txt", "a.txt"]), &args(&["a.txt"])),
+        args(&["--mess", "a.txt"])
     );
 }
 

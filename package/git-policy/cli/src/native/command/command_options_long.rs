@@ -23,30 +23,11 @@
 /// import { Occurrence, OptionError, OptionSpec, ParsedOptions, ParseMode } from './command_options.ts';
 /// import { takeValue } from './command_options_value.ts';
 /// ```
-use crate::command_options::{
-    Occurrence, OptionError, OptionErrorKind, OptionSpec, OptionValue, ParseMode, ParsedOptions,
-};
+use crate::command_options::{Occurrence, OptionError, OptionSpec, OptionValue, ParseMode, ParsedOptions};
+use crate::command_options_long_resolution::{Candidate, Resolution, resolve_long_option};
 use crate::command_options_value::{Spelling, take_value};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-
-/// What:
-///  The row an abbreviation resolved to,
-///  with whether it is used in negated form.
-/// Why:
-///   Git remembers the latest abbreviation candidate until the whole table is checked.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Candidate = { spec: OptionSpec; unset: boolean };
-/// ```
-#[derive(Clone, Copy)]
-struct Candidate {
-    /// The candidate row.
-    spec: OptionSpec,
-    /// True when the token turns the option off.
-    unset: bool,
-}
 
 /// What:
 ///  Record a matched option and say whether it took the next token as its value.
@@ -89,31 +70,10 @@ fn accept(
 }
 
 /// What:
-///  Byte index of the first `=` in `bytes`,
-///  or the length when there is none.
+///  Read the long option at `index` and say whether it took the next token as its value.
 /// Why:
-///   Git compares abbreviations up to the `=` only (`strchrnul`,
-///  parse-options.c:523).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const end = bytes.indexOf('=') === -1 ? bytes.length : bytes.indexOf('=');
-/// ```
-fn name_end(bytes: &[u8]) -> usize {
-    let mut index: usize = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'=' {
-            return index;
-        }
-        index += 1;
-    }
-    return bytes.len();
-}
-
-/// What:
-///  Read the long option at `index` and return how many tokens it used (1 or 2).
-/// Why:
-///   One table walk finds an exact match first and otherwise the unique abbreviation.
+///   One table walk finds an exact match first and otherwise the unique abbreviation,
+///  which `resolve_long_option` answers for the tokenizer as well as for the transforms.
 /// Gotcha:
 ///  `OPT_ALIAS` pairs are not modeled.
 ///  No table in this crate holds an alias and its
@@ -133,103 +93,19 @@ pub(crate) fn scan_long_option(
 ) -> Result<bool, OptionError> {
     // `.as_encoded_bytes()` lends the raw bytes of the token without decoding them.
     let token: &[u8] = arguments[index].as_encoded_bytes();
-    // Git's `arg`: everything after the two dashes, `=value` included.
-    let argument: &[u8] = &token[2..];
-    let argument_name_end: usize = name_end(argument);
-    // Git's `arg_start`: `argument` without one or two leading `no-` (530-535).
-    let mut stem: &[u8] = argument;
-    let mut negated: bool = false;
-    let mut double_negated: bool = false;
-    // `.strip_prefix(...)` returns the remainder when the bytes start with the prefix.
-    if let Some(once) = stem.strip_prefix(b"no-") {
-        stem = once;
-        if let Some(twice) = stem.strip_prefix(b"no-") {
-            stem = twice;
-            double_negated = true;
-        } else {
-            negated = true;
+    // `?` returns a refusal to our caller, or unwraps Git's reading of the token.
+    let resolution: Resolution = resolve_long_option(token, table, mode.keep_unknown).map_err(|kind| {
+        return OptionError { kind, token: index };
+    })?;
+    // `match` picks one arm per variant and the compiler refuses the code if one is forgotten.
+    return match resolution {
+        Resolution::KeptUnknown => {
+            // The unknown token stands alone: the next token is not its value.
+            parsed.unknown.push(index);
+            Ok(false)
         }
-    }
-    // The part of `stem` before any `=`: what an abbreviation is compared with.
-    let stem_name: &[u8] = &stem[..argument_name_end - (argument.len() - stem.len())];
-    let mut candidate: Option<Candidate> = None;
-    let mut ambiguous: bool = false;
-    for spec in table {
-        // Rows without a long spelling cannot match a long token.
-        let long: &str = if let Some(spelling) = spec.long {
-            spelling
-        } else {
-            continue;
-        };
-        let mut long_name: &[u8] = long.as_bytes();
-        let mut spec_negative: bool = false;
-        if let Some(positive) = long_name.strip_prefix(b"no-") {
-            // A row such as `no-verify` is reached by `--verify` in unset form (547-548).
-            long_name = positive;
-            spec_negative = true;
-        } else if double_negated {
-            continue;
-        }
-        // Git's `flags ^ opt_flags`: the token and the row disagree about `no-`.
-        let unset: bool = negated != spec_negative;
-        if unset && !spec.negatable {
-            continue;
-        }
-        if let Some(rest) = stem.strip_prefix(long_name) {
-            if rest.is_empty() {
-                let exact: Candidate = Candidate { spec: *spec, unset };
-                return accept(arguments, index, exact, None, parsed);
-            }
-            if rest[0] == b'=' {
-                let exact: Candidate = Candidate { spec: *spec, unset };
-                // The value starts one byte after the `=`.
-                let offset: usize = token.len() - rest.len() + 1;
-                return accept(arguments, index, exact, Some(offset), parsed);
-            }
-            // A longer name sharing this prefix: Git moves to the next row (558-559).
-            continue;
-        }
-        if mode.keep_unknown {
-            // `register_abbrev` does nothing under `PARSE_OPT_KEEP_UNKNOWN_OPT` (502-503).
-            continue;
-        }
-        if long_name.starts_with(stem_name) {
-            ambiguous = ambiguous || candidate.is_some();
-            candidate = Some(Candidate { spec: *spec, unset });
-        }
-        // "Negated and abbreviated very much": `--n`, `--no` and `--no-` (568-571).
-        if spec.negatable && b"no-".starts_with(argument) {
-            ambiguous = ambiguous || candidate.is_some();
-            candidate = Some(Candidate {
-                spec: *spec,
-                unset: !spec_negative,
-            });
-        }
-    }
-    if ambiguous {
-        return Err(OptionError {
-            kind: OptionErrorKind::AmbiguousOption,
-            token: index,
-        });
-    }
-    if let Some(chosen) = candidate {
-        let attached: Option<usize> = if argument_name_end < argument.len() {
-            // Two dashes, the name, then `=`.
-            Some(2 + argument_name_end + 1)
-        } else {
-            None
-        };
-        return accept(arguments, index, chosen, attached, parsed);
-    }
-    if mode.keep_unknown {
-        // The unknown token stands alone: the next token is not its value.
-        parsed.unknown.push(index);
-        return Ok(false);
-    }
-    return Err(OptionError {
-        kind: OptionErrorKind::UnknownOption,
-        token: index,
-    });
+        Resolution::Known { row, attached } => accept(arguments, index, row, attached, parsed),
+    };
 }
 
 /// Abbreviation,
