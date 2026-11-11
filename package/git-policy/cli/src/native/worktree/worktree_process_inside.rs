@@ -11,7 +11,9 @@
 //!  and of the files it holds open (`/proc/<pid>/fd`),
 //!  never of its environment.
 //!  A process whose working folder is elsewhere can still be working in a worktree:
-//!  an editor, a pager, a build started with `-C` from another directory,
+//!  an editor,
+//! a pager,
+//! a build started with `-C` from another directory,
 //!  or any program that opened a file there and went on,
 //!  holds a descriptor into it,
 //!  and removing the worktree pulls the files out from under it
@@ -27,7 +29,10 @@
 //!  which is most of them.
 //!  The descriptor read costs one listing and one link read per descriptor of every process:
 //!  measured on this host with 1 567 processes,
-//!  five rounds took 137.7, 113.4, 108.0, 97.7 and 95.5 ms,
+//!  five rounds took 137.7,
+//! 113.4,
+//! 108.0,
+//! 97.7 and 95.5 ms,
 //!  so it is paid once per worktree a merge considers removing and nowhere else.
 //!  A kernel gives no reverse lookup from a directory to the processes holding it open,
 //!  so a scan is what the truth costs.
@@ -181,7 +186,7 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
 ///  its own Git directory excepted.
 /// Why:
 ///   A descriptor is the kernel's own record of what a program is using,
-///  so a file written, read or watched there is found however the program was started.
+///  so a file a program writes or watches there is found however that program was started.
 ///  The worktree's Git directory is left out because this program's own commit service
 ///  holds its marker file there for as long as it lives,
 ///  and a rule that counted it would keep every landed worktree a service runs for.
@@ -202,16 +207,35 @@ fn holds_a_file_inside(entry: &Path, worktree: &Path, git_dir: &Path) -> bool {
             continue;
         };
         // The kernel appends this to a path whose file is already deleted, and the file itself is what a removal takes.
-        let named: &Path = match target.to_str().and_then(|text| { return text.strip_suffix(DELETED_SUFFIX); }) {
-            Some(stripped) => Path::new(stripped),
-            None => target.as_path(),
-        };
+        let named: &Path = without_deleted_suffix(target.as_path());
         if !named.starts_with(worktree) || named.starts_with(git_dir) {
             continue;
         }
         return true;
     }
     return false;
+}
+
+/// What:
+///  The path a descriptor names,
+///  without the text the kernel appends to a target whose file is already unlinked.
+/// Why:
+///  A program reading a file the worktree no longer holds still holds its descriptor,
+///  and the file's directory is what a removal takes.
+///  A target that is not text is used as it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withoutDeletedSuffix = (target) => target.replace(/ \(deleted\)$/, '');
+/// ```
+fn without_deleted_suffix(target: &Path) -> &Path {
+    let Some(text) = target.to_str() else {
+        return target;
+    };
+    return match text.strip_suffix(DELETED_SUFFIX) {
+        Some(stripped) => Path::new(stripped),
+        None => target,
+    };
 }
 
 /// The text the kernel appends to the target of a descriptor whose file is already unlinked.

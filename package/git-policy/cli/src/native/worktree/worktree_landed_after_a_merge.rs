@@ -6,7 +6,8 @@
 //!  It also needs the directory to start Git in and the root of the worktree it must not remove,
 //!  which come from the repository shape the command ran with,
 //!  and the worktrees the repository registered before the merge ran,
-//!  which is what keeps a worktree another command added while the merge ran, or after it landed,
+//!  which is what keeps a worktree another command added while the merge ran,
+//! or after it landed,
 //!  out of the sweep.
 //!  A merge that ended with a nonzero status,
 //!  or one that moved nothing,
@@ -135,7 +136,8 @@ pub fn window(context: GitContext, identity: &WorktreeIdentity) -> Option<(GitCo
 ///   Only the command that ran the merge knows this,
 ///  and every sweep after it reads both.
 ///  A registry that could not be read is kept as the reason,
-///  because a sweep without it must not remove anything: nothing would prove a worktree existed when the merge landed.
+///  because a sweep without it must not remove anything:
+///  nothing would prove a worktree existed when the merge landed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

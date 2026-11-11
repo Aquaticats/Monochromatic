@@ -245,7 +245,8 @@ fn a_worktree_removal_record_is_keyed_by_its_path_and_names_git() {
 /// What:
 ///  A handed-over record is written before the service is told,
 ///  and a wake that fails is not the hand-over's failure:
-///  the worktree stands, and the record outlives the command.
+///  the worktree stands,
+///  and the record outlives the command.
 /// Why:
 ///  The record is the only thing that outlives the merge,
 ///  so a merge that wrote none would leave a worktree nothing ever removes.

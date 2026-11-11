@@ -262,8 +262,8 @@ fn a_table_with_one_process_holding(elsewhere: &Path, held: &Path, pid: u32) -> 
 /// What:
 ///  A process whose working folder is elsewhere and that holds a file open inside the worktree keeps it.
 /// Why:
-///   An editor, a pager or a build started with `-C` from another directory works in a worktree without a working
-///  folder in it,
+///   An editor,
+///  a pager or a build started with `-C` from another directory works in a worktree without a working folder in it,
 ///  and removing the worktree pulls the file out from under it:
 ///  the working-folder read alone removed it
 ///  (a qwen4-max-preview audit of 0.6.1-alpha.10,

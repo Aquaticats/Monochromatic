@@ -788,16 +788,17 @@ Two of those merges printed,
 monochromatic-git-policy-cli: still waiting for git worktree remove /var/mnt/.../pi-kimi-review-alpha-10-audit-sweep-keeps-an-unmerged-held-commit-round-210, a bulk step (process 253135) after 20 seconds; it is a step that may not be run twice, so it is waited for as long as it lives (CLI_GIT_CHILD_WAIT_SECONDS changes this).
 ```
 
-That worktree had been added seconds earlier, on a branch `test/kimi-review-...` at the tip of the
- branch being merged, for a review that had not started:
+That worktree had been added seconds earlier,
+ on a branch `test/kimi-review-...` at the tip of the branch being merged,
+ for a review that had not started:
  the merge made that tip a landed commit,
  the sweep counted its branch,
  and the merge waited for the removal.
 
 Both halves were reproduced in a throwaway repository
- (its own `HOME` and `XDG_RUNTIME_DIR`, its own commit services started from the wrapper's own
- service mode, and a stand-in real Git whose only slowness is a `sleep` in front of one
- `worktree remove`),
+ (its own `HOME` and `XDG_RUNTIME_DIR`,
+ its own commit services started from the wrapper's own service mode,
+ and a stand-in real Git whose only slowness is a `sleep` in front of one `worktree remove`),
  with the installed 0.6.1-alpha.10 and with this branch's build:
 
 - the fresh worktree,
@@ -821,7 +822,8 @@ The owner's binding words:
  "nothing should ever wait forever or indefinitely",
  and "The wrapper should have cleaned up after itself automatically deterministically."
 `doc/decision/cli-git-concurrent-commits.md` lines 220 to 222 record that no wait between
- commits is unbounded; the landed sweep's wait was,
+ commits is unbounded;
+ the landed sweep's wait was,
  because a step that may not be run twice is never ended.
 
 ### A process that works in the worktree from elsewhere
@@ -829,14 +831,17 @@ The owner's binding words:
 The brief's second item and the coordinator's follow-up name a worktree a process is working in.
 `worktree_process_inside.rs` read only each process's working folder,
  so a program that opened a file in the worktree and went on,
- an editor, a pager, or a build started with `-C` from another directory,
+ an editor,
+ a pager,
+ or a build started with `-C` from another directory,
  was invisible and the sweep removed the worktree with the file open
  (the audit's finding 2,
  reproduced with a `tail -f` of a file in the worktree whose working folder was the fixture root).
 
 `process_working_inside` now reads each process's descriptors too (`/proc/<pid>/fd`),
  and a descriptor into the worktree keeps it with its own reason:
- "process N has a file open in it, though its working folder is elsewhere".
+ "process N has a file open in it,
+ though its working folder is elsewhere".
 Two bounds keep that from keeping everything:
 
 - a descriptor into the worktree's own Git directory does not count,
@@ -847,8 +852,12 @@ Two bounds keep that from keeping everything:
 - a target the kernel names with ` (deleted)` counts,
   because the file the program still reads was in the worktree.
 
-Cost: one listing and one link read per descriptor of every process,
- measured at 137.7, 113.4, 108.0, 97.7 and 95.5 ms over five rounds on this host with 1 567 processes,
+Cost:
+ one listing and one link read per descriptor of every process,
+ measured at 137.7,
+ 113.4,
+ 108.0,
+ 97.7 and 95.5 ms over five rounds on this host with 1 567 processes,
  paid once per worktree a merge considers removing.
 A kernel has no reverse lookup from a directory to the processes holding it open,
  so a scan is what the truth costs.
@@ -856,7 +865,8 @@ A kernel has no reverse lookup from a directory to the processes holding it open
 ### What changed
 
 `worktree_landed_removal.rs` `remove_here_or_hand_over`:
- the subvolume destroy is asked for first, exactly as before,
+ the subvolume destroy is asked for first,
+ exactly as before,
  and the answer `LeftToGit` no longer runs `git worktree remove` here.
  It writes a `subvolume-delete` work item whose reference is
  `worktree_remove_hand_over.rs` `WORKTREE_REMOVAL_REFERENCE`,
@@ -887,7 +897,8 @@ Measured on this branch with the same stand-in:
 ### What this does not do, and what it costs
 
 - A removal Git refuses now says so in the commit service's journal and in the record's `failed`
-  state, not on the merge's standard error:
+  state,
+  not on the merge's standard error:
   the merge cannot know Git's answer without waiting for it.
   The notice names both places.
   A later command does not show a failed removal record:

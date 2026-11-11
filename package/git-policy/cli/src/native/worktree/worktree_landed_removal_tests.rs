@@ -760,15 +760,19 @@ fn a_landed_worktree_with_a_hidden_process_inside_stays() {
 }
 
 /// What:
-///  A landed worktree whose process holds a file open in it, with its working folder elsewhere, stays.
+///  A landed worktree whose process holds a file open in it,
+///  with its working folder elsewhere,
+///  stays.
 /// Why:
-///  A program that opened a file in a worktree and went on, an editor or a build started with `-C` from another
-///  directory, works there without a working folder in it,
+///  A program that opened a file in a worktree and went on,
+///  an editor or a build started with `-C` from another directory,
+///  works there without a working folder in it,
 ///  and the working-folder read alone removed the worktree with the file open
 ///  (a qwen4-max-preview audit of 0.6.1-alpha.10,
 /// `574063773d`,
 ///  finding 2).
-///  The process table is written by the control, so no program on this machine decides the answer.
+///  The process table is written by the control,
+///  so no program on this machine decides the answer.
 #[test]
 fn a_landed_worktree_whose_file_is_held_open_from_elsewhere_stays() {
     let landed: Landed = a_repository_with_a_worktree("landed-open-file");

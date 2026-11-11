@@ -128,10 +128,13 @@ pub fn removal_item(common_dir: &Path, parent_path: &Path, id: u64) -> WorkItem 
 ///  so it is the step that may not be run twice and may run for minutes on a large tree:
 ///  the person's command must not wait for it,
 ///  and the record is what outlives that command.
-///  The id is a digest of the path, so two removals of one worktree are one record,
+///  The id is a digest of the path,
+/// so two removals of one worktree are one record,
 ///  and the `oid` field keeps the shape every reader of a record requires.
-///  The repository is the worktree the merge ran in, not the directory holding the one to remove:
-///  Git is started there, and a directory outside every worktree answers `not a git repository`.
+///  The repository is the worktree the merge ran in,
+///  not the directory holding the one to remove:
+///  Git is started there,
+///  and a directory outside every worktree answers `not a git repository`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,7 +192,8 @@ fn record_the_removal(common_dir: &Path, parent_path: &Path, id: u64) -> Result<
 /// which is every commit
 ///  and every add,
 /// so the delete happening later is not a failure of the removal.
-///  A control replaces this with its own answer, so no test reaches a service.
+///  A control replaces this with its own answer,
+/// so no test reaches a service.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -429,7 +433,9 @@ fn the_pool_of(target: &Path) -> Option<(PathBuf, PathBuf)> {
 ///  The service's handler of a record is handed the record alone,
 ///  so the Git it starts is the one this process resolves,
 ///  as the wrapper's own start does:
-///  the same search, the same refusal of a wrapper, and the same record of a Git found from the unit.
+///  the same search,
+///  the same refusal of a wrapper,
+///  and the same record of a Git found from the unit.
 ///  The overlay of a command does not apply here:
 ///  the hooks are off for this whole process (`hooks_off::activate`).
 ///
@@ -437,12 +443,39 @@ fn the_pool_of(target: &Path) -> Option<(PathBuf, PathBuf)> {
 /// ```ts
 /// const serviceGit = (item) => ({ realGit: resolveRealGit(processResolutionInputs(process.env)), overlay: [], commonDir: item.gitDir });
 /// ```
+/// What:
+///  The words for process facts a Git search needs and this machine would not give.
+/// Why:
+///  The reason names what could not be read,
+///  so a person reads why no Git was started rather than a sentence about a record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noProcessFacts = (error) => `the process facts a Git search needs cannot be read (${error})`;
+/// ```
+fn no_process_facts(error: std::io::Error) -> String {
+    return format!("the process facts a Git search needs cannot be read ({error})");
+}
+
+/// What:
+///  The words for a removal that found no Git to run.
+/// Why:
+///  Nothing about the worktree was changed,
+///  so the record is kept for another try,
+///  and the reason says which record and why nothing ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noGitForARemoval = (failure) => `no Git can be started to remove the worktree a record names: ${failure}`;
+/// ```
+fn no_git_for_a_removal(failure: crate::real_git::RealGitNotFound) -> String {
+    return format!("no Git can be started to remove the worktree a record names: {failure}");
+}
+
 fn the_service_git(item: &WorkItem) -> Result<GitContext, String> {
     let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    let inputs: ResolutionInputs = process_resolution_inputs(environment.as_slice())
-        .map_err(|error| return format!("the process facts a Git search needs cannot be read ({error})"))?;
-    let resolved: ResolvedGit = resolve_real_git(&inputs)
-        .map_err(|failure| return format!("no Git can be started to remove the worktree a record names: {failure}"))?;
+    let inputs: ResolutionInputs = process_resolution_inputs(environment.as_slice()).map_err(no_process_facts)?;
+    let resolved: ResolvedGit = resolve_real_git(&inputs).map_err(no_git_for_a_removal)?;
     return Ok(GitContext { real_git: resolved.path, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(item.git_dir.clone()) });
 }
 
