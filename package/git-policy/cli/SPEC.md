@@ -5876,9 +5876,14 @@ on the commit path:
   the folder of the sockets,
   the instance and `.sock` take at most 107 bytes,
   so the runtime directory may take 40),
+  which is counted on the spelling the commit's own connect uses and is asked before the fast path reads a thing,
   and a service the manager made listen at another address than the one this command waits at,
   which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
   because the unit names its address with `%t` and `%t` is the manager's runtime directory.
+  Two spellings of one folder are one address there:
+  a link,
+  a `..` part and a link already on the way (`/home` to `/var/home`, `/var/run` to `/run`) all reach the one socket,
+  so the file system decides that question and never the two texts.
   The manager's answer about the address it made is the fact that decides the second;
   an answer that cannot be read proves nothing and leaves the wait as it was,
   so a manager of another release never fails a commit that would have landed.
