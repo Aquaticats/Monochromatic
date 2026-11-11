@@ -616,6 +616,25 @@ fn the_main_checkout_still_changes_its_remote_settings() {
     }
     let stored: String = String::from_utf8_lossy(&config_bytes(repo.as_path())).into_owned();
     assert!(stored.contains(OTHER_URL), "the main checkout stored nothing: {stored}");
+    // The shared file is this checkout's own, so naming it with `--file` is no refusal here either.
+    let shared: PathBuf = config_file(repo.as_path());
+    let named_run: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &[
+            "config",
+            "--file",
+            shared.to_str().expect("text path"),
+            "remote.origin.url",
+            OTHER_URL,
+        ],
+    );
+    assert_eq!(
+        named_run.code,
+        Some(0),
+        "a `--file` write to the shared file was refused in the main checkout: {}",
+        stderr_of(&named_run)
+    );
     remove(&fixture);
 }
 
