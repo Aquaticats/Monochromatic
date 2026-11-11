@@ -228,8 +228,10 @@ while the control passed in the gate of 2026-11-10T16:33:54-05:00 on another com
 A duration of 0.022 s rules out both a stalled device and a removal cut short by the ceiling:
 either would have cost the test the ceiling.
 
-The cause was the place a removal takes, measured in the gate's image with the gate's limits
-(`--cpus=2`, so `available_parallelism()` answers 2 and `budgeted_blocking_jobs()` gives a test process two places)
+The cause was the place a removal takes,
+measured in the gate's image with the gate's limits
+(`--cpus=2`,
+so `available_parallelism()` answers 2 and `budgeted_blocking_jobs()` gives a test process two places)
 on 2026-11-11T01:48:22+00:00,
 with four measurements at once on the gate's two processors:
 
@@ -239,8 +241,12 @@ with four measurements at once on the gate's two processors:
 - A place was still held when the second sweep of the control's shape began in 288 to 316 of 20,000 rounds,
   and the second sweep then answered 1 of 2 in one round and 0 of 2 in another:
   a sweep refuses instead of waiting when it finds every place taken.
-- The control's own two count assertions, run in the same conditions, failed in every one of six measurements:
-  two printed the gate's message, `left: 0` and `right: 2`, and four printed `left: 1` and `right: 2`.
+- The control's own two count assertions,
+  run in the same conditions,
+  failed in every one of six measurements:
+  two printed the gate's message,
+  `left: 0` and `right: 2`,
+  and four printed `left: 1` and `right: 2`.
 
 So the product was wrong:
 `Removal::Finished` promised the entry was gone and the place it took was not yet back

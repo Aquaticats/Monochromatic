@@ -85,7 +85,8 @@ const REMOVALS_A_PLACE_MUST_COME_BACK_BEFORE: usize = 1000;
 ///  which is how the gate of 2026-11-10 failed
 ///  (`doc/planning/cli-git-scratch-locations.md`,
 ///  "Why a sweep answered nothing for two stale entries").
-///  The answer is the promise: a caller told a removal finished
+///  The answer states the promise:
+///  a caller told a removal finished
 ///  may start the next sweep without waiting for anything.
 #[test]
 fn a_removal_reported_finished_has_given_its_place_back() {
