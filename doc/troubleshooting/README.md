@@ -124,6 +124,14 @@ Retired `@narumitw/pi-goal` behavior and migration:
 - cached package files are not active configuration
 - migrate globally to repository-owned `@monochromatic-dev/pi-plugin-goal`
 
+### [A 429 whose body links a billing page is never retried](pi-429-not-retried-when-the-body-says-billing.md)
+
+Why 120 recorded runs ended `model-error` with `retries` 0 on a provider limit that said retry:
+
+- Pi 1.5.2's non-retryable pattern holds the bare word `billing`, and both recorded bodies carry one in a `/billing` URL
+- the classifier answers before any `retry.*` setting is read, so no setting can restore the retry
+- the driver reads the limit from the body's own words, waits for a slot or moves the run to another provider
+
 ### [OpenAI OAuth requests hit Cloudflare 520](openai-api-oauth-cloudflare-520.md)
 
 Why pi's OpenAI models fail while `status.openai.com` reads fully operational:
