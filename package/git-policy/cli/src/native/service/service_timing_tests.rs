@@ -409,10 +409,11 @@ fn the_wait_line_is_written_for_a_held_lock_or_a_slow_step_and_not_for_a_quick_f
     // A wait that is slow in the readying and in the removal of the staged file says so without naming a holder,
     // so the two spans are read where the lock was free at the only placement.
     let slow_setup: WaitNotes = WaitNotes { setup: SLOW_LOCK_STEP, after: SLOW_LOCK_STEP, ..WaitNotes::default() };
-    let line: String = wait_line(10, SLOW_LOCK_STEP, &slow_setup, true).expect("a slow readying is written down");
+    let slow_readying: String = wait_line(10, SLOW_LOCK_STEP, &slow_setup, true).expect("a slow readying is written down");
     assert!(
-        line.contains(format!("lock_setup_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()) && line.contains(format!("lock_after_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()),
-        "{line}"
+        slow_readying.contains(format!("lock_setup_ms={}", SLOW_LOCK_STEP.as_millis()).as_str())
+            && slow_readying.contains(format!("lock_after_ms={}", SLOW_LOCK_STEP.as_millis()).as_str()),
+        "{slow_readying}"
     );
 }
 
