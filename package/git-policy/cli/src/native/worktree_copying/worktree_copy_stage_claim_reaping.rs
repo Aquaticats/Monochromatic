@@ -24,7 +24,6 @@
 
 use crate::json_record::quote;
 use crate::path_bytes_in_records::path_of_the_two_fields;
-use crate::private_storage::sync_directory;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_recovery::{RecoveryDestinations, finishes_destination};
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
@@ -412,6 +411,13 @@ pub fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyEr
 /// and is otherwise reported and kept,
 /// so nothing a person added there
 ///  after the kill is lost and the claim goes on naming the folder.
+/// The removals are published and not flushed:
+/// what they settle is the wrapper's own bookkeeping of a command that died,
+/// its absence costs a repeated notice and never a byte of a person's,
+/// and native Git flushes nothing for the worktree add they serve,
+/// while a flush of the journal root is a commit of the whole btrfs filesystem on the
+///  path of every command of the repository
+/// (`SPEC.md`, "Local durability follows what the remote already holds").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -503,7 +509,6 @@ pub fn reap_judged_stages(
     }
     remove_dead_temporaries(root.as_path(), verdicts)?;
     remove_records_nothing_claims(root.as_path())?;
-    absent_is_fine(sync_directory(root.as_path()))?;
     return Ok(notices);
 }
 

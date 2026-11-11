@@ -823,6 +823,90 @@ fn an_unsynced_release_removes_the_records_and_flushes_nothing() {
     remove(root.as_path());
 }
 
+/// What:
+///  Every record an add writes for itself is published whole by a rename and flushes nothing.
+/// Why:
+///   These records guard a command that was killed,
+/// and the page cache keeps a killed command's writes;
+/// a flush of any of them is a commit of the whole btrfs filesystem on the add's waiting path,
+/// where native Git flushes nothing for the worktree add they serve
+///  (`SPEC.md`, "Local durability follows what the remote already holds").
+/// The control that the recorders see a flush is the completion marker of the same claim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claimForAdd(); rememberChild(); recordBinding(); expect(fileSyncs()).toEqual([]); expect(directorySyncs()).toEqual([]);
+/// ```
+#[test]
+fn the_records_of_an_add_are_published_whole_and_flush_nothing() {
+    let root: PathBuf = fixture("claim-add-records-unsynced");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    std::fs::write(repo.join("file.txt"), b"content\n").expect("file");
+    crate::test_support::git(repo.as_path(), &["add", "file.txt"]);
+    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    let destination_wanted: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("topic");
+    take_file_syncs();
+    take_directory_syncs();
+    let claim: StageClaim = claim_stage_for_add_as(repo.join(".git").as_path(), destination_wanted.as_path(), &dead_copy_owner()).expect("claim");
+    claim.remember_running_child(destination_wanted.as_path(), std::process::id());
+    crate::test_support::git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let bound = bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+    claim.record_binding(&bound.binding).expect("recorded");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "an add's own records flush no file");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "an add's own records flush no directory");
+    let record: String = std::fs::read_to_string(claim.path.with_extension("add")).expect("record");
+    assert!(matches!(decode_record(record.as_str()), Some(Recorded::Registered(..))), "the binding is the record's now: {record}");
+    let leftovers: Vec<String> = std::fs::read_dir(journal_root(repo.join(".git").as_path()).as_path())
+        .expect("listing")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name: &String| name.contains(".tmp.") || name.ends_with(".partial"))
+        .collect();
+    assert_eq!(leftovers, Vec::<String>::new(), "no temporary stays beside the records");
+    claim.mark_complete().expect("durable marker");
+    assert!(!take_file_syncs().is_empty() && !take_directory_syncs().is_empty(), "the durable marker flushes (the control that the recorders see it)");
+    claim.release().expect("release");
+    remove(root.as_path());
+}
+
+/// What:
+///  A destination record a power cut left absent costs the next command no filesystem commit,
+/// and takes nothing of the person's with it.
+/// Why:
+///   The record is published by a rename and flushed by nobody,
+/// so a power cut can leave the claim without its record while the worktree Git made stands;
+/// recovery then reads the stage as a copy's own and says nothing about the destination.
+/// The notice is what such a cut costs,
+/// never a byte of the person's source or of the worktree Git registered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const killed = killedAdd(); unlink(record); expect(reap()).toEqual([]); expect(syncs()).toEqual([]); expect(destinationRegisters()).toBe(true);
+/// ```
+#[test]
+fn an_absent_destination_record_costs_no_flush_and_loses_no_bytes() {
+    let (root, repo, destination, _admin) = killed_add("claim-record-absent", false, false);
+    let claims: Vec<PathBuf> = std::fs::read_dir(journal_root(repo.join(".git").as_path()).as_path())
+        .expect("listing")
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "stage"))
+        .collect();
+    assert_eq!(claims.len(), 1, "one claim names the add that was killed");
+    std::fs::remove_file(claims[0].with_extension("add").as_path()).expect("a power cut took the record");
+    let source_bytes: Vec<u8> = std::fs::read(repo.join("file.txt")).expect("source bytes");
+    take_file_syncs();
+    take_directory_syncs();
+    let said: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the command asks for no filesystem commit");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "and none for a directory");
+    assert_eq!(std::fs::read(repo.join("file.txt")).expect("source bytes"), source_bytes, "the person's source keeps its bytes");
+    assert!(destination.join(".git").exists(), "the worktree Git registered stands");
+    assert!(said.is_empty(), "the worktree goes unnamed once the record is gone, which is what the cut costs: {said:?}");
+    remove(root.as_path());
+}
+
 /// An owner of another PID namespace,
 /// and the age that makes its item expired.
 fn foreign_owner() -> crate::worktree_copy_owner::CopyOwner {

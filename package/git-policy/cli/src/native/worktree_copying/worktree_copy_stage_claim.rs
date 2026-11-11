@@ -205,11 +205,16 @@ impl StageClaim {
     }
 
     /// What:
-    ///  Replaces the add's record with the binding to the directories Git made.
+    ///  Replaces the add's record with the binding to the directories Git made,
+    /// published whole by a rename and flushed by nobody.
     /// Why:
     ///   Recovery deletes only objects whose identities the record names;
     /// until this write,
     /// nothing is known to be the add's.
+    /// What it guards is a killed command,
+    /// whose writes stay in the page cache,
+    /// and native Git flushes nothing for the worktree add it serves;
+    /// a flush of it is a commit of the whole btrfs filesystem on the add's waiting path.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -250,7 +255,7 @@ impl StageClaim {
             return;
         };
         // The copy this add owes survives the rewriting: the name of its Git is written beside the source, not instead of it.
-        if let Err(error) = write_atomic(record, crate::worktree_add_binding::planned_record_with(destination, crate::worktree_add_binding::owed_copy_of(text.as_str()).as_ref(), Some(&child)).as_bytes(), "destination record") {
+        if let Err(error) = write_atomic_unsynced(record, crate::worktree_add_binding::planned_record_with(destination, crate::worktree_add_binding::owed_copy_of(text.as_str()).as_ref(), Some(&child)).as_bytes(), "destination record") {
             crate::diagnostic_log::debug("worktreeCopyStageClaim", format!("the Git of {} could not be named in its record ({}); the record stays unnamed", destination.display(), error.0).as_str());
         }
     }
@@ -263,10 +268,7 @@ impl StageClaim {
             Ok(text) => crate::worktree_add_binding::owed_copy_of(text.as_str()),
             Err(_unreadable) => None,
         };
-        write_atomic(record, crate::worktree_add_binding::registered_record_with(binding, owed.as_ref(), None).as_bytes(), "destination record")?;
-        if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(raw_failure_of)?;
-        }
+        write_atomic_unsynced(record, crate::worktree_add_binding::registered_record_with(binding, owed.as_ref(), None).as_bytes(), "destination record")?;
         return Ok(());
     }
 
@@ -401,10 +403,16 @@ fn claim_text(container: &Path, owner: &CopyOwner) -> String {
 ///  Claims a stage name for a named owner:
 /// the claim file holds the container path and,
 /// on a line of its own,
-/// the owner.
+/// the owner,
+/// published whole by a rename and flushed by nobody.
 /// Why:
 ///   A claim of a live owner is an add or a copy still running;
 /// the reaper leaves it alone and removes only a dead owner's.
+/// The claim exists before the container does,
+/// which is what an interruption needs;
+/// the flush would buy only that a power cut finds it,
+/// and native Git flushes nothing for the worktree add it serves,
+/// while a flush of it is a commit of the whole btrfs filesystem on the add's waiting path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -425,7 +433,7 @@ pub fn claim_stage_for(
         .to_string();
     let path: PathBuf = root.join(format!("{identifier}{CLAIM_SUFFIX}"));
     let text: String = claim_text(container.as_path(), owner);
-    write_atomic(path.as_path(), text.as_bytes(), "stage claim")?;
+    write_atomic_unsynced(path.as_path(), text.as_bytes(), "stage claim")?;
     return Ok(StageClaim { path, container, destination_record: None });
 }
 
@@ -522,7 +530,9 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
 
 /// What:
 ///  Claims a stage name for an add that owes a copy of a named source's ignored state,
-/// on behalf of a named owner.
+/// on behalf of a named owner,
+/// and records the destination in the add's own record,
+/// published whole by a rename and flushed by nobody.
 /// Why:
 ///   The destination alone says nothing about where the ignored state would come from,
 /// so a command killed before its copy ran
@@ -530,6 +540,12 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
 /// The source and which of its ignored paths the copy takes go into the record beside the
 ///  destination,
 /// so the next command makes the copy the add owed.
+/// The record exists before real Git runs,
+/// which is what a killed command needs;
+/// the flush would buy only that a power cut finds it,
+/// and native Git flushes nothing for the worktree add it serves,
+/// while a flush of it is a commit of the whole btrfs filesystem on the add's waiting path
+/// (`SPEC.md`, "Local durability follows what the remote already holds").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -538,7 +554,7 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
 pub fn claim_stage_for_add_as_owing(common_dir: &Path, destination_root: &Path, owner: &CopyOwner, owed: Option<&OwedCopy>) -> Result<StageClaim, WorktreeCopyError> {
     let mut claim: StageClaim = claim_stage_for(common_dir, destination_root, owner)?;
     let record: PathBuf = claim.path.with_extension(&DESTINATION_SUFFIX[1..]);
-    write_atomic(record.as_path(), planned_record_with(destination_root, owed, None).as_bytes(), "destination record")?;
+    write_atomic_unsynced(record.as_path(), planned_record_with(destination_root, owed, None).as_bytes(), "destination record")?;
     claim.destination_record = Some(record);
     return Ok(claim);
 }

@@ -3385,8 +3385,9 @@ Staging takes minutes and gigabytes,
 and the journal is written only after it,
 so the stage's name is recorded first:
 a claim file `<id>.stage` beside the journals names the stage container before the container is created,
-with the same temporary file,
-synchronization and rename as a journal write.
+with the same temporary file and atomic rename as a journal write,
+and no synchronization of its own
+(see "The records an add writes for itself" below).
 The claim is removed once a journal names the stage,
 or once a failed copy has removed the stage.
 Every item names its owner,
@@ -3417,6 +3418,48 @@ and a folder it names is kept and reported rather than removed.
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
 so a killed write of this record is a file of that shape and is swept when its writer is dead.
+
+### The records an add writes for itself
+
+An add's own bookkeeping is published whole and flushed by nobody.
+That is the stage claim (`<id>.stage`),
+the destination record beside it (`<id>.add`,
+written planned before real Git runs,
+rewritten when the add names its Git and when the binding is recorded),
+the proof in the new registration's administrative directory of which command made it
+(`monochromatic-git-policy-cli-copy-owner`),
+and the removals the recovery makes when it settles them.
+Each is a private file created exclusively beside its final name and renamed over it,
+so a reader sees the whole record or none,
+and the filesystem makes it durable with its next commit.
+The reason is the rule above,
+"Local durability follows what the remote already holds":
+what these records guard is a command that was killed,
+whose writes the page cache keeps,
+and native Git flushes nothing for the worktree add they serve
+(measured 2026-11-11: a native `git worktree add` of this repository's tree makes no `fsync` at all,
+while the same add through the wrapper made twelve,
+43 s of its 82 s under a load average of 95,
+`doc/planning/cli-git-worktree-add-records-flushed-by-nobody.md`).
+A flush of any of them is a commit of the whole btrfs filesystem,
+which waits behind every other writer's data,
+and it stands on the add's waiting path.
+What a power cut can therefore cost is the record,
+never a byte of a person's:
+a claim whose record is absent leaves the wrapper's own stage to the recovery's copy-stage rules and the destination
+unnamed,
+and the worktree Git registered,
+with everything a person put in it,
+stands as it was (`worktree_copy_stage_claim_tests.rs`).
+The completion marker keeps its flush:
+recovery removes a registered worktree whose add has no such record,
+so a lost marker would remove a worktree a person was told about
+(`worktree_copy_stage_claim.rs`).
+The journal of a copy,
+its install log and the record of an unfilled worktree keep their synchronization:
+what they prove is what the copy wrote into the worktree,
+which a later command rolls back or names,
+and the rule above leaves that decision to a change of its own.
 
 Every root a copy record holds is written as its bytes.
 The journal carries `destinationRootHex`,
