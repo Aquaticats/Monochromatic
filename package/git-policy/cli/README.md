@@ -4923,6 +4923,13 @@ mise run //package/git-policy/cli:native:test:container
   (`doc/troubleshooting/gh-run-watch-exit-status-conflates-failures.md`).
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
+  The test run and Clippy start together,
+  one container each,
+  and the gate waits for both:
+  a Clippy compile behind the suite was a fifth of the gate's wall time while the two checks had nothing to say to each
+  other,
+  and either one still fails the gate on its own
+  (`bin/native-gate-checks.ts`).
   Before it copies or builds anything it runs `lint:sidecar-locks`,
   so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
   instead of surfacing later in the sidecar's own build.
@@ -5464,7 +5471,28 @@ Every container the verification tasks start is bounded.
 The defaults are 2 GiB of memory,
 2 CPUs and 512 processes,
 defined once in `bin/container-limits.ts`.
-Each task accepts overrides after the `--` of `mise run`,
+`native:test:container` is the one task that starts from its own bounds,
+from `bin/native-gate-container-limits.ts`,
+because a release waits on that gate and its suite is what the CPUs shorten
+(`doc/planning/git-policy-cli-cachyos-test-containers.md` records the paired measurement):
+- Four CPUs,
+  which nextest reads as four tests at once and the image build as four compile jobs.
+- A process bound of 256 for each of those tests,
+  so 1024.
+  The fault sweeps of the binary suite start six cases inside one test and each case
+  starts a service and its Git programs,
+  and at four tests at once the suite peaked at 401 processes in one run and reached
+  the 512 the repository default allows in another,
+  which failed three tests on `fork` with `Resource temporarily unavailable`.
+  The same four tests at 1024 processes passed all 7,192.
+- The 2 GiB memory bound is the repository default,
+  because four tests at once peaked at 978 MiB of it.
+
+A bound a person passes after the `--` still wins,
+with one exception:
+the process bound is a floor that follows the test count,
+so a `--pids-limit` below it is raised and the gate prints the line that says so.
+Every task accepts overrides after the `--` of `mise run`,
 with these exact option names:
 
 - `--memory <size>` is a whole number with an optional unit `b`,
@@ -5654,6 +5682,12 @@ the fork failures of 2026-11-01 would come
 back as caught mutants,
 so the log names the gate directory and the limits and the baseline runs.
 A manifest that records no readable limits proves nothing.
+A campaign that reuses a gate image runs at whatever `--pids-limit` it was given,
+which defaults to the repository's 512 processes,
+while the gate's own bound is 1024 for its four test threads:
+pass `--pids-limit 1024` after the `--` of the campaign task to keep the proof,
+or that campaign's baseline runs once.
+Taking the gate's own bound from its manifest is the follow-up this paragraph leaves open.
 
 The planted controls (a full suite run per guard removal,
 about 24 minutes per campaign) are skipped by the same idea.
