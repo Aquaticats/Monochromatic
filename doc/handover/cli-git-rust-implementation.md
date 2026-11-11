@@ -127,7 +127,9 @@ the removal at line 353 and the placing at line 415).
 That is true of the code at that commit:
 the carry's take never called the final-hash and open-holder proof the second pass's install acts on
 (`may_remove_awaiting` in `merge_isolation_take_asides.rs`,
-whose callers were `finish_asides_awaiting` and `restore_what_git_did_not_write_awaiting` only).
+whose callers were `finish_asides_awaiting` and `restore_what_git_did_not_write_awaiting` only;
+the function is named `may_remove_the_aside_awaiting` since the jam-fix integration was merged,
+2026-11-10).
 
 Reproduced as `merge_isolation_carry_place::tests::a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it`:
 this process opens a write descriptor on the file before the placement,
@@ -150,8 +152,13 @@ the aside and the identity the take proved,
 and the carry asks it before removing any private name,
 for a replacement and for a deletion.
 A private name that cannot be proved unwritable is kept,
-`Placed::Written` carries `kept: Option<PathBuf>`,
 and the carry writes one line on standard error naming the path and the private name it kept.
+Who hands that name out is the integration's shape and not this branch's:
+the merge with `integrate/git-policy-cli-jam-fixes-after-alpha-9` kept
+`drop_the_aside_awaiting`,
+which fills a `kept: &mut Vec<PathBuf>` the caller reads,
+and dropped this branch's `Placed::Written { kept: Option<PathBuf> }`
+(the section "The jam-fix integration merged in, and the red tests it brings" records what changed).
 Guarantees:
 `README.md` "Merging",
 "Carrying the person's own work",
@@ -292,6 +299,118 @@ review and merge this branch;
 then measure what the carry pays for its holder scan on a merge that carries many paths,
 paired against the commit this branch starts from,
 before the next alpha.
+### The jam-fix integration merged in, and the red tests it brings (2026-11-10T20:56:59-05:00)
+
+`integrate/git-policy-cli-jam-fixes-after-alpha-9` at `5686c7bb29` was merged into this branch
+(`312527cbd3`).
+Four files conflicted,
+and both sides had already fixed the same two findings on their own:
+the carry that dropped a save written through a descriptor opened before its take,
+and the commit that was beaten only after its ownership check had answered.
+Where both sides had done the same work the merged tree keeps the integration's shape,
+because it asks the same proofs at the same places and the branches after it are written against it.
+
+- `merge_isolation_carry_place.rs`,
+  `merge_isolation_carry_apply_tests.rs`:
+  the merged carry is `drop_the_aside_awaiting` from the integration,
+  which fills a `kept: &mut Vec<PathBuf>` its caller reads out.
+  Both call the proof before the private name goes,
+  for a replacement and for a deletion.
+  This branch's `Placed::Written { kept: Option<PathBuf> }` is gone,
+  and so is its carry-level control
+  `a_carried_file_a_program_holds_open_is_kept_and_named`,
+  which asked what the integration's
+  `a_save_through_a_descriptor_opened_before_the_take_is_kept_beside_the_carried_file`
+  and `a_save_through_a_descriptor_opened_before_the_take_of_a_deleted_file_is_kept` ask,
+  and both of those require the notice to name the file that was kept.
+  This branch's own placement-level controls stay in
+  `merge_isolation_carry_place_tests.rs`,
+  which is not an integration file:
+  the replacement one stands beside the integration's carry-level copy
+  as the only proof that the placement hands the private name out at all,
+  and the deletion one is the only placement-level control of that path;
+  both now take the merge's identifier and the `held` list,
+  and each asserts that the placement hands out the private name it kept.
+- `merge_isolation_take_asides.rs`:
+  one proof, under the integration's name `may_remove_the_aside_awaiting`,
+  with both sides' reasons for it.
+- `service_server_connection_handling.rs`,
+  `service_server_connection_handling_tests.rs`:
+  the merged answer is the integration's single ownership check beside the beats,
+  held by `service_fault_hooks_test_support.rs::hold_on_any_thread`.
+  This branch's `service_server_connection_handling_directory_check_hold_test_support.rs` and the control it served
+  are removed, because the integration's
+  `a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits` asks the same question
+  (a beat arrives while the read waits, the refusal follows it, and nothing reaches the landing).
+- `merge_isolation_carry_writes.rs` is the one file Git's own pass resolved wrongly:
+  it kept both sides' notices and this branch's `Placed::Written` arms beside the integration's `held` list,
+  so the merged step is the integration's and its notice says the path was written,
+  which is true of a replacement and of a deletion.
+
+Measured on the merged tree,
+one run of each:
+
+```text
+native:test:host (whole lib suite)
+  Summary [ 247.860s] 6454 tests run: 6431 passed (1 slow), 23 failed, 19 skipped
+native:test:host -- -E 'test(merge) | test(service_server_connection_handling) | test(finish_held_settlement_tests)'
+  Summary [  19.468s] 311 tests run: 311 passed, 6162 skipped
+native:test:binary:host -- --no-run      Finished `test` profile in 48.76s
+native:test:host -- --no-run             Finished `test` profile in 1m 45s
+native:clippy                            Finished `dev` profile in 41.99s
+```
+
+Of the 23 that failed,
+21 fail the same way on `5686c7bb29` itself,
+one was fixed here,
+and two were the load and pass on a rerun
+(`landing::service_claim_renewal::tests::stopping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling`,
+`repair::package_repair_prewarm::tests::a_worktree_added_again_at_the_same_path_gets_its_own_filling`).
+The one fixed here is the recovery control
+`a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_branch`
+in `merge_isolation_recovery_tests.rs`:
+it asserted `git restore --staged`,
+which `3147d271df` on the integration had already changed to `git restore --no-enforce-worktree --staged`,
+so it failed there and passes here.
+
+What the integration still carries red,
+measured by running its own tree the same way
+(`6451 tests run: 6429 passed (2 slow), 22 failed, 19 skipped`),
+and none of it is reached from a file this merge resolved:
+
+- nine `invocation::entry` tests:
+  `90991fa86e` made the shipped overlay carry the never-prompt pair when the process has no controlling terminal,
+  which a nextest run never has,
+  and these fixtures'
+  expected overlay still leaves the pair out.
+- three `worktree_copying::worktree_copy_stage_claim` tests,
+  which assert a remedy ending `reset --hard` where the shipped text now reads
+  `reset --no-enforce-worktree --hard`.
+- three stage-container tests under `worktree::worktree_convert`, `worktree::worktree_convert_compare` and
+  `subvolume::subvolume_sync`,
+  where a conversion of a tree that holds a stage container reports an entry missing from the installed worktree.
+- `source_guard::service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`,
+  because `service/service_fault_hooks_test_support.rs` holds a `Mutex` that the inventory does not list.
+- `landing::service_index_lock::tests::the_flush_of_the_marker_is_the_operating_systems`,
+  `landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote`, and
+  `service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`.
+
+`mise run //package/git-policy/cli:lint:monochromatic-lint` reports 22 errors in 13 files on the merged tree and
+27 in 14 on `5686c7bb29`:
+this branch's rewrapped prose in `service_server_connection_handling_tests.rs` removed five
+`markdown/semantic-line-breaks` errors,
+and nothing this merge resolved is named.
+The rest are `markdown/semantic-line-breaks` in `README.md`, `SPEC.md` and files under `native/worktree/`,
+`native/testing/`, `native/landing/` and `native/worktree_copying/`,
+and two `rust/max-lines` errors in `native/testing/test_support.rs` and
+`native/landing/service_work_drain_pending_claims.rs`.
+
+Next action:
+fix the red tests above where each branch's owner is not already doing it,
+then rerelease;
+and measure what the carry pays for its holder scan before the next alpha,
+as this branch's section says.
+
 ### The carry loses nothing to an old descriptor, a save of the merge's own file, or a stranded private name (2026-11-10T15:43:18-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-review-round-2-findings`
