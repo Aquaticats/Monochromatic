@@ -306,6 +306,72 @@ and the resolved Rust files and `SPEC.md` report none.
 where the code and `SPEC.md` name two keys,
 `.cli-git-recovery-<name-key>-<merge-key>-<pid>-<count>-<nanos>`;
 that line is the integration's and is left for its own change.
+### A Kimi K3.1 Pro audit of the commit path: two argument-transform findings, both reproduced and fixed (2026-11-11T14:14:06-05:00)
+
+Branch `fix/git-policy-cli-alpha-10-audit-commit-message-options-as-git-reads-them`,
+from `6777017fc4` on `integrate/git-policy-cli-jam-fixes-after-alpha-9`.
+The report `~/temp/agent/kimi-trials/kimi-audit-alpha-10-commit-path/report.md`
+audits `97aeffe75b` and names nine defects;
+this branch owns the two that live in `commit_args.rs`,
+both reproduced on `6777017fc4` through the built wrapper,
+and each fixed with a control that failed first.
+The owner's standing words behind both are "never discard user data"
+and "Commits should never fail.".
+
+#### A path before an equal, separated `-m` value deleted the message
+
+`private_explicit_commit_args` removed the last token equal to each pathspec
+without asking whether that token is a path at all,
+so `git -c commit.cleanup=strip commit a.txt -m a.txt` left `a.txt -m`
+and the scratch commit died with ``error: switch `m' requires a value`` (exit 129),
+where native Git 2.56.0 lands the path `a.txt` with the message `a.txt`.
+The same command line without `-c commit.cleanup=strip` took another route and landed,
+so the deletion was the transform's and not the route's.
+The removal now takes only a token in option position,
+from the same value positions the pathspec removal reads
+(`private_explicit_commit_args`,
+`value_positions`).
+The pathspec-file controls leave the same way,
+so a message that spells `--pathspec-file-nul` is no longer dropped either.
+
+Controls:
+`commit_args::tests::explicit_removal_keeps_a_message_that_equals_a_pathspec`
+failed with `left: ["a.txt", "-m"]` against `right: ["-m", "a.txt"]`,
+and the binary control
+`commit::a_message_equal_to_a_path_stays_and_the_path_is_committed`
+compares both arms against the host's Git on one fixture,
+failing with `left: Some(129)` and ``error: switch `m' requires a value``.
+
+#### An abbreviated `--message` let its value be removed as `--only`
+
+The transform knew only full long spellings as value-taking,
+while Git accepts every unambiguous prefix,
+so `git commit --mess -o -- a.txt` lost the message `-o` to the `--only` removal
+and the scratch commit died with ``error: option `message' requires a value`` (exit 129),
+where native Git lands the message `-o`.
+Whether a long token takes the next token is now Git's own answer:
+`command_options_long_resolution.rs` holds the one table walk
+`scan_long_option` and `takes_next_token` both read,
+so an abbreviation, a `--no-` form and an ambiguous spelling are read once,
+and a spelling Git refuses removes no token of the person's line.
+
+Controls:
+`commit_args::tests::an_abbreviated_value_option_takes_the_next_token` failed with
+`assertion failed: takes_next_token("--mess")`,
+and the binary control
+`commit::an_abbreviated_message_keeps_a_value_that_spells_a_flag`
+failed with `left: Some(129)` and ``error: option `message' requires a value``.
+
+Checks on the branch:
+`native:test:host` over `commit::`,
+`command::`,
+`service_commit_line_reissued` and `service_commit_args` is 785 run and 785 passed,
+`native:test:binary:host` over the two new controls is 2 run and 2 passed,
+`native:clippy` passes,
+and `monochromatic-lint` with `--max-warnings 0` reports nothing in the changed Rust files
+or in `SPEC.md`.
+The package-wide `monochromatic-lint` run still fails on findings in
+`worktree_copying` and `worktree` files this branch did not touch.
 ### A Kimi K3.1 Pro review of the released held push and of the blocked commit's record: four findings fixed, one read as intended (2026-11-11T06:33:22-05:00)
 
 Branch `fix/git-policy-cli-kimi-findings-blocked-commits-are-never-published`,
