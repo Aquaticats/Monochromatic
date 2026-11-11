@@ -15,7 +15,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
-import { removePolicyRules, } from '../dist/final/node/tunnel-route.mjs';
+import {
+  removePolicyRules,
+  untaggedSuppressionRules,
+  untaggedSuppressionWarning,
+} from '../dist/final/node/tunnel-route.mjs';
 
 /**
  Protocol tag this program writes on the main-table suppression it installs.
@@ -47,20 +51,27 @@ process.exit(1);
 }
 
 /**
- Text of a program standing in for `ip` that records every call and answers a delete
- of a rule with the exact absence diagnostic when the call names the ownership protocol.
+ Text of a program standing in for `ip` that records every call, answers a delete
+ of a rule with the exact absence diagnostic when the call names the ownership protocol,
+ and lists the given rules.
 
  @param calls - File the program appends each call to.
 
  @param taggedDeleteStatus - Exit status of a delete that names the protocol tag.
 
+ @param listedRules - What `rule show` prints.
+
  @returns The program text.
  */
-function ipStandIn(calls: string, taggedDeleteStatus: number,): string {
+function ipStandIn(calls: string, taggedDeleteStatus: number, listedRules = '',): string {
   return `#!/usr/bin/env node
 const fs = require('node:fs');
 const words = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(calls,)}, words.join(' ') + '\\n',);
+if (words.includes('show')) {
+  process.stdout.write(${JSON.stringify(listedRules,)});
+  process.exit(0);
+}
 if (!words.includes('delete'))
   process.exit(0);
 if (words.includes('protocol') && !words.includes(${JSON.stringify(POLICY_RULE_PROTOCOL,)}))
@@ -80,15 +91,19 @@ process.exit(0);
 
  @param taggedDeleteStatus - Exit status the stand-in `ip` gives a delete naming the tag.
 
+ @param listedRules - What the stand-in `ip` prints for `rule show`.
+
  @returns Every `ip` call the removal made, in the order they were recorded.
  */
 async function callsOf(
   {
     fwmark,
     taggedDeleteStatus = 0,
+    listedRules = '',
   }: {
     readonly fwmark: string;
     readonly taggedDeleteStatus?: number;
+    readonly listedRules?: string;
   },
 ): Promise<readonly string[]> {
   /**
@@ -107,7 +122,7 @@ async function callsOf(
   await writeFile(calls, '',);
   for (const [name, text,] of [
     ['wg', wgStandIn(fwmark,),],
-    ['ip', ipStandIn(calls, taggedDeleteStatus,),],
+    ['ip', ipStandIn(calls, taggedDeleteStatus, listedRules,),],
   ] as const) {
     const path = join(bin, name,);
     await writeFile(path, text,);
@@ -159,18 +174,33 @@ await describe({
       },
     },),
     it({
-      name: 'removes the untagged main-table suppression of an earlier build too, but only when the interface carries the policy fwmark that automatic routing sets',
+      name: 'leaves an untagged main-table suppression in place, because it cannot be told apart from one an administrator or another tunnel installed, and says how to remove it',
       fn: async () => {
         const calls = await callsOf({
           fwmark: POLICY_TABLE,
           taggedDeleteStatus: 2,
+          listedRules: '32765:\tfrom all lookup main suppress_prefixlength 0\n',
         },);
-        expect(calls.filter((call,) => call.includes('suppress_prefixlength',),).toSorted(),).toEqual([
-          '-4 rule delete table main suppress_prefixlength 0',
-          '-4 rule delete table main suppress_prefixlength 0 protocol 201',
-          '-6 rule delete table main suppress_prefixlength 0',
-          '-6 rule delete table main suppress_prefixlength 0 protocol 201',
+        expect(calls.filter((call,) => (call.includes('suppress_prefixlength',) && (!(call.includes('protocol',)))),),).toEqual([],);
+        expect(calls.filter((call,) => call.endsWith('rule show',),).toSorted(),).toEqual([
+          '-4 rule show',
+          '-6 rule show',
         ],);
+      },
+    },),
+    it({
+      name: 'names the untagged suppression it leaves, the tag this program writes, and the command that removes the earlier build leftover',
+      fn: async () => {
+        const rule = '32765:\tfrom all lookup main suppress_prefixlength 0';
+        expect(untaggedSuppressionRules({ listed: `${rule}\n32766:\tfrom all lookup main\n` },),).toEqual([rule],);
+        expect(untaggedSuppressionRules({ listed: `32765: from all lookup main suppress_prefixlength 0 proto ${POLICY_RULE_PROTOCOL}\n` },),).toEqual([],);
+        const warning = untaggedSuppressionWarning({
+          proto: '-4',
+          rule,
+        },);
+        expect(warning,).toContain(rule,);
+        expect(warning,).toContain(POLICY_RULE_PROTOCOL,);
+        expect(warning,).toContain('sudo ip -4 rule delete table main suppress_prefixlength 0',);
       },
     },),
   ],

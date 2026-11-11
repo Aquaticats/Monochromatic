@@ -353,9 +353,12 @@ export function manualFinishSteps(
     ...stopWatcher,
     `then, if the state file is damaged, move it away and run \`wg-quicker down ${interfaceName}\` again; wg-quicker then forgets the bypass rules and routes the file owned, and the block lets nothing through because no exceptions are known:`,
     `  sudo mv ${state} ${shellQuote({ value: `${statePath}.damaged`, },)}`,
-    'or take the tunnel down by hand instead, with the route watcher stopped as above, and run these in order (each is what wg-quicker itself runs, except the first and the last; none needs the state file).'
+    'or take the tunnel down by hand instead, with the route watcher stopped as above, and run these in order (each is what wg-quicker itself runs, except the first, the last, and the two suppressions; none needs the state file).'
       + ' The first puts the traffic block in place in one nft transaction, as wg-quicker does before it removes any routing,'
-      + ' so that a step that fails leaves traffic blocked and not outside the tunnel; the last lifts it:',
+      + ' so that a step that fails leaves traffic blocked and not outside the tunnel; the last lifts it.'
+      + ' wg-quicker deletes only a `suppress_prefixlength 0` rule that carries its protocol tag 201, and it never deletes one without the tag,'
+      + ' because that shape names no interface and no table and can belong to an administrator or another tunnel,'
+      + ' so the two untagged deletions below are yours to run when an earlier build of wg-quicker installed them:',
     `  # ${blockNote}`,
     `  sudo nft ${shellQuote({ value: blockStatements({
       interfaceName,

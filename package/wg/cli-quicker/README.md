@@ -158,13 +158,22 @@ A config with a numeric `Table` installs no policy rule,
 so its `down` and its rollback remove none,
 where they used to delete whichever `suppress_prefixlength 0` rule came first,
 including one another tunnel or an administrator had installed.
-A tunnel an earlier build set up carries the same rule without the tag;
-its own interface carries the fwmark,
-so removing a suppression whose tagged form is absent falls back to the untagged shape once.
+A tunnel an earlier build set up carries the same rule without the tag.
+That rule is never deleted by shape:
+`ip rule delete table main suppress_prefixlength 0` removes the first rule of that shape,
+which is the one with the lowest preference,
+and an administrator or another tunnel can own a rule of the same shape.
+There is no field that names the rule's owner,
+so the program cannot establish that an untagged suppression is its own.
+`down` therefore leaves an untagged suppression in place and warns with the line the rule listing printed
+and the exact command that removes it.
+An interface whose fwmark names a policy table, whose tagged rule is absent and whose family lists an untagged
+`suppress_prefixlength 0` rule, was most likely set up by an earlier build,
+and the person can remove that leftover with the printed command.
 The rule this program writes is listed with the tag:
 
 ```sh
-ip -4 rule show | grep 'suppress_prefixlength 0 protocol 201'
+ip -4 rule show | grep 'suppress_prefixlength 0 proto 201'
 ```
 
 Before creating an interface,
