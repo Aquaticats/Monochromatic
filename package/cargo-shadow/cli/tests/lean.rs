@@ -103,7 +103,7 @@ fn a_run_removes_the_stale_unit_keeps_the_current_one_and_starts_no_other_progra
     let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();
     assert_eq!(output.status.code(), Some(0), "{stdout} {}", String::from_utf8_lossy(&output.stderr));
     assert!(!stale.exists() && current.exists());
-    assert!(stdout.contains("older-compiler sweep: 1 profile directories read; removed 1 units"), "{stdout}");
+    assert!(stdout.contains("older-compiler sweep: 1 of 1 profile directories read; removed 1 units"), "{stdout}");
     assert_eq!(started(&world), "", "the units mechanism starts no other program");
 }
 

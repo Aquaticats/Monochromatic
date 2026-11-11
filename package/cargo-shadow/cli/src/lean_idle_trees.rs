@@ -106,24 +106,26 @@ pub struct TreeCollection {
 }
 
 /// What:
-/// `fn qualifies(tree: &Tree, retired: &HashSet<String>, policy: &IdlePolicy, now: i64, activity: i64) -> Result<(String, i64), String>` decides
-/// from the facts whether a tree qualifies:
+/// `fn qualifies(tree: &Tree, workspace: &Workspace, retired: &HashSet<String>, policy: &IdlePolicy, now: i64, activity: i64) -> Result<(String, i64), String>`
+/// decides from the facts whether a tree qualifies:
 /// `Ok((reason, idle period that applied))` when it does,
 /// `Err(why not)` when it does not.
 /// Why:
-/// The decision is separate from the removal so it can be read and tested alone.
+/// The decision is separate from the removal so it can be read and tested alone,
+/// and the workspace it was read once for the whole pass is handed in:
+/// reading it again here would repeat the most expensive part of the pass for every tree it judges.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function qualifies(tree: Tree, retired: Set<string>, policy: IdlePolicy, now: number, activity: number): { ok: string } | { no: string }
+/// function qualifies(tree: Tree, workspace: Workspace, retired: Set<string>, policy: IdlePolicy, now: number, activity: number): { ok: string } | { no: string }
 /// ```
-fn qualifies(tree: &Tree, retired: &HashSet<String>, policy: &IdlePolicy, now: i64, activity: i64) -> Result<(String, i64), String> {
+fn qualifies(tree: &Tree, workspace: &Workspace, retired: &HashSet<String>, policy: &IdlePolicy, now: i64, activity: i64) -> Result<(String, i64), String> {
     let idle: i64 = now - activity;
     let toolchain_retired: bool = match &tree.kind {
         TreeKind::Keyed(name) => retired.contains(name),
         TreeKind::Legacy => false,
     };
-    let (needed, why): (i64, String) = match workspace_of(&tree.path) {
+    let (needed, why): (i64, String) = match workspace {
         _ if toolchain_retired => (policy.idle_seconds, String::from("its toolchain is retired")),
         Workspace::Known(root) if root.exists() => return Err(format!("its workspace {} exists", root.display())),
         Workspace::Known(root) => (policy.idle_seconds, format!("its workspace {} is gone", root.display())),
@@ -262,10 +264,15 @@ pub fn collect_idle_trees(
     // The workspaces are read once for the whole list, before the deadline applies to the judging,
     // so the run says how long that took: it is a fixed cost of every pass, however small the bound is.
     let reading_began: std::time::Instant = std::time::Instant::now();
+    // Read once and kept: the same answer decides whether a tree holds another tree's workspace,
+    // and whether the tree itself qualifies.
+    let mut workspaces: Vec<Workspace> = Vec::with_capacity(trees.len());
     for tree in trees {
-        if let Workspace::Known(root) = workspace_of(&tree.path) {
-            roots.push((tree.path.clone(), root));
+        let found: Workspace = workspace_of(&tree.path);
+        if let Workspace::Known(root) = &found {
+            roots.push((tree.path.clone(), root.clone()));
         }
+        workspaces.push(found);
     }
     if !trees.is_empty() {
         emit(log, format!("read the recorded workspace of {} trees in {} s", trees.len(), reading_began.elapsed().as_secs()));
@@ -280,7 +287,7 @@ pub fn collect_idle_trees(
             emit(log, format!("could not finish an earlier run's deletion in {}: {failure}", trash.display()));
         }
     }
-    for tree in trees {
+    for (index, tree) in trees.iter().enumerate() {
         if deadline.passed() {
             break;
         }
@@ -289,7 +296,7 @@ pub fn collect_idle_trees(
             break;
         };
         collection.judged += 1;
-        let (reason, needed): (String, i64) = match qualifies(tree, retired, policy, now, activity) {
+        let (reason, needed): (String, i64) = match qualifies(tree, &workspaces[index], retired, policy, now, activity) {
             Ok(found) => found,
             Err(why) => {
                 collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep(why) });

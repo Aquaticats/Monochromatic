@@ -20,7 +20,8 @@ use crate::lean_command::mechanism_of;
 use crate::lean_guard::GuardEnvironment;
 use crate::lean_identity::{Deadline, now_seconds};
 use crate::lean_progress::{LongPass, Progress};
-use crate::lean_run::{Mechanism, MechanismReport, RUN_ORDER, RunContext, RunOptions, TreeTally, long_pass, run_mechanism, run_order};
+use crate::lean_run::{Mechanism, MechanismReport, RUN_ORDER, RunContext, RunOptions, long_pass, run_mechanism, run_order};
+use crate::lean_run_trees::TreeTally;
 use crate::lean_test_support::{DAY, age_everything, make_tree};
 use crate::test_scratch::scratch;
 

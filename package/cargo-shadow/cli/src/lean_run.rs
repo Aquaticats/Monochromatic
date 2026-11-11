@@ -42,13 +42,13 @@ use crate::lean_checkouts::list_checkouts;
 /// Imports the names this file uses from `crate::lean_guard`.
 use crate::lean_guard::GuardEnvironment;
 /// Imports the names this file uses from `crate::lean_identity`.
-use crate::lean_identity::{Deadline, now_seconds};
-/// Imports the names this file uses from `crate::lean_idle_trees`.
-use crate::lean_idle_trees::{IdlePolicy, TreeVerdict, collect_idle_trees};
+use crate::lean_identity::Deadline;
+/// Imports the names this file uses from `crate::lean_run_trees`.
+use crate::lean_run_trees::{tree_report, trees_in_order};
 /// Imports the names this file uses from `crate::lean_keyed_folder`.
 use crate::lean_keyed_folder::configured_base;
 /// Imports the names this file uses from `crate::lean_policy`.
-use crate::lean_policy::{GRACE_SECONDS, HOST_PROFILE_CAP_BYTES, IN_TREE_PROFILE_CAP_BYTES, TREE_IDLE_SECONDS, UNIDENTIFIED_TREE_IDLE_SECONDS};
+use crate::lean_policy::{GRACE_SECONDS, HOST_PROFILE_CAP_BYTES, IN_TREE_PROFILE_CAP_BYTES};
 /// Imports the names this file uses from `crate::lean_progress`.
 use crate::lean_progress::{LongPass, Progress, resume_index, state_directory};
 /// Imports the names this file uses from `crate::lean_rustup_toolchains`.
@@ -56,7 +56,7 @@ use crate::lean_rustup_toolchains::dated_nightly_name;
 /// Imports the names this file uses from `crate::lean_run_discovery`.
 use crate::lean_run_discovery::{target_directories, verification_directories};
 /// Imports the names this file uses from `crate::lean_run_report`.
-use crate::lean_run_report::{Place, gib, measure_places, space_lines};
+use crate::lean_run_report::{Place, measure_places, space_lines};
 /// Imports the names this file uses from `crate::lean_run_steps`.
 use crate::lean_run_steps::{UnitsPass, run_podman, run_records, run_toolchains, sweep_and_cap};
 
@@ -140,7 +140,7 @@ pub fn run_order(requested: &[Mechanism]) -> Vec<Mechanism> {
 /// ```ts
 /// function retiredToolchainNames(trees: Tree[], pinned: Set<string>): Set<string>
 /// ```
-fn retired_toolchain_names(trees: &[Tree], pinned: &HashSet<String>) -> HashSet<String> {
+pub(crate) fn retired_toolchain_names(trees: &[Tree], pinned: &HashSet<String>) -> HashSet<String> {
     let mut retired: HashSet<String> = HashSet::new();
     for tree in trees {
         if let TreeKind::Keyed(name) = &tree.kind
@@ -156,7 +156,8 @@ fn retired_toolchain_names(trees: &[Tree], pinned: &HashSet<String>) -> HashSet<
 /// What:
 /// `pub struct MechanismReport` is what one mechanism of a run did.
 /// Why:
-/// A run needs its lines and, for the two long passes,
+/// A run needs its lines and,
+/// for the two long passes,
 /// where the next run continues.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct MechanismReport {
@@ -167,140 +168,6 @@ pub struct MechanismReport {
     /// nothing when the pass finished,
     /// so the next run starts at the front.
     pub resume_after: Option<PathBuf>,
-}
-
-/// What:
-/// `pub struct TreeTally` is what a pass over the trees found,
-/// by count,
-/// so the summary line is written and tested in one place.
-/// Why:
-/// A tree that was only partly removed is neither removed nor skipped,
-/// and a summary that counted it as either would say something untrue about it.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct TreeTally {
-    /// Trees the pass judged.
-    pub judged: usize,
-    /// Trees it was given.
-    pub given: usize,
-    /// Trees removed whole.
-    pub removed: usize,
-    /// Disk bytes they freed.
-    pub bytes: u64,
-    /// Trees of which part stayed.
-    pub partly: usize,
-    /// Disk bytes their partial removals freed.
-    pub partly_bytes: u64,
-    /// Trees kept.
-    pub kept: usize,
-    /// Trees skipped for a reason other than the deadline.
-    pub skipped: usize,
-}
-
-/// What:
-/// `pub fn line(&self, verb: &str) -> String` is the idle-trees summary line.
-/// Why:
-/// It says how far the pass got out of what it was given,
-/// and it counts a partly removed tree as partly removed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const line = (tally: TreeTally, verb: string): string => `idle trees: ${tally.judged} of ${tally.given} trees judged; ${verb} ${tally.removed} (${gib(tally.bytes)} by disk blocks); partly removed ${tally.partly} (${gib(tally.partlyBytes)} by disk blocks freed, what stayed is named); kept ${tally.kept}; skipped ${tally.skipped}`;
-/// ```
-impl TreeTally {
-    /// The summary line,
-    /// with the verb the run earns (`removed` or `would remove`).
-    pub fn line(&self, verb: &str) -> String {
-        return format!(
-            "idle trees: {} of {} trees judged; {verb} {} ({} by disk blocks); partly removed {} ({} by disk blocks freed, what stayed is named); kept {}; skipped {}",
-            self.judged,
-            self.given,
-            self.removed,
-            gib(self.bytes),
-            self.partly,
-            gib(self.partly_bytes),
-            self.kept,
-            self.skipped
-        );
-    }
-}
-
-/// What:
-/// `fn trees_in_order(base: &Path) -> Vec<Tree>` lists the base's trees in one order,
-/// so a position in that order names the same place on the next run.
-/// Why:
-/// The record of where a pass stopped is a path,
-/// and it is only a position if the list it indexes is ordered the same way every time.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const treesInOrder = (base: string): Tree[] => listTrees(base).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-/// ```
-fn trees_in_order(base: &Path) -> Vec<Tree> {
-    let mut trees: Vec<Tree> = list_trees(base);
-    trees.sort_by(|left, right| { return left.path.cmp(&right.path); });
-    return trees;
-}
-
-/// What:
-/// `fn tree_report(trees: &[Tree], start: usize, options: &RunOptions, deadline: &Deadline, environment: &GuardEnvironment, base: &Path, pinned: &HashSet<String>) -> MechanismReport`
-/// runs mechanism C from the recorded position and returns its summary lines and where it stopped.
-/// Why:
-/// It reports removed trees by count and size,
-/// a tree that was only partly removed as such,
-/// the trees the deadline left for the next run,
-/// and every kept or skipped tree by its reason.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function treeReport(trees: Tree[], start: number, options: RunOptions, deadline: Deadline, env: GuardEnvironment, base: string, pinned: Set<string>): MechanismReport
-/// ```
-fn tree_report(trees: &[Tree], start: usize, options: &RunOptions, deadline: &Deadline, environment: &GuardEnvironment, base: &Path, pinned: &HashSet<String>) -> MechanismReport {
-    let retired: HashSet<String> = retired_toolchain_names(trees, pinned);
-    let policy: IdlePolicy = IdlePolicy { idle_seconds: TREE_IDLE_SECONDS, unidentified_idle_seconds: UNIDENTIFIED_TREE_IDLE_SECONDS };
-    let chosen: &[Tree] = &trees[start..];
-    let mut log: Vec<String> = Vec::new();
-    let collection = collect_idle_trees(chosen, base, &retired, &policy, environment, now_seconds(), options.dry_run, deadline, &mut log);
-    let mut tally: TreeTally = TreeTally { judged: collection.judged, given: chosen.len(), ..TreeTally::default() };
-    let mut skips: Vec<String> = Vec::new();
-    let mut leftovers: Vec<String> = Vec::new();
-    for outcome in &collection.outcomes {
-        match &outcome.verdict {
-            TreeVerdict::Removed { bytes: freed, .. } => {
-                tally.removed += 1;
-                tally.bytes += freed;
-            }
-            TreeVerdict::PartlyRemoved { bytes: freed, remaining, .. } => {
-                tally.partly += 1;
-                tally.partly_bytes += freed;
-                leftovers.push(format!("  partly removed {}: {remaining}", outcome.tree.display()));
-            }
-            TreeVerdict::Keep(_) => tally.kept += 1,
-            TreeVerdict::Skip(why) => {
-                tally.skipped += 1;
-                skips.push(format!("  skipped {}: {why}", outcome.tree.display()));
-            }
-        }
-    }
-    let verb: &str = if options.dry_run { "would remove" } else { "removed" };
-    let mut lines: Vec<String> = vec![tally.line(verb)];
-    if start > 0 {
-        lines.push(format!("  this pass started after {}, the tree the last run stopped at", trees[start - 1].path.display()));
-    }
-
-    // A pass that judged nothing keeps the position it started at, so a run cut before its first tree loses no ground.
-    let judged_last: Option<&Tree> = collection.judged.checked_sub(1).map(|last| { return &chosen[last]; });
-    let unfinished: bool = collection.judged < chosen.len();
-    let resume_after: Option<PathBuf> = match (unfinished, judged_last) {
-        (true, Some(last)) => Some(last.path.clone()),
-        (true, None) => start.checked_sub(1).map(|before| { return trees[before].path.clone(); }),
-        (false, _) => None,
-    };
-    if unfinished && let Some(last) = judged_last {
-        lines.push(format!("  the deadline passed after {} of {} trees, at {}; the next run continues after it", collection.judged, chosen.len(), last.path.display()));
-    }
-    lines.extend(leftovers.into_iter().take(25));
-    lines.extend(skips.into_iter().take(25));
-    return MechanismReport { lines, resume_after };
 }
 
 /// What:
@@ -348,9 +215,39 @@ fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf]) -> Vec<(PathBuf, u6
             }
         }
     }
-    profiles.sort_by(|left, right| { return left.0.cmp(&right.0); });
-    profiles.dedup_by(|left, right| { return left.0 == right.0; });
+    profiles.sort_by(by_profile);
+    profiles.dedup_by(same_profile);
     return profiles;
+}
+
+/// What:
+/// `fn by_profile(left: &(PathBuf, u64), right: &(PathBuf, u64)) -> std::cmp::Ordering` is the order a recorded position
+/// indexes.
+/// Why:
+/// The units pass continues after a key,
+/// so two runs must walk the profile directories in the same order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const byProfile = (left: [string, number], right: [string, number]): number => left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0;
+/// ```
+fn by_profile(left: &(PathBuf, u64), right: &(PathBuf, u64)) -> std::cmp::Ordering {
+    return left.0.cmp(&right.0);
+}
+
+/// What:
+/// `fn same_profile(left: &mut (PathBuf, u64), right: &mut (PathBuf, u64)) -> bool` says whether two entries name the same
+/// directory.
+/// Why:
+/// A checkout and a build tree can name one profile directory,
+/// and judging it twice would pay for it twice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sameProfile = (left: [string, number], right: [string, number]): boolean => left[0] === right[0];
+/// ```
+fn same_profile(left: &mut (PathBuf, u64), right: &mut (PathBuf, u64)) -> bool {
+    return left.0 == right.0;
 }
 
 /// What a mechanism is given when the run reaches it.
@@ -410,7 +307,10 @@ pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> Mecha
         Mechanism::Trees => match context.base {
             Some(found) => {
                 let trees: Vec<Tree> = trees_in_order(found);
-                let keys: Vec<PathBuf> = trees.iter().map(|tree| { return tree.path.clone(); }).collect();
+                let mut keys: Vec<PathBuf> = Vec::with_capacity(trees.len());
+                for tree in &trees {
+                    keys.push(tree.path.clone());
+                }
                 let start: usize = resume_index(&keys, context.progress.after(LongPass::Trees));
                 tree_report(&trees, start, context.options, &context.deadline, context.environment, found, context.pinned)
             }
@@ -425,19 +325,23 @@ pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> Mecha
             let listing_began: std::time::Instant = std::time::Instant::now();
             let profiles: Vec<(PathBuf, u64)> = unit_profiles(context.base, context.checkouts);
             let listing_seconds: u64 = listing_began.elapsed().as_secs();
-            let keys: Vec<PathBuf> = profiles.iter().map(|(profile, _cap)| { return profile.clone(); }).collect();
+            let mut keys: Vec<PathBuf> = Vec::with_capacity(profiles.len());
+            for (profile, _cap) in &profiles {
+                keys.push(profile.clone());
+            }
             let start: usize = resume_index(&keys, context.progress.after(LongPass::Units));
             let chosen: &[(PathBuf, u64)] = &profiles[start..];
             let UnitsPass { mut lines, judged } = sweep_and_cap(chosen, context.options.dry_run, &context.deadline, context.environment);
-            let resume_after: Option<PathBuf> = match (judged < chosen.len(), judged.checked_sub(1)) {
-                (true, Some(last)) => Some(chosen[last].0.clone()),
-                (true, None) => start.checked_sub(1).map(|before| { return profiles[before].0.clone(); }),
-                (false, _) => None,
+            let last_judged: Option<&(PathBuf, u64)> = if judged > 0 { Some(&chosen[judged - 1]) } else { None };
+            let resume_after: Option<PathBuf> = match (judged < chosen.len(), last_judged) {
+                (true, Some(last)) => Some(last.0.clone()),
+                (true, None) if start > 0 => Some(profiles[start - 1].0.clone()),
+                _ => None,
             };
             lines.insert(1, format!("  listed {} profile directories in {} s", profiles.len(), listing_seconds));
             // The position notes come before the notes of what was skipped or left alone.
-            if let (true, Some(last)) = (judged < chosen.len(), judged.checked_sub(1)) {
-                lines.insert(1, format!("  the deadline passed after {judged} of {} profile directories, at {}; the next run continues after it", chosen.len(), chosen[last].0.display()));
+            if let (true, Some(last)) = (judged < chosen.len(), last_judged) {
+                lines.insert(1, format!("  the deadline passed after {judged} of {} profile directories, at {}; the next run continues after it", chosen.len(), last.0.display()));
             }
             if start > 0 {
                 lines.insert(1, format!("  this pass started after {}, the profile directory the last run stopped at", profiles[start - 1].0.display()));

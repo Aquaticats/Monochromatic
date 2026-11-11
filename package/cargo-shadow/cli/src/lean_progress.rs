@@ -73,11 +73,24 @@ pub struct Progress {
 /// const stateDirectory = (): string | undefined => { const base = process.env.XDG_STATE_HOME || (process.env.HOME ? join(process.env.HOME, '.local/state') : undefined); return base ? join(base, 'cargo-shadow') : undefined; };
 /// ```
 pub fn state_directory() -> Option<PathBuf> {
-    if let Some(chosen) = std::env::var_os("XDG_STATE_HOME").filter(|value| { return !value.is_empty(); }) {
+    if let Some(chosen) = std::env::var_os("XDG_STATE_HOME").filter(is_named) {
         return Some(PathBuf::from(chosen).join(STATE_DIRECTORY_NAME));
     }
-    let home: PathBuf = std::env::var_os("HOME").filter(|value| { return !value.is_empty(); }).map(PathBuf::from)?;
+    let home: PathBuf = std::env::var_os("HOME").filter(is_named).map(PathBuf::from)?;
     return Some(home.join(".local").join("state").join(STATE_DIRECTORY_NAME));
+}
+
+/// What:
+/// `fn is_named(value: &std::ffi::OsString) -> bool` says whether an environment value names something.
+/// Why:
+/// An empty `XDG_STATE_HOME` means the variable is unset rather than that the state belongs at the root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNamed = (value: string): boolean => value !== '';
+/// ```
+fn is_named(value: &std::ffi::OsString) -> bool {
+    return !value.is_empty();
 }
 
 /// What:
@@ -141,8 +154,12 @@ fn unescape(text: &str) -> String {
 /// export const resumeIndex = (keys: string[], after?: string): number => after === undefined ? 0 : keys.findIndex((key) => key > after) === -1 ? keys.length : keys.findIndex((key) => key > after);
 /// ```
 pub fn resume_index(keys: &[PathBuf], after: Option<&Path>) -> usize {
-    let Some(after) = after else { return 0 };
-    return keys.partition_point(|key| { return key.as_path() <= after; });
+    let Some(recorded) = after else { return 0 };
+    let mut start: usize = 0;
+    while start < keys.len() && keys[start].as_path() <= recorded {
+        start += 1;
+    }
+    return start;
 }
 
 /// What a read of the record found.
@@ -180,11 +197,11 @@ fn read_record(path: &Path) -> ReadRecord {
     let mut progress: Progress = Progress::default();
     for line in lines {
         let Some((tag, value)) = line.split_once(' ') else { continue };
-        let path: PathBuf = PathBuf::from(unescape(value));
+        let found: PathBuf = PathBuf::from(unescape(value));
         if tag == TREES_TAG {
-            progress.trees = Some(path);
+            progress.trees = Some(found);
         } else if tag == UNITS_TAG {
-            progress.units = Some(path);
+            progress.units = Some(found);
         }
     }
     return ReadRecord { progress, failure: None };

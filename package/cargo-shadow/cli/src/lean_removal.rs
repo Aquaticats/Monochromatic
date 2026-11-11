@@ -13,7 +13,9 @@
 //! and a mismatch leaves what was moved in the trash for a person to look at:
 //! "never discard user data".
 //!
-//! A claimed entry may hold a directory its owner cannot write (`0500`, `0555`, `0000`):
+//! A claimed entry may hold a directory its owner cannot write (`0500`,
+//! `0555`,
+//! `0000`):
 //! unlinking a file needs write and search on the directory that holds it,
 //! and listing a directory needs read on it,
 //! so the deletion gives the directory those three bits first when this user owns it,
@@ -252,7 +254,10 @@ pub fn modes_named(modes: &[PathBuf]) -> String {
     if modes.is_empty() {
         return String::new();
     }
-    let named: Vec<String> = modes.iter().take(NAMED_MODES).map(|path| { return path.display().to_string(); }).collect();
+    let mut named: Vec<String> = Vec::with_capacity(NAMED_MODES);
+    for mode in modes.iter().take(NAMED_MODES) {
+        named.push(mode.display().to_string());
+    }
     let rest: String = match modes.len().checked_sub(NAMED_MODES) {
         Some(more) if more > 0 => format!(" and {more} more"),
         _ => String::new(),
