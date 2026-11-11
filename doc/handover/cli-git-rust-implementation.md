@@ -193,7 +193,42 @@ First pass, with 50 `pi-*` and `launch-*` units running:
 - Still wanted, though no longer release-blocking: round 228 (Clippy after the daily update, issue 6284) and round 213's two test fixes.
 - Kept as they are: every other running fix, tokio, review and port agent; none rests on a decision that changed.
 
-A jam met during that pass, and the owner's instruction on it.
+Second pass, 2026-11-11T18:58:34-05:00, with 36 `pi-*` units running:
+
+- Deleted, fully merged into `main` (rule `XSU`), here and on the remote where they existed:
+  `feat/crate-release-cli-alpha-releases-run-no-extra-work`,
+  `feat/pi-shared-subagent-driver-takes-the-launcher-fixes`,
+  `feat/pi-shared-subagent-driver-launcher-and-todays-pools-onto-main`,
+  `feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-gate`,
+  the two `test/kimi-review-pi-shared-subagent-driver-takes-the-launcher-fixes-round-*` review branches,
+  and the four `test/qwen-audit-alpha-10-*` branches, which pointed at `574063773d` and held no commit of their own
+  (their reports stay under `~/temp/agent/qwen-trials`).
+  The clean leftover worktree `pi-pi-subagent-driver-takes-the-launcher-fixes` was removed first.
+- Kept, and why: `fix/pi-shared-subagent-driver-runs-survive-a-concurrency-429` is rejected work, not work that lives elsewhere
+  (the owner: "It's Pi's native retry's responsibility to deal with 429s."), so its diff is the only record of that approach;
+  `feat/pi-shared-subagent-driver-run-management` is not merged into `main`;
+  the three `test/qwen-review-*` branches hold the commits the review trial reads until it is scored.
+- Kept running: the Kimi review of `fix/git-policy-cli-sonnet-findings-removal-with-a-nested-subvolume`.
+  Round 234 replaces that branch's refusal, but it builds on the branch, so the review's findings go to round 234's agent when it ends.
+- Not yet deleted, to do once alpha.11 is on `main`: the fix branches that pass 14 merged, which will then be ancestors of `main`.
+- Nothing running rests on a decision that changed since the first pass.
+
+The fill of the same hour (the pools at 18:52: qwen plan DeepSeek 2 of 18, DeepSeek flex 11 of 20, Kimi flex 20 of 20):
+round 235 starts ten fix agents, one for each round 210 review that reported defects and had no fix agent yet
+(dirty snapshot, LFS upload configuration, sweep sparing busy worktrees, trash boundary, service of a gone worktree,
+pooled shadow symlink, gate and install scripts, delayed relink, shared remote file option, held commit surviving a prune).
+Their briefs come from one template (`review-findings-fix-brief-template-round-235.md`, filled per review, no owner in it),
+and the batch runs through the package's `start-pi-runs-from-a-batch-list` in unit `launch-agents-batch-round-235`.
+
+Read in that hour, from runs that had finished:
+the landed-sweep agent (the merge no longer waits: 552 ms where the installed release took 25 s, the removal handed to the commit service;
+a process holding a file open in a worktree now keeps it),
+the commit-service agent (one item per worktree per wave, at most four at once, one place of the blocking bound kept free of slow work),
+and the merge-asides agent, which confirmed qwen's shared-capture finding as real and fixed it (`db58158b31`).
+With the open-file guard also confirmed, all six distinct qwen audit findings are confirmed and none refuted;
+the owner's "Not used for audits" stands, and the notes in `~/temp/agent/qwen-trials/comparison-notes.md` say so.
+
+A jam met during the first pass, and the owner's instruction on it.
 The worktree of the finished round 228 run (`pi-clippy-passes-after-the-daily-update-of-2026-11-11`) could not be removed:
 its Git directory held the wrapper's own snapshot taken ahead (`monochromatic-git-policy-cli/ahead/.cli-git-worktree-ahead-*`),
 the wrapper's removal refused it as "a nested subvolume or another filesystem",
