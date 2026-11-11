@@ -242,7 +242,7 @@ fn the_raw_commit(named: &str) -> Vec<String> {
 /// ```
 fn reused_of(raw: Vec<u8>) -> Option<(String, String)> {
     let Ok(text) = String::from_utf8(raw) else { return None };
-    let Some((header, message)) = text.split_once("\n\n") else { return None };
+    let (header, message): (&str, &str) = text.split_once("\n\n")?;
     // A commit in another encoding, or with extra headers that change the message's meaning, is Git's to reuse.
     if header.lines().any(is_encoding_header) {
         return None;

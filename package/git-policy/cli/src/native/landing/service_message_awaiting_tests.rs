@@ -237,8 +237,8 @@ fn the_awaited_message_answers_what_the_synchronous_one_answers() {
     // The message the file carries is the person's text, cleaned as Git cleans it.
     let (owned, args): (Vec<OsString>, ServiceCommitArgs) = parsed(&["-F", "MESSAGE"]);
     let invocation: CommitInvocation<'_> = invocation_of(&context, repository.as_path(), owned.as_slice(), &region, &config, &controls);
-    let built: Result<Option<Built>, TransactionStop> = crate::lazy_runtime::run_on_runtime(build_message_awaiting(&invocation, &args, COMMITTER, None)).expect("the runtime");
-    let built: Built = built.expect("the awaited face makes the message of the file").expect("a message");
+    let asked: Result<Option<Built>, TransactionStop> = crate::lazy_runtime::run_on_runtime(build_message_awaiting(&invocation, &args, COMMITTER, None)).expect("the runtime");
+    let built: Built = asked.expect("the awaited face makes the message of the file").expect("a message");
     assert_eq!(built.message, "from the file\n\nand its body\n", "the awaited face reads the message file the person named");
     remove(root.as_path());
 }
@@ -321,8 +321,8 @@ fn a_message_file_no_look_answered_is_answered_as_an_unreadable_file() {
         drop(stated);
         assert!(matches!(built, Ok(None)), "a message file no look answered is the answer an unreadable file gives, so native Git builds the line");
     }
-    let read: Result<Option<Built>, TransactionStop> = crate::lazy_runtime::run_on_runtime(build_message_awaiting(&invocation, &args, COMMITTER, None)).expect("the runtime");
-    let read: Built = read.expect("the awaited face reads the file").expect("a message");
+    let asked: Result<Option<Built>, TransactionStop> = crate::lazy_runtime::run_on_runtime(build_message_awaiting(&invocation, &args, COMMITTER, None)).expect("the runtime");
+    let read: Built = asked.expect("the awaited face reads the file").expect("a message");
     assert_eq!(read.message, "from the file\n", "a read the control did not stand in for still reads the file");
     remove(root.as_path());
 }
