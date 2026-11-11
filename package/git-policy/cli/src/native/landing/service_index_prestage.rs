@@ -408,13 +408,21 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
     return Some(made);
 }
 
+/// How many markers made ahead are finished,
+/// so a control waits for the idle time's making rather than for a clock:
+/// a file appears in the directory before its text is written.
+#[cfg(test)]
+pub fn finished_markers() -> usize {
+    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| {
+        return state.prestaged_markers.borrow().iter().filter(|held| { return held.work.is_finished(); }).count();
+    });
+}
+
 /// Whether any marker made ahead is finished,
 /// so that taking it waits for nothing.
 #[cfg(test)]
 pub fn is_made() -> bool {
-    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| {
-        return state.prestaged_markers.borrow().iter().any(|held| { return held.work.is_finished(); });
-    });
+    return finished_markers() > 0;
 }
 
 /// Removes every marker made ahead,

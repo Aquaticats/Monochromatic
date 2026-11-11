@@ -64,11 +64,11 @@ fn until_staged(index: &Path) {
     }
 }
 
-/// Waits until `want` markers are on their way to being ready.
-fn until_files(index: &Path, want: usize) {
+/// Waits until `want` markers made ahead are made and flushed.
+fn until_finished(index: &Path, want: usize) {
     let began: Instant = Instant::now();
-    while leftovers(index).len() < want {
-        assert!(began.elapsed() < Duration::from_secs(10), "{want} markers were not made ahead: {:?}", leftovers(index));
+    while finished_markers() < want {
+        assert!(began.elapsed() < Duration::from_secs(60), "{} of {want} markers were never finished: {:?}", finished_markers(), leftovers(index));
         std::thread::sleep(Duration::from_millis(5));
     }
 }
@@ -280,7 +280,7 @@ fn the_oldest_marker_goes_when_more_are_asked_for_than_the_service_keeps() {
         for seq in oldest..=oldest + kept {
             start_with(sync_file, &index, seq);
         }
-        until_files(&index, MARKERS_MADE_AHEAD);
+        until_finished(&index, MARKERS_MADE_AHEAD);
         let mut expected: Vec<String> = (oldest + 1..=oldest + kept).map(|seq| { return marker_text(seq, &own_identity).expect("text"); }).collect();
         expected.sort();
         assert_eq!(texts_of(&index), expected, "the oldest marker's file goes with it");
@@ -290,19 +290,20 @@ fn the_oldest_marker_goes_when_more_are_asked_for_than_the_service_keeps() {
 }
 
 /// What:
-///  A commit takes the marker of its own batch once that marker is made,
+///  A commit takes the marker of its own batch,
 /// and the marker of the batch after it stays:
 /// it is the spare the next landing takes.
 /// Why:
 ///   `take` removes only a marker of a passed batch or of another index,
 /// and a marker of a later batch is what keeps the next commit's lock path a rename.
 /// A marker still being made is no marker for a landing either (`take`),
-/// so this batch's marker is waited for here,
-/// which is the idle time's wait and never a commit's.
+/// so the idle time's making is waited for here,
+/// which is never a commit's wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// prestage.start(index, 19); untilMade(); prestage.start(index, 20); const taken = await prestage.take(index, 19); /* the file of 20 stays */
+/// prestage.start(index, 19); untilFinished(1); prestage.start(index, 20); untilFinished(2);
+/// const taken = await prestage.take(index, 19); /* the file of 20 stays */
 /// ```
 #[test]
 fn taking_this_batchs_marker_keeps_the_spare_of_the_next_one() {
@@ -311,9 +312,9 @@ fn taking_this_batchs_marker_keeps_the_spare_of_the_next_one() {
         let (root, index) = index_in("prestage-spare-kept");
         let mine: u64 = 19;
         start_with(sync_file, &index, mine);
-        until_made();
+        until_finished(&index, 1);
         start_with(sync_file, &index, mine + 1);
-        until_files(&index, MARKERS_MADE_AHEAD);
+        until_finished(&index, MARKERS_MADE_AHEAD);
         let taken: Prestaged = take(&index, mine).expect("this batch's marker is taken");
         assert_eq!(taken.marker, marker_text(mine, &own_identity).expect("text"));
         // The taken file is the commit's to place; here it goes, so what waits is the spare alone.
