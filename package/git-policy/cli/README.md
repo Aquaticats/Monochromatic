@@ -4246,8 +4246,7 @@ and neither is one of a worktree Git is adding,
 because Git makes a registration before it makes the checkout.
 A folder the wrapper did not name is left alone,
 so anything you keep in that folder stays.
-Nothing in a member is yours:
-it holds no branch and no ref of yours,
+A member holds none of your branches or refs,
 so one removed is built again the next time a commit in that worktree needs it.
 The service's after-commit work records and the notices of a failed backup push are kept under `monochromatic-git-policy-cli/`.
 The timing record of each wrapped commit is appended to `monochromatic-git-policy-cli-commit-timing.jsonl` (see "Splitting a slow commit").
