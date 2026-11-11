@@ -356,7 +356,9 @@ fn btrfs_a_directory_made_between_the_check_and_the_take_is_not_deleted() {
 ///  that fails leaves the folder at a trash entry no manifest names;
 /// the next directory this add sets aside takes the
 ///  same entry name,
-/// so the snapshot rung fails and the stage, with that entry, is destroyed
+/// so the snapshot rung fails and the stage,
+/// with that entry,
+/// is destroyed
 ///  (`never discard user data`).
 #[test]
 fn btrfs_a_folder_whose_put_back_is_blocked_is_kept_where_the_stage_cleanup_cannot_take_it() {
@@ -384,7 +386,7 @@ fn btrfs_a_folder_whose_put_back_is_blocked_is_kept_where_the_stage_cleanup_cann
         },
     };
     remove_snapshot_placeholders_with(&prepared.root, &prepared.source, &prepared.plan, &mut prepared.hand_over, &mut seams).expect("the sweep");
-    let kept: Vec<String> = names_in(trash_parent.as_path()).into_iter().filter(|name: &String| { return name.starts_with(KEPT_PREFIX); }).collect();
+    let kept: Vec<String> = names_in(trash_parent.as_path()).into_iter().filter(|name: &String| { return name.starts_with(crate::worktree_kept_folders::KEPT_PREFIX); }).collect();
     assert_eq!(kept.len(), 1, "the folder is kept in one place beside the trash, and nowhere else: {kept:?}");
     let kept_folder: PathBuf = trash_parent.join(kept[0].as_str());
     assert_eq!(std::fs::read(kept_folder.join("w0/keep")).expect("the person's file is kept"), b"someone's data", "the bytes somebody put in the folder survive the put back that could not happen");

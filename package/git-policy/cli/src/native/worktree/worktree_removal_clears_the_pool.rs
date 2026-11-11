@@ -96,7 +96,7 @@ pub(crate) type RemoveAPool<'a> = dyn Fn(&Path) -> std::io::Result<()> + 'a;
 /// clearThePoolOfARemovedWorktree({ commonDir, gitDir });
 /// ```
 pub fn clear_the_pool_of_a_removed_worktree(common_dir: &Path, git_dir: &Path) {
-    clear_the_pool_of_a_removed_worktree_with(common_dir, git_dir, &|taken: &Path| { return remove_tree(taken); });
+    clear_the_pool_of_a_removed_worktree_with(common_dir, git_dir, &remove_tree);
 }
 
 /// What:
@@ -112,7 +112,8 @@ pub fn clear_the_pool_of_a_removed_worktree(common_dir: &Path, git_dir: &Path) {
 /// so the commit reports a failure real Git did not have.
 /// The deletion is therefore never given the name a
 ///  claim reads:
-/// the pool is taken out of that name first, and a claim that comes after it finds no pool at
+/// the pool is taken out of that name first,
+/// and a claim that comes after it finds no pool at
 ///  all and makes its own shadow.
 ///
 /// In TS you'd write (pseudocode):
@@ -152,7 +153,8 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
 ///   One rename is what makes the deletion safe against a claim:
 /// a claim renames a member out of the pool by the
 ///  name the pool had,
-/// so a member is either taken before the rename, and then it is not below the tree the deletion
+/// so a member is either taken before the rename,
+/// and then it is not below the tree the deletion
 ///  was given,
 /// or the pool's name is gone and the claim finds nothing to take and makes its own shadow.
 /// The reason is

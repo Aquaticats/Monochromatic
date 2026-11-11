@@ -21,6 +21,10 @@ pub mod checkout_workers;
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 
+/// The folder a taken worktree folder is kept in when the name it came from is taken,
+/// and the cleanup that must leave it alone.
+pub mod worktree_kept_folders;
+
 /// The record of where one wrapped `git worktree add` spent its time,
 /// step by step,
 /// appended beside the commit timing record.

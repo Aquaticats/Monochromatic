@@ -11763,7 +11763,8 @@ from this invocation's own capture.
   so a claim that lands under the pool's own name after the deletion opened the member would lose the ref store the commit had just written there,
   and the commit would report a failure real Git did not have
   (`doc/troubleshooting/remove-dir-all-empties-a-directory-renamed-out-of-its-tree.md`).
-  A claim under the pool's own name either came before the rename, and then the member it took is not in the tree the deletion was given,
+  A claim under the pool's own name either came before the rename,
+  and then the member it took is not in the tree the deletion was given,
   or it finds no pool and the commit makes its own shadow.
 
 `buildParts` names the claim `shadow pool`:

@@ -92,7 +92,8 @@ fn a_pool_that_is_already_gone_is_done() {
 ///  claim that lands after the deletion opened the member loses the ref store the commit wrote there,
 /// and the commit
 ///  reports a failure real Git did not have.
-/// The pool is therefore taken out of its own name before anything is deleted, so a claim
+/// The pool is therefore taken out of its own name before anything is deleted,
+/// so a claim
 ///  either comes first or finds no pool.
 #[test]
 fn a_member_a_commit_claims_is_never_taken_with_the_pool() {

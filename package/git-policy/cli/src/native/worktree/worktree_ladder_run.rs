@@ -325,6 +325,21 @@ pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &Wor
 }
 
 /// What:
+///  The path `path` as the text a person reads.
+/// Why:
+///   The cleanup names every kept folder,
+/// and one named function keeps that naming out of the closure check it would
+///  otherwise be reported as.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathText = (path) => path.display().toString();
+/// ```
+fn path_text(path: &Path) -> String {
+    return path.display().to_string();
+}
+
+/// What:
 ///  Destroy the stage this process made,
 /// a subvolume or,
 /// where the mount does not allow the destroy,
@@ -363,9 +378,9 @@ pub(crate) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::Object
         warn(TAG, format!("the stage {} is not the directory this add made and is left in place", stage.display()).as_str());
         return;
     }
-    let kept: Vec<PathBuf> = crate::worktree_snapshot_placeholders::kept_folders(stage);
+    let kept: Vec<PathBuf> = crate::worktree_kept_folders::kept_folders(stage);
     if !kept.is_empty() {
-        let places: Vec<String> = kept.iter().map(|path: &PathBuf| { return path.display().to_string(); }).collect();
+        let places: Vec<String> = kept.iter().map(PathBuf::as_path).map(path_text).collect();
         warn(
             TAG,
             format!(

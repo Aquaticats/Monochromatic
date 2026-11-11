@@ -525,7 +525,12 @@ impl HandOver {
             }
             Err(reason) => {
                 let why_it_cannot_go_back: String = format!("{reason}; {} changed after it was checked, so it is not deleted with its stand-ins", shown.display());
-                match self.keep_the_folder(to, moved, shown) {
+                // A folder that is not held in a trash is one this step never set aside, so nothing of it is kept.
+                let keeping: Result<Option<PathBuf>, String> = match self.held.as_ref() {
+                    Some(trash) => crate::worktree_kept_folders::keep_the_folder(trash, to, moved, shown),
+                    None => Ok(None),
+                };
+                match keeping {
                     Ok(Some(kept)) => warn(TAG, format!("{why_it_cannot_go_back}, and it is kept whole at {}; its stand-ins are removed from there one by one", self.shown(&kept)).as_str()),
                     Ok(None) => warn(TAG, format!("{why_it_cannot_go_back}, and the trash no longer holds the folder this add set aside, so it is left where it is").as_str()),
                     Err(cannot_keep) => warn(
@@ -571,39 +576,6 @@ impl HandOver {
     }
 
     /// What:
-    ///  Move the folder the trash holds as `to` out of the trash,
-    /// under a name of this command's own in the trash parent,
-    /// and answer where it is now.
-    /// Why:
-    ///   A folder that changed after it was checked keeps the bytes somebody put in it (`never discard user data`),
-    /// and its
-    ///  name can be taken before it goes back,
-    /// so it cannot stay under the trash entry the manifest would name;
-    /// one rename inside the
-    ///  stage takes it out of that name without crossing a subvolume,
-    /// which a folder that holds a stand-in cannot do
-    ///  (`doc/troubleshooting/btrfs-snapshot-keeps-an-empty-placeholder-for-a-nested-subvolume.md`).
-    /// `None` means
-    ///  the trash no longer holds the folder that was set aside,
-    /// so there is nothing of this add's to keep.
-    fn keep_the_folder(&self, to: &str, moved: ObjectId, shown: &Path) -> Result<Option<PathBuf>, String> {
-        let Some(trash) = self.held.as_ref() else { return Ok(None) };
-        // Only the entry this add moved is taken out: one that is not there any more, or one that is another object,
-        //  belongs to whoever replaced it.
-        match trash.held_entry(to, moved) {
-            Ok(Some(_the_entry_this_add_moved)) => {}
-            Ok(None) => return Ok(None),
-            Err(another_object) => {
-                debug(TAG, format!("{another_object}; this add leaves the entry to whoever put it there").as_str());
-                return Ok(None);
-            }
-        }
-        let kept: String = kept_name()?;
-        trash.keep_beside(to, kept.as_str(), shown)?;
-        return Ok(Some(Path::new(TRASH_PARENT).join(kept.as_str())));
-    }
-
-    /// What:
     ///  The manifest the add hands to the service,
     /// or nothing when nothing is to be emptied.
     /// Why:
@@ -623,71 +595,6 @@ impl HandOver {
             },
         };
     }
-}
-
-/// What:
-///  The prefix of a folder this step keeps when the name it came from is taken.
-/// Why:
-///   The name says which command made the folder,
-/// it begins with a dot so it is no worktree a person or Git could
-///  mistake for one,
-/// and no other command reads a name that begins this way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const KEPT_PREFIX = '.cli-git-worktree-kept-';
-/// ```
-const KEPT_PREFIX: &str = ".cli-git-worktree-kept-";
-
-/// What:
-///  A fresh name for a folder kept beside the trash;
-/// the reason is the error.
-/// Why:
-///   Two adds of one repository can keep a folder in the same instant,
-/// and a name nobody can guess keeps
-///  one from ever naming the other's folder;
-/// the digits are the object-name alphabet so the name is one plain
-///  component of printable bytes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const keptName = () => `.cli-git-worktree-kept-${randomHex(32)}`;
-/// ```
-fn kept_name() -> Result<String, String> {
-    let made: String = match crate::random_id::random_uuid() {
-        Ok(uuid) => uuid,
-        Err(error) => return Err(format!("a name for the kept folder could not be made: {error:?}")),
-    };
-    let digits: String = made.chars().filter(char::is_ascii_hexdigit).collect();
-    return Ok(format!("{KEPT_PREFIX}{}", digits.to_ascii_lowercase()));
-}
-
-/// What:
-///  The folders this step kept in the trash parent of the stage `stage`,
-/// read from the path of the stage.
-/// Why:
-///   The stage is destroyed when the snapshot rung ends without serving the add,
-/// and each of these folders holds bytes the add
-///  decided never to delete,
-/// so the cleanup that removes the stage asks this first and leaves it in place when anything is
-///  kept (`worktree_ladder_run.rs`, `discard_stage`).
-/// An unreadable trash parent holds nothing this can name,
-/// and the count the add reports is the count of a listing it could read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// keptFolders(stage) // every <stage>/.claude/cli-git-trash/.cli-git-worktree-kept-* path
-/// ```
-pub(crate) fn kept_folders(stage: &Path) -> Vec<PathBuf> {
-    let Ok(listed) = std::fs::read_dir(stage.join(TRASH_PARENT)) else { return Vec::new() };
-    let mut kept: Vec<PathBuf> = Vec::new();
-    for entry in listed.flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with(KEPT_PREFIX) {
-            kept.push(entry.path());
-        }
-    }
-    return kept;
 }
 
 /// What:
