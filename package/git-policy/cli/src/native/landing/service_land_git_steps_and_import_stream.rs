@@ -58,6 +58,14 @@ const SIDE_REF_WRITE_ATTEMPTS: usize = 2;
 ///  never guessed at from a wait that ended.
 ///  `only_if_free` writes the reference only while its name names nothing,
 ///  and a name it already holds at `tip` is the answer either way.
+///  Limit:
+///  a write a wait left running is not ended,
+///  so it can finish after the branch write removed the reference a landing no longer needs,
+///  and the reference it recreates names the commit its branch already has;
+///  that reference stays,
+///  because the record that would let a restart sweep it goes when the landing ends.
+///  It costs space once that commit leaves the branch,
+///  never the person's data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +82,7 @@ fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &s
         }
         let made: Result<GitOutput, FailureCode> = run(git, repository, arguments.as_slice(), None);
         // Git's own answer, as opposed to a wait that ended before the write did.
-        let answered: bool = matches!(&made, Ok(_));
+        let answered: bool = made.is_ok();
         if matches!(&made, Ok(output) if output.succeeded()) {
             return None;
         }
