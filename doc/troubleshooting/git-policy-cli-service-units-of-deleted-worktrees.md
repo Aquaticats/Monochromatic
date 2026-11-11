@@ -61,7 +61,8 @@ return match anchor {
 };
 ```
 
-The rule reads: the Git directory is missing **while the place that holds it is there**.
+The rule reads:
+the Git directory is missing **while the place that holds it is there**.
 A linked worktree's Git directory is `<common>/worktrees/<id>`,
 so the place is `<common>`;
 a main checkout's is `<checkout>/.git`,
@@ -115,7 +116,8 @@ a mounted filesystem's root,
 or one holding other entries,
 proves the repository deleted;
 an empty one may be a mount point waiting for its drive.
-The services measured here run `0.6.1-alpha.10`, whose drain predates that proof,
+The services measured here run `0.6.1-alpha.10`,
+whose drain predates that proof,
 so each of their plans was kept,
 and a kept plan is also what keeps the service busy (fact 2).
 
@@ -136,7 +138,8 @@ const GIT_ENV = {
 };
 ```
 
-so `HOME`, `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` were the account's own,
+so `HOME`,
+`XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` were the account's own,
 the installed wrapper provisioned socket activation in the account's real manager
 (`src/native/service/service_provision.rs`),
 and the proof's throwaway repositories under `/tmp` and `${HOME}/temp/agent` became
@@ -177,7 +180,8 @@ over the 520 active unit instances the manager then held:
   225 in all,
   belong to a Git directory whose whole repository the filesystem proves gone;
 - the rule this branch started from (`the place that held it is there`) found 34 of them;
-- 95 active units have no note at all, so nothing can name their worktree,
+- 95 active units have no note at all,
+  so nothing can name their worktree,
   and neither rule touches them;
 - 186 active units belong to a worktree that is still there.
 
@@ -220,12 +224,14 @@ and the brief's 984/522 was taken at 08:55.
 
 ## Verification
 
-The controls, and the state each one fails in before the change it judges:
+The controls,
+and the state each one fails in before the change it judges:
 
 - `a_worktree_whose_whole_repository_was_deleted_is_gone`
   (`src/native/service/service_units_of_removed_worktrees_tests.rs`)
   fails with the old rule put back,
-  at the assertion "the directory that held the repository holds other entries, so the repository was deleted and nothing is left to serve".
+  at the assertion "the directory that held the repository holds other entries,
+  so the repository was deleted and nothing is left to serve".
 - `a_service_with_a_push_plan_pending_ends_when_its_repository_is_deleted`
   (`src/native/service/service_server_own_worktree_tests.rs`)
   fails with the old arm order put back,
@@ -235,7 +241,8 @@ The controls, and the state each one fails in before the change it judges:
   and `a_journal_that_keeps_a_plan_of_a_repository_that_is_there_stays`
   (`src/native/service/service_units_of_removed_worktrees_tests.rs`)
   fail with the plan ending taken out of the stop:
-  the journal is kept "because it holds push-retries, a folder this release does not know",
+  the journal is kept "because it holds push-retries,
+  a folder this release does not know",
   and both plans stay.
   The plans' own control
   (`a_plan_of_a_deleted_repository_ends_and_the_plans_of_repositories_that_are_there_stay`,
@@ -246,7 +253,10 @@ The controls, and the state each one fails in before the change it judges:
 - `a_service_the_manager_made_elsewhere_is_refused_with_both_addresses`
   (`src/native/service/service_provision_refusals_before_the_wait_tests.rs`)
   fails with the pre-start question taken out:
-  "nothing was started in a manager that serves another runtime directory: [`within 20`, `start monochromatic-git-policy-cli@0123….socket`]".
+  the stand-in manager is asked to start `monochromatic-git-policy-cli@0123….socket`
+  beside the `within 20` budget call,
+  which is the assertion's own words:
+  "nothing was started in a manager that serves another runtime directory".
 - `a_service_a_control_starts_is_never_handed_the_manager_of_its_parent`
   (`src/native/binary/binary_service_tests.rs`)
   fails with the support's two removals taken out:

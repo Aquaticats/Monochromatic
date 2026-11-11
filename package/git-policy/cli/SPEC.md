@@ -9831,7 +9831,9 @@ A service that finds the worktree it serves gone stops its own socket and serves
 and it asks when it starts and once a minute while it serves:
 the administrative directory is missing and the repository that held it is proven gone
 (the nearest directory above it that exists is the root of a mounted filesystem or holds other entries;
-a repository on a drive that is not mounted, whose mount point holds nothing, proves nothing),
+a repository on a drive that is not mounted,
+whose mount point holds nothing,
+proves nothing),
 and the note provisioning wrote beside the socket,
 or the `gitdir=` records of the service's own journal,
 names that directory and hashes to the instance.

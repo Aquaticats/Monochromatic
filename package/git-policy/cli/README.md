@@ -1399,7 +1399,8 @@ Either text counts only when it hashes to the instance.
 The command stops only an instance whose Git directory is missing and whose repository is proven gone:
 the nearest directory above the Git directory that exists proves it deleted when it is the root of a mounted filesystem or holds other entries,
 while an empty one may be a drive that is not mounted yet and proves nothing
-(the proof is the one the pushes waiting for a new try are read by, `landing/unreachable_git_dir_proven_gone.rs`),
+(the proof is the one the pushes waiting for a new try are read by,
+`landing/unreachable_git_dir_proven_gone.rs`),
 says which worktree each stopped instance was,
 and names an instance that maps to nothing without touching it.
 A stopped instance's note and socket file are removed,
