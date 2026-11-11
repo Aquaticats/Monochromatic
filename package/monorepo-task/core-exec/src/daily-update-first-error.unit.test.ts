@@ -91,6 +91,12 @@ const RECORDED_EXCERPT: string = RECORDED_ERROR_LINES.slice(
   (-1),
 ).join('\n',);
 
+/**
+ Characters one piece of the recorded output carries when it is read in pieces. Seven divides no line of that output
+ evenly, so the pieces end inside lines as well as between them.
+ */
+const PIECE_CHARACTERS = 7;
+
 //endregion Fixtures: the output of the recorded run
 
 //region Helpers
@@ -238,7 +244,12 @@ await describe({
             const whole = firstErrorOf(RECORDED_OUTPUT,);
             const scan = firstErrorScan();
             await keepFirstError({
-              streams: [chunksOf(RECORDED_OUTPUT.match(/[^\n]*\n|[^\n]+/gu,) ?? [],),],
+              streams: [chunksOf(Array.from(
+                { length: Math.ceil(RECORDED_OUTPUT.length / PIECE_CHARACTERS,), },
+                function pieceAt(_, index,) {
+                  return RECORDED_OUTPUT.slice(index * PIECE_CHARACTERS, (index + 1) * PIECE_CHARACTERS,);
+                },
+              ),),],
               scan,
             },);
             expect(scan.error(),).toEqual(whole,);
