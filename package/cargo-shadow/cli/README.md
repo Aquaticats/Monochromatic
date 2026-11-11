@@ -1289,6 +1289,8 @@ so no bound a person would accept makes one run cover it.
 
 `RUN_DEADLINE_SECONDS` is 5 h (`src/lean_policy.rs`),
 the service's `TimeoutStartSec` is that plus thirty minutes,
+both written by the next `cargo-shadow lean timer-install`,
+while the unit installed today still holds the old bound's 12,600 s,
 and a run that starts at the timer's 04:30 ends at 09:30 at the latest,
 or 30 minutes past that at worst,
 when one large tree's deletion outlasts the run's own bound.
