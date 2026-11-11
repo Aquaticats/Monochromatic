@@ -1351,143 +1351,32 @@ and the add's records are settled the same way,
 because no copy of the source's ignored state serves a worktree that either holds it or no longer stands;
 the line says that the two were not compared.
 
-The snapshot an add takes is usually one this repository's commit service made ahead of it
-(`src/native/worktree/worktree_snapshot_ahead.rs`):
+The snapshot an add takes is its own,
+made on the add's own path:
 `BTRFS_IOC_SNAP_CREATE_V2` forces a btrfs transaction commit of the whole filesystem on the thread that calls it and
 waits for the source's writeback first,
-which took 5,413.0 ms at the median over the 402 adds of this repository's own timing log that recorded the step,
-so the call is the service's work and never the person's
+which this repository's own timing log measured at 5,413.0 ms at the median over the 402 adds that recorded the step
 (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
-"Step 2" and "Step 3").
-The copies wait in `<git-dir>/monochromatic-git-policy-cli/ahead`,
-beside the work queue of the same repository,
-under names beginning `.cli-git-worktree-ahead-`
-that hold the first sixteen hexadecimal digits of the digest of the source root,
-the millisecond they were made in and a random identity:
-a name inside the Git directory is never untracked in any worktree of the repository,
-so no copy a person did not ask for appears in their tree,
-and the key keeps an add from claiming a copy of another worktree's root.
-A repository keeps three (`AHEAD_KEPT`).
-An add claims the newest one whose files still equal its source's index,
-by one rename from the pool folder to the stage name,
-and the walk of that claim is the walk the index step would make anyway:
-the fields it answers with are the fields the new index records,
-so a copy proven before it was claimed is never walked twice.
-A copy that fails the walk fell behind the index,
-which is what a commit or a checkout in the source does to it,
-and it is refused rather than installed:
-an index installed over files from an earlier instant would record stat data for bytes they do not hold,
-which Git would then report as clean.
-Such a name is handed to the service as a `subvolume-delete` work item and the next candidate is tried.
-An add removes the copies past the third and any older than ten minutes (`AHEAD_OLDEST`) the same way,
-on the path that claims a copy as well as on the path that waits,
-so a repository whose adds stop does not pin the source's blocks and a pool that answers every add still
-sweeps what it keeps no longer.
-The names it proved stale and the names it keeps no longer go to the service before it asks for a copy of its own,
-so the request for a replacement reaches the service after the deletes that make room for it.
-A source with uncommitted changes is never served this way:
-its snapshot carries its own index,
-which is one instant with its files,
-so that snapshot has to be taken on the add's own path.
-An add that claims nothing asks the service for one (`snapshot-ahead`) and waits for it,
-looking in the pool folder every 25 ms and saying on standard error once,
-after the standing notice's wait,
-what it waits for and until when.
-That wait also ends as soon as the service puts the record this add's own request wrote into `failed`,
-the state nothing scans:
-nothing will make that copy,
-so the add takes its own snapshot instead of paying the ceiling for it,
-and the timing record's `snapshotAhead` note says `given-up`.
-`SNAPSHOT_AHEAD_CEILING` ends that wait at 60 s,
-the owner's bound for an add,
-and the rung then ends:
-the stage is not taken,
-Git's own checkout makes the worktree,
-and the line that says why names the ceiling.
-Where no commit service can be started the add takes its own snapshot instead,
-which is the route every add had before the pool,
-and the timing record's `snapshotAhead` note says `no-service`.
-The ignored files the new worktree carries are the source's as of the moment the service made the copy,
+"Step 2" and "Step 3"),
+and which the owner accepted at his bound of 60 s for an add.
+An earlier release installed a copy the repository's commit service had made ahead of the add and then named every
+ignored entry that had changed after that copy;
+that behavior was open to the owner's veto,
+and when he was asked on 2026-11-11 to keep it or to take a fresh snapshot on every add,
+measured at 5.4 s at the median and 26 s at worst in the fixture that asked him against his
+"60s is fine for adding worktrees",
+he answered "Fresh snapshot every add".
+So no add claims a copy from the pool,
+no add asks the service for one,
+and nothing of the pool is filled by an add.
+The pool's modules (`src/native/worktree/worktree_snapshot_ahead.rs` and its claim and job) are still in the tree,
+so a `snapshot-ahead` record an earlier release queued is still drained by the service;
+no add reads what it holds.
+The ignored files the new worktree carries are the source's as of the instant this add's snapshot was taken,
 which is what a snapshot has always meant,
-and the source keeps every file written after it.
-A copy may be up to ten minutes older than the add that takes it (`AHEAD_OLDEST`),
-so an add that installs one asks the source once which of its ignored files are newer than the copy
-(`src/native/worktree/worktree_ignored_state_newer_than_the_copy.rs`).
-It names on standard error every file and symbolic link whose change time is later than the instant the copy's name
-holds,
-and lists all of them,
-one quoted path per line,
-in `<admin>/monochromatic-git-policy-cli-ignored-state-after-the-copy.txt`.
-A directory is not named:
-it holds no bytes of its own,
-and what changed inside it is told by the files below it.
-The worktree the add itself made is left out,
-because every file of it was written after the copy.
-The line gives the copy's age,
-the count,
-and the first three paths,
-and the sentence that says the new worktree holds what each entry held then,
-or nothing of one written later,
-that the source keeps every one of them,
-and that the tool that writes them makes them again there.
-Nothing here fails an add:
-the worktree is whole,
-and a list the command cannot write is said on the line instead of the file it names.
-A change time is the whole test,
-because no program can set one,
-so a file restored with an old modification time is still named.
-What this cannot name:
-a file the source removed after the copy,
-because the walk lists what stands there now,
-so the new worktree keeps that entry's earlier copy.
-The service's own step is one work item of kind `snapshot-ahead`
-(`src/native/worktree/worktree_snapshot_ahead_job.rs`):
-its `repository` is the worktree root to copy,
-its `git_dir` is that worktree's own Git directory,
-and its `parent` is the pool folder the add named.
-The handler refuses a record whose source is not the worktree its Git directory names (a worktree's `.git`
-directory,
-or the directory the `.git` pointer file of a linked worktree or of a main checkout made with
-`git init --separate-git-dir` names),
-one whose folder is not the repository's own pool folder,
-and one whose source is not a btrfs subvolume,
-with the reason and without a retry,
-because nothing of those can pass by being tried again;
-it makes the folder when it is not there,
-makes no copy while the folder already holds three that no delete record is taking away,
-and answers `done` for one copy it made.
-A copy an add proved stale has a delete record of its own,
-that delete runs in the same round after this step,
-and a full pool of those is room the round is about to free,
-so the replacement the waiting add asked for is made beside them;
-nothing counts a copy whose delete is queued (`pending`,
-`claimed`,
-`recovering` or `held`) as one an add can claim.
-An answer of `retry`
-(a volume that is busy,
-a full disk,
-an I/O error)
-settles nothing:
-the record keeps its claim,
-and the claim's lease running out returns it to `pending` with one more try
-(`src/native/landing/work_item_recovery.rs`),
-which is how a round after it asks again.
-The same holds for every kind that answers in words,
-including the delete of a subvolume the pool hands over,
-so a copy that proved stale is deleted on a later round instead of staying on the disk for ever.
-A delete the service gave up on after its tries is no permanent answer about that copy:
-the next add that proves the
-same copy stale hands the same name over again,
-and the hand-over queues that record again out of `failed`,
-because
-the id of one path's delete is that path and a record in `failed` is otherwise never run again
-(`src/native/landing/work_item_holding.rs`,
-`requeue_after_giving_up`).
-The drain runs this kind after a push and before the upkeep and every kind that frees space,
-awaited on a thread of the process's blocking pool,
-because it is the one item there that a person's command is waiting for and its ioctl waits for a commit of the whole
-filesystem.
-
+the source keeps every file written after it,
+and because the copy is never older than the add that installs it,
+nothing is behind it and no walk names entries that changed after it.
 Leaving out of a snapshot:
 before the stage is made private and its stubs removed,
 the wrapper prunes a snapshot with the rule of `src/native/worktree_copying/worktree_copy_prune.rs`.
@@ -3399,8 +3288,12 @@ which waits for no writer and follows no link:
 a name the walk listed as a file that a build replaced with a named pipe between the two passes is answered at once,
 never by an open that waits for a writer that may never come.
 Open both sides of a byte comparison and the destination directory an entry is installed into the same way.
-A source entry that is no longer the file its manifest entry recorded leaves the manifest as a gone entry does,
-and the settling pass that follows leaves it out by its path,
+A source entry that a build replaced with a named pipe,
+a socket or a device node between the walk and its copy holds none of the bytes the listing promised,
+so it leaves the manifest and is named with the entries no worktree can hold,
+because the new worktree lacks it and nothing else says which entry became one;
+a source entry that is no longer there goes the same way without a name.
+The settling pass that follows leaves either out by its path,
 so a dev server's socket or named pipe never fails an add.
 A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 workers of the process's
 blocking pool,
@@ -3570,12 +3463,30 @@ because an object's identity cannot be read before the object does;
 such a record names the container and the instant,
 and it is the whole evidence a kill in the instant between the creation of a snapshot and the record of its identity
 leaves.
+That record also names the source the snapshot is taken from,
+in `snapshotParent=<the source subvolume's UUID in lowercase hexadecimal>`,
+and the transaction its creation must follow,
+in `after=<the generation of the subvolume holding the journal directory>`,
+read from the last flushed write before this record,
+which is the binding record the add writes immediately before the snapshot rung,
+because the filesystem writes both facts into every subvolume itself
+(`BTRFS_IOC_GET_SUBVOL_INFO`):
+the subvolume a snapshot was taken from,
+and the transaction that created it.
 A later command removes that folder only when it is a btrfs subvolume root,
-which is the shape that creation makes,
-and holds no entry born after the instant,
+taken from the recorded source,
+and created in a transaction later than the recorded one,
 so a plain directory another party put at that name,
-and anything a person wrote there after the wrapper died,
+and a snapshot another party took before the record,
 is kept and named.
+The owner answered the choice between naming such a folder for ever and keeping the automatic removal with
+"Keep removing,
+fix the check" (2026-11-11):
+nothing at the name is deleted on the shape of a folder alone.
+What this proves is when the folder was made and which subvolume it was taken from,
+never who made it:
+a snapshot another party makes between that read and this command's own creation carries a later transaction too,
+and it must then also be renamed onto the reserved stage name before the reaping runs.
 Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
 so a killed write of this record is a file of that shape and is swept when its writer is dead.
@@ -3777,9 +3688,12 @@ and removes the claim.
 A claim with a destination record beside it was made by an add,
 and its stage is removed only with both proofs:
 the record `<identifier>.made` beside the claim names the container whose creation it recorded,
-its three lines being `stage=<the container's bytes in lowercase hexadecimal>`,
-`object=<device:inode:birth seconds:birth nanoseconds>` and
+its lines being `stage=<the container's bytes in lowercase hexadecimal>`,
+`object=<device:inode:birth seconds:birth nanoseconds>` when the identity is recorded,
+and
 `written=<seconds>.<nanoseconds>`,
+with `snapshotParent=<the source's UUID>` and `after=<the transaction the creation must follow>` on a record written
+before the snapshot exists,
 and the object at the container's name is still that identity,
 and no entry of the folder is born after the record's `written` instant
 except the ones the wrapper itself writes there after that instant:
@@ -3789,6 +3703,8 @@ and `.git` with everything below it.
 A record that is absent,
 that does not read as this release writes it,
 that names another container,
+that names no object and no source and transaction,
+that names one of the pair without the other,
 or that is not the identity at the name keeps the stage:
 the notice names the stage,
 the reason nothing in it was changed,
@@ -3801,7 +3717,7 @@ and only a person can tell;
 the wrapper's own writes after the record are the trash the leave-out makes and Git's index and pointer,
 and a write of the difference between the trees (`read-tree -u`) creates entries the record cannot account for,
 so a kill during that step leaves a stage the next command reports rather than removes.
-The record is written right after the snapshot exists (`take_snapshot`,
+The identity is recorded right after the snapshot exists (`take_snapshot`,
 `worktree_snapshot.rs`),
 because a kill can come at any moment after that,
 and raised once the ladder's last write into the stage is done,

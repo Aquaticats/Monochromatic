@@ -414,6 +414,10 @@ fn stage_into(
     })?;
     let staged_entries: Vec<WorktreeCopyEntry> = settled.entries;
     let stamps: Vec<Option<FileStamp>> = settled.stamps;
+    // The names the copy found in another kind are the entries no worktree can hold, like the ones the walk left out,
+    // so one notice counts and names them all.
+    let mut uncopiable: Vec<Vec<u8>> = left_out.uncopiable;
+    uncopiable.extend(settled.uncopiable);
     debug(
         "worktreeCopyStage",
         format!(
@@ -437,7 +441,7 @@ fn stage_into(
         stage_container: stage_container.to_path_buf(),
         stage_root: stage_root.to_path_buf(),
         unreadable: left_out.unreadable,
-        uncopiable: left_out.uncopiable,
+        uncopiable,
         unsettled: settled.unsettled,
     });
 }

@@ -637,6 +637,79 @@ Open, for the owner:
   Whether the part list keeps a cap, and whether a merge that deterministically exceeds the 300-second step
   ceiling should be retried, are the owner's decisions;
   today the service retries it.
+### A Kimi K3.1 Pro review of the stage reaping, the copy's notices and the post-copy audit: four findings, plus two owner answers that reshape two of them (2026-11-11T17:22:03-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-documented-behaviors-review-findings`,
+from `fix/git-policy-cli-documented-behaviors-that-break-the-owner-rules` on
+`integrate/git-policy-cli-jam-fixes-after-alpha-9`.
+The review,
+`~/temp/agent/kimi-reviews/documented-behaviors-that-break-the-owner-rules-round-208/review.md`,
+read `b045e10766`;
+the four files it names are unchanged between that commit and this branch's base,
+so every finding was reproduced here,
+with the wrapper built from this worktree and the controls in throwaway repositories on this volume.
+
+The owner answered two choices on 2026-11-11 through the question tool,
+and both are requirements here:
+"Fresh snapshot every add" for the copies an add installs,
+and "Keep removing,
+fix the check" for a stage whose identity was never recorded.
+They are recorded in `package/git-policy/cli/SPEC.md` and `README.md` where the old behavior was described.
+
+Findings and verdicts:
+
+- Identity-less reaping deleted a different snapshot and its only copy of user data.
+  Real,
+  and the owner chose to keep the automatic removal.
+  The record written before the snapshot exists now names the source subvolume in `snapshotParent` and the
+  transaction its creation must follow in `after`,
+  read from the journal directory's generation after the binding record this rung flushes,
+  and `BTRFS_IOC_GET_SUBVOL_INFO` gives both facts back from the snapshot itself.
+  Reproduced by `a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left`,
+  which reported the reaping's "removed the stage" line and a deleted `mine.txt` before the change and keeps both now;
+  `btrfs_the_snapshot_created_before_its_record_is_removed` still settles the snapshot a kill left.
+  Known limit,
+  in SPEC:
+  the proof is of when the folder was made and from which subvolume,
+  never of who made it,
+  so a snapshot another party makes between that read and this command's own creation,
+  and then renames onto the reserved stage name before the reaping runs,
+  carries a later transaction too.
+- A regular file a build replaced with a named pipe during staging was dropped without a notice.
+  Real.
+  The settling pass now answers the name again:
+  an entry the source no longer holds is gone and silent,
+  and a name that holds another kind is dropped from the stage and named with the entries no worktree can hold,
+  on both of the pass's calls.
+  Reproduced by `a_regular_file_replaced_by_a_named_pipe_is_named_with_the_entries_a_worktree_cannot_hold`,
+  which reported `uncopiable=[]` before the change.
+- Journal recovery forgets the FIFO omission notice.
+  Not fixed,
+  and not a defect by the SPEC:
+  a stage rebuilt from a journal documents empty notice lists,
+  and adding one to the journal is a durable format change the incumbent reads,
+  which the SPEC already declined for a stronger reason (the copy stage's object identity).
+  The source keeps every uncopiable entry.
+- The post-copy audit missed a regular file replaced by a FIFO.
+  Real,
+  and resolved by removal:
+  the audit existed only because an add could install a copy the service made up to ten
+  minutes earlier,
+  and the owner's "Fresh snapshot every add" leaves nothing behind the copy to name.
+  The walk,
+  its list file and their controls are deleted with the add's claim of a copy ahead.
+
+Not done here,
+and open for the next change:
+the pool's own modules (`worktree_snapshot_ahead.rs`,
+its claim,
+its job and the service's drain of a
+`snapshot-ahead` record) stay in the tree although no add produces or reads one,
+so a record an earlier release queued is still drained;
+deleting them is a follow-up.
+The binary-level suite was built,
+not run:
+`native:test:binary:host` needs the gate's Git and the full run is long.
 
 ### A killed merge's recovery judges a path by the entry Git wrote, and two review findings stand as recorded (2026-11-11T00:38:51-05:00)
 ### A Kimi K3.1 Pro review of the pull's printed remedies: two findings, both reproduced and fixed (2026-11-11T15:13:43-05:00)

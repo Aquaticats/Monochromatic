@@ -109,9 +109,6 @@ struct Served {
     /// The trash the snapshot left,
     /// when it left one.
     trash: Option<PendingTrash>,
-    /// The millisecond the name of the copy this add claimed says it was made in,
-    /// or nothing for a snapshot the add took itself.
-    claimed_at: Option<u128>,
 }
 
 /// What:
@@ -131,7 +128,6 @@ struct Served {
 /// ```ts
 /// async function serveSnapshot(args): Promise<{ line: string; placed: ObjectId; trash?: PendingTrash }>;
 /// ```
-#[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the two seams of the snapshot ahead are kept past this call with the context and the source a named function would have to be handed through signatures that do not carry them"))]
 fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<Served, Ended> {
     verify_association(bound)?;
     let prepare_target_entered: bool = begin_step("prepareTarget");
@@ -139,20 +135,13 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     end_step(prepare_target_entered);
     let target: Target = prepare_target_outcome?;
     let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(context);
-    // The service that makes the snapshots ahead is this repository's commit service, and the add asks it for one only when
-    //  it can reach it: a control hands in a service that reaches nothing, and then the add takes its own snapshot.
-    // The rung keeps both seams for as long as it runs, with the context and the source this call cannot pass on.
-    let ask = || { return crate::worktree_snapshot_ahead::ask_for_one(context, source); };
-    let hand_over = |stale: &[std::ffi::OsString]| { return crate::worktree_snapshot_ahead::hand_over_to_the_service(context, source, stale); };
-    let service: crate::worktree_snapshot_ahead::AheadService<'_> =
-        crate::worktree_snapshot_ahead::AheadService { ask: &ask, hand_over: &hand_over, ceiling: crate::wait_ceilings::SNAPSHOT_AHEAD_CEILING };
     let take_snapshot_entered: bool = begin_step("takeSnapshot");
-    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment, &service);
+    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment);
     end_step(take_snapshot_entered);
-    let (state, trash, taken_over, claimed_at): (CopyState, Option<TrashManifest>, usize, Option<u128>) = match take_snapshot_outcome {
+    let (state, trash, taken_over): (CopyState, Option<TrashManifest>, usize) = match take_snapshot_outcome {
         Ok(taken) => {
             *made = Some(taken.stage);
-            (taken.state, taken.trash, taken.taken_over, taken.claimed_at)
+            (taken.state, taken.trash, taken.taken_over)
         }
         Err(failure) => {
             *made = failure.stage;
@@ -201,7 +190,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     for note in settle_displaced_outcome {
         warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
     }
-    return Ok(Served { line: target.line, placed, trash: handed_later, claimed_at });
+    return Ok(Served { line: target.line, placed, trash: handed_later });
 }
 
 /// What:
@@ -431,11 +420,6 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             }
             if let Some(changed) = changes_left_out(source) {
                 record_left_out(plan.destination.as_path(), changed);
-            }
-            // The ignored state of this worktree is the copy's instant, and every entry the source wrote after it is
-            // missing or older there: the person is told which ones, once.
-            if let Some(copied_at) = served.claimed_at {
-                crate::worktree_ignored_state_newer_than_the_copy::tell_what_the_copy_misses(context, source, plan.destination.as_path(), bound.binding.admin.as_path(), copied_at, note);
             }
             LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()), placed: Some(served.placed), trash: served.trash, claim: Some(claim) }
         }

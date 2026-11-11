@@ -28,11 +28,12 @@
 //! ```
 
 use crate::fs_beneath::ObjectId;
-use crate::path_bytes_in_records::{hex_of_path, path_of_hex};
+use crate::path_bytes_in_records::{bytes_of_hex, hex_of_bytes, hex_of_path, path_of_hex};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_journal::{ensure_journal_root, journal_root, write_atomic_unsynced};
 use crate::worktree_copy_journal_removal::remove_file_if_present;
 use crate::worktree_copy_selection::STAGE_PREFIX;
+use crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -57,6 +58,12 @@ const OBJECT_LINE_PREFIX: &str = "object=";
 /// The line that holds the instant the wrapper last wrote into the container.
 const WRITTEN_LINE_PREFIX: &str = "written=";
 
+/// The line that holds the UUID of the source subvolume a snapshot was taken from.
+const SNAPSHOT_PARENT_LINE_PREFIX: &str = "snapshotParent=";
+
+/// The line that holds the transaction the creation must be later than.
+const AFTER_LINE_PREFIX: &str = "after=";
+
 /// What:
 ///  The object one stage's creation made,
 /// as the record holds it.
@@ -69,11 +76,12 @@ const WRITTEN_LINE_PREFIX: &str = "written=";
 /// a kill in the
 ///  instant between that creation and the record of the object it made leaves a record that names the
 ///  container and the instant,
-/// and the folder is then judged by its shape (it is a snapshot) and by what was born after the instant.
+/// with the source the snapshot was taken from and the transaction it must follow,
+/// and the folder is then judged by what the filesystem wrote into it and by what was born after the instant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type MadeObject = { container: string; object?: ObjectId; written: number };
+/// type MadeObject = { container: string; object?: ObjectId; snapshot?: SnapshotOrigin; written: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MadeObject {
@@ -82,6 +90,9 @@ pub struct MadeObject {
     /// The identity of that container at the moment it was recorded,
     /// or nothing while the record names only the creation the command is about to make.
     pub object: Option<ObjectId>,
+    /// The source and the transaction a snapshot the command is about to take must follow,
+    /// recorded before the snapshot exists.
+    pub snapshot: Option<SnapshotOrigin>,
     /// The instant after which nothing of the wrapper's was written into the container.
     pub written: SystemTime,
 }
@@ -113,20 +124,25 @@ pub fn made_record_beside_claim(claim: &Path) -> PathBuf {
 /// so a container whose name is not text is recorded whole,
 /// and each line is
 ///  read by its own key rather than by its position.
-/// The identity line is left out only where the command records the creation before the container exists.
+/// The identity line is left out only where the command records the creation before the container exists,
+/// and that record then names the source and the transaction instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `${STAGE_LINE}${hex(container)}\n${object === undefined ? '' : `${OBJECT_LINE}${object}\n`}${WRITTEN_LINE}${seconds}.${nanos}\n`
+/// `${STAGE_LINE}${hex(container)}\n${object === undefined ? '' : `${OBJECT_LINE}${object}\n`}${snapshot === undefined ? '' : `${SNAPSHOT_PARENT_LINE}${hex(snapshot.parent)}\n${AFTER_LINE}${snapshot.after}\n`}${WRITTEN_LINE}${seconds}.${nanos}\n`
 /// ```
-fn made_text(container: &Path, object: Option<ObjectId>, written: SystemTime) -> String {
+fn made_text(container: &Path, object: Option<ObjectId>, snapshot: Option<&SnapshotOrigin>, written: SystemTime) -> String {
     let since: Duration = written.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO);
     let identity: String = match object {
         Some(named) => format!("{OBJECT_LINE_PREFIX}{}\n", named.encode()),
         None => String::new(),
     };
+    let origin: String = match snapshot {
+        Some(known) => format!("{SNAPSHOT_PARENT_LINE_PREFIX}{}\n{AFTER_LINE_PREFIX}{}\n", hex_of_bytes(known.parent.as_slice()), known.after),
+        None => String::new(),
+    };
     return format!(
-        "{STAGE_LINE_PREFIX}{}\n{identity}{WRITTEN_LINE_PREFIX}{}.{}\n",
+        "{STAGE_LINE_PREFIX}{}\n{identity}{origin}{WRITTEN_LINE_PREFIX}{}.{}\n",
         hex_of_path(container),
         since.as_secs(),
         since.subsec_nanos()
@@ -142,29 +158,70 @@ fn made_text(container: &Path, object: Option<ObjectId>, written: SystemTime) ->
 /// instead of
 ///  failing a command that was only looking.
 /// The identity line may be absent,
+/// and so may the source and the transaction a record written before the container exists names,
+/// but the source and the transaction stand or fall together,
 /// and no line may repeat.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const made = readMadeText(text); // undefined unless the lines parse and nothing else follows them
+/// const made = readMadeText(text); // undefined unless every line is a known key and the required ones are there
 /// ```
 fn read_made_text(text: &str) -> Option<MadeObject> {
-    let mut lines: std::str::Lines<'_> = text.lines();
-    let container: PathBuf = path_of_hex(lines.next()?.strip_prefix(STAGE_LINE_PREFIX)?)?;
-    // The identity line is the one a record written before the container exists leaves out, so the line after the container
-    // is the instant when it is not that line.
-    let second: &str = lines.next()?;
-    let (object, instant): (Option<ObjectId>, &str) = match second.strip_prefix(OBJECT_LINE_PREFIX) {
-        Some(identity) => (Some(ObjectId::decode(identity)?), lines.next()?),
-        None => (None, second),
-    };
-    let (seconds, nanos) = instant.strip_prefix(WRITTEN_LINE_PREFIX)?.split_once('.')?;
-    let written: SystemTime = UNIX_EPOCH + Duration::new(seconds.parse().ok()?, nanos.parse().ok()?);
-    // Nothing follows the instant: a line a reader does not know could be another field, and this record has none.
-    if lines.next().is_some() {
+    let mut container: Option<PathBuf> = None;
+    let mut object: Option<ObjectId> = None;
+    let mut parent: Option<[u8; 16]> = None;
+    let mut after: Option<u64> = None;
+    let mut written: Option<SystemTime> = None;
+    for line in text.lines() {
+        // A key this release writes twice is a record two writers disagreed about, so it proves nothing.
+        if let Some(value) = line.strip_prefix(STAGE_LINE_PREFIX) {
+            if container.is_some() {
+                return None;
+            }
+            container = Some(path_of_hex(value)?);
+            continue;
+        }
+        if let Some(value) = line.strip_prefix(OBJECT_LINE_PREFIX) {
+            if object.is_some() {
+                return None;
+            }
+            object = Some(ObjectId::decode(value)?);
+            continue;
+        }
+        if let Some(value) = line.strip_prefix(SNAPSHOT_PARENT_LINE_PREFIX) {
+            if parent.is_some() {
+                return None;
+            }
+            let bytes: Vec<u8> = bytes_of_hex(value)?;
+            parent = Some(<[u8; 16]>::try_from(bytes.as_slice()).ok()?);
+            continue;
+        }
+        if let Some(value) = line.strip_prefix(AFTER_LINE_PREFIX) {
+            if after.is_some() {
+                return None;
+            }
+            after = Some(value.parse().ok()?);
+            continue;
+        }
+        if let Some(value) = line.strip_prefix(WRITTEN_LINE_PREFIX) {
+            if written.is_some() {
+                return None;
+            }
+            let (seconds, nanos) = value.split_once('.')?;
+            written = Some(UNIX_EPOCH + Duration::new(seconds.parse().ok()?, nanos.parse().ok()?));
+            continue;
+        }
+        // A line a reader does not know could be another field, and this record has none.
         return None;
     }
-    return Some(MadeObject { container, object, written });
+    let snapshot: Option<SnapshotOrigin> = match (parent, after) {
+        (Some(known_parent), Some(known_after)) => Some(SnapshotOrigin { parent: known_parent, after: known_after }),
+        (None, None) => None,
+        // One of the two alone says nothing about when the snapshot was made, and an absent one is not a default: a
+        // record that lost half of its origin must keep the folder rather than take it as a proven one.
+        _half_an_origin => return None,
+    };
+    return Some(MadeObject { container: container?, object, snapshot, written: written? });
 }
 
 /// What:
@@ -224,23 +281,28 @@ pub fn record_made(common_dir: &Path, container: &Path, object: ObjectId) -> Res
 /// await recordStageMadeObjectAt({ commonDir, container, object, written });
 /// ```
 pub fn record_made_at(common_dir: &Path, container: &Path, object: ObjectId, written: SystemTime) -> Result<(), WorktreeCopyError> {
-    return record_at(common_dir, container, Some(object), written);
+    return record_at(common_dir, container, Some(object), None, written);
 }
 
 /// What:
 ///  Records the creation a command is about to make,
 /// before the container exists,
-/// with the instant after which nothing of the wrapper's is written into it.
+/// with the instant after which nothing of the wrapper's is written into it,
+/// and the source and transaction the snapshot it is about to take must follow.
 /// Why:
 ///   The identity of an object cannot be read before it exists,
 /// and a kill in the instant between creating it and
 ///  recording its identity left a whole snapshot of the checkout that nothing could prove the wrapper
 ///  made (`worktree_copy_stage_reaping_proof_and_words.rs`).
-/// This record names the container and the instant first,
-/// so the next command judges such a
-///  folder by its shape and by what was born after that instant,
-/// and settles it instead of keeping it for
-///  ever.
+/// This record names the container,
+/// the instant,
+/// the source the snapshot is taken from and the transaction it must follow,
+/// so the next
+///  command judges such a folder by what the filesystem wrote into it and by what was born after that instant,
+///  and settles it instead of keeping it for ever;
+/// a snapshot another party took before that transaction is kept,
+/// because
+///  the filesystem says it was made then.
 /// It flushes nothing,
 /// for the reason [`record_made`] gives.
 ///
@@ -248,8 +310,8 @@ pub fn record_made_at(common_dir: &Path, container: &Path, object: ObjectId, wri
 /// ```ts
 /// await recordCreatingAt({ commonDir, container, written }); // no identity: the container does not exist yet
 /// ```
-pub fn record_creating_at(common_dir: &Path, container: &Path, written: SystemTime) -> Result<(), WorktreeCopyError> {
-    return record_at(common_dir, container, None, written);
+pub fn record_creating_at(common_dir: &Path, container: &Path, written: SystemTime, snapshot: Option<&SnapshotOrigin>) -> Result<(), WorktreeCopyError> {
+    return record_at(common_dir, container, None, snapshot, written);
 }
 
 /// What:
@@ -264,13 +326,13 @@ pub fn record_creating_at(common_dir: &Path, container: &Path, written: SystemTi
 /// ```ts
 /// await recordAt({ commonDir, container, object, written });
 /// ```
-fn record_at(common_dir: &Path, container: &Path, object: Option<ObjectId>, written: SystemTime) -> Result<(), WorktreeCopyError> {
+fn record_at(common_dir: &Path, container: &Path, object: Option<ObjectId>, snapshot: Option<&SnapshotOrigin>, written: SystemTime) -> Result<(), WorktreeCopyError> {
     let Some(path) = made_record_path(common_dir, container) else {
         // A stage name is reserved by the claim naming rule; a name outside it has no claim to record for.
         return Ok(());
     };
     ensure_journal_root(common_dir)?;
-    return write_atomic_unsynced(path.as_path(), made_text(container, object, written).as_bytes(), "stage object record");
+    return write_atomic_unsynced(path.as_path(), made_text(container, object, snapshot, written).as_bytes(), "stage object record");
 }
 
 /// What:
