@@ -13,8 +13,10 @@
 //! // expect(mayGo(tree, metadata, now, day)).toBe(false);
 //! ```
 
-/// The rule under control.
+/// The rule under control,
+/// and the record of the trees this service's requests hold.
 use super::{SCRATCH_TREE_ABANDONED_AFTER, may_go};
+use crate::service_scratch_trees_of_queued_requests::{note, release};
 use crate::service_index_marker::{LOCK_MARKER, MARKER_VERSION};
 use crate::test_support::{fixture, remove};
 use std::path::{Path, PathBuf};
@@ -38,6 +40,30 @@ fn tree(directory: &Path, identity: &str) -> PathBuf {
 fn may_go_by_the_day(path: &Path) -> bool {
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).expect("metadata");
     return may_go(path, &metadata, SystemTime::now(), crate::scratch_location::SCRATCH_STALE_AFTER);
+}
+
+/// The identity the control's request is queued under.
+const A_QUEUED_REQUEST: &str = "scratch-abandonment-queued-request";
+
+/// A tree a request this service still holds is kept however old it is,
+/// and goes by the age rule once the service is done with that request.
+/// Why:
+///  A client killed while its request is queued renews nothing,
+///  so the age a collection sees of the tree, not the liveness of a process, is what it judges;
+///  the landing that request waits for reads the private index and the conclusion copies in that tree,
+///  and losing them leaves the real conclusion state where the next commit concludes the same merge again.
+#[test]
+fn a_tree_a_queued_request_holds_is_kept_past_the_age_rule() {
+    let root: PathBuf = fixture("scratch-abandonment-held");
+    let directory: PathBuf = root.join("scratch");
+    std::fs::create_dir_all(&directory).expect("scratch directory");
+    let held: PathBuf = tree(directory.as_path(), "held1");
+    age(held.as_path(), SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
+    note(A_QUEUED_REQUEST, held.as_path());
+    assert!(!may_go_by_the_day(held.as_path()), "the landing a killed client left queued has still to read this tree");
+    release(A_QUEUED_REQUEST);
+    assert!(may_go_by_the_day(held.as_path()), "once the request is over the tree goes by its age");
+    remove(root.as_path());
 }
 
 /// A recent commit tree is kept however it is marked,

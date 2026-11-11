@@ -22,6 +22,10 @@ pub mod service_scratch_release_removal;
 /// beside the landing loop.
 pub mod service_repository_scratch_sweep;
 
+/// The commit scratch trees the requests this service holds still name,
+/// which a collection is not to remove by age.
+pub mod service_scratch_trees_of_queued_requests;
+
 /// The fill of the shadow pool a commit takes its private repository from,
 /// beside the landing loop.
 pub mod service_shadow_pool_fill;

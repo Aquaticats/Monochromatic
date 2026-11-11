@@ -457,6 +457,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             match job {
                 Job::Withdraw(..) => {}
                 Job::Commit(request, _dropped, _arrival) if withdrawn.contains(&request.id) => {
+                    // The client took its request back, so nothing lands on the tree it named and its tree goes back
+                    //  to the age rule with it (`service_scratch_trees_of_queued_requests.rs`).
+                    crate::service_scratch_trees_of_queued_requests::release(request.id.as_str());
                     crate::service_log!("dropped the request {} that its client withdrew", request.id);
                 }
                 Job::Retire => retiring = true,
@@ -565,12 +568,18 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 ///  (2026-11-09,
 ///  `service_prepare.rs`,
 ///  `retry_of`).
+///  The service is done with every request of the group here,
+///  so no tree it named is held against the collection any more (`service_scratch_trees_of_queued_requests.rs`):
+/// a tree the client did not take back goes to the age rule once its removal is over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// trees.filter(([id]) => !handedBack.has(id)).forEach(startTheRemovalBesideTheLoop);
 /// ```
 fn remove_the_trees(trees: &[(String, std::path::PathBuf)], handed_back: &std::collections::HashSet<String>) {
+    for (id, _) in trees {
+        crate::service_scratch_trees_of_queued_requests::release(id.as_str());
+    }
     for tree in released_trees(trees, handed_back) {
         crate::service_scratch_release_removal::start(tree.clone());
     }
