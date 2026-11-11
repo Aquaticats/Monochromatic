@@ -29,12 +29,15 @@ use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_fail
 use crate::worktree_copy_recovery::{RecoveryDestinations, finishes_destination};
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
-use crate::worktree_copy_journal_removal::{remove_file_and_say, remove_file_if_present, remove_stage};
+use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
 use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
-use crate::worktree_copy_stage_made_object::{MADE_SUFFIX, remove_made};
+use crate::worktree_copy_stage_made_object::remove_made;
 use crate::worktree_copy_stage_reaping_proof_and_words::{Provenance, kept_stage_words, provenance_of, removed_copy_stage_words, removed_stage_words, still_there};
+// The sweeps that remove files rather than stages live beside this file, so this one stays under the line limit.
+pub use crate::worktree_copy_stage_claim_swept_files::remove_dead_temporaries;
+pub(crate) use crate::worktree_copy_stage_claim_swept_files::remove_records_nothing_claims;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -229,28 +232,6 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
     return Ok(Some((container, fields.owner)));
 }
 
-/// What:
-///  Removes the temporaries that dead writers left in the journal root.
-/// Why:
-///   A write cut off before its rename leaves a file nothing else names.
-/// The writer is in the file's name,
-/// so the sweep
-///  removes only what a dead process left and can never delete a temporary a live writer is about to rename.
-///
-/// The answer says whether anything was removed,
-/// so the caller flushes the directory only when one was.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const name of await readdir(root)) if (name.endsWith('.tmp') && ownerIsDead(writerOf(name))) await rm(join(root, name), { force: true });
-/// ```
-pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<bool, WorktreeCopyError> {
-    let mut removed: bool = false;
-    for name in &verdicts.dead_temporaries {
-        removed |= remove_file_and_say(root.join(name).as_path())?;
-    }
-    return Ok(removed);
-}
 
 /// Which owners were found dead,
 /// decided before anything is removed.
@@ -277,6 +258,20 @@ impl StageVerdicts {
     /// ```
     pub fn names_dead_claim(&self, name: &str) -> bool {
         return self.dead_claims.contains(name);
+    }
+
+    /// What:
+    ///  The names of the temporaries whose writer is dead.
+    /// Why:
+    ///   The sweep that removes them lives beside this file,
+    /// and a dead writer's names are the one thing it needs from here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// verdicts.deadTemporaryNames() // the names of a dead writer's temporaries
+    /// ```
+    pub(crate) fn dead_temporary_names(&self) -> &BTreeSet<String> {
+        return &self.dead_temporaries;
     }
 }
 
@@ -579,49 +574,4 @@ fn copy_owed_to_another_worktree(
         return false;
     };
     return add_is_finished(destination.as_path(), admin.as_path());
-}
-
-/// What:
-///  Removes every record of a stage's object that no claim beside it names.
-/// Why:
-///   A claim is released with its record,
-/// but a kill between the two removals leaves the record,
-/// and so does a claim another command
-///  reaped;
-/// a record nothing claims proves nothing about any folder and no later command reads it,
-/// so it would stay for ever.
-/// The sweep names only records,
-/// leaves every other file of the journal root alone,
-/// and a file a live writer is renaming is never
-///  touched,
-/// because a write publishes its record with one rename and no temporary of that name is listed.
-///
-/// The answer says whether anything was removed,
-/// so the caller flushes the directory only when one was.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const name of list(root).filter((name) => name.endsWith(MADE_SUFFIX))) if (!exists(claimOf(name))) await rm(join(root, name));
-/// ```
-fn remove_records_nothing_claims(root: &Path) -> Result<bool, WorktreeCopyError> {
-    // `match` treats an absent root as holding no records, and every other failure as fatal.
-    let listing = match std::fs::read_dir(root) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(raw_failure(&error)),
-    };
-    let mut unclaimed: Vec<PathBuf> = Vec::new();
-    for listed in listing {
-        let path: PathBuf = listed.map_err(raw_failure_of)?.path();
-        let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
-        let Some(identifier) = name.strip_suffix(MADE_SUFFIX) else { continue };
-        if !root.join(format!("{identifier}.stage")).exists() {
-            unclaimed.push(path);
-        }
-    }
-    let mut removed: bool = false;
-    for path in unclaimed {
-        removed |= remove_file_and_say(path.as_path())?;
-    }
-    return Ok(removed);
 }

@@ -104,6 +104,11 @@ pub mod worktree_copy_stage_claim;
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_reaping;
 
+/// The two sweeps of the journal root that remove files rather than stages,
+/// kept beside the reaping so that file stays under the line limit.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_swept_files;
+
 /// The durable record of the object one stage's creation made:
 /// its identity,
 /// and the instant the wrapper last wrote into it.
