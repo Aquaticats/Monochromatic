@@ -3949,6 +3949,16 @@ of which the two that rewrite link layouts in place are the service's work whene
   because it means the working directory of whatever runs,
   which no record can name for another process,
   and no repair starts a program found there.
+  A search path whose absolute spelling cannot be written back as one search path
+  (a colon separates the entries of a search path and cannot be escaped in one,
+  so an entry of a directory whose absolute name holds a colon has no such spelling)
+  names no record:
+  the add relinks the worktree itself,
+  exactly as it does when no service answers,
+  and the line the add prints is that relink's own.
+  The program a repair starts is the file its own lookup found,
+  named by its absolute path,
+  so a relative entry of the add's own path starts the add's own file and never the worktree's.
   A record written before this change carries a relative entry as it was written,
   so the service reads that entry from its own directory,
   which is what the release that wrote the record did with it.

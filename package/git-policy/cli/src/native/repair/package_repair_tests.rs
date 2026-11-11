@@ -157,6 +157,38 @@ fn a_missing_tool_names_the_command_to_run() {
     remove(&scene.root);
 }
 
+/// What:
+///  A search path entry relative to the add's own directory still starts the program that entry names,
+///  even when that directory's absolute name holds a colon.
+/// Why:
+///   `PATH=bin` names the add's own `bin`,
+/// and the commit service works in its own directory,
+/// so a record cannot carry that relative entry.
+/// Its absolute name holds a colon here,
+/// which a search path cannot spell back because a colon separates its entries,
+/// so this add writes no record and relinks the worktree itself.
+/// The program it starts is the file its own lookup found,
+/// which is the add's `bin/pnpm` and never the worktree's `bin/pnpm`:
+/// a relative program path is read from the directory the tool runs in,
+/// so the tool would never start and the worktree would keep the copied links.
+#[test]
+fn a_relative_search_entry_starts_the_program_the_add_resolved_here() {
+    let mut scene: Scene = scene("repair-relative-search-entry:a-colon");
+    a_repository_at(&scene);
+    fake_pnpm(&scene, 0);
+    // The add's search path is its own `bin`, which is a relative entry of the directory it runs in.
+    scene.environment = RepairEnvironment { search_path: Some(OsString::from("bin")), ..scene.environment.clone() };
+    let started: PathBuf = std::env::current_dir().expect("the directory this control started in");
+    std::env::set_current_dir(scene.root.as_path()).expect("the fixture is the directory the add runs in");
+    let (findings, printed) = repair(&scene, RepairSwitch::default());
+    std::env::set_current_dir(started.as_path()).expect("leave the fixture");
+    assert_eq!(findings.len(), 1, "{findings:?} {printed}");
+    assert!(matches!(findings[0].outcome, Outcome::Repaired { .. }), "{findings:?} {printed}");
+    let ran: String = std::fs::read_to_string(scene.record.as_path()).expect("the tool the add started");
+    assert!(ran.contains(scene.destination.to_str().expect("utf8")), "the tool ran outside the worktree: {ran}");
+    remove(&scene.root);
+}
+
 /// A destination with no pnpm state starts no tool and prints nothing.
 #[test]
 fn nothing_to_repair_prints_nothing() {
