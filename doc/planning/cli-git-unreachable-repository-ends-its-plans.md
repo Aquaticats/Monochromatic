@@ -109,8 +109,8 @@ reads as gone when it was looked at and is reachable when the plan would be drop
 
 The forget a gone repository produces therefore carries `only_while_unreachable`,
 and the applier asks the filesystem once more before it drops the plan:
-a Git directory that names a directory now keeps its plan,
-and one that is still missing ends it as before.
+a Git directory that names a directory now is not dropped on the stale proof,
+and one that is still missing ends its plan as before.
 Every other forget (a push that landed,
 one that needs the person,
 one whose record is no longer acceptable)
@@ -122,6 +122,31 @@ Control:
 in `landing/unreachable_git_dir_proven_gone_tests.rs` fails before this change
 with the plan removed after the repository returned,
 and passes after it.
+
+### The plan the round had already taken out
+
+The first release of this rule skipped the forget and kept the branch's plan on disk,
+and the running service still had no try for it.
+The round of the service's work takes what is due out of the plan before it drains the directory and hands
+it to the worker (`landing/service_work_run_round.rs`,
+`plan_the_round`),
+so the plan the gone repository's drain ends is one the schedule no longer holds:
+skipping the forget kept a file and nothing else,
+`next_wait` answered nothing,
+and the promised push waited for a service restart to read the plan from disk again.
+
+Cross-vendor review of 2026-11-11,
+round 174,
+finding 3.
+The forget a gone repository produces now carries the plan its reading ended,
+and the applier puts that plan back when the directory is there again:
+the try the plan was for never ran,
+so it is due at once,
+and the running service drains the repository as soon as the plan says so.
+The control above models that `take_due` before it drains,
+which is what the first version of it did not do:
+a control that schedules a plan of its own hides the loss,
+because nothing removes the plan the service holds.
 
 What this does not repair:
 a repository renamed away and back long after the change was applied is still read as gone when the change lands,

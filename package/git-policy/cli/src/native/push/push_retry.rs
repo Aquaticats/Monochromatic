@@ -324,7 +324,7 @@ impl Retrying {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; onlyWhileUnreachable } };
+/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; onlyWhileUnreachable; taken } };
 /// ```
 #[derive(Clone, Debug)]
 pub enum RetryChange {
@@ -353,6 +353,11 @@ pub enum RetryChange {
         /// the proof that the repository is gone,
         /// whose plans are dropped only while it still is.
         only_while_unreachable: bool,
+        /// The plan the reading ended,
+        /// which the round took out of the list before the reading,
+        /// so that a repository that is back when this change lands keeps it.
+        /// Nothing for a forget that is the final word.
+        taken: Option<Due>,
     },
 }
 
@@ -576,12 +581,20 @@ impl PushRetries {
     /// leaving a forget
     ///  replayed between them nothing to keep
     /// and a restarted service no plan where a notice promised a retry.
+    /// A forget whose reading went stale puts the plan that reading ended back,
+    ///  because the round took it out of this list before it drained the directory:
+    /// without that,
+    ///  the running service keeps no plan and no wake for a repository that is there again,
+    /// and the promised
+    ///  push waits for a service restart.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// for (const [at, change] of changes.entries()) {
-    ///   if (change.forget) forgetKeeping(branch, lastPlanName(changes.slice(at + 1)))
-    ///   else if (!plannedAgainAfter(changes, at)) plan(change)
+    ///   if (change.forget) {
+    ///     if (change.forget.onlyWhileUnreachable && isDirectory(change.forget.gitDir)) plan(change.forget.taken)
+    ///     else forgetKeeping(branch, lastPlanName(changes.slice(at + 1)))
+    ///   } else if (!plannedAgainAfter(changes, at)) plan(change)
     /// }
     /// ```
     pub fn apply(&mut self, changes: Vec<RetryChange>) {
@@ -598,10 +611,18 @@ impl PushRetries {
                     }
                     self.plan(git_dir.as_path(), item, *attempt, *due)
                 }
-                RetryChange::Forget { git_dir, branch_ref, only_while_unreachable } => {
+                RetryChange::Forget { git_dir, branch_ref, only_while_unreachable, taken } => {
                     // The plan a proof of a missing repository ends was read before this change was applied, and a repository
                     //  renamed back is there again: a plan that may still run is not dropped on a stale reading.
                     if *only_while_unreachable && git_dir.is_dir() {
+                        // The plan this reading ended is the one the round took out of the list before its drain
+                        //  (`service_work_run_round.rs`, `plan_the_round`), so putting it back is what leaves the running
+                        //  service with the push it promised; the try that plan was for never ran, so it is due now.
+                        //  Only a drain of an unreachable directory asks for this kind of forget, and such a drain runs no
+                        //  push and asks nothing else of that branch, so the plans of a branch here are this one's alone.
+                        if let Some(plan) = taken {
+                            self.plan(git_dir.as_path(), &plan.item, plan.attempt, Instant::now());
+                        }
                         continue;
                     }
                     let keep: Vec<String> = last_plan_after(changes.as_slice(), index, git_dir, branch_ref).into_iter().collect();
