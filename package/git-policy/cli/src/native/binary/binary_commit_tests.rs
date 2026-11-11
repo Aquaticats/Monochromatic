@@ -701,6 +701,56 @@ fn explicit_paths_commit_staged_additions_that_an_ignore_rule_matches() {
     remove_settled(&fixture);
 }
 
+/// What:
+///  A named file of a worktree the command line selects with `--git-dir` and `--work-tree`,
+///  committed from a directory outside that worktree:
+///  the ignored one is refused with the named-ignored finding,
+///  and the one nothing ignores is committed as an exact path.
+/// Why:
+///   Git reads a relative pathspec from the top of the selected worktree when the directory the command runs in
+/// is outside it,
+///  and the invocation directory holds neither file,
+/// so a reader that asked it took both for patterns:
+/// `git add --update` refused the ignored file with a pathspec failure instead of naming what to do,
+///  and refused the file nothing ignores,
+/// which an exact path commits.
+#[test]
+fn a_commit_of_a_selected_worktree_names_a_file_the_invocation_directory_does_not_hold() {
+    let fixture: Fixture = fixture("commit-selected-worktree-outside");
+    let first: PathBuf = repository(&fixture, OsStr::new("first"));
+    let second: PathBuf = repository(&fixture, OsStr::new("second"));
+    std::fs::write(second.join(".gitignore"), b"*.js\n").expect("ignore rule");
+    git(&fixture, second.as_path(), &["add", "--", ".gitignore"]);
+    git(&fixture, second.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(second.join("ignored.js"), b"ignored\n").expect("the ignored file only the selected worktree holds");
+    std::fs::write(second.join("plain.txt"), b"plain\n").expect("the file nothing ignores only the selected worktree holds");
+    let nested: PathBuf = first.join("nested");
+    std::fs::create_dir(&nested).expect("nested");
+    let git_dir: String = second.join(".git").to_str().expect("a UTF-8 fixture path").to_owned();
+    let work_tree: String = second.to_str().expect("a UTF-8 fixture path").to_owned();
+    let base: String = git_text(&fixture, second.as_path(), &["rev-parse", "HEAD"]);
+    let refused: Observed = run_commit(
+        &fixture,
+        nested.as_path(),
+        &["--git-dir", git_dir.as_str(), "--work-tree", work_tree.as_str(), "commit", "--message=ignored", "--", "ignored.js"],
+    );
+    let refusal: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{refusal}");
+    assert!(refusal.contains("explicit-path-commit/named-path-ignored"), "the ignored file is named as ignored, not failed as a pathspec: {refusal}");
+    assert!(refusal.contains("ignored.js"), "{refusal}");
+    assert_eq!(git_text(&fixture, second.as_path(), &["rev-parse", "HEAD"]), base, "the refused commit landed nothing");
+    let landed: Observed = run_commit(
+        &fixture,
+        nested.as_path(),
+        &["--git-dir", git_dir.as_str(), "--work-tree", work_tree.as_str(), "commit", "--message=plain", "--", "plain.txt"],
+    );
+    let failure: String = stderr_of(&landed);
+    assert_eq!(landed.code, Some(0), "the file nothing ignores is committed as an exact path: {failure}");
+    assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:plain.txt"]), "plain\n");
+    assert_nothing_left(&fixture, second.as_path());
+    remove_settled(&fixture);
+}
+
 /// A repository where a force-added ignored file is held as intent-to-add and another tracked file is edited:
 /// the shape a partial commit must record with both changes.
 fn ignored_intent_repository(fixture: &Fixture, name: &str) -> PathBuf {
@@ -1005,6 +1055,108 @@ fn one_path_that_matches_nothing_withholds_the_whole_commit() {
     assert!(!text.contains("engine-failure"), "{text}");
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
     assert_eq!(porcelain(&fixture, repo.as_path()), status_before, "nothing was staged: {text}");
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// The most bytes a pathspec file may hold and still be read as elements;
+/// a file above it is passed to Git as the file the caller named
+/// (`ITEMS_BYTES_LIMIT` in `commit_selection_staging.rs`).
+const LARGEST_READ_PATHSPEC_FILE_BYTES: usize = 64 * 1024;
+
+/// A list file whose one matching path is repeated past that bound,
+/// and whose last path matches nothing.
+fn list_past_the_reader_bound(missing: &str) -> String {
+    let entry: &str = "a.txt\n";
+    let repetitions: usize = LARGEST_READ_PATHSPEC_FILE_BYTES / entry.len();
+    return format!("{}{missing}\n", entry.repeat(repetitions));
+}
+
+/// A pathspec file with more bytes than one command line may carry is Git's to read,
+/// and a token in it that matches nothing is the same refusal the command line gets:
+/// exit `1`,
+/// the finding,
+/// and the token Git named,
+/// instead of an engine failure that names a step of the wrapper (issue 6283).
+#[test]
+fn a_pathspec_file_too_large_for_one_command_line_is_refused_as_a_pathspec_that_matches_nothing() {
+    let fixture: Fixture = fixture("commit-large-pathspec-file");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
+    let listed: String = list_past_the_reader_bound("nope.txt");
+    assert!(
+        listed.len() > LARGEST_READ_PATHSPEC_FILE_BYTES,
+        "the list file is past the bound the wrapper reads elements within"
+    );
+    let list: PathBuf = fixture.root.join("pathspecs.txt");
+    std::fs::write(list.as_path(), listed.as_bytes()).expect("the list file");
+    let option: String = format!("--pathspec-from-file={}", list.display());
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=listed", option.as_str()]);
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("\"type\":\"core-finding\""), "{text}");
+    assert!(text.contains("explicit-path-commit/pathspec-matches-nothing"), "{text}");
+    assert!(text.contains("pathspec 'nope.txt' did not match any files"), "the token Git refused: {text}");
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert!(!text.contains("transaction-failed"), "{text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// Git words that refusal in the language of the locale it inherits,
+/// and the wrapper reads those words,
+/// so the staging start that is read happens under the C locale:
+/// a German locale still ends as the finding rather than an engine failure.
+#[test]
+fn a_pathspec_refusal_is_understood_whatever_the_persons_locale() {
+    let fixture: Fixture = fixture("commit-pathspec-german-locale");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
+    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--message=miss", "--", "nope.txt"]);
+    // The three variables a person's shell carries, so Git translates its words unless the wrapper's own start says not to.
+    command.env("LANG", "de_DE.utf8").env("LC_ALL", "de_DE.utf8").env("LANGUAGE", "de_DE");
+    let refused: Observed = observe(&mut command, b"");
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("explicit-path-commit/pathspec-matches-nothing"), "{text}");
+    assert!(text.contains("pathspec 'nope.txt' did not match any files"), "the token Git refused: {text}");
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert!(!text.contains("Pfadspezifikation"), "the wrapper's start reads English words only: {text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// A pathspec that itself holds the wording Git closes a refusal with is one pathspec,
+/// so Git's refusal of it is the caller's input error naming that whole token:
+/// exit `1`,
+/// the finding,
+/// and no engine failure (issue 6283).
+#[test]
+fn a_pathspec_that_holds_the_refusal_wording_is_refused_as_the_one_pathspec_it_is() {
+    let fixture: Fixture = fixture("commit-pathspec-holds-the-wording");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
+    let token: &str = "x' did not match any files";
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=miss", "--", token]);
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("\"type\":\"core-finding\""), "{text}");
+    assert!(text.contains("explicit-path-commit/pathspec-matches-nothing"), "{text}");
+    assert!(
+        text.contains("pathspec 'x' did not match any files' did not match any files"),
+        "the token Git refused, read whole: {text}"
+    );
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert!(!text.contains("transaction-failed"), "{text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
     assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);

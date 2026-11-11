@@ -297,6 +297,12 @@ mod pull_isolation;
 #[path = "binary_merge_never_fails_tests.rs"]
 mod merge_never_fails;
 
+/// The lines a merge prints about a path it kept whole,
+/// and the commands in them,
+/// run as the person's shell reads them.
+#[path = "binary_merge_notice_tests.rs"]
+mod merge_notice;
+
 /// Real commits through the transaction:
 /// landing,
 /// policies,
@@ -397,6 +403,12 @@ mod worktree_dirty_snapshot;
 /// The checkout of a new worktree gets Git's parallel checkout only where the person's configuration sets no `checkout.workers`.
 #[path = "binary_worktree_checkout_workers_tests.rs"]
 mod worktree_checkout_workers;
+
+/// The commit a reference lock holds in a linked worktree:
+/// a removal or a prune keeps it where Git cannot reach it,
+/// and a removal stops when no reference can hold it.
+#[path = "binary_worktree_removal_held_commit_tests.rs"]
+mod worktree_removal_held_commit;
 
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
@@ -668,6 +680,12 @@ mod service_lane;
 /// removed by the service when the client's connection closes.
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
+
+/// A pooled shadow member the commit refuses:
+/// nothing on the terminal,
+/// and the refusal named in the commit's own timing record.
+#[path = "binary_shadow_pool_refusal_tests.rs"]
+mod shadow_pool_refusal;
 
 /// The ends of the waits on the commit path:
 /// a commit withdrawn at its bound never lands,

@@ -34,8 +34,7 @@
 
 use crate::discard_audit_facts::AuditFact;
 use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
-/// A pathname from the bytes a pointer file holds.
-use crate::hooks_path_values::path_answer;
+use crate::hooks_path_values::{path_answer, without_trailing_newlines};
 use crate::transaction_git::GitContext;
 /// `OsString`/`OsStr` are owned/borrowed operating-system text of raw bytes,
 ///  and `Path`/`PathBuf` owned/borrowed paths.
@@ -70,14 +69,16 @@ const POINTER_BYTES: u64 = 4096;
 ///       another worktree's facts or none.
 ///  The line is read as bytes and the path it names is built from them,
 ///  because a Git directory whose own path is not UTF-8 is still the one this worktree uses.
+///  Only the trailing line breaks Git's own reader takes are taken,
+///  so a directory whose name ends in a space is that directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function worktreeGitDirectory(target: Buffer): Buffer | undefined;
+/// function worktreeGitDirectory(target: Path): Path | undefined;
 /// ```
 fn worktree_git_directory(target: &Path) -> Option<PathBuf> {
     let pointer: Vec<u8> = read_pointer_file(target.join(".git").as_path())?;
-    let named: &[u8] = pointer.trim_ascii().strip_prefix(b"gitdir:")?.trim_ascii();
+    let named: &[u8] = without_trailing_newlines(pointer.as_slice()).strip_prefix(b"gitdir: ")?;
     if named.is_empty() {
         return None;
     }

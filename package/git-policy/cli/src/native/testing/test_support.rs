@@ -39,7 +39,7 @@ const QUIET_WINDOW: std::time::Duration = std::time::Duration::from_secs(120);
 /// none waiting for the disk,
 /// no processor time,
 /// no bytes moved,
-/// and no process or task started or ended (`run_progress.rs`).
+/// and no process or task started (`run_progress.rs`).
 /// Without it a mutant that leaves a lock held or ignores a deadline hangs the run until an outside timeout,
 /// which the mutation tool records as a timeout instead of a failed test.
 /// The first fixture of the run arms it;

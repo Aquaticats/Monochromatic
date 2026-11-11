@@ -95,11 +95,9 @@ fn a_start_beside_a_command_is_a_finding_and_a_look_alike_is_not() {
         ],
     )
     .expect("a resolvable layout");
-    // The line above the start is joined to it, so both lines answer for the one call.
-    assert_eq!(
-        found,
-        vec![(String::from("editors.rs"), "unretried-start", 3), (String::from("editors.rs"), "unretried-start", 4)]
-    );
+    // One finding: a blank line is joined to the start, but the scan reads code, so the line the start is on answers
+    //  for it alone.
+    assert_eq!(found, vec![(String::from("editors.rs"), "unretried-start", 4)]);
 }
 
 /// The retried start is not a finding,
@@ -235,4 +233,26 @@ fn a_file_with_unbalanced_braces_is_an_error() {
 fn a_declared_module_without_a_file_is_an_error() {
     let outcome = scan("blocking-scan-missing-module", &[("lib.rs", "mod engine;\n")]);
     assert!(outcome.is_err(), "{outcome:?}");
+}
+
+/// A storage call that only a string literal or a comment names is not a call,
+/// so the guard rejects a line that runs one and nothing else.
+#[test]
+fn a_storage_call_a_literal_or_a_comment_names_is_not_a_finding() {
+    // The first three lines name a storage call without running one; the fifth runs one.
+    const EXPLANATION: &str = r#"async fn explain(git_dir: &std::path::Path) -> Option<String> {
+    let example = "std::fs::read_to_string(";
+    let _kept = example; // std::fs::read(
+    /* std::fs::write(
+       is only named here */
+    let head = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    return Some(head);
+}
+"#;
+    let found: Vec<Finding> = scan(
+        "blocking-scan-literal-not-a-call",
+        &[("lib.rs", "mod explanation;\n"), ("explanation.rs", EXPLANATION)],
+    )
+    .expect("a resolvable layout");
+    assert_eq!(found, vec![(String::from("explanation.rs"), "storage-read-on-a-task", 6)]);
 }

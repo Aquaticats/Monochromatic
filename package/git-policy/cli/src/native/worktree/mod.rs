@@ -21,6 +21,10 @@ pub mod checkout_workers;
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 
+/// The folder a taken worktree folder is kept in when the name it came from is taken,
+/// and the cleanup that must leave it alone.
+pub mod worktree_kept_folders;
+
 /// The record of where one wrapped `git worktree add` spent its time,
 /// step by step,
 /// appended beside the commit timing record.
@@ -253,6 +257,10 @@ pub mod worktree_convert_inspection;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_phases;
 
+/// What a conversion does about a stage container another command is filling below the tree it would swap or delete.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_filled_stages;
+
 /// The empty stage a conversion created and did not record,
 /// and whether the object at the converting name is it.
 #[cfg(target_os = "linux")]
@@ -343,6 +351,10 @@ pub mod worktree_landed_after_a_merge;
 /// The linked worktrees a repository registers,
 /// with the branch each one has checked out.
 pub mod worktree_landed_registrations;
+
+/// The ignored entries of a landed worktree that nothing else in the repository holds,
+/// which keep it.
+pub mod worktree_landed_ignored_files;
 
 /// The removal of every wrapper-made worktree whose branch a merge landed.
 pub mod worktree_landed_removal;

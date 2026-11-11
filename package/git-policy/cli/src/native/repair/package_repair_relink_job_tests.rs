@@ -36,7 +36,8 @@ struct Scene {
 /// the stale state a copy leaves behind.
 const ELSEWHERE: &str = "/elsewhere/toolchain.lock.json";
 
-/// Build a scene whose worktree holds a pnpm layout and a stale launcher record.
+/// Build a scene whose worktree is a linked worktree of the repository the record names,
+/// and holds a pnpm layout and a stale launcher record.
 fn scene(name: &str) -> Scene {
     let root: PathBuf = fixture(name);
     let worktree: PathBuf = root.join("worktree");
@@ -48,6 +49,11 @@ fn scene(name: &str) -> Scene {
     std::fs::write(worktree.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("lockfile");
     std::fs::write(worktree.join("toolchain.lock.json"), b"{}\n").expect("the worktree's own lock");
     std::fs::write(worktree.join(".cache/toolchain-launchers/mpm.launch"), format!("{{\"lockFile\":\"{ELSEWHERE}\"}}\n").as_bytes()).expect("launcher");
+    // The registration `git worktree add` leaves: a `.git` file naming the worktree's own directory under
+    // the repository's `worktrees`, which is what makes this directory the record's own worktree.
+    let admin: PathBuf = common.join("worktrees/topic");
+    std::fs::create_dir_all(admin.as_path()).expect("the worktree's administrative directory");
+    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("the .git file");
     let record: PathBuf = root.join("record");
     let environment: RepairEnvironment =
         RepairEnvironment { search_path: Some(bin.clone().into_os_string()), quiet_window: Duration::from_secs(60), ceiling: Duration::from_secs(600), workers: 1 };
@@ -55,12 +61,29 @@ fn scene(name: &str) -> Scene {
 }
 
 /// What:
-///  A fixture tool that names its start and then ends with `status`.
+///  A fixture tool that names its start,
+///  the search path it was given,
+///  and then ends with `status`.
 /// Why:
 ///   The record of starts is what proves which tool ran where,
-/// and a tool that must not touch the worktree's state leaves it as the copy left it.
+///   and the search path is what proves the tool sees the path the add resolved it on;
+/// a tool that must not touch the worktree's state leaves it as the copy left it.
 fn recording_tool(scene: &Scene, program: &str, status: u8) -> String {
-    return format!("#!/bin/sh\necho \"{program} $* in $(pwd -P)\" >> '{started}'\nexit {status}\n", started = scene.record.display());
+    return format!(
+        "#!/bin/sh\necho \"{program} $* in $(pwd -P)\" >> '{started}'\nprintf '%s\\n' \"$PATH\" >> '{paths}'\nexit {status}\n",
+        started = scene.record.display(),
+        paths = search_paths(scene).display()
+    );
+}
+
+/// Where the fixture tools name the search path they ran with.
+fn search_paths(scene: &Scene) -> PathBuf {
+    return scene.root.join("paths");
+}
+
+/// The search paths the fixture tools named.
+fn paths(scene: &Scene) -> String {
+    return std::fs::read_to_string(search_paths(scene).as_path()).unwrap_or_default();
 }
 
 /// What:
@@ -83,7 +106,7 @@ fn installing_toolchain(scene: &Scene, status: u8) -> String {
 /// The record one scene's relink is queued as,
 /// naming both tools.
 fn item_of_the_scene(scene: &Scene, tools: Vec<RelinkTool>) -> WorkItem {
-    let entry: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), tools };
+    let entry: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), search_path: scene.environment.search_path.clone(), tools };
     return item_of(scene.common.as_path(), scene.worktree.as_path(), &entry).expect("the record");
 }
 
@@ -180,5 +203,58 @@ fn a_worktree_that_needs_nothing_starts_no_tool() {
     let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm, RelinkTool::Toolchain]);
     assert_eq!(relink(&scene, &item), Verdict::Done);
     assert_eq!(starts(&scene), "");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  A record whose worktree was removed and replaced by an unrelated directory touches nothing there.
+/// Why:
+///   A queued record outlives the worktree it was written for:
+/// a service that died holds a claim that runs out and requeues it,
+/// and a person may remove the worktree and put their own directory at that path meanwhile.
+/// The install rewrites state in place,
+/// so starting it in whatever directory now holds the recorded path would modify package state this record was
+/// never written for.
+#[test]
+fn a_delayed_relink_leaves_a_replacement_directory_alone() {
+    let scene: Scene = scene("relink-job-replaced-path");
+    executable(scene.bin.join("pnpm").as_path(), recording_tool(&scene, "pnpm", 0).as_bytes());
+    executable(scene.bin.join("mpm-shadow").as_path(), installing_toolchain(&scene, 0).as_bytes());
+    let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm, RelinkTool::Toolchain]);
+    std::fs::remove_dir_all(scene.worktree.as_path()).expect("the worktree is removed");
+    std::fs::create_dir_all(scene.worktree.join("node_modules")).expect("a replacement node_modules");
+    std::fs::write(scene.worktree.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("a replacement lockfile");
+    assert!(!scene.worktree.join(".git").exists(), "the replacement is no worktree of the repository");
+    let verdict: Verdict = relink(&scene, &item);
+    assert!(matches!(verdict, Verdict::Skipped(_)), "a replacement directory is left alone: {verdict:?}; it started {:?}", starts(&scene));
+    assert_eq!(starts(&scene), "", "a tool was started in a directory the record was not written for");
+    assert_eq!(paths(&scene), "", "a tool was started in a directory the record was not written for");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  The install is the program the add resolved,
+/// on the add's search path,
+/// whatever path the service process was started with.
+/// Why:
+///   The owner decided that the repair starts whatever pnpm is first on the person's path,
+/// and the service is a resident process of another session,
+/// so its own path may hold no pnpm or another one.
+/// The record is the only thing the service reads,
+/// so the path the add resolved on has to travel with it.
+#[test]
+fn the_service_starts_the_program_the_add_resolved() {
+    let scene: Scene = scene("relink-job-service-path");
+    executable(scene.bin.join("pnpm").as_path(), recording_tool(&scene, "pnpm", 0).as_bytes());
+    let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm]);
+    let empty: PathBuf = scene.root.join("service-search-path");
+    std::fs::create_dir_all(empty.as_path()).expect("an empty search path for the service");
+    let service_environment: RepairEnvironment = RepairEnvironment { search_path: Some(empty.clone().into_os_string()), ..scene.environment.clone() };
+    let verdict: Verdict = crate::lazy_runtime::run_on_runtime(relink_with(&item, &service_environment)).expect("the relinking runs");
+    assert_eq!(verdict, Verdict::Done, "the service could not start the pnpm the add found");
+    let named: String = starts(&scene);
+    assert!(named.trim_end().ends_with(scene.worktree.to_str().expect("utf8")), "the install did not run in the worktree: {named}");
+    let path: String = paths(&scene);
+    assert!(path.contains(scene.bin.to_str().expect("utf8")), "the install did not see the add's search path: {path}");
     remove(scene.root.as_path());
 }
