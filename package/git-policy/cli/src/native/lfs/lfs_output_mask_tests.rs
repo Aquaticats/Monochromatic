@@ -198,3 +198,110 @@ fn the_servers_a_failure_names_are_read_in_order() {
         vec![String::from("host.invalid")]
     );
 }
+
+//region The rest of an LFS URL: a token in a path segment, a query and a fragment
+
+/// The user the audit's fixture wrote in `lfs.url`, made up for this control.
+const CANARY_USER: &str = "CANARYUSER4411";
+
+/// The password of the same fixture, made up.
+const CANARY_PASS: &str = "CANARYPASS9137";
+
+/// The token the fixture wrote as a path segment, made up.
+const CANARY_PATH: &str = "CANARYPATH5521";
+
+/// The token the fixture wrote as a query value, made up.
+const CANARY_QUERY: &str = "CANARYQUERY7720";
+
+/// The batch error of the audit's fixture:
+/// `lfs.url` carried a token in a path segment and another in its query,
+/// the user and the password were masked and those two were printed.
+///  Every secret-shaped part of the URL is hidden now,
+/// and the scheme,
+/// host and port a person acts on stay.
+#[test]
+fn a_token_in_the_path_of_an_lfs_url_is_hidden() {
+    // Written from the parts, as the appending of `/objects/batch` to a URL that already holds a query is git-lfs's own.
+    let line: String = format!(
+        "batch response: Post \"http://{CANARY_USER}:{CANARY_PASS}@127.0.0.1:1/{CANARY_PATH}/lfs?token={CANARY_QUERY}/objects/batch\": \
+         dial tcp 127.0.0.1:1: connect: connection refused"
+    );
+    assert_eq!(
+        masked(&line),
+        format!(
+            "batch response: Post \"http://{m}@127.0.0.1:1/{m}/lfs?token={m}\": dial tcp 127.0.0.1:1: connect: connection refused",
+            m = CREDENTIALS_MASK
+        ),
+    );
+}
+
+/// Every value of a query is hidden and every plain key stays,
+/// so a person still sees which settings the server was given.
+#[test]
+fn every_value_of_a_query_is_hidden_and_a_plain_key_stays() {
+    assert_eq!(
+        masked("https://lfs.example.invalid/lfs?token=CANARYQUERY7720&ref=main&sig=a%2Fb"),
+        format!("https://lfs.example.invalid/lfs?token={m}&ref={m}&sig={m}", m = CREDENTIALS_MASK),
+    );
+    // A key is hidden too when it is shaped like a token: the config key of the incident carried one.
+    assert_eq!(
+        masked("https://host.invalid/lfs?CANARYKEY7720=1"),
+        format!("https://host.invalid/lfs?{m}={m}", m = CREDENTIALS_MASK),
+    );
+}
+
+/// A URL that carries no secret at all is printed as it was typed,
+/// so the server and the path it names stay readable.
+#[test]
+fn a_url_with_no_secret_is_left_alone() {
+    for text in [
+        "http://127.0.0.1:36437/lfs",
+        "http://127.0.0.1:36437/silent.git",
+        "https://lfs.example.invalid/objects/batch",
+        "https://storage.example.invalid/info/lfs",
+        "https://host:8443/",
+        "ssh://host:22/repo.git",
+        "the push went to origin",
+    ] {
+        assert_eq!(masked(text), text);
+    }
+}
+
+/// A secret written with percent encoding is hidden as it stands,
+/// in a path segment and in a query value alike.
+#[test]
+fn an_encoded_secret_in_a_path_or_a_query_is_hidden() {
+    assert_eq!(masked("https://host.invalid/a%2Fb/lfs"), format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK));
+    assert_eq!(masked("https://host.invalid/lfs?token=%43ANARY%2B7720"), format!("https://host.invalid/lfs?token={m}", m = CREDENTIALS_MASK));
+    // A segment carries digits, which no plain label does.
+    assert_eq!(masked("https://host.invalid/CANARYPATH5521/lfs"), format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK));
+}
+
+/// A fragment is a place a token is carried too,
+/// and its plain keys stay while every value is hidden.
+#[test]
+fn a_fragment_keeps_its_plain_keys_and_hides_its_values() {
+    assert_eq!(
+        masked("https://host.invalid/lfs#access_token=CANARYQUERY7720"),
+        format!("https://host.invalid/lfs#access_token={m}", m = CREDENTIALS_MASK),
+    );
+    assert_eq!(masked("https://host.invalid/lfs#CANARYQUERY7720"), format!("https://host.invalid/lfs#{m}", m = CREDENTIALS_MASK));
+}
+
+/// A long line of URLs whose paths and queries carry tokens is masked with no token left and no quadratic scan:
+/// the pass that hid the userinfo now hides the rest of the URL too,
+/// and it still reads every byte a constant number of times.
+#[test]
+fn a_long_line_of_tokens_is_hidden_in_linear_time() {
+    let one: String = format!("https://lfs:{CANARY_USER}:{CANARY_PASS}@host/{CANARY_PATH}/lfs?token={CANARY_QUERY} ");
+    let line: String = one.repeat(100_000);
+    let started: std::time::Instant = std::time::Instant::now();
+    let result: String = masked(&line);
+    assert!(started.elapsed() < std::time::Duration::from_secs(30), "a quadratic scan of this line takes minutes: {:?}", started.elapsed());
+    for canary in [CANARY_USER, CANARY_PASS, CANARY_PATH, CANARY_QUERY] {
+        assert!(!result.contains(canary), "{canary} survives in a line of 100000 URLs");
+    }
+    assert!(result.contains(&format!("https://{CREDENTIALS_MASK}@host/{CREDENTIALS_MASK}/lfs?token={CREDENTIALS_MASK} ")), "the masked shape is kept");
+}
+
+//endregion
