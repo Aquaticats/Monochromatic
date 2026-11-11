@@ -1242,18 +1242,22 @@ so each scope's install makes those names reachable from a fresh shell:
   a plan row that declares it owns the farm link and the launcher record behind it.
   It is never made for a program that belongs to no install,
   so a run from a build folder puts no build on the machine's `PATH`
-  (`src/toolchain/exposure.rs`, `expose_running_shadow`).
+  (`src/toolchain/exposure.rs`,
+  `expose_running_shadow`).
 - The repository plan's `mpm-shadow` row also links `mpm` in `.cache/mpm-shadow-bin`,
   which a worktree's `PATH` holds.
   A machine-global plan need not declare `mpm-shadow` at all,
   and this machine's does not,
   so before the farm link the machine-global sentences
-  (`mpm-shadow update -g <tool id>`, `mpm-shadow install -g`, `mpm-shadow --help`)
+  (`mpm-shadow update -g <tool id>`,
+  `mpm-shadow install -g`,
+  `mpm-shadow --help`)
   named a program nothing outside a worktree could find
   (`/bin/sh: line 1: mpm-shadow: command not found`,
   exit status 127,
   measured 2026-11-11 in a home laid out like this machine's).
-- An install is found by the file it is, never by the spelling of its path.
+- An install is found by the file it is,
+  never by the spelling of its path.
   `/proc/self/exe` reports the resolved spelling (on this machine `/home` is a link to `/var/home`),
   while a scope's root keeps the spelling `HOME` gives,
   and comparing the text found no install at all,

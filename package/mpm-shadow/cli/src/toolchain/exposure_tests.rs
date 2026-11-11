@@ -14,11 +14,13 @@ use std::path::PathBuf;
 
 /// Imports `current_link` from `super::cargo_installs`.
 use super::cargo_installs::current_link;
-/// Imports `rebuild_exposure`, `expose_running_shadow` from `super::exposure`.
+/// Imports `rebuild_exposure`,
+/// `expose_running_shadow` from `super::exposure`.
 use super::exposure::{expose_running_shadow, rebuild_exposure};
 /// Imports what this module uses from `super::fakes`.
 use super::fakes::{Rig, write_executable};
-/// Imports `parse_record`, `record_path` from `super::launcher`.
+/// Imports `parse_record`,
+/// `record_path` from `super::launcher`.
 use super::launcher::{parse_record, record_path};
 
 /// The id the sample plan gives `mpm-shadow`.
@@ -40,7 +42,8 @@ const SHADOW_PROGRAM: &str = "mpm-shadow";
 /// and hands back the program inside it,
 /// the path a run of that install has as its own.
 /// Why:
-/// The farm link names an installed program, so the fixture must be one:
+/// The farm link names an installed program,
+/// so the fixture must be one:
 /// a version directory with cargo's record,
 /// the program below `bin`,
 /// and the tool's `current` link naming the version.

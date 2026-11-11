@@ -12,8 +12,11 @@
 //! and nothing but a worktree's `PATH` ever makes `mpm` the shadow.
 //! Measured on 2026-11-11 in a home laid out like this machine's:
 //! the machine-global plan declares no `mpm-shadow` entry,
-//! so every sentence naming `mpm-shadow` (`update -g <tool id>`, `install -g`, `--help`) failed with
-//! `/bin/sh: line 1: mpm-shadow: command not found`, exit status 127.
+//! so every sentence naming `mpm-shadow` (`update -g <tool id>`,
+//! `install -g`,
+//! `--help`) failed with
+//! `/bin/sh: line 1: mpm-shadow: command not found`,
+//! exit status 127.
 //! So the program the sentence names decides whether the printed command can work at all.
 //! Nothing here reads or writes the real `~/.config`,
 //! `~/.local` or `~/.cargo`.
@@ -259,7 +262,8 @@ const DEMO_CRATE: &str = "monochromatic-demo-tool";
 const SHADOW_ID: &str = "mpm-shadow";
 
 /// The postinstall directory of the repository plan's `mpm-shadow` row:
-/// the one a worktree's `PATH` holds, so `mpm` there is the shadow.
+/// the one a worktree's `PATH` holds,
+/// so `mpm` there is the shadow.
 const SHADOW_LINK_DIR: &str = ".cache/mpm-shadow-bin";
 
 /// What:
@@ -271,7 +275,8 @@ const SHADOW_LINK_DIR: &str = ".cache/mpm-shadow-bin";
 /// The printed sentences are about state a person reaches from a fresh shell,
 /// so the test must produce that state rather than write half of it by hand.
 /// The versions:
-/// the demo tool is installed at `INSTALLED`, and the lock pins `LOCKED`,
+/// the demo tool is installed at `INSTALLED`,
+/// and the lock pins `LOCKED`,
 /// so the warning and the command that clears it are the real ones.
 struct Machine {
     directory: tempfile::TempDir,
@@ -289,7 +294,8 @@ enum Place {
 }
 
 impl Machine {
-    /// The machine with both plans, both locks and every installed copy in place.
+    /// The machine with both plans,
+    /// both locks and every installed copy in place.
     fn new() -> Machine {
         let machine = Machine { directory: tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root") };
         fs::create_dir_all(machine.global_config()).expect("make the global config directory");
@@ -326,12 +332,14 @@ impl Machine {
         return self.global_config().join(LOCK_FILE_NAME);
     }
 
-    /// `<data home>/monochromatic-dev/toolchain-global`, which both scopes' tools share.
+    /// `<data home>/monochromatic-dev/toolchain-global`,
+    /// which both scopes' tools share.
     fn global_root(&self) -> PathBuf {
         return self.home().join(".local").join("share").join("monochromatic-dev").join("toolchain-global");
     }
 
-    /// The machine-global exposure farm: the directory this machine's `mise` configuration puts on `PATH`.
+    /// The machine-global exposure farm:
+    /// the directory this machine's `mise` configuration puts on `PATH`.
     fn farm(&self) -> PathBuf {
         return self.global_root().join("exposure");
     }
@@ -366,7 +374,8 @@ impl Machine {
         symlink(version, self.global_root().join(SHADOW_ID).join("current")).expect("link current");
     }
 
-    /// Puts the demo tool in the machine-global toolchain root at `INSTALLED`, the way `cargo binstall` records one.
+    /// Puts the demo tool in the machine-global toolchain root at `INSTALLED`,
+    /// the way `cargo binstall` records one.
     fn install_demo_tool(&self) {
         let version_dir: PathBuf = self.global_root().join("cargo").join(DEMO_CRATE).join(INSTALLED);
         let program: PathBuf = version_dir.join("bin").join(DEMO_BIN);
@@ -381,7 +390,8 @@ impl Machine {
         symlink(INSTALLED, self.global_root().join("cargo").join(DEMO_CRATE).join("current")).expect("link current");
     }
 
-    /// The machine-global plan, asking for the demo tool at `request`.
+    /// The machine-global plan,
+    /// asking for the demo tool at `request`.
     fn write_global_plan(&self, request: &str) {
         let plan: String = format!(
             "{{\n  \"schemaVersion\": 1,\n  \"tools\": {{\n    \"{TOOL_ID}\": {{\n      \"request\": \"cargo:{DEMO_CRATE}@{request}\",\n      \"route\": \"cargo-binstall\",\n      \"manager\": \"cargo\",\n      \"packageId\": \"{DEMO_CRATE}\",\n      \"bins\": [\"{DEMO_BIN}\"]\n    }}\n  }}\n}}\n"
@@ -405,7 +415,8 @@ impl Machine {
     }
 
     /// The `PATH` a fresh shell in the fixture has:
-    /// the scope's own directories first, then the system programs.
+    /// the scope's own directories first,
+    /// then the system programs.
     fn path(&self, place: Place) -> String {
         let directories: Vec<PathBuf> = match place {
             Place::Global => vec![self.farm(), self.home().join(".local").join("bin")],
@@ -443,7 +454,8 @@ impl Machine {
             .expect("run the printed command");
     }
 
-    /// Runs the machine-global install from the installed copy, as a person on that machine would.
+    /// Runs the machine-global install from the installed copy,
+    /// as a person on that machine would.
     fn install_global(&self) -> Output {
         let program: PathBuf = self.shadow_program();
         return self.run(&program, &["install", "--global"], Place::Global);
@@ -468,7 +480,8 @@ impl Machine {
 /// The text of a lock file holding one tool row,
 /// with the digest a hand-written file never has.
 /// Why:
-/// `install` refuses a lock it did not write, so the fixture's files must be the real thing.
+/// `install` refuses a lock it did not write,
+/// so the fixture's files must be the real thing.
 fn lock_with(row: &str) -> String {
     let text: String = format!("{{\"schemaVersion\":1,\"tools\":{{{row}}}}}");
     let parsed = parse_lock(&text, "fixture").expect("the fixture lock parses");
@@ -487,7 +500,8 @@ fn demo_tool_lock(request: &str, version: &str) -> String {
 /// What:
 /// The command a sentence prints that starts with `program`.
 /// Why:
-/// A sentence may print other backticked words (`current`, a lock file)
+/// A sentence may print other backticked words (`current`,
+/// a lock file)
 /// before the command it tells a person to run,
 /// so the program is what identifies the command,
 /// and a sentence that names a different program than the one expected fails here.

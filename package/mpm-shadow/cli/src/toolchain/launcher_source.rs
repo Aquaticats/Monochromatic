@@ -162,7 +162,8 @@ fn install_directory_above(program: &Path) -> Option<&Path> {
 /// Why:
 /// A tree's launchers and the machine-global ones are the same set,
 /// and a program that belongs to neither root (a build folder) belongs to no install.
-/// The install directory and each root are compared as files, never as text:
+/// The install directory and each root are compared as files,
+/// never as text:
 /// on a machine whose home is a symbolic link (`/home` to `/var/home`) the running program's own path is the
 /// resolved spelling `/proc/self/exe` reports,
 /// while a scope's root keeps the spelling `HOME` gives,

@@ -141,10 +141,13 @@ pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<Exposure
 /// A shell outside a checkout reaches only this scope's farm,
 /// so a machine whose global plan declares no `mpm-shadow` entry left every one of those commands unrunnable
 /// (measured 2026-11-11 in a home laid out like this machine's:
-/// `/bin/sh: line 1: mpm-shadow: command not found`, exit status 127).
-/// The link names the installed program, never the running file,
+/// `/bin/sh: line 1: mpm-shadow: command not found`,
+/// exit status 127).
+/// The link names the installed program,
+/// never the running file,
 /// so a run from a build folder puts no build on the machine's `PATH`,
-/// and it goes through `current`, so a later install that removes the version it names never leaves it dangling.
+/// and it goes through `current`,
+/// so a later install that removes the version it names never leaves it dangling.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -169,7 +172,14 @@ pub fn expose_running_shadow(ctx: &Context, running: &Path) -> Result<Option<Str
 
 /// Whether a tool of the scope's lock declares `name` as one of its bins.
 fn declares_bin(tools: &[LockedTool], name: &str) -> bool {
-    return tools.iter().any(|tool| return tool.declaration.bins.iter().any(|bin| return bin == name));
+    for tool in tools {
+        for bin in &tool.declaration.bins {
+            if bin == name {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /// The directory a postinstall link goes in:

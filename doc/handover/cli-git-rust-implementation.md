@@ -119,8 +119,10 @@ Two defects showed on the way, both open:
   The waiter is `package/crate-release/cli/bin/await-release.ts`.
 - The machine-global lock still names `0.6.1-alpha.8`,
   so every `git` call prints `mpm-shadow`'s older-lock warning.
-  Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
-  did not run, because no `mpm-shadow` was on `PATH`;
+  Its printed remedy,
+  `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
+  did not run,
+  because no `mpm-shadow` was on `PATH`;
   branch `fix/mpm-shadow-printed-global-lock-remedy-runs-as-printed`
   makes the scope's install put it in the exposure farm and proves the command runs as printed.
   The lock itself is still the coordinator's to move.
@@ -2126,7 +2128,8 @@ and found no install at all;
 `place_binary` hard-linked a symbolic link,
 which a release archive's install leaves beside the program's folder,
 so the launcher became a link whose relative target resolved in the launcher's own directory.
-Evidence, 2026-11-11,
+Evidence,
+2026-11-11,
 in a disposable home holding the global plan and lock and both installs:
 `mpm-shadow install --global` put `mpm-shadow` in the farm,
 the launcher's own sentence `mpm-shadow update -g cargo:monochromatic-demo-tool` ran as printed and exited 0,
