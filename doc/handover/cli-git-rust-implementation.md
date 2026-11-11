@@ -212,14 +212,21 @@ Checks after the last edit:
 and `--test native_binary -- merge` is 158 run:
 156 passed,
 2 failed.
-The two are `word_merge_finish::a_merge_options_setting_is_applied_to_the_finish` and
+One whole lib suite run stopped at 2422 of 6547 tests
+on `landing::service_land::hung_write_tests::a_commit_the_service_takes_is_told_its_place_on_the_wire`,
+which asserts two client lines and got three,
+the third being the service's notice that the commit is inside a write,
+and which passes alone.
+The two the binary suite failed are
+`word_merge_finish::a_merge_options_setting_is_applied_to_the_finish` and
 `word_merge_finish::a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
-which this branch does not touch;
-a second run of that module failed a different pair of its own controls,
+which this branch does not touch.
+A run of that module failed a different pair of its own controls,
 and each of the four passes when it runs without the others,
 with the harness supervisor naming the disk:
 `no progress for 5.0 s: no task was runnable, waiting for the disk or held from outside`,
 next to a `git update-ref` step that took 7447 ms.
+None of the failures is in a module this branch changes.
 `monochromatic-lint` reports nothing in this branch's added lines;
 the eleven it reports in this file lie outside them and are there at `ee545033ad` too.
 
