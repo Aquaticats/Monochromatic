@@ -58,7 +58,7 @@ fn initialize_explicit(repo: &Path, indexes: &CaptureIndexes, base: &str, paths:
         stage_tracked_changes: false,
         base_revision: base,
     };
-    initialize_commit_index(&git_context(), repo, repo.join(".git").join("index").as_path(), indexes, &choice)
+    initialize_commit_index(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), indexes, &choice)
         .expect("initialize");
 }
 
@@ -483,7 +483,7 @@ fn prepare_stale_with(context: &GitContext, stale: &Stale) {
         base_revision: stale.base.as_str(),
     };
     let real: PathBuf = stale.repo.join(".git").join("index");
-    initialize_commit_index(context, stale.repo.as_path(), real.as_path(), &stale.indexes, &selection).expect("the preparation must not fail");
+    initialize_commit_index(context, stale.repo.as_path(), stale.repo.as_path(), real.as_path(), &stale.indexes, &selection).expect("the preparation must not fail");
 }
 
 /// A rebuild after the branch moved keeps its refresh in its own private index too,
@@ -714,7 +714,7 @@ fn prepare_and_commit(filtered: &Filtered, paths: &[OsString]) -> Result<i32, Pr
         base_revision: filtered.base.as_str(),
     };
     let real: PathBuf = filtered.repo.join(".git").join("index");
-    initialize_commit_index(&git_context(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
+    initialize_commit_index(&git_context(), filtered.repo.as_path(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
         .expect("private index");
     let commit_args: Vec<String> = vec![String::from("--quiet"), String::from("--message=filtered")];
     let request: PreparationRequest<'_> = PreparationRequest {
@@ -833,7 +833,7 @@ fn an_intent_to_add_tracked_file_is_not_changed_by_a_commit_that_names_another_p
         base_revision: base.as_str(),
     };
     let real: PathBuf = filtered.repo.join(".git").join("index");
-    initialize_commit_index(&git_context(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
+    initialize_commit_index(&git_context(), filtered.repo.as_path(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
         .expect("private index");
     let tree: String = write_private_tree(
         &git_context(),
@@ -975,7 +975,7 @@ fn wrapper_tree(root: &Path, case: &CommitCase) -> String {
         base_revision: base.as_str(),
     };
     let real: PathBuf = repo.join(".git").join("index");
-    initialize_commit_index(&git_context(), repo.as_path(), real.as_path(), &indexes, &selection).expect("private index");
+    initialize_commit_index(&git_context(), repo.as_path(), repo.as_path(), real.as_path(), &indexes, &selection).expect("private index");
     return write_private_tree(&git_context(), repo.as_path(), indexes.commit_index.as_path(), indexes.object_directory.as_path())
         .expect("tree");
 }

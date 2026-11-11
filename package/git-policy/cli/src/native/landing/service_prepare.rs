@@ -139,6 +139,9 @@ pub fn prepare<F: RepositoryFacts>(
 
     let named: bool = selection.mode == TransactionMode::ExplicitPath;
     let capture: InvocationCapture = capture_invocation_base(context, cwd, layout)?;
+    // The worktree Git answered for this invocation, which the selection's relative pathspecs are read from, whichever way
+    //  the caller named it (`pathspec_base`).
+    let repository_root: &Path = capture.layout.repository_root.as_path();
     part.next("stagedDeletions");
     let unborn: bool = matches!(capture.base, Base::Unborn);
     // Read from the snapshot the layout already holds, so nothing starts Git for the message or the identities before the
@@ -229,10 +232,10 @@ pub fn prepare<F: RepositoryFacts>(
     } else {
         // A path an ignore rule matches is refused before the private staging runs, from the elements the command names,
         //  so the refusal is the command line's and never read from the words of a Git message (issue 6278).
-        if let Some(ending) = named_ignored_ending(context, cwd, capture.layout.real_index_path.as_path(), &index_selection)? {
+        if let Some(ending) = named_ignored_ending(context, cwd, repository_root, capture.layout.real_index_path.as_path(), &index_selection)? {
             return Ok(Prepared::Ended(ending));
         }
-        if let Err(stop) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
+        if let Err(stop) = initialize_commit_index(context, cwd, repository_root, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
             // Git refused a pathspec the caller wrote for matching nothing: that is the caller's input, not the engine's, so it
             // ends as the finding that names the token. Every other failure of the staging stays an engine failure (issue 6283).
             return match stop {

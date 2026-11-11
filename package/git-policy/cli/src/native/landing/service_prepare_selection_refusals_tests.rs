@@ -42,7 +42,7 @@ fn named_ending(repo: &Path, base: &str, pathspecs: &[&str]) -> Option<Transacti
         stage_tracked_changes: false,
         base_revision: base,
     };
-    return named_ignored_ending(&git_context(), repo, repo.join(".git").join("index").as_path(), &choice)
+    return named_ignored_ending(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered");
 }
 

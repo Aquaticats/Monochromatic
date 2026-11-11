@@ -777,12 +777,17 @@ fn selected_shape(fixture: &Fixture, name: &str) -> PathBuf {
 ///  A named file of a worktree the variables select with `GIT_DIR` and `GIT_WORK_TREE`,
 ///  committed from a directory outside that worktree,
 ///  where the invocation directory holds nothing at the name:
-///  the file nothing staged is committed as the exact path it is.
+///  the file nothing staged is committed as the exact path it is,
+///  and Git reads that name from the selected worktree's top.
 /// Why:
 ///  "Commits should never fail":
-/// native Git commits the worktree the variables name,
+/// native Git stages the worktree the variables name,
 /// and it reads a relative pathspec from that worktree's top when the directory the command runs in is outside it
-///  (`rev-parse --show-prefix` answers nothing there).
+///  (`rev-parse --show-prefix` answers nothing there),
+/// which `git add` of the same name from the same directory shows here.
+///  The wrapper commits an exact path nothing staged as its deliberate difference;
+/// native `git commit -- <untracked file>` refuses the pathspec,
+///  so the staging start is what the oracle answers.
 ///  The worktree the variables name is not one a command line names,
 /// so a reader that derived the worktree from the command line's own `--work-tree` found none,
 ///  asked the invocation directory,
@@ -801,6 +806,22 @@ fn a_commit_of_a_worktree_the_variables_select_names_a_file_the_invocation_direc
     std::fs::create_dir(&nested).expect("nested");
     let oracle_nested: PathBuf = oracle_holder.join("nested");
     std::fs::create_dir(&oracle_nested).expect("the oracle's own outside directory");
+    // Native Git, of the same start and the same variables, reads the name in the selected worktree.
+    let oracle_staged: Observed = observe(
+        direct(&fixture)
+            .current_dir(oracle_nested.as_path())
+            .env("GIT_DIR", oracle.join(".git"))
+            .env("GIT_WORK_TREE", oracle.as_path())
+            .args(["add", "--", "plain.txt"]),
+        b"",
+    );
+    assert_eq!(oracle_staged.code, Some(0), "native Git stages the named file of the selected worktree: {}", stderr_of(&oracle_staged));
+    assert_eq!(
+        git_text(&fixture, oracle.as_path(), &["diff", "--cached", "--name-only"]),
+        "plain.txt\n",
+        "the entry native Git staged is the selected worktree's top-level file"
+    );
+    let commits_before: String = git_text(&fixture, second.as_path(), &["rev-list", "--count", "HEAD"]);
     let served: Observed = observe(
         wrapped_commit(&fixture, nested.as_path(), &["commit", "--message=plain", "--", "plain.txt"])
             .env("GIT_DIR", second.join(".git"))
@@ -810,22 +831,15 @@ fn a_commit_of_a_worktree_the_variables_select_names_a_file_the_invocation_direc
     let failure: String = stderr_of(&served);
     assert_eq!(served.code, Some(0), "the file nothing staged is committed as an exact path: {failure}");
     assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:plain.txt"]), "plain untracked\n");
-    // Native Git, of the same input, is the oracle.
-    let native: Observed = observe(
-        direct(&fixture)
-            .current_dir(oracle_nested.as_path())
-            .env("GIT_DIR", oracle.join(".git"))
-            .env("GIT_WORK_TREE", oracle.as_path())
-            .args(["commit", "--message=plain", "--", "plain.txt"]),
-        b"",
-    );
-    assert_eq!(native.code, Some(0), "the oracle commits: {}", stderr_of(&native));
     assert_eq!(
-        git_text(&fixture, second.as_path(), &["rev-parse", "HEAD^{tree}"]),
-        git_text(&fixture, oracle.as_path(), &["rev-parse", "HEAD^{tree}"]),
-        "the tree agrees with native Git"
+        git_text(&fixture, second.as_path(), &["ls-tree", "--name-only", "-r", "HEAD"]),
+        "build/keep.txt\nkeep.txt\nplain.txt\n",
+        "the commit holds the file it named and the base it shares"
     );
-    assert_eq!(git_text(&fixture, second.as_path(), &["rev-list", "--count", "HEAD"]), "2\n", "the branch moved once");
+    assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:build/keep.txt"]), "build base\n", "no unselected edit is recorded");
+    let moved: u32 = commits_before.trim_end().parse::<u32>().expect("a commit count") + 1;
+    assert_eq!(git_text(&fixture, second.as_path(), &["rev-list", "--count", "HEAD"]).trim_end(), moved.to_string(), "the branch moved once");
+    assert_eq!(porcelain(&fixture, second.as_path()), " M build/keep.txt\n?? build/scratch.txt\n", "the worktree keeps the edit and the untracked files it had");
     assert_nothing_left(&fixture, second.as_path());
     remove_settled(&fixture);
 }

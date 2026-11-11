@@ -81,11 +81,12 @@ impl From<GitFailure> for SelectionStagingFailure {
 pub(crate) fn add_selected_paths(
     context: &GitContext,
     cwd: &Path,
+    worktree_root: &Path,
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
 ) -> Result<(), SelectionStagingFailure> {
     match selection_items(selection) {
-        Selected::Items(items) => return stage_items(context, cwd, indexes, items.as_slice()),
+        Selected::Items(items) => return stage_items(context, cwd, worktree_root, indexes, items.as_slice()),
         // An empty selection stages nothing, and the scratch commit then refuses as native Git refuses the command.
         Selected::Empty => return Ok(()),
         // A pathspec file too large to name on one command line keeps its own form, and only the tracked paths it matches
@@ -111,25 +112,30 @@ pub(crate) fn add_selected_paths(
 ///   Git reads a relative pathspec below the top of the worktree the command works on,
 /// from the directory it runs in when that directory is inside that worktree,
 ///  and from the worktree's own top when it is outside it.
-///  A command line that names another worktree (`--git-dir` with `--work-tree`) from a directory outside it
-/// reads the exact name `selected.js` as that worktree's top-level file,
-///  so a reader that asked the invocation directory instead would find no file,
-/// take the element for a pattern,
-///  and stage it with `git add --update`,
-/// which refuses a path nothing tracked and leaves the commit to fail.
-///  The worktree named is resolved against the directory the `-C` chain reached,
-/// as Git resolves it,
-///  and a worktree or directory that cannot be resolved answers with the invocation directory,
-/// which is where Git reads the pathspec when it names no worktree of its own.
+///  Which worktree that is has owners the wrapper does not repeat:
+/// a command line names one with `--git-dir` and `--work-tree`,
+///  a shell names one as `GIT_DIR` and `GIT_WORK_TREE`,
+///  a configuration names one as `core.worktree`,
+///  and a linked worktree is found from its own `.git` file,
+/// so the top Git answered for the invocation is the one asked here
+/// (`capture_invocation.rs`,
+/// `repository_root`,
+/// which `rev-parse --show-toplevel` gives).
+///  A reader that derived it from the command line's own `--work-tree` instead found none of the other shapes,
+///  took the invocation directory for the base,
+/// found no file at an exact name,
+///  took the element for a pattern,
+/// and left the commit to a `git add --update` that refuses a path nothing tracked;
+///  a directory selection misread as an exact path staged every untracked file below it.
+///  An invocation directory that cannot be resolved answers with itself,
+/// which is where Git reads the pathspec when the worktree it names is the same directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const pathspecBase = (context, cwd) => { const workTree = valueOf('--work-tree', repositorySelection(cwd, context.globalPrefix)); if (!workTree) return cwd; const root = realpath(workTree); return root && realpath(cwd)?.startsWith(root) ? cwd : root; };
+/// const pathspecBase = (cwd, worktreeRoot) => realpath(cwd)?.startsWith(realpath(worktreeRoot)) ? cwd : worktreeRoot;
 /// ```
-pub(crate) fn pathspec_base(context: &GitContext, cwd: &Path) -> PathBuf {
-    let selection: Vec<OsString> = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
-    let Some(work_tree) = named_work_tree(selection.as_slice()) else { return cwd.to_path_buf() };
-    let Ok(root) = std::fs::canonicalize(work_tree) else { return cwd.to_path_buf() };
+pub(crate) fn pathspec_base(cwd: &Path, worktree_root: &Path) -> PathBuf {
+    let Some(root) = std::fs::canonicalize(worktree_root).ok() else { return cwd.to_path_buf() };
     let here: PathBuf = match std::fs::canonicalize(cwd) {
         Ok(resolved) => resolved,
         // A directory that cannot be resolved keeps the name it was given, and a pathspec is then read from it.
@@ -139,29 +145,6 @@ pub(crate) fn pathspec_base(context: &GitContext, cwd: &Path) -> PathBuf {
         return cwd.to_path_buf();
     }
     return root;
-}
-
-/// What:
-///  The worktree a resolved repository selection names,
-///  and nothing when it names none.
-/// Why:
-///  `from_global_options` answers the selection as option-and-value pairs,
-/// and Git reads the last `--work-tree` of a command line,
-///  which is the one the selection kept.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namedWorkTree = (selection) => selection.find((token, at) => token === '--work-tree' && selection[at + 1])?.[1];
-/// ```
-fn named_work_tree(selection: &[OsString]) -> Option<&Path> {
-    let mut at: usize = 0;
-    while at + 1 < selection.len() {
-        if selection[at] == "--work-tree" {
-            return Some(Path::new(selection[at + 1].as_os_str()));
-        }
-        at += 2;
-    }
-    return None;
 }
 
 /// What:
@@ -183,9 +166,15 @@ fn named_work_tree(selection: &[OsString]) -> Option<&Path> {
 /// ```ts
 /// await git(['add', '--', ...exactFiles]); await git(['add', '--update', '--', ...patterns]);
 /// ```
-fn stage_items(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, items: &[OsString]) -> Result<(), SelectionStagingFailure> {
+fn stage_items(
+    context: &GitContext,
+    cwd: &Path,
+    worktree_root: &Path,
+    indexes: &CaptureIndexes,
+    items: &[OsString],
+) -> Result<(), SelectionStagingFailure> {
     let literal: bool = pattern_characters_are_literal(context);
-    let base: PathBuf = pathspec_base(context, cwd);
+    let base: PathBuf = pathspec_base(cwd, worktree_root);
     let mut named_files: Vec<&OsString> = Vec::new();
     let mut patterns: Vec<&OsString> = Vec::new();
     for item in items {
