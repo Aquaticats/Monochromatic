@@ -243,6 +243,14 @@ so `command -v pi` finds nothing there,
 and `mise exec -- pi` run from `~/Monochromatic` works.
 A systemd user unit does not inherit the shell's `PATH` either;
 launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
+The driver also asks the `git` that `PATH` resolves, in the folder the run works in,
+whether it is this repository's Git policy wrapper,
+and refuses before Pi starts when it is not (issue 1768),
+naming the program it found and the folder to put on `PATH`:
+the wrapper is the `git` link in `.cache/monochromatic-git-policy-cli-bin` under the checkout,
+which `mise run toolchain:install` makes.
+`start-pi-run-in-a-worktree` asks the same question before it starts a unit;
+`package/pi-shared/subagent-driver/README.md` has the section "The git a session would run".
 
 1.  From `~/Monochromatic`,
     check that `mise exec -- pi --version` prints a version.
