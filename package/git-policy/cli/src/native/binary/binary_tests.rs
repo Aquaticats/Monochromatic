@@ -467,6 +467,12 @@ mod fault;
 #[path = "binary_fault_run.rs"]
 mod fault_run;
 
+/// The hang guard of those runs:
+/// a command that keeps moving is left alone,
+/// and one that stops moving is ended with the words that name the silence.
+#[path = "binary_fault_run_tests.rs"]
+mod fault_run_guard;
+
 /// Signals sent to the wrapper alone and to its process group.
 #[path = "binary_fault_signal_tests.rs"]
 mod fault_signal;
