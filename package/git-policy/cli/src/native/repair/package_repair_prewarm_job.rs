@@ -435,7 +435,8 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
 ///
 /// # Errors
 ///
-/// A directory that cannot be made, which fills nothing and says why.
+/// A directory that cannot be made,
+/// which fills nothing and says why.
 fn make_the_destinations_own_directory(entry: &PrewarmEntry) -> Result<(), String> {
     let Some(parent) = entry.to.parent() else { return Ok(()) };
     return match std::fs::create_dir_all(parent) {
