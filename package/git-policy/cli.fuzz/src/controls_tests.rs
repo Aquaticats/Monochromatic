@@ -383,15 +383,24 @@ fn generated_arguments_reach_every_frontier_ending() {
         // A stash drop rejects while the repository holds a stash.
         (vec!["stash", "drop"], 1 | 64, FrontierSeen::Rejected),
         (vec!["stash", "drop"], 1, FrontierSeen::Forwarded),
-        // A clean carrying its own exclusion rejects when Git would delete something.
+        // A clean carrying its own exclusion rejects while only that pattern calls a path ignored, because that
+        //  path is an untracked file the clean would lose.
         (
             vec!["clean", "-X", "-e", "keep", "."],
             1 | 128,
             FrontierSeen::Rejected,
         ),
+        // The same clean where the patterns add nothing is forwarded: an ignored file the worktree itself has is no
+        //  reason to refuse it.
         (
             vec!["clean", "-X", "-e", "keep", "."],
             1,
+            FrontierSeen::Forwarded,
+        ),
+        // And a `-X` clean that names no pattern asks nothing at all.
+        (
+            vec!["clean", "-X", "."],
+            1 | 128,
             FrontierSeen::Forwarded,
         ),
     ] {
