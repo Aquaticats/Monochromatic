@@ -435,8 +435,8 @@ impl Bus {
     /// The manager's answer is the only fact that says the two agree;
     /// a command whose runtime directory the manager does not use waits for a service that answers somewhere else,
     /// and this answer names where.
-    /// A unit of the earlier releases keeps a different property (`ListenStream`),
-    /// so an answer that does not read as a list of address pairs says nothing rather than guessing.
+    /// An answer that does not read as a list of address pairs says nothing rather than guessing,
+    /// and a caller then has no proof either way.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
