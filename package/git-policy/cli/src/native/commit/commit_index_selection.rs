@@ -21,6 +21,10 @@ use crate::start_retry::RetryStart;
 use crate::transaction_journal::TransactionMode;
 /// Real-Git command builder shared with the forwarded commands.
 use crate::forwarding::git_command;
+/// Who a real-Git start runs for:
+/// the wrapper's own work,
+/// not the person's command.
+use crate::hooks_off::StartOwner;
 /// `OsString` is owned operating-system text.
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path.
@@ -115,7 +119,7 @@ pub fn prepare_interactive_selection(
         shown_words.push(argument.to_string_lossy().into_owned());
     }
     let shown: String = shown_words.join(" ");
-    let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
+    let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice(), StartOwner::Wrapper);
     command
         .current_dir(cwd)
         .env("GIT_INDEX_FILE", commit_index)

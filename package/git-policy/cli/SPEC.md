@@ -689,6 +689,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   a value from `-c` or the environment has no file,
   so the finding says to remove it there.
   The line or finding comes after the other notes and before the filesystem section.
+  It is about the person's own Git:
+  the Git the wrapper starts for its own work passes `-c core.fsmonitor=false`
+  (owner decision,
+  2026-11-10;
+  see "Real Git starts with traditional hooks off"),
+  so a scope that turns the monitor on costs the person's own commands and a forwarded command,
+  never a commit or a landing.
   The exit status never depends on it,
   and doctor never writes configuration.
   A listing that cannot be read or parsed is said plainly in place of the line.
@@ -1241,11 +1248,14 @@ as for every rung:
 using the
 command is accepting that risk,
 and no step defends against it.
-The wrapper passes no `core.fsmonitor` setting here;
+The wrapper passes no `core.fsmonitor` setting to the `git worktree add` it forwards;
 Git's fsmonitor is off in the person's global configuration
 (owner decision,
-2026-11-03;
-see "Git's own fsmonitor" in `README.md`).
+2026-11-03),
+and the Git the ladder starts for its own steps passes `-c core.fsmonitor=false`
+(owner decision,
+2026-11-10;
+see "Real Git starts with traditional hooks off" and "Git's own fsmonitor" in `README.md`).
 
 Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and,
 for a source that is a
@@ -1607,9 +1617,15 @@ Git's parallel checkout made a 20,000-file checkout faster in all three paired r
 (36.9 s to 4.5 s,
 3.1 to 2.3,
 7.2 to 1.75).
-The wrapper passes no `core.fsmonitor` setting and does not touch its daemon;
+The wrapper passes no `core.fsmonitor` setting to the add it forwards and does not touch its daemon;
 Git's fsmonitor is off in the person's global configuration (owner decision,
-2026-11-03).
+2026-11-03),
+and the ladder's own steps run with `-c core.fsmonitor=false` (owner decision,
+2026-11-10:
+asked "Should the wrapper switch fsmonitor off for its own internal Git commands only?",
+the owner chose "B:
+off for internal Git (Recommended)";
+see "Real Git starts with traditional hooks off").
 
 Telling why an add was not made as a snapshot:
 when a `git worktree add` that the ladder serves succeeds without being made as a snapshot,
@@ -7018,10 +7034,13 @@ and otherwise the wrapper says what it found and prints the command that clears 
 - Git's own file-system monitor is off in the person's global configuration,
   by the owner's decision of 2026-11-03
   (see the README section "Git's own fsmonitor";
-  `git monochromatic-git-policy-cli doctor` says so).
+  `git monochromatic-git-policy-cli doctor` says so),
+  and the Git the wrapper starts for its own work passes `-c core.fsmonitor=false`
+  (owner decision,
+  2026-11-10;
+  see "Real Git starts with traditional hooks off").
   Nothing here sets,
-  unsets,
-  pins or passes `core.fsmonitor`,
+  unsets or pins `core.fsmonitor`,
   and no tier of the judgement counts the daemon's descriptors
   or working directory as evidence of anything.
 
@@ -7788,30 +7807,47 @@ The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git
 `pre-push` included,
 so a hook
 defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
-`core.fsmonitor` is not in this prefix,
-like the programs Git starts for its own features (filters,
-editors,
-signing programs,
-credential helpers):
-the program it names is not reached by the hooks path or by any event switch
+The same prefix carries `-c core.fsmonitor=false` for the Git the wrapper starts for its own work:
+the commit's index builds and trees,
+`read-tree`,
+`diff-tree`,
+`reset`,
+the scratch commit,
+the landing and service steps,
+and its queries.
+A command the person typed is forwarded and keeps the person's setting.
+Git's own file-watching daemon registers a watch on every directory of the work tree before it answers,
+and a Git that reads the index waits for it for up to `fsmonitor.startTimeout` (60 s by default),
+so a commit step must not depend on the daemon being there or starting;
+two steps of one commit waited 60 s each for it
+(`doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`).
+A program `core.fsmonitor` names is not reached by the hooks path or by any event switch
 (measured on Git 2.56.0,
-including with `hook.fsmonitor-watchman.enabled=false`).
+including with `hook.fsmonitor-watchman.enabled=false`),
+which is why the setting itself is passed.
 Owner decisions,
 in order,
 quoted with the date each was superseded:
 "To stop the fsmonitor program - we don't need to."
 (kept the wrapper from stopping the monitor;
 superseded 2026-11-03),
-and,
-on 2026-11-03,
 "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
 disable git's fsmonitor globally entirely and make doctor say so."
-(recorded in `README.md`,
-"Git's own fsmonitor").
+(2026-11-03;
+recorded in `README.md`,
+"Git's own fsmonitor"),
+and,
+asked "Should the wrapper switch fsmonitor off for its own internal Git commands only?",
+"B:
+off for internal Git (Recommended)"
+(2026-11-10;
+`doc/handover/questions-for-the-owner.md`,
+"The wrapper's own Git and fsmonitor";
+this amends the decision of 2026-11-03,
+which stands for the person's own Git).
 So the setting is off in the person's global configuration,
 `git monochromatic-git-policy-cli doctor` says so,
-and the wrapper still neither
-passes `-c core.fsmonitor=...` to a child nor starts or stops a monitor daemon.
+and the wrapper still neither starts nor stops a monitor daemon.
 The wrapper injects no hook of its own,
 so no event is an exception.
 
@@ -7834,7 +7870,7 @@ so no event is an exception.
   so the command inside it runs with the options Git gives that shell and not with these.
 - `git config` starts that only report or change configuration go without the options,
   because they report what the
-  repository configures and the wrapper reads `core.hooksPath` that way (the commit warning,
+  repository configures and the wrapper reads `core.hooksPath` and `core.fsmonitor` that way (the commit warning,
   `doctor`).
   `git config --edit` (or `-e`) starts an editor,
   and a Git the editor starts inherits the options,
@@ -11788,10 +11824,14 @@ wrapper's,
 and stay;
 a program that is a hook event is switched off.
 `core.fsmonitor` is among them,
-and the wrapper does not set it:
+and the wrapper's own Git passes `-c core.fsmonitor=false` rather than relying on the person's setting;
+a command the person typed keeps it:
 it is off in the person's global configuration
-(owner decision,
-2026-11-03),
+(owner decisions,
+2026-11-03 and 2026-11-10,
+the later one asking "Should the wrapper switch fsmonitor off for its own internal Git commands only?"
+and answering "B:
+off for internal Git (Recommended)"),
 and `git monochromatic-git-policy-cli doctor` says so.
 `monochromatic-git-policy-cli.config.jsonc` is data:
 it has no command or executable field,
