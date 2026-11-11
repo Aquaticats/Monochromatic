@@ -25,6 +25,7 @@
 //! addedByTheWrapper(admin, worktree)                     // false when no record, or one naming another path
 //! ```
 
+use crate::hooks_path_values::{without_the_terminator, without_trailing_newlines};
 use crate::private_storage::write_private_file_unsynced;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
@@ -45,6 +46,8 @@ pub const ADDED_RECORD_NAME: &str = "monochromatic-git-policy-cli-worktree-added
 ///   The record must land beside the registration of the worktree at this path,
 ///  and a `.git` file that names a directory outside `<common>/worktrees`
 ///  is another repository's worktree or not a worktree at all.
+///  Only the trailing line breaks Git's own reader takes are taken,
+///  so a directory whose name ends in a space is the registration the pointer names.
 /// The same proof answers where a record's directory is still that worktree
 ///  (`package_repair_relink_job.rs`):
 ///  the link layout a delayed relink rewrites belongs to this repository's worktree at the recorded path,
@@ -60,7 +63,7 @@ pub(crate) fn registration_admin(common_dir: &Path, worktree: &Path) -> Result<P
         Ok(bytes) => bytes,
         Err(error) => return Err(format!("{} cannot be read as a file ({error}), so it is not a linked worktree", pointer_path.display())),
     };
-    let line: &[u8] = pointer.trim_ascii_end();
+    let line: &[u8] = without_trailing_newlines(pointer.as_slice());
     let Some(named) = line.strip_prefix(b"gitdir: ") else {
         return Err(format!("{} does not start with `gitdir: `", pointer_path.display()));
     };
@@ -131,6 +134,9 @@ pub fn record_or_log(common_dir: &Path, worktree: &Path) {
 ///  is empty,
 ///  or names another path is not this worktree's,
 ///  and is a "no" like an absent one.
+///  The record ends with the one line feed `record` writes,
+///  and the path before it is compared as bytes,
+///  so a worktree whose path ends in a space is the worktree the record names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -140,7 +146,7 @@ pub fn added_by_the_wrapper(admin: &Path, worktree: &Path) -> bool {
     let Ok(bytes) = std::fs::read(admin.join(ADDED_RECORD_NAME)) else {
         return false;
     };
-    return bytes.trim_ascii_end() == worktree.as_os_str().as_bytes();
+    return without_the_terminator(bytes.as_slice()) == worktree.as_os_str().as_bytes();
 }
 
 /// The records of the worktrees a wrapper made stay out of the release executable's tests.

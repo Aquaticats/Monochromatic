@@ -203,6 +203,46 @@ fn the_common_directory_of_a_repository_whose_name_is_not_text_is_gits() {
 }
 
 /// What:
+///  The common directory of a repository whose directory name ends in a space is the directory Git named.
+/// Why:
+///   Every ASCII whitespace byte was taken from the answer,
+///  so the space that belongs to the name went with the terminator,
+/// and the record was written below a directory that is not the repository's,
+///  where the repository's own service never reads it.
+#[test]
+fn the_common_directory_of_a_repository_whose_name_ends_in_a_space_is_gits() {
+    let root: PathBuf = fixture("prewarm-common-trailing-space");
+    let repo: PathBuf = root.join("repository");
+    let administered: PathBuf = root.join("admin ");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(
+        root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            "--separate-git-dir",
+            administered.to_str().expect("a UTF-8 fixture path"),
+            repo.to_str().expect("a UTF-8 fixture path"),
+        ],
+    );
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let linked: PathBuf = root.join("linked");
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", linked.to_str().expect("a UTF-8 fixture path")],
+    );
+    let context = git_context();
+    let named: PathBuf = crate::lazy_runtime::run_on_runtime(async {
+        return common_directory_awaiting(&context, linked.as_path()).await;
+    })
+    .expect("the runtime")
+    .expect("Git names the common directory");
+    assert_eq!(named, std::fs::canonicalize(administered.as_path()).expect("the directory Git made"));
+    remove(root.as_path());
+}
+
+/// What:
 ///  The names of the records a state directory holds,
 /// in the order they sort,
 /// so a control reads what the queue took without knowing an id.

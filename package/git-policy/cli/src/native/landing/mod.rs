@@ -64,6 +64,10 @@ pub mod service_messages;
 /// because the address cannot exist or the manager made the service listen elsewhere.
 pub mod service_messages_of_a_start_that_cannot_come;
 
+/// What a commit says while it waits for the service,
+/// and that the service is restarted or the commit built again.
+pub mod service_messages_of_a_wait_for_the_service;
+
 /// The commit service's serialized step.
 pub mod service_land;
 
@@ -384,6 +388,11 @@ pub mod service_work_storage_awaited;
 /// The drains of one directory and of a common directory,
 /// awaited by a task of the runtime.
 pub mod service_work_drains_awaiting;
+
+/// The service's work that can take minutes:
+/// a lane of its own,
+/// beside the round that serves the person's pushes.
+pub mod service_work_slow_lane;
 
 /// Runs one round of the service's work over several directories.
 pub mod service_work_run_round;

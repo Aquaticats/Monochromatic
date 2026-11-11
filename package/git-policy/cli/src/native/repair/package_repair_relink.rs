@@ -27,7 +27,8 @@
 
 use crate::diagnostic_log::debug;
 use crate::iso_time::now_iso;
-use crate::service_client::{START_WAIT, wake};
+use crate::service_client::wake;
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
 use crate::service_messages::{ClientFailure, render};
 use crate::service_provision::provision;
@@ -298,7 +299,7 @@ pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Re
 /// handOverToTheService({ context, commonDir, destination, entry });
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<(), String> {
-    return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: START_WAIT });
+    return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
 /// What:
@@ -368,21 +369,26 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
 
 /// What:
 ///  Tell the service at `address` that the repository has work to drain,
-///  waiting `start_wait` for it to answer.
+///  waiting `start_wait` for its greeting and no longer than that for a start.
 /// Why:
 ///   The wake's lines are not the add's:
 /// it says once what became of the relinking,
 /// so the client's output is dropped here,
 /// and the wait is the reach's,
 /// which a control sets short enough that a service which never answers cannot hold it.
+/// The record is written before this wake,
+/// so the bound is the hand-over's own greeting wait and never the commit's start wait:
+/// a greeting that does not come within it means this command does the relinking itself
+/// (`wait_ceilings.rs`,
+/// `HAND_OVER_GREETING_WAIT`),
+/// and the ceiling moves with it so no other bound lengthens the wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const wakeTheService = (address, host, commonDir, startWait) => { const config = managedClientConfig(address, host); config.startWait = startWait; wake(config, commonDir, undefined, silent) };
+/// const wakeTheService = (address, host, commonDir, startWait) => { const config = { ...managedClientConfig(address, host), startWait, startCeiling: startWait }; wake(config, commonDir, undefined, silent) };
 /// ```
 fn wake_the_service(address: Bind, host: Option<&crate::service_provision::ProvisionHost>, common_dir: &Path, start_wait: std::time::Duration) -> Result<(), String> {
-    let mut config: ClientConfig = managed_client_config(address, host);
-    config.start_wait = start_wait;
+    let config: ClientConfig = ClientConfig { start_wait, start_ceiling: start_wait, ..managed_client_config(address, host) };
     let mut silent: std::io::Sink = std::io::sink();
     return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
 }

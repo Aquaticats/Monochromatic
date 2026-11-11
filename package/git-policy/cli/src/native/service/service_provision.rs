@@ -393,15 +393,18 @@ fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager)
 /// Provisions through the session bus,
 /// unless the units and the socket are already in place.
 pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
+    // What: An address no socket can carry ends the provision before the fast path reads anything.
+    // Why:  An installation that looks current can stand behind a spelling the file system still walks and no connect can
+    //       carry, because a socket name is copied into the address as written; the fast path would then return as
+    //       provisioned and the commit would spend the start ceiling and the reload's second one connecting to an address
+    //       the kernel refuses, and end with "The commit service did not start" and nothing about the setting that made it
+    //       (`service_provision_refusals_before_the_wait.rs`).
+    refuse_a_path_no_socket_address_can_carry(host)?;
     if in_place(host) {
         // Units set up before this release have no note of their worktree yet.
         note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
         return Ok(());
     }
-    // What: An address no socket can carry is refused before the bus is even reached for.
-    // Why:  The manager is the one that would fail to bind it, and a bus that cannot be reached would otherwise answer
-    //       first with a remedy about user services, which says nothing about the runtime directory that is too long.
-    refuse_a_path_no_socket_address_can_carry(host)?;
     let mut bus: Bus = match Bus::connect(host.bus.as_path(), EXCHANGE_WAIT) {
         Ok(connected) => connected,
         Err(_refused) => return Err(ClientFailure::NoActivation(platform_without_manager())),

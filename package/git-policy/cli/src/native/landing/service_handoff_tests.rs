@@ -254,6 +254,28 @@ fn the_verdict_a_commit_records_flushes_nothing() {
     remove(root.as_path());
 }
 
+/// What:
+///  Age one pending record to `when`,
+///  so a control decides what the bound has already passed instead of waiting for it.
+/// Why:
+///   The queued-push line is decided by the record's own modification time against the instant the command reads,
+///  and the control this serves once simulated the wait with an instant one second past the bound:
+///  a record written more than that second after the instant was captured was then younger than the bound and counted as
+///  a push in flight,
+///  which failed the control whenever this host took longer than a second to write it
+///  (measured on 2026-11-11:
+///  two seconds of added delay between the capture and the second record reproduced the failure of
+///  `a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited` exactly).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// utimes(pendingRecordOf(item), when)
+/// ```
+fn age_the_pending_record(work: &std::path::Path, item: &WorkItem, when: std::time::SystemTime) {
+    let pending: std::path::PathBuf = state_directory(work, PENDING).join(item.id());
+    std::fs::File::options().write(true).open(pending.as_path()).expect("the pending record").set_modified(when).expect("the record is aged");
+}
+
 /// A push record the wrapper promoted and no service has taken says the push is queued,
 /// and one that has just been queued is a push in flight.
 #[test]
@@ -268,7 +290,10 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
         queued_push_notices(handoff.git_dir.as_path(), now).is_empty(),
         "a record younger than the bound is a push in flight, and nothing is said about it"
     );
+    // The wait the bound names is put on the record itself, so no load between the capture and the write can make a record this
+    //  control queued look fresher than the instant it asks about.
     let waited: std::time::SystemTime = now + PUSH_QUEUED_AFTER + Duration::from_secs(1);
+    age_the_pending_record(work.as_path(), &item, now - Duration::from_secs(1));
     let said: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
     assert_eq!(said.len(), 1, "one line: {said:?}");
     assert!(said[0].contains(OID), "the line names the commit: {}", said[0]);
@@ -278,6 +303,7 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
     // A second waiting push is counted rather than named: the list of a container's unserved commits has no end.
     let second: WorkItem = push_item(&handoff, PARENT);
     crate::work_item::enqueue(work.as_path(), &second).expect("a second push record is queued");
+    age_the_pending_record(work.as_path(), &second, now);
     let more: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
     assert_eq!(more.len(), 2, "the oldest is named and the rest counted: {more:?}");
     assert_eq!(more[0], said[0], "the oldest keeps its line");
@@ -526,5 +552,45 @@ fn a_retry_that_finishes_the_commit_takes_the_first_try_s_hold_over() {
     assert_eq!(holding.holder, crate::held_push_holder_and_verdict::this_command(), "and named itself as the command that decided: {after}");
     let written: WorkItem = WorkItem::decode(after.as_str()).expect("the item the record states");
     assert_eq!(written.id(), item.id(), "the record is the first try's own, not a second one");
+    remove(root.as_path());
+}
+
+/// What:
+///  A gate whose verdict record cannot be written keeps the held record,
+///  and the refusal is still read from it.
+/// Why:
+///   The verdict is written into the held record before the verdict record is made,
+/// so a verdict record that cannot be written leaves a record that still says the gate refused the commit;
+/// forgetting that record would leave neither,
+///  and the next push of the branch would publish the commit the gate refused
+///  (a review of `ee545033ad`,
+/// finding 2).
+#[test]
+#[cfg(unix)]
+fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: std::path::PathBuf = fixture("handoff-blocked-verdict-not-written");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let item: WorkItem = push_item(&handoff, OID);
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
+    std::fs::create_dir_all(held.parent().expect("the held directory")).expect("the held directory");
+    std::fs::write(held.as_path(), item.encode()).expect("the held record the gate's command left");
+    // The verdict record cannot be written: its directory refuses every new name.
+    let blocked: std::path::PathBuf = state_directory(work.as_path(), "blocked");
+    std::fs::create_dir_all(blocked.as_path()).expect("the blocked directory");
+    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory no name can be made in");
+    forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
+    assert!(held.exists(), "the held record stays: it is the only statement of the refusal");
+    assert_eq!(
+        crate::work_item_holding::blocked_verdicts(work.as_path()),
+        vec![crate::work_item_holding::BlockedVerdict {
+            branch_ref: String::from("refs/heads/main"),
+            commit: String::from(OID),
+            reason: String::from("final-newline: the file does not end with a newline"),
+        }],
+        "the refusal the record still states is what the next push of the branch stops before"
+    );
+    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o700)).expect("writable again");
     remove(root.as_path());
 }

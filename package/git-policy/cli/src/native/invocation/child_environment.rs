@@ -458,6 +458,31 @@ pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
 }
 
 /// What:
+///  Whether a list of variables turns prompting off for a Git or git-lfs child,
+/// by carrying the never-prompt pair.
+/// Why:
+///   The explanation after an upload needed a login says what the wrapper did about prompting,
+/// and this reads that answer from the pair
+///  itself instead of asking `/dev/tty` again:
+/// the pair is exactly what the child was given,
+/// and a child's own answer can differ from the caller's.
+///  The service's overlay always carries it;
+/// a command typed at a terminal does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const promptingDisabled = (variables) => variables.some(([name, value]) => name === 'GIT_ASKPASS' && value === '')
+///   && variables.some(([name, value]) => name === 'GIT_TERMINAL_PROMPT' && value === '0');
+/// ```
+pub fn prompting_disabled(variables: &[(OsString, OsString)]) -> bool {
+    let askpass: Option<OsString> = environment_value(variables, ASKPASS_VARIABLE);
+    let terminal: Option<OsString> = environment_value(variables, TERMINAL_PROMPT_VARIABLE);
+    let askpass_stops: bool = askpass.as_deref().is_some_and(OsStr::is_empty);
+    let terminal_stops: bool = terminal.as_deref() == Some(OsStr::new("0"));
+    return askpass_stops && terminal_stops;
+}
+
+/// What:
 ///  Every variable the commit service adds for the Git and git-lfs children it starts on its own,
 /// with no person at a
 ///  terminal:
