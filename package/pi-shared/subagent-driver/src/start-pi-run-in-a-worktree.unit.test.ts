@@ -46,8 +46,8 @@ const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promis
 const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFile,);
 
 /**
- Seconds the launcher may take before the test calls it a launch that never ended. A refusal is a few process starts; a launcher
- that went on to a unit would be past this.
+ Seconds the launcher may take before the test calls it a launch that never ended. A refusal is a few process starts; this only
+ keeps one that hangs from holding the test.
  */
 const PATIENCE_SECONDS = 60;
 
