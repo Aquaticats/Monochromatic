@@ -351,6 +351,13 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
             // A closed terminal is not a reason to stop the command the person asked for.
             let _written = writeln!(std::io::stderr(), "{problem}");
         }
+        // A commit a reference lock holds in a linked worktree is held by that worktree's own Git directory and by a
+        //  per-worktree reference, both of which the removal deletes; it is kept where a removal cannot reach it, and the person
+        //  is told, before Git runs (`worktree_removal_held_commits.rs`).
+        let context: GitContext = checks.facts.transaction_context();
+        for said in crate::worktree_removal_held_commits::keep_held_commits(common_dir.as_path(), &context) {
+            let _written = writeln!(std::io::stderr(), "{}: {said}", crate::wrapper_names_old_and_new::PROGRAM.current);
+        }
     }
 }
 
