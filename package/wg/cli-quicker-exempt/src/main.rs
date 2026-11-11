@@ -43,6 +43,8 @@ mod scope_adoption;
 mod adoption_gate;
 /// Which socket marks stay attached after one scan.
 mod application_marks;
+/// The applications a cgroup name claims and the programs that prove one is there.
+mod desktop_applications;
 /// When one pass of the policy may spend another move.
 mod pass_gate;
 /// Builds the arguments of the calls to the user's service manager.

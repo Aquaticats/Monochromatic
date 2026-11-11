@@ -1,7 +1,9 @@
 //! Verifies named application cgroups plus exact browser and agent process-to-cgroup discovery.
 
-/// Discovery functions and injectable roots.
-use crate::application_targets::{
+/// The applications a name claims.
+use crate::desktop_applications::{
+    desktop_application_of_name,
+    is_application_executable,
     is_chatgpt_service_name,
     is_firefox_nightly_service_name,
     is_firefox_release_service_name,
@@ -9,14 +11,15 @@ use crate::application_targets::{
     is_helium_service_name,
     is_interpreter_service_name,
     is_odytty_service_name,
-    is_pi_service_name,
     is_qure_service_name,
+    DesktopApplication,
+};
+/// Discovery functions and injectable roots.
+use crate::application_targets::{
+    is_pi_service_name,
     is_in_updates_slice,
     is_unconditionally_marked_cgroup,
     is_toolchain_updates_slice_name,
-    desktop_application_of_name,
-    is_application_executable,
-    DesktopApplication,
     scan_application_targets,
     ScanRoots,
     TOOLCHAIN_UPDATES_SLICE,
