@@ -4072,7 +4072,8 @@ which is the load there was and not one this measurement made.
 
 Seconds are the wrapper's own record of the commit that ended each arm,
 `conclusion` is `buildParts["shadow conclusion"]`,
-and the arms are listed in the order they ran:
+and the arms are listed in the order they ran,
+the first pair on 2026-11-10T23:33:20Z and the rest on 2026-11-10T23:47:12Z:
 
 - `b1`, merge, `before`: commit 91,245 ms,
   conclusion 84,692 ms,
@@ -4081,10 +4082,10 @@ and the arms are listed in the order they ran:
   two parents,
   one attempt,
   `landed`.
-- `e2`, plain, `before`: commit 1,280 ms,
+- `b2`, plain, `before`: commit 1,952 ms,
   conclusion 0 ms,
-  build 3 ms,
-  submit 712 ms,
+  build 4 ms,
+  submit 1,259 ms,
   one parent,
   `landed`.
 - `e1`, merge, `before`: commit 12,885 ms,
@@ -4092,6 +4093,12 @@ and the arms are listed in the order they ran:
   build 10,729 ms,
   submit 1,060 ms,
   two parents,
+  `landed`.
+- `e2`, plain, `before`: commit 1,280 ms,
+  conclusion 0 ms,
+  build 3 ms,
+  submit 712 ms,
+  one parent,
   `landed`.
 - `f1`, merge, `after`: commit 6,319 ms,
   conclusion 0 ms,
@@ -4125,12 +4132,6 @@ and the arms are listed in the order they ran:
   conclusion 0 ms,
   build 3 ms,
   submit 4,163 ms,
-  one parent,
-  `landed`.
-- `b2`, plain, `before`: commit 1,952 ms,
-  conclusion 0 ms,
-  build 4 ms,
-  submit 1,259 ms,
   one parent,
   `landed`.
 
