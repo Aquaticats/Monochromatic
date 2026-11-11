@@ -275,6 +275,116 @@ no pass ever removes `monochromatic-git-policy-cli-displaced-locks`,
 so a worktree repaired many times keeps one small copy per clean that displaced a lock.
 The copies are inside the Git directory,
 so they never make the worktree dirty and never appear in `git status`.
+### The dependent listing reads the repository the command line named (2026-11-11T03:22:56-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-dependent-bump-with-explicit-git-dir`,
+from the jam-fix integration at `ee545033ad`.
+Kimi K3.1 Pro's review of `5686c7bb29` reported one finding
+(`~/temp/agent/kimi-reviews/dependent-bump-with-explicit-git-dir-round-133/review.md`);
+it reproduced here and is fixed in `b72d8e5914`,
+with the control committed first in `205e1b184e`.
+The requirement behind it is the owner's recorded decision,
+"A cli-git commit policy bumps dependents by patch,
+transitively,
+in the same commit as a hand bump"
+(`doc/decision/private-npm-registry.md:158-160`),
+beside "Commits should never fail."
+
+The claim:
+`real_index_entries` runs in the worktree top the invocation's location names,
+but built its repository selection with `repository_selection::from_global_options`,
+whose `directory` argument must be the directory the command runs in,
+before any `-C`
+(`policy_added_path.rs`,
+the call at line 391 of `5686c7bb29`).
+A person's `git -C wt --git-dir=../cfg.git --work-tree=. commit ...`
+therefore had that chain read again from `wt`,
+asked Git for `<top>/wt/../cfg.git`,
+and the listing failed.
+
+Reproduced with the review's script,
+adapted into
+`~/temp/agent/kimi-findings-133-dependent-bump-2/relative_directory_change_selects_wrong_repository.ts`
+and run in a throwaway `HOME` and `XDG_RUNTIME_DIR`,
+once against a wrapper built from this branch's base and again against the fixed one.
+Its own control arm commits the same fixture without `-C`:
+
+```text
+control-without-directory-change: exit 0, `@s/a` 1.1.0, `@s/b` 2.0.1, changed paths b and c, passed: true
+test-with-directory-change:      exit 0, `@s/a` 1.1.0, `@s/b` 2.0.0, passed: false
+  engine-failure, policy-incomplete: "the real index could not be listed (git ls-files ... failed: fatal: not
+  a git repository: '<fixture>/holder/wt/wt/../cfg.git')"
+```
+
+The commit still exited 0 and kept the person's bytes,
+so this is a missing dependent bump rather than data loss.
+After the fix the same script prints `passed: true` for both arms,
+with `@s/b` 2.0.1 and `@s/c` 3.0.1 in the committed tree and in the worktree,
+and no failed-listing note.
+The script's teardown was corrected on the way:
+it now registers the service's `exit` listener before the kill,
+and allows 30 seconds rather than 5,
+because the first bound once expired with every assertion already passed on a busy disk,
+and a service that ended in the moment between the check and the kill was waited for until the bound.
+
+The fix:
+`real_index_entries` takes the invocation's `RepositoryLocation` instead of the worktree top plus the caller's
+options,
+and names the repository with the new `repository_selection::of_identity`,
+which reads the Git directory and the work tree Git resolved once.
+A plain `<worktree>/.git` layout is still named by nothing,
+a Git directory beside its work tree is still named,
+and a bare repository is named by nothing,
+`of_paths` deciding all three.
+A location with no work tree,
+which only a bare repository has,
+is refused with the reason instead of answered as an index that holds nothing.
+`SPEC.md` "Added paths" records that the listing names the located repository,
+and that reading the caller's options again from a discovered directory moves Git twice.
+
+Controls:
+`repository_naming_commit::a_moved_named_commit_carries_the_dependents_of_a_hand_bump`,
+the binary control with the same fixture and the same command line as the script above,
+which failed on `205e1b184e` with
+
+```text
+assertion `left == right` failed: the clean dependent's bump lands in the same commit:
+  left: { "@s/b", "2.0.0" }
+ right: { "@s/b", "2.0.1" }
+```
+
+and passes with the fix;
+`invocation::repository_selection::tests::a_location_names_the_repository_git_resolved`
+for the plain,
+beside and linked layouts,
+and for the bare repository;
+`dependent_version::policy_added_path::tests::a_location_without_a_work_tree_is_refused`
+for the refusal;
+and the renamed
+`the_real_index_is_listed_in_the_repository_the_command_line_named`,
+whose fixture spells the caller's chain `-C wt --git-dir=../cfg.git --work-tree=.`.
+
+Cost:
+no Git start is added or removed,
+and the selection is derived from an answer the commit path already asks for,
+so the listing's child command line keeps its shape with absolute paths.
+
+Not fixed here,
+the same class sits at another site:
+`landing/service_replay.rs:458` (at `b72d8e5914`) still builds the word pass's repository with
+`from_global_options(top.as_path(), ...)`,
+where `top` is the worktree top Git printed,
+so a landing whose command line names the repository with relative options under a relative `-C`
+would name `<top>/wt/../cfg.git` as well.
+Its effect is bounded:
+the second pass then starts its Git against no repository and reports the file as a conflict,
+which the person resolves,
+so nothing is lost and no commit fails,
+but the word-level merge the pass exists for does not run.
+The selection computed at `service_replay.rs:449` is already absolute and independent of the directory,
+so reusing it at line 458 is the fix;
+it wants a control that reaches the word pass in a `<holder>/cfg.git` beside `<holder>/wt` fixture,
+which this branch did not build.
 
 ### A Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`: three findings, all reproduced and fixed (2026-11-10T19:04:54-05:00)
 
