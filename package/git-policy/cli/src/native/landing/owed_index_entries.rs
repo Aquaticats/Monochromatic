@@ -262,7 +262,6 @@ pub(crate) fn tree_entries(git: &GitContext, repository: &Path, old: &str, names
 /// # Errors
 ///
 /// As `tree_entries`.
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the commit path calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
 pub(crate) async fn tree_entries_awaiting(git: &GitContext, repository: &Path, old: &str, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     if names.is_empty() || is_zero_object(old) {
         return Ok(BTreeMap::new());
@@ -307,7 +306,6 @@ pub(crate) fn index_entries(git: &GitContext, repository: &Path, index: &Path, n
 /// # Errors
 ///
 /// As `index_entries`.
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the commit path calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
 pub(crate) async fn index_entries_awaiting(git: &GitContext, repository: &Path, index: &Path, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     if names.is_empty() {
         return Ok(BTreeMap::new());
@@ -368,7 +366,6 @@ pub(crate) fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -
 /// # Errors
 ///
 /// As `whole_listing`.
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the commit path calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
 pub(crate) async fn whole_listing_awaiting(git: &GitContext, repository: &Path, index: &Path) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     let output = answered(run_git_awaiting(git, &whole_listing_request(repository, index)).await)?;
     return Ok(index_entries_of(output.stdout.as_slice()));
@@ -439,7 +436,6 @@ pub(crate) fn head_entries(git: &GitContext, repository: &Path, paths: &[Vec<u8>
 /// # Errors
 ///
 /// As `head_entries`.
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the commit path calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
 pub(crate) async fn head_entries_awaiting(git: &GitContext, repository: &Path, paths: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     if unborn_answered(run_git_awaiting(git, &unborn_request(repository)).await)? {
         return Ok(BTreeMap::new());
@@ -503,7 +499,6 @@ pub(crate) fn moved_since_listing(git: &GitContext, repository: &Path, live_inde
 /// # Errors
 ///
 /// As `moved_since_listing`.
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the commit path calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
 pub(crate) async fn moved_since_listing_awaiting(git: &GitContext, repository: &Path, live_index: &Path, commit_index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
     let live: BTreeMap<Vec<u8>, Entry> = whole_listing_awaiting(git, repository, live_index).await?;
     let held: BTreeMap<Vec<u8>, Entry> = whole_listing_awaiting(git, repository, commit_index).await?;

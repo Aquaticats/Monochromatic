@@ -36,6 +36,7 @@ use crate::commit_index_stat_staleness::WorktreeStaging;
 pub use crate::service_land_copy::PrivateCopy;
 use crate::service_protocol::{Cleanup, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
 use std::path::Path;
@@ -97,6 +98,26 @@ fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Ve
     };
 }
 
+/// `run` with its Git child awaited on the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runAwaiting(git, repository, arguments, input, index): Promise<GitOutput>;
+/// ```
+///
+/// # Errors
+///
+/// As `run`.
+async fn run_awaiting(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> Result<GitOutput, FailureCode> {
+    let mut request: GitRequest = GitRequest::new(repository, arguments).own_pathspecs();
+    request.input = input;
+    request.index = index.map(Path::to_path_buf);
+    return match run_git_awaiting(git, &request).await {
+        Ok(output) => Ok(output),
+        Err(_unstartable) => Err(FailureCode::Unavailable),
+    };
+}
+
 /// The failure a Git step that did not succeed stands for.
 pub fn classify(output: &GitOutput) -> FailureCode {
     let text: String = output.error_text().to_lowercase();
@@ -125,6 +146,47 @@ fn literal(path: &[u8]) -> Vec<u8> {
 /// The names (bytes,
 /// NUL-separated) of the paths that differ between `old` and `new`.
 pub(crate) fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
+    let arguments: Vec<&str> = derived_name_arguments(old, new);
+    let output: GitOutput = run(git, repository, arguments.as_slice(), None, None)?;
+    return names_answered(output);
+}
+
+/// What:
+///  `derived_names` with its Git child awaited on the runtime.
+/// Why:
+///   The repair of what a landed batch owes reads the paths it must not record,
+/// and a task of the runtime cannot enter it
+///  to wait for that child.
+/// The arguments and the reading of Git's answer are the synchronous face's,
+/// pinned by
+///  `the_awaited_repair_answers_what_the_synchronous_one_answers`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await derivedNamesAwaiting(git, repository, old, new)
+/// ```
+///
+/// # Errors
+///
+/// As `derived_names`.
+pub(crate) async fn derived_names_awaiting(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
+    let arguments: Vec<&str> = derived_name_arguments(old, new);
+    let output: GitOutput = run_awaiting(git, repository, arguments.as_slice(), None, None).await?;
+    return names_answered(output);
+}
+
+/// What:
+///  The arguments of the question `derived_names` asks:
+///  every path that differs between `old` and `new`.
+/// Why:
+///  Both faces ask the one question,
+/// so a branch that did not exist yet is walked as a root commit by the two of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const arguments = ['diff-tree', '-r', '--name-only', '-z', '--no-renames', ...(unborn ? ['--root', new] : [old, new])];
+/// ```
+fn derived_name_arguments<'a>(old: &'a str, new: &'a str) -> Vec<&'a str> {
     let mut arguments: Vec<&str> = vec!["diff-tree", "-r", "--name-only", "-z", "--no-renames"];
     if is_zero_object(old) {
         // A branch that did not exist: the commit is a root commit, and `--root` lists everything it holds.
@@ -134,7 +196,25 @@ pub(crate) fn derived_names(git: &GitContext, repository: &Path, old: &str, new:
         arguments.push(old);
         arguments.push(new);
     }
-    let output: GitOutput = run(git, repository, &arguments, None, None)?;
+    return arguments;
+}
+
+/// What:
+///  The names Git's answer to `derived_name_arguments` holds.
+/// Why:
+///  Both faces read the answer through this one function,
+/// so a listing Git wrote and a step it refused are the same
+///  answer for the two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function namesAnswered(output: GitOutput): Uint8Array; // throws classify(output)
+/// ```
+///
+/// # Errors
+///
+/// The failure code of the `diff-tree` that was refused.
+fn names_answered(output: GitOutput) -> Result<Vec<u8>, FailureCode> {
     if !output.succeeded() {
         return Err(classify(&output));
     }
@@ -250,6 +330,78 @@ pub fn reset_entries(git: &GitContext, repository: &Path, index: Option<&Path>, 
         return Ok(());
     }
     return reset_once(git, repository, new, IndexPaths::Named(names), index);
+}
+
+/// What:
+///  `reset_entries` with its Git child awaited on the runtime.
+/// Why:
+///   The repair of what a landed batch owes sets its paths to the head,
+/// and a task of the runtime cannot enter it to
+///  wait for that child;
+/// the arguments and the words of a refused step are the synchronous face's
+///  (`reset_once_awaiting` reads them through the same `pathspec_input` and `classify`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await resetEntriesAwaiting(git, repository, index, newCommit, names)
+/// ```
+///
+/// # Errors
+///
+/// As `reset_entries`.
+pub async fn reset_entries_awaiting(git: &GitContext, repository: &Path, index: Option<&Path>, new: &str, names: &[Vec<u8>]) -> Result<(), FailureCode> {
+    if names.is_empty() {
+        return Ok(());
+    }
+    return reset_once_awaiting(git, repository, new, IndexPaths::Named(names), index).await;
+}
+
+/// `reset_once` with its Git child awaited on the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await resetOnceAwaiting(git, repository, new, paths, index)
+/// ```
+///
+/// # Errors
+///
+/// As `reset_once`.
+async fn reset_once_awaiting(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<(), FailureCode> {
+    let output: GitOutput = match paths {
+        IndexPaths::Listed(listed) => {
+            let specs: Vec<String> = listed.iter().map(top_literal_spec).collect();
+            let mut arguments: Vec<&str> = vec!["reset", "--no-refresh", new, "--"];
+            arguments.extend(specs.iter().map(String::as_str));
+            run_awaiting(git, repository, arguments.as_slice(), None, index).await?
+        }
+        IndexPaths::Named(names) => {
+            // Each name followed by a NUL, as `--pathspec-file-nul` reads them.
+            let mut joined: Vec<u8> = Vec::new();
+            for name in names.iter() {
+                joined.extend(name.iter().copied());
+                joined.push(0);
+            }
+            let input: Vec<u8> = pathspec_input(joined.as_slice());
+            if input.is_empty() {
+                return Ok(());
+            }
+            run_awaiting(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index).await?
+        }
+        IndexPaths::Derived { old } => {
+            let input: Vec<u8> = pathspec_input(derived_names_awaiting(git, repository, old, new).await?.as_slice());
+            if input.is_empty() {
+                return Ok(());
+            }
+            run_awaiting(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index).await?
+        }
+    };
+    if !output.succeeded() {
+        return Err(classify(&output));
+    }
+    // The `reset` carries no `-q`: its list of paths left changed in the worktree ("Unstaged changes after reset:") is kept
+    //  in the service's log.
+    record_words(&["reset", "<commit>", "--", "<paths>"], &output);
+    return Ok(());
 }
 
 /// What:

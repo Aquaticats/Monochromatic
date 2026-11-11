@@ -488,6 +488,27 @@ pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 ///  gives serves better.
 pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest a storage step of the commit's own repair, replay or settlement waits:
+/// the look at the private index file a replay captured,
+/// the look and the link read of a worktree path the repair compares,
+/// the reads of a batch's record a
+///  settlement decides from,
+/// and the listing of the records of what an index owes.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and each of those steps reads a file or a
+///  directory that waits in the kernel on a disk or a mount that stopped answering,
+/// so the wait is bounded.
+///  A step that gives nothing in time is answered as one that cannot be read,
+/// which is an answer every one of them already has,
+///  so no step claims to know what it never saw.
+/// No measurement fixes the value:
+/// it is `START_CEILING`,
+/// the wait a landing's own state step is
+///  granted (`LANDING_STATE_CEILING`),
+/// because both are the same kind of read on a mount that stopped answering and a
+///  commit that outlasts it is one a person runs again.
+pub const COMMIT_OWN_STATE_CEILING: Duration = START_CEILING;
+
 /// How long one package-manager tool of a worktree repair may run before the command says which tool it waits for,
 /// where,
 /// and until when.
