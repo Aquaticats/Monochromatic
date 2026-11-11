@@ -48,12 +48,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// which decides how it folds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum KeptKind {
-    /// A log of lines;
-    /// `rotates` when it keeps numbered older copies.
-    Log {
-        /// Whether the log moves aside into `<name>.<number>` at its size limit.
-        rotates: bool,
-    },
+    /// A log of lines,
+    /// which keeps numbered older copies beside the one under the current name.
+    Log,
     /// A folder of saved copies,
     /// records or notices.
     Folder,
@@ -154,7 +151,7 @@ fn needs_fold(directory: &Path, kept: KeptName) -> bool {
     let current: bool = present(directory.join(kept.name.current).as_path());
     return match kept.kind {
         KeptKind::Folder => earlier && current,
-        KeptKind::Log { .. } => {
+        KeptKind::Log => {
             let leftovers: bool = present(directory.join(format!("{}{}", kept.name.current, crate::earlier_log_lines_added_to_current_log::WAITING_SUFFIX)).as_path())
                 || present(directory.join(format!("{}{}", kept.name.current, crate::earlier_log_lines_added_to_current_log::JOURNAL_SUFFIX)).as_path());
             (earlier && current) || leftovers
@@ -216,9 +213,9 @@ fn fold_one(directory: &Path, kept: KeptName, steps: &mut dyn FoldSteps) -> Outc
             Ok(FolderFold::Stopped(step)) => return Outcome::Stopped(step),
             Err(error) => return Outcome::Failed(error.to_string()),
         },
-        KeptKind::Log { rotates } => {
+        KeptKind::Log => {
             let folded: Result<LogFold, std::io::Error> = fold_log(directory, kept.name, steps);
-            let copies: std::io::Result<()> = if rotates { keep_numbered_copies(directory, kept.name) } else { Ok(()) };
+            let copies: std::io::Result<()> = keep_numbered_copies(directory, kept.name);
             return match (folded, copies) {
                 (Err(error), _) | (_, Err(error)) => Outcome::Failed(error.to_string()),
                 (Ok(LogFold::Nothing), Ok(())) => Outcome::Nothing,

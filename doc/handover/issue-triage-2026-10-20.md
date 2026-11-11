@@ -50,37 +50,37 @@ no code was changed.
 Verdicts come from `doc/agent/triage-labels.md`;
 the procedure used for every issue was:
 
-1. Read the body and every comment thread;
-   never classify from the title alone.
-2. A comment recording a maintainer decision ("Triage decision:
-   ...") governs the verdict.
-3. An existing lifecycle label is kept unless the read contradicts it.
-4. Named location plus stated desired outcome with nothing left to choose means `ready-for-agent`.
-5. A choice between competing actions,
-   a policy or taste call,
-   human-only access (credentials,
-   external
-   accounts,
-   hardware,
-   upstream contact),
-   or open design points means `ready-for-human`.
-6. A missing fact only the reporter has means `needs-info`;
-   in-repo investigation work is `ready-for-agent`.
-7. Superseded,
-   already fixed,
-   or retired code means `wontfix`,
-   closed as not planned,
-   only after probing
-   the tree (grep,
-   read,
-   `git show`) for the claim;
-   unverifiable claims stay `ready-for-agent` and say so.
-8. The same defect as an issue that owns it means `duplicate`,
-   closed with the owner named.
-9. Torn between an approval and a reject verdict,
-   take `ready-for-agent`:
-   approval is reversible,
-   a wrong close is not.
+1.  Read the body and every comment thread;
+    never classify from the title alone.
+2.  A comment recording a maintainer decision ("Triage decision:
+    ...") governs the verdict.
+3.  An existing lifecycle label is kept unless the read contradicts it.
+4.  Named location plus stated desired outcome with nothing left to choose means `ready-for-agent`.
+5.  A choice between competing actions,
+    a policy or taste call,
+    human-only access (credentials,
+    external
+    accounts,
+    hardware,
+    upstream contact),
+    or open design points means `ready-for-human`.
+6.  A missing fact only the reporter has means `needs-info`;
+    in-repo investigation work is `ready-for-agent`.
+7.  Superseded,
+    already fixed,
+    or retired code means `wontfix`,
+    closed as not planned,
+    only after probing
+    the tree (grep,
+    read,
+    `git show`) for the claim;
+    unverifiable claims stay `ready-for-agent` and say so.
+8.  The same defect as an issue that owns it means `duplicate`,
+    closed with the owner named.
+9.  Torn between an approval and a reject verdict,
+    take `ready-for-agent`:
+    approval is reversible,
+    a wrong close is not.
 
 Hard rules:
 `needs-triage` is removed in every outcome;

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  Run the embedding fuzzer with baked source, seeds and toolchain, retaining corpus and crash evidence.
+ Throws `ScannerVerificationError` when an option other than `--clippy` is given, or the run fails
  */
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -286,47 +287,37 @@ async function fuzzRun(fixture: Snapshot): Promise<void> {
 }
 
 /**
- Bound both the fuzz campaign and every input while leaving reproducer evidence intact.
-
- @throws ScannerVerificationError when an option other than `--clippy` is given, or the run fails
-
- @example
- ```ts
- await main();
- ```
+ Arguments after the script path.
  */
-async function main(): Promise<void> {
-  /**
-   Arguments after the script path.
-   */
-  const options = process.argv
-    .slice(2);
-  /**
-   The only accepted option, if given.
-   */
-  const [option] = options;
-  if ((options.length > 1) || ((options.length === 1) && (option !== '--clippy')))
-    throw new ScannerVerificationError('Only --clippy is accepted.');
-  /**
-   Whether to run Clippy instead of the fuzzer.
-   */
-  const clippy = option === '--clippy';
-  /**
-   The snapshot image and its evidence directory.
-   */
-  const fixture = await snapshot({
-    command: clippy ? clippyCommand : fuzzCommand,
-    name: clippy ? 'fuzz-clippy' : 'embedding-fuzz',
-    toolchain: true,
-    ...(clippy ? {} : { tool: 'cargo-fuzz' }),
-    fuzzing: true,
-  });
-  /**
-   Removal of the build context when the run ends.
-   */
-  await using removal = removalOf(fixture.context);
-  void removal;
-  await (clippy ? clippyRun(fixture) : fuzzRun(fixture));
-}
-
-await main();
+const options = process.argv
+  .slice(2);
+/**
+ The only accepted option, if given.
+ */
+const [option] = options;
+if ((options.length > 1) || ((options.length === 1) && (option !== '--clippy')))
+  throw new ScannerVerificationError('Only --clippy is accepted.');
+/**
+ Whether to run Clippy instead of the fuzzer.
+ */
+const clippy = option === '--clippy';
+/**
+ The snapshot image and its evidence directory.
+ */
+const fixture = await snapshot({
+  command: clippy ? clippyCommand : fuzzCommand,
+  name: clippy ? 'fuzz-clippy' : 'embedding-fuzz',
+  toolchain: true,
+  ...(clippy ? {} : { tool: 'cargo-fuzz' }),
+  fuzzing: true,
+});
+/**
+ Removal of the build context when the run ends.
+ */
+await using removal = removalOf(fixture.context);
+void removal;
+/**
+ The fuzzer or Clippy run, whichever the mode selects.
+ */
+const chosenRun = clippy ? clippyRun : fuzzRun;
+await chosenRun(fixture,);

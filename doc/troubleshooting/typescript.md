@@ -1367,6 +1367,35 @@ mise run //package/translation-repair/<package>:build
 mise run //package/translation-repair/<package>:lint:types   # 7 errors, 5 test files
 ```
 
+### The same staleness also fails a check that should pass
+
+Staleness cuts both ways.
+An export added to `src/` leaves the previous `index.d.mts` declaring nothing,
+ so the test files importing it fail a check whose source is correct.
+
+Observed 2026-11-10 in `package/backup-path/cli` at `6c039edb19`,
+ whose `src/index.ts` exports `backupFolderName`,
+ `backupPath` and `copyIntoBackup` since `b2d9898ae9`,
+ while the `dist/` in that checkout declared nothing:
+
+```text
+src/backup-path.unit.test.ts(30,3): error TS2305: Module '"../dist/final/node/index.mjs"' has no exported member 'backupFolderName'.
+src/backup-path.unit.test.ts(31,3): error TS2305: Module '"../dist/final/node/index.mjs"' has no exported member 'backupPath'.
+src/backup-path.unit.test.ts(32,3): error TS2305: Module '"../dist/final/node/index.mjs"' has no exported member 'copyIntoBackup'.
+```
+
+`mise run //package/backup-path/cli:build` followed by
+ `mise run //package/backup-path/cli:lint:types` exited 0,
+ and the rebuilt `index.d.mts` declared all three.
+So `TS2305` on a name the source exports is a stale bundle,
+ never a missing export:
+ read `dist/final/node/index.d.mts` before the source.
+
+A checkout holding no `dist/` at all reports the other diagnostic,
+ `TS2307: Cannot find module`,
+ so the check needs the package's build either way,
+ and reads as a regression on `main` only because the error names no artifact.
+
 ### Workaround
 
 Build before type-checking whenever a change could reach a test file:
@@ -1401,6 +1430,66 @@ build.
 The fix,
  if the ordering is judged worth enforcing rather than documenting,
  belongs in the `lint:types` task definition.
+
+## A package's unit suites import its built bundle, so a stale `dist` fails them
+
+### Symptom
+
+`mise run //package/<path>:test:unit` reports failing suites in a checkout whose
+`dist/` is older than `src/`,
+and the same command passes after `mise run //package/<path>:build` with no
+source change in between.
+Nothing in the output names the stale bundle,
+so the failure reads as a regression on `main`.
+
+Observed 2026-11-10 in `package/logger/core`:
+six of its unit files failed.
+`src/sink/record-buffer.unit.test.ts` reported
+`AssertionError: expected 1 to equal +0`
+from two assertions counting page lifecycle listeners,
+whose passing form needs the source's current rule that a buffer holds those
+listeners only while records wait.
+The `dist/` in that worktree was built 2026-11-01,
+its sources were last written 2026-11-09,
+and the same command exited 0 once `mise run //package/logger/core:build` had
+run.
+
+### Root cause
+
+These suites import the package by name:
+
+```ts
+// package/logger/core/src/sink/record-buffer.unit.test.ts
+import { _createRecordBuffer as createRecordBuffer, } from '@monochromatic-dev/logger-core';
+```
+
+Inside the package that name resolves through the workspace symlink in the root
+`node_modules` to the package's own `exports` map,
+whose `.` entry names the built bundle under the `node` condition:
+
+```sh
+# run in package/logger/core
+$ node --input-type=module -e "console.log(import.meta.resolve('@monochromatic-dev/logger-core'))"
+file:///…/package/logger/core/dist/final/node/index.mjs
+```
+
+So a suite exercises whatever `dist/` held at its last build,
+not the source beside it,
+and a stale bundle fails assertions the current source would satisfy.
+The `./ts` subpath of the same map names `./src/index.ts`
+for callers that want the source instead.
+
+### Workaround
+
+Build before running a package's suites:
+
+```sh
+mise run //package/logger/core:build
+mise run //package/logger/core:test:unit
+```
+
+Neither `test:unit` nor `lint:types` declares `build` as a dependency,
+so the ordering stays the caller's.
 
 ## `using` downlevel helpers: 2381 bytes inlined per emitted file, and a `null` `Symbol.asyncDispose` guard that diverges from the spec
 

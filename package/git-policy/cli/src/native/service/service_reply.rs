@@ -76,6 +76,23 @@ impl Reply {
     pub fn send(&self, message: &ServiceMessage) {
         let _queued = self.sender.send(message.clone());
     }
+
+    /// What:
+    ///  The channel this reply's messages go to,
+    /// for a task that must answer through the connection's one writer
+    ///  without counting as a request of its own.
+    /// Why:
+    ///   The check that decides whether a request is this instance's answers on the same connection as the landing,
+    /// and two writers would interleave their bytes;
+    /// a second `Reply` would count a request that never lands.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const channel = reply.sender();
+    /// ```
+    pub fn sender(&self) -> UnboundedSender<ServiceMessage> {
+        return self.sender.clone();
+    }
 }
 
 impl Drop for Reply {

@@ -408,19 +408,19 @@ none yet.
 Remaining work,
 in order:
 
-1. Rerun the scoped mutation over the ten files,
-   with the image tag set:
-   `systemd-run --user --unit=cli-git-capture-mut-all --collect --property=MemoryMax=12G --working-directory=<worktree> node <gate-slot> env GIT_POLICY_NATIVE_IMAGE_TAG=capture mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/commit/capture_invocation.rs --file src/native/capture_order.rs --file src/native/shadow/shadow_config.rs --file src/native/shadow/shadow_links.rs --file src/native/shadow/shadow_refs.rs --file src/native/commit/conclusion_copy.rs --file src/native/shadow/shadow_create.rs --file src/native/commit/commit_args.rs --file src/native/commit/commit_index.rs --file src/native/commit/commit_preparation.rs`
-   The unit exits with a nonzero status when any mutant survives or the campaign stops.
-2. Rerun any file whose mutants timed out,
-   once alone,
-   with the same command and only that `--file`.
-3. Justify each missed mutant with a code-based proof,
-   or add a test that catches it.
-4. Record the mutation totals (caught,
-   missed,
-   unviable,
-   timeout) and each justification in this section.
+1.  Rerun the scoped mutation over the ten files,
+    with the image tag set:
+    `systemd-run --user --unit=cli-git-capture-mut-all --collect --property=MemoryMax=12G --working-directory=<worktree> node <gate-slot> env GIT_POLICY_NATIVE_IMAGE_TAG=capture mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/commit/capture_invocation.rs --file src/native/capture_order.rs --file src/native/shadow/shadow_config.rs --file src/native/shadow/shadow_links.rs --file src/native/shadow/shadow_refs.rs --file src/native/commit/conclusion_copy.rs --file src/native/shadow/shadow_create.rs --file src/native/commit/commit_args.rs --file src/native/commit/commit_index.rs --file src/native/commit/commit_preparation.rs`
+    The unit exits with a nonzero status when any mutant survives or the campaign stops.
+2.  Rerun any file whose mutants timed out,
+    once alone,
+    with the same command and only that `--file`.
+3.  Justify each missed mutant with a code-based proof,
+    or add a test that catches it.
+4.  Record the mutation totals (caught,
+    missed,
+    unviable,
+    timeout) and each justification in this section.
 
 ## Final gate and mutation status
 

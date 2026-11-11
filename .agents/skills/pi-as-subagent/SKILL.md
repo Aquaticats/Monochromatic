@@ -56,6 +56,11 @@ and tell it to run every command and make every edit inside it:
 one agent ran its builds in the main checkout,
 so they did not test its worktree's code,
 and the uncommitted edits it left there blocked merges of other branches.
+Tell every agent that runs plain `git` in a throwaway repository to give that run
+its own `HOME` and `XDG_RUNTIME_DIR` under its run folder:
+the installed wrapper hands a repository's pushes to the commit service of the session it runs in,
+and an agent's proof repositories under `/tmp/lfs-login-proof-ikmLJW/` reached the owner's real service,
+which kept retrying their pushes every 600 seconds for hours after the agent deleted them.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
@@ -86,7 +91,68 @@ and a trial at 20 agents on 2026-11-09 met no rate-limit error.
 On going higher the owner said:
 "no,
 that's definitely going to blow up."
-Audits and reviews sit outside that limit and use another model.
+A run on another provider's account is outside it.
+The owner on 2026-11-10:
+"Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
+The owner the same day:
+"You can use -flex postfix on neuralwatt models.
+They have their own separate pool of 22 slots.
+They're around 100% slower than standard in practice."
+So `neuralwatt/deepseek-v4.1-flash-flex` is a pool of its own.
+Picking all three pools,
+standard Neuralwatt,
+flex and `opencode-go`,
+the owner wrote:
+"In practice,
+opencode-go may have worse inference quality and worse speed than neuralwatt's flex,
+so prefer neuralwatt."
+New runs fill standard Neuralwatt,
+then flex with twice the wall clock,
+then `opencode-go`.
+The owner on 2026-11-10:
+"And you should almost always keep all slots filled."
+and
+"Dozens of agents at once is normal operation."
+So count the free slots whenever a run ends or a batch finishes starting,
+and start work in them the same turn.
+That work is the Git wrapper's and nothing else unless the owner names it:
+the owner asked on 2026-11-10
+"How many times do I need to tell you to focus on the wrapper this session?",
+after free slots had been filled with other packages' issues
+(scope recorded in `doc/handover/cli-git-rust-implementation.md`).
+A tool that slows down with dozens of agents running has a defect to fix;
+the number of agents is never the explanation and never a reason to start fewer.
+Audits and reviews sit outside that limit and use other models.
+Reviews of a change run on Kimi K3.1 Pro alone,
+and long audits on Claude Sonnet and Kimi K3.1 Pro side by side:
+rules `KRV` and `LHZ` in `AGENTS.md`,
+from the owner's "Kimi alone" and "Both side by side (Recommended)"
+after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
+Kimi runs through Pi on Synthetic,
+under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
+When Synthetic answers 429,
+the run moves to Neuralwatt's Kimi flex model and resumes its session there
+(`--provider=neuralwatt --model=kimi-k3.1-pro-flex`, with the doubled wall clock flex runs get),
+under the owner's "Use neuralwatt/kimi-k3.1-pro-flex whenever Synthetic 429s." (2026-11-10).
+Those runs take no DeepSeek slots,
+because "Neuralwatt rate limits are per model." (the owner,
+2026-11-10).
+Neuralwatt's rate-limit endpoint (`https://api.neuralwatt.com/v1/rate_limits`,
+read 2026-11-10) gives `moonshotai/Kimi-K3.1-Pro` an `effective_concurrency` of 20 and lists no `-flex` model;
+the Kimi flex pool holds 22 runs of its own,
+under the owner's "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something." (2026-11-10).
+Default runs never take the Kimi pool;
+only a run that names that model does.
+Synthetic sets no limit on runs at once;
+its 429 means the quota is spent ("Synthetic doesn't have a concurrent limit. The Synthetic quota got blown once again."),
+so retrying on Synthetic fails until the quota comes back.
+The owner also wrote "Kimi K3.1 Pro has a tendency to cheat.",
+and the trial caught none,
+so rerun a finding's reproduction before believing it,
+and have its brief forbid `ps` with `args`,
+the one channel through which the trial's runs saw other runs' names.
+
+Small GPT audits also sit outside the limit.
 The owner on 2026-11-09:
 "Please use gpt-6.1-sol with the openai provider for audits and reviews.
 Those don't count within the 20 limit."
@@ -102,11 +168,7 @@ The command is rule `XVW` in `AGENTS.md`.
 The owner then limited those runs:
 "Keep GPT runs small.
 GPT models cannot be trusted on any long horizon work."
-and moved the long ones:
-"Use Claude Sonnet on long horizon reviews and audits."
-That holds in every harness,
-Pi included:
-rule `LHZ` in `AGENTS.md`.
+
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.
@@ -185,7 +247,7 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     ```sh
     # run from ~/Monochromatic
     systemd-run --user --wait --unit=pi-<task> --collect \
-      --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=10 \
+      --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=1 \
       --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" \
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
@@ -280,6 +342,34 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     fix anything wrong with further commits,
     regenerate anything `file-enforcer` owns,
     and merge a worktree's branch into `main`.
+    The owner wrote "I don't think you'd need to rerun the same lints or tests another agent did, do you?":
+    read which suites the agent's report names instead of running them again.
+    After merging `main` into the branch,
+    run only the compile or type check,
+    which is what the agent could not have run on the combined tree,
+    and skip that too when `main` was already in the branch.
+9.  Remove a run's worktree as soon as its unit has ended,
+    whether or not its branch has landed yet.
+    The owner,
+    2026-11-10:
+    "You're the coordinator and you're supposed to remove finished worktrees automatically."
+    A worktree added on btrfs is a snapshot of `main`,
+    so it keeps every file `main` held when it was taken,
+    build folders included,
+    after `main` has replaced them.
+    That day the owner found the 860 nearly full with 460 worktrees in place,
+    and one finished worktree measured 26.5 GiB,
+    48.7 MiB of it its own and 14.35 GiB shared with other subvolumes,
+    so removing one frees little and removing all finished ones frees what only they keep.
+    Remove it with the wrapper's `git worktree remove <worktree>`,
+    without `--force`,
+    which refuses a worktree holding uncommitted work.
+    The branch stays,
+    and a later run of the same name adds the worktree again from it.
+    Leave a worktree whose unit is active,
+    one a process still works in,
+    and one with uncommitted work,
+    and say which were left and why.
 
 ## Protocol
 

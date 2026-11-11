@@ -183,44 +183,45 @@ and the next actions.
 
 ## Misses and false blocks, in order
 
-1. 2026-10-21,
-   false block:
-   a task had just finished,
-   `background_tasks` lists only running tasks,
-   and the agent was
-   right to wait.
-   Fixed by the queued-notification release.
-2. 2026-10-22,
-   music-player report:
-   admitted gaps were not in the phrase list.
-   Fixed with phrases,
-   and with a fix to the quote stripper that hid text between two contractions.
-3. 2026-10-24 23:11,
-   Slint report (session `55e550ef`):
-   "I didn't try",
-   "I didn't measure",
-   "Test gap".
-   Luna released it at `work_closed` 0.48.
-   Fixed with phrases,
-   on first stops.
-4. 2026-10-25 10:31,
-   Slint stop (same session),
-   inside a chain:
-   "Say so if you want it".
-   Fixed by the parked-decision check running in a chain.
-5. 2026-10-25,
-   this repository:
-   a report ending "Veto this if you want turn history tried anyway".
-   The owner chose the narrow phrase set,
-   which has no `veto`,
-   so this exact wording is still not caught.
-6. 2026-10-29 03:10,
-   session `a45b87f9`:
-   "I haven't run a fixture ... Do you want me to?"
-   inside a chain.
-   Fixed by the three decisions of 2026-10-29,
-   in `d618de1464`;
-   the next section holds the detail.
+1.  2026-10-21,
+    false block:
+    a task had just finished,
+    `background_tasks` lists only running tasks,
+    and the agent was
+    right to wait.
+    Fixed by the queued-notification release.
+2.  2026-10-22,
+    music-player report:
+    admitted gaps were not in the phrase list.
+    Fixed with phrases,
+    and with a fix to the quote stripper that hid text between two contractions.
+3.  2026-10-24 23:11,
+    Slint report (session `55e550ef`):
+    "I didn't try",
+    "I didn't measure",
+    "Test gap".
+    Luna released it at `work_closed` 0.48.
+    Fixed with phrases,
+    on first stops.
+4.  2026-10-25 10:31,
+    Slint stop (same session),
+    inside a chain:
+    "Say so if you want it".
+    Fixed by the parked-decision check running in a chain.
+5.  2026-10-25,
+    this repository:
+    a report ending "Veto this if you want turn history tried anyway".
+    The owner chose the narrow phrase set,
+    which has no `veto`,
+    so this exact wording is still not caught.
+6.  2026-10-29 03:10,
+    session `a45b87f9`:
+    "I haven't run a fixture ... Do you want me to?"
+    inside a chain.
+    Fixed by the three decisions of 2026-10-29,
+    in `d618de1464`;
+    "The 2026-10-29 miss,
+    closed" holds the detail.
 
 ## The 2026-10-29 miss, closed
 
@@ -294,22 +295,22 @@ the 2026-10-25 wording "Veto this if you want turn history tried anyway" (item 5
 
 ## Next actions
 
-1. Watch the next few days of stops for the new rules:
-   blocks inside a chain that the owner finds wrong,
-   and misses
-   that remain.
-   Each new miss or false block goes in "Misses and false blocks" with the stop's session,
-   line and time,
-   and the
-   verdict row,
-   as the 03:10 one did.
-2. Measure the live precision of the chain rule from the verdict log once enough chain stops carry
-   `stopHookActive`,
-   and classify the 11 unclassified chain stops.
-3. Open follow-ups:
-   #1772 (calibrate the 0.60 cutoff,
-   the running-task release and the `permissionMode` and
-   `sessionCrons` skips from the verdict log),
-   #1773 (replace the mise credential fallback),
-   and #1786 (the installed
-   `pi` command lacks `cross-spawn`).
+1.  Watch the next few days of stops for the new rules:
+    blocks inside a chain that the owner finds wrong,
+    and misses
+    that remain.
+    Each new miss or false block goes in "Misses and false blocks" with the stop's session,
+    line and time,
+    and the
+    verdict row,
+    as the 03:10 one did.
+2.  Measure the live precision of the chain rule from the verdict log once enough chain stops carry
+    `stopHookActive`,
+    and classify the 11 unclassified chain stops.
+3.  Open follow-ups:
+    #1772 (calibrate the 0.60 cutoff,
+    the running-task release and the `permissionMode` and
+    `sessionCrons` skips from the verdict log),
+    #1773 (replace the mise credential fallback),
+    and #1786 (the installed
+    `pi` command lacks `cross-spawn`).

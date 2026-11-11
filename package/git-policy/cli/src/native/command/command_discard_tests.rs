@@ -140,23 +140,78 @@ fn force_in_any_spelling_overwrites() {
     }
 }
 
-/// `read-tree --reset` in every abbreviation discards;
-/// the other modes do not.
+/// What:
+///  Every `git read-tree` form Git accepts discards,
+///  in every spelling Git accepts,
+///  and the two that write nothing do not.
+/// Why:
+///  `git read-tree -m -u HEAD` reverted a staged edit and deleted a staged new file while the reader called the
+///  region harmless;
+///  `-n` and `--debug-unpack` return before Git writes the index (`read-tree.c`),
+///  so they are the only harmless forms.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readTreeDiscard(['-m', '-u', 'HEAD']) === 'overwrites'; readTreeDiscard(['-n', '-m', '-u', 'HEAD']) === 'harmless'
+/// ```
 #[test]
-fn read_tree_reset_overwrites() {
-    for (values, expected) in [
-        (vec!["HEAD"], Discard::Harmless),
-        (vec!["-m", "-u", "HEAD"], Discard::Harmless),
-        (vec!["--recurse-submodules", "HEAD"], Discard::Harmless),
-        (vec!["--reset", "HEAD"], Discard::Overwrites),
-        (vec!["--res", "HEAD"], Discard::Overwrites),
-        (vec!["-u", "--reset", "HEAD"], Discard::Overwrites),
-        (vec!["--re", "HEAD"], Discard::Harmless),
-        (vec!["--", "--reset"], Discard::Harmless),
+fn read_tree_writes_in_every_form_git_accepts() {
+    for values in [
+        vec![],
+        vec!["HEAD"],
+        vec!["-m", "HEAD"],
+        vec!["-m", "-u", "HEAD"],
+        vec!["-u", "--reset", "HEAD"],
+        vec!["-i", "-m", "HEAD"],
+        vec!["--reset", "HEAD"],
+        vec!["--res", "HEAD"],
+        vec!["--empty"],
+        vec!["--no-empty", "HEAD"],
+        vec!["--no-reset", "HEAD"],
+        vec!["--prefix=sub/", "HEAD"],
+        vec!["--prefix", "sub/", "-u", "HEAD"],
+        vec!["--index-output=other-index", "-m", "-u", "HEAD"],
+        vec!["--recurse-submodules", "-m", "-u", "HEAD"],
+        vec!["--recurse-submodules=checkout", "-m", "-u", "HEAD"],
+        vec!["--no-recurse-submodules", "-m", "-u", "HEAD"],
+        vec!["--super-prefix=super/", "HEAD"],
+        vec!["-v", "-q", "-m", "-u", "HEAD"],
+        vec!["--no-verbose", "--no-quiet", "-m", "-u", "HEAD"],
+        vec!["--trivial", "--aggressive", "-m", "-u", "HEAD"],
+        vec!["--no-sparse-checkout", "-m", "-u", "HEAD"],
+        vec!["--sparse-checkout", "-m", "-u", "HEAD"],
+        vec!["--", "--reset"],
     ] {
         assert_eq!(
             read_tree_discard(os_arguments(values.as_slice()).as_slice()),
-            expected,
+            Ok(Discard::Overwrites),
+            "{values:?}"
+        );
+    }
+    for values in [
+        vec!["-n", "-m", "-u", "HEAD"],
+        vec!["--dry", "--reset", "-u", "HEAD"],
+        vec!["--no-dry-run", "--dry-run", "-m", "-u", "HEAD"],
+        vec!["--debug-unpack", "-m", "-u", "HEAD"],
+        vec!["--debug-unpack", "--reset", "-u", "HEAD"],
+    ] {
+        assert_eq!(
+            read_tree_discard(os_arguments(values.as_slice()).as_slice()),
+            Ok(Discard::Harmless),
+            "{values:?}"
+        );
+    }
+    // A region Git refuses is the refusal, never a reading.
+    for values in [
+        vec!["--re", "HEAD"],
+        vec!["--merge", "HEAD"],
+        vec!["--update", "HEAD"],
+        vec!["--index-only", "HEAD"],
+        vec!["-x", "HEAD"],
+        vec!["-h"],
+    ] {
+        assert!(
+            read_tree_discard(os_arguments(values.as_slice()).as_slice()).is_err(),
             "{values:?}"
         );
     }

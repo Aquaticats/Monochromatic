@@ -58,7 +58,7 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
         GuardedCommand::StashDrop => return (
             "git stash drop (or git stash clear)",
             "it deletes entries of the one stash the whole repository shares, and git stash clear deletes every entry, so work parked in any worktree of this repository is gone",
-            "git stash list and git stash show read the stash without changing it (allowed). To keep the work, move it into its own branch with git stash branch <branch> (allowed), which applies the entry and keeps it in the branch. To drop one entry on purpose, read it first (git stash show -p stash@{0} > backup.patch) and then use the hatch below.",
+            "git stash list and git stash show read the stash without changing it (allowed). To keep the work, move it into its own branch with git stash branch <branch> in a clean linked worktree, which applies the entry and keeps it in the branch; a stash form that changes state is refused in the main worktree, and in a linked worktree that holds uncommitted changes. To drop one entry on purpose, read it first (git stash show -p stash@{0} > backup.patch) and then use the hatch below.",
         ),
         GuardedCommand::Clean => return (
             "git clean",
@@ -68,7 +68,7 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
         GuardedCommand::CleanIgnored => return (
             "git clean -x",
             "it deletes ignored files as well as untracked ones, and an ignored file is where a person keeps their environment and their local secrets",
-            "To see what would be deleted, run git clean -nx (allowed). To delete only untracked files and keep the ignored ones, use git clean -fd (allowed while no untracked file is precious). For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD), and to clear ignored build output, use the project's own clean task.",
+            "To see what would be deleted, run git clean -nx (allowed). To delete only untracked files and keep the ignored ones, pass --no-enforce-worktree directly after clean (`git clean --no-enforce-worktree -fd`), because a clean that deletes files is refused in the main worktree, and in a linked worktree while it holds uncommitted changes or untracked files. For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD), and to clear ignored build output, use the project's own clean task.",
         ),
         GuardedCommand::CleanIgnoredOnly => return (
             "git clean -X",
@@ -131,9 +131,9 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
             "To get copies of staged files without touching the worktree, write them elsewhere: git checkout-index --prefix=<directory>/ --all (allowed).",
         ),
         GuardedCommand::ReadTree => return (
-            "git read-tree --reset",
-            "it replaces the index, and with -u the worktree files, discarding local entries",
-            "To merge a tree into the index use git read-tree -m (allowed), or run the reset in a clean linked worktree (git worktree add <path> HEAD).",
+            "git read-tree",
+            "it replaces the index and, with -u, the worktree files, so staged entries and the worktree content they carried are gone",
+            "To see what a read would change without writing anything, run git read-tree --dry-run with the same arguments (allowed). To look at a tree without touching the index, use git ls-tree or git cat-file (allowed). To replace the index on purpose, run it in a clean linked worktree (git worktree add <path> HEAD).",
         ),
         GuardedCommand::AbortMerge => return (
             "git merge --abort",

@@ -126,8 +126,46 @@ function mentionsKeyword({
 
 //endregion Sentinel and fast-path gate
 
+//region Declaration replacements
 
-//endregion Sentinel and fast-path gate
+/**
+ Records the replacements for one declaration whose source and attribute clause
+ the transform rewrites.
+ 
+ @param code - because every replacement text is a slice of the module source
+ 
+ @param source - because the specifier literal is the span that changes
+ 
+ @param attributes - because the attribute clause decides the query value
+ 
+ @param replacements - because the visitor accumulates spans for the reducer
+ */
+function recordStaticReplacements({
+  code,
+  source,
+  attributes,
+  replacements,
+}: Readonly<{
+  code: string;
+  source: ESTree.StringLiteral;
+  attributes: readonly ESTree.ImportAttribute[];
+  replacements: Replacement[];
+}>,): void {
+  /**
+   Attribute type on this declaration's clause; gates whether to emit a replacement.
+   */
+  const attrType = staticDeclAttrType(attributes,);
+  if (attrType === NO_ATTR_TYPE)
+    return;
+  replacements.push(...collectStaticReplacements({
+    source,
+    attributes,
+    attrType,
+    code,
+  },),);
+}
+
+//endregion Declaration replacements
 
 //region Transform entry
 
@@ -187,18 +225,12 @@ export function transformImportAttributes({
    */
   const visitor = new Visitor({
     ImportDeclaration(node: ForeignBorrowed<ESTree.ImportDeclaration>,): void {
-      /**
-       Attribute type on this static import; gates whether to emit a replacement.
-       */
-      const attrType = staticDeclAttrType(node.attributes,);
-      if (attrType === NO_ATTR_TYPE)
-        return;
-      replacements.push(...collectStaticReplacements({
+      recordStaticReplacements({
+        code,
         source: node.source,
         attributes: node.attributes,
-        attrType,
-        code,
-      },),);
+        replacements,
+      },);
     },
 
     ExportNamedDeclaration(node: ForeignBorrowed<ESTree.ExportNamedDeclaration>,): void {
@@ -208,33 +240,21 @@ export function transformImportAttributes({
       if (node.source
         === null)
         return;
-      /**
-       Attribute type on this re-export with source; gates whether to emit a replacement.
-       */
-      const attrType = staticDeclAttrType(node.attributes,);
-      if (attrType === NO_ATTR_TYPE)
-        return;
-      replacements.push(...collectStaticReplacements({
+      recordStaticReplacements({
+        code,
         source: node.source,
         attributes: node.attributes,
-        attrType,
-        code,
-      },),);
+        replacements,
+      },);
     },
 
     ExportAllDeclaration(node: ForeignBorrowed<ESTree.ExportAllDeclaration>,): void {
-      /**
-       Attribute type on this wildcard re-export; gates whether to emit a replacement.
-       */
-      const attrType = staticDeclAttrType(node.attributes,);
-      if (attrType === NO_ATTR_TYPE)
-        return;
-      replacements.push(...collectStaticReplacements({
+      recordStaticReplacements({
+        code,
         source: node.source,
         attributes: node.attributes,
-        attrType,
-        code,
-      },),);
+        replacements,
+      },);
     },
 
     ImportExpression(node: ForeignBorrowed<ESTree.ImportExpression>,): void {

@@ -66,8 +66,12 @@ pub mod dependent_version_policy;
 /// The dependent-version planner's view of a prepared candidate state.
 pub mod dependent_version_lifecycle;
 
-/// Whether a direct fix may change a tracked file it did not select.
+/// Whether a commit or a direct fix may change a tracked file it did not select.
 pub mod policy_added_path;
+
+/// The commit path's notes,
+///  real-index listing and corrections.
+pub mod policy_dependent_version_commit;
 
 /// The `mono/dependent-version-bump` check over a lifecycle's candidate state.
 pub mod policy_dependent_version;

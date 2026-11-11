@@ -166,25 +166,25 @@ at 1008 CSS px dark in a disposable headless session and measured:
 Later user rounds added requirements,
 each implemented in the prototypes:
 
-1. Buttons must show when and whether they were clicked and whether another click can do anything.
-2. A click that would do nothing must be a disabled button;
-   repeatable actions get five pre-baked
-   numbered one-shot buttons per action,
-   labeled 1 to 5.
-3. Follow the Rhythm Heaven Groove Yum-Bot Simulator model;
-   the presentation may be a matrix.
-4. Draw the robot,
-   conveyor,
-   containers,
-   and puddings in HTML/CSS
-   (reference:
-   `/var/home/user/Downloads/600px-Screenshot_Switch_Yum-Bot_Simulator.png`).
-5. The buttons belong inside the drawn scene,
-   not in a separate rack.
-6. "Drops a new bot" was off-model;
-   the pudding is the Promise (game-faithful remap).
-7. The resolver-bundle and inner-Promise snapshot cards must not be omitted;
-   they are restored.
+1.  Buttons must show when and whether they were clicked and whether another click can do anything.
+2.  A click that would do nothing must be a disabled button;
+    repeatable actions get five pre-baked
+    numbered one-shot buttons per action,
+    labeled 1 to 5.
+3.  Follow the Rhythm Heaven Groove Yum-Bot Simulator model;
+    the presentation may be a matrix.
+4.  Draw the robot,
+    conveyor,
+    containers,
+    and puddings in HTML/CSS
+    (reference:
+    `/var/home/user/Downloads/600px-Screenshot_Switch_Yum-Bot_Simulator.png`).
+5.  The buttons belong inside the drawn scene,
+    not in a separate rack.
+6.  "Drops a new bot" was off-model;
+    the pudding is the Promise (game-faithful remap).
+7.  The resolver-bundle and inner-Promise snapshot cards must not be omitted;
+    they are restored.
 
 ## Research: Yum-Bot Simulator (corrected reading)
 
@@ -548,7 +548,8 @@ not the active prototype.
 Its red game-faithfulness result remains historical evidence of why the mapping changed.
 At this prototype stage the lesson was still unchanged;
 the later A-neutral integration
-and its separate verification are recorded in the next section.
+and its separate verification are recorded under
+"Integrated A-neutral lesson (verified before the belt correction)".
 
 ## Integrated A-neutral lesson (verified before the belt correction)
 

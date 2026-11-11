@@ -168,6 +168,38 @@ there is no way to ask for "only tests that printed something",
 and a reader still has to search the log for the marker the control printed.
 Set the marker as a fixed prefix at the skip site so that search is one `rg`.
 
+## One line, two meanings, and the names a green run has to hold
+
+This document's marker has a second reading that a gate must not miss:
+a control that needs a filesystem that is not btrfs prints the same line on a btrfs host,
+because there it is the control that has nothing to check.
+`off_btrfs_the_ioctls_report_a_missing_feature`
+(`package/git-policy/cli/src/native/subvolume/fs_btrfs_ioctl_tests.rs:116-126`)
+prints it when `filesystem_kind` answers btrfs,
+so the one green btrfs host run of the suite holds exactly one such line and means the opposite of a skip.
+A gate that refuses on every `BTRFS CONTROL NOT RUN` line therefore refuses every release on a btrfs host;
+the release gate of the wrapper refuses only the lines whose own reason is not
+`needs a filesystem that is not btrfs`
+(`package/git-policy/cli/bin/native-release-host-controls.ts`).
+
+A run's exit status alone is also no evidence that a control ran.
+The release gate therefore requires the passing status line of three controls by name,
+and nextest prints those lines only at a status level a person's own
+`~/.config/nextest/config.toml` can silence:
+with `NEXTEST_STATUS_LEVEL=none` the same one-test run printed only its summary:
+
+```text
+     Summary [   0.012s] 1 test run: 1 passed, 6092 skipped
+```
+
+so the gate sets `NEXTEST_STATUS_LEVEL=pass` and `NEXTEST_FINAL_STATUS_LEVEL=pass`
+for the run rather than depending on that file.
+With them the same run prints the name it checked:
+
+```text
+        PASS [   0.009s] (1/1) monochromatic-git-policy-cli subvolume::fs_btrfs_ioctl::tests::a_path_without_a_name_cannot_be_split
+```
+
 ## What does not work
 
 - Failing the control instead of skipping it.

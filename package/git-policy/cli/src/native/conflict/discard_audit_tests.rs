@@ -1,11 +1,14 @@
 //! What:
 //!  The audit record's line,
 //! its place,
-//! its appending and its size limit.
+//! its fields and the words of its outcomes.
 //! Why:
 //!  A record that names the wrong directory or loses a field cannot attribute a loss;
 //! one that fails the command it
 //!  describes would turn a safety log into a new way to break work.
+//! The appender,
+//! the rotation and the generations behind it are
+//!  controlled beside the appender (`log_lines_appended_without_a_lock_tests.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,13 +16,9 @@
 //! ```
 
 /// The record,
-/// its line and the writer.
-use super::{
-    AUDIT_FILE, AuditOutcome, AuditRecord, DecidedForm, ROTATE_AT_BYTES, RotationStep, append_line, audit_line, audit_place, move_aside_between,
-    move_aside_if_still_named, parent_process, record_audit,
-};
+/// its line and the place.
+use super::{AUDIT_FILE, AuditOutcome, AuditRecord, DecidedForm, audit_line, audit_place, parent_process, record_audit};
 use crate::command_test_support::{fixture, os_arguments, remove};
-use crate::commit_timing::TIMING_FILE;
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
@@ -160,7 +159,7 @@ fn each_outcome_has_its_own_word() {
             form: DecidedForm::Guarded(GuardedCommand::Clean),
             outcome,
             place: &place,
-        git_dir: Path::new("/r/.git/worktrees/w"),
+            git_dir: Path::new("/r/.git/worktrees/w"),
             directory: Path::new("/r"),
             arguments: &[],
             dirty: None,
@@ -227,34 +226,6 @@ fn records_append_in_order_and_the_directory_is_never_created() {
     remove(root.as_path());
 }
 
-/// A file at the size limit moves aside to `.1` and a new one starts;
-/// below the limit nothing moves.
-#[test]
-fn a_full_file_moves_aside() {
-    let root: PathBuf = fixture("audit-rotate");
-    let target: PathBuf = root.join(AUDIT_FILE);
-    let mut filler: Vec<u8> = vec![b'x'; ROTATE_AT_BYTES as usize - 1];
-    filler[ROTATE_AT_BYTES as usize - 2] = b'\n';
-    std::fs::write(&target, filler).expect("nearly full");
-    append_line(target.as_path(), b"next\n").expect("append");
-    assert!(!root.join(format!("{AUDIT_FILE}.1")).exists());
-    assert_eq!(std::fs::metadata(&target).expect("metadata").len(), ROTATE_AT_BYTES + 4);
-    append_line(target.as_path(), b"after\n").expect("append past the limit");
-    assert_eq!(std::fs::read(&target).expect("new file"), b"after\n");
-    assert_eq!(
-        std::fs::metadata(root.join(format!("{AUDIT_FILE}.1"))).expect("aside").len(),
-        ROTATE_AT_BYTES + 4
-    );
-    remove(root.as_path());
-}
-
-/// A zero size limit would move the audit file aside before every write,
-/// so the limit has to be positive.
-#[test]
-fn the_size_limit_is_positive() {
-    const { assert!(ROTATE_AT_BYTES > 0) };
-}
-
 /// The parent is the process that started the test,
 /// never the placeholder zero or one.
 #[cfg(unix)]
@@ -263,223 +234,4 @@ fn the_parent_is_the_process_that_started_this_one() {
     let parent: u32 = parent_process();
     assert_eq!(parent, std::os::unix::process::parent_id());
     assert!(parent > 1, "parent {parent}");
-}
-
-/// A write a full disk or a signal cut short leaves a last line without its newline;
-/// the next record starts on a line of its
-/// own,
-/// so the torn line is lost alone and the record after it still parses.
-#[test]
-fn a_torn_last_line_does_not_swallow_the_next_record() {
-    let root: PathBuf = fixture("audit-torn");
-    let target: PathBuf = root.join(AUDIT_FILE);
-    std::fs::write(&target, b"{\"ok\":1}\n{\"torn\":").expect("a torn tail");
-    append_line(target.as_path(), b"{\"next\":2}\n").expect("append");
-    append_line(target.as_path(), b"{\"last\":3}\n").expect("append");
-    let text: String = std::fs::read_to_string(&target).expect("file");
-    let parsed: Vec<bool> = text.lines().map(|line| { return serde_json::from_str::<serde_json::Value>(line).is_ok(); }).collect();
-    assert_eq!(parsed, vec![true, false, true, true], "{text}");
-    assert_eq!(text.lines().last(), Some("{\"last\":3}"), "a whole file adds nothing extra");
-    remove(root.as_path());
-}
-
-/// A writer that saw a full file but lost the race to another writer's rotation must not move the new,
-/// small file over
-/// the history that is already in `.1` (a timing log keeps one generation;
-/// the audit file keeps many,
-/// in its own tests).
-#[test]
-fn a_second_rotation_does_not_replace_the_history_with_the_new_file() {
-    let root: PathBuf = fixture("audit-rotate-race");
-    let target: PathBuf = root.join(TIMING_FILE);
-    let aside: PathBuf = root.join(format!("{TIMING_FILE}.1"));
-    std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
-    // Another writer rotates first and starts the new file.
-    std::fs::rename(&target, &aside).expect("the other writer's rotation");
-    std::fs::write(&target, b"{\"new\":1}\n").expect("the new file");
-    move_aside_if_still_named(target.as_path(), &seen_full).expect("no error");
-    assert_eq!(std::fs::read(&aside).expect("aside"), b"the full history\n", "the history is still there");
-    assert_eq!(std::fs::read(&target).expect("target"), b"{\"new\":1}\n", "the new file stays");
-    // The same writer, when the path still names its file, does move it.
-    let current: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
-    move_aside_if_still_named(target.as_path(), &current).expect("moved");
-    assert!(!target.exists());
-    assert_eq!(std::fs::read(&aside).expect("aside"), b"{\"new\":1}\n");
-    remove(root.as_path());
-}
-
-/// A writer that saw a full file and passed its check,
-/// but whose file another writer rotated before it moved anything,
-/// must
-/// not move the other writer's new file over the history:
-/// the history stays in `.1` and the new file stays where it is.
-#[test]
-fn a_rotation_that_loses_the_race_after_its_check_leaves_the_history_and_the_new_file() {
-    let root: PathBuf = fixture("audit-rotate-check-race");
-    let target: PathBuf = root.join(AUDIT_FILE);
-    let aside: PathBuf = root.join(format!("{AUDIT_FILE}.1"));
-    std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
-    let mut steps: Vec<RotationStep> = Vec::new();
-    move_aside_between(target.as_path(), &seen_full, &mut |step| {
-        steps.push(step);
-        // The other writer rotates and starts the new file after this writer's check and before its move.
-        if step == RotationStep::BeforeMove {
-            std::fs::rename(&target, &aside).expect("the other writer's rotation");
-            std::fs::write(&target, b"{\"new\":1}\n").expect("the new file");
-        }
-    })
-    .expect("no error");
-    assert_eq!(steps.first(), Some(&RotationStep::BeforeMove), "the check passed, so the move was reached");
-    assert_eq!(std::fs::read(&aside).expect("aside"), b"the full history\n", "the history is still in .1");
-    assert_eq!(std::fs::read(&target).expect("target"), b"{\"new\":1}\n", "the new file is back at its name");
-    remove(root.as_path());
-}
-
-/// A file another writer rotated away after this writer's check leaves nothing to move,
-/// which is not an error:
-/// an error
-/// would drop the record this writer is about to append.
-#[test]
-fn a_file_that_vanished_after_the_check_is_not_an_error() {
-    let root: PathBuf = fixture("audit-rotate-vanished");
-    let target: PathBuf = root.join(AUDIT_FILE);
-    let elsewhere: PathBuf = root.join("elsewhere");
-    std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
-    let outcome: std::io::Result<()> = move_aside_between(target.as_path(), &seen_full, &mut |step| {
-        if step == RotationStep::BeforeMove {
-            std::fs::rename(&target, &elsewhere).expect("the other writer's rotation");
-        }
-    });
-    assert!(outcome.is_ok(), "{outcome:?}");
-    assert_eq!(std::fs::read(&elsewhere).expect("history"), b"the full history\n");
-    remove(root.as_path());
-}
-
-/// A rotation that cannot finish,
-/// here because `.1` of a timing log is a directory,
-/// never costs the record:
-/// it lands in the file.
-#[test]
-fn a_rotation_that_fails_does_not_drop_the_record() {
-    let root: PathBuf = fixture("audit-rotate-fails");
-    let target: PathBuf = root.join(TIMING_FILE);
-    let mut filler: Vec<u8> = vec![b'x'; ROTATE_AT_BYTES as usize];
-    filler[ROTATE_AT_BYTES as usize - 1] = b'\n';
-    std::fs::write(&target, &filler).expect("a full file");
-    std::fs::create_dir(root.join(format!("{TIMING_FILE}.1"))).expect("an obstacle where the old copy belongs");
-    append_line(target.as_path(), b"{\"kept\":1}\n").expect("the record is appended whatever the rotation did");
-    let text: Vec<u8> = std::fs::read(&target).expect("target");
-    assert!(text.ends_with(b"{\"kept\":1}\n"), "the record is the last line of the file at the name");
-    assert!(text.starts_with(&filler), "the full history is still in the file at the name");
-    remove(root.as_path());
-}
-
-/// A rotation that took a newer file by mistake gives it back even when a writer has started yet another file at the name in the
-/// meantime:
-/// nothing is replaced,
-/// and the newer file stays on disk beside it with every line.
-#[test]
-fn a_newer_file_taken_by_mistake_is_kept_when_the_name_is_already_used_again() {
-    let root: PathBuf = fixture("audit-rotate-double-race");
-    let target: PathBuf = root.join(AUDIT_FILE);
-    let aside: PathBuf = root.join(format!("{AUDIT_FILE}.1"));
-    std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
-    move_aside_between(target.as_path(), &seen_full, &mut |step| match step {
-        RotationStep::BeforeMove => {
-            std::fs::rename(&target, &aside).expect("the other writer's rotation");
-            std::fs::write(&target, b"{\"second\":1}\n").expect("the newer file");
-        }
-        RotationStep::AfterMove => {
-            std::fs::write(&target, b"{\"third\":1}\n").expect("a third writer starts a file while the name is free");
-        }
-    })
-    .expect("no error");
-    assert_eq!(std::fs::read(&aside).expect("aside"), b"the full history\n");
-    assert_eq!(std::fs::read(&target).expect("target"), b"{\"third\":1}\n", "the file at the name is not replaced");
-    let kept: Vec<Vec<u8>> = std::fs::read_dir(&root)
-        .expect("directory")
-        .map(|entry| { return entry.expect("entry").path(); })
-        .filter(|path| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().contains(".moving-"); }); })
-        .map(|path| { return std::fs::read(path).expect("kept file"); })
-        .collect();
-    assert_eq!(kept, vec![b"{\"second\":1}\n".to_vec()], "the newer file keeps every line");
-    remove(root.as_path());
-}
-
-/// A rotation that succeeds leaves the history in `.1` and no private name behind.
-#[test]
-fn a_rotation_leaves_only_the_history_in_dot_one() {
-    let root: PathBuf = fixture("audit-rotate-clean");
-    let target: PathBuf = root.join(AUDIT_FILE);
-    std::fs::write(&target, b"the full history\n").expect("the full file");
-    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
-    move_aside_if_still_named(target.as_path(), &seen_full).expect("moved");
-    let mut names: Vec<String> = std::fs::read_dir(&root)
-        .expect("directory")
-        .map(|entry| { return entry.expect("entry").file_name().to_string_lossy().into_owned(); })
-        .collect();
-    names.sort();
-    assert_eq!(names, vec![format!("{AUDIT_FILE}.1")]);
-    remove(root.as_path());
-}
-
-/// Writers in several threads each append whole lines:
-/// none is lost,
-/// torn or joined to another.
-#[test]
-fn concurrent_appenders_lose_no_line_and_tear_none() {
-    let root: PathBuf = fixture("audit-concurrent");
-    let target: PathBuf = root.join(AUDIT_FILE);
-    let writers: usize = 6;
-    let each: usize = 60;
-    std::thread::scope(|scope| {
-        for writer in 0..writers {
-            let path: &Path = target.as_path();
-            scope.spawn(move || {
-                for number in 0..each {
-                    let line: String = format!("{{\"writer\":{writer},\"number\":{number},\"pad\":\"{}\"}}\n", "p".repeat(200));
-                    append_line(path, line.as_bytes()).expect("append");
-                }
-            });
-        }
-    });
-    let text: String = std::fs::read_to_string(&target).expect("file");
-    let mut seen: std::collections::BTreeSet<(u64, u64)> = std::collections::BTreeSet::new();
-    // A writer that reads the last byte while another one is half-way through a page-crossing write sees no newline and
-    //  starts its line on a fresh one: the result is an empty line between records, which every reader of the file skips.
-    for line in text.lines().filter(|line| { return !line.is_empty(); }) {
-        let value: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|error| { panic!("a torn line {line:?}: {error}") });
-        seen.insert((value["writer"].as_u64().expect("writer"), value["number"].as_u64().expect("number")));
-    }
-    assert_eq!(seen.len(), writers * each);
-    remove(root.as_path());
-}
-
-/// A file the user may write but not read still gets its records:
-/// the check of the last byte is skipped,
-/// not the record.
-#[test]
-fn a_file_that_cannot_be_read_is_still_appended_to() {
-    use std::os::unix::fs::PermissionsExt;
-    let root: PathBuf = fixture("audit-write-only");
-    let target: PathBuf = root.join(AUDIT_FILE);
-    std::fs::write(&target, b"{\"first\":1}\n").expect("file");
-    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o200)).expect("write only");
-    append_line(target.as_path(), b"{\"second\":2}\n").expect("appended without read permission");
-    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).expect("readable again");
-    assert_eq!(std::fs::read_to_string(&target).expect("file"), "{\"first\":1}\n{\"second\":2}\n");
-    remove(root.as_path());
-}
-
-/// A disk that is full is an error the caller can see,
-/// in one call,
-/// with nothing retried.
-#[test]
-fn a_full_disk_is_an_error_not_a_second_write() {
-    let error = append_line(Path::new("/dev/full"), b"{\"x\":1}\n").expect_err("the device refuses every write");
-    assert_eq!(error.raw_os_error(), Some(libc::ENOSPC), "{error:?}");
 }

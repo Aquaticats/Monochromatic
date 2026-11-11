@@ -182,60 +182,60 @@ escaped selectors,
 
 ## Plan and progress
 
-1. [x] Grilling session:
-        target,
-        placement,
-        API model,
-        rigor,
-        sequencing confirmed.
-2. [x] This handover doc.
-3. [x] `@csstools/css-tokenizer` already in pnpm catalog (line found during work;
-        no edit needed).
-4. [x] Scaffold `package/module/css-edit` (mirrors `jsonc-edit`;
-        needed `rolldown.browser.config.ts`).
-5. [x] Implement parse (strict,
-        spec section 5 unified block contents),
-        stringify,
-        transform.
-6. [x] Unit tests per branch plus adversarial corpus;
-        all green against built dist.
-7. [x] Port `build-tool-css`:
-        user authorized a full API redesign mid-task
-   ("current api ... laughably awkward";
-        migrate all consumers).
-   New deep-module surface:
-        `buildCss({ input, output })` file pipeline and
-   `expandCssMixins({ css, mixinCss? })` text pipeline plus
-   `UnknownCssMixinError`/`CircularCssMixinError`.
-   Old `build`/`applyMixins`/`collectMixins`/`expandMixinBodies`/`mixins` Map
-   protocol deleted;
-        one shared apply-splicing visitor;
-        visited-set cycle
-   detection with exact trail;
-        token-based import specifier extraction
-   (fixes the old `url() layer()` string-slicing bug);
-        `process-shim.ts`,
-   `apply-mixins.ts`,
-        `mixin-registry.ts`,
-        `stripImportSpecifier` deleted.
-   Consumers migrated:
-        done-postcss server + client,
-        paused messages-demo and
-   inference-canary-viewer.
-8. [x] Integration fixtures green (both resolution strategies);
-        CLI exercised on
-   the real done-postcss stylesheet (comments preserved,
-        no residue).
-9. [x] Browser verification via agent-browser,
-        then closed:
-        found and fixed a
-   real regression (client importing the package index pulled node builtins
-   into the bundle;
-        browser consumers must import
-   `build-tool-css/ts/expand` directly,
-        recorded in the index TSDoc and README).
-   Shadow DOM styles expanded in live browser,
-        no console errors.
+1.  [x] Grilling session:
+         target,
+         placement,
+         API model,
+         rigor,
+         sequencing confirmed.
+2.  [x] This handover doc.
+3.  [x] `@csstools/css-tokenizer` already in pnpm catalog (line found during work;
+         no edit needed).
+4.  [x] Scaffold `package/module/css-edit` (mirrors `jsonc-edit`;
+         needed `rolldown.browser.config.ts`).
+5.  [x] Implement parse (strict,
+         spec section 5 unified block contents),
+         stringify,
+         transform.
+6.  [x] Unit tests per branch plus adversarial corpus;
+         all green against built dist.
+7.  [x] Port `build-tool-css`:
+         user authorized a full API redesign mid-task
+    ("current api ... laughably awkward";
+         migrate all consumers).
+    New deep-module surface:
+         `buildCss({ input, output })` file pipeline and
+    `expandCssMixins({ css, mixinCss? })` text pipeline plus
+    `UnknownCssMixinError`/`CircularCssMixinError`.
+    Old `build`/`applyMixins`/`collectMixins`/`expandMixinBodies`/`mixins` Map
+    protocol deleted;
+         one shared apply-splicing visitor;
+         visited-set cycle
+    detection with exact trail;
+         token-based import specifier extraction
+    (fixes the old `url() layer()` string-slicing bug);
+         `process-shim.ts`,
+    `apply-mixins.ts`,
+         `mixin-registry.ts`,
+         `stripImportSpecifier` deleted.
+    Consumers migrated:
+         done-postcss server + client,
+         paused messages-demo and
+    inference-canary-viewer.
+8.  [x] Integration fixtures green (both resolution strategies);
+         CLI exercised on
+    the real done-postcss stylesheet (comments preserved,
+         no residue).
+9.  [x] Browser verification via agent-browser,
+         then closed:
+         found and fixed a
+    real regression (client importing the package index pulled node builtins
+    into the bundle;
+         browser consumers must import
+    `build-tool-css/ts/expand` directly,
+         recorded in the index TSDoc and README).
+    Shadow DOM styles expanded in live browser,
+         no console errors.
 10. [x] `css-edit.fuzz`:
          round-trip,
          totality,

@@ -258,6 +258,8 @@ fn engine_failure_pass(arguments: &[OsString], code: EngineFailureCode, message:
 /// ```
 pub fn converge_commit_policies<F: RepositoryFacts>(input: CommitConvergenceInput<'_, F>) -> CommitConvergence {
     input.checks.can_apply_patches = true;
+    // This pass runs for `git commit` itself, so a policy that may add a path to what it lands knows it here.
+    input.checks.forwards_commit = true;
     let mut passes: CommitPasses<'_, F> = CommitPasses::new(input);
     let convergence: Convergence = converge(&mut passes);
     let Some(last) = passes.last.take() else {

@@ -3,9 +3,8 @@
 //!  after ordinary alias expansion.
 //! Why:
 //!  Git expands an alias only when no built-in has that name,
-//!  reads it from `alias.<name>`
-//!      or `alias.<name>.command`,
-//!  splits it with `split_cmdline` quoting,
+//!  keeps the last of the two spellings `alias.<name>` and `[alias "<name>"] command` in config order,
+//!  splits its value with `split_cmdline` quoting,
 //!  lets its leading words
 //!      be global options,
 //!  and expands again when the result is an alias.
@@ -152,64 +151,48 @@ impl ResolvedCommand {
     }
 }
 
-// The alias value splitter and its record terminator, read beside the value they serve.
-pub use crate::alias_value::{alias_value_of, split_alias_command};
+// The alias value splitter, the configuration variables and the alias
+//  they select, read beside the value they serve.
+pub use crate::alias_value::{ConfigVariable, alias_selection, alias_variable_matches, config_variables, split_alias_command};
 
 /// What:
-///  The value of one config key through `git config --null --get`,
-///  or nothing when Git reports
-///       none or cannot be asked.
+///  The value of the alias Git keeps,
+///  read from one `git config --null --list`,
+///  or nothing when Git keeps none or dies on one.
 /// Why:
-///   `readAliasKey`:
-///  every failure of the lookup is "no alias".
-///  `--null` ends the value with a NUL instead of a newline,
-/// which is the one terminator this
-///       removes,
-///  so a value that ends with a newline or a space keeps it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function readAliasKey({ gitPath, globalArgs, key }): Promise<string | typeof ALIAS_UNSET>;
-/// ```
-fn read_config_value(context: &GitContext, global: &[OsString], key: &OsString) -> Option<Vec<u8>> {
-    let mut arguments: Vec<OsString> = global.to_vec();
-    arguments.push(OsString::from("config"));
-    arguments.push(OsString::from("--null"));
-    arguments.push(OsString::from("--get"));
-    arguments.push(key.clone());
-    let mut request: GitRequest = GitRequest::new(Path::new("."), arguments.as_slice());
-    request.without_prefix = true;
-    match run_git(context, &request) {
-        Ok(output) if output.succeeded() => return Some(alias_value_of(output.stdout.as_slice())),
-        Ok(_) | Err(_) => {
-            debug(
-                "readAliasKey",
-                format!("no {}", key.to_string_lossy()).as_str(),
-            );
-            return None;
-        }
-    }
-}
-
-/// What:
-///  An alias value in either of Git's spellings,
-///  `alias.<name>` first.
-/// Why:
-///   `lookupAlias`.
+///   `lookupAlias`:
+///  `config_alias_cb` overwrites the value it kept on every matching variable,
+///  so the last of `alias.<name>` and `[alias "<name>"] command` in config order wins,
+///  and a matching variable with no value is Git's own `missing value` refusal,
+///  which leaving the alias to Git reproduces.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function lookupAlias({ gitPath, globalArgs, name }): Promise<string | typeof ALIAS_UNSET>;
 /// ```
 pub fn lookup_alias(context: &GitContext, global: &[OsString], name: &OsString) -> Option<Vec<u8>> {
-    let mut plain: OsString = OsString::from("alias.");
-    plain.push(name);
-    if let Some(value) = read_config_value(context, global, &plain) {
-        return Some(value);
+    let mut arguments: Vec<OsString> = global.to_vec();
+    arguments.push(OsString::from("config"));
+    arguments.push(OsString::from("--null"));
+    arguments.push(OsString::from("--list"));
+    let mut request: GitRequest = GitRequest::new(Path::new("."), arguments.as_slice());
+    request.without_prefix = true;
+    let output = match run_git(context, &request) {
+        Ok(output) if output.succeeded() => output,
+        Ok(_) | Err(_) => {
+            debug("readConfigVariables", "git config --null --list answered nothing");
+            return None;
+        }
+    };
+    let variables: Vec<ConfigVariable<'_>> = config_variables(output.stdout.as_slice());
+    let selected: Option<Vec<u8>> = alias_selection(variables.as_slice(), name.as_encoded_bytes());
+    if selected.is_none() {
+        debug(
+            "lookupAlias",
+            format!("no {}", name.to_string_lossy()).as_str(),
+        );
     }
-    let mut spelled: OsString = plain;
-    spelled.push(".command");
-    return read_config_value(context, global, &spelled);
+    return selected;
 }
 
 /// What:
@@ -421,9 +404,6 @@ fn resolve_command(
         let Some(words) = split_alias_command(value.as_slice()) else {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
         };
-        if words.is_empty() {
-            return resolved(current.as_slice(), &layout, Route::Unresolved);
-        }
         let expanded_words: Vec<OsString> = os_words(words);
         // Git refuses an alias whose expansion moves the directory or sets an environment variable, and runs nothing
         //  (git.c:418): `git -c 'alias.audit=-C elsewhere reset --hard' audit` is such a refusal, not a reset.

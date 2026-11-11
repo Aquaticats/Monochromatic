@@ -39,6 +39,11 @@ use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 /// How long a connection may take to send its request line before it is dropped.
 pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// The point at which this file reads a Git directory's instance,
+/// for a control that holds that read (`service_fault_hooks_test_support.rs`).
+#[cfg(test)]
+const IN_THE_INSTANCE_READ: &str = "in-the-instance-read";
+
 /// What every connection of one service run shares:
 /// the queues to the landing and the work loop,
 /// the count of work in flight,
@@ -59,6 +64,11 @@ pub(crate) struct ConnectionShared {
     /// The worktree this instance serves,
     /// when it serves one.
     pub instance: Option<String>,
+    /// The Git directory of the worktree this instance serves,
+    /// as its note or journal named it when the service started,
+    /// and nothing when that could not be told.
+    /// A request that names this text is this instance's without asking the filesystem whose it is.
+    pub own_git_dir: Option<PathBuf>,
 }
 
 
@@ -170,9 +180,34 @@ pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShar
 /// Whether a Git directory belongs to another instance of the service than this one,
 /// asked on the blocking pool because naming the instance resolves the path;
 /// nothing when the pool could not run it.
-async fn is_foreign(instance: Option<&str>, git_dir: PathBuf) -> Option<bool> {
-    let Some(mine) = instance.map(str::to_string) else { return Some(false) };
-    return match run_blocking_job(move || { return instance_of(git_dir.as_path()) != mine; }).await {
+/// Why:
+///  A request that names this worktree's own Git directory exactly is this instance's without that ask:
+/// the same text
+///  names the same directory,
+/// so the same instance,
+/// and the filesystem is asked only for a request that spells it another way
+///  or belongs to another worktree.
+///  The ask resolves a real path,
+/// which under a busy disk took thirty-two seconds in the record of
+///  2026-11-10T17:50:19Z,
+/// and it is on the answering path of every commit and every wake.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isForeign(shared, gitDir) // shared.ownGitDir === gitDir ? false : await named(gitDir) !== shared.instance
+/// ```
+async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool> {
+    let Some(mine) = shared.instance.clone() else { return Some(false) };
+    // The text this service was named for: the same text names the same directory, whatever a resolution would say.
+    if shared.own_git_dir.as_deref() == Some(git_dir.as_path()) {
+        return Some(false);
+    }
+    return match run_blocking_job(move || {
+        // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
+        #[cfg(test)]
+        crate::service_fault::hooks::run_on_any_thread(IN_THE_INSTANCE_READ);
+        return instance_of(git_dir.as_path()) != mine;
+    }).await {
         Ok(foreign) => Some(foreign),
         Err(error) => {
             crate::service_error!("the instance of a Git directory could not be looked at: {error}");
@@ -200,15 +235,13 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
     // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
     //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
     match decode_client(line.trim_end_matches('\n')) {
-        Ok(ClientMessage::Commit(request)) => match is_foreign(shared.instance.as_deref(), request.git_dir.clone()).await {
-            Some(true) => {
-                crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
-                send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected }).await;
-            }
-            Some(false) => queue_a_commit(request, write_half, shared, accepted).await,
-            None => send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable }).await,
-        },
-        Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared.instance.as_deref(), git_dir.clone()).await {
+        Ok(ClientMessage::Commit(request)) => {
+            // The question of whose this request is runs beside the beats of its connection, not before them, so a check
+            //  whose own read waits on storage never leaves the client silent (`queue_a_commit`).
+            let deciding = is_foreign(shared, request.git_dir.clone());
+            queue_a_commit(request, write_half, shared, accepted, deciding).await;
+        }
+        Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => {
                 let _queued = shared.work.send((git_dir, review_key));
@@ -216,7 +249,7 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             }
             None => tell_unavailable(write_half).await,
         },
-        Ok(ClientMessage::Warm { repository, git_dir }) => match is_foreign(shared.instance.as_deref(), git_dir.clone()).await {
+        Ok(ClientMessage::Warm { repository, git_dir }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             // Nothing is answered: the compile is a job of the blocking pool, and the connection closes with this function.
             Some(false) => crate::service_rules_precompile::warm_in_background(repository),
@@ -234,17 +267,61 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
     };
 }
 
-/// Queues a commit and writes its answers,
+/// What:
+///  Queues a commit and writes its answers,
 /// with beats,
 /// until the landing has answered.
-async fn queue_a_commit(request: Box<crate::service_protocol::CommitRequest>, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant) {
+/// Why:
+///   The beats begin before the check that says whether this request is this instance's has answered,
+/// and that check's answer goes through the same
+/// writer,
+///  so a check whose own read waits on storage never leaves the client silent.
+/// A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`,
+///  `service_client.rs`),
+/// sends the commit again and may report it failed although it landed;
+/// the check resolves a Git directory's real path
+///  through the filesystem,
+/// which under a busy disk took thirty-two seconds in the record of 2026-11-10T17:50:19Z.
+/// The request reaches the landing only when the check says it is this instance's,
+/// so a request for another
+///  worktree still never lands here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [beats, queued] = await Promise.all([writeUntilAnswered(socket, messages), decide().then(queueOrRefuse)]);
+/// ```
+async fn queue_a_commit<Decide>(request: Box<crate::service_protocol::CommitRequest>, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant, decide: Decide)
+where
+    Decide: std::future::Future<Output = Option<bool>> + Send,
+{
     let id: String = request.id.clone();
     let (reply, mut messages) = Reply::new();
-    let _queued = shared.queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
-    crate::service_fault::queued(id.as_str());
+    let answering: UnboundedSender<ServiceMessage> = reply.sender();
+    let queue: UnboundedSender<Job> = shared.queue.clone();
+    // What a beat asks for before it, held here because the writer borrows it for the whole wait.
+    let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(id.clone()));
+    // What the check's answer is written with, and what it does with the request it decides about.
+    let checking = async move {
+        match decide.await {
+            // A request for another worktree is not this instance's to land, so it never reaches the landing.
+            Some(true) => {
+                crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
+                let _answered = answering.send(ServiceMessage::Failed { id, code: FailureCode::Rejected });
+            }
+            // Nothing could say whose the request is: the client is told, and the landing never sees it.
+            None => {
+                let _answered = answering.send(ServiceMessage::Failed { id, code: FailureCode::Unavailable });
+            }
+            Some(false) => {
+                let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
+                crate::service_fault::queued(id.as_str());
+            }
+        }
+    };
     // This task has nothing else to do until the request is answered, so it writes the answers the landing thread
     //  queues and keeps the client told that the service lives, and what it is stuck in when it is stuck in a write.
-    write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut stuck_notice(Arc::clone(&shared.board), Some(id))).await;
+    let beats = write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut notice);
+    tokio::join!(beats, checking);
 }
 
 /// Answers the withdrawal of a request.

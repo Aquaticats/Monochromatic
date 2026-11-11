@@ -483,6 +483,33 @@ fn source_with_staging_adds(root: &Path) -> (PathBuf, PathBuf) {
     return (repo, worktrees);
 }
 
+/// The snapshot's own `.git` copy goes into the trash the add hands to the service,
+/// so the add does not remove one administrative directory
+///  for every worktree of the repository on its waiting path.
+#[test]
+fn btrfs_the_snapshots_own_git_copy_goes_into_the_trash() {
+    let Some(root) = btrfs_fixture("snapshot-git-copy-in-the-trash") else { return };
+    let (repo, worktrees) = source_with_staging_adds(root.as_path());
+    let (own_root, _own_admin, _own_pointer) = no_checkout_worktree_at(repo.as_path(), worktrees.join("own").as_path());
+    assert!(own_root.starts_with(repo.as_path()), "the worktree lies inside the source");
+    let (destination, admin, pointer) = no_checkout_worktree_at(repo.as_path(), root.join("topic").as_path());
+    let plan: AddPlan = plan_to(destination);
+    let source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a source");
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-topic");
+    let made: Snapshotted = {
+        let held: File = open_root(admin.as_path()).expect("administrative directory");
+        take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).expect("snapshot")
+    };
+    assert_eq!(std::fs::read(stage.join(".git")).expect("the pointer"), pointer, "the stage carries Git's pointer, not a repository");
+    let trash: TrashManifest = made.trash.expect("a trash to hand over");
+    let inside: PathBuf = stage.join(crate::worktree_trash::TRASH_PARENT).join(trash.name.as_str());
+    let last: usize = trash.entries.len() - 1;
+    let entry: PathBuf = inside.join(crate::worktree_trash::entry_name(last));
+    assert!(entry.join("HEAD").is_file(), "the last entry is the snapshot's own .git: {}", entry.display());
+    assert!(entry.join("worktrees/own").is_dir(), "with the administrative directory of every worktree of the repository in it");
+    remove(root.as_path());
+}
+
 /// A snapshot of a source whose worktrees folder holds stages of adds in flight carries no stand-in for them,
 /// and keeps
 ///  the stand-in of a subvolume no worktree names,

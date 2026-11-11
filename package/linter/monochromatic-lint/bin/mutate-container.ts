@@ -177,65 +177,53 @@ function scopeFor(option?: string): MutationScope {
   return scope;
 }
 
+// Dispatch: a campaign by default, optionally one `--shard k/n` of it or only the mutants whose names match
+// `--re <regex>`, `--list [scope]` for one listing, and `--coverage` for the scope-union proof; a form other than those
+// throws `CargoMutantsToolingError`.
 /**
- Dispatch: a campaign by default, optionally one `--shard k/n` of it or only the mutants whose names match
- `--re <regex>`, `--list [scope]` for one listing, and `--coverage` for the scope-union proof.
-
- @throws CargoMutantsToolingError when the options are not one of those forms
- 
- @example
- ```ts
- await main();
- ```
+ Limits from `--memory`, `--cpus` and `--pids-limit`, which override the 2g, 2 CPU and 512 process bounds of the
+ build and the container, and the other options.
  */
-async function main(): Promise<void> {
-  /**
-   Limits from `--memory`, `--cpus` and `--pids-limit`, which override the 2g, 2 CPU and 512 process bounds of the
-   build and the container, and the other options.
-   */
-  const {
-    limits,
-    rest: options,
-  } = parseContainerLimitOptions({
-    options: process.argv
-      .slice(2),
-    acceptPidsLimit: true,
-    valuelessFlags: [
-      ...scopes.keys(),
-      '--list',
-      '--coverage',
-    ],
+const {
+  limits,
+  rest: options,
+} = parseContainerLimitOptions({
+  options: process.argv
+    .slice(2),
+  acceptPidsLimit: true,
+  valuelessFlags: [
+    ...scopes.keys(),
+    '--list',
+    '--coverage',
+  ],
+});
+if (options[0] === '--coverage') {
+  if (options.length !== 1)
+    throw new CargoMutantsToolingError('--coverage takes no other option.');
+  await checkScopeCoverage({
+    scopes: Array.from(
+      scopes.keys(),
+      function selectOf(option) {
+        return [
+          option,
+          scopeFor(option)
+            .select
+        ] as const;
+      },
+    ),
+    unscopedSelect: unscoped.select,
+    additionalExclusions: [],
+    evidenceRoot,
   });
-  if (options[0] === '--coverage') {
-    if (options.length !== 1)
-      throw new CargoMutantsToolingError('--coverage takes no other option.');
-    await checkScopeCoverage({
-      scopes: Array.from(
-        scopes.keys(),
-        function selectOf(option) {
-          return [
-            option,
-            scopeFor(option)
-              .select
-          ] as const;
-        },
-      ),
-      unscopedSelect: unscoped.select,
-      additionalExclusions: [],
-      evidenceRoot,
-    });
-    return;
-  }
-  if (options[0] === '--list') {
-    if (options.length > 2)
-      throw new CargoMutantsToolingError('--list takes at most one scope option.');
-    console.log((await listMutants({
-      select: scopeFor(options[1])
-        .select,
-      additionalExclusions: [],
-    })).join('\n'));
-    return;
-  }
+} else if (options[0] === '--list') {
+  if (options.length > 2)
+    throw new CargoMutantsToolingError('--list takes at most one scope option.');
+  console.log((await listMutants({
+    select: scopeFor(options[1])
+      .select,
+    additionalExclusions: [],
+  })).join('\n'));
+} else {
   /**
    The shard, if any, and the other options.
    */
@@ -259,5 +247,3 @@ async function main(): Promise<void> {
     limits,
   });
 }
-
-await main();

@@ -24,6 +24,9 @@
 //! ```
 
 use crate::repo_read_layout::read_layout_in;
+/// A pathname from the bytes Git printed for it,
+///  and one answer without its terminating line feed.
+use crate::hooks_path_values::{path_answer, without_the_terminator};
 use crate::service_instance::{SOCKET_DIRECTORY, socket_path, try_instance_of};
 use crate::service_provision::{ProvisionHost, RETIREMENT_WAIT};
 use crate::service_server::Bind;
@@ -171,21 +174,34 @@ pub struct StatusReport {
 /// so the route cannot be chosen without it;
 /// the preparation of the commit
 ///  asks the same question later and shares the answer's cost when the file system can give it.
+///  A command line that names its repository selects the instance of that one:
+///  the reader answers for the directory it is given and cannot honour a Git directory beside the work tree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// worktreeGitDir(context, cwd) // undefined outside a repository
 /// ```
 pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
-    if let Some(layout) = read_layout_in(cwd, context.overlay.as_slice()) {
+    let selection: Vec<std::ffi::OsString> = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    let named: bool = !selection.is_empty();
+    if !named
+        && let Some(layout) = read_layout_in(cwd, context.overlay.as_slice())
+    {
         return Some(layout.git_dir);
     }
-    let output = run_git(context, &GitRequest::new(cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"])).ok()?;
+    let mut request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
+    if named {
+        request.without_prefix = true;
+        request.repository_selection = selection;
+    }
+    let output = run_git(context, &request).ok()?;
     if !output.succeeded() {
         return None;
     }
-    let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
-    return if text.is_empty() { None } else { Some(PathBuf::from(text)) };
+    // The answer is a pathname, so it is read as the bytes Git printed it as; a spelling of it named a directory
+    //  that does not exist when the name was not UTF-8, and the route then had no instance to reach.
+    let printed: &[u8] = without_the_terminator(output.stdout.as_slice()).trim_ascii();
+    return if printed.is_empty() { None } else { Some(path_answer(printed)) };
 }
 
 /// What:

@@ -15,6 +15,8 @@ import {
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+//region Logger root
+
 /**
  Logger root for terminal-exec after removing the package log shim.
  
@@ -33,11 +35,19 @@ const l = tagged({
   l: parentLogger,
 },);
 
+//endregion Logger root
+
+//region Unreadable directory sentinel
+
 /**
  Sentinel returned by {@link readdirOrAbsent} when a directory cannot be read.
  A `unique symbol`; the walker narrows with `=== DIR_UNREADABLE` and skips it.
  */
 const DIR_UNREADABLE: unique symbol = Symbol('terminal-exec/application directory cannot be read',);
+
+//endregion Unreadable directory sentinel
+
+//region Directory reading
 
 /**
  Lists directory entries with type info, returning {@link DIR_UNREADABLE} when the directory cannot be read.
@@ -71,6 +81,10 @@ async function readdirOrAbsent(
   }
 }
 
+//endregion Directory reading
+
+//region Registry entry shape
+
 /**
  Registry entry mapping an entry ID to its filesystem path.
  When the same ID appears in multiple directories, the highest-priority
@@ -86,6 +100,10 @@ export type EntryRegistration = {
    */
   readonly path: string;
 };
+
+//endregion Registry entry shape
+
+//region Desktop file discovery
 
 /**
  Recursively finds all `.desktop` files in a directory.
@@ -133,6 +151,10 @@ async function findDesktopFiles({ dir, }: { readonly dir: string; },): Promise<r
   await walk({ current: dir, },);
   return results;
 }
+
+//endregion Desktop file discovery
+
+//region Entry scanning
 
 /**
  Scans all application directories for `.desktop` files and builds a registry.
@@ -222,3 +244,5 @@ export async function scanEntries({ dirs, }: { readonly dirs: readonly string[];
     fallbackIds,
   };
 }
+
+//endregion Entry scanning

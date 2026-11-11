@@ -5,6 +5,7 @@
  Plants one defect at a time in a copy of the linter and requires the generator controls, which call the same
  invariant functions as the fuzz targets, to fail.
  The worktree is only read; every edit and build happens in this package's ignored `target/planted` tree.
+ Throws when the unplanted controls fail or a plant is not noticed.
  */
 import {
   cp,
@@ -271,178 +272,164 @@ async function plantOne({
 }
 
 /**
- Copy the inputs, prove the unplanted controls pass, then require every plant to fail a control.
-
- @throws PlantedControlError when the unplanted controls fail or a plant is not noticed
-
- @example
- ```ts
- await main();
- ```
+ Root of the repository.
  */
-async function main(): Promise<void> {
-  /**
-   Root of the repository.
-   */
-  const repository = resolve(
-    import.meta.dirname,
-    '../../../..',
-  );
-  // A fixed copy location keeps Cargo's dependency builds reusable between runs of this task.
-  /**
-   Directory of the copied tree and of Cargo's target directory.
-   */
-  const work = join(
-    process.cwd(),
-    'target',
-    'planted',
-  );
-  /**
-   The copied tree.
-   */
-  const root = join(
-    work,
-    'tree',
-  );
-  /**
-   Cargo's target directory.
-   */
-  const targetDirectory = join(
-    work,
-    'target',
-  );
-  await rm(
-    root,
-    {
-      recursive: true,
-      force: true,
-    },
-  );
-  /**
-   Directory that holds one evidence directory per run.
-   */
-  const evidenceRoot = join(
-    process.cwd(),
-    'target',
-    'verification',
-  );
-  await mkdir(
-    evidenceRoot,
-    { recursive: true },
-  );
-  /**
-   The evidence directory of this run.
-   */
-  const evidence = await mkdtemp(join(
-    evidenceRoot,
-    'planted-',
-  ));
-  /**
-   Removal of the copied tree when the run ends.
-   */
-  await using cleanup = {
-    async [Symbol.asyncDispose](): Promise<void> {
-      await rm(
-        root,
-        {
-          recursive: true,
-          force: true,
-        },
-      );
-    },
-  };
-  void cleanup;
-  await mapInSequence({
-    items: inputs,
-    run: function copyOf(input) {
-      return cp(
-        join(
-          repository,
-          input,
-        ),
-        join(
-          root,
-          input,
-        ),
-        { recursive: true },
-      );
-    },
-  });
-  /**
-   The controls without any defect.
-   */
-  const baseline = await controls({
-    root,
-    targetDirectory,
-  });
-  await writeFile(
-    join(
-      evidence,
-      'baseline.log',
-    ),
-    baseline.output,
-  );
-  if ((baseline.status !== 0) || (baseline.passed === 0))
-    throw new PlantedControlError(`Unplanted generator controls did not pass; inspect ${evidence}.`);
-  console.log(`Unplanted controls: ${baseline.passed} passed`);
-  /**
-   What each plant showed.
-   */
-  const results = await mapInSequence({
-    items: plants.map(function indexed(
-      plant,
-      index
-    ): IndexedPlant {
-      return {
-        plant,
-        index,
-      };
-    }),
-    run: function plantOf(item) {
-      return plantOne({
-        plant: item.plant,
-        index: item.index,
-        root,
-        targetDirectory,
-        evidence,
-      });
-    },
-  });
-  await writeFile(
-    join(
-      evidence,
-      'results.json',
-    ),
-    `${JSON.stringify(
+const repository = resolve(
+  import.meta.dirname,
+  '../../../..',
+);
+// A fixed copy location keeps Cargo's dependency builds reusable between runs of this task.
+/**
+ Directory of the copied tree and of Cargo's target directory.
+ */
+const work = join(
+  process.cwd(),
+  'target',
+  'planted',
+);
+/**
+ The copied tree.
+ */
+const root = join(
+  work,
+  'tree',
+);
+/**
+ Cargo's target directory.
+ */
+const targetDirectory = join(
+  work,
+  'target',
+);
+await rm(
+  root,
+  {
+    recursive: true,
+    force: true,
+  },
+);
+/**
+ Directory that holds one evidence directory per run.
+ */
+const evidenceRoot = join(
+  process.cwd(),
+  'target',
+  'verification',
+);
+await mkdir(
+  evidenceRoot,
+  { recursive: true },
+);
+/**
+ The evidence directory of this run.
+ */
+const evidence = await mkdtemp(join(
+  evidenceRoot,
+  'planted-',
+));
+/**
+ Removal of the copied tree when the run ends.
+ */
+await using cleanup = {
+  async [Symbol.asyncDispose](): Promise<void> {
+    await rm(
+      root,
       {
-        baselinePassed: baseline.passed,
-        results: results.map(function recordOf(result) {
-          return {
-            name: result.name,
-            file: result.file,
-            edits: result.edits,
-            status: result.status ?? null,
-            failed: result.failed,
-            noticed: result.noticed,
-          };
-        }),
+        recursive: true,
+        force: true,
       },
-      null,
-      2,
-    )}\n`,
-  );
-  console.log(`Planted-control evidence: ${evidence}`);
-  /**
-   The plants no control noticed.
-   */
-  const unnoticed = results.filter(function isUnnoticed(result) {
-    return !result.noticed;
-  });
-  if (unnoticed.length > 0)
-    throw new PlantedControlError(`Planted defects were not noticed: ${unnoticed.map(function nameOf(result) {
-      return result.name;
-    })
-      .join('; ')}.`);
-}
-
-await main();
+    );
+  },
+};
+void cleanup;
+await mapInSequence({
+  items: inputs,
+  run: function copyOf(input) {
+    return cp(
+      join(
+        repository,
+        input,
+      ),
+      join(
+        root,
+        input,
+      ),
+      { recursive: true },
+    );
+  },
+});
+/**
+ The controls without any defect.
+ */
+const baseline = await controls({
+  root,
+  targetDirectory,
+});
+await writeFile(
+  join(
+    evidence,
+    'baseline.log',
+  ),
+  baseline.output,
+);
+if ((baseline.status !== 0) || (baseline.passed === 0))
+  throw new PlantedControlError(`Unplanted generator controls did not pass; inspect ${evidence}.`);
+console.log(`Unplanted controls: ${baseline.passed} passed`);
+/**
+ What each plant showed.
+ */
+const results = await mapInSequence({
+  items: plants.map(function indexed(
+    plant,
+    index
+  ): IndexedPlant {
+    return {
+      plant,
+      index,
+    };
+  }),
+  run: function plantOf(item) {
+    return plantOne({
+      plant: item.plant,
+      index: item.index,
+      root,
+      targetDirectory,
+      evidence,
+    });
+  },
+});
+await writeFile(
+  join(
+    evidence,
+    'results.json',
+  ),
+  `${JSON.stringify(
+    {
+      baselinePassed: baseline.passed,
+      results: results.map(function recordOf(result) {
+        return {
+          name: result.name,
+          file: result.file,
+          edits: result.edits,
+          status: result.status ?? null,
+          failed: result.failed,
+          noticed: result.noticed,
+        };
+      }),
+    },
+    null,
+    2,
+  )}\n`,
+);
+console.log(`Planted-control evidence: ${evidence}`);
+/**
+ The plants no control noticed.
+ */
+const unnoticed = results.filter(function isUnnoticed(result) {
+  return !result.noticed;
+});
+if (unnoticed.length > 0)
+  throw new PlantedControlError(`Planted defects were not noticed: ${unnoticed.map(function nameOf(result) {
+    return result.name;
+  })
+    .join('; ')}.`);

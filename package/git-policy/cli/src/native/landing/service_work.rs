@@ -55,6 +55,7 @@ use crate::service_review_key::ReviewKey;
 use crate::standards_review_run::ReviewOptions;
 use crate::transaction_git::GitContext;
 use crate::work_item::WorkItem;
+use crate::work_item_holding::{BlockedVerdict, blocked_verdicts};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -443,11 +444,17 @@ impl WorkHandlers for GitHandlers {
         return Box::pin(async move {
         let Some(newest) = items.last() else { return Verdict::Done };
         let git: PushGit = self.push_git_awaiting(newest).await;
+        // The verdicts a post-commit gate kept are the worktree's own records: they are what makes this push stop before a commit the
+        //  gate refused, however far the branch has moved since.
+        let blocked: Vec<BlockedVerdict> = blocked_verdicts(work_directory(newest.git_dir.as_path()).as_path());
         let mut output: Vec<u8> = Vec::new();
-        return match push_once_awaiting(&git, newest.branch_ref.as_str(), newest.oid.as_str(), &mut output).await {
+        return match push_once_awaiting(&git, newest.branch_ref.as_str(), newest.oid.as_str(), blocked.as_slice(), &mut output).await {
             // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
+            // A verdict held the push back: nothing was sent and nothing failed, so the branch is tried again by the retry plan the
+            //  service keeps, and the words go to the person's record with the promise that plan keeps.
+            Ok(result) if result.outcome == AutoPushOutcome::HeldBack => Verdict::Retry(result.shown),
             Ok(result) if result.exit_code == 0 => {
                 // A push that reconciled a moved remote published a merge and said what became of the local branch in its own
                 //  output; the command that ran the push returned long before it ended, so those words go to a record the next
@@ -507,6 +514,40 @@ impl WorkHandlers for GitHandlers {
     /// ```
     fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move { return crate::worktree_trash::empty_trash_awaiting(item).await; });
+    }
+
+    /// What:
+    ///  Fill the Cargo build directories a new worktree's record names,
+    /// its clone and its clean awaited on the runtime.
+    /// Why:
+    ///   The add hands this work over instead of waiting for it
+    /// (`package_repair_prewarm.rs`),
+    /// and the round is a task of the runtime,
+    /// so the tree clone and the Cargo child are awaited here rather than entered from a
+    ///  synchronous face.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// prewarmAwaiting(item) { return prewarmAwaiting(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move { return crate::package_repair_prewarm_job::prewarm_awaiting(item).await; });
+    }
+
+    /// What:
+    ///  Delete the subvolume a removal renamed out of the person's way.
+    /// Why:
+    ///  The removal records the path and returns,
+    /// so this is where the one kernel call happens,
+    /// with no person waiting for it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// subvolumeDelete(item) { return deleteSubvolumeOf(item); }
+    /// ```
+    fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
+        return crate::worktree_remove_hand_over::delete_subvolume_of(item);
     }
 
     fn maintenance(&self, item: &WorkItem) -> Verdict {

@@ -1,18 +1,23 @@
 //! What:
-//! Whether a direct fix may change a tracked file it did not select,
-//! and the
-//!       `patch-conflict` message when it may not.
+//! Whether a commit or a direct fix may change a tracked file it did not select,
+//! the
+//!       `patch-conflict` message when a fix may not,
+//! and the note a commit writes instead.
 //! Why:
 //! `SPEC.md` ("Added paths") admits such a file only when `HEAD`,
 //! the real index,
 //! the
 //!      private index and the worktree all hold the blob the correction was computed
 //!      against,
-//! so the fix discards nobody's change.
+//! so neither lifecycle discards nobody's change:
+//! a fix refuses the work,
+//! and a
+//!      commit leaves the file out and says which and why,
+//! because a commit never fails for it.
 //! The reasons and the remedy are the
 //!      installed wrapper's words (`commit-transaction-added-paths.ts`,
 //! `assertAddablePath`
-//!      and its direct-fix message),
+//!      and its per-lifecycle messages),
 //! checked in its order.
 //!
 //! `commit-transaction-added-paths.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
@@ -24,9 +29,19 @@
 //! ```
 
 /// The modes and object names the precondition compares.
-use crate::candidate_object::{CandidateMode, ObjectId};
+use crate::candidate_object::{CandidateMode, ObjectId, mode_from_git, parse_object_id};
+/// The pathname conversion the worktree copy is found through.
+use crate::git_metadata::path_from_git_bytes;
+/// The exact path bytes a Git command is given.
+use crate::path_bytes::os_from_path_bytes;
+/// The Git context and request the real index is listed in.
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
+/// `BTreeMap<K, V>` is a map kept sorted by key.
+use std::collections::BTreeMap;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
+/// `PathBuf` is an owned filesystem path.
+use std::path::PathBuf;
 
 /// The reason `HEAD` does not hold the file the correction was computed against.
 pub const ADDED_PATH_HEAD_REASON: &str =
@@ -56,7 +71,7 @@ pub const ADDED_PATH_UNSTAGED_REASON: &str = "its worktree copy has unstaged cha
 pub type Entry = (CandidateMode, ObjectId);
 
 /// What:
-/// The direct-fix `patch-conflict` message for a file and a reason.
+/// The `patch-conflict` message for a file and a reason.
 /// Why:
 ///  It names both ways out:
 /// select the file,
@@ -72,6 +87,32 @@ pub fn added_path_message(path: &str, reason: &str) -> String {
          Include {path} in the fix pathspecs so the fix applies to its worktree copy, \
          or restore it to match HEAD (git restore --staged --worktree -- {path}), \
          then run the fix again."
+    );
+}
+
+/// What:
+/// The message for a dependent a commit left out because a copy of its manifest holds
+///       changes the commit does not carry.
+/// `name`,
+///  `from` and `to` are the dependent's name and the version it keeps and would take.
+/// Why:
+///  The person must know which dependent stayed at its old version,
+///  what the commit did
+///       instead of writing to its copy,
+///  and both ways to carry it:
+/// commit that file too,
+/// or restore
+///       it to `HEAD`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const commitMessage = ({ path, name, from, to, reason }) => `A policy fix needs to add ${path} to this commit, but ${reason}. ${name} keeps ${from} ...`;
+/// ```
+pub fn commit_added_path_message(path: &str, name: &str, from: &str, to: &str, reason: &str) -> String {
+    return format!(
+        "A policy fix needs to add {path} to this commit to bump {name} from {from} to {to}, but {reason}. {name} \
+         keeps {from} in this commit, and its copy was left exactly as it is. Commit the file too, with its version \
+         set to {to}, or restore it to match HEAD (git restore --staged --worktree -- {path}), then commit again."
     );
 }
 
@@ -178,6 +219,198 @@ pub fn worktree_refusal(
         return Ok(Some(ADDED_PATH_UNSTAGED_REASON));
     }
     return Ok(None);
+}
+
+/// What:
+///  The four copies of one path a commit compares before it adds that path to
+///       itself,
+///  and the bytes the correction was computed against.
+/// Why:
+///   One record keeps them together,
+///  so the rule that judges them cannot be handed a pair from
+///       different files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CommitAddedPath = { path: string; head?: Entry; commit: Entry; real?: Entry; original: Uint8Array; root: string };
+/// ```
+pub struct CommitAddedPath<'a> {
+    /// The repository path the correction names.
+    pub path: &'a [u8],
+    /// `HEAD`'s entry,
+    ///  when `HEAD` holds the path.
+    pub head: Option<Entry>,
+    /// The commit index's entry,
+    ///  whose bytes the correction was computed against.
+    pub commit: Entry,
+    /// The real index's entry,
+    ///  when it holds the path.
+    pub real: Option<Entry>,
+    /// The bytes the correction was computed against.
+    pub original: &'a [u8],
+    /// The worktree root the copy is read under.
+    pub root: &'a Path,
+}
+
+/// What:
+///  Why a commit may not add one tracked path to itself,
+///  or nothing when every copy holds
+///       the file the correction was computed against.
+///  `Err` is a read the system refused for another reason than a copy being absent.
+/// Why:
+///  A commit adds a path the person did not select only while `HEAD`,
+///  the real index,
+///  the
+///       commit's own index and the worktree all hold that one blob,
+///  so the commit lands what the
+///       person saw and the worktree copy takes the committed bytes afterwards.
+///  A copy that
+///       holds something else is somebody's work,
+///       and it is left exactly as it is.
+///  The reasons are the fix's own,
+///  checked in the same order,
+///  so one rule answers both lifecycles.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function commitRefusal(added: CommitAddedPath): Promise<string | undefined>;
+/// ```
+pub fn commit_refusal(added: &CommitAddedPath<'_>) -> Result<Option<&'static str>, std::io::Error> {
+    let mode: CandidateMode = match head_mode(added.head.as_ref(), &added.commit) {
+        Ok(found) => found,
+        Err(reason) => return Ok(Some(reason)),
+    };
+    // The landing writes the commit's entry into the real index, so the real index must hold that entry already.
+    if added.real.as_ref() != Some(&added.commit) {
+        return Ok(Some(ADDED_PATH_STAGED_REASON));
+    }
+    let Some(relative) = path_from_git_bytes(added.path) else {
+        return Ok(Some(ADDED_PATH_UNSTAGED_REASON));
+    };
+    let file: PathBuf = added.root.join(relative);
+    return worktree_refusal(file.as_path(), mode, added.original);
+}
+
+/// What:
+///  A Git failure as its message text.
+///  `GitFailure` is the one-field failure a Git started by the wrapper reports.
+/// Why:
+///  `map_err` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const failureMessage = (failure: GitFailure) => failure.message;
+/// ```
+fn git_failure_message(failure: GitFailure) -> String {
+    return failure.0;
+}
+
+/// What:
+///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
+/// Why:
+///  `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether one byte is the tab that separates an entry's metadata from its path.
+///  `&u8` borrows the byte,
+/// as `position` hands it over.
+/// Why:
+///  `position` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isTabByte = (byte: number) => byte === 0x09;
+/// ```
+fn is_tab_byte(byte: &u8) -> bool {
+    return *byte == b'\t';
+}
+
+/// What:
+///  Whether one byte is the space that separates an entry's mode,
+///  object and stage.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
+/// Why:
+///  `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSpaceByte = (byte: number) => byte === 0x20;
+/// ```
+fn is_space_byte(byte: &u8) -> bool {
+    return *byte == b' ';
+}
+
+/// What:
+///  The real index's stage-0 entries for the given paths.
+///  A path the index holds no stage-0 entry for is absent from the map.
+/// Why:
+///   `commit_refusal` compares these with the commit's own entries,
+///  and the real index is not the
+///       index a commit reads its candidates from.
+///  One start lists every path,
+///  so a commit that
+///       adds several dependents pays one Git process and not one per file.
+///  The listing keeps none of the caller's other options,
+///  so it names the repository those options selected:
+/// `repository_root` is the worktree top it runs in,
+/// and a relative `--git-dir` or `--work-tree` is read from there,
+/// as Git reads it.
+///  A Git directory beside its work tree has no `.git` inside the work tree to find,
+/// so a listing that named no repository would answer "not a git repository"
+/// for every dependent whose copy it was asked to prove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function realIndexEntries({ gitPath, repositoryRoot, realIndexPath, paths }): Promise<Map<string, { mode; oid }>>;
+/// ```
+pub fn real_index_entries(
+    context: &GitContext,
+    repository_root: &Path,
+    index: &Path,
+    paths: &[Vec<u8>],
+) -> Result<BTreeMap<Vec<u8>, Entry>, String> {
+    let mut request: GitRequest = GitRequest::new(repository_root, &["ls-files", "--stage", "-z", "--full-name", "--"]).own_pathspecs();
+    for path in paths {
+        let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
+        pathspec.extend_from_slice(path.as_slice());
+        request.arguments.push(os_from_path_bytes(pathspec.as_slice()));
+    }
+    // The listing is the caller's own pathspecs, and the caller's pathspec mode would read them as file names.
+    request.without_prefix = true;
+    request.repository_selection = crate::repository_selection::from_global_options(repository_root, context.global_prefix.as_slice());
+    request.index = Some(index.to_path_buf());
+    let output: GitOutput = run_git_checked(context, &request).map_err(git_failure_message)?;
+    let mut entries: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
+    for record in output.stdout.split(is_nul_byte) {
+        let Some(tab) = record.iter().position(is_tab_byte) else {
+            continue;
+        };
+        let metadata: &[u8] = &record[..tab];
+        let fields: Vec<&[u8]> = metadata.split(is_space_byte).collect();
+        let [raw_mode, raw_object, stage] = fields.as_slice() else {
+            continue;
+        };
+        // An unmerged entry has three stages and no single content, so it can never be the one blob.
+        if *stage != b"0" {
+            continue;
+        }
+        let (Some(mode), Some(object)) = (mode_from_git(raw_mode), parse_object_id(raw_object)) else {
+            continue;
+        };
+        entries.insert(record[tab + 1..].to_vec(), (mode, object));
+    }
+    return Ok(entries);
 }
 
 /// Precondition and message controls stay out of the release executable.

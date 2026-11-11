@@ -249,7 +249,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/test-harness/core-matrix/src/cachyos-image.ts',
     'package/test-harness/core-matrix/src/pnpm-store-mount.ts',
     'package/test-harness/core-matrix/src/locked-tool-build-arguments.ts',
-    'package/vm-builder/cli/src/sign-and-push.ts',
+    'package/vm-builder/cli/src/image-signing.ts',
   ].map((path,) => ({ path, role: 'reads' as const, }),),
 ];
 

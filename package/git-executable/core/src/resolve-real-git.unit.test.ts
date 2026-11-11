@@ -22,6 +22,7 @@ import {
 import {
   RealGitNotFoundError,
   resolveRealGit,
+  SELF_SHIM_MARKERS,
 } from '../dist/final/node/index.mjs';
 import {
   captureResolutionError,
@@ -72,11 +73,73 @@ echo real git "$@"
 `;
 
 /**
- Package name marker emitted by a package manager's `git` shim.
+ Separator a Windows command shim writes between package path segments.
  */
-const PACKAGE_NAME_SHIM_CONTENT = `#!/bin/sh
-# @monochromatic-dev/git-policy-cli
-`;
+const WINDOWS_PATH_SEPARATOR = '\\';
+
+/**
+ Markers the resolver recognises, as the package declares them,
+ so no self-shim fixture spells a marker of its own.
+ */
+const SELF_SHIM_MARKERS_LIST: readonly string[] = [...SELF_SHIM_MARKERS,];
+
+/**
+ Writes a disposable `git` script a package manager generates for one marker.
+ The marker's own spelling decides the script's platform:
+ a marker holding a backslash belongs to a Windows batch shim,
+ every other marker to a POSIX script naming the package.
+ 
+ @param marker - Self-shim marker the script must contain
+ 
+ @returns Content of a script that delegates to the Git policy wrapper
+ 
+ @example
+ ```ts
+ shimContentNaming(portableMarker());
+ // => '#!/bin/sh' as its first line, the marker as its second
+ ```
+ */
+function shimContentNaming(marker: string,): string {
+  if (marker.includes(WINDOWS_PATH_SEPARATOR,))
+    return [
+      '@ECHO off',
+      `node "%~dp0\\..\\${marker}" %*`,
+      '',
+    ].join('\n',);
+  return [
+    '#!/bin/sh',
+    `# ${marker}`,
+    '',
+  ].join('\n',);
+}
+
+/**
+ Portable spelling among the markers the resolver recognises,
+ the one a POSIX package manager writes into its `git` shim.
+ 
+ @returns Marker naming the wrapper with portable path separators.
+ 
+ @throws When no recognised marker is portable,
+ which would leave every POSIX fixture below naming nothing.
+ */
+function portableMarker(): string {
+  for (const marker of SELF_SHIM_MARKERS_LIST) {
+    if (!marker.includes(WINDOWS_PATH_SEPARATOR,))
+      return marker;
+  }
+  throw new Error('No self-shim marker spells the wrapper with portable separators',);
+}
+
+/**
+ Self-referential POSIX `git` shim, derived from the marker the resolver recognises.
+ */
+const PACKAGE_NAME_SHIM_CONTENT = shimContentNaming(portableMarker(),);
+
+/**
+ Marker line a padded self shim carries past the inspection bound,
+ derived from the marker the resolver recognises.
+ */
+const PADDED_SELF_SHIM_MARKER_LINE = `\n${portableMarker()}\n`;
 
 /**
  Cases proving every known Git policy self-shim marker is skipped.
@@ -84,18 +147,12 @@ const PACKAGE_NAME_SHIM_CONTENT = `#!/bin/sh
 const SELF_SHIM_CASES: readonly {
   readonly name: string;
   readonly content: string;
-}[] = [
-  {
-    name: 'package name marker',
-    content: PACKAGE_NAME_SHIM_CONTENT,
-  },
-  {
-    name: 'Windows package marker',
-    content: String.raw`@ECHO off
-node "%~dp0\..\@monochromatic-dev\git-policy-cli\dist\final\node\index.mjs" %*
-`,
-  },
-];
+}[] = SELF_SHIM_MARKERS_LIST.map(function mapMarkerToShimCase(marker,) {
+  return {
+    name: `the marker ${marker}`,
+    content: shimContentNaming(marker,),
+  };
+},);
 
 /**
  Resolves Git in isolated process with deadline protecting FIFO regression tests.
@@ -427,7 +484,7 @@ await describe({
         const paddedSelfShim = Buffer.concat([
           Buffer.from('#!/bin/sh\n',),
           Buffer.alloc(PADDED_SELF_SHIM_PREFIX_BYTES, '#',),
-          Buffer.from('\n@monochromatic-dev/git-policy-cli\n',),
+          Buffer.from(PADDED_SELF_SHIM_MARKER_LINE,),
         ],);
         await Promise.all([
           writeExecutable({ path: paddedGit, content: paddedSelfShim, },),
@@ -958,7 +1015,7 @@ await describe({
         const oversizedWrapper = Buffer.concat([
           Buffer.from('#!/bin/sh\n',),
           Buffer.alloc(PADDED_SELF_SHIM_PREFIX_BYTES, '#',),
-          Buffer.from('\n@monochromatic-dev/git-policy-cli\n',),
+          Buffer.from(PADDED_SELF_SHIM_MARKER_LINE,),
         ],);
         await writeExecutable({ path: oversizedGit, content: oversizedWrapper, },);
 

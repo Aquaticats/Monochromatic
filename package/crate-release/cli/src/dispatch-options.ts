@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { buildCommitMessage } from './commit-message.ts';
 import {
   type CrateRegistry,
+  type DispatchGateCommand,
   findCrate,
 } from './crate-registry.ts';
 import { CrateReleaseError } from './error.ts';
@@ -13,6 +14,7 @@ import {
   splitArguments,
   switchGiven,
 } from './option-parsing.ts';
+import type { ProgramCall } from './run-program.ts';
 import {
   parseCrateName,
   parseRepository,
@@ -51,6 +53,11 @@ export type DispatchOptions = {
    `owner/name` passed to `gh`; absent to let `gh` read the repository from the working directory.
    */
   readonly repo?: string;
+  /**
+   The crate's own release gate, when its entry in the registry names one: the command a real release waits for, run
+   from the crate's directory before the workflow is started at all.
+   */
+  readonly dispatchGate?: ProgramCall;
 };
 
 /**
@@ -62,6 +69,43 @@ const dispatchOptionDefinitions = {
   'repo': { type: 'string' },
   'dry-run': { type: 'boolean' },
 } as const;
+
+/**
+ Resolve the crate's dispatch gate into the program call the dispatch runs.
+
+ The gate runs from the crate's own directory, so the paths it names are the crate's, and never the repository root.
+
+ @param gate - the command the crate's registry entry names
+
+ @param root - absolute repository root
+
+ @param crateDirectory - repository-relative directory of the crate
+
+ @returns the program call, ready to run
+
+ @example
+ ```ts
+ gateCall({ gate: { program: 'node', args: ['bin/gate.ts'] }, root: '/repo', crateDirectory: 'package/a/cli' });
+ ```
+ */
+function gateCall({
+  gate,
+  root,
+  crateDirectory,
+}: {
+  readonly gate: DispatchGateCommand;
+  readonly root: string;
+  readonly crateDirectory: string;
+}): ProgramCall {
+  return {
+    program: gate.program,
+    args: gate.args,
+    cwd: resolve(
+      root,
+      crateDirectory
+    ),
+  };
+}
 
 /**
  Read and validate the command line of the dispatch command.
@@ -132,13 +176,17 @@ export function parseDispatchArguments({
       name: 'crate'
     })
   });
+  /**
+   The crate's registry entry, which names the scope of the release commit, the manifests that pin the crate, and the
+   command a real release waits for.
+   */
+  const entry = findCrate({
+    registry: registry(),
+    name: crate
+  });
   // Building the subject here refuses a bad note before a workflow run is spent on it.
   buildCommitMessage({
-    scope: findCrate({
-      registry: registry(),
-      name: crate
-    })
-      .scope,
+    scope: entry.scope,
     version: to,
     note
   });
@@ -149,11 +197,15 @@ export function parseDispatchArguments({
     raw,
     name: 'repo'
   });
+  /**
+   Absolute repository root, from which the crate's own directory is named.
+   */
+  const rootPath = resolve(rootOf({
+    raw,
+    root
+  }));
   return {
-    root: resolve(rootOf({
-      raw,
-      root
-    })),
+    root: rootPath,
     crate,
     from,
     to,
@@ -168,5 +220,12 @@ export function parseDispatchArguments({
         value: repo.value
       })
     } : {}),
+    ...(entry.dispatchGate === undefined ? {} : {
+      dispatchGate: gateCall({
+        gate: entry.dispatchGate,
+        root: rootPath,
+        crateDirectory: entry.crateDirectory
+      })
+    }),
   };
 }

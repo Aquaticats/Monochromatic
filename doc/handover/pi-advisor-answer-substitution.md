@@ -122,14 +122,14 @@ The prompt prohibition is not enforced by a result contract or postcondition.
 
 The answer-generating instruction is reinforced at several seams:
 
-1. `package/pi-plugin/advisor/src/tool-params.ts:46` describes `question` as content for Advisor to `answer`.
-2. `package/pi-plugin/advisor/src/tool.ts:86` tells the primary model to use `question` when Advisor should `answer`
-   an uncertainty.
-3. `package/pi-plugin/advisor/src/constants.ts:63` tells Advisor to answer the focus question first,
-   then later in the same prompt tells it not to perform the primary task.
-4. `package/pi-plugin/advisor/src/advisor-request.ts:55` places the raw string beneath a `## Focus question` heading.
-5. `package/pi-plugin/advisor/src/advisor-client.ts:279` sends that text as the only provider user message.
-6. `package/pi-plugin/advisor/src/tool.ts:336` extracts all returned text without a semantic or structural check.
+1.  `package/pi-plugin/advisor/src/tool-params.ts:46` describes `question` as content for Advisor to `answer`.
+2.  `package/pi-plugin/advisor/src/tool.ts:86` tells the primary model to use `question` when Advisor should `answer`
+    an uncertainty.
+3.  `package/pi-plugin/advisor/src/constants.ts:63` tells Advisor to answer the focus question first,
+    then later in the same prompt tells it not to perform the primary task.
+4.  `package/pi-plugin/advisor/src/advisor-request.ts:55` places the raw string beneath a `## Focus question` heading.
+5.  `package/pi-plugin/advisor/src/advisor-client.ts:279` sends that text as the only provider user message.
+6.  `package/pi-plugin/advisor/src/tool.ts:336` extracts all returned text without a semantic or structural check.
 
 The role conflict is therefore produced by the Advisor interface,
 not only by one unfortunate model call.
@@ -194,10 +194,10 @@ and `maximum` before provider dispatch.
 
 The external precedent supports three local changes:
 
-1. Remove free-form call input rather than improve its wording.
-2. Reject Advisor use on simple single-turn factual or arithmetic tasks through main-model call guidance.
-3. Treat `2048` as a measured starting cap for a structured reviewer,
-   then verify it across the locally eligible provider set before making it default.
+1.  Remove free-form call input rather than improve its wording.
+2.  Reject Advisor use on simple single-turn factual or arithmetic tasks through main-model call guidance.
+3.  Treat `2048` as a measured starting cap for a structured reviewer,
+    then verify it across the locally eligible provider set before making it default.
 
 ## Enforcement layers
 
@@ -542,25 +542,25 @@ The prior design combined two complementary decisions.
 
 ### Input ranking
 
-1. **Typed focus and mechanical target**
-   - Pros:
-      preserves focused review,
-     closes arbitrary call instructions,
-     and permits deterministic pre-dispatch validation.
-   - Cons:
-      adds enum and target semantics that must remain stable and mechanically defined.
-2. **No focus input**
-   - Pros:
-      narrowest public input and alignment with Anthropic's empty-input precedent.
-   - Cons:
-      forces the reviewer to infer scope,
-     increasing irrelevant or broad review.
-3. **Free-form focus with an intent gate**
-   - Pros:
-      preserves arbitrary caller expression.
-   - Cons:
-      natural-language classification cannot reliably separate review from task execution,
-     so the original role conflict remains representable.
+1.  **Typed focus and mechanical target**
+    - Pros:
+       preserves focused review,
+      closes arbitrary call instructions,
+      and permits deterministic pre-dispatch validation.
+    - Cons:
+       adds enum and target semantics that must remain stable and mechanically defined.
+2.  **No focus input**
+    - Pros:
+       narrowest public input and alignment with Anthropic's empty-input precedent.
+    - Cons:
+       forces the reviewer to infer scope,
+      increasing irrelevant or broad review.
+3.  **Free-form focus with an intent gate**
+    - Pros:
+       preserves arbitrary caller expression.
+    - Cons:
+       natural-language classification cannot reliably separate review from task execution,
+      so the original role conflict remains representable.
 
 Ranking:
  typed focus > no focus > free-form gate,
@@ -569,24 +569,24 @@ no focus ranks ahead of a gate because structural absence is stronger than heuri
 
 ### Output ranking
 
-1. **Symbolic evidence relations**
-   - Pros:
-      no arbitrary provider prose reaches the primary model;
-     local rendering and strict reference validation create deterministic output confinement.
-   - Cons:
-      a finite taxonomy cannot explain every novel defect,
-     so the primary agent must inspect cited evidence itself.
-2. **Bounded cited prose**
-   - Pros:
-      richer and more immediately actionable findings.
-   - Cons:
-      an answer can still be placed inside a valid string field,
-     so prevention remains model-dependent.
-3. **Unrestricted provider text**
-   - Pros:
-      maximum expressive flexibility.
-   - Cons:
-      directly reproduces the incident's answer-substitution path.
+1.  **Symbolic evidence relations**
+    - Pros:
+       no arbitrary provider prose reaches the primary model;
+      local rendering and strict reference validation create deterministic output confinement.
+    - Cons:
+       a finite taxonomy cannot explain every novel defect,
+      so the primary agent must inspect cited evidence itself.
+2.  **Bounded cited prose**
+    - Pros:
+       richer and more immediately actionable findings.
+    - Cons:
+       an answer can still be placed inside a valid string field,
+      so prevention remains model-dependent.
+3.  **Unrestricted provider text**
+    - Pros:
+       maximum expressive flexibility.
+    - Cons:
+       directly reproduces the incident's answer-substitution path.
 
 Ranking:
  symbolic relations > bounded prose > unrestricted text,
@@ -597,26 +597,26 @@ and evidence linkage.
 
 The rejected stack was:
 
-1. Replace `question` with optional typed `focus` and reject unknown fields before dispatch.
-2. Generate a provenance-aware local evidence inventory,
-   exclude Advisor-generated entries,
-   and apply mechanical target projection.
-3. Ask the reviewer to submit only canonical symbolic findings through the shared model-review transport.
-4. Strictly parse one result contract,
-   including any separately identified direct-JSON recovery path,
-   and map every failure to a finite local code without relaying rejected values.
-5. Route the tool and `/advisor` command through the same request,
-   transport,
-   parser,
-   failure,
-   and fixed-rendering pipeline.
-6. Rewrite caller guidance so Advisor reviews an existing candidate or evidence on a multi-step task.
-   Simple factual and arithmetic tasks should not invoke it.
-7. Keep positive reviewer prompting as defense in depth.
-8. Probe a `2048` output cap across eligible providers separately;
-   do not bundle that unverified local default with role enforcement.
-9. Defer renaming.
-   A rename does not add an enforcement seam and would distract from the contract change.
+1.  Replace `question` with optional typed `focus` and reject unknown fields before dispatch.
+2.  Generate a provenance-aware local evidence inventory,
+    exclude Advisor-generated entries,
+    and apply mechanical target projection.
+3.  Ask the reviewer to submit only canonical symbolic findings through the shared model-review transport.
+4.  Strictly parse one result contract,
+    including any separately identified direct-JSON recovery path,
+    and map every failure to a finite local code without relaying rejected values.
+5.  Route the tool and `/advisor` command through the same request,
+    transport,
+    parser,
+    failure,
+    and fixed-rendering pipeline.
+6.  Rewrite caller guidance so Advisor reviews an existing candidate or evidence on a multi-step task.
+    Simple factual and arithmetic tasks should not invoke it.
+7.  Keep positive reviewer prompting as defense in depth.
+8.  Probe a `2048` output cap across eligible providers separately;
+    do not bundle that unverified local default with role enforcement.
+9.  Defer renaming.
+    A rename does not add an enforcement seam and would distract from the contract change.
 
 The rejected stack would have eliminated free-form per-call review instructions and provider-authored free-form text.
 That guarantee was purchased by removing the expressive review channel,
@@ -730,10 +730,10 @@ so no deterministic semantic classifier follows from syntax alone.
 It is another same-call string supplied by the primary model.
 Its recommended correction is a two-phase protocol:
 
-1. Persist unrestricted artifact and criteria in an immutable checkpoint with primary-assistant provenance.
-2. Complete that tool interaction before Advisor dispatch.
-3. Invoke Advisor later using only the opaque checkpoint ID and optional model routing.
-4. Return unrestricted review text associated with that checkpoint.
+1.  Persist unrestricted artifact and criteria in an immutable checkpoint with primary-assistant provenance.
+2.  Complete that tool interaction before Advisor dispatch.
+3.  Invoke Advisor later using only the opaque checkpoint ID and optional model routing.
+4.  Return unrestricted review text associated with that checkpoint.
 
 This removes fresh natural-language parameters from the review call
 while preserving both text channels at checkpoint time.
@@ -847,26 +847,26 @@ Otherwise the gate has merely recreated the rejected expressiveness loss.
 
 ### Ownership protocol ranking
 
-1. **Persisted two-phase checkpoint**
-   - Pros:
-      preserves arbitrary artifact,
-     criteria,
-     and review prose;
-     proves primary-assistant provenance and completed ordering;
-     removes fresh text parameters from the review call.
-   - Cons:
-      adds one tool round trip and cannot prove artifact substance or review semantics.
-2. **Inline artifact on the Advisor call**
-   - Pros:
-      preserves natural language and needs one call.
-   - Cons:
-      the artifact is fresh same-call text,
-     so it does not establish prior ownership and remains an instruction channel.
-3. **Prompt-only evaluator framing**
-   - Pros:
-      smallest interface change and unrestricted prose.
-   - Cons:
-      preserves the exact incident call shape and supplies no deterministic ownership invariant.
+1.  **Persisted two-phase checkpoint**
+    - Pros:
+       preserves arbitrary artifact,
+      criteria,
+      and review prose;
+      proves primary-assistant provenance and completed ordering;
+      removes fresh text parameters from the review call.
+    - Cons:
+       adds one tool round trip and cannot prove artifact substance or review semantics.
+2.  **Inline artifact on the Advisor call**
+    - Pros:
+       preserves natural language and needs one call.
+    - Cons:
+       the artifact is fresh same-call text,
+      so it does not establish prior ownership and remains an instruction channel.
+3.  **Prompt-only evaluator framing**
+    - Pros:
+       smallest interface change and unrestricted prose.
+    - Cons:
+       preserves the exact incident call shape and supplies no deterministic ownership invariant.
 
 Ranking:
  persisted checkpoint > inline artifact > prompt-only framing,
@@ -875,26 +875,26 @@ inline text ranks ahead of prompt-only framing because it at least requires an e
 
 ### Reviewer context ranking
 
-1. **Full objective,
-   evidence,
-   artifact,
-   and criteria**
-   - Pros:
-      preserves every current review capability.
-   - Cons:
-      gives Advisor enough information to generate task-completion prose.
-2. **Dual context with selected evidence**
-   - Pros:
-      reduces unrelated instruction pressure.
-   - Cons:
-      selection can hide the exact requirement or evidence Advisor should catch.
-3. **Blind artifact-only review**
-   - Pros:
-      makes direct optimization for the original task harder.
-   - Cons:
-      cannot reliably review completeness,
-     scope,
-     or requirement compliance.
+1.  **Full objective,
+    evidence,
+    artifact,
+    and criteria**
+    - Pros:
+       preserves every current review capability.
+    - Cons:
+       gives Advisor enough information to generate task-completion prose.
+2.  **Dual context with selected evidence**
+    - Pros:
+       reduces unrelated instruction pressure.
+    - Cons:
+       selection can hide the exact requirement or evidence Advisor should catch.
+3.  **Blind artifact-only review**
+    - Pros:
+       makes direct optimization for the original task harder.
+    - Cons:
+       cannot reliably review completeness,
+      scope,
+      or requirement compliance.
 
 Ranking:
  full context > dual context > blind review,
@@ -903,22 +903,22 @@ dual context ranks ahead of blind review because it retains some objective evide
 
 ### Role adjudication ranking
 
-1. **Offline or non-blocking shadow measurement**
-   - Pros:
-      builds evidence about semantic drift without withholding Advisor output.
-   - Cons:
-      measures behavior but does not prevent it.
-2. **No adjudication**
-   - Pros:
-      simplest path and no false-positive suppression.
-   - Cons:
-      supplies no behavioral signal beyond prompt and observed incidents.
-3. **Blocking adjudication before measurement**
-   - Pros:
-      can reject likely substitution while leaving the Advisor schema unrestricted.
-   - Cons:
-      false positives withhold valid expressive reviews,
-     reproducing the user's rejected trade through a model gate.
+1.  **Offline or non-blocking shadow measurement**
+    - Pros:
+       builds evidence about semantic drift without withholding Advisor output.
+    - Cons:
+       measures behavior but does not prevent it.
+2.  **No adjudication**
+    - Pros:
+       simplest path and no false-positive suppression.
+    - Cons:
+       supplies no behavioral signal beyond prompt and observed incidents.
+3.  **Blocking adjudication before measurement**
+    - Pros:
+       can reject likely substitution while leaving the Advisor schema unrestricted.
+    - Cons:
+       false positives withhold valid expressive reviews,
+      reproducing the user's rejected trade through a model gate.
 
 Ranking:
  shadow measurement > no adjudication > unmeasured blocking,

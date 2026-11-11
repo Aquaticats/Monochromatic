@@ -90,121 +90,121 @@ Most workspace packages run directly through Node or a built Node bundle
 managed by mise.
  To produce a publishable Node-compatible bundle:
 
-1. Create `rolldown.node.config.ts`.
-    The minimum form re-exports the shared
-   config
-   (see `package/test-harness/core-diagnostic/rolldown.node.config.ts`):
+1.  Create `rolldown.node.config.ts`.
+     The minimum form re-exports the shared
+    config
+    (see `package/test-harness/core-diagnostic/rolldown.node.config.ts`):
 
-   ```ts
-   export { default, } from '@monochromatic-dev/config-rolldown/.node.ts';
-   ```
+    ```ts
+    export { default, } from '@monochromatic-dev/config-rolldown/.node.ts';
+    ```
 
-   To bundle additional npm runtime deps so the published package has
-   zero transitive deps,
-    pass a custom bundle-inclusion set to
-   `nodeConfig` through `nodeExternal`
-   (see `package/config/oxlint/rolldown.node.config.ts`):
+    To bundle additional npm runtime deps so the published package has
+    zero transitive deps,
+     pass a custom bundle-inclusion set to
+    `nodeConfig` through `nodeExternal`
+    (see `package/config/oxlint/rolldown.node.config.ts`):
 
-   ```ts
-   import {
-     nodeConfig,
-     nodeExternal,
-     type NodeFlavorConfig,
-   } from '@monochromatic-dev/config-rolldown/.node.ts';
+    ```ts
+    import {
+      nodeConfig,
+      nodeExternal,
+      type NodeFlavorConfig,
+    } from '@monochromatic-dev/config-rolldown/.node.ts';
 
-   const config: NodeFlavorConfig = nodeConfig({
-     external: await nodeExternal({
-       alwaysBundle: [
-         '@monochromatic-dev/**',
-         'nano-spawn',
-         'neovim',
-       ],
-     },),
-   },);
+    const config: NodeFlavorConfig = nodeConfig({
+      external: await nodeExternal({
+        alwaysBundle: [
+          '@monochromatic-dev/**',
+          'nano-spawn',
+          'neovim',
+        ],
+      },),
+    },);
 
-   export default config;
-   ```
+    export default config;
+    ```
 
-   The shared config's default `alwaysBundle` set
-   inlines `@monochromatic-dev/**` and `nano-spawn`.
-   Passing your own `alwaysBundle` list replaces that default,
-    so re-list
-   those two
-   and add anything else you want self-contained.
+    The shared config's default `alwaysBundle` set
+    inlines `@monochromatic-dev/**` and `nano-spawn`.
+    Passing your own `alwaysBundle` list replaces that default,
+     so re-list
+    those two
+    and add anything else you want self-contained.
 
-2. Add build mise tasks to the package's `mise.toml`.
-    Mirror the pattern
-   in `package/test-harness/core-matrix/mise.toml`:
+2.  Add build mise tasks to the package's `mise.toml`.
+     Mirror the pattern
+    in `package/test-harness/core-matrix/mise.toml`:
 
-   ```toml
-   [tasks.build]
-   extends = "build"
-   [tasks."build:js"]
-   extends = "build:js"
-   [tasks."build:js:node"]
-   extends = "build:js:node"
-   [tasks."watch:build"]
-   extends = "watch:build"
-   [tasks."watch:build:js"]
-   extends = "watch:build:js"
-   [tasks."watch:build:js:node"]
-   extends = "watch:build:js:node"
-   ```
+    ```toml
+    [tasks.build]
+    extends = "build"
+    [tasks."build:js"]
+    extends = "build:js"
+    [tasks."build:js:node"]
+    extends = "build:js:node"
+    [tasks."watch:build"]
+    extends = "watch:build"
+    [tasks."watch:build:js"]
+    extends = "watch:build:js"
+    [tasks."watch:build:js:node"]
+    extends = "watch:build:js:node"
+    ```
 
-3. Update `package.json`:
+3.  Update `package.json`:
 
-   - `"module": "dist/final/node/index.mjs"`
-   - `"bin"`:
-      point at the built output,
-      not the source
-     (`{ "<cmd>": "./dist/final/node/index.mjs" }`)
-   - `"exports"`:
-      built artifact for `.`,
-      source path for `./ts`
-   - `"files": ["dist/final", "src"]`
-   - Move every dep the bundle inlines (anything you added to
-     `alwaysBundle`) from `dependencies` to
-     `devDependencies` (so it ends up in dev install but not in the
-     published manifest)
-   - Keep external runtime deps in `dependencies` if any survived
-     bundling decisions
+    - `"module": "dist/final/node/index.mjs"`
+    - `"bin"`:
+       point at the built output,
+       not the source
+      (`{ "<cmd>": "./dist/final/node/index.mjs" }`)
+    - `"exports"`:
+       built artifact for `.`,
+       source path for `./ts`
+    - `"files": ["dist/final", "src"]`
+    - Move every dep the bundle inlines (anything you added to
+      `alwaysBundle`) from `dependencies` to
+      `devDependencies` (so it ends up in dev install but not in the
+      published manifest)
+    - Keep external runtime deps in `dependencies` if any survived
+      bundling decisions
 
-4. Confirm the source shebang is `#!/usr/bin/env node`.
-    If the source
-   still has a legacy `#!/usr/bin/env bun` shebang,
-    change it before
-   building.
-    Rolldown carries a source `#!` line into the bundle
-   (verified 2026-10-22 against rolldown v1.2.14),
-   and the shared config injects `#!/usr/bin/env node` only into a
-   bin-targeted chunk that starts without `#!`
-   (`package/config/rolldown/src/bin-shebang.ts`),
-   so a surviving Bun line is left untouched
-   and the published bin would then require Bun.
+4.  Confirm the source shebang is `#!/usr/bin/env node`.
+     If the source
+    still has a legacy `#!/usr/bin/env bun` shebang,
+     change it before
+    building.
+     Rolldown carries a source `#!` line into the bundle
+    (verified 2026-10-22 against rolldown v1.2.14),
+    and the shared config injects `#!/usr/bin/env node` only into a
+    bin-targeted chunk that starts without `#!`
+    (`package/config/rolldown/src/bin-shebang.ts`),
+    so a surviving Bun line is left untouched
+    and the published bin would then require Bun.
 
-5. `pnpm install` then `mise run //package/<cat>/<name>:build`.
-    Confirm
-   `dist/final/node/index.mjs` exists,
-    has the right shebang,
-    and lists
-   only `node:*` imports when grep-ed:
+5.  `pnpm install` then `mise run //package/<cat>/<name>:build`.
+     Confirm
+    `dist/final/node/index.mjs` exists,
+     has the right shebang,
+     and lists
+    only `node:*` imports when grep-ed:
 
-   ```sh
-   grep -oE 'from"[^"]*"' dist/final/node/index.mjs | sort -u
-   ```
+    ```sh
+    grep -oE 'from"[^"]*"' dist/final/node/index.mjs | sort -u
+    ```
 
-6. Smoke test:
+6.  Smoke test:
 
-   ```sh
-   timeout 3 node dist/final/node/index.mjs </dev/null; echo "exit=$?"
-   ```
+    ```sh
+    timeout 3 node dist/final/node/index.mjs </dev/null; echo "exit=$?"
+    ```
 
-   For a CLI that listens on stdin,
-    EOF should produce a clean exit.
+    For a CLI that listens on stdin,
+     EOF should produce a clean exit.
 
-7. Commit.
-    This is its own logical unit;
-    the deprecation move is separate.
+7.  Commit.
+     This is its own logical unit;
+     the deprecation move is separate.
 
 ### 2. Move source to `package-deprecated/`
 
