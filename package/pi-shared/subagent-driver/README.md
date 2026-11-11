@@ -54,26 +54,39 @@ Each has a `mise` task of its own name under
 A pool is how many runs one provider account answers at once,
 which is not the work a run does.
 Every limit sits in `src/pool-limits.ts` beside the owner's words or the measured refusal it came from,
-and the commands read them from there:
+and the commands read them from there.
+In the order a run that names no model of its own takes them:
 
+- `qwen-plan-deepseek`:
+  the qwen plan's DeepSeek model (`deepseek-v4.1-flash-1017`),
+  18 runs,
+  which a run that names no model of its own takes first.
 - `neuralwatt`:
   standard DeepSeek,
-  20 runs.
+  closed to new runs (limit 0),
+  because `qwen-plan-deepseek` replaced it.
+  Its runs are still counted there,
+  and a run naming the launcher's own default provider and model still reads as a default run.
 - `neuralwatt-flex`:
   DeepSeek flex,
-  22 runs.
+  20 runs.
   Flex answers about 100% slower,
   so a run moved there gets twice the wall clock it asked for.
 - `opencode-go`:
-  20 runs,
-  taken only once both Neuralwatt pools are full.
+  closed to new runs (limit 0) until the owner says its week has reset.
 - `neuralwatt-kimi-flex`:
-  22 runs of Kimi K3.1 Pro flex,
+  20 runs of Kimi K3.1 Pro flex,
+  taken only by a run that names that model.
+- `qwen-token-plan`:
+  4 runs of `qwen4-max-preview`,
   taken only by a run that names that model.
 
+A closed pool takes no new run at all.
 A run that names a model only one pool takes stays on that pool.
-A run that resumes a session stays on the pool it named,
-with no wall factor.
+A run that resumes a session stays on the pool it named while that pool takes new runs,
+with no wall factor;
+a resume whose pool is closed takes the first pool with room,
+because staying on a closed pool would refuse the run for ever.
 Every other run takes the first pool with room,
 in the order above.
 
@@ -84,6 +97,21 @@ An audit (`sol-`) and a Kimi run on a provider no pool holds are counted in no p
 because neither competes for those slots.
 A run whose pool cannot be read at all is counted in `opencode-go`,
 which is what the launcher this replaced did.
+
+### The room a new run needs
+
+No run starts while the volume that holds the repository,
+every agent worktree and every build folder
+has less than 100 GiB free.
+That volume filled on 2026-11-11 at 13:1x,
+6.5 MB of 3.7 TB,
+and every Pi driver exited at once with no summary.
+Measured that day:
+the pinned nightly's build folders held 372 GB for about 40 agent worktrees,
+so about 9 GB an agent,
+which makes the floor about eleven agents' builds.
+`src/free-space-floor.ts` holds the volume and the floor,
+and a refusal names the room it read and the floor it needed.
 
 ### `start-pi-run-when-a-pool-has-room`
 
@@ -97,7 +125,8 @@ plus these:
   the folder the runs live in,
   `${HOME}/temp/agent/pi-runs` by default.
 - `--counts-only`:
-  print the counts and start nothing.
+  print the counts and the room the build volume has,
+  and start nothing.
   It needs no name and never refuses because a run is already going.
 - `--session-of`:
   a finished run's folder,
@@ -107,9 +136,13 @@ Every other word is the launcher's and is passed on untouched.
 
 It answers one line,
 and exits `0` when it started a run,
-`3` when no pool has room,
+`3` when no pool has room or the build volume is under the floor,
 and `4` when a run of that name is already going,
 which is what the retrying start reads.
+The counts line ends with `<n> GiB free on <volume>`,
+and a refusal under the floor names that room,
+the floor,
+and the run it did not start.
 
 ### `start-pi-run-in-a-worktree`
 
