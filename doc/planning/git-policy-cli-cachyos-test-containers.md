@@ -656,6 +656,15 @@ so the peak draw is the reading to compare when asking whether a gate crowds the
   The suite died at 19:46:05-05:00 after 475 s,
   nextest 473.2 s,
   7,190 passed and 2 failed.
+- Started 2026-11-10T19:57:14-05:00,
+  wall 490 s.
+  Startup and image build 24 s,
+  every layer cached again.
+  Both containers started at 19:57:38-05:00.
+  Clippy died at 19:59:49-05:00 after 131 s.
+  The suite died at 20:05:24-05:00 after 466 s,
+  nextest 464.8 s,
+  7,191 passed and 1 failed.
 
 So a gate whose build is cached,
 which is the common case once the layers are warm,
@@ -670,12 +679,25 @@ with 7,192 tests here against 6,974 there.
 The three gates of the day whose build recompiled the subject layer took 1,186 s to 1,256 s,
 and their suite stood at 967 s to 1,004 s,
 so the build is not what the 512 s rests on.
-The failures in those two runs are tests that were already failing on this base.
+Every failure in those three runs is a test that was already failing before this change,
+and the first of them is already fixed on main.
 `repair::package_repair_prewarm_job::tests::the_filling_publishes_a_clean_copy_and_leaves_the_source_alone`
-failed the same way in gate `cd9b8132f8` at two CPUs.
+failed in all three,
+and its control is the one commit `f18a7a764a` fixed at 2026-11-10T17:09:50-05:00,
+whose message quotes the same line from gate `cd9b8132f8`:
+the control read `debug/incremental` alone,
+and the gate's image sets `CARGO_INCREMENTAL=0`.
+This branch's base is `e498914475`,
+which predates that fix,
+so this gate cannot be green until main is merged in.
+The image of gate `630cba63d4` was built after the fix,
+and it passes all six tests of that module in one container,
+and this branch's image fails one of them,
+with the same `CARGO_INCREMENTAL=1` making it pass.
 `fault_limits::a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`
 failed with "no descriptor limit let the commit land" in gates `prewarm-control-incremental` and `630cba63d4` at two
-CPUs.
+CPUs,
+so it is not this change either.
 
 ### What is left
 
