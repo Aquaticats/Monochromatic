@@ -3886,12 +3886,26 @@ as one line),
 and the durable fact that this commit may not be published.
 A verdict outlives the command that wrote it,
 because the queue pushes a branch and not one commit (see "Auto-push").
+A refusal reaches the disk before the command answers:
+its record and the `blocked` verdict that settles it are flushed with their directories,
+because a machine crash that lost them would leave a refused commit with nothing holding its branch back,
+and the next push of the branch would publish it.
 The verdict's words are written into the held record before that record is given up,
 and a verdict record that cannot be written leaves the held record standing and is said,
 because a refusal a held record carries is itself one of the verdicts a push of the branch stops before:
 a command killed between the two,
 and a storage failure on the second,
 then still keep that commit local.
+A pass is not flushed:
+a lost pass leaves the record the gate found,
+which reads as no verdict,
+so the commit stays local and every command names the push a person can make
+(`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
+A verdict that cannot be written leaves the held record where it is,
+which still holds the gate's words,
+and the command says what it kept;
+a push of the branch by the person still sends that commit,
+as a person's own push is forwarded unchanged (see "A blocked commit is never published").
 
 ### Auto-push
 
@@ -3974,6 +3988,18 @@ A question Git cannot answer sends nothing and says so instead of naming a commi
 A commit whose command died before its post-commit gate ran has no verdict,
 so it holds nothing back and the next push of the branch carries it,
 as it did before this rule.
+A commit whose gate is still running is the other case.
+Its held record names a command that is provably running,
+so the answer that may keep the commit local is on its way,
+and the automatic push stops before that commit as it stops before a refusal,
+because sending it would publish a commit the running gate may refuse.
+The base is then the merge base of every parent below a refused or a still-running commit,
+the line says that the push waits for those checks,
+and the push resumes by itself when they answer:
+a pass promotes the record and wakes the service,
+and a refusal settles the verdict this section already stops before.
+The held line every command prints for a live command names the same wait,
+because the record is the only place that wait exists.
 
 #### Merges and commits never fail
 
@@ -10032,6 +10058,16 @@ which can stop a push that verdict never concerned,
 and no line names it,
 because no branch can be named.
 
+A record whose command still runs decides the other way:
+that command's checks may refuse the commit,
+so the automatic push stops before it until they answer
+(see "A blocked commit is never published").
+A command whose output a program reads settles the held records too and shows no line,
+because the settlement is not a notice:
+the approval a dead command recorded must not wait for a command a person types,
+and a workflow of scripts types no other kind.
+It takes no push-failure notice and no held line,
+as it takes none of the other notices.
 A held record is settled when Git proves its commit reached the remote.
 The question is put to the local repository alone,
 because a command asks no remote:

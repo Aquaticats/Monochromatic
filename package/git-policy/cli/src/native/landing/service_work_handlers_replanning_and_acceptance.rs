@@ -535,7 +535,32 @@ impl Replanning {
     /// its push landed,
     /// or the person must act.
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
+        self.push_forget(git_dir, branch_ref, false);
+    }
+
+    /// What:
+    ///  Ask the plan to drop a branch whose repository a reading of the filesystem proved gone.
+    /// Why:
+    ///   That reading is a point in time,
+    /// and the change is applied after it:
+    /// a repository renamed back by then is there again,
+    ///  so its plan must not be dropped on the stale proof.
+    /// The applier asks the filesystem once more
+    /// (`push_retry.rs`,
+    /// `Retrying::apply`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// replanning.forgetWhenUnreachable(gitDir, branchRef); // the plan goes only while the directory is still missing
+    /// ```
+    pub(crate) fn forget_when_unreachable(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.push_forget(git_dir, branch_ref, true);
+    }
+
+    /// The one place a forget is added,
+    /// so both kinds name the directory and the branch the same way.
+    fn push_forget(&mut self, git_dir: &Path, branch_ref: &str, only_while_unreachable: bool) {
+        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable });
     }
 
     /// What:
@@ -677,7 +702,7 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
             continue;
         }
         named.push(format!("{} of {}", due.item.branch_ref, due.item.oid));
-        replanning.forget(git_dir, due.item.branch_ref.as_str());
+        replanning.forget_when_unreachable(git_dir, due.item.branch_ref.as_str());
     }
     // Nothing of this drain ran, so the caller has nothing to wait for; the changes it applies drop the plans of the branch from the
     //  store as well as from memory.

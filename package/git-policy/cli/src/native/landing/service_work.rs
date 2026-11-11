@@ -449,9 +449,13 @@ impl WorkHandlers for GitHandlers {
         let git: PushGit = self.push_git_awaiting(newest).await;
         // The verdicts a post-commit gate kept are the worktree's own records: they are what makes this push stop before a commit the
         //  gate refused, however far the branch has moved since.
-        let blocked: Vec<BlockedVerdict> = blocked_verdicts(work_directory(newest.git_dir.as_path()).as_path());
+        let work: PathBuf = work_directory(newest.git_dir.as_path());
+        let blocked: Vec<BlockedVerdict> = blocked_verdicts(work.as_path());
+        // A commit whose own gate still runs is not decided either, and a push of the branch sends every commit up to the tip: the
+        //  record is what keeps the tip where the gate has not answered yet (`work_item_holding.rs`).
+        let undecided: Vec<String> = crate::work_item_holding::undecided_commits(work.as_path(), newest.branch_ref.as_str());
         let mut output: Vec<u8> = Vec::new();
-        return match push_once_awaiting(&git, newest.branch_ref.as_str(), newest.oid.as_str(), blocked.as_slice(), &mut output).await {
+        return match push_once_awaiting(&git, newest.branch_ref.as_str(), newest.oid.as_str(), blocked.as_slice(), undecided.as_slice(), &mut output).await {
             // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
