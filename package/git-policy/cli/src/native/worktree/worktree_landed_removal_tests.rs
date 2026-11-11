@@ -124,6 +124,21 @@ fn head_of(main: &Path) -> String {
     return git_text(main, &["rev-parse", "HEAD"]);
 }
 
+/// Whether real Git still has the commit `commit` in the fixture's repository.
+/// Why:
+///  A removal that took every reference to a commit leaves it to Git's own maintenance,
+///  and only a Git that answered is evidence that the commit really went.
+fn commit_is_there(repository: &Path, commit: &str) -> bool {
+    return std::process::Command::new(REAL_GIT)
+        .arg("-C")
+        .arg(repository)
+        .args(["cat-file", "-e", commit])
+        .output()
+        .expect("Git can be asked whether a commit is there")
+        .status
+        .success();
+}
+
 /// The worktree's own Git directory, as Git's pointer names it.
 fn admin_of(worktree: &Path) -> PathBuf {
     let pointer: String = std::fs::read_to_string(worktree.join(".git")).expect("the worktree's pointer");
@@ -452,6 +467,41 @@ fn a_landed_worktree_holding_a_commit_keeps_it_on_a_side_reference() {
     assert_eq!(git_text(landed.main.as_path(), &["rev-parse", kept.as_str()]), held, "the kept reference names the held commit");
     git(landed.main.as_path(), &["gc", "--prune=now"]);
     assert_eq!(git_text(landed.main.as_path(), &["cat-file", "-t", held.as_str()]), "commit", "the commit is not lost with the worktree");
+}
+
+/// What:
+///  A landed worktree whose batch kept reference already names another commit keeps its held commit on the reference
+///  beside it, so that commit survives the removal and Git's own maintenance.
+/// Why:
+///  A kept reference another batch's commit is kept under is left where it is,
+///  and the sweep read the collision as a line the person reads rather than as a commit nothing holds:
+///  the worktree went, its per-worktree reference went with it,
+///  and `git gc --prune=now` then took a commit this program said it kept
+///  (a cross-vendor review of the landed sweep,
+///  finding 1).
+#[test]
+fn a_landed_worktree_whose_kept_reference_names_another_commit_keeps_its_commit_beside_it() {
+    let landed: Landed = a_repository_with_a_worktree("landed-held-commit-name-taken");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let held: String = hold_a_commit_in_the_worktree(&landed, 7);
+    let elsewhere: String = head_of(landed.main.as_path());
+    assert_ne!(elsewhere, held, "the control keeps two different commits");
+    let taken: String = String::from("refs/cli-git/kept/7");
+    let beside: String = String::from("refs/cli-git/kept/7-rescue");
+    git(landed.main.as_path(), &["update-ref", taken.as_str(), elsewhere.as_str()]);
+    let named_before: String = git_text(landed.main.as_path(), &["for-each-ref", "--contains", held.as_str(), "--format=%(refname)"]);
+    let sweep: LandedSweep = land_feature(&landed);
+    git(landed.main.as_path(), &["gc", "--prune=now"]);
+    let survived: bool = commit_is_there(landed.main.as_path(), held.as_str());
+    assert!(
+        survived,
+        "the commit {held} was held by the worktree alone ({named_before:?}), the sweep removed {} worktree(s), and a collection then deleted it: {sweep:?}",
+        sweep.removed.len()
+    );
+    let holders: String = git_text(landed.main.as_path(), &["for-each-ref", "--contains", held.as_str(), "--format=%(refname)"]);
+    assert_eq!(holders.trim(), beside, "the held commit is kept on the reference beside the taken one: {sweep:?}");
+    assert_eq!(git_text(landed.main.as_path(), &["rev-parse", taken.as_str()]), elsewhere, "the commit the taken name already held stays named");
+    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed once its commit is kept: {sweep:?}");
 }
 
 /// What:

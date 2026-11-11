@@ -36,6 +36,13 @@
 //!  and only when no reference at all can be written does the command stop before Git runs
 //!  (the same review,
 //! finding 2).
+//!  A name already written for another batch's commit is left where it is,
+//!  because replacing it would forget the commit it was made for,
+//!  and this batch's commit goes beside it like one a lock refused:
+//!  reading that collision as a keep kept nothing,
+//!  and the removal that followed took the last reference to the commit
+//!  (a review of `a735f75caa`,
+//! finding 1).
 //!  Every write is a create-only one,
 //! so a name another command wrote is never replaced.
 //!  The person is told the branch does not move and where the commit is kept,
@@ -64,19 +71,11 @@ fn branch_of(held: &Held) -> String {
     return held.reference.trim_start_matches("refs/heads/").to_string();
 }
 
-/// The conflict sentence:
-/// the batch's kept reference already names another commit,
-/// so it is left as it is and the removal keeps nothing of this commit there.
-fn words_of_a_kept_name_taken(held: &Held, name: &str, named: &str) -> String {
-    return format!(
-        "the commit {} for {} is held in {}, and {} already names {}, so it is left there and this removal keeps nothing of it \
-         on a reference of this repository.",
-        held.new,
-        branch_of(held),
-        held.repository.display(),
-        name,
-        named
-    );
+/// The clause saying why a kept reference was not written:
+/// it names another commit,
+/// so it is left as it is and this commit is kept beside it.
+fn words_of_a_name_already_taken(named: &str) -> String {
+    return format!("it already names {named}, which is another commit, so it is left there");
 }
 
 /// The sentence for a commit kept at the batch's own kept reference.
@@ -144,12 +143,48 @@ enum Keeping {
     /// or another command wrote it while this one was keeping it,
     /// so nothing was written.
     Nothing,
-    /// The commit is kept where a removal cannot reach it,
+    /// A reference of this repository now names the commit,
     /// and this is the line the person reads.
     Kept(String),
     /// No reference could be made to hold the commit,
     /// and this is the paragraph that says so.
     Refused(String),
+}
+
+/// Whether the reference `name` of `common_dir` names this very commit.
+/// Why:
+///  Every answer of keeping a commit rests on which commit a reference names now,
+///  so the question is asked once here for a name that may be absent,
+///  unreadable,
+///  or already written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesThisCommit(git, commonDir, 'refs/cli-git/kept/7', held.new)
+/// ```
+fn names_this_commit(git: &GitContext, common_dir: &Path, name: &str, commit: &str) -> bool {
+    return matches!(value_of(git, common_dir, name), RefValue::Names(named) if named == commit);
+}
+
+/// What:
+///  Why a kept reference was not written,
+///  as the person reads it.
+/// Why:
+///  A locked name and a name another batch's commit is kept under are two different answers,
+///  and only after the write failed can the read tell them apart:
+///  the person needs to know that a commit is kept beside the name,
+///  not that a lock stood there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// takenWords(git, commonDir, name, refused) // the collision clause, or Git's own words
+/// ```
+fn taken_words(git: &GitContext, common_dir: &Path, held: &Held, name: &str, refused: &str) -> String {
+    // `match` on what the reference names now: another commit is said as itself, anything else is Git's own words.
+    return match value_of(git, common_dir, name) {
+        RefValue::Names(named) if named != held.new => words_of_a_name_already_taken(named.as_str()),
+        _ => refused.to_owned(),
+    };
 }
 
 /// What:
@@ -164,6 +199,10 @@ enum Keeping {
 ///  (`keep_on_a_side_ref_only_if_free`).
 ///  The write that failed is read again before the name beside it is tried,
 ///  so a reference another command had just written for this same commit is not written twice.
+///  A name that holds another batch's commit keeps nothing of this one,
+///  so the write beside it is what makes the commit kept;
+///  only when that write fails too is the commit held by no reference of the repository,
+///  and that alone is a refusal.
 ///  The question is asked in `common_dir`,
 ///  which is the common Git directory of the repository whose registrations are being served,
 ///  rather than in the worktree:
@@ -176,21 +215,29 @@ enum Keeping {
 /// ```
 fn keep_one(git: &GitContext, held: &Held, common_dir: &Path) -> Keeping {
     let name: String = kept_ref(held.seq);
-    if let RefValue::Names(named) = value_of(git, common_dir, name.as_str()) {
-        return if named == held.new { Keeping::Nothing } else { Keeping::Kept(words_of_a_kept_name_taken(held, name.as_str(), named.as_str())) };
-    }
     let rescue: String = rescue_ref(held.seq);
+    if names_this_commit(git, common_dir, name.as_str(), held.new.as_str()) {
+        return Keeping::Nothing;
+    }
     let Some(words) = keep_on_a_side_ref_only_if_free(git, common_dir, name.as_str(), held.new.as_str()) else {
         return Keeping::Kept(words_of_a_commit_kept(held, name.as_str()));
     };
     // The write failed, but another command may have written this very commit between the question and it.
-    if let RefValue::Names(named) = value_of(git, common_dir, name.as_str()) {
-        return if named == held.new { Keeping::Nothing } else { Keeping::Kept(words_of_a_kept_name_taken(held, name.as_str(), named.as_str())) };
+    if names_this_commit(git, common_dir, name.as_str(), held.new.as_str()) {
+        return Keeping::Nothing;
+    }
+    // The name belongs to another batch's commit, or a lock stands on it; either way this commit needs the name beside it.
+    let taken: String = taken_words(git, common_dir, held, name.as_str(), words.as_str());
+    if names_this_commit(git, common_dir, rescue.as_str(), held.new.as_str()) {
+        return Keeping::Nothing;
     }
     let Some(also_refused) = keep_on_a_side_ref_only_if_free(git, common_dir, rescue.as_str(), held.new.as_str()) else {
-        return Keeping::Kept(words_of_a_commit_kept_beside(held, name.as_str(), rescue.as_str(), words.as_str()));
+        return Keeping::Kept(words_of_a_commit_kept_beside(held, name.as_str(), rescue.as_str(), taken.as_str()));
     };
-    return Keeping::Refused(words_of_a_commit_nothing_keeps(held, name.as_str(), words.as_str(), rescue.as_str(), also_refused.as_str()));
+    if names_this_commit(git, common_dir, rescue.as_str(), held.new.as_str()) {
+        return Keeping::Nothing;
+    }
+    return Keeping::Refused(words_of_a_commit_nothing_keeps(held, name.as_str(), taken.as_str(), rescue.as_str(), also_refused.as_str()));
 }
 
 /// The lock files that would refuse these writes and stand now:
