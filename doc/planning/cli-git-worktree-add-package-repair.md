@@ -411,8 +411,7 @@ This package's own controls for all five findings fail on that commit's product 
 
 `marker_claims` read the marker with `std::fs::read`,
 which waits inside `open` for a writer that never comes when the name holds a named pipe,
-so one object anyone can create at a path this job already tolerates held the whole filling with no
-end,
+so one object anyone can create at a path this job already tolerates held the filling for ever,
 against "nothing should ever wait forever or indefinitely".
 The read now goes through `private_storage::read_regular_file`,
 whose open is `O_NONBLOCK | O_NOFOLLOW` and whose descriptor has to prove a regular file,
@@ -459,12 +458,12 @@ and the shape that does cost it is a manifest edited ahead of its lock
 
 `write_marker` answered every `AlreadyExists` as success and `give_back` removes the marker
 unconditionally,
-so a file another command created between this run's look at the name and its own exclusive write
-was deleted although this run never wrote it.
+so a file another command created between this run's look at the name and this run's exclusive
+write was deleted,
+although this run never wrote it.
 The exclusive write now answers whether this run created the marker (`TheMarkersAnswer`),
 and a name another writer holds makes this run stage under names of its own,
-with no marker to
-remove
+so it has no marker to remove
 (`repair::package_repair_prewarm_job::tests::a_file_that_wins_the_race_to_the_marker_name_is_never_removed`).
 
 ### Two hand-overs in one millisecond shared one object name
