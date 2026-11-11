@@ -804,6 +804,18 @@ Two defects showed on the way, both open:
   branch `fix/mpm-shadow-printed-global-lock-remedy-runs-as-printed`
   makes the scope's install put it in the exposure farm and proves the command runs as printed.
   The lock itself is still the coordinator's to move.
+- After the install,
+  every `git` call printed `mpm-shadow`'s older-lock warning,
+  because the machine-global lock still named `0.6.1-alpha.8`.
+  Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
+  does not run: no `mpm-shadow` is on `PATH`.
+  The coordinator ran the installed binary by its full path
+  (`~/.local/share/monochromatic-dev/toolchain/mpm-shadow/current/monochromatic-mpm-shadow-0.2.7-alpha.10-x86_64-unknown-linux-gnu/mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
+  "updated cargo:monochromatic-git-policy-cli 0.6.1-alpha.8 -> 0.6.1-alpha.9"),
+  and the warning stopped.
+  Agent `mpm-shadow-printed-global-lock-remedy-runs-as-printed` is fixing the printed remedies.
+  The first integration suite run overlapped the warning,
+  so a failure there that reads `git`'s stderr is checked again on the rerun.
 
 Every finished wrapper branch `main` lacked is going into `integrate/git-policy-cli-jam-fixes-after-alpha-9`,
 built from `main` by the coordinator's script,
@@ -823,8 +835,156 @@ Four branches whose runs ended before finishing are left out until resumed agent
 `wrapper-suite-failures-on-main-tip`
 and `gate-flakes-scratch-sweep-and-descriptor-limit`.
 Kimi reviews each merged branch's own change on the integration branch's code (rule `KRV`).
+
+At 2026-11-10T21:50-05:00 a second pass had merged five more (41 of 53),
+one more missing `holder` was fixed in `171edd1c00`,
+and Clippy is clean there.
+Both suites on `5686c7bb29`, rerunning only the failures, left 33 failing tests
+(11 in `invocation::entry` and one source guard, 8 around stage containers,
+5 in the service and landing, 6 commit budgets, the 3 host-only settle controls);
+four agents on branches cut from `5686c7bb29` fix them by area
+(`fix/git-policy-cli-integration-failures-*-after-alpha-9`).
+Agent capacity that night was set by Neuralwatt, not by the session's slot numbers:
+6 DeepSeek requests at once while the subscription is in overage,
+7 flex requests per model,
+and Pi ends a run on either 429;
+`.agents/skills/pi-as-subagent/SKILL.md` records the numbers and three launcher defects fixed then.
+
+By 2026-11-10T23:50-05:00 passes 3 and 4 had merged the integration tip to `ee545033ad`
+(Clippy clean; two more test-initializer fixes where branches met, `171edd1c00` and `b17817f15d`).
+The suites at `b17817f15d` failed 33 tests,
+28 of them the area agents' and 5 new (`package_repair` twice, `catalog_specifiers`,
+`service_connections_tasks`, `worktree_clean`), sent to `integration-failures-after-pass-3`.
+The commit-budget agent found a real regression behind six budget failures:
+`77e8348a84` made every commit flush its push-verdict record and directory (2 fsyncs per commit),
+fixed by `44bd759bc5` (the verdict is published by one rename without a flush, with its reasoning in
+`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
+Nine branches, mostly the area fixes and round-139 follow-ups cut from `5686c7bb29`,
+went back to their agents to merge the new tip (round 150).
+
+The 860 nearly filled overnight:
+free space fell from 256G at 20:20 to 29G at 01:00 on 2026-11-11,
+while about 25 agents each built the wrapper in their own Cargo build tree.
+`cargo-shadow lean run --only trees`, started early at 23:35,
+hit its 90-minute deadline while the host build base went from 93.57 to 28.99 GiB free,
+so building outran removal.
+The coordinator stopped the 16 opencode-go agents
+(names in `~/temp/agent/pi-runs/paused-for-disk-2026-11-11.txt`, 14 of them the Kimi-findings fixers;
+their worktrees keep their work)
+and reran lean with a 240-minute deadline.
+The structural cause is the open item from `wrapper-cleans-up-after-its-own-worktrees-1`:
+a removed worktree's build tree stays until lean finds its workspace gone,
+and lean's pass over 154 checkouts is slower than agents fill the disk.
+At 21G free (01:20) the coordinator stopped every remaining agent,
+22 in all, the Kimi-findings fixers and the three never-stuck audit fixers among them
+(names appended to the same file);
+free space was 27G at 2026-11-11T01:44:04-05:00.
+
+By 2026-11-11T01:44:04-05:00 every branch on the list was merged.
+The coordinator resolved the last two conflicts by hand:
+`4795db198c` drops the planted-controls branch's `expected_overlay` fixture,
+because the integrated entry fix hands planning the terminal through its inputs,
+and `bc3d54f9cd` keeps both sides' checks in the rebuild-ceiling test.
+Clippy is clean on `bc3d54f9cd`.
+Its library suite passed 6,598 of 6,599 tests.
+The failure was a cleanup race in the markdown linter's ceiling control:
+the fix it abandons keeps writing into the fixture on its own thread,
+so `remove_dir_all` met "Directory not empty".
+`ba1be33739` makes both ceiling controls wait for the job's last write (`markdown::` 50 of 50);
+the binary suite runs on `ba1be33739`.
+
+The Kimi review starter had reviewed `main...branch`,
+which for a branch cut from an integration tip holds every integrated change:
+163 to 271 files against the branch's own 0 to 2.
+It now reviews each branch's own merge range (`M^1...M^2` of its merge into the integration branch),
+pinned to `bc3d54f9cd`,
+and a branch whose own change under the source folder is only tests is skipped.
+That starter keyed a branch by its current tip, so it saw only a branch's last merge:
+five branches were merged twice,
+and for `worktree-add-killed-mid-copy-is-finished-or-named` the last merge was a README change,
+so its real change would have gone unreviewed.
+`~/temp/agent/pi-runs/start-kimi-reviews-of-branches-merged-twice.ts` reviews those five over every merge,
+matching merges by subject,
+because a branch that merged the integration into itself has every earlier branch's tip among its ancestors.
+
+The binary suite on `ba1be33739` passed 962 of 965.
+The three failures are the killed-copy controls
+(`fault_trace::a_worktree_copy_killed_at_each_{chmod,openat2,write}_leaves_a_recoverable_repository`):
+a worktree add killed at that call leaves a worktree without its source's ignored files,
+and the next command only prints manual steps (remove an `index.lock`, `reset --hard`, or rerun the add)
+or names a stage it cannot prove it made.
+Run alone, the 14 such controls failed 0 and then 1 at `8bd685935d`,
+and 2 to 10 at every later commit tried;
+the step comes at `5197a5537b`,
+the merge of `feat/git-policy-cli-shared-remote-settings-refused-in-worktrees`,
+which moved the reading of ignored files into `repo_read/repository_facts_ignored_files.rs`.
+Alternating runs of the two commits and of the alpha.9 base `edbbafa190` are measuring whether that step is real
+(unit `alternate-killed-copy-controls`, results in `~/temp/agent/pi-runs/alternate-killed-copy-controls-results.txt`).
+Agent `killed-add-leftover-copy-is-not-another-commands-wait` has the evidence.
+Release rule applied:
+only a reproduced data-loss or recovery regression that is new since alpha.9 holds `0.6.1-alpha.10`
+(the owner: "Prioritize fixing the jams and release jam fixes asap.", "Alphas don't even have to resolve all flakes.");
+a Sonnet subagent is classifying the Kimi data-loss findings as older than alpha.9 or new
+(`~/temp/agent/pi-runs/kimi-data-loss-findings-against-alpha-9.md`).
+Both answers came back by 2026-11-11T02:40:00-05:00, and both hold `0.6.1-alpha.10`.
+Alternating runs of the 14 killed-copy controls gave
+8 and 1 failing at `5197a5537b`, 2 and 1 at `8bd685935d`,
+and 14 of 14 passing at the alpha.9 base `edbbafa190`:
+the spread at one commit (1 to 10) swamps the step seen earlier,
+and the regression is older than `8bd685935d` but newer than alpha.9.
+`~/temp/agent/pi-runs/bisect-killed-copy-controls.ts` searches that range in worktree `bisect-killed-copy-controls`,
+calling a commit good only after two clean runs
+(results in `~/temp/agent/pi-runs/bisect-killed-copy-controls-results.txt`).
+The Sonnet classification (`~/temp/agent/pi-runs/kimi-data-loss-findings-against-alpha-9.md`, by blame, nothing run)
+found 28 data-loss findings:
+8 already in alpha.9, 2 mixed, 18 new since alpha.9 (2 of them in `cargo-shadow`), 17 still present at `ba1be33739`.
+The most direct new ones:
+the landed-merge sweep deletes an ignored `.env` written after the add,
+a by-name fallback destroys a replacement subvolume holding a user file,
+a large merge is staged without the start of a file,
+marker-shaped user text is deleted when Git's conflict count reaches 127,
+`git worktree remove TOPIC` removes `topic`,
+a swept worktree's held commit disappears at `gc`,
+and the trash manifest write follows a planted symlink.
+Each is Kimi's reproduction, so each is reproduced again and fixed, or disproved, by its round-152 fix agent;
+all 22 were resumed (rounds 155 and 156) once the paused agents' build trees and 26 finished worktrees were cleaned
+(about 330 GiB by `cargo clean`).
+Pass 7 merged seven finished branches the runs had left unmerged
+(three Kimi-findings fixes, `commits-that-stop-after-their-add-steps`, `gate-flakes-scratch-sweep-and-descriptor-limit`,
+the `mpm-shadow` printed-remedy fix and the release-waiter fix) at `6df69b62f8`, Clippy clean;
+`pushes-of-main-that-stalled-today` conflicts in five landing files and went to a re-merge agent (round 157).
+By 2026-11-11T05:05:00-05:00:
+the bisect named `950d24bd78` (the merge of `perf/git-policy-cli-worktree-removal-delete-load`),
+but more runs did not hold it up:
+its parent `3702fa307f` passed 5 of 5, `950d24bd78` failed 1 run of 4, `8bd685935d` 3 of 4, later tips nearly every run,
+and a commit that fails one run in four passes five in a row about a quarter of the time.
+The reading kept is a recovery gap in a killed worktree add that the integration's changes hit more and more often,
+not one merge's regression;
+it is worse on the integration than on alpha.9 either way, so it still holds the release,
+and agent `killed-add-leftover-copy-is-not-another-commands-wait` owns closing every kill point.
+The suites on `6df69b62f8` ran under the load of about 30 agents
+(library 6,602 of 6,606 in 1,168 s, binary 954 of 967 in 1,435 s).
+Run alone, six of the seven failures outside the killed-copy controls passed:
+contention or ordering defects in those tests (a preparation step given a ceiling of 0 s,
+a waiting notice that grows lines on a slow host, two prewarm-job controls and two binary controls that ran past 300 s).
+`service_landing_state::a_conclusion_lands_through_the_service_and_removes_the_state_native_git_removes`
+ran past 300 s alone twice, a hang to compare against `ba1be33739`;
+`cargo-shadow`'s launcher-shim control failed only in its suite;
+`crate-release` and `mpm-shadow` passed lint and tests.
+A commit through alpha.9 printed `[warn] ... [shadowPool] refused the pooled shadow member-...: the shared ...`:
+a pooled shadow is refused whenever the common Git directory's shared entries change,
+which makes the commit build its own shadow and prints an internal-cache warning to the person;
+agent `pooled-shadow-refusals-are-rare-and-quiet` (round 158) measures and fixes both.
+Eighteen more Kimi reviews came back, fourteen with findings;
+fix agents for the gravest started in rounds 159 and 160 (ten),
+four reviews that ended on model errors were started again,
+and ten fix agents of rounds 155 and 156 finished, to merge as pass 8.
 Next:
-merge the resolved branches,
+pass 8 and its suites,
+the fix agents' reproductions,
+the suites on `6df69b62f8` and the checks of `crate-release`, `cargo-shadow` and `mpm-shadow`,
+the Kimi reviews of the newly merged branches,
+the Kimi-findings and audit fixes once free space allows,
 gate,
 land on `main`,
 release `0.6.1-alpha.10`.

@@ -219,7 +219,8 @@ The owner,
 "How about making our wrapper not wait on btrfs-cleaner and btrfs-transactions?"
 and,
 of the lean run,
-"Don't stop its lean run. We want the run."
+"Don't stop its lean run.
+We want the run."
 Agent `wrapper-never-waits-on-btrfs-commits` takes every call that forces or waits for a btrfs commit off the paths a person waits on,
 and asks the owner before removing any sync that protects data.
 
@@ -227,9 +228,12 @@ and asks the owner before removing any sync that protects data.
 
 The owner,
 2026-11-10:
-"I want to once again talk about zfs, and whether it has the same problems as btrfs-cleaner and btrfs-transactions."
+"I want to once again talk about zfs,
+and whether it has the same problems as btrfs-cleaner and btrfs-transactions."
 and
-"What if we give both btrfs and zfs benefit of doubt and give the best possible configs they can get? For example, zfs supports ARC."
+"What if we give both btrfs and zfs benefit of doubt and give the best possible configs they can get?
+For example,
+zfs supports ARC."
 
 What OpenZFS `zfs-2.4.4` source says,
 read 2026-11-10:
@@ -266,4 +270,13 @@ images on the NVMe both limited to the 860's measured rate and unlimited,
 and the repository's own workload of adds,
 commits,
 removals and large deletes at once.
-It writes `doc/planning/btrfs-and-zfs-each-at-its-best.md`.
+It writes
+[`btrfs-and-zfs-each-at-its-best.md`](btrfs-and-zfs-each-at-its-best.md),
+measured 2026-11-11.
+That run's short result:
+neither filesystem won the time twenty concurrent worktree adds took,
+and the throttled rounds differ by less than their run-to-run spread,
+but zfs kept ordinary `fsync` at 19 to 30 ms at the median where btrfs kept
+208 to 491 ms,
+paid 3.5 to 4.3 GiB written per round against btrfs's 2.6 to 2.9,
+and took 2 to 9 seconds to destroy a clone where btrfs took 0.02 to 0.1.

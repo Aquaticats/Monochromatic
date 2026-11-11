@@ -109,6 +109,37 @@ so prefer neuralwatt."
 New runs fill standard Neuralwatt,
 then flex with twice the wall clock,
 then `opencode-go`.
+On 2026-11-11 from 01:19Z,
+16 runs ended on Neuralwatt's 429
+"Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
+Your subscription is in overage with auto-renew off,
+so pay-as-you-go limits apply until it renews."
+The rate-limit endpoint still answered `effective_concurrency` 20 then,
+so the 429 is what tells;
+Pi ends the run on it instead of retrying.
+The launcher's standard pool holds 6 runs until the owner turns auto-renew back on,
+which is the owner's billing decision.
+The same night 20 of 28 Kimi reviews on Kimi flex ended on
+"You've hit your concurrent flex request limit for moonshotai/Kimi-K3.1-Pro (max 7 in flight at once).
+Flex requests have a separate per-account concurrency limit from standard requests.",
+so the Kimi flex pool holds 7,
+not the 22 of the owner's "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something.";
+the DeepSeek flex pool is set to 7 on the assumption that the same per-model flex limit applies.
+Restart a run that ended this way under its own name;
+its worktree keeps the work.
+Two launcher defects showed that night,
+fixed in the scratch launcher and owed to `package/pi-shared/subagent-driver`:
+a run whose launcher process had gone was counted in the `opencode-go` pool,
+so 12 runs sat on standard Neuralwatt while it read 0 of 6 and took more;
+the pool now comes from the unit's own `--provider` and `--model`.
+A run that named no provider or model (every batch-started run) was read as "its own provider",
+so it skipped every pool limit and the launcher's defaults put it on standard Neuralwatt;
+it is now a default run,
+and the chosen pool's provider and model are passed on.
+And `--run` defaulted to 1,
+so each restart wrote over the first run's `summary.json`
+(16 reports, 11 recovered from `~/.pi/agent/sessions/`);
+a run with no `--run` now takes the next free number.
 The owner on 2026-11-10:
 "And you should almost always keep all slots filled."
 and
