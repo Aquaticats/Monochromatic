@@ -9,6 +9,8 @@
 use super::*;
 use crate::subvolume_test_support::{Hooked, PlainPlatform, backdate, checkout_moved_behind_a_link, checkout_with_worktree, index_inode};
 use crate::test_support::{git, git_text, remove};
+use crate::worktree_copy_owner::current_copy_owner;
+use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add_as};
 use std::os::unix::fs::MetadataExt;
 
 /// The options of a real run.
@@ -740,5 +742,88 @@ fn btrfs_a_stage_container_is_left_out_of_the_new_subvolume() {
     assert!(!worktree.join(".claude").exists(), "no part of the stage container reaches the new subvolume");
     assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err(), "the old tree is gone");
     assert_nothing_left(worktree.as_path());
+    remove(parent.as_path());
+}
+
+/// What:
+///  A tracked file whose name begins the stage prefix is the person's own state:
+///  the conversion carries it,
+///  Git sees no change,
+///  and the old tree is still removed.
+/// Why:
+///   The leave-out is for another command's stage container,
+/// which is a directory;
+/// a prefix-named regular file is the person's file,
+/// and a comparison that skipped it would approve deleting the only copy of it.
+#[test]
+fn a_tracked_file_named_with_the_stage_prefix_survives_conversion() {
+    let (parent, _root, worktree) = quiet_worktree("convert-prefixed-tracked-file");
+    let name: &str = ".cli-git-worktree-copy-user-notes";
+    let bytes: &[u8] = b"the person's only copy of these notes\n";
+    std::fs::write(worktree.join(name), bytes).expect("write the tracked file");
+    git(worktree.as_path(), &["add", "--", name]);
+    git(worktree.as_path(), &["commit", "--quiet", "--message", "keep the person's notes"]);
+    git(worktree.as_path(), &["update-index", "--refresh"]);
+    let (verdict, lines) = run(&PlainPlatform::new(), worktree.as_path(), RUN, &Interrupt::never());
+    let survived: bool = worktree.join(name).exists();
+    assert!(survived, "conversion verdict: {verdict:?}; tracked user file survived: {survived}; git status: {:?}; output: {lines:#?}", git_text(worktree.as_path(), &["status", "--porcelain"]));
+    assert_eq!(std::fs::read(worktree.join(name)).expect("the tracked file"), bytes, "the installed worktree holds its bytes");
+    assert_eq!(git_text(worktree.as_path(), &["status", "--porcelain"]), "", "Git sees no change");
+    assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err(), "the old tree is gone");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A stage folder another command emptied before the removal does not stop the conversion.
+/// Why:
+///   The copy left the folder out because it held nothing but a stage container,
+/// so the folder that command emptied afterwards is no state of the old tree either;
+///  demanding it kept the old tree on a rerun and asked the person to settle a version that exists on one side only.
+#[test]
+fn a_stage_folder_another_command_emptied_does_not_block_the_removal() {
+    let (parent, _root, worktree) = quiet_worktree("convert-emptied-stage-folder");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err(), "the run stopped after the exchange");
+    let container: PathBuf = converting.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543");
+    std::fs::create_dir_all(container.join("payload")).expect("create another command's stage");
+    std::fs::write(container.join("payload/credentials"), b"copied state\n").expect("fill the stage");
+    std::fs::remove_dir_all(container.as_path()).expect("the other command finishes and removes its stage");
+    let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(verdict.expect("the conversion finished"), Verdict::Resumed, "{lines:#?}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the old tree is gone");
+    assert_nothing_left(worktree.as_path());
+    remove(parent.as_path());
+}
+
+/// What:
+///  A live stage container inside the old tree is not the old tree's to delete:
+///  the conversion keeps the old tree,
+///  says which stage holds it,
+///  and leaves the payload where it is.
+/// Why:
+///   The container is another command's copy in progress,
+/// so its payload is that command's work,
+///  and the comparison may approve deleting the old tree only for a container no live command is filling.
+#[test]
+fn a_live_stage_inside_the_old_tree_keeps_it() {
+    let (parent, _root, worktree) = quiet_worktree("convert-live-stage");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let candidate: Candidate = inspect(worktree.as_path()).expect("registered");
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err(), "the run stopped after the exchange");
+    let claim: StageClaim = claim_stage_for_add_as(candidate.common.as_path(), converting.join("inside/wt").as_path(), &current_copy_owner().expect("this process")).expect("claim a stage beside a destination in the old tree");
+    let payload: PathBuf = claim.container().join("payload/credentials");
+    std::fs::create_dir_all(payload.parent().expect("the payload's folder")).expect("the stage container");
+    std::fs::write(payload.as_path(), b"state still being staged\n").expect("fill the stage");
+    let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    let survived: bool = payload.exists();
+    let said: String = match &verdict {
+        Ok(found) => format!("{found:?}"),
+        Err(error) => format!("{error}"),
+    };
+    assert!(survived, "conversion verdict: {said}; stage payload survived: {survived}; output: {lines:#?}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the old tree is kept: {said}");
+    assert!(said.contains("stage") && said.contains(claim.container().file_name().expect("name").to_string_lossy().as_ref()), "the run says which stage holds the old tree: {said}");
     remove(parent.as_path());
 }
