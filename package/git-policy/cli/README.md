@@ -412,6 +412,11 @@ Read-only commands,
    to answer,
   and the refusal names the server and how to store a login in a credential helper (see "Git commands that may need a
    login").
+  That refusal says which prompting the wrapper left:
+  a push with a terminal is told the wrapper kept Git's and `git-lfs`'s own prompting and names a variable or setting
+   that would have refused the login,
+  and only a push without one is told the never-prompt pair was added,
+  so no person is sent to fix a missing terminal that was there.
   A push typed at a terminal keeps Git's and `git-lfs`'s own prompting.
   `--dry-run` pushes and the wrapper's own probes never upload.
   `--no-verify`,

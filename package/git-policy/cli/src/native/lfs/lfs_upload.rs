@@ -36,8 +36,9 @@ use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 use crate::bounded_push::{
     STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, push_patience, wait_until_done_noting, run_bounded_push,
 };
-/// The invocation's environment values.
-use crate::child_environment::environment_value;
+/// The invocation's environment values,
+/// and whether its overlay turns prompting off for the children.
+use crate::child_environment::{environment_value, prompting_disabled};
 /// How a child ended,
 /// as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
@@ -355,6 +356,9 @@ pub fn run_upload_interactive(
         // Terminal output error: the notice is advisory.
         let _written = diagnostics.write_all(submodule_notice().as_bytes());
     }
+    // The overlay carries the never-prompt pair only when this command has no controlling terminal, and the explanation of a
+    //  failed login says what the wrapper did about prompting.
+    let prompting_is_disabled: bool = prompting_disabled(overlay);
     // A server error (an HTTP 5xx answer of the LFS server) is not run again here: it is outside our control, like a network that
     //  is down, and the commit service's push retry plan tries the push again by itself (pick 12 of
     //  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation). A typed push ends and says so.
@@ -404,7 +408,10 @@ pub fn run_upload_interactive(
                 ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
             };
             // Terminal output error: see above.
-            let _written = diagnostics.write_all(explanation_after_failure(description.as_str(), remote.as_os_str(), relayed.as_slice()).as_bytes());
+            let _written = diagnostics.write_all(
+                explanation_after_failure(description.as_str(), remote.as_os_str(), relayed.as_slice(), prompting_is_disabled)
+                    .as_bytes(),
+            );
             return Some(code);
         }
     }
@@ -459,7 +466,7 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
                 Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
                 Err(other) => return Err(other),
             };
-        if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
+        if let Some(failed) = failed_upload(&attempt, remote.as_os_str(), prompting_disabled(git.environment.as_slice())) {
             return Ok(Some(failed));
         }
     }
@@ -499,7 +506,7 @@ pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Re
                 Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
                 Err(other) => return Err(other),
             };
-        if let Some(failed) = failed_upload(&attempt, remote.as_os_str()) {
+        if let Some(failed) = failed_upload(&attempt, remote.as_os_str(), prompting_disabled(git.environment.as_slice())) {
             return Ok(Some(failed));
         }
     }

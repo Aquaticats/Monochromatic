@@ -96,22 +96,26 @@ fn login_subject(destination: &std::ffi::OsStr, output: &str) -> String {
 /// the general one,
 /// and,
 /// when the program's own words say it needed a login,
-/// the one that names the server and every way to give it one.
+/// the one that names the server and every way to give it one,
+/// in the words of the prompting the wrapper left the program.
 /// Why:
 ///   The wrapper is what refused to ask a person,
 /// so that failure is the one whose way forward only the wrapper can explain
 ///  (`doc/troubleshooting/lfs-credential-in-url.md`).
+///  `prompting_disabled` says whether the never-prompt pair was added to the program's environment:
+/// a command at a terminal keeps prompting,
+/// and a refusal that claimed otherwise would send its reader to fix a cause that was never there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(loginSubject(destination)) : '')
+/// failedMessage(status) + (readsAsALoginFailure(output) ? loginNeededMessage(loginSubject(destination), promptingDisabled) : '')
 /// ```
-pub fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, output: &[u8]) -> String {
+pub fn explanation_after_failure(status: &str, destination: &std::ffi::OsStr, output: &[u8], prompting_disabled: bool) -> String {
     let mut text: String = failed_message(status);
     // `from_utf8_lossy` reads the program's words whatever their encoding; only the search matters here.
     let shown: String = String::from_utf8_lossy(output).into_owned();
     if reads_as_a_login_failure(shown.as_str()) {
-        text.push_str(login_needed_message(login_subject(destination, shown.as_str()).as_str()).as_str());
+        text.push_str(login_needed_message(login_subject(destination, shown.as_str()).as_str(), prompting_disabled).as_str());
     }
     return text;
 }
@@ -171,29 +175,32 @@ pub fn missing_program_attempt() -> PushAttempt {
 ///  tries the push again by itself.
 /// Both faces read one finished attempt here,
 /// so the two cannot report a failure differently.
+///  `prompting_disabled` reaches the explanation,
+/// which says what the wrapper did about prompting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// attempt.exitCode === 0 ? undefined : explained({ exitCode, output: maskUserinfoText(attempt.output) });
+/// attempt.exitCode === 0 ? undefined : explained({ exitCode, output: maskUserinfoText(attempt.output) }, destination, promptingDisabled);
 /// ```
-pub fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr) -> Option<PushAttempt> {
+pub fn failed_upload(attempt: &PushAttempt, destination: &std::ffi::OsStr, prompting_disabled: bool) -> Option<PushAttempt> {
     if attempt.exit_code == 0 {
         return None;
     }
     let shown: String = mask_userinfo_text(attempt.output.as_str());
-    return Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown }, destination));
+    return Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown }, destination, prompting_disabled));
 }
 
 /// The failed attempt with the explanation after the program's own output;
 /// a stop by deadline says so,
-/// and a login the program needed says how to give it one.
-pub fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr) -> PushAttempt {
+/// and a login the program needed says how to give it one,
+/// in the words of the prompting the wrapper left the program.
+pub fn explained(attempt: PushAttempt, destination: &std::ffi::OsStr, prompting_disabled: bool) -> PushAttempt {
     let description: String = if attempt.exit_code == STOPPED_EXIT_CODE {
         String::from("did not finish and was stopped")
     } else {
         format!("exited with status {}", attempt.exit_code)
     };
-    let explanation: String = explanation_after_failure(description.as_str(), destination, attempt.output.as_bytes());
+    let explanation: String = explanation_after_failure(description.as_str(), destination, attempt.output.as_bytes(), prompting_disabled);
     let shown: &str = explanation.trim_end();
     let output: String = if attempt.output.is_empty() { shown.to_owned() } else { format!("{}\n{shown}", attempt.output) };
     return PushAttempt { exit_code: attempt.exit_code, output };

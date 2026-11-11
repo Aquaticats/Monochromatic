@@ -5130,6 +5130,10 @@ so a server that accepts the connection and never answers still holds an interac
 What closes that shape's login case is the never-prompt pair,
 not the window:
 a missing login fails at once instead of leaving the connection's wait with nothing to answer it.
+The refusal that follows a login failure says what the wrapper did about prompting,
+read from the pair the child was given (`prompting_disabled` in `src/native/invocation/child_environment.rs`):
+a command at a terminal is told that the wrapper left Git's and `git-lfs`'s own prompting,
+and no refusal claims a terminal was absent when it was there.
 The upload still owns its child through `SignalGuard::start_relayed`,
 which hands it over still published,
 so a signal a process sends to the wrapper reaches the program for the whole wait,
