@@ -1444,6 +1444,23 @@ A folder that holds one entry that is not such a stand-in stays where it
 is,
 because every other entry may be someone's data,
 and only the stand-ins in it are removed one by one.
+A folder that is taken whole is looked at again in the trash,
+because a directory somebody made between the check and
+ the rename is never deleted with the stand-ins it replaced:
+it goes back to the name it came from,
+and its stand-ins
+ are then removed one by one.
+When a directory took that name meanwhile,
+the folder cannot go back,
+so it is kept whole
+ under `.cli-git-worktree-kept-<hexadecimal digits>` beside the trash of the new worktree,
+one rename inside
+ the snapshot,
+because a folder that holds a stand-in of a nested subvolume cannot be renamed out of it at all.
+The warning names the path that folder will have in the new worktree,
+and the cleanup that removes a stage the add never served leaves the stage in place when it holds such a
+ folder,
+naming every path it kept (`never discard user data`).
 A stand-in
 whose subvolume no worktree names stays,
 since the snapshot never carried its files and their absence must stay visible.
@@ -11964,10 +11981,19 @@ from this invocation's own capture.
   and stops at two members for a worktree.
 - A fill that a stop interrupts leaves a folder named as a fill,
   which no claim takes and the next fill of that pool removes once it is fifteen minutes old.
-  Nothing else collects the pool:
+  No age a sweep uses reaches a member:
   it is not scratch,
-  so no age a sweep uses reaches a member,
   and a pool left unused keeps its members until the next landing fills it again or a person removes the folder.
+- A removal that takes a worktree also takes that worktree's pool
+  (`worktree_removal_clears_the_pool.rs`),
+  and the pool is renamed to a name no worktree's key has before anything of it is deleted.
+  A deletion keeps unlinking through the directory it already opened,
+  so a claim that lands under the pool's own name after the deletion opened the member would lose the ref store the commit had just written there,
+  and the commit would report a failure real Git did not have
+  (`doc/troubleshooting/remove-dir-all-empties-a-directory-renamed-out-of-its-tree.md`).
+  A claim under the pool's own name either came before the rename,
+  and then the member it took is not in the tree the deletion was given,
+  or it finds no pool and the commit makes its own shadow.
 
 `buildParts` names the claim `shadow pool`:
 a build that took a member names no `shadow skeleton`,

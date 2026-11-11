@@ -177,6 +177,36 @@ impl Trash {
     }
 
     /// What:
+    ///  Move the entry `name` this trash holds into the trash parent as `kept`,
+    /// and prove that what arrived is the entry that was taken.
+    /// Why:
+    ///   A folder that changed after it was checked is not deleted with its stand-ins,
+    /// and the trash entry name a
+    ///  manifest would name is not its place any more,
+    /// so one rename takes it beside the trash,
+    /// where no later set-aside
+    ///  finds its name taken;
+    /// the move stays inside the snapshot because a folder that holds a stand-in of a nested
+    ///  subvolume cannot be renamed out of the snapshot at all.
+    /// The identity is compared across the rename,
+    /// so only the
+    ///  folder this call took out is named as the kept one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// trash.keepBeside({ name: 'd3', as: '.cli-git-worktree-kept-<digits>', shown }); // throws the reason
+    /// ```
+    pub(crate) fn keep_beside(&self, name: &str, kept: &str, shown: &Path) -> Result<(), String> {
+        let looked: ObjectId = path_failure(identity_at(&self.dir, OsStr::new(name)), shown, "cannot be examined in the trash")?;
+        path_failure(rename_at(&self.dir, OsStr::new(name), &self.parent, OsStr::new(kept), false), shown, "cannot be kept beside the trash")?;
+        let arrived: ObjectId = path_failure(identity_at(&self.parent, OsStr::new(kept)), shown, "cannot be examined beside the trash")?;
+        if arrived != looked {
+            return Err(format!("{} changed while it was kept beside the trash ({} instead of {})", shown.display(), arrived.encode(), looked.encode()));
+        }
+        return Ok(());
+    }
+
+    /// What:
     ///  Remove the trash directory itself when nothing was moved into it,
     /// so no empty trash is left in the new worktree.
     /// Why:
