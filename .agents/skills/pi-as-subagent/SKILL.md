@@ -456,6 +456,15 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 
 ## Pi quirks
 
+- A Pi agent may end its turn while work it started keeps running (a build or a reproduction in its own scope);
+  whoever drives it resumes the session when that work ends.
+  Never brief a Pi agent to wait for long commands in one tool call:
+  that rule exists only for Claude Code native subagents, whose turn end returns to the main agent.
+  The owner, 2026-11-11:
+  "Ending its turn is good. We don't want unnecessary waste of tokens."
+  and "Claude Code native subagents, when they end their turn, will directly return to the main agent, which is annoying and wasteful. Pi agents don't have this quirk because we drive pi ourselves."
+  The coordinator's launcher waits for such work and resumes the session with a short note
+  (`${HOME}/temp/agent/pi-runs/start-pi-run-in-worktree.ts`, region "Wake an agent whose own work outlived its turn").
 - Leave extensions loaded:
   some providers exist only because an extension registers them,
   and `--no-extensions` made `synthetic` unknown.
