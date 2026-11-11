@@ -12,6 +12,9 @@
 //! // cleanChangesWorktree(parseCleanRegion(['-ndX'])) === false
 //! ```
 
+/// The reading every `git clean --dry-run` answer gets,
+///  which one function owns because both a deletion and a kept repository are read from one.
+use crate::command_clean_nested_repositories::dry_run_lines_from_answer;
 use crate::command_options::{
     Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, parse_options, row,
 };
@@ -208,7 +211,7 @@ pub fn parse_clean_region(
 /// function cleanDryRunArguments(globalPrefix: string[], region: string[]): string[] | undefined;
 /// ```
 pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, true);
+    return dry_run_arguments(global_prefix, region, true, DryRunForces::AsTyped);
 }
 
 /// What:
@@ -225,27 +228,69 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) 
 /// function cleanDryRunArgumentsWithoutExclusions(globalPrefix: string[], region: string[]): string[] | undefined;
 /// ```
 pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, false);
+    return dry_run_arguments(global_prefix, region, false, DryRunForces::AsTyped);
+}
+
+/// What:
+///  Which force count a rebuilt dry run writes.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///  The two readings differ in one number and in nothing else,
+///  so one builder writes both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DryRunForces = 'as-typed' | 'one';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DryRunForces {
+    /// As many as the person typed,
+    /// and at least one.
+    AsTyped,
+    /// Exactly one,
+    /// whatever the person typed.
+    One,
+}
+
+/// What:
+///  The same dry run written with exactly one `-f`,
+///  the force count at which Git keeps every nested repository it meets.
+///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
+/// Why:
+///  Git removes a nested repository only with a second `-f` (`builtin/clean.c`,
+///  `if (force > 1) rm_flags = 0`),
+///  and its dry run then prints one line naming each repository it keeps instead (`Would skip repository`).
+///  So this reading of the same clean is the exact list of repositories the typed clean would delete,
+///  written by Git itself rather than walked again here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cleanDryRunArgumentsKeepingNestedRepositories(globalPrefix: string[], region: string[]): string[] | undefined;
+/// ```
+pub fn clean_dry_run_arguments_keeping_nested_repositories(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
+    return dry_run_arguments(global_prefix, region, true, DryRunForces::One);
 }
 
 /// What:
 ///  The dry-run arguments of one clean,
-/// with or without its own exclusion patterns.
-///  `bool` says whether they are written.
+/// with or without its own exclusion patterns,
+///  and with the force count one of the two readings writes.
+///  `bool` says whether the patterns are written.
 /// Why:
-///  Both readings are the same command,
-///  so they share one builder and differ in one step;
+///  Every reading is the same command,
+///  so they share one builder and differ in one step each;
 ///  a second copy of the
 ///  rebuild would drift from this one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dryRunArguments(globalPrefix: string[], region: string[], withExclusions: boolean): string[] | undefined;
+/// function dryRunArguments(globalPrefix: string[], region: string[], withExclusions: boolean, forces: DryRunForces): string[] | undefined;
 /// ```
 fn dry_run_arguments(
     global_prefix: &[OsString],
     region: &[OsString],
     with_exclusions: bool,
+    written_forces: DryRunForces,
 ) -> Option<Vec<OsString>> {
     // The region Git refuses is nothing to ask about; the `?` is that refusal.
     let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
@@ -269,7 +314,10 @@ fn dry_run_arguments(
     for token in ["--no-optional-locks", "clean", "-n"] {
         arguments.push(OsString::from(token));
     }
-    for _ in 0..forces.max(1) {
+    for _ in 0..match written_forces {
+        DryRunForces::AsTyped => forces.max(1),
+        DryRunForces::One => 1,
+    } {
         arguments.push(OsString::from("-f"));
     }
     if descends {
@@ -312,24 +360,7 @@ fn dry_run_arguments(
 /// function cleanDeletedPathsFromAnswer(answer: MetadataOutput): Buffer[]; // throws
 /// ```
 pub fn clean_deleted_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
-    if !answer.success {
-        let detail: String = String::from_utf8_lossy(&answer.stderr)
-            .lines()
-            .next()
-            .unwrap_or_default()
-            .trim()
-            .to_string();
-        return Err(format!("Git could not read what the clean would delete: {detail}"));
-    }
-    let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for line in answer.stdout.split(is_newline) {
-        // A dry run that would delete nothing prints nothing, and a line of whitespace alone names no path.
-        if line.iter().all(is_ascii_whitespace) {
-            continue;
-        }
-        paths.push(line.to_vec());
-    }
-    return Ok(paths);
+    return dry_run_lines_from_answer(answer, "what the clean would delete");
 }
 
 /// What:
@@ -358,35 +389,6 @@ pub fn paths_only_the_exclusions_add(deleted: &[Vec<u8>], otherwise_deleted: &[V
         }
     }
     return added;
-}
-
-/// What:
-///  Whether one byte of the dry run's answer is whitespace.
-/// Why:
-///   A dry run that would delete nothing prints nothing,
-/// and a named function keeps that pass free of a
-///  closure that captures nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (byte: number) => /\s/.test(String.fromCharCode(byte))
-/// ```
-fn is_ascii_whitespace(byte: &u8) -> bool {
-    return byte.is_ascii_whitespace();
-}
-
-/// What:
-///  Whether a byte of the dry run's answer ends a line.
-/// Why:
-///   The dry run answers one path per line,
-/// and a named function keeps that pass free of a closure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (byte: number) => byte === 0x0a
-/// ```
-fn is_newline(byte: &u8) -> bool {
-    return *byte == b'\n';
 }
 
 /// What:
