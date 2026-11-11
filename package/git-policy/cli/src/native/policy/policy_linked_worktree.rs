@@ -104,6 +104,10 @@ fn now_milliseconds() -> i64 {
 ///  and `git -C` moves that
 ///       directory before the command reads it;
 ///  Git's own `--show-prefix` already carries that move.
+///  A command below the worktree root is
+///       usually refused by the require-root policy before this rule reads it,
+///  and its hatch is what lets such
+///       a command reach here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

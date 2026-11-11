@@ -456,6 +456,62 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
         global_edited.contains(EDITOR_SECTION),
         "the editor of the per-user file did not run: {global_edited}"
     );
+    // The directory a relative path is read from is the one the command runs in: a subdirectory of the
+    //  worktree, and the worktree a `-C` option moves to.
+    let below: PathBuf = linked.join("below");
+    std::fs::create_dir_all(below.as_path()).expect("subdirectory of the linked worktree");
+    let linked_text: String = linked.to_str().expect("text path").to_string();
+    let places: [(PathBuf, Vec<&str>); 2] = [
+        (
+            below.clone(),
+            vec![
+                // Below the worktree root another policy refuses the command first, so its hatch is what lets
+                //  the relative path reach this rule.
+                "config",
+                "--no-enforce-require-root",
+                "--file",
+                "../../repo/.git/config",
+                "remote.origin.url",
+                OTHER_URL,
+            ],
+        ),
+        (
+            fixture.root.clone(),
+            vec![
+                "-C",
+                linked_text.as_str(),
+                "config",
+                "--file",
+                "../repo/.git/config",
+                "remote.origin.url",
+                OTHER_URL,
+            ],
+        ),
+    ];
+    for (directory, form) in &places {
+        let observed: Observed = observe(
+            wrapped(&fixture)
+                .current_dir(directory.as_path())
+                .env("GIT_EDITOR", editor_text.as_str())
+                .args(form.as_slice()),
+            b"",
+        );
+        assert_eq!(
+            observed.code,
+            Some(1),
+            "git {} run in {} was not refused: {}",
+            form.join(" "),
+            directory.display(),
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            config_bytes(repo.as_path()),
+            before,
+            "git {} run in {} changed the shared configuration",
+            form.join(" "),
+            directory.display()
+        );
+    }
     // The positive control the refusals rest on: real Git's editor session in this same linked worktree
     //  opens the shared file and adds to the bytes every worktree reads.
     let direct_run: Observed = observe(
