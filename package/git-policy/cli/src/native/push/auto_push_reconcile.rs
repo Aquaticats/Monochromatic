@@ -367,9 +367,10 @@ pub fn integrate_and_push(
 /// and only the first leaves the original rejection unchanged.
 ///   `local` is the commit the push was allowed to send,
 /// fixed before the worktree's verdicts were read:
-/// merging it, and never
-///  the branch's reference, is what keeps a commit that landed after that reading out of the merge this publishes, because
-///  that commit's own gate may still refuse it.
+/// merging it,
+/// and never the branch's reference,
+/// is what keeps a commit that landed after that reading out of the merge this publishes,
+/// because that commit's own gate may still refuse it.
 /// A branch that moved since is left where it is and the report says why.
 ///
 /// In TS you'd write (pseudocode):
