@@ -114,10 +114,33 @@ fn ends_with_name_ignoring_case(candidate: &[u8], operand: &[u8]) -> bool {
 }
 
 /// What:
+///  One worktree path of Git's list,
+/// with the name of the `worktrees/<id>` directory that records it.
+/// Why:
+///   Git's suffix match counts registrations,
+/// so two registrations whose paths name one directory through a symbolic link are still two answers to it;
+/// the registration a removal deletes is therefore known by its id,
+/// never by the file its path names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RegisteredPath = { id: string | undefined; path: Uint8Array };
+/// ```
+struct RegisteredPath {
+    /// The name of the administrative directory below `worktrees`,
+    /// or nothing for the main checkout.
+    id: Option<OsString>,
+    /// The worktree path as Git's list holds it,
+    /// bytes and all.
+    path: Vec<u8>,
+}
+
+/// What:
 ///  Every worktree path the repository lists:
 /// the main one,
 /// and each `gitdir` of `worktrees/*`,
-/// as Git reads them.
+/// as Git reads them,
+/// each with the registration that records it.
 /// Why:
 ///   The list Git matches the typed name against.
 /// A `gitdir` file Git skips (unreadable or empty) is skipped;
@@ -127,12 +150,12 @@ fn ends_with_name_ignoring_case(candidate: &[u8], operand: &[u8]) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function registeredPaths(commonDir: string): string[];
+/// function registeredPaths(commonDir: string): RegisteredPath[];
 /// ```
-fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>, String> {
-    let mut paths: Vec<Vec<u8>> = Vec::new();
+fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<RegisteredPath>, String> {
+    let mut paths: Vec<RegisteredPath> = Vec::new();
     let main: &[u8] = common_dir.as_os_str().as_bytes();
-    paths.push(main.strip_suffix(b"/.git").unwrap_or(main).to_vec());
+    paths.push(RegisteredPath { id: None, path: main.strip_suffix(b"/.git").unwrap_or(main).to_vec() });
     let listing = match std::fs::read_dir(worktrees) {
         Ok(listing) => listing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(paths),
@@ -149,14 +172,14 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>,
             continue;
         }
         let path: &[u8] = trimmed.strip_suffix(b"/.git").unwrap_or(trimmed);
-        if path.starts_with(b"/") {
-            paths.push(path.to_vec());
+        let spelled: Vec<u8> = if path.starts_with(b"/") {
+            path.to_vec()
         } else {
             // A relative record is relative to the administrative directory.
             let joined: PathBuf = entry.path().join(OsStr::from_bytes(path));
-            let resolved: PathBuf = std::fs::canonicalize(joined.as_path()).unwrap_or(joined);
-            paths.push(resolved.into_os_string().into_vec());
-        }
+            std::fs::canonicalize(joined.as_path()).unwrap_or(joined).into_os_string().into_vec()
+        };
+        paths.push(RegisteredPath { id: Some(entry.file_name()), path: spelled });
     }
     return Ok(paths);
 }
@@ -182,37 +205,21 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>,
 /// ```
 pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<PathBuf> {
     let worktrees: PathBuf = common_dir.join("worktrees");
-    let registered: Vec<Vec<u8>> = registered_paths(common_dir, worktrees.as_path()).ok()?;
-    let mut picked: Option<&Vec<u8>> = None;
-    for path in &registered {
-        if !ends_with_name(path.as_slice(), operand.as_bytes()) {
+    let registered: Vec<RegisteredPath> = registered_paths(common_dir, worktrees.as_path()).ok()?;
+    let mut picked: Option<&[u8]> = None;
+    for registered in &registered {
+        if !ends_with_name(registered.path.as_slice(), operand.as_bytes()) {
             continue;
         }
         // Git's suffix match answers a unique worktree or none; two matches send it to the resolved path instead.
         if picked.is_some() {
             return None;
         }
-        picked = Some(path);
+        picked = Some(registered.path.as_slice());
     }
-    let only: &Vec<u8> = picked?;
-    let resolved: PathBuf = std::fs::canonicalize(Path::new(OsStr::from_bytes(only.as_slice()))).ok()?;
+    let only: &[u8] = picked?;
+    let resolved: PathBuf = std::fs::canonicalize(Path::new(OsStr::from_bytes(only))).ok()?;
     return resolved.is_dir().then_some(resolved);
-}
-
-/// What:
-///  Whether a path of Git's worktree list names the same directory as `target`.
-/// Why:
-///   Git's list may spell a worktree through a symbolic link or by another name of the same directory,
-/// and two spellings
-///  of one directory are one worktree,
-/// so the name Git would pick is compared by the file it names and not by its text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function sameWorktree(registered: string, target: string): boolean;
-/// ```
-fn same_worktree(registered: &[u8], target: &Path) -> bool {
-    return crate::real_git_candidate::same_file(Path::new(OsStr::from_bytes(registered)), target);
 }
 
 /// What:
@@ -266,13 +273,19 @@ pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Res
     if !crate::real_git_candidate::same_file(recorded_pointer.as_path(), pointer_path.as_path()) {
         return Err(format!("{} records {}, not {}", admin.join("gitdir").display(), recorded_pointer.display(), pointer_path.display()));
     }
-    let registered: Vec<Vec<u8>> = registered_paths(common_dir, worktrees.as_path())?;
-    for path in registered {
-        if ends_with_name_ignoring_case(path.as_slice(), operand.as_bytes()) && !same_worktree(path.as_slice(), target) {
+    let registered: Vec<RegisteredPath> = registered_paths(common_dir, worktrees.as_path())?;
+    for other in registered {
+        // The registration this removal deletes is the worktree's own and the answer Git gives for it; every other one
+        // that Git's suffix match could take the name for is a second worktree to Git, even when its path names the same
+        // directory through a symbolic link, and then the name is Git's to answer.
+        if other.id.as_deref() == Some(id.as_os_str()) {
+            continue;
+        }
+        if ends_with_name_ignoring_case(other.path.as_slice(), operand.as_bytes()) {
             return Err(format!(
-                "Git's match by the last components of the registered paths could take the name {} for the worktree {}, not for {}",
+                "another registration, {}, ends in the name {} at a directory boundary, ignoring ASCII case, so Git could pick it instead of {}",
+                String::from_utf8_lossy(other.path.as_slice()),
                 operand.to_string_lossy(),
-                String::from_utf8_lossy(path.as_slice()),
                 target.display()
             ));
         }
