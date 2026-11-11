@@ -129,9 +129,11 @@ pub(crate) fn status_git_dir(global_arguments: &[OsString], environment: &[(OsSt
         Ok(found) => found,
         Err(error) => return Selection::Unresolved(format!("Git could not be started: {error}")),
     };
-    // The answer is a pathname, so it is read as the bytes Git printed it as, without the one line feed Git ends a
-    //  report with. A spelling of it named a directory that does not exist when the name was not UTF-8, and taking
-    //  every trailing whitespace byte named a directory that is not there when the name itself ends in a space.
+    // The answer is a pathname, so it is read as the bytes Git printed it as, with only Git's one terminating line
+    //  feed removed; a spelling of it named a directory that does not exist when the name was not UTF-8, and trimming
+    //  whitespace after the terminator removed a last byte that belongs to the name (a directory named `metadata `
+    //  or one whose name ends in a line feed became `metadata`), so the status counted another worktree's service
+    //  or none at all.
     let said: &[u8] = without_the_terminator(output.stdout.as_slice());
     if output.status.success() && !said.is_empty() {
         return Selection::Found(path_answer(said));

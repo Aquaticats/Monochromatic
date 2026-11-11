@@ -339,3 +339,430 @@ suite run 47 s old,
 48 s new;
 base cold build 131 s old,
 94 s new.
+
+## Where the release gate's wall time goes (measured 2026-11-10)
+
+A wrapper release waits for two things:
+the container gate,
+which `launch-gate.ts` starts as one systemd user unit named `gpc-gate-<what it covers>-<timestamp>`
+and which runs `native:test:container`,
+and the btrfs host controls,
+which `native:release` runs through the crate's `dispatchGate` registry entry
+(`native:test:host:btrfs`).
+This section splits the gate's wall time into its phases from the logs and the unit journal,
+names the slowest tests,
+says which parts wait on the host's other work,
+and records the two changes that cut the wait and the measurement of each.
+
+### The phases of the last gates
+
+Timestamps are second-precise local time with this host's offset,
+read from the gate's log name,
+the `Main process exited` line of `journalctl --user -u 'gpc-gate-*'`,
+and the podman records between them;
+the test-run figure is nextest's own `Summary` line.
+Startup is everything before the first podman record:
+mise,
+the sidecar lock check,
+the source snapshot,
+the dependency stand-ins and the vendored sources.
+
+- `gpc-gate-wrapper-next-alpha-on-630cba63d4-20261110T174626-0500`:
+  2026-11-10T17:46:26-05:00 to 18:06:40-05:00,
+  1,214 s.
+  Startup 43 s.
+  Image build 90 s,
+  every layer cached and 0 s of compile.
+  Test run 1,104 s,
+  nextest 1,102.1 s.
+  No Clippy because the suite failed.
+  Exit 1.
+- `gpc-gate-prewarm-control-incremental-20261110T171021-0500`:
+  2026-11-10T17:10:21-05:00 to 17:30:06-05:00,
+  1,186 s.
+  Startup 11 s.
+  Image build 199 s,
+  compile 136 s.
+  Test run 967 s,
+  nextest 966 s.
+  No Clippy.
+  Exit 1.
+- `gpc-gate-wrapper-next-alpha-on-cd9b8132f8-20261110T163354-0500`:
+  2026-11-10T16:33:54-05:00 to 16:54:07-05:00,
+  1,214 s.
+  Startup 17 s.
+  Image build 185 s,
+  compile 131 s.
+  Test run 1,004 s,
+  nextest 1,000.4 s.
+  No Clippy.
+  Exit 1.
+- `gpc-gate-wrapper-next-alpha-on-483bbc6587-20261110T151454-0500`:
+  2026-11-10T15:14:54-05:00 to 15:35:49-05:00,
+  1,256 s.
+  Startup 18 s.
+  Image build 245 s,
+  compile 148 s.
+  Test run 990 s,
+  nextest 987.8 s.
+  No Clippy.
+  Exit 1.
+- `gpc-gate-wrapper-next-alpha-on-46e50d20f3-20261110T093258-0500`:
+  2026-11-10T09:32:58-05:00,
+  1,561 s.
+  Startup 16 s.
+  Image build 396 s,
+  compile 318 s from a cold dependency layer.
+  Test run 933 s,
+  nextest 931.8 s.
+  Clippy 213 s after it.
+  Exit 0.
+- `gpc-gate-wrapper-next-alpha-on-9d38e1c7b9-20261110T041640-0500`:
+  2026-11-10T04:16:40-05:00 to 04:37:33-05:00,
+  1,268 s.
+  Startup 10 s.
+  Image build 27 s,
+  compile 1 s.
+  Test run 954 s,
+  nextest 945.4 s.
+  Clippy 261 s after it.
+  Exit 0.
+- `gpc-gate-wrapper-tokio-drain-round-2-20261110T024918-0500`:
+  2026-11-10T02:49:18-05:00 to 03:09:50-05:00,
+  1,233 s.
+  Startup 7 s.
+  Image build 135 s,
+  compile 108 s.
+  Test run 890 s,
+  nextest 883.2 s.
+  Clippy 203 s after it.
+  Exit 0.
+
+Three facts about that list decide the rest of this section.
+
+- The test run is 70 to 91 per cent of a gate,
+  and it grew with the suite:
+  the gate of 2026-11-03 ran about 4,000 tests in 270 to 520 s,
+  and the gate of 2026-11-10 runs 7,192 in 883 to 1,104 s.
+- Clippy is a flat 195 to 261 s and it stood after the suite,
+  so it added its whole compile to the gate's wall time.
+  The range is the five green gates of 2026-11-09 and 2026-11-10:
+  195 s in `212fc5a4e2`,
+  203 s in `tokio-drain-round-2`,
+  213 s in `46e50d20f3`,
+  219 s in `9724cb6270`,
+  and 261 s in `9d38e1c7b9`.
+- The suite's wall time is its summed test time divided by two.
+  Gate `cd9b8132f8` summed 2,000 s of test time inside a 1,000.4 s run,
+  and gate `630cba63d4` summed 2,203 s inside 1,102.1 s.
+  Those sums come from nextest's status lines,
+  halved because `--success-output=final` prints each passing test's status line a second time at the end.
+  Two test threads were busy for the whole run,
+  so no part of the suite was idle and no lock or sleep was the binding constraint:
+  the only way to shorten it without running fewer tests is to run more of them at once.
+
+### The slowest tests
+
+From gate `630cba63d4`,
+with gate `cd9b8132f8` in brackets where the two differ:
+
+- `service_landing_state::awkward_change_lists_land_as_native_git_commits_them`
+  took 80.5 s,
+  and 45.1 s in the earlier gate.
+- `fault_trace::a_disk_that_fills_during_a_commit_leaves_a_recoverable_repository`
+  took 77.2 s,
+  and 76.7 s.
+- `fault_trace::storage_that_fails_during_a_commit_leaves_a_recoverable_repository`
+  took 65.8 s,
+  and 70.0 s.
+- `push::push_slow_server_tests::a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands`
+  took 65.1 s in both gates.
+- `merge_never_fails::a_merge_that_waits_out_a_live_holder_is_saved_and_not_failed`
+  took 60.4 s.
+
+Each of them waits out something the product ships and the test exists to prove:
+the merge lock ceiling of one minute (`MERGE_LOCK_CEILING`),
+the window a push must wait past a slow server,
+a sweep over the fault list with `strace` under it,
+a case sweep that starts six cases at a time.
+Shortening any of them means shrinking a shipped bound or a sweep's width,
+which would weaken the check,
+so they stay.
+The five cost about 350 s of thread time,
+which is 175 s of the gate's wall time at two threads and 88 s at four.
+
+### What waits on other work on the host
+
+- The test run's CPU share was fixed at two by the container's `--cpus 2`,
+  the repository's default for every container.
+  Under a load average of 80 to 143 on an eight-CPU host,
+  that share is what the run may use however busy the rest of the host is:
+  the run neither starved nor grew,
+  which is why gates of the same size measured 883 s to 1,104 s in the test run itself.
+- The btrfs host controls a release also waits for run on the bare host,
+  under no container bound at all.
+  The package's own record of that run
+  (`measuredFullRunSeconds` in `bin/native-release-host-control-requirements.ts`)
+  is 3,286 s for 6,974 tests,
+  which is 0.47 s per test against 0.28 s in the gate container.
+  That is where a release waits on other work most,
+  and on 2026-11-10 another agent's build replaced that run's test binary under it and 979 tests failed.
+- The image pull of the CachyOS `latest` tag is part of every gate and needs the network,
+  measured at 7 to 43 s of startup plus pull.
+  The layered build after it is cached:
+  the compile is 0 s when no source changed (`630cba63d4`),
+  108 to 148 s for a wrapper-only change,
+  and 318 s when a manifest or lock file moved the dependency layer.
+- Most gates of the day ended red.
+  Of the nineteen gates since 2026-11-09T13:32:02-05:00,
+  fourteen recorded a failed test in their nextest summary,
+  between one and sixty-nine of the 6,382 to 7,192 tests each ran,
+  and five were green.
+  A red gate makes a release wait for another whole gate,
+  so this is the largest multiplier on the wait,
+  and it is not what these changes address.
+
+### The two changes, and the measurements behind them
+
+Both are in the gate's own harness.
+
+`bin/native-gate-checks.ts`
+starts the suite and Clippy together,
+one container each,
+and the gate waits for both.
+Both are started before either is awaited,
+both are waited for even when one failed,
+so no container is left behind a failure,
+and either one still fails the gate on its own,
+with Clippy's captured diagnostics quoted in the refusal.
+
+`bin/native-gate-container-limits.ts`
+gives the gate's containers four CPUs,
+which nextest reads as four test threads and the image build as four compile jobs,
+and a process bound of 256 for each of those threads.
+
+The test run was measured on one image from the gate's own container,
+alternating the CPU count,
+each arm in its own `systemd-run --user --scope`
+(`CPUQuota=900%`,
+`MemoryMax=16G`,
+`TasksMax=2000`,
+`IOWeight=1`),
+with the cgroup's own `pids.peak`,
+`pids.current` and `memory.peak` read while it ran.
+All arms ran 7,192 tests with 22 skipped.
+
+- 2 CPUs and 512 processes,
+  started 2026-11-10T18:08:50-05:00:
+  1,005.0 s,
+  nextest 1,001.9 s,
+  7,192 passed,
+  load average 143.27 at the start.
+- 4 CPUs and 512 processes,
+  started 2026-11-10T18:25:37-05:00:
+  515.5 s,
+  nextest 512.7 s,
+  7,191 passed and 1 failed,
+  load average 82.72.
+- 2 CPUs and 512 processes,
+  started 2026-11-10T18:34:15-05:00:
+  992.4 s,
+  nextest 990.3 s,
+  7,192 passed,
+  load average 144.23.
+- 4 CPUs and 512 processes,
+  started 2026-11-10T18:52:52-05:00:
+  532.6 s,
+  nextest 529.1 s,
+  7,189 passed and 3 failed,
+  process peak 512,
+  which is the cap,
+  memory peak 767 MiB.
+- 4 CPUs and 1024 processes,
+  started 2026-11-10T19:03:28-05:00:
+  479.1 s,
+  nextest 476.7 s,
+  7,192 passed,
+  process peak 401,
+  memory peak 978 MiB.
+
+Four test threads halve the suite:
+479.1 s against 992.4 s and 1,005.0 s at two,
+1.95 to 2.10 times,
+with the same tests.
+The summed thread time is 2,003.8 s and 1,980.5 s at two threads and 1,906.8 s at four,
+so the work itself did not grow and the host had the CPUs to give.
+
+Four threads need more processes,
+because the fault sweeps of the binary suite start six cases at once inside one test,
+and each case starts a service with its own threads and the Git programs it runs.
+At 512 processes one of the two four-thread runs sampled its process peak at exactly 512,
+which is the cap,
+and both failed with `fork` refusals:
+`the fixture's commit service starts: Os { code: 11, kind: WouldBlock }`.
+The failure count there is not one per run,
+because both runs also carried the two pre-existing flakes named below:
+the one sampled run failed three tests,
+two of them the sequencer ones that were refused a process,
+and the other failed one test,
+again a refusal.
+At 1024 processes the run whose peak was sampled reached 401 and passed all 7,192,
+so the process bound follows the thread count at 256 for each.
+A two-CPU container is unchanged at the repository's 512.
+A count of `Resource temporarily unavailable` lines is not a failure signal:
+the passing 1024-process run printed 41 of them,
+from tests that provoke that refusal on purpose
+(`subvolume::subvolume_index_files::parallel_tests::a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it`
+is one),
+and the failing 512-process run printed 43.
+
+The memory bound was left where it is,
+and the evidence for that is weaker than for the other two.
+The suite peaked at 978 MiB of the 2 GiB.
+Clippy reached the bound itself:
+2,048 MiB in the peak file of the run it passed in,
+which is no headroom at all.
+Two passing runs say it has not been killed for memory yet,
+and nothing more.
+The first gate that fails Clippy on memory is when to move it,
+and `--memory 4g` is the option that does it.
+
+The whole gate was then run twice through `bin/test-native-container.ts` with the changes in place,
+tagged `gate-wall-time-after`,
+and both times the Clippy container started in the same second as the suite's and finished long before it.
+That is also a change in what the gate draws from the host at once:
+the suite's four CPUs plus Clippy's four,
+which is 8 CPUs inside the 1,000% its systemd unit allows,
+against 4 before,
+so the peak draw is the reading to compare when asking whether a gate crowds the other agents.
+
+- Started 2026-11-10T19:19:50-05:00,
+  wall 865 s.
+  Startup and image build 369 s,
+  because this worktree's snapshot rebuilt the path-crate layer and the subject layer,
+  in three compiles of 79 s,
+  37.8 s and 84 s at four jobs.
+  Both containers started at 19:25:59-05:00.
+  Clippy died at 19:28:16-05:00 after 137 s.
+  The suite died at 19:34:09-05:00 after 490 s,
+  nextest 488.9 s,
+  7,191 passed and 1 failed.
+- Started 2026-11-10T19:37:33-05:00,
+  wall 512 s.
+  Startup and image build 37 s,
+  a full cache hit with 0.25 s of compile.
+  Both containers started at 19:38:10-05:00.
+  Clippy died at 19:40:28-05:00 after 138 s.
+  The suite died at 19:46:05-05:00 after 475 s,
+  nextest 473.2 s,
+  7,190 passed and 2 failed.
+- Started 2026-11-10T19:57:14-05:00,
+  wall 490 s.
+  Startup and image build 24 s,
+  every layer cached again.
+  Both containers started at 19:57:38-05:00.
+  Clippy died at 19:59:49-05:00 after 131 s.
+  The suite died at 20:05:24-05:00 after 466 s,
+  nextest 464.8 s,
+  7,191 passed and 1 failed.
+
+So a gate whose build is cached,
+which is the common case once the layers are warm,
+takes 512 s.
+The like-for-like gate before it is `9d38e1c7b9`,
+the one cached-build gate of 2026-11-10 that ran Clippy,
+at 1,268 s:
+10 s of startup and 27 s of image build against 37 s of both,
+954 s of suite against 475 s,
+and a 261 s Clippy tail against none,
+with 7,192 tests here against 6,974 there.
+The three gates of the day whose build recompiled the subject layer took 1,186 s to 1,256 s,
+and their suite stood at 967 s to 1,004 s,
+so the build is not what the 512 s rests on.
+Every failure in those three runs is a test that was already failing before this change,
+and the first of them is already fixed on main.
+`repair::package_repair_prewarm_job::tests::the_filling_publishes_a_clean_copy_and_leaves_the_source_alone`
+failed in all three,
+and its control is the one commit `f18a7a764a` fixed at 2026-11-10T17:09:50-05:00,
+whose message quotes the same line from gate `cd9b8132f8`:
+the control read `debug/incremental` alone,
+and the gate's image sets `CARGO_INCREMENTAL=0`.
+This branch's base is `e498914475`,
+which predates that fix,
+so this gate cannot be green until main is merged in.
+The image of gate `630cba63d4` was built after the fix,
+and it passes all six tests of that module in one container,
+and this branch's image fails one of them,
+with the same `CARGO_INCREMENTAL=1` making it pass.
+`fault_limits::a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`
+failed with "no descriptor limit let the commit land" in gates `prewarm-control-incremental` and `630cba63d4` at two
+CPUs,
+so it is not this change either.
+
+### The bound on each check
+
+Starting the two checks together added a wait the gate did not have:
+on 2026-11-11 a review of that change found that a failed test run could be known while Clippy's client never
+answered,
+and the gate waited for both forever,
+so the failure a person needs was never reported.
+
+Each check is now given one hour (`gateCheckDeadlineMilliseconds` in `bin/native-gate-checks.ts`).
+Three times the slowest measured phase of the gate,
+1,104 s of test run at two threads on 2026-11-10,
+is 3,312 s,
+so the bound is one hour,
+which is the same arithmetic the btrfs host controls' three hours use against their 3,286-second run
+(`bin/native-release-host-control-requirements.ts`).
+A check that reaches the bound stops its client and everything that client started,
+removes its container by the ID file the client wrote while it ran
+(`bin/native-gate-container.ts`),
+and reports the bound it missed.
+The gate waits three minutes past that bound before it answers for a check which ignores its own bound,
+which is longer than a removal may take,
+so a stopped check always removes its container before the gate's refusal lets the run exit.
+
+Measured that day against a stand-in `podman` whose `run` client never exits,
+with both checks on a 1,500 ms bound:
+both clients started with `--cidfile`,
+both were stopped at the bound,
+both containers were removed by their ID files,
+and the refusal quoted the bound each client missed,
+after 1,681 ms.
+
+### What is left
+
+- The host controls are the bigger wait (3,286 s against a 1,000 s suite),
+  and nothing here shortens them:
+  they run on the bare host,
+  where every other agent's work is unbounded relative to them.
+  Giving that run a cgroup with a CPU share,
+  or running it in the gate's image the way the gate does,
+  is a separate change with its own measurement.
+- Two other ways to four threads were rejected on arithmetic,
+  not on measurement,
+  and either could be measured instead:
+  declaring nextest `threads-required` on the fault sweeps would serialize about 409 s of their thread time,
+  `fault_limits::` 113.1 s and `fault_trace::` 295.9 s in one two-thread log,
+  which is most of the 513 s the fourth thread bought;
+  and two half-partitioned containers of 512 processes each would put the same 1,024 processes on the host,
+  add a partition whose completeness the gate would have to prove,
+  and leave the proof manifest with one limit set to record.
+- The four-thread curve had not flattened.
+  479 s at four threads against 992 s at two is very close to linear,
+  so six threads are the next point to measure,
+  and the gate's systemd unit allows ten.
+  The process bound would follow to 1,536.
+- The gate image's dependency layer still costs 318 s when a manifest or a lock file moves,
+  which a version bump does.
+  The build's job count follows the gate's CPU count,
+  so the cold layers now get the 1.6 to 1.9 times the package README measured at four CPUs,
+  and the rest of that build is step overhead on a busy host.
+- A mutation campaign that reuses a gate image keeps the gate's proof only when its own process bound is at least the
+  gate's,
+  so a campaign at the default 512 processes runs its baseline once.
+  Passing `--pids-limit 1024` keeps it.
+  Having the campaign take the gate's bound from the manifest is the change that would remove that cost.
+- The two flaky tests named above are pre-existing and were left alone.
+  Each one makes a whole gate red,
+  and so costs a release another gate.

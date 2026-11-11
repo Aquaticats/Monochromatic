@@ -823,40 +823,37 @@ fn a_status_asked_of_git_keeps_a_git_directory_that_is_not_text() {
 }
 
 /// What:
-///  A status asked of Git keeps a Git directory whose name ends in a space.
+///  A status asked of Git keeps a trailing space or line feed that is part of the Git directory's name.
 /// Why:
-///   The answer is a pathname and Git ends it with one line feed,
-///  so every trailing whitespace byte taken from it took the space that belongs to the name:
-/// the status then asked for the service of a directory that does not exist,
-///  refused the question as "the Git directory ... cannot be resolved",
-/// and named a service that was running as one that was not.
-///
-/// `--git-dir` is a selection the in-process reader leaves to Git,
-/// so this asks Git itself.
+///   An answer that is a pathname loses only Git's one terminator,
+///  so trimming whitespace after it named a different directory,
+///  and the status then counted no service for the worktree the person selected.
 #[test]
-fn a_status_asked_of_git_keeps_a_git_directory_that_ends_in_a_space() {
-    let root: PathBuf = fixture("management-status-trailing-space");
-    let repo: PathBuf = root.join("repo");
-    let administered: PathBuf = root.join("metadata ");
-    std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(
-        root.as_path(),
-        &[
-            "init",
-            "--quiet",
-            "--initial-branch=main",
-            "--separate-git-dir",
-            administered.to_str().expect("a UTF-8 fixture path"),
-            repo.to_str().expect("a UTF-8 fixture path"),
-        ],
-    );
+fn a_status_asked_of_git_keeps_a_trailing_space_or_line_feed() {
+    let root: PathBuf = fixture("management-status-trailing-whitespace");
     let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
-    let selected: Vec<OsString> = vec![OsString::from("--git-dir"), administered.clone().into_os_string()];
-    assert_eq!(
-        status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))),
-        Selection::Found(std::fs::canonicalize(administered.as_path()).expect("git directory")),
-        "the Git directory keeps the space its name ends in"
-    );
+    for (label, name) in [("space", "metadata "), ("line-feed", "metadata\n")] {
+        let worktree: PathBuf = root.join(format!("worktree-{label}"));
+        std::fs::create_dir(worktree.as_path()).expect("worktree directory");
+        let metadata: PathBuf = root.join(name);
+        git(
+            root.as_path(),
+            &[
+                "init",
+                "--quiet",
+                "--initial-branch=main",
+                "--separate-git-dir",
+                metadata.to_str().expect("UTF-8 fixture name"),
+                worktree.to_str().expect("UTF-8 fixture path"),
+            ],
+        );
+        let selected: Vec<OsString> = vec![OsString::from("--git-dir"), metadata.clone().into_os_string()];
+        assert_eq!(
+            status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))),
+            Selection::Found(std::fs::canonicalize(metadata.as_path()).expect("git directory")),
+            "{label}: the Git directory keeps every byte of its name"
+        );
+    }
     remove(root.as_path());
 }
 

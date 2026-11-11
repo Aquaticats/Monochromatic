@@ -588,6 +588,75 @@ fn the_settle_command_is_not_held_by_a_service_another_control_is_starting() {
     remove_settled(&fixture);
 }
 
+/// What:
+///  Starts a program of this control's own whose command line carries a `--journal` option naming `journal`,
+///  the way an
+///  unrelated tool on the machine can,
+///  and gives it.
+/// Why:
+///   The settle command reads the command line of every process of the user,
+/// and a program whose `--journal` folder is not
+///  there is the state a starting earlier helper is in until it makes its folder.
+/// A control that waited for such a
+///  program on the machine would depend on what else runs here,
+///  so it starts its own.
+/// The program reads its
+///  standard input and ends when that closes,
+/// so the control ends it and leaves nothing running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawn(program, ['--journal', journal], { stdin: 'pipe' }); // ends when its stdin closes
+/// ```
+fn unrelated_journal_program(fixture: &Fixture, journal: &Path) -> Child {
+    let program: PathBuf = fixture.root.join("unrelated-tool");
+    std::fs::write(program.as_path(), b"#!/bin/sh\nwhile read -r line; do :; done\n").expect("the unrelated program");
+    std::fs::set_permissions(program.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable program");
+    let mut command: Command = Command::new(program.as_path());
+    command.arg("--journal").arg(journal).stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null());
+    return command.spawn().expect("the unrelated program starts");
+}
+
+/// Review of the release gate of 2026-11-10 ("fails only on this host"):
+/// the look that the settle command makes counts a program whose `--journal` folder it cannot look up as a
+///  service that may be running,
+/// and another session on this host ran an unrelated program that carried a `--journal` option
+///  with a folder that was gone,
+/// so all three settle controls of this file failed after their patience while the gate's
+///  container passed them.
+/// A folder that is not there holds no batch of the worktree,
+/// so the command compares the path the
+///  word spells with the worktree's earlier journals and goes on when it is not one of them:
+/// the batch is
+///  finished while such a program runs,
+/// and nothing depends on what else the machine runs.
+#[test]
+fn the_settle_command_is_not_held_by_an_unrelated_program_whose_journal_folder_is_gone() {
+    let fixture: Fixture = fixture("service-settle-beside-an-unrelated-program");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "unrelated");
+    let gone: PathBuf = fixture.root.join("gone/journal");
+    let mut unrelated: Child = unrelated_journal_program(&fixture, gone.as_path());
+    let begun: Instant = Instant::now();
+    while !a_process_names(gone.as_path()) {
+        assert!(begun.elapsed() < PATIENCE, "the unrelated program never showed its journal word");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!gone.exists(), "the unrelated program's folder is not there, as a stale folder is not");
+    assert!(unrelated.try_wait().expect("the unrelated program's state").is_none(), "the unrelated program runs while the command looks at the processes");
+    let settled = run_settle_past_a_refusal(&fixture, &repo);
+    let stdout: String = String::from_utf8_lossy(settled.stdout.as_slice()).into_owned();
+    let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
+    drop(unrelated.stdin.take());
+    let _ended = unrelated.wait();
+    assert_eq!(settled.code, Some(0), "{stdout}{stderr}");
+    assert!(stdout.contains("finished batch 1"), "{stdout} (standard error: {stderr})");
+    assert!(!open.exists() && finished.exists(), "the open batch of the earlier journal was finished");
+    remove_settled(&fixture);
+}
+
 /// When the safety condition cannot be delivered (standard error is closed),
 /// the command settles nothing:
 /// the batch is still

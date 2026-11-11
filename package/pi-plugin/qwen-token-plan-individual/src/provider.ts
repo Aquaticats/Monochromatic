@@ -34,12 +34,16 @@ import type {
   ApiKeyAuth,
   ApiStreamOptions,
   AssistantMessageEventStream,
+  Credential,
   Model,
   Provider,
   RefreshModelsContext,
   SimpleStreamOptions,
   TranscriptContext,
 } from '@earendil-works/pi-ai';
+import type {
+  ForeignBorrowed,
+} from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
   QWEN_TOKEN_PLAN_INDIVIDUAL_BUILTIN_CREDENTIAL_ENV,
@@ -48,7 +52,9 @@ import {
 } from './constants.ts';
 import {
   resolveQwenTokenPlanIndividualCredential,
-  storedCredentialKey,
+  storedCredentialSources,
+  type QwenTokenPlanIndividualCredentialResolution,
+  type QwenTokenPlanIndividualCredentialSources,
 } from './credential.ts';
 import {
   projectQwenTokenPlanIndividualModels,
@@ -115,6 +121,83 @@ function snapshotModels(): QwenTokenPlanIndividualPiModel[] {
 //region Transport
 
 /**
+ Environment homes one refresh reads,
+ expressed as the credential sources fragment they fill:
+ absence is the fragment carrying no key,
+ so no nullish union crosses the seam.
+
+ @param environment - launch environment the two homes read
+
+ @returns the sources fragment each non-empty environment value fills
+
+ @example
+ ```typescript
+ const sources = environmentCredentialSources({ environment: process.env });
+ ```
+ */
+function environmentCredentialSources({
+  environment,
+}: {
+  readonly environment: ForeignBorrowed<NodeJS.ProcessEnv>;
+},): QwenTokenPlanIndividualCredentialSources {
+  /**
+   Environment value under the credential name the shared core pins.
+   */
+  const individualEnvironmentKey =
+    environment[QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME];
+  /**
+   Environment value under the builtin's own name, the recorded fallback.
+   */
+  const builtinEnvironmentKey =
+    environment[QWEN_TOKEN_PLAN_INDIVIDUAL_BUILTIN_CREDENTIAL_ENV];
+  return {
+    ...(individualEnvironmentKey === undefined
+      ? {}
+      : { individualEnvironmentKey, }),
+    ...(builtinEnvironmentKey === undefined
+      ? {}
+      : { builtinEnvironmentKey, }),
+  };
+}
+
+/**
+ Resolve the listing credential one refresh fetches with:
+ the stored credential pi resolved for this route first,
+ then the two environment homes,
+ exactly the chain the request path walks.
+
+ @param credential - credential pi passed this refresh, absent when it passed none
+
+ @param environment - launch environment the two homes read
+
+ @returns the resolution whose `key` names the winning home's value
+
+ @example
+ ```typescript
+ const resolution = refreshListingCredential({
+   credential: context.credential,
+   environment: process.env,
+ });
+ ```
+ */
+function refreshListingCredential({
+  credential,
+  environment,
+}: {
+  readonly credential?: ForeignBorrowed<Credential>;
+  readonly environment: ForeignBorrowed<NodeJS.ProcessEnv>;
+},): QwenTokenPlanIndividualCredentialResolution {
+  return resolveQwenTokenPlanIndividualCredential({
+    sources: {
+      ...storedCredentialSources(credential === undefined
+        ? {}
+        : { credential, }),
+      ...environmentCredentialSources({ environment, }),
+    },
+  },);
+}
+
+/**
  Compose the injected listing transport so the cancellation this refresh owns
  reaches it alongside the shared fetch's own signal.
  The shared core owns the request shape,
@@ -126,87 +209,38 @@ function snapshotModels(): QwenTokenPlanIndividualPiModel[] {
 
  @param signal - cancellation this refresh owns
 
- @returns the wrapped transport, or nothing when no override applies
+ @returns the fetcher option carrying the wrapped transport,
+ or the empty option when no override applies
 
  @example
  ```typescript
- const fetcher = composeFetcher({ fetcher: testFetch, signal: controller.signal });
+ const options = composedFetcherOptions({ fetcher: testFetch, signal: controller.signal });
  ```
  */
-function composeFetcher({
+function composedFetcherOptions({
   fetcher,
   signal,
 }: {
   readonly fetcher?: QwenTokenPlanListingFetcher;
   readonly signal: AbortSignal;
-},): QwenTokenPlanListingFetcher | undefined {
+},): {
+  readonly fetcher?: QwenTokenPlanListingFetcher;
+} {
   if (fetcher === undefined)
-    return undefined;
-  return function composedQwenTokenPlanListingFetch(options: {
-    readonly baseUrl: string;
-    readonly apiKey: string | undefined;
-    readonly signal: AbortSignal;
-  },): ReturnType<QwenTokenPlanListingFetcher> {
-    return fetcher({
-      ...options,
-      signal: AbortSignal.any([
-        options.signal,
-        signal,
-      ],),
-    },);
-  };
-}
-
-/**
- Resolve the listing credential one refresh fetches with:
- the stored credential pi resolved for this route first,
- then the two environment homes,
- exactly the chain the request path walks.
-
- @param credential - credential pi passed this refresh
-
- @param environment - launch environment the two homes read
-
- @returns the resolved key, or `undefined` when no home answers
-
- @example
- ```typescript
- const apiKey = refreshListingCredential({
-   credential: context.credential,
-   environment: process.env,
- });
- ```
- */
-function refreshListingCredential({
-  credential,
-  environment,
-}: {
-  readonly credential?: RefreshModelsContext['credential'] | undefined;
-  readonly environment: Readonly<Record<string, string | undefined>>;
-},): string | undefined {
-  /**
-   Stored key pi resolved for this route, when it carries one.
-   */
-  const credentialKey = storedCredentialKey({ credential, },);
-  /**
-   Environment values under both accepted names.
-   */
-  const individualEnvironmentKey =
-    environment[QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME];
-  const builtinEnvironmentKey =
-    environment[QWEN_TOKEN_PLAN_INDIVIDUAL_BUILTIN_CREDENTIAL_ENV];
-  return resolveQwenTokenPlanIndividualCredential({
-    sources: {
-      ...(credentialKey === undefined ? {} : { credentialKey, }),
-      ...(individualEnvironmentKey === undefined
-        ? {}
-        : { individualEnvironmentKey, }),
-      ...(builtinEnvironmentKey === undefined
-        ? {}
-        : { builtinEnvironmentKey, }),
+    return {};
+  return {
+    fetcher: function composedQwenTokenPlanListingFetch(
+      options: Parameters<QwenTokenPlanListingFetcher>[0],
+    ): ReturnType<QwenTokenPlanListingFetcher> {
+      return fetcher({
+        ...options,
+        signal: AbortSignal.any([
+          options.signal,
+          signal,
+        ],),
+      },);
     },
-  },)
-    .key;
+  };
 }
 
 //endregion Transport
@@ -242,7 +276,7 @@ export function createQwenTokenPlanIndividualProvider({
   readonly logger: Logger;
   readonly apiKeyAuth: NonNullable<ApiKeyAuth>;
   readonly fetcher?: QwenTokenPlanListingFetcher;
-  readonly environment?: Readonly<Record<string, string | undefined>>;
+  readonly environment?: NodeJS.ProcessEnv;
 },): QwenTokenPlanIndividualProviderRuntime {
   /**
    Logger tagged for this construction, so records name the provider seam.
@@ -337,21 +371,27 @@ export function createQwenTokenPlanIndividualProvider({
         { once: true, },
         );
       /**
-       Listing credential this refresh fetches with, resolved through the same
-       chain the request path walks.
+       Listing credential resolution this refresh fetches with,
+       walked through the same chain the request path walks.
        */
-      const apiKey = refreshListingCredential({
-        credential: context.credential,
+      const resolution = refreshListingCredential({
+        ...(context.credential === undefined
+          ? {}
+          : { credential: context.credential, }),
         environment,
       },);
+      /**
+       Winning key the resolution carries; absent when no home answered.
+       */
+      const apiKey = resolution.key;
       if (apiKey === undefined)
         rl.info(QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_GUIDANCE,);
       try {
         /**
-         Transport override this refresh composes cancellation into, absent
-         outside tests.
+         Fetcher option this refresh composes cancellation into,
+         the empty option outside tests.
          */
-        const composedFetcher = composeFetcher({
+        const fetcherOptions = composedFetcherOptions({
           ...(fetcher === undefined ? {} : { fetcher, }),
           signal: controller.signal,
         },);
@@ -362,7 +402,7 @@ export function createQwenTokenPlanIndividualProvider({
           baseUrl: context.baseUrl ?? QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
           apiKey,
           signal: controller.signal,
-          ...(composedFetcher === undefined ? {} : { fetcher: composedFetcher, }),
+          ...fetcherOptions,
         },);
         /**
          Live catalog the listing earns under the shared mapping.

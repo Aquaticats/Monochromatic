@@ -20,7 +20,9 @@ use crate::conclusion_cleanup::{
     is_store_held, resolve_pseudoref, store_names_conclusions,
 };
 /// Private file writes and directory creation.
-use crate::private_storage::{create_private_directory, write_private_file};
+///  A conclusion copy is written without a flush:
+/// nothing recovers it from this directory.
+use crate::private_storage::{create_private_directory, write_private_file, write_private_file_unsynced};
 /// Optional reads that treat a missing entry as absent.
 use crate::recovery_files::{path_present, read_optional};
 /// The error of a recovery-file read,
@@ -183,21 +185,26 @@ pub fn copy_conclusion_state(
         return Ok(());
     }
     io_step("creating the conclusion copies", create_private_directory(copies.as_path()))?;
+    // What: The shadow's copies and the comparison copies are written without a flush of the disk.
+    // Why:  The shadow's copy is read by this process's own `git commit` immediately after it is written, and the comparison
+    //       copy by the landing this same command asks for; the service copies what the cleanup compares into the batch's
+    //       journal before the branch moves (`conclusion_state_copy.rs`), so nothing recovers either from this directory. A
+    //       copy a power cut never gave back keeps the worktree's own entry instead of removing it, so no content is lost.
+    //       The flush was the whole cost of a conclusion commit on this host: eight client fsyncs of these throwaway files,
+    //       2 to 53 s over native Git in ten rounds, five of ten over native plus five seconds
+    //       (`doc/planning/cli-git-commit-latency-under-many-agents.md`, "A conclusion commit's copies wait for no flush").
     for (name, bytes) in entries {
         io_step(
             "copying a conclusion entry into the shadow",
-            write_private_file(shadow.join(name).as_path(), bytes.as_slice()),
+            write_private_file_unsynced(shadow.join(name).as_path(), bytes.as_slice()),
         )?;
         io_step(
             "copying a conclusion entry for comparison",
-            write_private_file(copies.join(name).as_path(), bytes.as_slice()),
+            write_private_file_unsynced(copies.join(name).as_path(), bytes.as_slice()),
         )?;
     }
     if let Some(text) = record {
-        io_step(
-            "writing the store-held record",
-            write_private_file(copies.join(STORE_RECORD_FILENAME).as_path(), format!("{text}\n").as_bytes()),
-        )?;
+        io_step("writing the store-held record", write_store_record(copies.as_path(), text.as_str(), ref_format))?;
     }
     if sequencer_present {
         io_step(
@@ -210,6 +217,32 @@ pub fn copy_conclusion_state(
         )?;
     }
     return Ok(());
+}
+
+/// What:
+///  Write the record that names the conclusion values a backend's ref store holds,
+///  flushed only where a record that a power cut never gave back is damage.
+/// Why:
+///   A files backend holds no such value,
+///  so an absent record and `{}` answer the same question there,
+///  and the flush would make the commit wait for the disk for no answer
+///  (`store_names_conclusions`).
+///  A reftable backend keeps three pseudorefs in its store,
+///  and a record missing there is read as damage,
+///  so that one keeps its flush.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeStoreRecord(copies, text, format);
+/// ```
+fn write_store_record(copies: &Path, text: &str, format: RefFormat) -> std::io::Result<()> {
+    let path: PathBuf = copies.join(STORE_RECORD_FILENAME);
+    let bytes: String = format!("{text}\n");
+    return if store_names_conclusions(format) {
+        write_private_file(path.as_path(), bytes.as_bytes())
+    } else {
+        write_private_file_unsynced(path.as_path(), bytes.as_bytes())
+    };
 }
 
 /// The heads a conclusion's parents come from,

@@ -1962,6 +1962,48 @@ fn an_adjacent_edit_is_merged_by_word_published_and_listed() {
     remove(&s.root);
 }
 
+/// What:
+///  A resolvable merge whose answer is larger than the push report's output cap is still merged and published.
+/// Why:
+///  The reconcile's commands are judged with `MAX_PUSH_OUTPUT`,
+///  and that ceiling was raised only for `cat-file`,
+///  so `merge-file --stdout` kept the push report's 4 MiB although the pass takes stages at 8 MiB
+///  and its answer is those stages and the settled text around them.
+///  A resolvable file past the cap put the whole merge back as a conflict,
+///  and nothing was pushed
+///  (cross-vendor review of round 133,
+///  finding 4).
+#[test]
+fn a_word_merged_answer_bigger_than_the_push_output_cap_is_published() {
+    let s = scenario("ar-word-large");
+    // The answer holds the shared text around the one conflict, so shared text past the cap makes the answer larger than
+    // the cap; the margin is the region, the marker lines and the text the push reports around them.
+    let shared: usize = usize::try_from(crate::bounded_push::MAX_PUSH_OUTPUT).expect("the cap is a size") + 512 * 1024;
+    let mut base: String = String::new();
+    while base.len() <= shared {
+        base.push_str(format!("a line of the shared text {}\n", base.len()).as_str());
+    }
+    let tail: &str = "alpha one\n";
+    base.push_str(tail);
+    assert!(
+        u64::try_from(base.len()).expect("the fixture's size") < crate::merge_second_pass::LARGEST_STAGE_BYTES,
+        "the fixture is a stage the pass takes"
+    );
+    let both: &str = base.strip_suffix(tail).expect("the tail is there");
+    // The base reaches both clones first, so the local commit changes a path Git knows.
+    advance_remote(&s, "big.md", base.as_str());
+    git(&s.local, &["pull", "--quiet", "--ff-only"]);
+    advance_remote(&s, "big.md", format!("{both}ALPHA one\n").as_str());
+    let landed: String = commit_local(&s, "big.md", format!("{both}alpha uno\n").as_str());
+    let (result, err) = run(&s, &landed);
+    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    let published: String = text_of(&s.remote, &["show", "main:big.md"]);
+    assert!(published.starts_with(both), "the shared text is published whole: {} bytes", published.len());
+    assert!(published.trim_end().ends_with("ALPHA uno"), "the merged line is the word merge of both edits");
+    assert!(err.contains("word-level merge") && err.contains("big.md"), "{err}");
+    remove(&s.root);
+}
+
 /// Sections appended at one point by both sides stay a conflict:
 /// nothing is published and the paths are named.
 #[test]
