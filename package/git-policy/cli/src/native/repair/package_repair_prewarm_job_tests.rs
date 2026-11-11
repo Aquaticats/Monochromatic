@@ -303,41 +303,92 @@ fn item_for(common: &Path, worktree: &Path, entry: &PrewarmEntry) -> WorkItem {
     return crate::package_repair_prewarm::item_of(common, worktree, std::slice::from_ref(entry)).expect("the record");
 }
 
-/// What:
-///  The worktree's `Cargo.lock` is as checked out after the service's clean,
-/// whether it was there and stale or absent.
+/// What the operating system records about one file,
+/// so a control can tell a file nothing wrote from one that was written again,
+/// even when the bytes came back the same.
 /// Why:
-///   `cargo clean` resolves the worktree's workspace even when it deletes only from directories of
+///   Reading the bytes cannot show that a file was not written:
+/// a rewrite and a put-back leave the same ones.
+///   The inode,
+/// the size and the two timestamps do change,
+/// and no writer restores them.
+#[derive(Debug, Eq, PartialEq)]
+struct FileIdentity {
+    inode: u64,
+    size: u64,
+    modified: (i64, i64),
+    changed: (i64, i64),
+}
+
+/// What:
+///  What the filesystem records about the file at `path`.
+/// Why:
+///   The four fields a write changes are read together,
+/// so a control compares one value.
+fn identity_of(path: &Path) -> FileIdentity {
+    /// The Unix metadata fields that tell a rewrite from an untouched file.
+    use std::os::unix::fs::MetadataExt as _;
+    let metadata: std::fs::Metadata = std::fs::metadata(path).expect("the file's metadata");
+    return FileIdentity { inode: metadata.ino(), size: metadata.len(), modified: (metadata.mtime(), metadata.mtime_nsec()), changed: (metadata.ctime(), metadata.ctime_nsec()) };
+}
+
+/// What:
+///  The filling never writes the worktree's `Cargo.lock`,
+/// in any of the three states a checked-out lock can be in,
+/// so a kill anywhere in the filling leaves the person's bytes as they were.
+/// Why:
+///   The clean resolves the worktree's workspace even when it deletes only from directories of
 /// this job's own,
-/// which rewrites a lock that no longer matches its manifest and creates one that is missing.
-/// The add's own clean puts the lock back (`package_repair_cargo_lock.rs`),
-/// and the service's clean runs after the add has returned,
-/// so a lock it left rewritten would change a tracked file in the person's worktree behind their back.
+/// and a lock that no longer matches its manifest is rewritten where it lies,
+/// and a missing one is created.
+/// The filling runs after the add has returned,
+/// while the person works in the worktree,
+/// so a lock it writes is a tracked file changed behind their back,
+/// and a put-back compares only the bytes it read with the bytes it finds:
+/// a person's own write during the clean is overwritten,
+/// and a kill before the put-back leaves the rewritten lock.
+/// A clean that is told to leave the lock alone cannot write it at all:
+/// Cargo refuses the lock it would have to change,
+/// and the filling reports that instead of filling the copy.
 #[test]
-fn the_filling_puts_the_lock_back_as_checked_out() {
-    // The two states a checked-out lock can be in.
-    const LOCK_STATES: [&str; 2] = ["stale", "absent"];
+fn the_filling_never_writes_the_worktrees_lock() {
+    // The three states a worktree's lock can be in when the filling starts.
+    const LOCK_STATES: [&str; 3] = ["matching", "stale", "absent"];
     for state in LOCK_STATES {
-        let root: PathBuf = fixture(format!("prewarm-lock-{state}").as_str());
+        let root: PathBuf = fixture(format!("prewarm-lock-never-written-{state}").as_str());
         let entry: PrewarmEntry = built_workspace(root.as_path());
         let lock: PathBuf = entry.root.join(LOCK_FILE);
-        let checked_out: Option<Vec<u8>> = if state == "stale" {
-            // A manifest that moved on and a lock that did not: the shape several locks in this repository have.
-            let built: String = std::fs::read_to_string(lock.as_path()).expect("the lock the build wrote");
-            let stale: String = built.replace("name = \"own\"\nversion = \"0.1.0\"", "name = \"own\"\nversion = \"0.0.9\"");
-            std::fs::write(lock.as_path(), stale.as_bytes()).expect("the stale lock");
-            Some(stale.into_bytes())
-        } else {
+        let left: Option<Vec<u8>> = if state == "absent" {
             std::fs::remove_file(lock.as_path()).expect("a worktree with no lock");
             None
+        } else {
+            let built: String = std::fs::read_to_string(lock.as_path()).expect("the lock the build wrote");
+            if state == "stale" {
+                // A manifest that moved on and a lock that did not: the shape several locks in this repository have.
+                let stale: String = built.replace("name = \"own\"\nversion = \"0.1.0\"", "name = \"own\"\nversion = \"0.0.9\"");
+                std::fs::write(lock.as_path(), stale.as_bytes()).expect("the stale lock");
+                Some(stale.into_bytes())
+            } else {
+                Some(built.into_bytes())
+            }
         };
+        let before: Option<FileIdentity> = left.as_ref().map(|_unused| return identity_of(lock.as_path()));
         let item: WorkItem = item_for(root.as_path(), entry.root.as_path(), &entry);
         let verdict: Verdict = crate::lazy_runtime::run_on_runtime(super::prewarm_awaiting(&item)).expect("the filling runs");
-        assert_eq!(verdict, Verdict::Done, "the filling published the copy ({state})");
-        assert!(entry.to.exists(), "the copy reached the worktree's build directory name ({state})");
         let after: Option<Vec<u8>> = std::fs::read(lock.as_path()).ok();
         let described: String = after.as_ref().map_or(String::from("no lock"), |bytes| return format!("{} bytes", bytes.len()));
-        assert_eq!(after.as_deref(), checked_out.as_deref(), "the worktree's {LOCK_FILE} is as checked out after the clean ({state}): {described}");
+        assert_eq!(after, left, "the worktree's {LOCK_FILE} holds exactly the bytes the filling found ({state}): {described}");
+        if let Some(before) = before {
+            assert_eq!(identity_of(lock.as_path()), before, "nothing wrote the worktree's {LOCK_FILE}, so no kill can leave it rewritten or cut short ({state})");
+        }
+        if state == "matching" {
+            assert_eq!(verdict, Verdict::Done, "a lock that matches its manifest lets the clean run, and the copy is published");
+            assert!(entry.to.exists(), "the copy reached the worktree's build directory name (matching)");
+        } else {
+            let Verdict::Failed(reason) = verdict else { panic!("the filling reports the lock Cargo would have had to change ({state}): {verdict:?}") };
+            assert!(reason.contains(LOCK_FILE), "the report names the lock Cargo would have had to change ({state}): {reason}");
+            assert!(!entry.to.exists(), "a refused clean publishes no copy ({state})");
+        }
         remove(root.as_path());
     }
 }
@@ -450,4 +501,157 @@ fn the_worktrees_own_cargo_link_is_found_from_the_worktree_root_for_a_nested_wor
     let verdict: Verdict = crate::lazy_runtime::run_on_runtime(super::prewarm_awaiting_with(&item, &an_environment_with_no_programs())).expect("the filling runs");
     assert_eq!(verdict, Verdict::Done, "the worktree's own Cargo link is found from the worktree root");
     remove(root.as_path());
+}
+
+/// The deadline one control gives a filling whose whole work is a fixture's clone and a stand-in
+/// Cargo,
+/// so a filling that waits on something it must not wait on fails here instead of holding the suite.
+const FILLING_DEADLINE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// What:
+///  Make a named pipe at `path`.
+/// Why:
+///   A named pipe is the one foreign object whose plain open waits for a writer that may never come,
+///   which is what the filling must never do at a name anyone can write.
+fn named_pipe_at(path: &Path) {
+    /// The bytes of a pathname, for the C interface.
+    use std::os::unix::ffi::OsStrExt as _;
+    let named: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a fixture path holds no NUL byte");
+    // SAFETY: the string is NUL-terminated and outlives the call, and the name is a fresh path in the fixture.
+    let made: libc::c_int = unsafe { libc::mkfifo(named.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "make a named pipe at {}: {}", path.display(), std::io::Error::last_os_error());
+}
+
+/// What:
+///  An entry whose source build directory holds one dependency build,
+///  so a clone has something to copy,
+///  and whose workspace exists,
+///  so the clean has a directory to run in.
+/// Why:
+///   The three controls below are about a name beside the destination and about the worktree's lock,
+/// and none of them reads a manifest.
+fn an_entry_with_a_source_build(root: &Path) -> PrewarmEntry {
+    let entry: PrewarmEntry = entry_of(root);
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    return entry;
+}
+
+/// What:
+///  A named pipe at the marker name,
+///  which this filling did not make,
+///  never holds the filling:
+///  the copy is published under names of this run's own and the pipe stays where it is.
+/// Why:
+///   The marker name is this job's by convention,
+/// and anyone can put anything there.
+/// A reader-less pipe blocks a plain read inside `open` for ever,
+/// so one foreign object at that name would hold the service's filling with no end
+/// (the owner's "nothing should ever wait forever or indefinitely"),
+/// and the worktree would keep waiting for a build directory nothing fills.
+#[test]
+fn a_named_pipe_at_the_marker_name_never_holds_the_filling() {
+    let root: PathBuf = fixture("prewarm-marker-pipe");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    let staged: PathBuf = staging_of(entry.to.as_path());
+    let marker: PathBuf = super::marker_of(staged.as_path());
+    named_pipe_at(marker.as_path());
+    let covered: PathBuf = root.clone();
+    let filled: Option<Result<Filled, String>> = crate::test_support::finished_within_at(FILLING_DEADLINE, move || {
+        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE } };
+        return super::fill_one_in_a_control(&fill, &entry);
+    });
+    let filled: Result<Filled, String> = filled.expect("the filling must not wait on a named pipe at the marker name");
+    assert_eq!(filled, Ok(Filled::Published), "the copy is published under names of this run's own");
+    assert!(marker.exists(), "the named pipe this filling did not make is left where it is");
+    remove(covered.as_path());
+}
+
+/// What:
+///  A person's own update of the worktree's `Cargo.lock`,
+///  written while the filling's clean runs,
+///  is still the worktree's lock when the filling ends.
+/// Why:
+///   The filling runs after the add has returned,
+/// while the person works in the worktree,
+/// so the clean can overlap their `cargo update`.
+/// Comparing the lock's bytes with the bytes read before the clean cannot tell Cargo's write from
+/// theirs,
+/// and writing the earlier bytes back would discard their newer ones
+/// ("never discard user data").
+/// A filling that never writes the lock cannot lose it.
+#[test]
+fn the_filling_never_writes_a_lock_a_person_updates_while_the_clean_runs() {
+    /// What the person's own command writes while the clean runs.
+    const THE_PERSONS_UPDATE: &[u8] = b"the person's own update\n";
+    let root: PathBuf = fixture("prewarm-lock-updated-while-clean-runs");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    std::fs::write(lock.as_path(), b"checked out\n").expect("the checked-out lock");
+    // A Cargo that says when it started and then waits to be let go,
+    // so the person's write lands inside the clean rather than before or after it.
+    let started: PathBuf = root.join("cargo-started");
+    let release: PathBuf = root.join("release-cargo");
+    named_pipe_at(release.as_path());
+    let cargo: PathBuf = root.join("blocking-cargo");
+    crate::test_support::executable(cargo.as_path(), format!("#!/bin/sh\nprintf started > '{}'\nread released < '{}'\nexit 0\n", started.display(), release.display()).as_bytes());
+    let persons_lock: PathBuf = lock.clone();
+    let persons_started: PathBuf = started.clone();
+    let persons_release: PathBuf = release.clone();
+    let person = std::thread::spawn(move || {
+        let deadline: std::time::Instant = std::time::Instant::now() + FILLING_DEADLINE;
+        while !persons_started.exists() {
+            assert!(std::time::Instant::now() < deadline, "the clean did not start within {FILLING_DEADLINE:?}");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        std::fs::write(persons_lock.as_path(), THE_PERSONS_UPDATE).expect("the person's own update while the clean runs");
+        /// Writing a line to the pipe is what lets the stand-in Cargo exit.
+        use std::io::Write as _;
+        let mut letting_go: std::fs::File = std::fs::OpenOptions::new().write(true).open(persons_release.as_path()).expect("let the clean finish");
+        letting_go.write_all(b"go\n").expect("let the clean finish");
+    });
+    let fill: Fill = Fill { cargo, limits: ToolLimits { window: FILLING_DEADLINE, ceiling: FILLING_DEADLINE } };
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+    person.join().expect("the person's own command finished");
+    assert_eq!(filled, Ok(Filled::Published), "the copy is cleaned and published");
+    assert_eq!(std::fs::read(lock.as_path()).expect("read the worktree's lock"), THE_PERSONS_UPDATE, "the person's newer lock is still the worktree's lock");
+    remove(root.as_path());
+}
+
+/// What:
+///  A file that another command writes at the marker name,
+///  after this filling has looked at the name and before it publishes its own marker there,
+///  is never removed,
+///  and the worktree is filled under names of this run's own.
+/// Why:
+///   The filling looks at the three usual names once and then claims the marker by an exclusive
+/// write,
+/// and another command can create that name in between.
+/// An exclusive write that answers "it is there already" proves only that somebody's file is there,
+/// never that this run's is,
+/// so removing it would delete a file this job never wrote
+/// ("never discard user data").
+#[test]
+fn a_file_that_wins_the_race_to_the_marker_name_is_never_removed() {
+    /// What the other command writes at the marker name.
+    const ANOTHER_COMMANDS_FILE: &[u8] = b"a person's own note";
+    let root: PathBuf = fixture("prewarm-marker-race");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    let staged: PathBuf = staging_of(entry.to.as_path());
+    let marker: PathBuf = super::marker_of(staged.as_path());
+    let planted: PathBuf = marker.clone();
+    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            std::fs::write(planted.as_path(), ANOTHER_COMMANDS_FILE)?;
+            return Ok(());
+        }));
+    });
+    let covered: PathBuf = root.clone();
+    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE } };
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    assert_eq!(filled, Ok(Filled::Published), "the worktree is filled under names of this run's own");
+    assert_eq!(std::fs::read(marker.as_path()).expect("the other command's file"), ANOTHER_COMMANDS_FILE, "a file this filling did not write is never removed");
+    remove(covered.as_path());
 }
