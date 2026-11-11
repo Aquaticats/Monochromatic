@@ -192,3 +192,15 @@ export {
  Reads whether text is a whole number, which a run folder's number and a process number are read with.
  */
 export { isWholeNumberText, } from './whole-number-text.ts';
+
+/**
+ Removing the worktree of a run that finished its work, and keeping every worktree that holds anything.
+ */
+export {
+  END_REASONS_THAT_FINISHED_THE_WORK,
+  endReasonIn,
+  endedWithItsWork,
+  KEPT_PATHS_NAMED,
+  releaseFinishedWorktree,
+  type WorktreeRelease,
+} from './release-finished-worktree.ts';

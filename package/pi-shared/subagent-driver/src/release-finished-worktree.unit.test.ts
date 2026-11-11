@@ -25,8 +25,11 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   type CommandOutput,
   endedWithItsWork,
+  NO_WORKTREE_BRANCH,
   releaseFinishedWorktree,
   runCommandWithChildProcess,
+  startAPiRun,
+  type StartPiRunOptions,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -293,7 +296,7 @@ async function throwaway(): Promise<Throwaway> {
   /**
    How a command runs in this machine, with its own home and sockets and no prompt for a credential.
    */
-  const run = async function runInThisMachine(request: {
+  async function run(request: {
     readonly command: string;
     readonly words: readonly string[];
     readonly cwd?: string;
@@ -307,7 +310,7 @@ async function throwaway(): Promise<Throwaway> {
         GIT_TERMINAL_PROMPT: '0',
       },
     },);
-  };
+  }
   /**
    The machine itself, before its repository is filled.
    */
@@ -344,9 +347,27 @@ async function throwaway(): Promise<Throwaway> {
     words: ['add', 'tracked.txt',],
     cwd: repository,
   },);
+  /**
+   The tree the first commit holds, which the wrapper's commit command is not needed to write: a fixture commit must not reach
+   the commit service this machine runs, and `write-tree`, `commit-tree` and `update-ref` are plumbing that writes the same
+   commit without it.
+   */
+  const tree = (await gitIn({
+    machine,
+    words: ['write-tree',],
+    cwd: repository,
+  },)).trim();
+  /**
+   The first commit itself, made under the fixture's own identity.
+   */
+  const firstCommit = (await gitIn({
+    machine,
+    words: [...COMMIT_IDENTITY, 'commit-tree', tree, '-m', 'the work',],
+    cwd: repository,
+  },)).trim();
   await gitIn({
     machine,
-    words: [...COMMIT_IDENTITY, 'commit', '--quiet', '--message=the work',],
+    words: ['update-ref', 'refs/heads/main', firstCommit,],
     cwd: repository,
   },);
   await gitIn({
@@ -383,8 +404,99 @@ async function writeSummary({
   );
 }
 
+
+/**
+ Starts one run in a throwaway machine, with `mise` answered here so no install of this machine's dependencies is started.
+
+ @param machine - the machine whose worktree the run works in
+
+ @param endReason - what the run's summary says it ended on
+
+ @param branch - the branch the run works on, or the repository itself
+
+ @returns what the start answered
+
+ @example
+ ```ts
+ const outcome = await startInFixture({ machine, endReason: 'idle', });
+ ```
+ */
+async function startInFixture({
+  machine,
+  endReason,
+  branch = machine.branch,
+}: {
+  readonly machine: Throwaway;
+  readonly endReason: string;
+  readonly branch?: string;
+}): Promise<{ readonly lines: readonly string[] }> {
+  await writeSummary({
+    machine,
+    endReason,
+  },);
+  /**
+   How a command is run for this start: Git in the fixture's own home, and `mise` answered here.
+   */
+  async function run(request: {
+    readonly command: string;
+    readonly words: readonly string[];
+    readonly cwd?: string;
+    readonly environment?: Readonly<Record<string, string>>;
+  }): Promise<CommandOutput> {
+    if (request.command === 'mise') {
+      return { status: 0, stdout: 'node\n', stderr: '', };
+    }
+    return await machine.run(request,);
+  }
+  /**
+   What the start was asked for, working in the fixture's worktree.
+   */
+  const options: StartPiRunOptions = {
+    name: 'a',
+    branch,
+    promptFile: join(machine.runFolder, 'prompt.md',),
+    run: 1,
+    provider: 'neuralwatt',
+    model: 'deepseek-v4.1-flash',
+    cpuPercent: 800,
+    memory: '12G',
+    tasks: 3_000,
+    wallSeconds: 600,
+    idleSeconds: 120,
+    runsFolder: join(machine.runFolder, '..', '..', 'runs',),
+    repository: machine.repository,
+    driverEntry: '/driver.ts',
+    turnCap: 8,
+  };
+  return await startAPiRun({
+    options,
+    run,
+    runToTheEnd: async function unit() {
+      return { status: 0, stdout: '', stderr: '', };
+    },
+    launchers: async function none() {
+      return new Map();
+    },
+    runningUnits: async function units() {
+      return [];
+    },
+    sizeATurnCap: async function sized() {
+      return {
+        cap: 8,
+        longest: 6,
+        sampleSize: 1,
+        kind: 'other',
+        sampleKind: 'every kind',
+        line: 'turn cap 8',
+      };
+    },
+    home: machine.home,
+  },);
+}
+
 await describe({
   name: 'releasing a finished run\'s worktree',
+  timeout: 180_000,
   children: [
     //region Which runs finished their work
     describe({
@@ -511,6 +623,51 @@ await describe({
             expect(release.released,).toBe(false,);
             expect(release.lines.join('\n',),).toContain('no summary',);
             expect(await pathIsThere({ path: machine.worktree, },),).toBe(true,);
+          },
+        },),
+      ],
+    },),
+    //endregion
+
+    //region The start command that releases it
+    describe({
+      name: startAPiRun.name,
+      children: [
+        it({
+          name: 'gives the worktree back when the run it started finished its work',
+          fn: async () => {
+            await using machine = await throwaway();
+            const outcome = await startInFixture({
+              machine,
+              endReason: 'idle',
+            },);
+            expect(outcome.lines.join('\n',),).toContain('worktree removed',);
+            expect(await pathIsThere({ path: machine.worktree, },),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'keeps the worktree of a run that ended on its turn cap, and the line says why',
+          fn: async () => {
+            await using machine = await throwaway();
+            const outcome = await startInFixture({
+              machine,
+              endReason: 'turn-cap',
+            },);
+            expect(outcome.lines.join('\n',),).toContain('worktree kept (the run ended turn-cap)',);
+            expect(await pathIsThere({ path: machine.worktree, },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'says nothing about a worktree for a run that works in the repository itself',
+          fn: async () => {
+            await using machine = await throwaway();
+            const outcome = await startInFixture({
+              machine,
+              endReason: 'idle',
+              branch: NO_WORKTREE_BRANCH,
+            },);
+            expect(outcome.lines.join('\n',),).not.toContain('worktree kept',);
+            expect(outcome.lines.join('\n',),).not.toContain('worktree removed',);
           },
         },),
       ],

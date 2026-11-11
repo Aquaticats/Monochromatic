@@ -594,6 +594,42 @@ so a caller knows to try again rather than that the run failed.
 It answers `ALREADY RUNNING: <name>` and exits 4 when a run of that name is going.
 An audit (`sol-…`) may be started twice under one name.
 
+#### What it does with the worktree afterwards
+
+A worktree here is a btrfs snapshot of the main branch,
+which keeps that branch's files as they were when it was taken,
+build folders included,
+until the worktree is removed.
+Nothing removed a finished run's worktree, and 460 of them had filled this machine's disk on 2026-11-10,
+which is why the owner asked for it twice:
+"You're the coordinator and you're supposed to remove finished worktrees automatically."
+and "The wrapper should have cleaned up after itself automatically deterministically."
+
+So when the unit ends,
+a run that has a worktree of its own gives it back,
+and one that does not is never touched.
+The worktree is removed only when all of this holds:
+
+- the run's `summary.json` says `endReason` is `idle` or `stop-file`,
+  the two ends a run chooses.
+  A run that ended on `turn-cap`, `wall-clock` or a model error is likely to be resumed,
+  and an add costs minutes on this volume;
+- its `HEAD` is on a branch.
+  A detached `HEAD`'s commits may be reachable from that worktree alone;
+- `git status --porcelain=v1 --untracked-files=normal` prints nothing there.
+
+The removal is the wrapper's own `git worktree remove`, never `--force`,
+so a worktree that turns out to hold something is refused there rather than emptied here.
+The branch stays,
+and a later run of the same name adds the worktree again from it,
+which is what the next attempt of a resumed run does.
+Every worktree that is kept says why in one line:
+the end the run had,
+the paths that hold its uncommitted work,
+its detached `HEAD`,
+a missing summary,
+or Git's own refusal.
+
 ### `retry-start-pi-run-until-a-slot-frees`
 
 The same start, asked again and again until it is no longer refused for want of a slot.

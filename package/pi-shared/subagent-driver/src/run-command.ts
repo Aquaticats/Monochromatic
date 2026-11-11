@@ -84,6 +84,12 @@ export type RunCommand = (request: {
    The folder the command runs in; absent for this process's own.
    */
   readonly cwd?: string;
+
+  /**
+   Variables this process's own environment is overridden with; absent to inherit all of it. A Git command that may be run
+   where a person is watching gets no prompt for a credential this way.
+   */
+  readonly environment?: Readonly<Record<string, string>>;
 }) => Promise<CommandOutput>;
 
 /**
@@ -214,11 +220,13 @@ export async function runCommandWithChildProcess({
   command,
   words,
   cwd,
+  environment,
   timeoutMilliseconds = COMMAND_TIMEOUT_MILLISECONDS,
 }: {
   readonly command: string;
   readonly words: readonly string[];
   readonly cwd?: string;
+  readonly environment?: Readonly<Record<string, string>>;
   readonly timeoutMilliseconds?: number;
 },): Promise<CommandOutput> {
   try {
@@ -234,6 +242,10 @@ export async function runCommandWithChildProcess({
         timeout: timeoutMilliseconds,
         killSignal: 'SIGKILL',
         ...((cwd === undefined) ? {} : { cwd, }),
+        ...((environment === undefined) ? {} : { env: {
+          ...process.env,
+          ...environment,
+        }, }),
       },
     );
     return {

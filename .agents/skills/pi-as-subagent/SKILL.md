@@ -203,9 +203,11 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     one per run.
     The driver writes everything there.
     Choose where Pi works:
-    its own worktree (`git worktree add -b <branch> .claude/worktrees/<name> main`,
+    its own worktree, which `start-pi-run-in-a-free-slot` makes from the branch
+    (`git worktree add -b <branch> .claude/worktrees/pi-<name> main`,
     then `mise exec -- pnpm install --offline --frozen-lockfile` inside it),
-    or the main checkout for a small change with nothing else in those packages.
+    or the main checkout for a small change with nothing else in those packages,
+    which `--branch=none` names.
 3.  Write the prompt to a file.
     Beside rules `ATH` and `NLD`,
     give it:
@@ -335,6 +337,22 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     run only the compile or type check,
     which is what the agent could not have run on the combined tree,
     and skip that too when `main` was already in the branch.
+9.  Give a finished run's worktree back.
+    `start-pi-run-in-a-free-slot` does it when the unit ends,
+    for a run that has a worktree of its own,
+    whose summary says `idle` or `stop-file`,
+    whose `HEAD` is on a branch,
+    and which has nothing uncommitted:
+    it removes the worktree with the wrapper's `git worktree remove` and keeps the branch,
+    so the next attempt of that run adds it again from the branch.
+    A worktree it keeps says why in one line.
+    Nothing else may remove a worktree:
+    each is a btrfs snapshot that pins the main branch's files, build folders included,
+    and 460 of them filled this machine's disk on 2026-11-10,
+    which is why the owner asked for this twice:
+    "You're the coordinator and you're supposed to remove finished worktrees automatically."
+    and "The wrapper should have cleaned up after itself automatically deterministically."
+    A run started by hand, without the command, leaves that to the person who started it.
 
 ## Protocol
 

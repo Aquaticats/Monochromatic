@@ -20,6 +20,7 @@ import {
   runFolderPathOf,
 } from './pi-runs-folders.ts';
 import { PiRunNotStartedError, } from './pi-run-not-started-error.ts';
+import { releaseFinishedWorktree, } from './release-finished-worktree.ts';
 import {
   dependenciesIn,
   workingFolderIn,
@@ -409,6 +410,20 @@ export async function startAPiRun(
       ...((session === undefined) ? {} : { session, }),
     },),
   },);
+  /**
+   What became of the worktree this run worked in, which a run that finished its work gives back to the disk.
+   */
+  const release = (options.branch === NO_WORKTREE_BRANCH)
+    ? {
+      released: false,
+      lines: [] as readonly string[],
+    }
+    : await releaseFinishedWorktree({
+      run,
+      repository: options.repository,
+      worktree: prepared.folder,
+      runFolder,
+    },);
   return {
     status: ended.status,
     lines: [
@@ -422,6 +437,10 @@ export async function startAPiRun(
         },),]),
       ...((sized === undefined) ? [`turn cap ${String(turnCap,)}: named with --turn-cap`,] : [sized.line,]),
       `${options.name}: unit ended with status ${String(ended.status,)}${(ended.problem === undefined) ? '' : ` (${ended.problem})`}; run folder ${runFolder}; worktree ${prepared.folder}`,
+      ...release.lines
+        .map(function asLineOfThisRun(line,) {
+          return `${options.name}: ${line}`;
+        },),
     ],
   };
 }
