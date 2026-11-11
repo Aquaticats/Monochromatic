@@ -7509,7 +7509,8 @@ in-process reader can) gives every value of the multi-valued keys.
   one `git ls-remote --refs <url> refs/heads/<name>` per URL names the object that ref holds there,
   and a push is reported as published only when every one of them names the commit it sent,
   while the service journal names the refused sibling from Git's own line for it,
-  since nothing else would.
+  and the report a later command shows carries that line as well,
+  because a push whose recorded branch arrived keeps every line Git wrote.
   A refused sibling is then no failure of this branch and plans no retry.
   A matching push names no refspec,
   so the commit every URL is asked for is the one the branch named before the push read the worktree's verdicts;
@@ -7637,8 +7638,13 @@ in-process reader can) gives every value of the multi-valued keys.
   The report reaches the person through a record of the worktree's notice directory,
   shown once by the next command (`record_push_report` in `push_failure_notice.rs`),
   because the command that ran the push returned before the push ended:
-  it holds the lines the reconcile wrote,
+  it holds every line the push chose to show
+  (`filter_push_output` in `src/native/push/auto_push.rs`),
+  which for a push that exits `0` is the `remote:` lines a server printed,
+  the lines the reconcile wrote,
   which begin with `monochromatic-git-policy-cli: auto-push: `,
+  and Git's refusal to update a remote-tracking reference it could not lock,
+  which is the only sign that the local view of the remote stayed behind,
   and it is written whatever the move came to,
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
@@ -8064,7 +8070,9 @@ in-process reader can) gives every value of the multi-valued keys.
 - A failed push is reported with its complete output and the note
   ``monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
   unless the reconcile already said why the commit is unpublished.
-  A successful push shows only the `remote:` lines and the lines of the reconcile.
+  A successful push shows only the `remote:` lines,
+  the lines of the reconcile and that refusal,
+  and the record a later command shows carries them.
 - The record a later command shows carries what the push came to,
   as the first line of the record file,
   and the notice is
@@ -8897,9 +8905,12 @@ with `a_second_settlement_of_one_record_lands_the_change_once`,
   aged);
   and the notice of a push that Git delivers and exits 0 for after being refused the tracking
   reference (`cannot lock ref` in output with exit 0):
-  the service's report shows only `remote:` lines for a push that exits 0,
-  so that notice reaches the service's log and is not shown,
-  the retry loop of `auto_push.rs` being left as it is.
+  the lock itself is judged before the push starts and never after it,
+  so a lock taken during the push leaves the reference behind,
+  the retry loop of `auto_push.rs` being left as it is;
+  what the person reads is Git's own refusal,
+  carried by the report the service's next record shows,
+  so the local view staying behind is never silent.
 
 #### Messages as printed
 

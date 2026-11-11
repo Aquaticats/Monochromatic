@@ -50,7 +50,6 @@ use crate::claim_time::ClaimTime;
 use crate::push_retry::Retrying;
 use crate::push_retry_failure::{final_failure, plain_words, unrecognised_rejection};
 use crate::push_failure_notice::record_push_report;
-use crate::auto_push_reconcile_basics_and_limits::RECONCILE_LINE_PREFIX;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{options_for, review_item, review_item_awaiting, review_variables};
 use crate::service_review_key::ReviewKey;
@@ -433,33 +432,6 @@ async fn branch_tip_awaiting(git: &PushGit, branch_ref: &str) -> Option<String> 
     return (!named.is_empty()).then_some(named);
 }
 
-/// What:
-///  The lines of a push's own output that only a reconcile writes,
-/// joined as they were printed.
-/// Why:
-///   A successful push prints its `remote:` lines and,
-/// when the remote had moved,
-/// the reconcile's account of the merge and of what became of the local
-///  branch;
-/// only the reconcile's lines are the person's explanation,
-/// and they already name the tool,
-/// the branch and the
-///  command that finishes the move.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const reconcileLines = (shown) => shown.split('\n').filter((line) => line.startsWith(RECONCILE_LINE_PREFIX)).join('\n');
-/// ```
-fn reconcile_lines(shown: &str) -> String {
-    let mut kept: Vec<&str> = Vec::new();
-    for line in shown.split('\n') {
-        if line.starts_with(RECONCILE_LINE_PREFIX) {
-            kept.push(line);
-        }
-    }
-    return kept.join("\n");
-}
-
 /// Trait implementation for the real Git.
 impl WorkHandlers for GitHandlers {
     fn push(&self, items: &[WorkItem]) -> Verdict {
@@ -507,14 +479,16 @@ impl WorkHandlers for GitHandlers {
             Ok(result) if result.outcome == AutoPushOutcome::HeldBack => Verdict::Retry(result.shown),
             Ok(result) if result.exit_code == 0 => {
                 // A matching push can carry a sibling the remote refused while this branch arrived: the branch is done, and the
-                //  refused sibling is published nowhere, so the journal is the only place a person can learn it.
+                //  refused sibling is published nowhere, so the journal names it here and the record the next command shows carries
+                //  it to the person.
                 for line in crate::matching_push_delivered_the_recorded_branch::refused_lines(result.shown.as_str()) {
                     crate::service_warn!("a branch of this push was refused and was not published: {line}");
                 }
-                // A push that reconciled a moved remote published a merge and said what became of the local branch in its own
-                //  output; the command that ran the push returned long before it ended, so those words go to a record the next
-                //  command shows once. A push that simply landed says nothing and leaves no record.
-                let report: String = reconcile_lines(result.shown.as_str());
+                // A push that exits 0 still holds words the person needs: the server's own `remote:` lines, the account of a
+                //  reconcile it made, and the refusal of a remote-tracking reference it could not update, which is the only sign
+                //  that the local view stayed behind. The command that ran the push returned long before it ended, so those words
+                //  go to a record the next command shows once. A push that simply landed says nothing and leaves no record.
+                let report: String = result.shown;
                 if !report.is_empty()
                     && let Err(reason) = record_push_report(newest.git_dir.as_path(), newest.branch_ref.as_str(), newest.oid.as_str(), report.as_str())
                 {

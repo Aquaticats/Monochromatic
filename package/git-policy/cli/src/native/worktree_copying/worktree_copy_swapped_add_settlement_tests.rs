@@ -504,6 +504,7 @@ fn the_scene_records_the_object_it_made() {
     let made = read_made(scene.claim.as_path()).expect("the record of the stage's creation");
     assert_eq!(made.container, scene.container, "the record names the stage container");
     assert!(made_record_beside_claim(scene.claim.as_path()).exists(), "the record stands beside the claim");
+    assert!(made.object.is_some(), "the scene's record names the object it made");
     assert_eq!(path_identity(scene.destination.as_path()), made.object, "the snapshot is at the destination after the exchange");
     remove(scene.root.as_path());
 }
