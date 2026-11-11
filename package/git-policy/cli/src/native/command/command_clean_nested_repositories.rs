@@ -217,9 +217,9 @@ fn repositories_beneath(worktree_root: &Path, start: &[OsString]) -> Result<Vec<
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(cannot_look_inside(names.as_slice(), &error)),
         };
-        for entry in listing {
+        for listed in listing {
             // A directory entry the system could not read is one that is gone, and a gone entry holds nothing.
-            let Ok(entry) = entry else {
+            let Ok(entry) = listed else {
                 continue;
             };
             // The entry's own type, never the target of a link: a link to a directory is not walked.

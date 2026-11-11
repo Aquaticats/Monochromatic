@@ -323,9 +323,9 @@ pub fn apply_fixed_transforms(
             complete: true,
             notices,
         },
-        CapDecision::Capped { arguments, repositories } => {
+        CapDecision::Capped { arguments: capped, repositories } => {
             notices.push(kept_out_of_an_interactive_menu_notice(repositories.as_slice()));
-            TransformResult { arguments, events: Vec::<PolicyEvent>::new(), complete: true, notices }
+            TransformResult { arguments: capped, events: Vec::<PolicyEvent>::new(), complete: true, notices }
         }
         CapDecision::Stopped { message } => incomplete(after_ignored.as_slice(), message),
     };
