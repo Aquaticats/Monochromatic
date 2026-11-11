@@ -20,7 +20,7 @@ use crate::service_land_follow::classify;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput};
 use std::path::{Path, PathBuf};
-use crate::service_land_git_steps_and_import_stream::{commits_from_marks, import_stream, keep_on_the_scratch_reference, run};
+use crate::service_land_git_steps_and_import_stream::{ASideRefWrite, commits_from_marks, import_stream, keep_on_the_scratch_reference, run};
 use crate::service_scratch_ref_marker_of_a_batch::record_scratch_ref;
 
 /// What:
@@ -100,12 +100,20 @@ pub(crate) fn objects_of_batch(
         //  write that failed, so a slow host never tells a person their commit was not made (`keep_on_the_scratch_reference`).
         //  A reference that still does not name the commit after that is a write the repository did not take, and the batch ends
         //  with the person's index and worktree as they were, so the answer that it was not made is true of anything they can reach.
+        //  A step a stop ended is the landing's own ending, and it keeps its code so that the commit is kept beside it
+        //  (`service_land.rs`, `keep_what_an_ended_step_built`).
         record_scratch_ref(journal, seq, repository, first.git_dir.as_path());
-        if let Some(words) = keep_on_the_scratch_reference(git, repository, scratch, built) {
-            crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch} ({words})");
-            return Err(FailureCode::Unavailable);
-        }
-        Ok((vec![built.to_string()], built.to_string()))
+        return match keep_on_the_scratch_reference(git, repository, scratch, built) {
+            ASideRefWrite::Written => Ok((vec![built.to_string()], built.to_string())),
+            ASideRefWrite::Refused(words) => {
+                crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch} ({words})");
+                Err(FailureCode::Unavailable)
+            }
+            ASideRefWrite::Ended(code) => {
+                crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch}, because the write of it was ended ({code:?})");
+                Err(code)
+            }
+        };
     } else {
         let marks: PathBuf = journal.join(format!("marks-{seq}"));
         let marks_argument: String = format!("--export-marks={}", marks.display());

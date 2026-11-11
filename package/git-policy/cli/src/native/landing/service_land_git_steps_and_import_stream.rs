@@ -37,8 +37,8 @@ const SIDE_REF_WRITE_ATTEMPTS: usize = 2;
 
 /// What:
 ///  Writes the side reference `name` at `tip`,
-///  and answers nothing when the reference names it,
-///  or the words of the write that did not.
+///  and answers what became of it,
+///  asking the reference itself when the wait for a write ended without an answer.
 /// Why:
 ///   A side reference is what keeps a commit a reference lock held reachable
 ///  (`held_commit_record.rs`),
@@ -61,6 +61,8 @@ const SIDE_REF_WRITE_ATTEMPTS: usize = 2;
 ///  never guessed at from a wait that ended.
 ///  `only_if_free` writes the reference only while its name names nothing,
 ///  and a name it already holds at `tip` is the answer either way.
+///  An ending that is a stop or a ceiling keeps its own code,
+///  because the landing's answer for such a step is the step's own sentence and the commit it keeps beside it.
 ///  Limit:
 ///  a write a wait left running is not ended,
 ///  so it can finish after the branch write removed the reference a landing no longer needs,
@@ -72,10 +74,11 @@ const SIDE_REF_WRITE_ATTEMPTS: usize = 2;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (let attempt = 0; attempt < 2; attempt++) { const made = await writeRef(name, tip, freeOnly); if (made.succeeded) return; if (await valueOf(name) === tip) return; if (made.answered) return wordsOf(made); } return words
+/// for (let attempt = 0; attempt < 2; attempt++) { const made = await writeRef(name, tip, freeOnly); if (made.succeeded) return 'written'; if (await valueOf(name) === tip) return 'written'; if (made.answered) return { refused: wordsOf(made) }; ended = made.code } return ended ? { ended } : { refused: words }
 /// ```
-fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &str, tip: &str, only_if_free: bool) -> Option<String> {
-    let mut refused: Option<String> = None;
+fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &str, tip: &str, only_if_free: bool) -> ASideRefWrite {
+    let mut last_words: String = String::from("the write of the reference gave no answer");
+    let mut ended: Option<FailureCode> = None;
     for _attempt in 0..SIDE_REF_WRITE_ATTEMPTS {
         let mut arguments: Vec<&str> = vec!["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name, tip];
         if only_if_free {
@@ -84,23 +87,75 @@ fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &s
             arguments.push("");
         }
         let made: Result<GitOutput, FailureCode> = run(git, repository, arguments.as_slice(), None);
-        // Git's own answer, as opposed to a wait that ended before the write did.
-        let answered: bool = made.is_ok();
         if matches!(&made, Ok(output) if output.succeeded()) {
-            return None;
+            return ASideRefWrite::Written;
         }
         // The reference says whether a write finished, whatever the wait for it said. What the caller writes is unchanged: a name
         //  that cannot be read is written again, and a name another command wrote is the caller's own decision as it always was
         //  (`keep_on_a_side_ref_only_if_free` refuses one that exists, and both other callers write the value they were given).
         if matches!(value_of(git, repository, name), RefValue::Names(named) if named == tip) {
-            return None;
+            return ASideRefWrite::Written;
         }
-        refused = words_of_a_refused_write(made);
-        if answered {
-            return refused;
+        match made {
+            // Git answered, so the same value at the same name is refused the same way.
+            Ok(output) => return ASideRefWrite::Refused(refused_words_of(&output)),
+            // The wait ended without an answer: the step is left running, and the reference did not show its write, so it is written
+            //  once more. A stop or a ceiling keeps its code, which the landing answers with.
+            Err(code) => {
+                last_words = format!("Git could not be run ({code:?})");
+                ended = Some(code);
+            }
         }
     }
-    return refused;
+    return match ended {
+        Some(code) => ASideRefWrite::Ended(code),
+        None => ASideRefWrite::Refused(last_words),
+    };
+}
+
+/// What became of one write of one of the wrapper's own side references.
+/// Why:
+///  The write answers three different things,
+/// and a caller that keeps a commit or answers a commit tells them apart:
+///  a reference that names the commit,
+///  a write Git refused,
+///  and a step that was ended or could not be run,
+///  whose code is the landing's own answer for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ASideRefWrite = 'written' | { refused: string } | { ended: FailureCode }
+/// ```
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum ASideRefWrite {
+    /// The reference names the object the write was for.
+    Written,
+    /// Git answered that it refused the write,
+    /// in its own words.
+    Refused(String),
+    /// The write was ended or could not be run,
+    /// and the code says what ended it.
+    Ended(FailureCode),
+}
+
+impl ASideRefWrite {
+    /// What the person is told when the write did not put the reference where it was wanted,
+    /// or nothing when it did.
+    /// Why:
+    ///  The three answers are one sentence for a caller that only says where a commit was kept;
+    ///  the walk that decides a commit keeps the codes instead (`service_land_objects_of_batch.rs`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const refusal = (write: ASideRefWrite) => write === 'written' ? undefined : write.refused ?? `Git could not be run (${write.ended})`
+    /// ```
+    pub(crate) fn refusal(&self) -> Option<String> {
+        return match self {
+            Self::Written => None,
+            Self::Refused(words) => Some(words.clone()),
+            Self::Ended(code) => Some(format!("Git could not be run ({code:?})")),
+        };
+    }
 }
 
 /// What:
@@ -122,7 +177,7 @@ fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &s
 /// ```
 pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> Option<String> {
     let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
-    return write_until_the_reference_names(git, repository, name.as_str(), tip, false);
+    return write_until_the_reference_names(git, repository, name.as_str(), tip, false).refusal();
 }
 
 /// What:
@@ -138,9 +193,9 @@ pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, seq: u64, 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(await keepOnTheScratchReference(git, repo, scratchRef(seq), tip)).toBeUndefined()
+/// expect(await keepOnTheScratchReference(git, repo, scratchRef(seq), tip)).toEqual('written')
 /// ```
-pub(crate) fn keep_on_the_scratch_reference(git: &GitContext, repository: &Path, scratch: &str, tip: &str) -> Option<String> {
+pub(crate) fn keep_on_the_scratch_reference(git: &GitContext, repository: &Path, scratch: &str, tip: &str) -> ASideRefWrite {
     return write_until_the_reference_names(git, repository, scratch, tip, false);
 }
 
@@ -164,38 +219,29 @@ pub(crate) fn keep_on_the_scratch_reference(git: &GitContext, repository: &Path,
 /// expect(await keepOnASideRefOnlyIfFree(git, repo, name, tip)).toBeUndefined()
 /// ```
 pub(crate) fn keep_on_a_side_ref_only_if_free(git: &GitContext, repository: &Path, name: &str, tip: &str) -> Option<String> {
-    return write_until_the_reference_names(git, repository, name, tip, true);
+    return write_until_the_reference_names(git, repository, name, tip, true).refusal();
 }
 
 /// What:
-///  Nothing when Git took a side-reference write,
-/// and Git's own words,
-/// or the reason it could not be run,
-/// when it did not.
+///  Git's own words for a write it refused,
+/// in one sentence.
 /// Why:
-///  Every write of a side reference reads its answer here,
-/// so a write Git refused and one that could not start
-///  are the same shape for every caller.
+///  A refusal Git explained is explained with its words,
+/// and a refusal it did not explain is said with the status it ended with,
+/// so every caller names the same thing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function wordsOfARefusedWrite(made) { return made.ok && made.value.succeeded ? undefined : (made.error ?? (made.value.stderr.trim() || `git update-ref ended with ${made.value.code}`)) }
+/// const refusedWordsOf = (output) => output.stderr.trim() || `git update-ref ended with ${output.code ?? 'no exit status'}`
 /// ```
-fn words_of_a_refused_write(made: Result<GitOutput, FailureCode>) -> Option<String> {
-    return match made {
-        Ok(output) if output.succeeded() => None,
-        Ok(output) => {
-            let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_string();
-            if words.is_empty() {
-                let status: String = match output.code {
-                    Some(code) => code.to_string(),
-                    None => String::from("no exit status"),
-                };
-                return Some(format!("git update-ref ended with {status}"));
-            }
-            Some(words)
-        }
-        Err(code) => Some(format!("Git could not be run ({code:?})")),
+fn refused_words_of(output: &GitOutput) -> String {
+    let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_string();
+    if !words.is_empty() {
+        return words;
+    }
+    return match output.code {
+        Some(code) => format!("git update-ref ended with {code}"),
+        None => String::from("git update-ref ended with no exit status"),
     };
 }
 

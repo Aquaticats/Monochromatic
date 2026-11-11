@@ -96,7 +96,7 @@ fn with_a_short_wait<T>(run: impl FnOnce() -> T) -> T {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(await withShortWait(() => keepOnASideRef(slowGit, repo, 1, tip))).toBeUndefined(); expect(revParse('refs/cli-git/kept/1')).toBe(tip);
+/// expect(await withShortWait(() => keepOnASideRef(slowGit, repo, 1, tip))).toEqual('written'); expect(revParse('refs/cli-git/kept/1')).toBe(tip);
 /// ```
 #[test]
 fn a_side_ref_write_whose_wait_ran_out_is_answered_by_the_reference() {
