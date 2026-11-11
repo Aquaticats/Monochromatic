@@ -26,18 +26,18 @@
 
 use crate::service_head::still_checked_out;
 use crate::service_instance::instance_of;
-use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION, Recovery, Started, indexed_state, list_intents, list_intents_read_only, mark_done, mark_indexed, read_start, recovery_for, remove_start};
+use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION, Recovery, Started, indexed_state, list_intents, list_intents_read_only, mark_done, mark_indexed, read_start, remove_start};
 use crate::service_journal_intent_text_and_parse::parse_intent;
 use crate::service_land_follow::{IndexPaths, build_index};
 use crate::service_land_start::witness_of;
+use crate::transaction_git::GitContext;
 use crate::service_index_lock::{IndexLock, Record, remove_stale, try_acquire};
 use crate::service_scratch_ref_marker_of_a_batch::clear_recorded_scratch_refs;
 use crate::service_scratch_ref_of_a_dropped_batch::clear_after_dropped_batch;
 use crate::autostash_carry::carry_stages;
 use crate::service_land_context::LandContext;
 use crate::service_protocol::FailureCode;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// The index entries a batch's intent names.
 pub(crate) fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
@@ -427,98 +427,12 @@ pub fn recover_instance_without_drops(context: &LandContext, instance: &str) -> 
     return recover_selected(context, Some(instance), JournalOwner::EarlierHelper);
 }
 
-/// The exit status `git rev-parse --verify --quiet` gives for a name that is no object:
-/// the one answer that means "not there".
-const NAME_IS_NO_OBJECT: i32 = 1;
-
-/// The exit status `git merge-base --is-ancestor` gives when the first commit is not below the second.
-const NOT_AN_ANCESTOR: i32 = 1;
-
-/// What:
-///  The value of `reference` in the repository:
-/// its commit name,
-/// an empty name when Git says for certain that the reference is
-///  not there,
-/// and nothing when Git gave no answer.
-///  `Option<String>` is "an answer or none".
-/// Why:
-///   A restart drops the intent of a batch whose branch never moved.
-/// A Git that could not be started,
-/// or that failed in any way
-///  other than "no such reference" (a lock,
-/// a stuck mount,
-/// a repository that cannot be read),
-/// has not said the branch is
-///  unmoved,
-/// so the caller keeps the batch open.
-/// `--quiet` makes a missing reference exit 1 with nothing on the standard error;
-///  every other failure exits 128,
-/// and a reference file Git cannot read exits 1 with a warning,
-/// which is not "missing" either.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function currentValue(git, intent): Promise<string | undefined> // '' for a missing reference
-/// ```
-fn current_value(git: &GitContext, intent: &Intent) -> Option<String> {
-    let request: GitRequest = GitRequest::new(intent.repository.as_path(), intent.reference.value_question().as_slice());
-    let Ok(output) = run_git(git, &request) else {
-        return None;
-    };
-    if output.succeeded() {
-        return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
-    }
-    if output.code == Some(NAME_IS_NO_OBJECT) && output.stderr.is_empty() {
-        return Some(String::new());
-    }
-    return None;
-}
-
-/// What:
-///  Whether the commit the batch landed is `current` or below it;
-/// nothing when Git gave no answer.
-/// Why:
-///   Exit status 1 is Git's "not below";
-/// any other failure (an object Git cannot find,
-/// a lock,
-/// a stuck mount) is no answer,
-/// and
-///  a batch is not dropped on no answer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function landedBelow(git, intent, current): Promise<boolean | undefined>
-/// ```
-fn landed_below(git: &GitContext, intent: &Intent, current: &str) -> Option<bool> {
-    let request: GitRequest = GitRequest::new(intent.repository.as_path(), &["merge-base", "--is-ancestor", intent.new.as_str(), current]);
-    let Ok(output) = run_git(git, &request) else {
-        return None;
-    };
-    if output.succeeded() {
-        return Some(true);
-    }
-    return if output.code == Some(NOT_AN_ANCESTOR) { Some(false) } else { None };
-}
-
-/// What:
-///  The decision for an open batch from the branch as Git reports it now,
-/// or nothing when Git gave no answer.
-/// Why:
-///   The question about the ancestry is asked only when it decides:
-/// a branch at the old or the new value,
-/// or one that is gone,
-///  settles the batch without it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function decisionFor(git, intent): Promise<Recovery | undefined>
-/// ```
-fn decision_for(git: &GitContext, intent: &Intent) -> Option<Recovery> {
-    let current: String = current_value(git, intent)?;
-    let decided_without_ancestry: bool = current.is_empty() || current == intent.old || current == intent.new;
-    let ancestor: bool = if decided_without_ancestry { false } else { landed_below(git, intent, current.as_str())? };
-    return Some(recovery_for(intent, current.as_str(), ancestor));
-}
+/// The branch questions a restart decides an open batch from,
+/// and their awaited faces,
+/// kept in a file of their own to stay under the file-size limit.
+#[path = "service_land_finish_branch_questions.rs"]
+mod branch_questions;
+use self::branch_questions::decision_for;
 
 /// What:
 ///  The intent one batch's open record holds now:
@@ -655,3 +569,8 @@ settled from the worktree's own record of it, and the file may be removed once t
     }
     return reports;
 }
+
+/// Controls for the awaited Git questions of the restart stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_finish_awaiting_tests.rs"]
+mod awaiting_tests;

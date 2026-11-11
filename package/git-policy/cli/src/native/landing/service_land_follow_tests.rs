@@ -9,11 +9,12 @@ use crate::recording_git::{recorded_starts, recording_context};
 use crate::repo_read_hook::SWITCH_VARIABLE;
 use crate::index_reset_file::support::git_with;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
+use crate::transaction_git::GitOutput;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 
 /// A repository whose index is at the first commit while the branch is at a second commit that adds the given files.
-fn index_behind(name: &str, files: &[Vec<u8>]) -> (PathBuf, PathBuf, String, String) {
+pub(super) fn index_behind(name: &str, files: &[Vec<u8>]) -> (PathBuf, PathBuf, String, String) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
@@ -31,7 +32,7 @@ fn index_behind(name: &str, files: &[Vec<u8>]) -> (PathBuf, PathBuf, String, Str
 
 
 /// What the index still differs from the commit by.
-fn differs(repo: &Path, commit: &str) -> bool {
+pub(super) fn differs(repo: &Path, commit: &str) -> bool {
     return !git_output(repo, &["diff", "--cached", "--quiet", commit]).status.success();
 }
 

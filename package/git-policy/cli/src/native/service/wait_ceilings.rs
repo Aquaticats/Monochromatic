@@ -488,6 +488,19 @@ pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 ///  gives serves better.
 pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest the route decision reads the file system for:
+///  the walk up from the start directory and the files it reads,
+///  which `landing/service_route.rs` reads as a job of the blocking pool.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a walk waits in the kernel on a mount that stopped answering,
+/// so the wait is bounded and a walk that gives no answer is reported through Git's own answer.
+/// No measurement fixes the value:
+/// it is `START_CEILING`,
+/// the wait a landing's own state step is granted (`LANDING_STATE_CEILING`),
+/// because both are the same kind of read and a step that outlasts either is one the answer Git
+///  gives serves better.
+pub const ROUTE_STATE_CEILING: Duration = START_CEILING;
+
 /// How long one package-manager tool of a worktree repair may run before the command says which tool it waits for,
 /// where,
 /// and until when.
