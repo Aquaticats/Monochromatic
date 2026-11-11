@@ -39,12 +39,19 @@ mod update_report;
 mod process_events;
 /// Moves processes into the updates slice through the user's service manager.
 mod scope_adoption;
+/// The lock an origin stop and a move share.
+mod adoption_gate;
+/// When one pass of the policy may spend another move.
+mod pass_gate;
 /// Builds the arguments of the calls to the user's service manager.
 mod scope_calls;
 /// Names the scope of each origin cgroup.
 mod scope_naming;
 /// Sweeps the scopes the earlier design left behind.
 mod leftover_sweep;
+/// Stops the origin scopes no process holds,
+/// before the first adoption.
+mod origin_scope_sweep;
 /// Keeps the limits of each scope equal to its origin's.
 mod scope_registry;
 /// Recognizes update entry points and toolchain install roots.
@@ -202,6 +209,13 @@ mod scope_naming_tests;
 /// Unit tests for the sweep of leftover scopes.
 #[cfg(test)]
 mod leftover_sweep_tests;
+/// Unit tests for the lock an origin stop and a move share.
+#[cfg(test)]
+mod adoption_gate_tests;
+/// Unit tests for the pass gate,
+/// which check each limit on its own.
+#[cfg(test)]
+mod pass_gate_tests;
 /// Unit tests for following the limits of origins.
 #[cfg(test)]
 mod scope_registry_tests;

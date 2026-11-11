@@ -403,9 +403,20 @@ and a scope that never held one gets no such event.
 When the watcher starts it sweeps them once.
 The scopes of one origin are stopped before the first target scan and the first adoption,
 in the watcher's own thread:
-a process joining an origin scope is a process the watcher just moved there,
+a process joining an origin scope is a process a watcher moved there,
 and the manager ends every process in a scope it stops,
 so a sweep running beside adoption cannot make that decision safely.
+Ordering alone does not exclude a second watcher of the same user,
+which moves processes into the same origin scopes while the starting watcher sweeps,
+so both sides hold one lock file per watched user,
+`/run/wg-quicker-exempt-adoption-<uid>.lock`:
+an origin batch reads its scopes and sends its stop under that lock,
+and every move takes it across its manager call and its confirmation.
+A move that cannot take it at once is left for the next scan,
+and its log line says its traffic uses the tunnel until then,
+which keeps the watcher's loop out of another watcher's slow manager call.
+A batch whose lock stays held for five seconds is left for the next watcher start,
+and the sweep line says how many scopes that was and what was waited for.
 The scopes of the earlier per-process design,
 which the current watcher never fills,
 are swept on a thread of its own,

@@ -8,7 +8,9 @@ use crate::process_events::{drain_exec_events, subscribe, unsubscribe};
 use crate::runtime_report::RuntimeReporter;
 /// The one-time sweep of the scopes of the earlier design,
 /// and the pass over the origin scopes that must run before the first adoption.
-use crate::leftover_sweep::{describe_sweep, spawn_sweep, stop_empty_origin_scopes_now, SweepSetup};
+use crate::leftover_sweep::{describe_sweep, spawn_sweep, SweepSetup};
+/// The pass over the origin scopes that must run before the first adoption.
+use crate::origin_scope_sweep::stop_empty_origin_scopes_now;
 /// The guard of the manager's bus name.
 use crate::impostor_guard;
 /// Non-panicking bounded log.

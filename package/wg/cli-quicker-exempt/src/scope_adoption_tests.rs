@@ -260,8 +260,10 @@ fn place(name: &str, manager: &dyn Fn(&Paths) -> Manager) -> Place {
         caller: Box::new(ScriptedManager { log: log.clone(), behavior: manager(&paths) }),
         proc_root,
         cgroup_root,
+        gate_root: directory.join("gate"),
         confirmation_timeout: Duration::from_millis(150),
     };
+    std::fs::create_dir_all(&adopter.gate_root).expect("make the gate directory");
     return Place { adopter, log, paths };
 }
 

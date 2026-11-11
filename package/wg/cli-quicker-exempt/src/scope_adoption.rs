@@ -29,6 +29,8 @@ use crate::scope_naming::{origin_scope_names, scope_cgroup_directory};
 use crate::update_entry_points::MatchReason;
 /// The seam that runs one call against the user's manager.
 use crate::manager_socket::{ManagerCaller, ManagerError, PrivateSocketManager};
+/// The lock an origin stop and a move share.
+use crate::adoption_gate;
 /// A call's reply and the arguments of a call.
 use crate::dbus_wire::{Message, MethodCall};
 /// Syscall and process failures.
@@ -42,6 +44,10 @@ use std::time::{Duration, Instant};
 const MOVE_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(1);
 /// Pause between confirmation reads.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
+/// Why a move that met another watcher's origin-scope sweep is left for the next scan,
+/// in the words the log line carries.
+pub const ADOPTION_DEFERRED: &str = "another watcher was stopping empty origin scopes just then, and a stopped scope ends every process in it, so the process stayed where it was and the next scan moves it";
+
 /// What the manager says,
 /// in the client's message,
 /// when a pid of the request no longer exists (`ESRCH`),
@@ -125,6 +131,10 @@ pub enum AdoptError {
     /// The scope ended before the limits could be applied,
     /// which needs no report.
     ScopeGone,
+    /// Another watcher was stopping empty origin scopes just then,
+    /// and the stop of a scope ends every process in it,
+    /// so the process is left where it was and the next scan moves it.
+    Deferred,
     /// The manager refused or the move did not show.
     Failed(
         /// The reason.
@@ -146,6 +156,7 @@ impl std::fmt::Display for AdoptError {
             AdoptError::Vanished => write!(formatter, "the process exited before it could be moved"),
             AdoptError::MemberVanished => write!(formatter, "a process of the group exited before the group could be moved"),
             AdoptError::ScopeGone => write!(formatter, "the scope ended before its limits could be applied"),
+            AdoptError::Deferred => write!(formatter, "{ADOPTION_DEFERRED}"),
             AdoptError::Failed(text) | AdoptError::TimedOut(text) => write!(formatter, "{text}"),
         };
     }
@@ -178,6 +189,8 @@ pub struct PrivateSocketAdopter {
     /// Cgroup filesystem root,
     /// where a scope's directory and its populated state are read.
     pub cgroup_root: PathBuf,
+    /// Directory the adoption gate file lives in.
+    pub gate_root: PathBuf,
     /// How long the moved pid may take to appear in the slice.
     pub confirmation_timeout: Duration,
 }
@@ -195,6 +208,7 @@ impl PrivateSocketAdopter {
             caller: Box::new(PrivateSocketManager::new()),
             proc_root: PathBuf::from("/proc"),
             cgroup_root: PathBuf::from("/sys/fs/cgroup"),
+            gate_root: PathBuf::from(adoption_gate::PRODUCTION_GATE_ROOT),
             confirmation_timeout: MOVE_CONFIRMATION_TIMEOUT,
         };
     }
@@ -392,6 +406,16 @@ impl Adopter for PrivateSocketAdopter {
     fn adopt(&self, request: &AdoptRequest<'_>) -> Result<Joined, AdoptError> {
         let Some(first) = request.pids.first() else {
             return Err(AdoptError::Failed("no pid to adopt".to_string()));
+        };
+        // Held until this function returns:
+        // a watcher's sweep of empty origin scopes reads and stops a scope under the same gate,
+        // because the manager ends every process in a scope it stops.
+        // A holder of the gate is one move, so waiting here would stall the policy loop:
+        // a move that cannot start at once is left for the next scan, which reads the process again.
+        let _held = match adoption_gate::try_acquire(&self.gate_root, request.uid) {
+            Ok(Some(held)) => held,
+            Ok(None) => return Err(AdoptError::Deferred),
+            Err(error) => return Err(AdoptError::Failed(format!("the adoption gate could not be taken: {error}"))),
         };
         let directory = self.directory_of(request);
         if directory.is_dir() {

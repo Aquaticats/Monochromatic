@@ -23,7 +23,9 @@ mod routing_group;
 /// The functions of that module the engine calls.
 use routing_group::{collect_group, recheck_group};
 /// The seam to the service manager.
-use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
+use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter, ADOPTION_DEFERRED};
+/// When this pass may spend another move.
+use crate::pass_gate::{PassGate, BLOCK_AFTER_TIMEOUT};
 /// The scope of each origin.
 use crate::scope_naming::{origin_scope_name, scope_cgroup_path};
 /// What is known about the scopes in use.
@@ -44,24 +46,15 @@ use crate::update_report::Outcome;
 use std::collections::{HashMap, HashSet};
 /// Fake procfs roots in tests.
 use std::path::PathBuf;
-/// Retry timing.
-use std::time::{Duration, Instant};
+/// Instants of the pass and of retries.
+use std::time::Instant;
 
-/// Failed moves one pass may spend before it postpones the rest,
-/// so a manager that fails slowly cannot stall the watcher for long.
-const FAILED_ATTEMPTS_PER_PASS: u32 = 2;
 /// Refusals of "No such process" for a living process,
 /// in a row,
 /// before the policy reports them.
 /// A group member that exits makes the manager refuse once;
 /// a run of them is not a race any more.
 pub const MEMBER_VANISH_LIMIT: u32 = 3;
-/// Time one pass may spend on moves before it postpones the rest.
-/// A pass can overrun it by the one attempt in progress,
-/// which the client timeout bounds.
-const PASS_MOVE_BUDGET: Duration = Duration::from_secs(2);
-/// How long no move is attempted after the manager did not answer in time.
-const BLOCK_AFTER_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Does nothing,
 /// the default step between collecting a group and checking it again.
@@ -108,12 +101,9 @@ pub struct UpdateRouting {
     /// in a row,
     /// by pid and start time.
     member_vanishes: HashMap<(i32, u64), u32>,
-    /// Failed moves spent in the current pass.
-    failed_attempts_this_pass: u32,
-    /// No move is attempted before this time.
-    blocked_until: Option<Instant>,
-    /// When the current pass began.
-    pass_started: Option<Instant>,
+    /// What the current pass has spent,
+    /// and when moves may go ahead again.
+    gate: PassGate,
     /// Cgroups the watcher attached the socket mark to,
     /// as its last scan found them.
     /// A process in one of them,
@@ -135,9 +125,7 @@ impl UpdateRouting {
             scopes: ScopeRegistry::new(),
             failures: HashMap::new(),
             member_vanishes: HashMap::new(),
-            failed_attempts_this_pass: 0,
-            blocked_until: None,
-            pass_started: None,
+            gate: PassGate::new(),
             marked: Vec::new(),
         };
     }
@@ -181,33 +169,7 @@ impl UpdateRouting {
 
     /// Starts a pass at `now`.
     pub fn begin_pass_at(&mut self, now: Instant) {
-        self.failed_attempts_this_pass = 0;
-        self.pass_started = Some(now);
-    }
-
-    /// Why a move must wait now,
-    /// or `None` when it may go ahead.
-    fn postponement(&self, now: Instant) -> Option<&'static str> {
-        if self.is_blocked(now) {
-            return Some("the user's service manager did not answer in time, so moves are paused for a few seconds");
-        }
-        if self.failed_attempts_this_pass >= FAILED_ATTEMPTS_PER_PASS {
-            return Some("earlier moves in this pass failed, and a pass spends at most two failed attempts");
-        }
-        if let Some(started) = self.pass_started
-            && now.duration_since(started) >= PASS_MOVE_BUDGET
-        {
-            return Some("this pass used its time budget for moves");
-        }
-        return None;
-    }
-
-    /// Reports whether moves are paused after a client timeout.
-    fn is_blocked(&self, now: Instant) -> bool {
-        return match self.blocked_until {
-            Some(until) => now < until,
-            None => false,
-        };
+        self.gate.begin(now);
     }
 
     /// Records the report of a process that could not be inspected,
@@ -224,7 +186,7 @@ impl UpdateRouting {
 
     /// Records a failed move and builds its outcome.
     fn register_failure(&mut self, key: (i32, u64), now: Instant, error: String) -> Outcome {
-        self.failed_attempts_this_pass += 1;
+        self.gate.note_failed_attempt();
         let earlier = match self.failures.get(&key) {
             Some(failure) => failure.attempts,
             None => 0,
@@ -297,7 +259,7 @@ impl UpdateRouting {
             self.handled.insert(key);
             return Outcome::Skipped { pid, why };
         }
-        if let Some(why) = self.postponement(now) {
+        if let Some(why) = self.gate.postponement(now) {
             return Outcome::Deferred { pid, why };
         }
         let (group, unreadable) = match collect_group(&self.setup, &info) {
@@ -341,10 +303,11 @@ impl UpdateRouting {
                 self.member_vanishes.remove(&key);
                 // A join that finds the manager hung pauses the moves like a hung move does.
                 if self.scopes.note_joined(&self.setup, TOOLCHAIN_UPDATES_SLICE, &info.cgroup, &scope_name, &joined, &limits, now) {
-                    self.blocked_until = Some(now + BLOCK_AFTER_TIMEOUT);
+                    self.gate.block(now);
                 }
                 Outcome::Adopted { pid, reason, count: pids.len(), left_behind: unreadable + dropped }
             }
+            Err(AdoptError::Deferred) => Outcome::Deferred { pid, why: ADOPTION_DEFERRED },
             Err(AdoptError::Vanished | AdoptError::ScopeGone) => {
                 self.failures.remove(&key);
                 self.member_vanishes.remove(&key);
@@ -366,7 +329,7 @@ impl UpdateRouting {
             }
             Err(AdoptError::Failed(error)) => self.register_failure(key, now, error),
             Err(AdoptError::TimedOut(error)) => {
-                self.blocked_until = Some(now + BLOCK_AFTER_TIMEOUT);
+                self.gate.block(now);
                 let text = format!("{error}; no move is attempted for {BLOCK_AFTER_TIMEOUT:?}");
                 self.register_failure(key, now, text)
             }
@@ -429,10 +392,10 @@ impl UpdateRouting {
         self.forget_exited(&pids);
         // Following the origins asks the manager too: not while its calls are paused,
         // for at most a budget, and a call that times out pauses the moves.
-        if !self.is_blocked(clock.now()) {
+        if !self.gate.is_blocked(clock.now()) {
             let followed = self.scopes.follow_origins(&self.setup, TOOLCHAIN_UPDATES_SLICE, clock);
             if followed.timed_out {
-                self.blocked_until = Some(clock.now() + BLOCK_AFTER_TIMEOUT);
+                self.gate.block(clock.now());
             }
             outcomes.extend(followed.outcomes);
         }

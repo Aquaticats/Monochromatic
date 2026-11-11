@@ -7,9 +7,11 @@
 
 /// Sweep under test.
 use crate::leftover_sweep::{
-    describe_sweep, is_old_style_scope_name, read_populated, stop_empty_origin_scopes, sweep_leftover_per_process_scopes,
+    describe_sweep, is_old_style_scope_name, read_populated, sweep_leftover_per_process_scopes,
     sweep_leftover_scopes, sweep_with, SweepReport, SweepSetup,
 };
+/// The pass over the origin scopes under test.
+use crate::origin_scope_sweep::stop_empty_origin_scopes;
 /// Where a scope lives.
 use crate::scope_naming::scope_cgroup_directory;
 /// The client the sweep runs.
@@ -52,6 +54,7 @@ fn place(name: &str, list_code: i32, change_code: i32) -> Place {
     let directory = crate::test_scratch::scratch_root().join(format!("wg-quicker-sweep-{name}-{}", std::process::id()));
     let _removed = std::fs::remove_dir_all(&directory);
     std::fs::create_dir_all(directory.join("cgroup")).expect("make the fake cgroup tree");
+    std::fs::create_dir_all(directory.join("gate")).expect("make the fake gate directory");
     let listing = directory.join("listing");
     let log = directory.join("log");
     std::fs::write(&listing, "").expect("write the empty list");
@@ -69,6 +72,8 @@ fn place(name: &str, list_code: i32, change_code: i32) -> Place {
         gid,
         slice: SLICE.to_string(),
         cgroup_root: directory.join("cgroup"),
+        gate_root: directory.join("gate"),
+        gate_wait: Duration::from_millis(50),
         client: UserClient { program: program.to_string_lossy().into_owned(), timeout: Duration::from_secs(20) },
         prefix: "wg-quicker-update-".to_string(),
     };
@@ -160,7 +165,7 @@ fn failed_units_are_reset_and_empty_scopes_stopped_and_a_populated_scope_survive
     let report = sweep_leftover_scopes(&place.setup);
     assert_eq!(
         report,
-        SweepReport { listed: 10, origins_listed: 1, reset: 3, stopped: 3, origins_stopped: 1, held: 2, unreadable: 1, problems: vec![] },
+        SweepReport { listed: 10, origins_listed: 1, reset: 3, stopped: 3, origins_stopped: 1, origins_deferred: 0, held: 2, unreadable: 1, problems: vec![] },
         "{report:?}"
     );
     assert_eq!(
@@ -271,7 +276,18 @@ fn the_populated_state_comes_from_cgroup_events() {
 #[test]
 fn the_log_line_states_the_counts_and_is_silent_when_there_was_nothing() {
     assert_eq!(describe_sweep(&SweepReport::default()), None);
-    let line = describe_sweep(&SweepReport { listed: 9, origins_listed: 2, reset: 4, stopped: 3, origins_stopped: 1, held: 1, unreadable: 1, problems: vec!["x failed".to_string()] }).expect("a line");
+    let line = describe_sweep(&SweepReport {
+        listed: 9,
+        origins_listed: 2,
+        reset: 4,
+        stopped: 3,
+        origins_stopped: 1,
+        origins_deferred: 0,
+        held: 1,
+        unreadable: 1,
+        problems: vec!["x failed".to_string()],
+    })
+    .expect("a line");
     for phrase in [
         "9 of the earlier design listed",
         "4 failed units reset",
@@ -400,4 +416,81 @@ fn the_origin_scopes_are_stopped_before_the_first_adoption() {
     let stopping = changes(&place);
     assert!(stopping.iter().any(|call| return call.contains(" stop ") && call.contains("app.slice-xx.scope")), "{stopping:?}");
     assert!(stopping.iter().all(|call| return !call.contains("app.slice-yy.scope")), "the scope that holds a process survives: {stopping:?}");
+}
+
+/// A fake `systemctl` that behaves,
+/// for `stop`,
+/// like the user's manager on one point:
+/// it ends every process the stopped scope holds,
+/// and records each one it ended.
+/// It also moves a process into the scope right before it handles the stop,
+/// which is what another watcher's adoption does,
+/// and it does that only while it holds the adoption gate,
+/// exactly as the production adoption path does.
+fn place_with_adoption(name: &str, victim: i32) -> Place {
+    let place = place(name, 0, 0);
+    let gate = crate::adoption_gate::adoption_gate_path(&place.setup.gate_root, place.setup.uid);
+    let scope_parent = scope_cgroup_directory(&place.setup.cgroup_root, place.setup.uid, SLICE, "probe.scope")
+        .parent()
+        .expect("the slice directory")
+        .to_path_buf();
+    let body = format!(
+        "#!/bin/sh\necho \"$*\" >> '{log}'\ncase \"$2\" in\nlist-units) cat '{listing}'; exit 0 ;;\nstop)\n  shift 2\n  for unit in \"$@\"; do\n    directory='{scopes}'/\"$unit\"\n    if [ -d \"$directory\" ] && flock --exclusive --nonblock '{gate}' true; then\n      printf '%s\\n' {victim} > \"$directory/cgroup.procs\"\n      echo \"move-landed {victim} $unit\" >> '{log}'\n    else\n      echo \"move-deferred {victim} $unit\" >> '{log}'\n    fi\n    if [ -s \"$directory/cgroup.procs\" ]; then\n      for ended in $(cat \"$directory/cgroup.procs\"); do\n        kill -9 \"$ended\" 2>/dev/null\n        echo \"ended $ended $unit\" >> '{log}'\n      done\n    fi\n  done\n  exit 0 ;;\n*) exit 0 ;;\nesac\n",
+        log = place.log.display(),
+        listing = place.listing.display(),
+        gate = gate.display(),
+        victim = victim,
+        scopes = scope_parent.display(),
+    );
+    let program = place.setup.client.program.clone();
+    std::fs::write(&program, body).expect("write the fake manager");
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).expect("make the fake manager executable");
+    return place;
+}
+
+/// An origin stop is read and stopped under the adoption gate,
+/// so a process another watcher moves into that scope just then is not ended by the stop.
+///
+/// The manager ends every process in a scope it stops,
+/// and the read of `populated 0` cannot be one step with the stop:
+/// the fake manager here moves a real process into the scope at the instant it handles the stop,
+/// which is the window a second watcher's adoption lands in,
+/// and then ends what the scope holds.
+/// With the gate held across the read and the stop,
+/// that move is refused inside the window,
+/// so the stop finds nothing to end.
+#[test]
+fn a_move_into_an_origin_scope_during_its_stop_is_refused_and_no_process_is_ended() {
+    let mut victim = std::process::Command::new("/usr/bin/sleep").arg("30").spawn().expect("start the process another watcher moves");
+    let place = place_with_adoption("origin-stop-gate", i32::try_from(victim.id()).expect("pid fits"));
+    let origin = "wg-quicker-update-app.slice-zz.scope";
+    std::fs::write(&place.listing, unit_line(origin, "active", "running")).expect("write the list");
+    let _directory = scope_directory(&place, origin, false);
+    let report = stop_empty_origin_scopes(&place.setup, &read_populated);
+    let logged = calls(&place).join("\n");
+    let ended = victim.try_wait().expect("ask whether the process ended");
+    let _killed = victim.kill();
+    let _reaped = victim.wait();
+    assert!(!logged.contains("ended "), "the stop ended a process another watcher moved in: {logged} {report:?}");
+    assert!(logged.contains(&format!("move-deferred {}", victim.id())), "the move was not refused inside the stop window: {logged}");
+    assert!(ended.is_none(), "the process another watcher moved in was ended: {report:?}");
+}
+
+/// A batch whose adoption gate stays held is left for the next watcher start,
+/// and the line says how many scopes that was and what was waited for.
+#[test]
+fn an_origin_batch_whose_gate_stays_held_is_left_and_reported() {
+    let place = place("origin-gate-held", 0, 0);
+    let origin = "wg-quicker-update-app.slice-held.scope";
+    std::fs::write(&place.listing, unit_line(origin, "active", "running")).expect("write the list");
+    let _directory = scope_directory(&place, origin, false);
+    let held = crate::adoption_gate::try_acquire(&place.setup.gate_root, place.setup.uid).expect("take the gate").expect("the gate is free");
+    let report = stop_empty_origin_scopes(&place.setup, &read_populated);
+    assert_eq!(report.origins_deferred, 1, "{report:?}");
+    assert_eq!(report.origins_stopped, 0, "{report:?}");
+    assert!(changes(&place).iter().all(|call| return !call.contains(" stop ")), "an origin scope was stopped under another holder: {:?}", changes(&place));
+    let line = describe_sweep(&report).expect("the deferral is said");
+    assert!(line.contains("left for the next watcher start"), "{line}");
+    assert!(line.contains("adoption gate"), "{line}");
+    drop(held);
 }
