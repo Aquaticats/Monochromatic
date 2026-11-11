@@ -232,8 +232,8 @@ fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Lan
 fn branch_made_at(common_dir: &Path, reference: &str) -> Option<String> {
     let path: PathBuf = common_dir.join("logs").join(reference);
     let text: Vec<u8> = std::fs::read(path.as_path()).ok()?;
-    let oldest: &[u8] = text.split(|byte| *byte == b'\n').next()?;
-    let made: &[u8] = oldest.split(|byte| *byte == b' ').nth(1)?;
+    let oldest: &[u8] = text.split(|byte| return *byte == b'\n').next()?;
+    let made: &[u8] = oldest.split(|byte| return *byte == b' ').nth(1)?;
     return std::str::from_utf8(made).ok().map(str::to_owned);
 }
 
@@ -281,7 +281,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
     };
     let earlier: HashSet<String> = match branches_merged_into(place, before) {
-        Ok(found) => found.into_iter().map(|one| one.reference).collect(),
+        Ok(found) => found.into_iter().map(|one| return one.reference).collect(),
         Err(reason) => {
             sweep.failed = Some(reason);
             return sweep;
@@ -403,7 +403,7 @@ fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
 fn worktrees_inside<'a>(one: &Registration, registered: &'a [Registration]) -> Vec<&'a Registration> {
     return registered
         .iter()
-        .filter(|other| other.worktree != one.worktree && other.worktree.starts_with(one.worktree.as_path()))
+        .filter(|other| return other.worktree != one.worktree && other.worktree.starts_with(one.worktree.as_path()))
         .collect();
 }
 
