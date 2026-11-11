@@ -2,13 +2,17 @@
 //!  How long one round of the service's after-commit work may go on starting housekeeping,
 //!  and what is left of a round's housekeeping when that is spent.
 //! Why:
-//!   A round drains one repository's records in the order:
+//!   A drain runs one repository's records in the order:
 //! the person's pushes,
 //! the upkeep,
 //! the prewarms,
 //! the subvolume deletions,
 //! the trashes,
 //! the reviews.
+//! The pushes are the round that answers a wake,
+//! and every other kind is the slow lane's
+//!  (`landing/service_work_slow_lane.rs`),
+//! which is where this bound is asked and which is what looks at a repository again when the bound left work behind.
 //! A trash of one removed worktree is hundreds of thousands of removals
 //!  (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`),
 //! and a service that logged 15 of them spent 1 h 37 min in one round without making the
@@ -31,7 +35,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const slice = new HousekeepingOfOneRound(HOUSEKEEPING_OF_ONE_ROUND); for (const item of trashes) { if (slice.spent()) left.push(item); else await empty(item); }
+//! const slice = new HousekeepingOfOneRound(HOUSEKEEPING_OF_ONE_ROUND); for (const item of trashes) { if (slice.spent()) left.push(item); else await empty(item); } if (left.length) await within(LOOK_AGAIN_AFTER_DEFERRING, lookAgain)
 //! ```
 
 use std::time::{Duration, Instant};
