@@ -543,6 +543,13 @@ Read-only commands,
    and a commit whose command died before its check ran holds nothing back:
   it has no verdict,
    so the next push of the branch carries it.
+   A commit whose check is still running holds the push back the same way a refusal does,
+  because that check may refuse it:
+  the push stops before it,
+   the line says it waits for those checks,
+  and the push resumes by itself when they answer.
+   A command a program reads its output from settles the held records and prints no line,
+  so an approved push never waits for a command only a person would type.
   A failed push never fails the commit,
    and no configuration key turns the push off.
   Automatic maintenance,

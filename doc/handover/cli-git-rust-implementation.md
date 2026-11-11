@@ -101,6 +101,53 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A Kimi K3.1 Pro review of the released held push and of the blocked commit's record: four findings fixed, one read as intended (2026-11-11T06:33:22-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-blocked-commits-are-never-published`,
+from `6df69b62f8` on `integrate/git-policy-cli-jam-fixes-after-alpha-9`.
+Two reports name five defects in what that commit ships
+(`~/temp/agent/kimi-reviews/held-push-released-by-the-retry-round-133/review.md` and
+`~/temp/agent/kimi-reviews/integration-failures-commit-budgets-after-alpha-9-round-133/review.md`).
+Four were reproduced and fixed,
+and each control fails on `6df69b62f8` and passes with its fix:
+
+- Recovery released an older approved push and the service published the branch's tip,
+  a newer commit whose own gate was still running:
+  `undecided_commits` (`landing/work_item_holding.rs`) and `WhereThePushStops::Undecided`
+  (`push/push_held_back_by_a_blocked_commit.rs`) now stop a push before a commit whose check runs,
+  and the line says the push waits for that check.
+  Controls `a_commit_whose_own_checks_have_not_decided_is_not_published` and
+  `an_older_passed_record_does_not_publish_a_newer_undecided_commit`.
+- A refusal whose durable verdict could not be written lost its only copy,
+  because recovery forgot the held record whatever `block` did:
+  `block` now answers whether the verdict is kept, and the record stays with the gate's words until it is.
+  Control `a_refusal_whose_verdict_cannot_be_kept_holds_its_record_and_says_so`.
+- A refusal was published after a machine crash,
+  because the refusal and the blocked verdict were published by unflushed renames:
+  both are flushed with their directories before the held record goes,
+  and a passing commit still makes no sync
+  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
+  Control `a_refusal_is_flushed_before_its_record_is_given_up`.
+- A command whose output a program reads never settled the held records,
+  so an approved push waited for a command a person may never type:
+  such a command now settles them and shows nothing, as it already settles the held commits and takes no notice.
+  Control `a_machine_read_command_releases_a_held_push_whose_command_left_a_pass`
+  (`binary_push_queued_after_a_killed_wrapper_tests.rs`).
+
+The fifth is read as intended rather than defective.
+A repository renamed away reads as gone, and the plan its drain ends was dropped even when the repository
+was back by the time the change landed
+(`doc/planning/cli-git-unreachable-repository-ends-its-plans.md`, the section on the applier's second reading).
+No filesystem reading tells a rename from a deletion,
+so a forget that rests on that proof now asks the filesystem once more when it is applied,
+and the control `a_repository_renamed_back_before_the_change_lands_keeps_its_plans` pins it.
+A repository still away when the change lands keeps the owner's rule: the plan ends and the journal names
+the path.
+
+The owner's earlier question in `doc/handover/questions-for-the-owner.md`
+("The automatic push and a commit a policy blocked") is untouched by this branch:
+a person's own push is still unchanged, and only the automatic push stops.
+
 ### A Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`: three findings, all reproduced and fixed (2026-11-10T19:04:54-05:00)
 
 Branch `fix/git-policy-cli-kimi-all-waits-findings`,

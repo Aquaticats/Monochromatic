@@ -130,11 +130,25 @@ and the kernel lines that decide what it waits for.
   because `hold` writes the push obligation itself into it unflushed,
   and the audit recorded in this document traced six concurrent flushes at 8 to 12.5 s each,
   which is the wait the owner's "commits vs native git should not take 5s longer" rules out.
+  That reasoning holds for a pass and not for a refusal:
+  a machine crash that loses a pass leaves the record the gate found,
+  which reads as no verdict and keeps the commit local,
+  while a lost refusal reads the same way and lets the next push of the branch publish a commit the gate refused.
+  The refusal therefore goes through `replace_private_file`,
+  and the `blocked` verdict that settles it (`work_item_holding.rs`, `block`) goes through `write_private_file` with
+  `sync_directory` before the held record is given up,
+  so the one durable copy of the refusal is on the disk before anything reads it as absent.
+  Both syncs are on the refusal's path alone,
+  which ends the command with `2` after a policy said no,
+  and a commit that passes still makes none:
+  the budget controls below commit successfully.
   Controls:
   `landing::service_handoff::tests::the_verdict_a_commit_records_flushes_nothing`,
+  `landing::service_handoff::tests::a_refusal_is_flushed_before_its_record_is_given_up`,
+  `landing::service_handoff::tests::a_refusal_whose_verdict_cannot_be_kept_holds_its_record_and_says_so`,
   `held_push_settled_by_the_verdict::a_commit_whose_command_died_before_its_checks_names_what_sends_it`,
   and `budget::` in `binary_budget_tests.rs`,
-  whose constants allow no wrapper sync on a commit's path.
+  whose constants allow no wrapper sync on a path a passing commit takes.
 
 ### A merge, a landing and a push
 

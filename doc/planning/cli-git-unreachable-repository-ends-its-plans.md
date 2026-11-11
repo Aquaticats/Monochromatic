@@ -95,3 +95,35 @@ The controls of the proof itself are
 `a_path_behind_an_unmounted_mount_point_may_return`,
 `the_root_of_a_mounted_filesystem_proves_the_repository_gone` and
 `the_line_names_the_path_the_proof_and_the_branches`.
+
+## A repository that is back before the change lands keeps its plans
+
+The proof is a point in time,
+and the drain does not apply what it asks:
+the change a gone repository produces is applied by the service loop after the drain returns
+(`push_retry.rs`, `Retrying::apply`).
+A repository renamed away and back in that gap,
+or one whose drive comes back then,
+reads as gone when it was looked at and is reachable when the plan would be dropped.
+
+The forget a gone repository produces therefore carries `only_while_unreachable`,
+and the applier asks the filesystem once more before it drops the plan:
+a Git directory that names a directory now keeps its plan,
+and one that is still missing ends it as before.
+Every other forget (a push that landed, one that needs the person, one whose record is no longer acceptable)
+is a decision about the work and not a reading of the filesystem,
+so it is applied whatever the path shows.
+
+Control:
+`a_repository_renamed_back_before_the_change_lands_keeps_its_plans`
+in `landing/unreachable_git_dir_proven_gone_tests.rs` fails before this change
+with the plan removed after the repository returned,
+and passes after it.
+
+What this does not repair:
+a repository renamed away and back long after the change was applied is still read as gone when the change lands,
+and its plan ends with the journal line.
+Nothing on the filesystem tells a deleted repository from a renamed one,
+so that case is one of the proof's limits rather than a state the applier can see.
+The commit stays local in that case,
+and the journal line names the path whose plan ended.
