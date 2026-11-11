@@ -38,6 +38,8 @@ use crate::service_work_storage_awaited::{
 use crate::journald_native::Priority;
 use crate::push_failure_notice::PushOutcome;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
+use crate::service_work_drain_deletes_subvolumes::delete_subvolumes_awaiting;
+use crate::service_work_settling_with_words::settle_with_the_words;
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
 use crate::work_item::{Claimed, DONE, FAILED, WorkItem, WorkKind};
@@ -100,6 +102,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         let mut pushes: Vec<Claimed> = Vec::new();
         let mut trashes: Vec<Claimed> = Vec::new();
         let mut prewarms: Vec<Claimed> = Vec::new();
+        let mut relinks: Vec<Claimed> = Vec::new();
         let mut deletions: Vec<Claimed> = Vec::new();
         let mut reviews: Vec<Claimed> = Vec::new();
         let mut ahead: Vec<Claimed> = Vec::new();
@@ -109,6 +112,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 WorkKind::Push => pushes.push(item),
                 WorkKind::Trash => trashes.push(item),
                 WorkKind::Prewarm => prewarms.push(item),
+                WorkKind::Relink => relinks.push(item),
                 WorkKind::SubvolumeDelete => deletions.push(item),
                 WorkKind::Review => reviews.push(item),
                 WorkKind::SnapshotAhead => ahead.push(item),
@@ -181,8 +185,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => break 'round,
             }
         }
-        let Some(back) = crate::service_work_drains_a_snapshot_ahead::drain_a_snapshot_ahead(held, work_dir.as_path(), ahead, handlers).await else { break 'round };
-        held = back;
+        // A snapshot ahead is the one kind of work a person's own command waits for, so it runs before the upkeep
+        //  and before every kind that frees space.
+        match crate::service_work_drains_a_snapshot_ahead::drain_a_snapshot_ahead(held, work_dir.as_path(), ahead, handlers).await {
+            Some(back) => held = back,
+            None => break 'round,
+        }
         let mut upkept: Vec<PathBuf> = Vec::new();
         let still_here: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), upkeep).await {
             Some((back, mine)) => {
@@ -205,6 +213,26 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => break 'round,
             }
         }
+        // A new worktree's copied package state is relinked before anything else it asked for: it is the work the add
+        //  stopped doing, and the person's next command in the worktree depends on it.
+        let relinked: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), relinks).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in relinked {
+            let relinking: Instant = Instant::now();
+            let verdict: Verdict = handlers.relink_awaiting(&item.item).await;
+            if matches!(verdict, Verdict::Done) {
+                crate::service_log!("the package state of {} was relinked relink_ms={}", item.item.repository.display(), relinking.elapsed().as_millis());
+            }
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "relink").await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
+        }
         // A new worktree's Cargo build directory is filled before the left-out files are emptied: the filling is the work
         //  the add stopped doing, and the sooner it lands the more likely the first build in the worktree finds it.
         let prewarmed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), prewarms).await {
@@ -223,19 +251,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         }
         // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
         //  nothing else names, and it frees everything the worktree held.
-        let deleted: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), deletions).await {
-            Some((back, mine)) => {
-                held = back;
-                mine
-            }
+        match delete_subvolumes_awaiting(held, work_dir.as_path(), deletions, handlers).await {
+            Some(back) => held = back,
             None => break 'round,
-        };
-        for item in deleted {
-            let verdict: Verdict = handlers.subvolume_delete_awaiting(&item.item).await;
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "subvolume delete").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
         }
         // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
         //  reviews: freeing them is a bounded, local job.
@@ -370,45 +388,6 @@ async fn settle_after_the_push(
                 _ => true,
             };
             return settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
-        }
-    }
-}
-
-/// What:
-///  Settle one item whose kind answers with words rather than a push:
-/// a skipped one is done and says why,
-/// a failed one is failed and says why.
-/// Why:
-///   A trash and a review answer the same four verdicts and leave the person the same two kinds of line,
-/// so the drain
-///  keeps one account of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await settleWithTheWords(held, workDir, item, verdict, kind)
-/// ```
-async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed, verdict: Verdict, kind: &str) -> Option<HeldClaims> {
-    match verdict {
-        Verdict::Done => {
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
-        }
-        Verdict::Failed(reason) | Verdict::Retry(reason) => {
-            match kind {
-                "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} could not be emptied: {reason}", item.item.parent),
-                "prewarm" => crate::service_warn!("the Cargo build directory of {} could not be filled: {reason}", item.item.repository.display()),
-                "subvolume delete" => crate::service_warn!("the subvolume {} could not be deleted: {reason}", item.item.parent),
-                _ => crate::service_warn!("the review of {} failed: {reason}", item.item.oid),
-            }
-            return settle_all_awaiting(held, work_dir, vec![item], FAILED).await;
-        }
-        Verdict::Skipped(reason) => {
-            match kind {
-                "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} was left as it is: {reason}", item.item.parent),
-                "prewarm" => crate::service_log!("the Cargo build directory of {} was left as it is: {reason}", item.item.repository.display()),
-                "subvolume delete" => crate::service_log!("the subvolume {} was left as it is: {reason}", item.item.parent),
-                _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
-            }
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
     }
 }

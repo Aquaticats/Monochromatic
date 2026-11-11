@@ -50,7 +50,8 @@ use crate::commit_index::{
     IndexSelection, initialize_commit_index, initialize_retry_index, list_changed_index_paths, list_unmerged_index_paths, prepare_interactive_selection,
     write_private_tree,
 };
-use crate::service_prepare_selection_refusals::{named_ignored_ending, staged_deletion_ending};
+use crate::commit_selection_staging::SelectionStagingFailure;
+use crate::service_prepare_selection_refusals::{named_ignored_ending, pathspec_matching_nothing_ending, staged_deletion_ending};
 use crate::commit_transaction::{
     CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection, failed, private_checks, settled_passes, staged_at_base,
 };
@@ -231,8 +232,13 @@ pub fn prepare<F: RepositoryFacts>(
         if let Some(ending) = named_ignored_ending(context, cwd, capture.layout.real_index_path.as_path(), &index_selection)? {
             return Ok(Prepared::Ended(ending));
         }
-        if let Err(error) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
-            return Err(failed(error.0));
+        if let Err(stop) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
+            // Git refused a pathspec the caller wrote for matching nothing: that is the caller's input, not the engine's, so it
+            // ends as the finding that names the token. Every other failure of the staging stays an engine failure (issue 6283).
+            return match stop {
+                SelectionStagingFailure::Git(git) => Err(failed(git.0)),
+                SelectionStagingFailure::PathspecMatchesNothing(refused) => Ok(Prepared::Ended(pathspec_matching_nothing_ending(refused.as_slice()))),
+            };
         }
     }
     // A commit that landed but did not finish its index update leaves this worktree's index describing the branch before that

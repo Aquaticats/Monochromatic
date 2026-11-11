@@ -7,8 +7,11 @@
 
 use super::*;
 use crate::test_support::executable;
+use crate::package_repair_relink::{RelinkTool, decode, object_name_of};
 use crate::package_repair_report::{Outcome, Tool};
+use crate::service_work::work_directory;
 use crate::test_support::{SharedSink, fixture, git_context, remove};
+use crate::work_item::{PENDING, WorkItem, WorkKind, state_directory};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -179,10 +182,54 @@ fn the_workers_are_what_the_host_offers() {
     assert_eq!(workers_for(0), 1, "a host that reports nothing still runs one worker");
 }
 
+/// The pnpm and the toolchain repairs are one record of the worktree the service relinks,
+/// and a session no service answers still relinks the worktree here.
+///
+/// The record is what takes the two tools off the add's waiting path:
+/// it is the only way the service learns which tools to run in which worktree,
+/// so it is written before the wake,
+/// and a worktree whose copy was never relinked would hold the source's links for the person's next command,
+/// so the add does the work itself when nothing took the record.
+#[test]
+fn the_relink_is_one_record_the_service_can_run() {
+    let scene: Scene = scene("repair-relink-record");
+    a_repository_at(&scene);
+    with_a_recording_stale_launcher(&scene);
+    fake_pnpm(&scene, 0);
+    let (findings, printed) = repair(&scene, RepairSwitch::default());
+    assert_eq!(findings.len(), 2, "{findings:?} {printed}");
+    for finding in &findings {
+        assert!(matches!(finding.outcome, Outcome::Repaired { .. }), "{finding:?} {printed}");
+    }
+    let started: String = std::fs::read_to_string(scene.record.as_path()).expect("the tools the add started");
+    assert!(started.contains("pnpm") && started.contains("mpm-shadow"), "{started}");
+    let common: PathBuf = scene.destination.join(".git");
+    let record: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING).join(format!("relink-{}", object_name_of(scene.destination.as_path())));
+    let text: String = match std::fs::read_to_string(record.as_path()) {
+        Ok(text) => text,
+        Err(error) => panic!("no relink record was left for the service ({error}): {findings:?} {printed}"),
+    };
+    let item: WorkItem = WorkItem::decode(text.as_str()).expect("the record is a work item");
+    assert_eq!(item.kind, WorkKind::Relink);
+    assert_eq!(decode(item.parent.as_str()).expect("the entry").tools, vec![RelinkTool::Pnpm, RelinkTool::Toolchain], "the record names the tools the add needs, in the report's order");
+    remove(&scene.root);
+}
+
+/// Make the scene's destination a Git repository,
+/// so the add can name the common directory a record lives in.
+fn a_repository_at(scene: &Scene) {
+    let made: std::process::Output = std::process::Command::new(crate::test_support::REAL_GIT)
+        .args(["init", "--quiet", "--initial-branch=main"])
+        .current_dir(scene.destination.as_path())
+        .output()
+        .expect("git runs");
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(made.stderr.as_slice()));
+}
+
 /// Give the scene's destination a launcher record that names another checkout's lock,
 /// which is what a copy leaves behind,
-/// and a fixture mpm-shadow that rewrites it as an install does.
-fn with_a_stale_launcher(scene: &Scene) {
+/// and a fixture mpm-shadow that names every start in the scene's record and then rewrites the record as an install does.
+fn with_a_recording_stale_launcher(scene: &Scene) {
     let launchers: PathBuf = scene.destination.join(".cache/toolchain-launchers");
     std::fs::create_dir_all(&launchers).expect("launchers");
     std::fs::write(launchers.join("mpm.launch"), b"{\"lockFile\":\"/elsewhere/toolchain.lock.json\"}\n").expect("record");
@@ -191,55 +238,13 @@ fn with_a_stale_launcher(scene: &Scene) {
     executable(
         scene.bin.join("mpm-shadow").as_path(),
         format!(
-            "#!/bin/sh\ncase \"$1\" in\n  install) printf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{record}' ;;\nesac\nexit 0\n",
+            "#!/bin/sh\necho \"mpm-shadow $* in $(pwd -P)\" >> '{started}'\nprintf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{record}'\nexit 0\n",
+            started = scene.record.display(),
             own = own.display(),
             record = record.display()
         )
         .as_bytes(),
     );
-}
-
-/// The pnpm and the toolchain repairs really run beside each other:
-/// each tool names its start and then waits,
-/// bounded,
-/// for the other's name,
-/// which only an overlap can bring about.
-/// A repair that ran its tools one after another would let that wait run out and fail the tool.
-#[test]
-fn the_tools_run_beside_each_other() {
-    /// How many times a fixture tool looks for the other's name before it gives up:
-    /// three seconds at ten milliseconds a look.
-    const LOOKS: usize = 300;
-    let scene: Scene = scene("repair-overlap");
-    with_a_stale_launcher(&scene);
-    let pnpm_marked: PathBuf = scene.root.join("pnpm-started");
-    let toolchain_marked: PathBuf = scene.root.join("toolchain-started");
-    let waiting_tool = |mine: &Path, theirs: &Path| {
-        return format!(
-            "#!/bin/sh\ntouch '{mine}'\nlooked=0\nwhile [ ! -f '{theirs}' ]; do looked=$((looked + 1)); [ \"$looked\" -gt {LOOKS} ] && exit 1; sleep 0.01; done\nexit 0\n",
-            mine = mine.display(),
-            theirs = theirs.display()
-        );
-    };
-    executable(scene.bin.join("pnpm").as_path(), waiting_tool(pnpm_marked.as_path(), toolchain_marked.as_path()).as_bytes());
-    // The install names its start, waits for pnpm's, then rewrites the launcher record as a real install does.
-    let record: PathBuf = scene.destination.join(".cache/toolchain-launchers/mpm.launch");
-    let own_lock: PathBuf = scene.destination.join("toolchain.lock.json");
-    let installing: String = format!(
-        "#!/bin/sh\ntouch '{mine}'\nlooked=0\nwhile [ ! -f '{theirs}' ]; do looked=$((looked + 1)); [ \"$looked\" -gt {LOOKS} ] && exit 1; sleep 0.01; done\nprintf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{record}'\nexit 0\n",
-        mine = toolchain_marked.display(),
-        theirs = pnpm_marked.display(),
-        own = own_lock.display(),
-        record = record.display()
-    );
-    executable(scene.bin.join("mpm-shadow").as_path(), installing.as_bytes());
-    let (findings, printed) = repair(&scene, RepairSwitch::default());
-    assert!(pnpm_marked.exists() && toolchain_marked.exists(), "both tools were not started: {printed}");
-    assert_eq!(findings.len(), 2, "{findings:?} {printed}");
-    for finding in &findings {
-        assert!(matches!(finding.outcome, Outcome::Repaired { .. }), "{finding:?} {printed}");
-    }
-    remove(&scene.root);
 }
 
 /// Where the system gives no thread and no process,

@@ -17,8 +17,9 @@
 ///  its table,
 ///  the oracles and the real-Git fixture helpers.
 use super::{
-    CLEAN_TABLE, CleanRegion, clean_changes_worktree, clean_dry_run_arguments,
-    clean_would_delete_from_answer, parse_clean_region,
+    CLEAN_TABLE, CleanRegion, clean_changes_worktree, clean_deleted_paths_from_answer,
+    clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions, parse_clean_region,
+    paths_only_the_exclusions_add,
 };
 use crate::command_options::OptionErrorKind;
 use crate::command_test_completion::{git_completion, render_completion};
@@ -256,9 +257,21 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
     );
     // A region Git refuses is nothing to ask about.
     assert_eq!(clean_dry_run_arguments(&[], os_arguments(&["--no-such-option"]).as_slice()), None);
+    // The same clean without its own patterns is the second reading: every fact is the same but each `-e` pattern,
+    //  and a `-e` in a clustered short option goes with the whole cluster.
+    assert_eq!(
+        clean_dry_run_arguments_without_exclusions(&[], os_arguments(&["-fdX", "-e", "notes.txt"]).as_slice()),
+        Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "-d", "-X", "--"]))
+    );
+    assert_eq!(
+        clean_dry_run_arguments_without_exclusions(&[], os_arguments(&["--exclude=notes.txt"]).as_slice()),
+        Some(os_arguments(&["--no-optional-locks", "clean", "-n", "-f", "--"]))
+    );
+    assert_eq!(clean_dry_run_arguments_without_exclusions(&[], os_arguments(&["--no-such-option"]).as_slice()), None);
 }
 
 /// A dry run that prints nothing would delete nothing,
+/// it names each path it would delete as Git printed it,
 /// and one Git refuses is an error rather than that answer.
 #[test]
 fn a_silent_dry_run_deletes_nothing() {
@@ -270,40 +283,69 @@ fn a_silent_dry_run_deletes_nothing() {
             stderr: stderr.to_vec(),
         };
     };
-    assert_eq!(clean_would_delete_from_answer(&answer(true, b"", b"")), Ok(false));
-    assert_eq!(clean_would_delete_from_answer(&answer(true, b"\n", b"")), Ok(false));
+    assert_eq!(clean_deleted_paths_from_answer(&answer(true, b"", b"")), Ok(Vec::<Vec<u8>>::new()));
+    assert_eq!(clean_deleted_paths_from_answer(&answer(true, b"\n", b"")), Ok(Vec::<Vec<u8>>::new()));
     assert_eq!(
-        clean_would_delete_from_answer(&answer(true, b"Would remove notes.txt\n", b"")),
-        Ok(true)
+        clean_deleted_paths_from_answer(&answer(true, b"Would remove notes.txt\nWould remove ignored/\n", b"")),
+        Ok(vec![b"Would remove notes.txt".to_vec(), b"Would remove ignored/".to_vec()])
     );
     assert_eq!(
-        clean_would_delete_from_answer(&answer(false, b"", b"fatal: clean.requireForce is true\n")),
+        clean_deleted_paths_from_answer(&answer(false, b"", b"fatal: clean.requireForce is true\n")),
         Err(String::from(
             "Git could not read what the clean would delete: fatal: clean.requireForce is true"
         ))
     );
 }
 
+/// Only the paths the typed answer names and the answer without the patterns does not are what those patterns add,
+/// and the answer keeps the order of the dry run that named them.
+#[test]
+fn only_the_paths_the_patterns_add_are_reported() {
+    let typed: Vec<Vec<u8>> = vec![b"Would remove .env".to_vec(), b"Would remove notes.txt".to_vec()];
+    let otherwise: Vec<Vec<u8>> = vec![b"Would remove .env".to_vec()];
+    assert_eq!(
+        paths_only_the_exclusions_add(typed.as_slice(), otherwise.as_slice()),
+        vec![b"Would remove notes.txt".to_vec()]
+    );
+    assert_eq!(paths_only_the_exclusions_add(typed.as_slice(), typed.as_slice()), Vec::<Vec<u8>>::new());
+    assert_eq!(
+        paths_only_the_exclusions_add(Vec::<Vec<u8>>::new().as_slice(), otherwise.as_slice()),
+        Vec::<Vec<u8>>::new()
+    );
+}
+
 /// Real Git:
 ///  the dry run prints the file an `-e` pattern makes this clean delete,
-/// while the status calls the same file untracked and not ignored.
+/// while the status calls the same file untracked and not ignored,
+/// and the same clean without the pattern deletes nothing.
 #[test]
 fn the_dry_run_sees_the_exclusion_the_status_cannot() {
     let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("clean-exclude-dry-run");
     std::fs::write(root.join("notes.txt"), b"the person notes\n").expect("write untracked file");
     let status = git_output(root.as_path(), os_arguments(&["status", "--porcelain=v1", "-unormal"]).as_slice());
     assert_eq!(String::from_utf8_lossy(status.stdout.as_slice()), "?? notes.txt\n");
-    let query: Vec<std::ffi::OsString> =
-        clean_dry_run_arguments(&[], os_arguments(&["-f", "-X", "--exclude=notes.txt"]).as_slice())
-            .expect("Git accepts the region");
-    let dry_run = git_output(root.as_path(), query.as_slice());
-    let answer = MetadataOutput {
-        success: dry_run.status.success(),
-        code: dry_run.status.code(),
-        stdout: dry_run.stdout.clone(),
-        stderr: dry_run.stderr.clone(),
+    let read = |query: Vec<std::ffi::OsString>| -> Vec<Vec<u8>> {
+        let dry_run = git_output(root.as_path(), query.as_slice());
+        let answer = MetadataOutput {
+            success: dry_run.status.success(),
+            code: dry_run.status.code(),
+            stdout: dry_run.stdout.clone(),
+            stderr: dry_run.stderr.clone(),
+        };
+        return clean_deleted_paths_from_answer(&answer)
+            .unwrap_or_else(|why| { panic!("{why}: {}", String::from_utf8_lossy(dry_run.stderr.as_slice())) });
     };
-    assert_eq!(clean_would_delete_from_answer(&answer), Ok(true), "{}", String::from_utf8_lossy(dry_run.stderr.as_slice()));
+    let typed: Vec<Vec<u8>> = read(
+        clean_dry_run_arguments(&[], os_arguments(&["-f", "-X", "--exclude=notes.txt"]).as_slice())
+            .expect("Git accepts the region"),
+    );
+    let otherwise: Vec<Vec<u8>> = read(
+        clean_dry_run_arguments_without_exclusions(&[], os_arguments(&["-f", "-X", "--exclude=notes.txt"]).as_slice())
+            .expect("Git accepts the region"),
+    );
+    assert!(!typed.is_empty(), "the typed clean would delete nothing");
+    assert!(otherwise.is_empty(), "the clean without the pattern named {otherwise:?}");
+    assert_eq!(paths_only_the_exclusions_add(typed.as_slice(), otherwise.as_slice()), typed);
     assert!(root.join("notes.txt").exists());
     remove(directory.as_path());
 }

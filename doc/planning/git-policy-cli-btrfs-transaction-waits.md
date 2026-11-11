@@ -111,6 +111,30 @@ and the kernel lines that decide what it waits for.
   unless the landing publishes nothing, in which case `force` (`service_durable.rs:318`) makes them before the answer.
 - `src/native/landing/service_land_objects_of_batch.rs:101`: the `core.fsync` value handed to `git fast-import`
   as `-c core.fsync=...`, so the import's own syncs are Git's, not the wrapper's.
+- `src/native/landing/work_item_holding.rs:101`,
+  `record_verdict`,
+  the verdict the post-commit gate leaves in the commit's held push record,
+  through `src/native/foundation/private_storage.rs:547`,
+  `replace_private_file`.
+  Its kind was log or commit,
+  made twice,
+  once for the record and once for its directory,
+  on the commit's path after the landing,
+  which every landed commit reaches.
+  Now `replace_private_file_unsynced` in `private_storage_replacing_a_record.rs` publishes the record whole
+  by one rename and flushes nothing,
+  so a kill keeps the verdict,
+  and a machine crash keeps the record the gate found,
+  which `held_push_holder_and_verdict.rs` settles as a record with no verdict.
+  Flushing the verdict alone protected nothing the same record does not,
+  because `hold` writes the push obligation itself into it unflushed,
+  and the audit recorded in this document traced six concurrent flushes at 8 to 12.5 s each,
+  which is the wait the owner's "commits vs native git should not take 5s longer" rules out.
+  Controls:
+  `landing::service_handoff::tests::the_verdict_a_commit_records_flushes_nothing`,
+  `held_push_settled_by_the_verdict::a_commit_whose_command_died_before_its_checks_names_what_sends_it`,
+  and `budget::` in `binary_budget_tests.rs`,
+  whose constants allow no wrapper sync on a commit's path.
 
 ### A merge, a landing and a push
 

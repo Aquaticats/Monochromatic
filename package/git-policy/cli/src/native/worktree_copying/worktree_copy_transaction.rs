@@ -308,9 +308,22 @@ fn install_recorded(
         &mut state,
     );
     // A finished installation keeps nothing of that promise, and a removal that fails leaves the journal so the
-    // next command installs nothing twice and tries the removal again.
-    if result.is_ok() && destination_identity.is_some() {
-        crate::worktree_copy_unfilled_record::forget_unfilled(state.pending.path.as_path())?;
+    // next command installs nothing twice and tries the removal again. An installation that ended names what ended it, so
+    // every later command says which entry differs or which step failed, not only that something is missing.
+    if let Some(identity) = destination_identity {
+        match result.as_ref() {
+            Ok(_) => crate::worktree_copy_unfilled_record::forget_unfilled(state.pending.path.as_path())?,
+            Err(failure) => {
+                crate::worktree_copy_unfilled_record::remember_unfilled_with(
+                    state.pending.path.as_path(),
+                    destination.as_path(),
+                    identity,
+                    state.pending.journal.source_root.as_path(),
+                    state.pending.owner_token().as_deref(),
+                    failure.0.as_str(),
+                )?;
+            }
+        }
     }
     let TransactionState {
         pending: latest, ..

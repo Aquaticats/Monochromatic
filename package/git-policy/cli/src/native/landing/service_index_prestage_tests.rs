@@ -1,8 +1,8 @@
-//! Controls for the marker made ahead of the next batch:
-//! it is taken and placed without a flush on the commit's path,
-//! a commit that comes while it is still being flushed waits for it and starts no second,
+//! Controls for the markers made ahead of the next batches:
+//! one is taken and placed without a flush on the commit's path,
+//! a commit that comes while one is still being made never waits for it and stages its own,
 //! a marker for another batch or index is removed and replaced by a cold one,
-//! one file at most exists,
+//! two files at most exist,
 //! and nothing is left when the service ends.
 
 use super::*;
@@ -110,48 +110,112 @@ fn until_a_commit_waits() {
     }
 }
 
-/// A flush that starts when a commit is waiting for the marker.
-fn gated_flush(file: &std::fs::File) -> std::io::Result<()> {
+/// Set when a held flush may finish.
+static FLUSH_MAY_FINISH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The longest a held flush waits to be let go.
+/// Why:
+///  A control that expects a landing to wait for the flush lets it go only after the lock is taken,
+/// and a landing that waits
+///  would hold the flush's gate forever;
+/// the ceiling ends such a run instead of hanging it,
+/// and it is far past the
+///  cold staging a landing does on this disk (a flush of its own marker,
+/// which waits on the whole filesystem's dirty data),
+/// so
+///  a control that reads the held marker's file as still being written is reading a fact and not a race.
+const HOLD_CEILING: Duration = Duration::from_secs(120);
+
+/// What:
+///  Waits for the commit,
+/// then for the control to let this flush go,
+/// which is what makes "the flush was still running when the lock was
+///  taken" a fact and not a race against a clock.
+/// Why:
+///   The flush is not asked of this disk:
+/// a flush here waits on the whole filesystem's dirty data and was measured past
+///  a minute under this host's load,
+/// which no control's bound can hold.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// untilACommitWaits(); const held = now(); while (!FLUSH_MAY_FINISH && now() - held < HOLD_CEILING) sleep(1);
+/// ```
+fn hold_until_let_go() {
     FLUSHES.fetch_add(1, Ordering::SeqCst);
     until_a_commit_waits();
-    let flushed = file.sync_all();
+    let held: Instant = Instant::now();
+    while !FLUSH_MAY_FINISH.load(Ordering::SeqCst) && held.elapsed() < HOLD_CEILING {
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// A flush held until the control lets it go.
+fn held_flush(_: &std::fs::File) -> std::io::Result<()> {
+    hold_until_let_go();
     GATED_FLUSH_DONE.store(true, Ordering::SeqCst);
-    return flushed;
+    return Ok(());
 }
 
-/// A flush that,
-/// once a commit is waiting for the marker,
-/// takes as long as a loaded disk makes it take.
-fn gated_slow_flush(file: &std::fs::File) -> std::io::Result<()> {
-    FLUSHES.fetch_add(1, Ordering::SeqCst);
-    until_a_commit_waits();
-    std::thread::sleep(SLOW);
-    return file.sync_all();
+/// A flush held until the control lets it go,
+/// which then fails.
+fn held_failing_flush(_: &std::fs::File) -> std::io::Result<()> {
+    hold_until_let_go();
+    GATED_FLUSH_DONE.store(true, Ordering::SeqCst);
+    return Err(std::io::Error::from_raw_os_error(libc::EIO));
 }
 
-/// A commit that comes while the marker is still being flushed waits for that flush and starts no second one:
-/// the flush is held until the commit is waiting for it,
-/// so the commit provably came during the flush,
-/// it returns only after the flush has finished,
-/// and the flush ran once.
+/// What:
+///  A commit that comes while the marker is still being flushed takes the lock the ordinary way and never waits for that
+/// flush,
+/// and the marker that was still being flushed is removed once it is finished,
+/// so nothing is left in the index's directory.
+/// Why:
+///   The flush is seconds long on a loaded disk,
+/// and a landing waited for it on the commit's path
+///  (`lock_stage_kind=pre`,
+/// 9 to 13 s measured 2026-11-10);
+/// the owner's bar is that a commit through the wrapper is not five
+///  seconds slower than native Git,
+/// so a landing stands aside from a flush still running instead.
+/// The flush is held until the commit
+///  is waiting for it,
+/// so the commit provably came during the flush.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// start(gatedSlowFlush, index, 8); untilStaged(index); const lock = await acquire(index, 8);
+/// expect(notes.stageKind).toBe('cold'); discard(); expect(leftovers(index)).toEqual([]);
+/// ```
 #[test]
-fn a_commit_that_comes_during_the_flush_waits_for_it_and_starts_no_second() {
+fn a_commit_that_comes_during_the_flush_takes_the_lock_without_waiting_for_it() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let _serial = ONE_AT_A_TIME.lock().expect("serial");
         let (root, index) = index_in("prestage-flushing");
         FLUSHES.store(0, Ordering::SeqCst);
         COMMIT_WAITING.store(false, Ordering::SeqCst);
         GATED_FLUSH_DONE.store(false, Ordering::SeqCst);
-        start_with(gated_flush, &index, 8);
+        FLUSH_MAY_FINISH.store(false, Ordering::SeqCst);
+        start_with(held_flush, &index, 8);
         until_staged(&index);
         assert!(!GATED_FLUSH_DONE.load(Ordering::SeqCst), "the premise: the flush is still held when the commit comes");
         let mut notes = crate::service_index_lock::WaitNotes::default();
         let lock = acquire_noting_wait(&index, 8, &|_| {}, &mut notes).expect("taken");
-        assert_eq!(notes.stage_kind, "pre");
-        assert!(GATED_FLUSH_DONE.load(Ordering::SeqCst), "the commit took the marker only after its flush ended");
-        assert_eq!(FLUSHES.load(Ordering::SeqCst), 1, "one flush, not two");
-        assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
+        assert_eq!(notes.stage_kind, "cold", "the commit staged its own marker instead of waiting for the flush");
+        assert_eq!(std::fs::read_to_string(crate::service_index_lock::lock_path_of(&index)).expect("marker"), marker_text(8, &own_identity).expect("text"), "the lock holds this batch's marker");
+        // The marker that was still being flushed is not lost: it finishes beside the landing, and the idle time after the
+        //  landing removes it.
+        assert!(!GATED_FLUSH_DONE.load(Ordering::SeqCst), "the lock was taken while the flush was still held");
+        FLUSH_MAY_FINISH.store(true, Ordering::SeqCst);
+        let waited: Instant = Instant::now();
+        while !GATED_FLUSH_DONE.load(Ordering::SeqCst) {
+            assert!(waited.elapsed() < Duration::from_secs(60), "the flush never ended");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(FLUSHES.load(Ordering::SeqCst), 1, "one flush, the idle time's");
         drop(lock);
+        discard();
+        assert!(leftovers(&index).is_empty(), "the marker that was flushing is removed once it is finished: {:?}", leftovers(&index));
         remove(root.as_path());
     });
 }
@@ -184,6 +248,7 @@ fn a_marker_for_another_batch_is_removed_and_the_commit_stages_its_own() {
         let _serial = ONE_AT_A_TIME.lock().expect("serial");
         let (root, index) = index_in("prestage-other-batch");
         start_with(sync_file, &index, 10);
+        until_made();
         let mut notes = crate::service_index_lock::WaitNotes::default();
         let lock = acquire_noting_wait(&index, 11, &|_| {}, &mut notes).expect("taken");
         assert_eq!(notes.stage_kind, "cold");
@@ -205,6 +270,7 @@ fn a_marker_for_another_index_is_removed() {
         std::fs::create_dir(&other).expect("directory");
         let other_index: PathBuf = other.join("index");
         start_with(sync_file, &other_index, 12);
+        until_made();
         let mut notes = crate::service_index_lock::WaitNotes::default();
         let lock = acquire_noting_wait(&index, 12, &|_| {}, &mut notes).expect("taken");
         assert_eq!(notes.stage_kind, "cold");
@@ -267,16 +333,6 @@ fn the_marker_made_ahead_names_this_process_and_the_batch() {
     assert_eq!(text, marker_text(16, &own_identity).expect("text"));
     discard();
     remove(root.as_path());
-}
-
-/// A flush that,
-/// once a commit is waiting for the marker,
-/// takes as long as a loaded disk makes it take and then fails.
-fn failing_flush(_: &std::fs::File) -> std::io::Result<()> {
-    FLUSHES.fetch_add(1, Ordering::SeqCst);
-    until_a_commit_waits();
-    std::thread::sleep(SLOW);
-    return Err(std::io::Error::from_raw_os_error(libc::EIO));
 }
 
 /// Waits until the marker made ahead is finished.
@@ -361,47 +417,84 @@ fn a_link_in_the_place_of_the_flushed_file_is_not_placed() {
     });
 }
 
-/// A commit that joins a flush that then fails reports the time it waited for it,
-/// together with the cold staging that follows:
-/// the staging time is the whole preparation.
+/// What:
+///  A commit that comes to a flush which then fails takes the lock the ordinary way,
+/// without waiting for that flush,
+/// and the failed flush removes
+///  its own file beside the landing.
+/// Why:
+///   The lock is taken while the flush is still running,
+/// which the marker's file in the directory shows;
+/// a landing that
+///  waited for the flush would find the file already gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lock = await acquire(index, 24); expect(kind).toBe('cold'); expect(leftovers(index)).not.toEqual([]);
+/// ```
 #[test]
-fn a_commit_that_joins_a_failing_flush_reports_the_wait_and_the_cold_staging() {
+fn a_commit_that_comes_to_a_failing_flush_stages_its_own_without_joining_it() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let _serial = ONE_AT_A_TIME.lock().expect("serial");
         let (root, index) = index_in("prestage-failing");
         FLUSHES.store(0, Ordering::SeqCst);
         COMMIT_WAITING.store(false, Ordering::SeqCst);
-        start_with(failing_flush, &index, 24);
+        FLUSH_MAY_FINISH.store(false, Ordering::SeqCst);
+        start_with(held_failing_flush, &index, 24);
         until_staged(&index);
         let mut notes = crate::service_index_lock::WaitNotes::default();
-        let lock = acquire_noting_wait(&index, 24, &|_| {}, &mut notes).expect("taken cold after the failure");
+        let lock = acquire_noting_wait(&index, 24, &|_| {}, &mut notes).expect("taken cold beside the flush");
         assert_eq!(notes.stage_kind, "cold");
-        // The flush takes SLOW from the moment the commit waits for it, so the wait is at least that.
-        assert!(notes.staging >= SLOW, "the wait for the flush that failed is in the staging time: {notes:?}");
+        assert_eq!(leftovers(&index).len(), 1, "the flush that will fail is still running: {:?}", leftovers(&index));
+        // It fails, and its own file goes with it.
+        FLUSH_MAY_FINISH.store(true, Ordering::SeqCst);
+        let waited: Instant = Instant::now();
+        while !leftovers(&index).is_empty() {
+            assert!(waited.elapsed() < Duration::from_secs(60), "the failing flush left its file: {:?}", leftovers(&index));
+            std::thread::sleep(Duration::from_millis(5));
+        }
         assert_eq!(FLUSHES.load(Ordering::SeqCst), 1);
-        assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
         drop(lock);
+        discard();
         remove(root.as_path());
     });
 }
 
-/// A marker for another batch that is still being flushed is waited for before it is removed,
-/// and that wait is in the staging time too.
+/// What:
+///  A marker for another batch that is still being flushed is left to finish rather than waited for,
+/// and it is removed once it is
+///  finished.
+/// Why:
+///   The commit's own path may not wait for the disk,
+/// and the marker is not the commit's;
+/// the file stays until it is safe to
+///  remove,
+/// which is after its flush.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// start(gatedSlowFlush, index, 25); const lock = await acquire(index, 26);
+/// expect(kind).toBe('cold'); expect(leftovers(index)).toHaveLength(1); discard(); expect(leftovers(index)).toEqual([]);
+/// ```
 #[test]
-fn waiting_for_a_marker_of_another_batch_is_in_the_staging_time() {
+fn a_marker_of_another_batch_that_is_still_flushing_is_left_to_finish() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
         let _serial = ONE_AT_A_TIME.lock().expect("serial");
         let (root, index) = index_in("prestage-mismatch-wait");
         COMMIT_WAITING.store(false, Ordering::SeqCst);
-        start_with(gated_slow_flush, &index, 25);
+        GATED_FLUSH_DONE.store(false, Ordering::SeqCst);
+        FLUSH_MAY_FINISH.store(false, Ordering::SeqCst);
+        start_with(held_flush, &index, 25);
         until_staged(&index);
         let mut notes = crate::service_index_lock::WaitNotes::default();
         let lock = acquire_noting_wait(&index, 26, &|_| {}, &mut notes).expect("taken cold");
         assert_eq!(notes.stage_kind, "cold");
-        // The flush takes SLOW from the moment the commit waits for it, so the wait is at least that.
-        assert!(notes.staging >= SLOW, "{notes:?}");
-        assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
+        assert_eq!(leftovers(&index).len(), 1, "the other batch's marker is still being flushed: {:?}", leftovers(&index));
+        FLUSH_MAY_FINISH.store(true, Ordering::SeqCst);
         drop(lock);
+        // The idle time after the landing removes it, once its flush is over.
+        discard();
+        assert!(leftovers(&index).is_empty(), "the marker of the other batch is removed once it is finished: {:?}", leftovers(&index));
         remove(root.as_path());
     });
 }
