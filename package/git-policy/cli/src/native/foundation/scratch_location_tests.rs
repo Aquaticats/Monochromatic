@@ -22,9 +22,24 @@ fn names_in(directory: &Path) -> Vec<String> {
     return names;
 }
 
+/// How long the helper waits for the removals a cut-short sweep started to finish on their threads:
+/// the ceiling the product gives one removal before it leaves that entry to a later sweep
+/// (`SCRATCH_REMOVAL_CEILING`).
+/// Why this figure:
+///  a removal the product itself would wait for finishes inside it,
+///  so a device that delays a removal past a handful of looks is waited for,
+///  and a sweep that never empties the place ends the wait here instead of holding the test forever
+///  (owner: "nothing should ever wait forever or indefinitely").
+const SWEEP_UNTIL_PATIENCE: Duration = SCRATCH_REMOVAL_CEILING;
+
+/// How often the helper looks at the directory again while a removal it started is still on its thread:
+/// short enough that a removal finishing in the next moment is seen then,
+/// and long enough that the looks cost the test nothing.
+const SWEEP_UNTIL_LOOK: Duration = Duration::from_millis(20);
+
 /// What:
 ///  Sweep `directory` until it holds nothing but `wanted`,
-///  at most twice per entry that may still go,
+///  for at most the ceiling the product gives one removal,
 ///  and answer how many removals finished inside those calls.
 /// Why:
 ///   A sweep removes every stale entry it can and leaves the one it could not to a later sweep:
@@ -39,6 +54,11 @@ fn names_in(directory: &Path) -> Vec<String> {
 ///  which is `wanted`,
 ///  and the figure this answers is reported in that assertion's message and never asserted,
 ///  because a removal cut short still finishes on its thread while the later sweeps run.
+///  The patience is a span of time and not a number of looks:
+///  a fixed window failed the cut-short control while the product was right,
+///  because the removals it cut short finished after the window
+///  (`doc/planning/cli-git-scratch-locations.md`,
+///  "Why the cut-short control waited a ceiling").
 fn sweep_until(directory: &Path, now: SystemTime, ceiling: Duration, wanted: &[&str]) -> usize {
     return sweep_until_with(directory, now, wanted, &|directory: &Path, now: SystemTime| {
         return sweep_stale(directory, now, SCRATCH_STALE_AFTER, ceiling);
@@ -58,17 +78,17 @@ type Sweep<'a> = dyn Fn(&Path, SystemTime) -> usize + 'a;
 /// so a control can hand it one whose removals outlast the call that started them.
 fn sweep_until_with(directory: &Path, now: SystemTime, wanted: &[&str], sweep: &Sweep<'_>) -> usize {
     let mut removed: usize = 0;
-    let attempts: usize = names_in(directory).len().saturating_mul(2).saturating_add(1);
-    for attempt in 0..attempts {
+    let deadline: std::time::Instant = std::time::Instant::now() + SWEEP_UNTIL_PATIENCE;
+    loop {
         if names_in(directory) == wanted {
             break;
         }
-        let finished_before: usize = removed;
         removed += sweep(directory, now);
-        if removed == finished_before && attempt + 1 < attempts {
-            // Nothing finished inside that call, so a removal it started is still on its thread: the next sweep waits for it.
-            std::thread::sleep(Duration::from_millis(20));
+        if std::time::Instant::now() >= deadline {
+            break;
         }
+        // A removal the call cut short is still on its thread, so the next look waits for it instead of sweeping over it at once.
+        std::thread::sleep(SWEEP_UNTIL_LOOK);
     }
     return removed;
 }
