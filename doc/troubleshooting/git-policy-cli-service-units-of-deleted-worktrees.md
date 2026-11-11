@@ -117,9 +117,9 @@ or one holding other entries,
 proves the repository deleted;
 an empty one may be a mount point waiting for its drive.
 The services measured here run `0.6.1-alpha.10`,
-whose drain predates that proof,
-so each of their plans was kept,
-and a kept plan is also what keeps the service busy (fact 2).
+and their journals show them still retrying a repository deleted hours before,
+so the drain of that release did not end those plans.
+A kept plan is also what keeps the service busy (fact 2).
 
 ### 4. How units for throwaway repositories came to exist in the owner's manager
 
