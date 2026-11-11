@@ -4553,6 +4553,8 @@ mise run //package/git-policy/cli:native:test:container
   when any commit's paired delta reaches the 5,000 ms bound (the owner's measure,
   see "Latency requirements"),
   or when any sample fails.
+  The reasons are the text of a thrown error (`bin/native-perf-verdict.ts`),
+  so a failed run needs no separately assigned exit status.
   `-- --output <file>` stores the raw samples (baselines live in `perf/`;
   `schemaVersion` 2 adds the paired deltas and
   names each scenario's `kind`).
