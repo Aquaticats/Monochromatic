@@ -101,6 +101,189 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`: three findings, all reproduced and fixed (2026-11-10T19:04:54-05:00)
+
+Branch `fix/git-policy-cli-kimi-all-waits-findings`,
+from `main` at `3b0a23017e`.
+The audit read the waits added since that release and reported three findings from the code alone,
+none of them reproduced
+(`~/temp/agent/kimi-reviews/kimi-review-since-alpha8-all-waits/review.md`).
+All three reproduced here as controls that failed on that commit,
+and each is fixed with the same control passing.
+The owner's standing words behind all of them are "never discard user data",
+"Commits should never fail.",
+and "nothing should ever wait forever or indefinitely".
+
+#### Finding 1: a carry could drop bytes written through a descriptor opened before its take
+
+The audit's claim:
+`take_judged_awaiting` renames a worktree file to a `.cli-git-recovery-*` private name and checks its bytes there,
+`place_bytes_awaiting` then installs the merge's entry at the path and removed that private name unconditionally,
+and so did `remove_judged_awaiting`;
+a program that opened the file before the rename keeps a descriptor to the same inode,
+so a write through it after the check landed on a file with no name at all
+(`merge_isolation_carry_place.rs`,
+the removal at line 353 and the placing at line 415).
+That is true of the code at that commit:
+the carry's take never called the final-hash and open-holder proof the second pass's install acts on
+(`may_remove_awaiting` in `merge_isolation_take_asides.rs`,
+whose callers were `finish_asides_awaiting` and `restore_what_git_did_not_write_awaiting` only).
+
+Reproduced as `merge_isolation_carry_place::tests::a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it`:
+this process opens a write descriptor on the file before the placement,
+hangs the same inode on a child `sleep` (the holder scan leaves the calling process out),
+places the merge's bytes,
+writes through the descriptor it kept,
+and asks for the private name.
+On `3b0a23017e`:
+
+```text
+assertion `left == right` failed: the entry a process holds open is kept under its private name, not removed: [] (Written)
+  left: 0
+ right: 1
+```
+
+The fix reuses the second pass's proof instead of writing a second one:
+`may_remove_awaiting` now takes the Git context,
+the repository path,
+the aside and the identity the take proved,
+and the carry asks it before removing any private name,
+for a replacement and for a deletion.
+A private name that cannot be proved unwritable is kept,
+`Placed::Written` carries `kept: Option<PathBuf>`,
+and the carry writes one line on standard error naming the path and the private name it kept.
+Guarantees:
+`README.md` "Merging",
+"Carrying the person's own work",
+and `SPEC.md` "Other processes changing files" (a second look before a removal,
+a descriptor held on what a removal names).
+Limit:
+the proof costs one bounded holder scan per carried path that replaces or deletes an existing entry,
+the same scan the recovery install already pays,
+and its bound and measurements are `SERVICE_SCAN_BUDGET` in `index_lock_holders.rs`.
+That cost was not measured on a carry here (the host's load average was 110 to 117 during the run);
+it is the one thing about this fix that wants a paired measurement before a release.
+
+#### Finding 3: the first Git-directory ownership check ran before the beats began
+
+The audit's claim:
+for a Git directory that is not the text `shared.own_git_dir`,
+`answer_request` awaited `is_foreign` (a real-path resolution on the blocking pool) before it called `queue_a_commit`,
+and the beat writer only started inside `queue_a_commit`,
+so the newly added heartbeat cover protected the second check and not this first one;
+a file system that answered late therefore left the client hearing nothing,
+which gives up after `HEARTBEAT_SILENCE`,
+sends the commit `RECONNECTS` more times and reports it failed,
+while the service later lands it.
+That is true of the code at that commit,
+and the two checks were the same call written twice,
+the first only to decide the refusal.
+
+Reproduced as `service::service_server_connection_handling::tests::a_commit_whose_first_directory_check_waits_is_beaten_while_it_waits`,
+which drives the real `answer_request` with a commit for another worktree and holds the blocking job that resolves
+the directory's real path (a process-wide gate in a `#[cfg(test)]` module of the handler,
+`service_server_connection_handling_directory_check_hold_test_support.rs`),
+then asks for a beat and for the refusal after it.
+On `3b0a23017e`:
+
+```text
+panicked at src/native/service/service_server_connection_handling_tests.rs:269:14:
+a beat comes while the check that names the directory's instance waits: Elapsed(())
+```
+
+(The control spent 32.6 s of process time on the failing branch:
+the six-second beat bound fired,
+and dropping the runtime then waited for the held blocking job.)
+
+The fix deletes the first check and hands its one decision to `queue_a_commit`,
+whose beats already write both the refusal and the `Unavailable` answer,
+so the beats begin with the connection and the request still reaches the landing only when the check says it is this
+instance's.
+Guarantees:
+`SPEC.md` "Every wait has a bound" and the client's own bounds,
+listed under "The silence bound between messages" in
+`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`.
+A commit for another worktree is still refused `Rejected` and still never reaches the landing
+(the older control `with_threads_a_commit_naming_another_worktree_is_rejected` runs after this one and passes).
+Limit:
+the `work` and `warm` messages answer nothing and so carry no beats;
+a check that waits there costs the client its confirmation and nothing else,
+which the client's own documentation already accepts (`wake` in `service_client.rs`).
+
+#### Finding 2: a settled hold was decided from the intent parsed before the settlement
+
+The audit's claim:
+`recover_selected` parsed an open intent and then called `settle_a_recorded_hold`;
+a settlement that replays a held commit onto a branch another session moved rewrites that intent to name the replayed
+commit,
+moves the branch and removes the held record,
+and when the index install still waits it returns `LandedTheIndexWaits` and leaves the owed index record;
+`settle_a_recorded_hold` then answered `None`,
+so the loop decided with the pre-replay intent,
+whose old and new values the branch no longer names,
+which `recovery_for` classifies as `Drop`:
+that removed the owed index record,
+the conclusion copy and the intent the settlement had just rewritten,
+forgetting the index reconciliation of a commit that is on the branch.
+That is true of the code at that commit.
+
+Reproduced as
+`landing::service_land::finish_held_settlement_tests::a_restart_that_replayed_a_held_commit_keeps_the_index_update_it_owes`:
+a disposable repository with the batch's open intent,
+the index witness,
+the owed index record,
+a held record on `refs/cli-git/kept/1` and the person's worktree bytes,
+then another session's commit moves the branch,
+and `hooks::fail_at("build-index")` leaves the index install owed (the state another program's `index.lock` leaves).
+On `3b0a23017e`:
+
+```text
+monochromatic-git-policy-cli-service: batch 1 is held behind a reference lock: LandedTheIndexWaits { commit: "0b5cf331..." }
+monochromatic-git-policy-cli-service: batch 1 is not on its branch, so its commit 35ef50ee... is kept at refs/cli-git/kept/1
+panicked at src/native/landing/service_land_finish_held_settlement_tests.rs:197:5:
+the index update the landed commit owes is kept: <repo>/.git/monochromatic-git-policy-cli/work/owed/1.owed
+([RecoveryReport { seq: 1, decision: Drop, handled: Dropped }])
+```
+
+The fix asks whether a held record was there before the settlement,
+and after a settlement that finished it,
+reads the intent again with `the_intent_as_it_reads_now`:
+nothing left means the settlement completed the batch,
+an unreadable record is kept and named as everywhere else in this loop,
+and a readable one is the intent the decision below uses.
+So the restart finishes the owed index update in the same pass,
+or leaves both records for the next command,
+and never deletes them.
+Guarantees:
+`owed_index_update.rs`'s own statement of what the record prevents
+(a next commit recording the landed change's paths in reverse),
+`SPEC.md`'s rule that work already handed over stays on disk,
+and the owner's "never discard user data".
+Limit:
+the fix reads the intent a second time in the pass,
+so a batch whose intent another process rewrites in the instant between the settlement and that read is decided from
+the newer text,
+which is the text the branch state is compared against.
+
+Evidence,
+all on this branch:
+
+```text
+merge::     Summary [  66.326s] 219 tests run: 219 passed, 6073 skipped
+landing::   Summary [ 229.018s] 851 tests run: 851 passed, 5441 skipped
+service::   Summary [  71.290s] 319 tests run: 319 passed (1 slow), 5973 skipped
+```
+
+`mise run //package/git-policy/cli:native:clippy` finished with no warnings,
+`mise run //package/git-policy/cli:native:check` and this package's `lint:monochromatic-lint` pass,
+and the three controls above each failed before its fix and passed after it.
+
+Next action:
+review and merge this branch;
+then measure what the carry pays for its holder scan on a merge that carries many paths,
+paired against the commit this branch starts from,
+before the next alpha.
+
 ### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
 
 Branch `fix/git-policy-cli-merge-carry-keeps-edits-through-a-kill-and-a-save`
