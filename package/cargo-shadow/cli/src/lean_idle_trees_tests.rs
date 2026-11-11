@@ -358,6 +358,28 @@ fn a_pipe_ledger_in_an_earlier_tree_does_not_hold_the_pass_past_its_deadline() {
     assert!(later.exists(), "a tree the pass never judged is not removed");
 }
 
+/// A dependency-information file that is a pipe with no writer is no lead and holds nothing:
+/// the walk for a lead opens files Cargo and build scripts wrote inside a build tree,
+/// so one of those names must never wait for a writer.
+#[test]
+fn a_pipe_dependency_file_is_no_lead_and_does_not_hold_the_pass() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let tree: PathBuf = make_tree(&base, "ab/00000000000014", None);
+    let out: PathBuf = tree.join("debug").join("build").join("alpha").join("00000000000000aa").join("out");
+    fs::create_dir_all(&out).expect("the unit's output directory");
+    age_everything(&tree, NOW - 5 * DAY);
+    make_pipe(&out.join("alpha.d"));
+    let tree_outcome_path: PathBuf = tree.clone();
+    let collection_base: PathBuf = base.clone();
+    let collection: TreeCollection = within(move || {
+        let mut log: Vec<String> = Vec::new();
+        return collect_idle_trees(&list_trees(&collection_base), &[], &collection_base, &HashSet::new(), &POLICY, &real_environment(), NOW, false, &Deadline::after(Duration::from_secs(60)), &mut log);
+    });
+    assert!(matches!(verdict_of(&collection.outcomes, &tree_outcome_path), TreeVerdict::Keep(_)), "{collection:?}");
+    assert!(tree.exists());
+}
+
 /// A retired tree whose record names a workspace outside the base still goes,
 /// so keeping the record of a nested workspace does not keep every retired tree.
 #[test]

@@ -113,16 +113,39 @@ pub fn read_unlinked_small_text(path: &Path, limit: usize) -> io::Result<String>
 }
 
 /// What:
-/// `fn read_small_text_opened(path: &Path, limit: usize, follow_links: bool) -> std::io::Result<String>` is the read both readers share.
+/// `pub fn read_small_bytes(path: &Path, limit: usize) -> std::io::Result<Vec<u8>>` is the first `limit` bytes of a regular file at a
+/// path,
+/// opened so that nothing at the path can hold the caller,
+/// and a link at the path is followed.
 /// Why:
-/// The two differ in one flag,
+/// A dependency-information file is read for its first few hundred bytes and may be megabytes long,
+/// so the caller wants a prefix and not the whole file,
+/// and a pipe or a device at its name must not hold the pass that reads it.
+/// The bytes are returned as they are:
+/// what a file names is read even when the file is not text this build can decode.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readSmallBytes = (path: string, limit: number): Buffer => readFileSync(path, { flag: 'r' }).subarray(0, limit);
+/// ```
+pub fn read_small_bytes(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
+    let file: fs::File = open_regular(path, true)?;
+    let mut bytes: Vec<u8> = Vec::new();
+    file.take(u64::try_from(limit).unwrap_or(u64::MAX)).read_to_end(&mut bytes)?;
+    return Ok(bytes);
+}
+
+/// What:
+/// `fn open_regular(path: &Path, follow_links: bool) -> std::io::Result<fs::File>` is the open every reader here shares.
+/// Why:
+/// The readers differ in one flag and in how much they read,
 /// and the flags of the open are read in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function readSmallTextOpened(path: string, limit: number, followLinks: boolean): string
+/// function openRegular(path: string, followLinks: boolean): number
 /// ```
-fn read_small_text_opened(path: &Path, limit: usize, follow_links: bool) -> io::Result<String> {
+fn open_regular(path: &Path, follow_links: bool) -> io::Result<fs::File> {
     let mut flags: OFlags = OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NONBLOCK;
     if !follow_links {
         flags |= OFlags::NOFOLLOW;
@@ -132,7 +155,22 @@ fn read_small_text_opened(path: &Path, limit: usize, follow_links: bool) -> io::
     if kind != FileType::RegularFile {
         return Err(io::Error::other("not a regular file"));
     }
-    let file: fs::File = fs::File::from(opened);
+    return Ok(fs::File::from(opened));
+}
+
+/// What:
+/// `fn read_small_text_opened(path: &Path, limit: usize, follow_links: bool) -> std::io::Result<String>` is the text read both text readers
+/// share.
+/// Why:
+/// The two differ in one flag,
+/// and the length no file of its kind exceeds is checked in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readSmallTextOpened(path: string, limit: number, followLinks: boolean): string
+/// ```
+fn read_small_text_opened(path: &Path, limit: usize, follow_links: bool) -> io::Result<String> {
+    let file: fs::File = open_regular(path, follow_links)?;
     let mut text: String = String::new();
     file.take(u64::try_from(limit).unwrap_or(u64::MAX).saturating_add(1)).read_to_string(&mut text)?;
     if text.len() > limit {
