@@ -378,6 +378,15 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   It fires once a day at 04:30 local time and at no other moment (`Persistent=false`);
   the service has no `[Install]` section.
   See "First run" for whether it was installed.
+  Note 2026-11-11:
+  that schedule is gone.
+  The owner:
+  "Make the cleanups a systemd service that runs continuously."
+  so the command is `cargo-shadow lean service-install` now
+  (the old name still works and says what it does now),
+  it writes a continuous service with `Restart=always` and a minute between passes,
+  and it stops and removes the timer above.
+  What was built is in `doc/planning/lean-build-dirs.md`, section "Owner decision and what was built".
 
 - Deviation from the owner's words,
   veto open:
