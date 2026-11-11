@@ -143,7 +143,8 @@ fn qualifies(tree: &Tree, workspace: &Workspace, retired: &HashSet<String>, poli
 }
 
 /// What:
-/// `pub fn ledger_roots(trees: &[Tree]) -> Vec<(PathBuf, PathBuf)>` is every tree among them whose ledger names a workspace,
+/// `pub fn ledger_roots(trees: &[Tree], deadline: &Deadline) -> Vec<(PathBuf, PathBuf)>` is every tree among them whose ledger names
+/// a workspace,
 /// with that workspace.
 /// Why:
 /// The guard against removing a tree that holds another tree's workspace must cover the whole base.
@@ -152,14 +153,21 @@ fn qualifies(tree: &Tree, workspace: &Workspace, retired: &HashSet<String>, poli
 /// Only the ledger is read,
 /// never the dependency information,
 /// so a guard costs one small file read where identifying an unlabelled tree costs a walk over its dependency files.
+/// Reading stops at the deadline:
+/// a guard list that grew after it passed would guard trees the pass no longer judges,
+/// which it does not need,
+/// because a pass past its deadline judges nothing and so removes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export const ledgerRoots = (trees: Tree[]): [string, string][] => trees.flatMap((tree) => { const root = readLedger(tree.path); return root === undefined ? [] : [[tree.path, root]]; });
+/// export const ledgerRoots = (trees: Tree[], deadline: Deadline): [string, string][] => trees.flatMap((tree) => { if (deadline.passed()) return []; const root = readLedger(tree.path); return root === undefined ? [] : [[tree.path, root]]; });
 /// ```
-pub fn ledger_roots(trees: &[Tree]) -> Vec<(PathBuf, PathBuf)> {
+pub fn ledger_roots(trees: &[Tree], deadline: &Deadline) -> Vec<(PathBuf, PathBuf)> {
     let mut roots: Vec<(PathBuf, PathBuf)> = Vec::new();
     for tree in trees {
+        if deadline.passed() {
+            break;
+        }
         if let Some(root) = read_ledger(&tree.path) {
             roots.push((tree.path.clone(), root));
         }
@@ -332,7 +340,7 @@ pub fn collect_idle_trees(
     // The trees this pass does not judge are guards all the same, so their records are read first:
     // a resumed pass starts in the middle of the list, and a tree before that position may record a workspace
     // inside a tree this pass would otherwise remove.
-    let mut roots: Vec<(PathBuf, PathBuf)> = ledger_roots(earlier);
+    let mut roots: Vec<(PathBuf, PathBuf)> = ledger_roots(earlier, deadline);
     // Read once and kept: the same answer decides whether a tree holds another tree's workspace,
     // and whether the tree itself qualifies.
     let mut workspaces: Vec<Workspace> = Vec::with_capacity(trees.len());

@@ -13,7 +13,8 @@ use rustix::fs::{FlockOperation, flock};
 use crate::lean_build_trees::{Tree, TreeKind, Workspace, list_trees, profile_dirs_of, workspace_of};
 use crate::lean_identity::Deadline;
 use crate::lean_idle_trees::{IdlePolicy, TreeCollection, TreeOutcome, TreeVerdict, collect_idle_trees};
-use crate::lean_test_support::{DAY, NOW, age_everything, make_tree, real_environment};
+use crate::lean_keyed_folder::LEDGER_FILE;
+use crate::lean_test_support::{DAY, NOW, age_everything, make_pipe, make_tree, real_environment, within};
 use crate::test_scratch::scratch;
 
 /// The idle period of these tests for a tree whose workspace is gone.
@@ -333,6 +334,28 @@ fn a_tree_whose_workspace_cannot_be_shown_to_be_gone_is_kept() {
     close(&closed, 0o700);
     assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep(_)), "{outcomes:?}");
     assert!(tree.exists());
+}
+
+/// A ledger that is a pipe with no writer must not hold the pass:
+/// the guards of the trees before a recorded position are read before any tree is judged,
+/// so a read that waits for the other end waits past the deadline the run was given.
+#[test]
+fn a_pipe_ledger_in_an_earlier_tree_does_not_hold_the_pass_past_its_deadline() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let earlier: PathBuf = make_tree(&base, "aa/00000000000001", None);
+    make_pipe(&earlier.join(LEDGER_FILE));
+    let later: PathBuf = aged_tree(&base, "ab/00000000000002", &root.path().join("gone"), 5 * DAY);
+    let earlier_tree: Tree = Tree { path: earlier, kind: TreeKind::Legacy };
+    let later_tree: Tree = Tree { path: later.clone(), kind: TreeKind::Legacy };
+    let collection_base: PathBuf = base.clone();
+    let collection: TreeCollection = within(move || {
+        let mut log: Vec<String> = Vec::new();
+        return collect_idle_trees(&[later_tree], &[earlier_tree], &collection_base, &HashSet::new(), &POLICY, &real_environment(), NOW, false, &Deadline::after(Duration::ZERO), &mut log);
+    });
+    assert_eq!(collection.judged, 0, "no tree is judged after the deadline: {collection:?}");
+    assert!(collection.outcomes.is_empty(), "{collection:?}");
+    assert!(later.exists(), "a tree the pass never judged is not removed");
 }
 
 /// A retired tree whose record names a workspace outside the base still goes,

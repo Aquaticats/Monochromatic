@@ -8,8 +8,14 @@
 //! export const nameOf = (path: string): string => basename(path);
 //! ```
 
-/// Directory entries and paths.
-use std::{fs::DirEntry, path::Path};
+/// Directory entries,
+/// files,
+/// paths,
+/// and the descriptor a file is opened on.
+use std::{fs::{self, DirEntry}, io::{self, Read}, os::fd::OwnedFd, path::Path};
+
+/// The file type of an opened entry.
+use rustix::fs::{FileType, Mode, OFlags, fstat, open};
 
 /// What:
 /// `pub fn name_of(path: &Path) -> String` is the final component of a path as text,
@@ -59,6 +65,48 @@ pub fn is_directory(entry: &DirEntry) -> bool {
         Ok(kind) => kind.is_dir(),
         Err(_) => false,
     };
+}
+
+/// What:
+/// `pub fn read_small_text(path: &Path, limit: usize, follow_links: bool) -> std::io::Result<String>` is the text of a regular file at a
+/// path of at most `limit` bytes,
+/// opened so that nothing at the path can hold the caller.
+/// Why:
+/// Every name these tools read is a name in a directory others can write:
+/// the tool's own state directory,
+/// or a build tree.
+/// A pipe at one holds a plain read until a writer arrives,
+/// a device never reaches its end,
+/// and a symbolic link reads a file the caller never named.
+/// The open never waits on a pipe,
+/// the entry it opened must be a regular file,
+/// and the read stops one byte past the limit,
+/// so a file longer than any file of its kind is reported instead of read.
+/// Whether a link is followed is the caller's decision:
+/// reading a ledger through one cannot change what it names,
+/// and a record of this tool's own is never read through one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readSmallText = (path: string, limit: number, followLinks: boolean): string => readFileSync(path, { flag: 'r' }).toString().slice(0, limit + 1);
+/// ```
+pub fn read_small_text(path: &Path, limit: usize, follow_links: bool) -> io::Result<String> {
+    let mut flags: OFlags = OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NONBLOCK;
+    if !follow_links {
+        flags |= OFlags::NOFOLLOW;
+    }
+    let opened: OwnedFd = open(path, flags, Mode::empty()).map_err(io::Error::from)?;
+    let kind: FileType = FileType::from_raw_mode(fstat(&opened).map_err(io::Error::from)?.st_mode);
+    if kind != FileType::RegularFile {
+        return Err(io::Error::other("not a regular file"));
+    }
+    let mut file: fs::File = fs::File::from(opened);
+    let mut text: String = String::new();
+    file.take(u64::try_from(limit).unwrap_or(u64::MAX) + 1).read_to_string(&mut text)?;
+    if text.len() > limit {
+        return Err(io::Error::other(format!("larger than the {limit} bytes any file of its kind is")));
+    }
+    return Ok(text);
 }
 
 /// What:

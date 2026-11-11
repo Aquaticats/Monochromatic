@@ -4,53 +4,11 @@
 //! a record that is missing or unreadable means the front of the list,
 //! and neither name of the record is ever followed through a link or opened on a pipe.
 
-use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}, sync::mpsc, time::Duration};
-
-use rustix::fs::{CWD, FileType, Mode, mknodat};
+use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
 use crate::lean_progress::{LongPass, Progress, PROGRESS_FILE_NAME, RETIRED_STAGING_FILE_NAME, resume_index, state_directory};
+use crate::lean_test_support::{make_pipe, within};
 use crate::test_scratch::scratch;
-
-/// The longest a save or a read of the record may take in these tests:
-/// a record that is a pipe must answer at once rather than wait for the other end.
-const ANSWER_WITHIN: Duration = Duration::from_secs(10);
-
-/// What:
-/// `fn make_pipe(path: &Path)` makes a named pipe with no reader and no writer.
-/// Why:
-/// A pipe at one of the record's names is the shape that holds a blocking open forever,
-/// and only a pipe tests what a symbolic link or another file cannot.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const makePipe = (path: string): void => execFileSync('mkfifo', [path]);
-/// ```
-fn make_pipe(path: &Path) {
-    mknodat(CWD, path, FileType::Fifo, Mode::from_raw_mode(0o600), 0).expect("a pipe at the record's name");
-}
-
-/// What:
-/// `fn within<F, T>(work: F) -> T` is the work's answer,
-/// and a failure when the work has not answered inside `ANSWER_WITHIN`.
-/// Why:
-/// The defect these controls guard is a call that never returns,
-/// so the control cannot wait for it in the test's own thread.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function within<T>(work: () => T, limitMs: number): Promise<T>
-/// ```
-fn within<F, T>(work: F) -> T
-where
-    F: FnOnce() -> T + Send + 'static,
-    T: Send + 'static,
-{
-    let (sender, receiver) = mpsc::channel();
-    std::thread::spawn(move || {
-        let _ = sender.send(work());
-    });
-    return receiver.recv_timeout(ANSWER_WITHIN).expect("the call answered instead of waiting for the other end of a pipe");
-}
 
 /// Three keys in the order a pass walks them.
 fn keys() -> Vec<PathBuf> {
