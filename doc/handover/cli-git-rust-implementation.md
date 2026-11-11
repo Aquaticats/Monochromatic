@@ -101,6 +101,34 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The build volume filled and every agent died at once; the alpha.11 gate's seven failures (2026-11-11T13:31:32-05:00)
+
+At 13:13:51 to 13:13:59 every Pi driver exited with status 1 and wrote no summary, mid-step.
+`/var/mnt/encrypted` (the repository, every agent worktree and every build folder) had 6.5 MB free of 3.7 TB,
+from 111 GB at 02:40;
+from 13:12 to 13:14 test binaries, `rustc`, `mise` and `timeout` died on SIGABRT, SIGSEGV and SIGBUS (`coredumpctl`),
+and no process was killed for memory (no kernel OOM line, no `systemd-oomd` kill).
+The coordinator caused it: about forty agents at once, each building the wrapper,
+and nothing in the slot fill looked at free space.
+The build folders held 1,112 GB for nightly-2026-11-10, 638 for 11-09, 551 for 11-08, 372 for 11-11 (the pinned one) and 24 for 11-07.
+With no process running from or inside them, the coordinator deleted the 11-07, 11-08 and 11-09 folders (caches, rebuildable),
+which left 537 GB free; a few permission-locked test fixtures inside them remain.
+`start-pi-run-if-a-slot-is-free.ts` now starts nothing below 100 GiB free on that volume (about eleven agents' builds at the measured 9 GB each) and prints the free space with the counts.
+Round 207 resumes the 47 runs that were cut off, each on its newest Pi session with a prompt that says what happened.
+
+Also found and fixed in the launcher:
+sixteen launchers from 02:05 to 06:00 were still in `systemd-run --wait` for units dead since morning
+(they lost the unit's end while the impostor manager owned the bus name),
+so their names read as ALREADY RUNNING and five round 197 re-merges and two other agents never started;
+the coordinator stopped them by PID, and the launcher now ends its waiter once the manager reports the unit gone twice in a row.
+
+The alpha.11 gate on `fc9f7f5f4b` ran 7857 tests: 7850 passed, 7 failed.
+Run alone on the same tree, `fault_trace::a_service_killed_at_each_ftruncate_leaves_a_recoverable_repository` and both `service_withdraw` tests passed (load-sensitive);
+both `service_stop_ends_its_gits` tests still failed ("the service did not end within 29.095958s of the stop"), so they are regressions;
+`a_retryable_answer_keeps_the_record_for_a_later_round` (a dropped snapshot-ahead record) fails in 0.08 s;
+`real_cargo_leaves_a_stale_lockfile_as_checked_out` is round 170's.
+Round 201's agent owns the three regressions; alpha.11 waits for them.
+
 ### Integration pass 11, and finished branches the earlier passes never took (2026-11-11T10:28:07-05:00)
 
 Pass 11 of `integrate-jam-fixes-after-alpha-9.ts` took the alpha.11 blockers that had finished:
