@@ -22,8 +22,9 @@
 /// The failure record of a push the wrapper ran.
 use crate::auto_push_single_flight::PushAttempt;
 /// The limit a stopped child was ended by,
+/// which window it was,
 /// and the status the wrapper's own stop carries.
-use crate::bounded_push::{STOPPED_EXIT_CODE, StopCause};
+use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, StopWindow};
 /// The texts of a failed or refused upload,
 /// and the reading that says a login was needed.
 use crate::lfs_pre_push::{failed_message, login_needed_message, missing_program_message, reads_as_a_login_failure};
@@ -42,6 +43,10 @@ pub const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
 /// so the explanation says which limit came first and what the person can do about a
 ///  slow line,
 /// as the auto-push's upload does.
+///  Only the stall window is a setting,
+/// so only a stop by it names `CLI_GIT_PUSH_DEADLINE_SECONDS` as the way to allow longer;
+/// a stop by the
+///  connected window says that window is fixed and names a remedy that exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,12 +55,24 @@ pub const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
 pub fn stopped_upload_words(cause: &StopCause) -> String {
     return match cause {
         StopCause::Deadline => String::from("did not finish in time and was stopped"),
-        StopCause::Stalled(report) => format!(
-            "made no progress for {} seconds and was stopped (bytes_moved={}); {}",
-            report.limit.as_secs(),
-            report.moved,
-            crate::push_deadline_advice::extend_clause()
-        ),
+        StopCause::Stalled(report) => match report.window {
+            StopWindow::Stall => format!(
+                "made no progress for {} seconds and was stopped (bytes_moved={}); {}",
+                report.limit.as_secs(),
+                report.moved,
+                crate::push_deadline_advice::extend_clause()
+            ),
+            StopWindow::Connected => format!(
+                "held its connection to the remote open with nothing moving for {} seconds and was stopped (bytes_moved={}); {} does \
+                 not change this window, which is fixed at {} seconds. Ways forward: run the upload by hand with `git lfs push --all \
+                 <remote>`, which has no such window, and push again, because objects the server already has are not sent twice; or \
+                 push again in case the remote answers this time",
+                report.limit.as_secs(),
+                report.moved,
+                PUSH_DEADLINE_VARIABLE,
+                report.limit.as_secs()
+            ),
+        },
         StopCause::Flood => format!("wrote more than {MAX_RELAYED_BYTES} bytes of output and was stopped"),
         // A typed upload carries no arm for the service's stop, so this ending cannot be reached here.
         StopCause::ServiceStopped => String::from("was ended because the service was stopped"),

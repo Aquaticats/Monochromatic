@@ -5113,22 +5113,22 @@ through the bounded query (`src/native/push/bounded_query.rs`),
 which is the meter with no wall clock that the push's own queries use.
 The window is the push's stall window in both,
 so a program or a question that shows no sign of work for it is stopped and named,
-and one that holds an open connection to a server is waited for,
-as the push itself is
-(owner,
+and one that holds an open connection to a server is waited for while it works,
+as the push itself is,
+and ended when the connection stays open with nothing moving for the connected window
+(`CONNECTED_PUSH_QUIET_WINDOW`;
+owner,
 2026-11-03:
-"Stop only on no progress").
+"Stop only on no progress" and "Bound it,
+keep retrying").
 A stopped upload's program is ended with the grace every stopped child gets,
 and what it started goes with it,
 so the password program a login would have started cannot outlive the push either.
-One shape stays unbounded by the owner's own pick:
-a program holding an open connection to the server is waited for however long it takes
-("Wait while connected",
-owner,
-2026-11-03),
-so a server that accepts the connection and never answers still holds an interactive push.
-What closes that shape's login case is the never-prompt pair,
-not the window:
+The connected window bounds that shape too:
+a server that accepts the connection and never answers holds an interactive push for that window and no longer,
+and the upload is then stopped and named,
+with `git lfs push --all <remote>` as its way forward because a typed push has no retry plan.
+What closes that shape's login case is the never-prompt pair:
 a missing login fails at once instead of leaving the connection's wait with nothing to answer it.
 The refusal that follows a login failure says what the wrapper did about prompting,
 read from the pair the child was given (`prompting_disabled` in `src/native/invocation/child_environment.rs`):
@@ -6692,7 +6692,8 @@ in-process reader can) gives every value of the multi-valued keys.
   and the retry
   is what settles it (`src/native/push/bounded_push.rs`).
   There is no ceiling:
-  no total time ends a run that shows progress or holds an open connection (pick 5,
+  no total time ends a run that shows progress,
+  and a run that holds an open connection is ended only by the connected window (pick 5,
   above).
   The cost,
   which the pick accepts:
@@ -6727,8 +6728,12 @@ in-process reader can) gives every value of the multi-valued keys.
   The variable `CLI_GIT_PUSH_CEILING_SECONDS` no longer exists.
   A stop reports the limit that was hit:
   `limit=stall` with `made no progress for <window> seconds`,
+  or `limit=connected` when the connection to the remote was what was held open,
   and `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output,
   which the service journals.
+  The stall setting is named only where the stall window ended the run:
+  the connected window is fixed,
+  so a connected stop says that the variable does not change it and names the retry that settles it.
   Where `/proc/<pid>/io` cannot be read (a system without `/proc`,
   such as macOS,
   or a kernel without task I/O accounting)

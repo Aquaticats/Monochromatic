@@ -401,8 +401,10 @@ Read-only commands,
   everything it started is ended,
   and the push
    says the upload "made no progress for N seconds and was stopped" instead of waiting for an answer that never comes;
-  a program whose connection to the server is open is waited for,
-  as a push is.
+  a program whose connection to the server is open is waited for while it works,
+  and one that keeps it open with nothing moving for the connected window (150 seconds)
+   is stopped,
+  with `git lfs push --all <remote>` named as its way forward.
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
@@ -412,12 +414,12 @@ Read-only commands,
    to answer,
   and the refusal names the server and how to store a login in a credential helper (see "Git commands that may need a
    login").
+  A push typed at a terminal keeps Git's and `git-lfs`'s own prompting.
   That refusal says which prompting the wrapper left:
   a push with a terminal is told the wrapper kept Git's and `git-lfs`'s own prompting and names a variable or setting
    that would have refused the login,
   and only a push without one is told the never-prompt pair was added,
   so no person is sent to fix a missing terminal that was there.
-  A push typed at a terminal keeps Git's and `git-lfs`'s own prompting.
   `--dry-run` pushes and the wrapper's own probes never upload.
   `--no-verify`,
   `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
@@ -3773,7 +3775,9 @@ fractional or non-numeric value is ignored.
   The wrapper says so once,
   in a line that starts with `monochromatic-git-policy-cli: git push is waiting for the server`
    (`git fetch` or `git-lfs push` for those runs),
-  and waits until the remote answers or the connection closes.
+  and waits until the remote answers or the connection closes,
+   or until the connection stays open with nothing moving for that window,
+  when the run is stopped as a stall.
   "Connected" means that a process of the run holds a TCP socket in state `ESTABLISHED`,
   read from the kernel.
   A connection that dies without a reset is noticed only when TCP gives up;
@@ -3867,8 +3871,12 @@ fractional or non-numeric value is ignored.
   and the try number is kept.
 - There is no ceiling on a push,
   and no variable sets one:
-   no total time ends a push that shows progress or holds an open connection.
-  The report of a stopped push names `limit=stall`,
+   no total time ends a push that shows progress,
+  and a push that holds an open connection is ended only by the connected window,
+  which no variable changes.
+  The report of a stopped push names the limit that was hit:
+  `limit=stall`,
+  or `limit=connected` when the connection to the remote was what was held open,
   the bytes the push moved and the seconds it ran.
   A stopped Git process is first asked to end with `SIGTERM`,
   which lets Git remove its own `.lock` files,
