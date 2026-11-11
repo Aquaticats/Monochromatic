@@ -155,7 +155,8 @@ fn the_state_directory_is_the_state_home_or_the_home_for_that() {
     }
 }
 
-/// A link at the staging name is the tool's own name to use, and never a way into the file it names.
+/// A link at the staging name is the tool's own name to use,
+/// and never a way into the file it names.
 #[test]
 fn a_link_at_the_staging_name_never_rewrites_the_file_it_names() {
     let root = scratch();
@@ -172,7 +173,8 @@ fn a_link_at_the_staging_name_never_rewrites_the_file_it_names() {
     assert_eq!(read.after(LongPass::Trees), Some(Path::new("/base/00/bbbb")), "the staging name the link was at became the record");
 }
 
-/// A pipe at the staging name is removed, so the record is still written and no open waits for a reader.
+/// A pipe at the staging name is removed,
+/// so the record is still written and no open waits for a reader.
 #[test]
 fn a_pipe_at_the_staging_name_does_not_wait_for_a_reader() {
     let root = scratch();
@@ -187,7 +189,8 @@ fn a_pipe_at_the_staging_name_does_not_wait_for_a_reader() {
     assert_eq!(read.after(LongPass::Trees), Some(Path::new("/base/00/bbbb")));
 }
 
-/// A pipe at the record's own name is not a record this version reads, and reading it waits for nothing.
+/// A pipe at the record's own name is not a record this version reads,
+/// and reading it waits for nothing.
 #[test]
 fn a_pipe_at_the_record_name_does_not_wait_for_a_writer() {
     let root = scratch();

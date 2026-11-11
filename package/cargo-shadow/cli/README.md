@@ -1148,7 +1148,8 @@ Six mechanisms
   no other tree's workspace lies inside it;
   every profile directory yields its build locks;
   and no process uses anything under it.
-  "Other tree" means every tree of the base, including the ones a pass that continues after a recorded position
+  "Other tree" means every tree of the base,
+  including the ones a pass that continues after a recorded position
   does not judge again.
   A tree is also kept while the workspace its own ledger names lies inside another tree of the base and still exists,
   even when its toolchain is retired:
@@ -1276,12 +1277,15 @@ and each of the two long passes continues where it stopped:
   never the run itself.
 - A resumed idle-trees pass still holds the whole base's workspaces as guards.
   The trees before the recorded position are not judged again,
-  but their ledgers are read, because a tree this pass judges may hold the workspace one of them records:
+  but their ledgers are read,
+  because a tree this pass judges may hold the workspace one of them records:
   without them a resumed pass removed a tree that a pass from the front keeps,
   and the live sources inside it with it.
-  Only the ledger is read for those trees, never the dependency information,
+  Only the ledger is read for those trees,
+  never the dependency information,
   so the guard costs one small file read each:
-  measured 2026-11-11 in a fixture base on this host, 4,000 trees with a ledger on every one took 62 ms
+  measured 2026-11-11 in a fixture base on this host,
+  4,000 trees with a ledger on every one took 62 ms
   against 33 ms for the same base with no ledger (best of seven alternating runs),
   which is 29 ms for 4,000 reads and about a second for the 33,804 trees of the real base.
 

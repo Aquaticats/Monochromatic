@@ -148,7 +148,8 @@ fn qualifies(tree: &Tree, workspace: &Workspace, retired: &HashSet<String>, poli
 /// The guard against removing a tree that holds another tree's workspace must cover the whole base.
 /// A pass that continues after a recorded position judges only the trees after it,
 /// while the trees before it still record workspaces that a tree it judges may hold.
-/// Only the ledger is read, never the dependency information,
+/// Only the ledger is read,
+/// never the dependency information,
 /// so a guard costs one small file read where identifying an unlabelled tree costs a walk over its dependency files.
 ///
 /// In TS you'd write (pseudocode):
@@ -303,7 +304,8 @@ fn collect_one(tree: &Tree, reason: &str, trash: &Path, environment: &GuardEnvir
 /// and the count of judged trees is where the next run continues from.
 /// The trees before the position this pass continues from are still trees of the base,
 /// and a tree this pass judges may hold one of their workspaces:
-/// the guard covers them too, so resuming never loses the guard a pass from the front had.
+/// the guard covers them too,
+/// so resuming never loses the guard a pass from the front had.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

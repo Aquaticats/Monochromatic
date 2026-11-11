@@ -441,8 +441,10 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   so the trees before the recorded position lost their records,
   and a tree whose own workspace was gone but which held a live workspace another tree records was removed whole.
   The pass now reads the ledger of every tree before its position as a guard and judges none of them;
-  only the ledger is read, never the dependency information,
-  so the guard costs one small file read per tree (measured 2026-11-11: 29 ms for 4,000 ledgers,
+  only the ledger is read,
+  never the dependency information,
+  so the guard costs one small file read per tree (measured 2026-11-11:
+  29 ms for 4,000 ledgers,
   best of seven alternating runs against the same base with no ledgers).
   The same reasoning found a second way to lose that guard,
   which a control showed on the same day:
@@ -454,7 +456,8 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   a retired tree whose recorded workspace is outside the base still goes.
   The same amendment made both names of the record safe against the shapes a fixed name in a state directory can hold:
   a symbolic link at `lean-progress.new` used to receive the text through the link and so truncated and rewrote the file it
-  named, and a pipe there (or at `lean-progress`) held the run until someone opened the other end,
+  named,
+  and a pipe there (or at `lean-progress`) held the run until someone opened the other end,
   past any deadline.
   The staging file is now opened with `NOFOLLOW` and `NONBLOCK` after any link or pipe at the name is removed,
   and the record is read through a `NONBLOCK` descriptor,

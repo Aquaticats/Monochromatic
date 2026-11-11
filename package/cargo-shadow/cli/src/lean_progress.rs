@@ -288,7 +288,8 @@ pub enum LongPass {
 /// a link or a pipe already at the name is removed first so this run can create its own file,
 /// and the staging file a killed run left behind is a regular file and is simply replaced.
 /// A name that is still not writable after that is reported and the run carries on without a position:
-/// a lost position costs one pass from the front, never the run.
+/// a lost position costs one pass from the front,
+/// never the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -126,7 +126,8 @@ fn by_path(left: &Tree, right: &Tree) -> std::cmp::Ordering {
 /// the trees the deadline left for the next run,
 /// and every kept or skipped tree by its reason.
 /// The trees before the recorded position go in as guards rather than as work:
-/// they are not judged again, and the trees this pass does judge cannot be removed while one of them records a workspace
+/// they are not judged again,
+/// and the trees this pass does judge cannot be removed while one of them records a workspace
 /// inside them.
 ///
 /// In TS you'd write (pseudocode):
