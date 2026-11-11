@@ -1168,6 +1168,11 @@ installs that index as it is (stat data kept,
 `UNTR` and `FSMN` dropped),
 so the index and the files are one instant and the
 stat data still marks every file that was edited.
+An entry no walk proved keeps the fields its own index recorded,
+never fields taken from the file:
+fields
+of the file itself would vouch for its bytes,
+and Git would take an edit for the entry's content.
 Then,
 in the stage only and before it is swapped in,
 three real-Git runs under the new worktree's Git directory and the stage as work tree,
@@ -1182,6 +1187,33 @@ go;
 ignored files stay),
 and `git read-tree --reset -u <new commit>` (the index and the tracked files become the new commit's tree,
 rewriting exactly the paths whose files or entries differ).
+The reset rewrites a path whose file Git's own stat check can see changed,
+and an edit of the same length,
+made
+in the same second as the entry that recorded the file,
+keeps every field that check compares.
+Between the `clean` and the reset,
+in the stage only and with no Git run of its own,
+the restore settles those files by content:
+it reads the index the new worktree received,
+and for every entry whose stat data cannot vouch for the file it reads the file and compares
+it with the blob the entry names (the same content decision the clean check and the snapshot
+proof use,
+with the same refusals for a path a conversion attribute could change).
+Every path whose bytes differ,
+and every path the comparison cannot decide,
+is removed from the stage,
+and the reset then writes the commit's bytes there.
+That removal costs a write of the commit's content and never publishes other bytes.
+Only the files the stat data cannot vouch for are read:
+a file whose recorded size,
+inode,
+modification time and change time (to the nanosecond) are the file's own is believed,
+so
+an ordinary checkout and an add from a touched but unchanged file read nothing.
+The stage is the wrapper's own snapshot and is published only once the proof below holds,
+so
+the main checkout's files are never written.
 The clean runs before the reset,
 so the rules that decide what goes are the source's,
 and a

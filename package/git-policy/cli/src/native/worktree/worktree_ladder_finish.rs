@@ -161,7 +161,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     //  reset to the new worktree's HEAD from the index the snapshot carries, which is one instant with its files.
     if source.dirty.is_some() || state == CopyState::ChangedUnderCopy {
         let restore_dirty_entered: bool = begin_step("restoreDirty");
-        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context);
+        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context, &environment);
         end_step(restore_dirty_entered);
         restore_dirty_outcome?;
     } else {
