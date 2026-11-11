@@ -537,7 +537,8 @@ fn a_tool_that_ends_before_the_notice_bound_says_nothing() {
 }
 
 /// The longest a start may take before the run ends:
-/// short, so a control reaches it in milliseconds.
+/// short,
+/// so a control reaches it in milliseconds.
 const BRIEF_START: Duration = Duration::from_millis(300);
 
 /// How long the control below holds the child before its own `exec`:

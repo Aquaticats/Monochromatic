@@ -173,8 +173,9 @@ pub(crate) fn hold_the_start_before_its_exec(command: &mut Command) {
     // `nanosleep` is async-signal-safe, which is all a forked child of a threaded parent may call.
     unsafe {
         command.pre_exec(move || {
-            std::thread::sleep(held);
-            Ok(())
+            let pause: libc::timespec = libc::timespec { tv_sec: libc::time_t::try_from(held.as_secs()).unwrap_or(0), tv_nsec: held.subsec_nanos() as libc::c_long };
+            let _paused = libc::nanosleep(&pause, std::ptr::null_mut());
+            return Ok(());
         });
     }
 }

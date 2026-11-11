@@ -3890,7 +3890,8 @@ Each tool ends in a finding.
 A start that does not answer is one of those findings:
 the repair waits for the start no longer than `REPAIR_TOOL_START_CEILING`
 (`src/native/service/wait_ceilings.rs`,
-one minute, the wait a client grants the service's own start)
+one minute,
+the wait a client grants the service's own start)
 because `Command::spawn` returns only after the child's own `exec`,
 which can wait in the kernel with no end on a mount that stopped answering,
 and the quiet window,
