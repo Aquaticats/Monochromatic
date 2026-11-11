@@ -144,6 +144,41 @@ await describe({
             );
           },
         }),
+        it({
+          name: 'runs no cargo check for an alpha, refreshes the crate lockfile instead, and says before the first step what the plan left out',
+          fn: async () => {
+            const result = await record({
+              releaseOptions: {
+                ...options,
+                to: '0.4.3-alpha.2'
+              }
+            });
+            expect(result.status).toBe(0);
+            expect(result.steps.map(function labelOf(step) {
+              return step.label;
+            })).toEqual(['lock the crate', 'lock members', 'commit']);
+            expect(result.printed).toContain('$ cargo update --offline --workspace');
+            expect(result.printed).not.toContain('== cargo check');
+            const noteAt = result.printed.findIndex(function isCheckNote(line) {
+              return line.startsWith('no cargo check:');
+            });
+            expect(noteAt).toBeGreaterThan(-1);
+            expect(result.printed.indexOf('== lock the crate')).toBeGreaterThan(noteAt);
+            expect(result.printed.at(-1)).toBe('RELEASE COMMITTED');
+          },
+        }),
+        it({
+          name: 'prints no omission line and runs every step of the plan for a release that does go to crates.io',
+          fn: async () => {
+            const result = await record();
+            expect(result.printed.filter(function isOmission(line) {
+              return line.startsWith('no ');
+            })).toEqual([]);
+            expect(result.steps.map(function labelOf(step) {
+              return step.label;
+            })).toEqual(['cargo check', 'lock members', 'publish dry run', 'commit']);
+          },
+        }),
         ...adversarialLines.map(function noteCase(note) {
           return it({
             name: `passes the note ${JSON.stringify(note)} to the commit as one argument`,
