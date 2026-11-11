@@ -88,7 +88,15 @@ pub(crate) async fn plan_worktree_awaiting(
     let decision: Decision = decide(runner, entry.path.as_slice(), &layer).await.map_err(CarryFailure::Failed)?;
     let mode: String = decision.mode.clone().unwrap_or_else(plain_file_mode);
     return match decision.outcome {
-        Outcome::Merges => Ok((FileWrite::Leave, Note::None, None)),
+        // The merge's own bytes with a mode of the person's: the layer holds nothing of theirs to merge, but the mode they
+        //  set is theirs, and Git's update writes the merge's own.
+        Outcome::Merges => match side(change, true) {
+            Some(merge) if merge.mode != mode => {
+                let form: Vec<u8> = file_form_awaiting(context, root, entry.path.as_slice(), merge.oid.as_str()).await.map_err(CarryFailure::Failed)?;
+                Ok((FileWrite::Bytes(form, mode), Note::None, Some(merge.oid.clone())))
+            }
+            _ => Ok((FileWrite::Leave, Note::None, None)),
+        },
         Outcome::Ours => match &entry.worktree {
             Some(file) => Ok((
                 FileWrite::Bytes(raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?, mode),
@@ -149,7 +157,11 @@ pub(crate) async fn plan_index_awaiting(
     let decision: Decision = decide(runner, entry.path.as_slice(), &layer).await.map_err(CarryFailure::Failed)?;
     let mode: String = decision.mode.clone().unwrap_or_else(plain_file_mode);
     return match decision.outcome {
-        Outcome::Merges => Ok(IndexWrite::Leave),
+        // A staged mode of the person's stays staged over the merge's own object, as their staged bytes do.
+        Outcome::Merges => match side(change, true) {
+            Some(merge) if merge.mode != mode => Ok(IndexWrite::Entry(mode, merge.oid.clone())),
+            _ => Ok(IndexWrite::Leave),
+        },
         Outcome::Ours | Outcome::Kept(_) => match &entry.index {
             Some(staged) => Ok(IndexWrite::Entry(staged.mode.clone(), staged.oid.clone())),
             None => Ok(IndexWrite::Remove),

@@ -266,3 +266,75 @@ fn a_wait_whose_predicate_works_is_not_abandoned() {
     assert!(calls.get() >= calls_to_deliver, "the event was delivered: {} calls", calls.get());
     assert!(began.elapsed() >= window, "the event came later than the window: {:?}", began.elapsed());
 }
+
+/// What:
+///  A directory this user may not write inside a fixture does not outlive the test that made it,
+///  whether the test returns or panics.
+/// Why:
+///   Issue 6282:
+/// the fixtures of `rollback-read-only`, `remove-old-read-only`, `migrate-unreadable-dir` and `sync-unreadable-dir`
+/// stayed in the build tree of this package,
+/// and a build-tree sweeper could not delete the trees they sat in.
+/// A teardown that gives the permission back before it removes the tree is what the fix is,
+/// so this control ends both ways.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('a closed fixture directory goes when its test ends', ...)
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_closed_fixture_directory_goes_when_its_test_returns_or_panics() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let (sender, receiver) = std::sync::mpsc::channel::<PathBuf>();
+    let handle = std::thread::spawn(move || {
+        let root: PathBuf = fixture("closed-returning");
+        let closed: PathBuf = root.join("checkout/ignored/closed");
+        std::fs::create_dir_all(closed.join("inner")).expect("closed directories");
+        std::fs::write(closed.join("inner").join("file"), "content").expect("file");
+        std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o555)).expect("mode");
+        std::fs::set_permissions(closed.join("inner"), std::fs::Permissions::from_mode(0o500)).expect("mode");
+        sender.send(root).expect("send the root");
+        panic!("the test fails with a read-only directory in its fixture");
+    });
+    assert!(handle.join().is_err(), "the thread panics on purpose");
+    let root: PathBuf = receiver.recv().expect("the root");
+    assert!(!root.exists(), "{} was left behind", root.display());
+}
+
+/// A fixture whose directories are closed to this user is removed by the teardown,
+/// at every mode and depth the wrapper's controls use.
+#[cfg(unix)]
+#[test]
+fn the_teardown_gives_the_owner_back_the_permission_and_removes_the_tree() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let root: PathBuf = fixture("closed-modes");
+    for (name, mode) in [("searchable", 0o500), ("readable", 0o555), ("closed", 0o000)] {
+        let directory: PathBuf = root.join(name).join("below");
+        std::fs::create_dir_all(&directory).expect("directory");
+        std::fs::write(directory.join("file"), "content").expect("file");
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(mode)).expect("mode");
+    }
+    settle_fixture(root.as_path(), false);
+    assert!(!root.exists(), "{} was left behind", root.display());
+}
+
+/// Giving the permission back changes the owner's three bits and nothing else,
+/// and never follows a symbolic link out of the tree.
+#[cfg(unix)]
+#[test]
+fn restoring_the_owner_access_keeps_group_and_other_bits_and_leaves_a_link_s_target_alone() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let root: PathBuf = fixture("closed-bits");
+    // Another fixture, so it is outside the tree whose directories are given their permission back.
+    let outside: PathBuf = fixture("closed-bits-outside");
+    std::fs::create_dir_all(&outside).expect("outside");
+    std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o500)).expect("mode");
+    let inside: PathBuf = root.join("inside");
+    std::fs::create_dir_all(&inside).expect("inside");
+    std::fs::set_permissions(&inside, std::fs::Permissions::from_mode(0o540)).expect("mode");
+    std::os::unix::fs::symlink(&outside, root.join("to-outside")).expect("link");
+    restore_owner_access(root.as_path());
+    assert_eq!(std::fs::metadata(&inside).expect("inside").permissions().mode() & 0o7777, 0o740, "only this user's read, write and search were added");
+    assert_eq!(std::fs::metadata(&outside).expect("outside").permissions().mode() & 0o7777, 0o500, "a directory outside the tree a link names keeps its mode");
+}

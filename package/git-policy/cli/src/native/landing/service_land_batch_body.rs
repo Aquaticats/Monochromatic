@@ -255,8 +255,9 @@ pub(crate) fn land_batch_body(
         }
         timing.reads_split.witness += witness_began.elapsed();
         reach("before-ref");
-        // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
-        let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
+        // Every batch holds its commits on the scratch branch until this move, a commit Git built included: the branch write
+        //  removes it in the same transaction (`service_land_objects_of_batch.rs`).
+        let removal: String = format!("delete {scratch}\n");
         // A detached head is the `HEAD` file itself and is updated as such. The update follows a symbolic `HEAD` as native Git's
         //  own commit does, because a compare that does not follow it replaces a head attached to a branch since the last look
         //  (measured: `option no-deref` with `update HEAD <new> <old>` replaced `ref: refs/heads/B` at the old name with the

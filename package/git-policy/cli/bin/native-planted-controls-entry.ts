@@ -57,8 +57,8 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'PID file proof skips the holder scan',
     file: 'src/native/lock/index_lock_evidence.rs',
-    from: 'if let PidFile::Owner(pid, PidOwner::StartedBeforeLock(_)) = &pid_file {',
-    to: 'if let PidFile::Owner(pid, PidOwner::Missing) = &pid_file {',
+    from: '    if let PidFile::Owner(pid, process) = &pid_file\n        && process.names_git()\n    {',
+    to: '    if let PidFile::Owner(pid, _process) = &pid_file\n    {',
     failing: 'lock::index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner',
   },
   {
@@ -92,15 +92,15 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'the native commit names a hooks directory that can exist',
     file: 'src/native/commit/commit_preparation.rs',
-    from: '    arguments.push(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));',
-    to: '    arguments.push(String::from("core.hooksPath=.git/hooks"));',
+    from: '    arguments.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));',
+    to: '    arguments.push(OsString::from("core.hooksPath=.git/hooks"));',
     failing: 'commit::commit_preparation::tests::native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off',
   },
   {
     name: 'a hook switched off by name is reported',
     file: 'src/native/health/external_hooks.rs',
-    from: 'Lookup::Found(false)',
-    to: 'Lookup::Found(true)',
+    from: 'bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)',
+    to: 'bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(true)',
     failing: 'health::external_hooks::tests::a_hook_switched_off_by_name_is_not_reported',
   },
 

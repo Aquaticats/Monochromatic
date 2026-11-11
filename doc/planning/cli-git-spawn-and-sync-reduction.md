@@ -1937,6 +1937,18 @@ which is what the refusal controls see;
 `commit_named_ignored_files_tests.rs` proves both halves with a recording Git child,
 and the reader that declines an index leaves every name to Git,
 as before.
+The reader declines one more case since 2026-11-10:
+a command line that selects a repository (`--git-dir`,
+`--work-tree`,
+`--bare`)
+names an index whose paths are spelled from that repository's own worktree,
+while the layout reader answers only for the directory the command runs in,
+so a prefix from the wrong worktree could match an unrelated entry and hide a name a person named.
+There the reader leaves every name to Git,
+as `capture_invocation_layout` already does for the prefix it reads.
+The four constants name no repository,
+so their `check-ignore` stays 0,
+and a commit whose command line names one repository asks one question about its named paths.
 
 ## Filesystem identity without `findmnt` (slice S2)
 
