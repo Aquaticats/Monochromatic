@@ -1294,6 +1294,17 @@ The swap this command made itself proves the worktree is its own,
 so the skip comes before any question about the reservation the destination answered for before the swap:
 no line says the worktree received no copy,
 and no record describes it as unfilled.
+A command killed after the swap and before the directory is settled leaves it at the stage name,
+and recovery proves that swap from the two identities the add recorded before it ran:
+the destination's record names the directory Git made and the stage's record names the snapshot,
+so the object at the stage name is the first of them and the object at the destination is the second.
+It settles the directory the way the creating command does,
+and settles the add's records without a copy,
+because the snapshot carried the ignored state;
+no command then says a copy is still owed.
+A stage name whose recorded destination is gone or replaced is cleared only when the folder holds
+nothing but the pointer Git wrote for that add,
+and a folder holding anything else keeps its claim and its records and is named.
 
 The snapshot an add takes is usually one this repository's commit service made ahead of it
 (`src/native/worktree/worktree_snapshot_ahead.rs`):
@@ -3526,7 +3537,14 @@ naming the reason the failure gave,
 so every later command prints that reason instead of staging the source again;
 the worktree is named with `git worktree remove --force <path>` and the same `git worktree add` line,
 and the record goes when the worktree is removed or replaced.
+That record is written before the claim is settled,
+so a command killed between the two leaves the record and the claim that names it,
+and a record that cannot be written leaves the claim too:
+every later command still names the worktree.
 A source that is no longer a worktree of this repository ends the copy the same way,
+and so does a source whose directory is gone or is no longer a directory,
+which the registration query cannot even be started in;
+a refusal that could change leaves the record and the next command asks again,
 and a source that is itself being filled leaves the record for the next command.
 
 After the journals,

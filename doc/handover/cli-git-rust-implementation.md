@@ -8875,6 +8875,72 @@ the twelve `monochromatic-lint` errors `main` carries in `commit/`,
 which no commit of this branch changed,
 and the linter's package run therefore still ends non-zero.
 
+### The exchange a kill interrupts, and two ways a copy gave up, after the worktree-add audit (2026-11-11T18:40-05:00)
+
+Cross-vendor audit `alpha-10-worktree-add`
+(`${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-10-worktree-add/`)
+reported three defects in this area against `97aeffe75bfb`.
+Branch `fix/git-policy-cli-alpha-10-audit-add-recovery-keeps-its-records`
+starts at `6777017fc4` and fixes them;
+every control failed first,
+with the fix's proof disabled rather than on a full revert,
+and the process-level reproductions ran on the built binary with a disposable `HOME` and `XDG_RUNTIME_DIR`.
+
+A kill after `RENAME_EXCHANGE` left the directory real Git made at the stage name for ever.
+The record of the stage's creation still named the snapshot,
+so the reaping's proof found another object at that name and kept the folder,
+and the pass that finishes an owed copy refused the destination because the exchange itself changed its identity;
+every later command therefore repeated a missing-copy warning about a worktree that holds the whole ignored state.
+`worktree_copy_swapped_add_settlement.rs` proves the exchange from the two identities both records hold before it runs,
+settles the folder the way the creating command settles it,
+releases the claim without a copy,
+and is asked by the reaping and by the owed-copy pass.
+Measured: after the kill at the post-exchange pause,
+the first wrapped `status` in another worktree printed one settlement line,
+the second printed nothing,
+no stage container and no `.stage`,
+`.add` or `.made` record was left,
+the snapshot's ignored file stayed in the worktree,
+and removing the worktree and adding it again left nothing either.
+
+A copy that gave up wrote its record after it settled the claim,
+so a kill between the two left nothing at all,
+and no later command could tell that worktree from a whole one.
+The record now comes first;
+a record that cannot be written therefore leaves the claim too.
+Measured with the pause between the record and the claim:
+the `.unfilled` record and the claim both survived the kill,
+the next `status` printed the reason and the two commands that settle it,
+and only the `.unfilled` record remained.
+
+A source whose directory was removed altogether made the registered-root query fail,
+because that query runs inside the source,
+and the pass then left the claim with a line saying the copy was still owed,
+which no command could ever make;
+the durable unfilled record `SPEC.md` promises was never written.
+A source that is no directory any more now ends the copy with the same reason a source that is no worktree does,
+while every other refusal still keeps the records for the next command.
+Measured with the source deleted:
+`the registered roots could not be read` followed by the unfilled record's line naming the reason,
+and the same line from the next command.
+The audit's sharper claim,
+that the journal root was empty afterward,
+did not reproduce on this branch:
+the claim and its `.add` record stayed and the wrong line repeated.
+
+`SPEC.md` carries the settlement and the order ("After the journals" and the snapshot rung's paragraph),
+and the modules' controls are in `worktree_copy_swapped_add_settlement_tests.rs`
+and `worktree_copy_owed_copy_tests.rs`.
+Measured on this host:
+`worktree_copy_owed_copy`,
+`worktree_copy_swapped_add_settlement`,
+`worktree_copy_stage_claim`,
+`worktree_copy_recovery`,
+`worktree_copy_unfilled_record` and `worktree_copy_lifecycle` ran `130` of `130`,
+the binary suite's `worktree_ladder` filter ran `10` of `10`,
+Clippy ends with no finding,
+and the three process-level reproductions print `FIXED` or the unfilled line they assert.
+
 ### The source layout waits for the owner's read (2026-11-08T23:57:46-05:00)
 
 The target tree is drafted and cross-vendor reviewed in

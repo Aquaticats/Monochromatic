@@ -129,6 +129,12 @@ pub mod worktree_copy_stage_reaping_proof_and_words;
 #[cfg(unix)]
 pub mod worktree_copy_interrupted_add_settlement;
 
+/// The add whose own snapshot was swapped into place before its command was killed:
+/// the two identities that prove it,
+/// and the settlement of its stage and records.
+#[cfg(unix)]
+pub mod worktree_copy_swapped_add_settlement;
+
 /// The registration one staged copy is bound to,
 /// recorded beside its payload and checked before every write into a worktree.
 #[cfg(unix)]
@@ -193,6 +199,11 @@ pub mod worktree_copy_interrupted_checkout;
 /// made by a command in the worktree it fills.
 #[cfg(unix)]
 pub mod worktree_copy_owed_copy;
+
+/// Whether the worktree a copy takes its state from can still be one,
+/// and the reason a copy is given up on when it cannot.
+#[cfg(unix)]
+pub mod worktree_copy_owed_copy_source;
 /// Recovery of interrupted copies:
 /// registration checks,
 /// discards with notices,
