@@ -3969,6 +3969,27 @@ fractional or non-numeric value is ignored.
   Being offline,
   a stall,
   an HTTP 5xx answer of the LFS server and a held lock can pass.
+  The server's own protected-branch refusal passes the same way,
+  for a fixed number of tries:
+  GitHub answers one with
+   `GH006: Protected branch update failed for <ref>`,
+  and such a refusal cleared by itself three times in this repository,
+  so a push answered with it is given five tries in all
+   (a try a stall or an offline failure spent counts too),
+  and with the default first pause the last of those tries comes two and a half minutes after the refusal.
+  That is the owner's decision of 2026-11-11,
+   "Make the wrapper auto retry on GH006";
+  GitHub's words for a refused update are what make it that refusal
+   (the code family alone also covers other refusals such as one of a deletion),
+  since the reason beside it
+   (`protected branch hook declined`) is where any server writes words of its own.
+  A refusal that keeps coming back ends after that fifth try
+   (an unsigned commit on a branch that requires signed commits is one)
+  with a record that names what GitHub said,
+  how many tries the service gave it and how long they covered,
+  and both ways out.
+   One of them is to change the commit or the rule and commit again;
+  the other is to push by hand.
   Three failures stop the retry until the person's next commit
    (owner decision,
   2026-11-03:
@@ -3980,7 +4001,8 @@ fractional or non-numeric value is ignored.
   an HTTP 401 or 403,
   or
    SSH's "Permission denied ("),
-   and a hook on the server that declined the push (a `[remote rejected]` line whose reason ends in "hook declined").
+   and a hook on the server that declined the push (a `[remote rejected]` line whose reason ends in "hook declined",
+  with no protected-branch code anywhere in the push's output).
   The failure record then starts with plain words that say which one it was,
   above Git's own words
    (for a decline,
