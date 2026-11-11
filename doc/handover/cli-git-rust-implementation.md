@@ -101,6 +101,36 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The owner's answers of 2026-11-11T16:35-05:00, through the question tool
+
+Eight choices, each asked with its options, pros, cons and a ranking; the owner's picks, verbatim:
+
+- The `qwen-token-plan-individual` plan's DeepSeek models as a fourth pool for regular agents: "Keep it for qwen only".
+  The slot script's `qwen-token-plan` pool takes only `qwen4-max-preview`.
+- `refactor/git-policy-cli-source-layout` (`671eb1c6d1`) and `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` (`2ac6da873e`): "Delete outright"
+  (over pinning their tips under a kept ref, and over keeping them).
+  The coordinator removed the clean worktree each was checked out in and deleted both, and the first on `origin` too.
+- Issue #3024 (a vendored clone under the Cargo build directory refused by the worktree policy): "Exempt Cargo build dir (Recommended)",
+  whose text was "Read CARGO_BUILD_DIR, then CARGO_TARGET_DIR, add it beside uv and mise, and state the exemption's limit in the function's doc."
+  Round 220, `fix/git-policy-cli-vendored-clone-under-the-cargo-build-dir-is-exempt`.
+- The stale decision records of issues #1698, #3258, #3275, #3276 and #3745: "Rewrite the stale parts" ("Replace old text with current facts."),
+  over dated notes beside the old text and over leaving them.
+  That is the owner's approval to edit those sentences of `doc/decision/`, and for them it replaces rule `WR6`'s keep-the-original-plus-a-note.
+  Round 220, `docs/decision-records-stale-parts-rewritten`.
+- Issue #1768 (a session whose `git` is not the wrapper loses every protection silently): "Launcher preflight only",
+  over also fixing the shell-command analyzer's PATH-prefix hole.
+  Round 220, `feat/pi-shared-subagent-driver-preflight-finds-a-session-without-the-wrapper`.
+- Round 187's adopted choice (a worktree add installs a copy taken ahead and names the ignored entries that changed after it): vetoed, "Fresh snapshot every add"
+  (measured 5.4 s at the median and 26 s at worst in that agent's fixture).
+  Sent to the round 218 agent fixing that branch's review findings, and to the round 212 worktree-add agent.
+- Round 187's adopted removal of an orphan snapshot whose identity was never recorded: "Keep removing, fix the check"
+  (over naming such snapshots and never removing them automatically);
+  the round 218 agent fixes the Kimi finding that the check can match a different snapshot holding the only copy of data.
+- Issues #492, #574, #1717, #3796 and #630, whose options are not yet researched: "Defer until alpha.11 (Recommended)".
+
+Still to ask: the shadow pool claim's rename once round 212's proposal lands,
+and Sonnet's finding that an add can stay quiet for 600 s against "60s is fine for adding worktrees" once it is framed with options.
+
 ### Pass 13 does not build, a launcher that waited on other agents, and qwen4-max-preview against Kimi and Sonnet (2026-11-11T16:45:00-05:00)
 
 Pass 13 merged 17 branches onto `3b94069dbf`, to `8d9febd625`, and 5 conflicted (round 215 re-merges them).
@@ -266,6 +296,7 @@ an add that installs a copy taken ahead names every ignored entry that changed a
 Adopted under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself", with the veto open:
 a copy taken ahead is kept and its newer entries named, rather than a fresh snapshot on every add (a fresh snapshot measured 5.4 s at the median and 26 s in the agent's fixture, against "60s is fine for adding worktrees");
 and the kill-window proof is the record's instant plus the folder's shape, since the object's identity cannot exist before the object.
+The owner answered both on 2026-11-11 ("The owner's answers of 2026-11-11T16:35-05:00"): the copy taken ahead is vetoed for "Fresh snapshot every add", and the removal stays with its check fixed.
 Its report also named a test run that lost 157 tests when its binary vanished mid-run;
 the build folder's ledger names only that agent's worktree, so the cause is open, and round 203 proves or rules out the cargo shadow's sweeps.
 
