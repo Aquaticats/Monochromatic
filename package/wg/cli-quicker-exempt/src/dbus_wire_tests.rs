@@ -67,6 +67,37 @@ fn every_value_starts_on_its_own_boundary() {
     assert_eq!(aligned(9, 4), 12);
 }
 
+/// An array's length counts the bytes its elements occupy,
+/// and not the padding that puts the first element on the element type's boundary,
+/// because a reader takes that padding for part of the last element
+/// and the manager answers a body laid out that way with
+/// `Failed to set unit properties: Bad message`.
+#[test]
+fn an_array_length_counts_its_elements_and_not_the_padding_before_them() {
+    // A property name whose bytes put the array's length field on a four-but-not-eight boundary.
+    let name = "MemoryMax";
+    let arguments = vec![
+        Argument::Text("a".to_string()),
+        Argument::Properties(vec![Property { name: name.to_string(), value: PropertyValue::Number(1_073_741_824) }]),
+    ];
+    let bytes = encode_call(1, "/org/freedesktop/systemd1", "org.freedesktop.systemd1.Manager", "SetUnitProperties", None, &arguments);
+    // The body starts after the header fields, on an eight-byte boundary.
+    let fields_length = usize::try_from(u32::from_le_bytes(bytes[12..16].try_into().expect("four bytes"))).expect("a field length that fits");
+    let body_start = aligned(16 + fields_length, 8);
+    // The one-character text argument occupies its length, its byte and the end byte.
+    let text_bytes = 4 + "a".len() + 1;
+    let length_at = body_start + aligned(text_bytes, 4);
+    let content_at = aligned(length_at + 4, 8);
+    assert_ne!((length_at + 4) % 8, 0, "the padding this test is about exists only when the length field ends off an eight-byte boundary");
+    assert_eq!(content_at, length_at + 4 + 4, "four padding bytes stand between the length field and the first element");
+    // One element: the name, a `t` signature, the padding before the number, and the number.
+    let name_bytes = 4 + name.len() + 1;
+    let signature_bytes = 1 + "t".len() + 1;
+    let element_bytes = aligned(name_bytes + signature_bytes, 8) + 8;
+    let declared = u32::from_le_bytes(bytes[length_at..length_at + 4].try_into().expect("four bytes"));
+    assert_eq!(usize::try_from(declared).ok(), Some(element_bytes), "the array declares the bytes of its element alone");
+}
+
 /// A destination is written only when the call goes over a bus,
 /// and the private socket's call has none:
 /// nobody there needs to be told who the manager is.
