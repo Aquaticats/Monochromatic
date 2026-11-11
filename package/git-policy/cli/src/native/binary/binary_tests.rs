@@ -184,6 +184,11 @@ mod no_checkout_clone;
 #[path = "binary_hint_tests.rs"]
 mod hints;
 
+/// Every command a message prints as a remedy runs as printed,
+/// in the state that prints it.
+#[path = "binary_printed_remedies_tests.rs"]
+mod printed_remedies;
+
 /// `markdown/autofix` with the linter built from this repository,
 ///  a missing one and a failing one.
 #[path = "binary_markdown_tests.rs"]

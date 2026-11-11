@@ -335,7 +335,8 @@ fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner)
 /// ```
 fn report_incomplete(plan: &AddPlan) {
     let shown: String = plan.destination.display().to_string();
-    warn(TAG, format!("monochromatic-git-policy-cli: the `git worktree add` of {shown} could not be completed; the worktree and its registration were left as they are. `git -C {shown} reset --hard` retries its checkout, and `git worktree remove --force {shown}` removes it.").as_str());
+    let finish: String = crate::worktree_finish_commands::finish_or_remove_sentence(plan.destination.as_path());
+    warn(TAG, format!("monochromatic-git-policy-cli: the `git worktree add` of {shown} could not be completed; the worktree and its registration were left as they are. {finish}").as_str());
 }
 
 /// What:

@@ -2403,7 +2403,13 @@ the worktree and its registration stay as they are,
 the command fails with Git's
 status,
 and one report names the path,
-`git -C <path> reset --hard` (retry) and `git worktree remove --force <path>`.
+`git -C <path> reset --no-enforce-worktree --hard` (retry) and
+`git worktree remove --force <path>`.
+The hatch is in that command because the worktree guard reads a checkout that never ran as a worktree
+holding uncommitted changes and refuses a hard reset there,
+and the report says what the reset discards;
+the sentence comes from `worktree_finish_commands`,
+which the interrupted-add report prints too.
 Every Git step the ladder starts itself (`git read-tree` of a rung,
 the fallback `git reset --hard`) has a
 ceiling and is ended with a `SIGKILL` to Git when the ceiling is reached
@@ -2544,7 +2550,7 @@ When the worktree's administrative directory holds `index.lock`
 (the shape a kill inside the index install leaves),
 that file is named first,
 with the condition for removing it (no Git command running in the worktree),
-because `git -C <path> reset --hard` cannot start while it stands
+because `git -C <path> reset --no-enforce-worktree --hard` cannot start while it stands
 (`fatal: Unable to create '.../index.lock': File exists`)
 and `git status` in the worktree still works,
 so nothing else would say why every write to it fails.
@@ -3813,6 +3819,11 @@ an unborn or detached `HEAD`,
  and a
 `FETCH_HEAD` that lists no head or several (the pull then runs again from its fetch,
 which is idempotent).
+When the working tree cannot be moved along,
+the report keeps Git's own words
+(`fatal: Cannot fast-forward your working tree.` and the `git reset --hard` it names)
+and appends one line naming the hatch that lets that reset run here,
+because the worktree guard refuses a hard reset in the dirty worktree that made the move fail.
 A pull with nothing stated keeps Git's refusal of divergent branches and its advice.
 
 A merge,
