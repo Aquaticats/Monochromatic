@@ -26,6 +26,11 @@
 //!  never none;
 //! when a kill leaves both,
 //! the newer one is the plan.
+//! A plan records the instant it was written,
+//! and a forget removes only the plans written before the round that asked for it began:
+//! the job that applies a round's changes is never cancelled,
+//! so it can outlive the round,
+//! and its late forget must not take a statement a later round wrote.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -87,20 +92,41 @@ fn plan_name(plan: &StoredPlan) -> String {
     return format!("{}{NAME_SEPARATOR}{}{NAME_SEPARATOR}{}.{PLAN_EXTENSION}", branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), plan.attempt, fnv_hex(plan.item.oid.as_str()));
 }
 
-/// The text of a plan file.
-fn encode(plan: &StoredPlan) -> String {
+/// The instant a plan is written,
+/// in microseconds since the epoch,
+/// which is how a removal tells a statement newer than a round from an older one.
+/// Why:
+///   The record's own instant is read back with the plan,
+/// so a forget a round applies is judged against the round it belongs to and never against the clock of its removal;
+/// a filesystem's timestamps also depend on the mount, while this field is the writer's.
+///
+pub fn micros_now() -> u64 {
+    return std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map_or(0, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX); });
+}
+
+/// The text of a plan file,
+/// written at `saved`.
+fn encode_at(plan: &StoredPlan, saved: u64) -> String {
     let mut fields: Map<String, Value> = Map::new();
     fields.insert(String::from("v"), Value::from(PLAN_VERSION));
     fields.insert(String::from("attempt"), Value::from(plan.attempt));
+    fields.insert(String::from("saved"), Value::from(saved));
     // The directory goes in as plain text and as its bytes, so a plan is read back as the directory it was saved for.
     path_bytes::write_field(&mut fields, "gitDir", plan.git_dir.as_path());
     fields.insert(String::from("item"), Value::from(plan.item.encode()));
     return format!("{}\n", Value::Object(fields));
 }
 
-/// The plan a file's text holds,
-/// or why it holds none.
-fn decode(text: &str) -> Result<StoredPlan, String> {
+/// The text of a plan file written now.
+fn encode(plan: &StoredPlan) -> String {
+    return encode_at(plan, micros_now());
+}
+
+/// The plan a file's text holds and the instant it records,
+/// which is nothing for a file an earlier release wrote.
+fn decode_at(text: &str) -> Result<(StoredPlan, u64), String> {
     let value: Value = match serde_json::from_str(text) {
         Ok(parsed) => parsed,
         Err(error) => return Err(format!("the plan is not JSON: {error}")),
@@ -117,8 +143,10 @@ fn decode(text: &str) -> Result<StoredPlan, String> {
     let Some(item_text) = value.get("item").and_then(Value::as_str) else {
         return Err(String::from("the plan holds no push item"));
     };
+    // A file an earlier release wrote records no instant, and it is older than any statement this release writes.
+    let saved: u64 = value.get("saved").and_then(Value::as_u64).unwrap_or(0);
     let item: WorkItem = WorkItem::decode(item_text)?;
-    return Ok(StoredPlan { git_dir: path_bytes::read_field(&value, "gitDir")?, item, attempt });
+    return Ok((StoredPlan { git_dir: path_bytes::read_field(&value, "gitDir")?, item, attempt }, saved));
 }
 
 /// What:
@@ -137,7 +165,7 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
         return Err(format!("creating the plan directory failed: {error}"));
     }
     let name: String = plan_name(plan);
-    match write_private_file_unsynced(directory.join(name.as_str()).as_path(), encode(plan).as_bytes()) {
+    match write_private_file_unsynced(directory.join(name.as_str()).as_path(), encode_at(plan, micros_now()).as_bytes()) {
         Ok(()) => {}
         // The same try of the same commit is already there.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
@@ -149,6 +177,8 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
         plan.item.branch_ref.as_str(),
         &[branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), earlier_branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str())],
         std::slice::from_ref(&name),
+        // A save is the newest statement of its branch, so every other file of it goes.
+        None,
     );
     return Ok(());
 }
@@ -162,28 +192,41 @@ pub fn name_of(plan: &StoredPlan) -> String {
 /// Removes the files of the plan of a branch;
 /// one that cannot be removed stays and is read again by the next start.
 pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
-    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], &[]);
+    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], &[], None);
 }
 
 /// What:
-///  Removes the files of the plan of a branch except the ones named in `keep`.
+///  Removes the files of the plan of a branch except the ones named in `keep`
+///  and the ones written at or after `written_before`.
 /// Why:
 ///   A forget a worker asked for is applied by the service loop after the round,
 /// so a plan another worker kept meanwhile is newer than the forget and is the statement that still counts;
 /// its file name is known before it is written,
 /// and is not removed.
+/// The job that applies a round's changes is not cancelled,
+/// so a round's forget can be written long after that round ended,
+/// and a later round may have written the newer statement of the same branch meanwhile;
+/// `written_before` is the instant the forgetting round began,
+/// so a plan written since is newer than what that round read and stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// removeFilesOf(gitDir, branchRef, keys, keep)
+/// removeFilesOf(gitDir, branchRef, keys, keep, roundBeganAt)
 /// ```
-pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &[String]) {
-    remove_files_of(directory, git_dir, branch_ref, &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)], keep);
+pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &[String], written_before: u64) {
+    remove_files_of(
+        directory,
+        git_dir,
+        branch_ref,
+        &[branch_key(git_dir, branch_ref), earlier_branch_key(git_dir, branch_ref)],
+        keep,
+        Some(written_before),
+    );
 }
 
 /// Removes the plan files of one branch of `git_dir`,
 /// whose keys are `keys`,
-/// except the ones named in `keep`,
+/// except the ones named in `keep` and the ones written at or after `written_before`,
 /// and removes a file only when its record was read and names this directory and this branch.
 /// Why:
 ///   "never discard user data."
@@ -198,8 +241,10 @@ pub fn remove_except(directory: &Path, git_dir: &Path, branch_ref: &str, keep: &
 /// so it stays and `load` judges it and says so,
 /// since deleting it needs permission on its directory alone.
 ///  The names in `keep` are the plans a round is about to write,
-/// which a forget of the same round must not take.
-fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: &[String]) {
+/// which a forget of the same round must not take,
+///  and `written_before` is the instant that round began,
+/// so a statement a later round wrote is not taken either.
+fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[String], keep: &[String], written_before: Option<u64>) {
     let Ok(listing) = std::fs::read_dir(directory) else { return };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
@@ -207,23 +252,30 @@ fn remove_files_of(directory: &Path, git_dir: &Path, branch_ref: &str, keys: &[S
             continue;
         }
         let path: PathBuf = entry.path();
-        if !records_this_branch(path.as_path(), git_dir, branch_ref) {
+        let Some(saved): Option<u64> = saved_of_the_branch(path.as_path(), git_dir, branch_ref) else { continue };
+        // A plan written at or since the forgetting round began is a newer statement than the one that round read.
+        if written_before.is_some_and(|began: u64| saved >= began) {
             continue;
         }
         let _removed = std::fs::remove_file(path);
     }
 }
 
-/// Whether the plan in `path` was read and names `git_dir` and `branch_ref`,
+/// The instant the plan in `path` records,
+/// when that plan was read and names `git_dir` and `branch_ref`,
 /// which is the only case a cleanup may remove it.
 /// Why:
 ///   A read or decode that fails is no proof about the plan:
 /// an unreadable file and a file that holds no plan both stay,
 /// and `load` says what it found and removes what is no plan.
-fn records_this_branch(path: &Path, git_dir: &Path, branch_ref: &str) -> bool {
-    let Ok(text) = std::fs::read_to_string(path) else { return false };
-    let Ok(found) = decode(text.as_str()) else { return false };
-    return found.git_dir == git_dir && found.item.branch_ref == branch_ref;
+/// The instant is what tells a statement a later round wrote from one the forgetting round read.
+fn saved_of_the_branch(path: &Path, git_dir: &Path, branch_ref: &str) -> Option<u64> {
+    let text: String = std::fs::read_to_string(path).ok()?;
+    let (found, saved): (StoredPlan, u64) = decode_at(text.as_str()).ok()?;
+    if found.git_dir == git_dir && found.item.branch_ref == branch_ref {
+        return Some(saved);
+    }
+    return None;
 }
 
 /// Whether a plan file's name begins with the key of one of the branch's plans.
@@ -269,12 +321,12 @@ pub fn load(directory: &Path) -> Vec<StoredPlan> {
             Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
             Err(_) => SystemTime::UNIX_EPOCH,
         };
-        let decoded: Result<StoredPlan, String> = match std::fs::read_to_string(path.as_path()) {
-            Ok(text) => decode(text.as_str()),
+        let decoded: Result<(StoredPlan, u64), String> = match std::fs::read_to_string(path.as_path()) {
+            Ok(text) => decode_at(text.as_str()),
             Err(error) => Err(error.to_string()),
         };
         match decoded {
-            Ok(plan) => found.push((written, plan)),
+            Ok(plan) => found.push((written, plan.0)),
             Err(reason) => {
                 crate::service_warn!("the retry plan file {} holds no plan and is removed: {reason}", path.display());
                 let _removed = std::fs::remove_file(path.as_path());

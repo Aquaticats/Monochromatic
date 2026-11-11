@@ -153,6 +153,8 @@ fn round_of_wakes(wakes: Vec<Wake>, handlers: &GitHandlers) -> (Vec<PathBuf>, Ar
 /// const assignments = planTheRound(directories, retries, takenAt);
 /// ```
 fn plan_the_round(directories: &[PathBuf], retries: &mut PushRetries, taken_at: Instant) -> Vec<Assignment> {
+    // The round began now, and the plans its workers write are newer than anything an earlier round's late forget read.
+    retries.begin_round();
     let first: Duration = retries.first();
     let mut assignments: Vec<Assignment> = Vec::new();
     for directory in directories {

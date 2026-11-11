@@ -36,7 +36,7 @@
 /// The positive-seconds reading shared by the wait limits.
 use crate::push_deadline_and_patience_settings::positive_seconds;
 /// The plan on disk.
-use crate::push_retry_store::{StoredPlan, load, name_of, remove_except, save};
+use crate::push_retry_store::{StoredPlan, load, micros_now, name_of, remove_except, save};
 /// What the retry pushes again.
 use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
@@ -461,6 +461,15 @@ pub struct PushRetries {
     /// so that a restarted service rebuilds it;
     /// nothing for a list kept in memory only.
     store: Option<PathBuf>,
+    /// When the round that owns this list began its work,
+    /// in microseconds since the epoch,
+    /// which is what its forgets are judged against.
+    /// Why:
+    ///   A round's forget is applied by a job that is never cancelled,
+    /// so it may write long after the round ended;
+    /// a plan written at or after this instant is a statement that round never read,
+    /// and its forget must not take it.
+    taken: u64,
 }
 
 /// Methods over the list.
@@ -472,7 +481,7 @@ impl PushRetries {
 
     /// A list with this first pause.
     pub fn with_first_pause(first: Duration) -> Self {
-        return Self { first, waiting: Vec::new(), store: None };
+        return Self { first, waiting: Vec::new(), store: None, taken: micros_now() };
     }
 
     /// What:
@@ -493,7 +502,7 @@ impl PushRetries {
     /// const retries = new PushRetries(first, dir); for (const saved of await load(dir)) retries.plan(saved, now + pauseBefore(saved.attempt, first));
     /// ```
     pub fn restored(first: Duration, directory: &Path) -> Self {
-        let mut list: Self = Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()) };
+        let mut list: Self = Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()), taken: micros_now() };
         let now: Instant = Instant::now();
         for saved in load(directory) {
             list.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, first) });
@@ -510,6 +519,24 @@ impl PushRetries {
     /// The pause before the first new try.
     pub fn first(&self) -> Duration {
         return self.first;
+    }
+
+    /// What:
+    ///  Marks the beginning of the round this list plans,
+    /// so that the forgets of that round are judged against it.
+    /// Why:
+    ///   The round's job takes a clone of this list and may write its forget long after the round ended;
+    /// the instant travels with the clone,
+    /// so a plan a later round wrote is newer than the statement the late forget read.
+    /// A round takes the instant before it reads what is due,
+    /// because a worker's plan is written before the round applies its changes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// retries.beginRound()
+    /// ```
+    pub fn begin_round(&mut self) {
+        self.taken = micros_now();
     }
 
     /// The directory the plan is kept in,
@@ -552,7 +579,7 @@ impl PushRetries {
     pub fn forget_keeping(&mut self, git_dir: &Path, branch_ref: &str, keep: &[String]) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
         if let Some(directory) = self.store.as_deref() {
-            remove_except(directory, git_dir, branch_ref, keep);
+            remove_except(directory, git_dir, branch_ref, keep, self.taken);
         }
     }
 
