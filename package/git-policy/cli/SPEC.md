@@ -2584,8 +2584,13 @@ the worktree and its registration stay as they are,
 the command fails with Git's
 status,
 and one report names the path,
-`git -C <path> reset --no-enforce-worktree --hard` (retry) and
+`git -C <path> reset --no-enforce-worktree --hard --no-recurse-submodules` (retry) and
 `git worktree remove --force <path>`.
+The reset carries `--no-recurse-submodules` exactly as the ladder's own checkout step does
+(`worktree_ladder_finish.rs`),
+because a person's `submodule.recurse` setting makes Git's reset of a worktree whose checkout never
+ran stop at `fatal: could not reset submodule index`
+and leave staged deletions behind.
 The hatch is in that command because the worktree guard reads a checkout that never ran as a worktree
 holding uncommitted changes and refuses a hard reset there,
 and the report says what the reset discards;
@@ -2754,7 +2759,7 @@ or where the add that made it is proven dead and no process of this machine hold
 The destination that holds anything else is left exactly as it is,
 and its lock is named first,
 with the condition for removing it (no Git command running in the worktree),
-because `git -C <path> reset --no-enforce-worktree --hard` cannot start while it stands
+because `git -C <path> reset --no-enforce-worktree --hard --no-recurse-submodules` cannot start while it stands
 (`fatal: Unable to create '.../index.lock': File exists`)
 and `git status` in the worktree still works,
 so nothing else would say why every write to it fails.
@@ -4296,8 +4301,21 @@ which is idempotent).
 When the working tree cannot be moved along,
 the report keeps Git's own words
 (`fatal: Cannot fast-forward your working tree.` and the `git reset --hard` it names)
-and appends one line naming the hatch that lets that reset run here,
+and appends the line naming the hatch that lets that reset run here,
 because the worktree guard refuses a hard reset in the dirty worktree that made the move fail.
+Git's own words say to save the `git diff <old head>` output,
+which holds no file Git does not track,
+and the reset they offer overwrites exactly the untracked files that made the move fail,
+so the wrapper copies every such file beside the Git directory first
+(`monochromatic-git-policy-cli/pull-kept/<n>` in the Git directory's data folder,
+`pull_untracked_paths_in_the_way.rs`),
+names each copy in that line,
+and offers the hatch only after what it could not copy
+(a directory standing where the new commit writes a file,
+a path it could not read)
+is named for the person to move out of the worktree first.
+The copies are never replaced:
+a second pull that keeps files makes the next numbered folder.
 A pull with nothing stated keeps Git's refusal of divergent branches and its advice.
 
 A merge,

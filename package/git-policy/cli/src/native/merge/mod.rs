@@ -144,6 +144,11 @@ pub mod merge_isolation_message;
 /// read as its fetch and its merge of `FETCH_HEAD`.
 pub mod pull_isolation;
 
+/// The untracked files a pull's branch move would overwrite,
+/// kept before the failure is worded,
+/// and the words that name every copy.
+pub mod pull_untracked_paths_in_the_way;
+
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
 

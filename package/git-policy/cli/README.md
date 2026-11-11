@@ -2944,8 +2944,14 @@ or `--ff` or `--no-ff`) and every option
 When the pull the wrapper completes cannot move the working tree along,
 the report keeps Git's own words
 (`fatal: Cannot fast-forward your working tree.` and the `git reset --hard` it names)
-and adds one line naming `git reset --no-enforce-worktree --hard`,
+and adds the line naming `git reset --no-enforce-worktree --hard`,
 because the worktree guard refuses a hard reset in the dirty worktree that made the move fail.
+Git's advice to save the `git diff <old head>` output misses the untracked file that made the move
+fail,
+and the reset it offers overwrites that file,
+so the wrapper copies every such file beside the Git directory first
+(`monochromatic-git-policy-cli/pull-kept/<n>`) and names each copy in that line;
+the hatch is offered only once nothing the move would overwrite is left uncopied.
 Every other pull is native Git's whole (a rebase,
 `--ff-only`,
 `--autostash`,
@@ -4813,7 +4819,7 @@ and when the wrapper removes one").
 A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
  common Git directory.
 Every command that runs the recovery before it prints one line on standard error about that worktree,
-with `git -C <path> reset --no-enforce-worktree --hard` to finish the checkout and
+with `git -C <path> reset --no-enforce-worktree --hard --no-recurse-submodules` to finish the checkout and
 `git worktree remove --force <path>` to remove it,
 and names the worktree's `index.lock` first when a Git killed inside the index install left one,
 because that command cannot start while the lock stands.
