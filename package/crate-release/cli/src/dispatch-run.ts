@@ -112,7 +112,7 @@ export async function dispatchRelease({
     if (isAlphaVersion(options.to)) {
       // An alpha release never runs the gate, so a dry run of one loses nothing by not running it either: the same line
       // describes both runs, and neither claims that evidence is missing.
-      print(`no dispatch gate: an alpha release does not wait for ${formatCommandLine(options.dispatchGate)}; every other release does, and an alpha goes to its GitHub release only`);
+      print(`no dispatch gate: an alpha release does not wait for ${formatCommandLine(options.dispatchGate)}, which every other release does`);
     }
     // A dry run starts the workflow's own dry run, so the gate's evidence would cover nothing it does.
     else if (options.dryRun)
