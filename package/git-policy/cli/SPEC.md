@@ -4245,6 +4245,35 @@ and "never discard user data"):
   The carry is a function of the captured blobs and the merge commit,
   so recovery converges on the same bytes from any step.
 
+The lines a carried merge prints about a path it kept whole are what the person has to act on,
+so every command in them is one they can copy and run as it stands,
+and every one of them is true of the checkout the command leaves
+(`src/native/merge/merge_isolation_carry_kept_path.rs`,
+`src/native/merge/merge_isolation_carry_notice.rs`):
+
+- A path inside a command is quoted the way a shell reads a word back
+  (`crate::shell_quote`,
+  the one owner of that spelling).
+  Unquoted,
+  `rm -- gone with space.txt` reached `rm` as three paths and deleted files the merge never named
+  (`merge-notice-for-a-deleted-file` round 133,
+  finding 1).
+- A command that writes the index is named only where it replaces nothing of the person's there.
+  `git add` puts the bytes at the path in the index,
+  so it is named only when the index holds no entry or the bytes at the path;
+  where the index holds a version of theirs that differs from those bytes,
+  the line says both layers stand and no command is offered.
+  A `git restore` of the merge's version names `--staged` only where the index holds nothing of theirs either,
+  and otherwise writes the checkout alone and says that the version in the index stays
+  (finding 2 of the same review,
+  which measured the staged version dropped from the index).
+- A path another program wrote while the carry ran keeps one line,
+  the one that says the merge wrote nothing to it.
+  The line the carry built from what the path held when it judged it goes,
+  because the checkout now holds the newer bytes and two lines about one path would disagree
+  (`Report::a_path_written_again`;
+  finding 3 of the same review).
+
 A directory that stands where the merge puts a file is not work a carry can hold:
 a directory and a file cannot share one path.
 Git's own update replaces such a directory,
@@ -13375,6 +13404,10 @@ a copy whose bytes the branch's own commit holds for that path is removed with t
 `git restore` command that reaches those bytes,
 and any other copy stays,
 is named on standard error with `mv` and `rm` as the two commands that end it,
+with both paths in them quoted the way a shell reads a word back
+(`crate::shell_quote`,
+the one owner of that spelling,
+`commands_that_end_the_copy` in `src/native/merge/merge_isolation_carry_writes.rs`),
 and is removed the moment the file at its path holds its bytes again;
 a copy whose bytes nothing else holds is the person's alone,
 and no command decides it for them;
