@@ -9,15 +9,17 @@
 //! which a snapshot shows as stand-ins.
 
 use super::*;
+use crate::worktree_snapshot_ahead::AheadService;
 use crate::fixture_content_decision::content_environment;
-use crate::fs_beneath::{identity_at, open_root};
-use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::fs_beneath::{identity_at, identity_of, open_root};
+use crate::fs_btrfs_ioctl::{snapshot_create_at, subvolume_create_at};
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, git, git_context, remove};
+use crate::worktree_ladder_run::discard_stage;
 use crate::worktree_ladder_test_support::{main_identity, plan_to, subvolume_repository};
 use crate::worktree_snapshot::take_snapshot;
 use crate::worktree_snapshot_source::{SnapshotSource, choose_snapshot_source};
-use crate::worktree_trash::{TRASH_PARENT, TrashManifest, entry_name};
+use crate::worktree_trash::{TRASH_PARENT, TrashManifest, entry_name, prune_snapshot};
 
 /// A main checkout that is a subvolume with `count` worktrees in its worktree folder,
 /// each a subvolume of its own,
@@ -58,7 +60,7 @@ fn snapshot_into(root: &Path, repo: &Path, destination: &str, trash_ignored: boo
     let mut source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(repo), &plan).expect("a snapshot source");
     source.trash_ignored = trash_ignored;
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
-    let taken = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &content_environment()).map_err(|failure| { return failure.reason; }).expect("snapshot");
+    let taken = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &content_environment(), &AheadService::nothing()).map_err(|failure| { return failure.reason; }).expect("snapshot");
     return (stage, taken.trash);
 }
 
@@ -277,5 +279,123 @@ fn btrfs_the_stand_ins_join_the_trash_the_leave_out_made() {
     let trash_dir: PathBuf = stage.join(TRASH_PARENT).join(manifest.name.as_str());
     assert_eq!(names_in(stage.join(TRASH_PARENT).as_path()), vec![manifest.name.clone()], "the one trash the add hands over");
     assert_eq!(names_in(trash_dir.join(entry_name(2)).as_path()), vec!["w0", "w1", "w2"], "the folder is the last entry");
+    remove(root.as_path());
+}
+
+/// The snapshot of a repository with nested subvolumes,
+/// taken up to but not including the stand-in sweep of the snapshot rung.
+/// Why:
+///   A control that plants a directory between the check of a worktree folder and its rename needs the rung's
+///  steps below the sweep,
+/// and only the seam of the sweep writes there.
+struct BeforeTheSweep {
+    stage: PathBuf,
+    source: SnapshotSource,
+    plan: AddPlan,
+    root: File,
+    hand_over: HandOver,
+}
+
+/// The snapshot of `repo` at `destination`,
+/// taken as the rung takes it and left before the stand-in sweep.
+fn snapshot_before_the_sweep(root: &Path, repo: &Path, destination: &str) -> BeforeTheSweep {
+    git(repo, &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", destination]);
+    let made: PathBuf = std::fs::canonicalize(repo.join(destination)).expect("destination");
+    let plan = plan_to(made);
+    let mut source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(repo), &plan).expect("a snapshot source");
+    source.trash_ignored = true;
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
+    snapshot_create_at(source.root.as_path(), stage.as_path()).expect("the snapshot");
+    std::fs::set_permissions(&stage, std::fs::Permissions::from_mode(0o700)).expect("a private stage");
+    let held: File = open_root(stage.as_path()).expect("the stage");
+    let pruned = prune_snapshot(stage.as_path(), &source).expect("the leave-out");
+    let hand_over: HandOver = HandOver::starting(pruned.trash);
+    return BeforeTheSweep { stage, source, plan, root: held, hand_over };
+}
+
+/// A directory a person made in place of a stand-in after the check stays where it is:
+/// the folder is looked at again in the trash,
+/// and a folder that no longer holds only empty stand-ins goes back
+///  to its place,
+/// where its stand-ins are removed one by one.
+/// Why:
+///   The check of a folder and its rename are two steps,
+/// and a directory a person made in that window is never
+///  removed with the stand-ins it replaced,
+/// whatever the folder held when it was checked (`never discard user data`).
+#[test]
+fn btrfs_a_directory_made_between_the_check_and_the_take_is_not_deleted() {
+    let Some(root) = btrfs_fixture("placeholders-made-after-the-check") else { return };
+    let repo: PathBuf = main_with_nested_subvolumes(root.as_path(), 2);
+    let mut prepared: BeforeTheSweep = snapshot_before_the_sweep(root.as_path(), repo.as_path(), ".claude/worktrees/topic");
+    let planted: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    let folder: PathBuf = prepared.stage.join(".claude/worktrees");
+    let mut seams: FoldSeams<'_> = FoldSeams {
+        before_take: &mut || {
+            if planted.replace(true) {
+                return;
+            }
+            std::fs::remove_dir(folder.join("w0")).expect("the stand-in goes");
+            std::fs::create_dir(folder.join("w0")).expect("a person's directory in its place");
+            std::fs::write(folder.join("w0/keep"), b"someone's data").expect("a person's file");
+        },
+        before_put_back: &mut do_nothing,
+    };
+    remove_snapshot_placeholders_with(&prepared.root, &prepared.source, &prepared.plan, &mut prepared.hand_over, &mut seams).expect("the sweep");
+    assert_eq!(std::fs::read(folder.join("w0/keep")).expect("the person's file is still where they put it"), b"someone's data", "the directory a person made after the check is never taken with the folder");
+    assert_eq!(names_in(folder.as_path()), vec!["w0"], "and the stand-in beside it goes as before");
+    remove(root.as_path());
+}
+
+/// A folder that cannot go back to the name it came from is kept beside the trash,
+/// the trash's own entries keep their names,
+/// and the stage's cleanup never takes it.
+/// Why:
+///   The name a taken folder goes back to can be taken by a directory somebody made meanwhile,
+/// and a put back
+///  that fails leaves the folder at a trash entry no manifest names;
+/// the next directory this add sets aside takes the
+///  same entry name,
+/// so the snapshot rung fails and the stage,
+/// with that entry,
+/// is destroyed
+///  (`never discard user data`).
+#[test]
+fn btrfs_a_folder_whose_put_back_is_blocked_is_kept_where_the_stage_cleanup_cannot_take_it() {
+    let Some(root) = btrfs_fixture("placeholders-put-back-blocked") else { return };
+    let repo: PathBuf = main_with_nested_subvolumes(root.as_path(), 2);
+    let mut prepared: BeforeTheSweep = snapshot_before_the_sweep(root.as_path(), repo.as_path(), ".claude/worktrees/topic");
+    let folder: PathBuf = prepared.stage.join(".claude/worktrees");
+    let trash_parent: PathBuf = prepared.stage.join(TRASH_PARENT);
+    let planted: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    let occupied: std::cell::Cell<bool> = std::cell::Cell::new(false);
+    let mut seams: FoldSeams<'_> = FoldSeams {
+        before_take: &mut || {
+            if planted.replace(true) {
+                return;
+            }
+            std::fs::remove_dir(folder.join("w0")).expect("the stand-in goes");
+            std::fs::create_dir(folder.join("w0")).expect("a person's directory in its place");
+            std::fs::write(folder.join("w0/keep"), b"someone's data").expect("a person's file");
+        },
+        before_put_back: &mut || {
+            if occupied.replace(true) {
+                return;
+            }
+            std::fs::create_dir(folder.as_path()).expect("a directory where the folder was");
+        },
+    };
+    remove_snapshot_placeholders_with(&prepared.root, &prepared.source, &prepared.plan, &mut prepared.hand_over, &mut seams).expect("the sweep");
+    let kept: Vec<String> = names_in(trash_parent.as_path()).into_iter().filter(|name: &String| { return name.starts_with(crate::worktree_kept_folders::KEPT_PREFIX); }).collect();
+    assert_eq!(kept.len(), 1, "the folder is kept in one place beside the trash, and nowhere else: {kept:?}");
+    let kept_folder: PathBuf = trash_parent.join(kept[0].as_str());
+    assert_eq!(std::fs::read(kept_folder.join("w0/keep")).expect("the person's file is kept"), b"someone's data", "the bytes somebody put in the folder survive the put back that could not happen");
+    assert_eq!(names_in(folder.as_path()), Vec::<String>::new(), "the directory that took the name is left exactly as it was made");
+    let moved = prepared.hand_over.take_entry(&prepared.root, &prepared.source, &prepared.root, OsStr::new(".git"), Path::new(".git"));
+    assert!(moved.is_ok(), "the next directory the add sets aside finds its trash entry name free: {moved:?}");
+    let made = identity_of(&prepared.root).expect("the stage's identity");
+    discard_stage(prepared.stage.as_path(), Some(made));
+    assert!(prepared.stage.is_dir(), "the cleanup leaves the stage that holds what the add kept");
+    assert_eq!(std::fs::read(kept_folder.join("w0/keep")).expect("the kept folder outlives the cleanup"), b"someone's data", "the cleanup that would remove the stage takes nothing of the folder that was kept");
     remove(root.as_path());
 }

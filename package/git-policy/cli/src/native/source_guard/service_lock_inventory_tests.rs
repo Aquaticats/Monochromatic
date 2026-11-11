@@ -53,8 +53,10 @@ const COVERED_PREFIXES: &[&str] = &[
 ];
 
 /// The source files that ship nothing:
-///  a mock server and a fixture,
-///  declared under `#[cfg(test)]` in their folder's module tree.
+///  a mock server,
+///  a fixture,
+/// and the hooks a control sets at a fault point of the service,
+///  each declared under `#[cfg(test)]` in its folder's module tree.
 /// Why:
 ///   Their locks are a test's own,
 ///  and an inventory entry would say one of them ships;
@@ -63,9 +65,16 @@ const COVERED_PREFIXES: &[&str] = &[
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const TEST_ONLY_SOURCES = ['standards_review/standards_review_mock.rs'];
+/// const TEST_ONLY_SOURCES = ['standards_review/standards_review_mock.rs', 'service/service_fault_hooks_test_support.rs'];
 /// ```
-const TEST_ONLY_SOURCES: &[&str] = &["standards_review/standards_review_mock.rs"];
+const TEST_ONLY_SOURCES: &[&str] = &[
+    "standards_review/standards_review_mock.rs",
+    // The hold registry of `hold_on_any_thread`,
+    //  declared `#[cfg(test)]` by `service_fault.rs`;
+    // a control waits there on a connection's read of a Git directory's instance,
+    //  so the client's beat is watched while that read waits.
+    "service/service_fault_hooks_test_support.rs",
+];
 
 /// Words that name a lock primitive in code.
 const LOCK_WORDS: &[&str] = &["Mutex", "RwLock", "Condvar", "flock(", "LOCK_EX", "LOCK_SH"];

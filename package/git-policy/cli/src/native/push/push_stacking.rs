@@ -68,8 +68,11 @@ pub const STACKED_PUSH_MARKER: &str = "CLI_GIT_STACKED_PUSH";
 
 /// How the merge of an integrated push is published,
 /// returning the push's exit status.
+///  It carries the send and the sharing of a planner that travels to the thread which runs the
+///  reconcile's merge push,
+/// which is the thread a command outside the runtime supplies.
 pub type MergePush<'a> =
-    &'a dyn Fn(&PushGit, &[OsString], &[OsString], &[String]) -> Result<i32, SingleFlightError>;
+    &'a (dyn Fn(&PushGit, &[OsString], &[OsString], &[String]) -> Result<i32, SingleFlightError> + Send + Sync);
 
 /// What a failed explicit push needs to be integrated.
 ///

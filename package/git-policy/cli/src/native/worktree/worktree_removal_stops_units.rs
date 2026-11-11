@@ -19,6 +19,10 @@
 //! `prune`) cannot be looked at afterwards,
 //! and `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those units.
 //! A failure to stop is logged and never fails the removal the person asked for.
+//! The registration is read without asking whether Git would pick this worktree for the name the person typed:
+//! a removal the wrapper leaves to Git still deletes that registration when Git performs it,
+//! and the stop itself waits until the administrative directory is gone,
+//! so a removal Git refuses leaves the units alone and a removal Git performs stops them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,10 +34,12 @@
 use crate::diagnostic_log::{debug, warn};
 use crate::service_instance::{socket_path, try_instance_of};
 use crate::service_provision_host_and_manager::Manager;
-use crate::service_units_of_removed_worktrees::{UnitFolders, forget_stopped_instance, note_path, remove_journal_of_a_stopped_instance, stop_units, worktree_is_gone};
+use crate::service_units_of_removed_worktrees::{
+    JournalAfterStop, UnitFolders, forget_stopped_instance, note_path, remove_journal_of_a_stopped_instance, stop_units, worktree_is_gone,
+};
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, session_bus_path};
 use crate::worktree_remove_plan::RemovePlan;
-use crate::worktree_remove_registry::registration_of;
+use crate::worktree_remove_registry::registered_worktree;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -48,6 +54,10 @@ pub struct WorktreeAboutToGo {
     /// The canonical administrative directory of the worktree,
     /// which the removal deletes.
     pub git_dir: PathBuf,
+    /// The Git common directory of the worktree,
+    /// which holds the shadow pool its commits were served from and
+    ///  survives the removal.
+    pub common_dir: PathBuf,
 }
 
 /// What:
@@ -63,7 +73,7 @@ pub struct WorktreeAboutToGo {
 /// const about = beforeRemoval(commonDir, plan); // undefined when Git decides which worktree goes
 /// ```
 pub fn before_removal(common_dir: &Path, plan: &RemovePlan) -> Option<WorktreeAboutToGo> {
-    let registration = match registration_of(common_dir, plan.target.as_path(), plan.operand.as_os_str()) {
+    let registration = match registered_worktree(common_dir, plan.target.as_path()) {
         Ok(found) => found,
         Err(reason) => {
             debug(TAG, format!("{} has no registration to name units by ({reason})", plan.target.display()).as_str());
@@ -77,7 +87,7 @@ pub fn before_removal(common_dir: &Path, plan: &RemovePlan) -> Option<WorktreeAb
             return None;
         }
     };
-    return Some(WorktreeAboutToGo { instance, git_dir: registration.admin });
+    return Some(WorktreeAboutToGo { instance, git_dir: registration.admin, common_dir: common_dir.to_path_buf() });
 }
 
 /// What:
@@ -104,6 +114,10 @@ fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
 /// Why:
 ///   A removal that Git refused leaves the Git directory,
 /// and the worktree's units are then still its own.
+/// A journal kept for a client that may still read it,
+/// or for a service the manager does not yet report gone,
+/// keeps the note and the socket file too,
+/// and the next sweep finishes when both are over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,19 +133,38 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
     }
     manager.within(EXCHANGE_WAIT);
     stop_units(manager, about.instance.as_str())?;
-    forget_stopped_instance(folders.runtime_dir, about.instance.as_str());
-    if let Some(kept) = remove_journal_of_a_stopped_instance(folders.state_dir, about.instance.as_str()) {
-        warn(
+    // A stop answers when the manager queued the job, so one question more says the service's processes are gone,
+    //  and only then may the journal it writes be removed.
+    let quiet: bool = crate::service_is_gone_after_a_stop::service_is_gone(manager, about.instance.as_str());
+    match remove_journal_of_a_stopped_instance(folders.state_dir, about.instance.as_str(), quiet) {
+        Some(JournalAfterStop::HoldsWork(kept)) => {
+            forget_stopped_instance(folders.runtime_dir, about.instance.as_str());
+            warn(
+                TAG,
+                format!(
+                    "the journal of the removed worktree {} is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted",
+                    about.git_dir.display(),
+                    kept.journal.display(),
+                    kept.entry,
+                    kept.reason
+                )
+                .as_str(),
+            );
+        }
+        // A client whose answer was lost may still read the journal, or its service is still going:
+        //  the note and the socket file stay, so a later sweep finishes the removal.
+        Some(JournalAfterStop::StillRead(kept)) => debug(
             TAG,
             format!(
-                "the journal of the removed worktree {} is kept at {}, because it holds {}, {}; look at it and remove it yourself if nothing in it is wanted",
+                "the journal of the removed worktree {} is kept at {} for now, because it holds {}, {}",
                 about.git_dir.display(),
                 kept.journal.display(),
                 kept.entry,
                 kept.reason
             )
             .as_str(),
-        );
+        ),
+        Some(JournalAfterStop::Removed) | None => forget_stopped_instance(folders.runtime_dir, about.instance.as_str()),
     }
     return Ok(true);
 }

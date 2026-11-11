@@ -1141,13 +1141,27 @@ Six mechanisms
   a layout it does not know is left untouched and reported.
 - C,
   verified-idle trees of the host build base.
-  A tree goes only when its workspace is gone (ledger,
+  A tree goes only when its workspace is confirmed gone (ledger,
   or a lead from dependency information),
   or its toolchain is retired,
   or nothing identifies it and it has been idle longer;
   no other tree's workspace lies inside it;
   every profile directory yields its build locks;
   and no process uses anything under it.
+  A workspace counts as gone only when its absence is confirmed:
+  a path whose metadata cannot be read (a directory this user may not search,
+  an I/O error)
+  may be a live workspace,
+  so the tree stays,
+  and the ledger that names such a workspace keeps the tree holding it.
+  "Other tree" means every tree of the base,
+  including the ones a pass that continues after a recorded position
+  does not judge again.
+  A tree is also kept while the workspace its own ledger names lies inside another tree of the base and still exists,
+  even when its toolchain is retired:
+  that ledger is the only thing that keeps the other tree from being removed,
+  and the ledger goes with the tree,
+  so removing it first would let a later pass delete the live workspace inside that other tree.
 - D,
   retention of verification run records under `target/verification`:
   records (`RECORD_PREFIXES` in `src/lean_run_records.rs` names every program of this repository that writes one,
@@ -1258,6 +1272,33 @@ and each of the two long passes continues where it stopped:
 - The file is replaced by an atomic rename and a dry run never writes it,
   so a run killed in the middle leaves the position it last recorded,
   and `lean run --dry-run` never moves it.
+- Neither name of the record is ever followed through a link or waited on as a pipe.
+  The record is written into a staging name this run makes for itself
+  (`lean-progress.<process>-<count>.new`)
+  and creates in one open that cannot open a name that is already there,
+  so no link and no second name of a file is written through,
+  and no open waits for the other end of a pipe.
+  A file a killed run of another version left at `lean-progress.new` is neither opened nor removed.
+  The record is read as a regular file and never through a link,
+  and at most 64 KiB of it are read,
+  so a link,
+  a pipe or a device at `lean-progress` means the front of the list and says so.
+  Both files are created readable and writable by this user alone (`0600`).
+  A staging name that cannot be created is reported once and costs the run its position,
+  never the run itself.
+- A resumed idle-trees pass still holds the whole base's workspaces as guards.
+  The trees before the recorded position are not judged again,
+  but their ledgers are read,
+  because a tree this pass judges may hold the workspace one of them records:
+  without them a resumed pass removed a tree that a pass from the front keeps,
+  and the live sources inside it with it.
+  Only the ledger is read for those trees,
+  never the dependency information,
+  so the guard costs one small file read each:
+  measured 2026-11-11 in a fixture base on this host,
+  4,000 trees with a ledger on every one took 62 ms
+  against 33 ms for the same base with no ledger (best of seven alternating runs),
+  which is 29 ms for 4,000 reads and about a second for the 33,804 trees of the real base.
 
 The bound is set from what each mechanism costs,
 measured 2026-11-10 on this machine:
@@ -1402,6 +1443,18 @@ mise run //package/cargo-shadow/cli:lint:clippy
 Unit tests sit beside the modules as `*_tests.rs`;
 `tests/shim.rs` starts the built binary as `cargo` against a fake cargo.
 One install case runs the real cargo against a path-only workspace and skips with a message when no cargo is on PATH.
+
+The containment tests (`bounded_run_tests`) measure how long stopping a contained payload takes and require it inside
+its bound plus twice `QUIESCE_BOUND` (5 s).
+On this host under a load average near 100,
+two of them failed that window once (`the judged run ended after 15.294850135s, not at its bound of 1.6s` and
+`the call answered after 12.513946534s, not within its bound 10s`),
+and the same controls passed in a later run of the whole suite;
+the stop is bounded every time,
+a few seconds past the window.
+`mise run //package/cargo-shadow/cli:test -- --no-fail-fast` runs the whole suite instead of cancelling the tests beside a
+failed one,
+so one such window does not hide the other 800 results.
 
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store

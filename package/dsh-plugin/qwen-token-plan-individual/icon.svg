@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Qwen Token Plan Individual">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#12313a" />
+  <circle cx="30" cy="29" r="15" fill="none" stroke="#5ec8c8" stroke-width="5" />
+  <path d="M38 39 L51 53" stroke="#5ec8c8" stroke-width="5" stroke-linecap="round" />
+  <circle cx="30" cy="29" r="4.5" fill="#f5c24c" />
+  <path d="M52 14 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 z" fill="#8fd3e8" />
+</svg>

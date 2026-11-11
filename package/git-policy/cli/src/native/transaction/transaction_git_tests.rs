@@ -3,6 +3,7 @@
 use super::*;
 use crate::test_support::{ActionSink, SharedSink, executable, fixture, git_context, git_text, remove, repository, while_test_lives};
 use crate::child_class::ChildClass;
+use crate::transaction_git_step_rerun_and_end_rules::{is_branch_write, is_side_ref_write};
 use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
 use crate::wait_progress::Cadence;
 
@@ -705,12 +706,58 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     ] {
         assert!(!ends(differs), "{differs:?} came out different after a second run and has no ceiling");
     }
+    // What:
+    //  The word-level second pass's line merge keeps its ceiling,
+    //  and the form that writes a file has none.
+    // Why:
+    //  `git merge-file --stdout --object-id` reads three object names and answers on standard output,
+    //  so it changes nothing and may be run twice;
+    //  `git merge-file` without `--stdout` writes the merged bytes into the first file it was given,
+    //  a file of the person's,
+    //  and is not a read.
+    //  The pass needs the first form to end at a ceiling:
+    //  a line merge that is never ended and cannot be ended answers nothing at all,
+    //  and it is the answer the pass parses
+    //  (`doc/planning/cli-git-no-unbounded-waits.md`,
+    //  "The cut experiment",
+    //  and "Stop only on no progress").
     // The same index changes on a private index, the readers and the object writers are not in question.
+    assert!(ends(&["merge-file", "--stdout", "--object-id", "--zdiff3", "-L", "ours", "-L", "base", "-L", "theirs", "aaaa", "bbbb", "cccc"]));
+    assert!(!ends(&["merge-file", "a.md", "base.md", "theirs.md"]), "the in-place form writes the first file, so it has no ceiling");
     assert_eq!(bound(&["add", "--all"], true), StepBound::EndAt(OBJECT_STEP_CEILING));
     assert_eq!(bound(&["rev-parse", "HEAD"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
     assert_eq!(bound(&["merge-base", "a", "b"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
     assert_eq!(bound(&["log", "-1"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
     assert_eq!(bound(&["commit-tree", "abc", "-m", "x"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
+}
+
+/// What:
+///  The reference a worktree removal keeps a held commit on when the batch's own kept reference cannot be written
+///  is one of the wrapper's own side references.
+/// Why:
+///  `step_bound` gives a side reference's write the bound that is never cut and never waited for without one,
+///  and a branch write is waited for without a bound on the landing thread;
+///  a name the rule did not recognize would take that road when the wrapper writes it
+///  (the owner's rule "nothing should ever wait forever or indefinitely").
+#[test]
+fn the_reference_beside_a_kept_reference_is_a_side_reference() {
+    let rescue: GitRequest = GitRequest::new(
+        Path::new("/repo"),
+        &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", "refs/cli-git/kept/7-rescue", "0123456789abcdef0123456789abcdef01234567"],
+    );
+    assert!(is_side_ref_write(&rescue), "the name beside a batch's kept reference is the wrapper's own: {}", command_text(rescue.arguments.as_slice()));
+    assert!(!is_branch_write(&rescue), "a side reference's write is not the branch write a stop waits for");
+    assert!(!matches!(step_bound(&rescue), StepBound::EndAt(_)), "a side reference's write is never cut");
+    assert!(!matches!(step_bound(&rescue), StepBound::Unbounded), "a side reference's write is never waited for without a bound");
+    // The create-only form the removal writes carries the empty old value, which is still the same step.
+    let only_if_free: GitRequest = GitRequest::new(
+        Path::new("/repo"),
+        &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", "refs/cli-git/kept/7-rescue", "0123456789abcdef0123456789abcdef01234567", ""],
+    );
+    assert!(is_side_ref_write(&only_if_free), "the create-only form is the same side reference's write");
+    // A name that is not the wrapper's own keeps the branch write's road.
+    let branch: GitRequest = GitRequest::new(Path::new("/repo"), &["update-ref", "--no-deref", "refs/heads/main", "0123456789abcdef0123456789abcdef01234567"]);
+    assert!(!is_side_ref_write(&branch), "a branch is not a side reference");
 }
 
 /// A step that cannot be run twice is left running by the command that started it,
@@ -742,6 +789,18 @@ fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_t
         crate::service_busy_step_record_on_this_thread::use_on_this_thread(board);
         assert_eq!(step_bound(&reference), StepBound::Unbounded);
         assert_eq!(step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"])), StepBound::EndAt(PLUMBING_STEP_CEILING));
+        // What:
+        //  The second pass's line merge ends at its class ceiling on the landing thread too.
+        // Why:
+        //  The commit replay reaches the pass inside the landing's own scope,
+        //  and a `merge-file` that is neither rerunnable nor endable is waited for
+        //  without a bound there,
+        //  so every landing job behind it stays queued for good.
+        let line_merge: GitRequest = GitRequest::new(
+            Path::new("/repo"),
+            &["merge-file", "--stdout", "--object-id", "--zdiff3", "-L", "ours", "-L", "base", "-L", "theirs", "aaaa", "bbbb", "cccc"],
+        );
+        assert_eq!(step_bound(&line_merge), StepBound::EndAt(OBJECT_STEP_CEILING));
     });
 }
 

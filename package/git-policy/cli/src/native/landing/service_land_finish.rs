@@ -27,6 +27,7 @@
 use crate::service_head::still_checked_out;
 use crate::service_instance::instance_of;
 use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION, Recovery, Started, indexed_state, list_intents, list_intents_read_only, mark_done, mark_indexed, read_start, recovery_for, remove_start};
+use crate::service_journal_intent_text_and_parse::parse_intent;
 use crate::service_land_follow::{IndexPaths, build_index};
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{IndexLock, Record, remove_stale, try_acquire};
@@ -514,6 +515,27 @@ fn decision_for(git: &GitContext, intent: &Intent) -> Option<Recovery> {
     return Some(recovery_for(intent, current.as_str(), ancestor));
 }
 
+/// What:
+///  The intent one batch's open record holds now:
+///  nothing when the record is gone,
+///  nothing inside the outer value when it cannot be read,
+///  and the intent when it can.
+/// Why:
+///  A settlement rewrites a batch's intent before it moves the branch and removes the record once nothing is owed,
+/// so
+///  a decision about the batch has to read the record again rather than reuse a copy parsed before the settlement;
+///  the
+///  three answers are told apart because "gone" means the batch is finished and "unreadable" means nothing may be removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function theIntentAsItReadsNow(path): Promise<Intent | 'gone' | 'unreadable'>
+/// ```
+fn the_intent_as_it_reads_now(path: &std::path::Path) -> Option<Option<Intent>> {
+    let text: String = std::fs::read_to_string(path).ok()?;
+    return Some(parse_intent(text.as_str()));
+}
+
 fn recover_selected(context: &LandContext, instance: Option<&str>, owner: JournalOwner) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
     let listed: Vec<(std::path::PathBuf, Option<Intent>)> = match owner {
@@ -521,7 +543,7 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, owner: Journa
         JournalOwner::EarlierHelper => list_intents_read_only(context.journal.as_path(), OPEN_EXTENSION),
     };
     for (path, parsed) in listed {
-        let Some(intent) = parsed else {
+        let Some(mut intent) = parsed else {
             // A record this build cannot read names a batch's branch values, paths, index and cleanup, and is the only thing that
             //  does: removing it would forget a landed commit's owed index update and leave the person's next commit recording
             //  the commit's own paths against the index (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
@@ -550,9 +572,35 @@ settled from the worktree's own record of it, and the file may be removed once t
         let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), global_prefix: prefix, ..context.git.clone() };
         // A batch a reference lock keeps off its branch is not one a restart decides from the branch: the settlement tries it first,
         //  and one still waiting is left where it is for the next command (`held_commit_settle.rs`).
+        let was_held: bool = crate::held_commit_settle::record_of(&intent, context.journal.as_path()).is_some();
         if let Some(report) = crate::held_commit_settle::settle_a_recorded_hold(&git, context.journal.as_path(), &intent) {
             reports.push(report);
             continue;
+        }
+        // A settlement that finished the hold replays the commit onto the branch as it moved and rewrites the intent to name
+        //  the commit it put there, so deciding from the copy parsed earlier asks the branch about a commit it does not name:
+        //  that reads as a batch which never landed, drops it, and deletes the record of the index update the landed commit
+        //  still owes (`owed_index_update.rs`). A record the settlement marked done is gone, and nothing is left to decide.
+        if was_held {
+            match the_intent_as_it_reads_now(path.as_path()) {
+                // The settlement finished every obligation of the batch, and said so by removing its record: the hold's record went
+                //  with it and its intent was renamed to `.done`. A restart that says nothing about a batch it just landed and
+                //  finished tells the person who asked what became of it nothing at all, and a settle request builds its whole
+                //  answer from these reports: the batch would be in neither the settled nor the unanswered list, and
+                //  `service settle-earlier-batches` would print no line for it and exit 0 (`earlier_service_journal_adopted.rs`,
+                //  `settle_on_request`). So it is reported as what it is.
+                None => {
+                    reports.push(RecoveryReport { seq: intent.seq, decision: Recovery::Finish, handled: Handled::Finished });
+                    continue;
+                }
+                Some(Some(fresh)) => intent = fresh,
+                // A record this build cannot read is kept and named rather than dropped: removing it would forget a landed commit's
+                //  owed index update (`owed_index_update.rs`).
+                Some(None) => {
+                    crate::held_commit_settle::say_settled_batch_record_cannot_be_read(&intent, path.as_path());
+                    continue;
+                }
+            }
         }
         let Some(decision) = decision_for(&git, &intent) else {
             crate::service_error!("batch {} stays open: Git gave no answer about {} in {}, so its intent is kept", intent.seq, intent.reference, intent.repository.display());

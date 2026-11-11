@@ -207,7 +207,7 @@ pub fn protect_path(path: &Path, mode: u32) -> std::io::Result<()> {
 /// ```ts
 /// await open(join(dirname(path), `.${basename(path)}.${random()}.partial`), O_CREAT | O_EXCL | O_RDWR, 0o600);
 /// ```
-fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTempFile> {
+pub(super) fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTempFile> {
     let Some(name) = path.file_name() else {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
@@ -372,7 +372,7 @@ pub(crate) fn flush_file_when_faithful(file: &File, path: &Path) -> std::io::Res
 /// ```ts
 /// if (durable) { await handle.sync(); }
 /// ```
-fn sync_when_durable(file: &File, path: &Path, durable: bool) -> std::io::Result<()> {
+pub(super) fn sync_when_durable(file: &File, path: &Path, durable: bool) -> std::io::Result<()> {
     if !durable {
         return Ok(());
     }
@@ -519,41 +519,12 @@ pub fn write_exclusive_scratch(path: &Path, bytes: &[u8]) -> std::io::Result<()>
     return file.write_all(bytes);
 }
 
-/// The operating system's answer from a publish that kept its staged file,
-/// which is the failure the caller reports.
-fn without_the_staged_file(error: tempfile::PersistError) -> std::io::Error {
-    return error.error;
-}
+/// Publishing a record over the one its name holds,
+/// which is a module of its own because this file reached the repository's line limit.
+#[path = "private_storage_replacing_a_record.rs"]
+mod replacing_a_record;
 
-/// What:
-///  Publish `bytes` at `path` in one rename,
-///  replacing whatever the name held.
-/// Why:
-///   A record this program rewrites (the migration's list of files this user may not read) is read
-/// by a later run as a whole;
-/// a truncating write leaves it empty for a kill that lands between the truncation and the
-///  bytes,
-/// and the next run reads an empty record as nothing to report.
-/// The bytes are staged beside the
-///  name and made durable before the rename,
-/// so a kill leaves either the record that was there or the complete
-///  new one,
-/// and the staging file is created exclusively with mode `0600` and never follows a link.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function replacePrivateFile({ path, bytes }): Promise<void>;
-/// ```
-pub fn replace_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let mut staged: tempfile::NamedTempFile = staging_beside(path)?;
-    staged.as_file_mut().write_all(bytes)?;
-    sync_when_durable(staged.as_file(), path, true)?;
-    staged.persist(path).map_err(without_the_staged_file)?;
-    return match path.parent() {
-        Some(directory) if !directory.as_os_str().is_empty() => sync_directory(directory),
-        _ => sync_directory(Path::new(".")),
-    };
-}
+pub use replacing_a_record::{replace_private_file, replace_private_file_unsynced};
 
 /// What:
 ///  Create one directory with mode `0700`;
@@ -793,6 +764,38 @@ fn open_no_follow(path: &Path) -> std::io::Result<File> {
 }
 
 /// What:
+///  Open a record for reading:
+///  a regular file,
+///  never through a final link,
+///  and without waiting for a writer when the name holds a named pipe.
+/// Why:
+///   Some readers answer a waiting client,
+/// so an open that waited for a writer would hold back the proof of life
+///  and no timer could end it;
+///  a link planted at a record path must be refused,
+///  never read through;
+///  and the type of the handle's own metadata is the only answer a swap between the open and the check cannot
+///  change.
+///  A caller that also bounds how much it reads is `read_regular_file`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = await open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK); if (!(await file.stat()).isFile()) throw 'not regular';
+/// ```
+pub fn open_regular_file(path: &Path) -> Result<File, ReadRefusal> {
+    let file: File = match open_no_follow(path) {
+        Ok(opened) => opened,
+        Err(error) => return Err(open_refusal(error)),
+    };
+    // The handle's own metadata, so a swap between the check and the read is impossible.
+    let metadata: std::fs::Metadata = file.metadata().map_err(ReadRefusal::Io)?;
+    if !metadata.is_file() {
+        return Err(ReadRefusal::NotRegular);
+    }
+    return Ok(file);
+}
+
+/// What:
 ///  Read a whole regular file without following links,
 ///  up to `limit` bytes.
 ///       `u64` is an unsigned 64-bit size;
@@ -804,21 +807,17 @@ fn open_no_follow(path: &Path) -> std::io::Result<File> {
 ///  a link or a directory must be named as unsafe,
 ///  and a
 ///       runaway file must not be read into memory.
+///  The open is `open_regular_file`'s,
+/// so a named pipe at the record's name is refused instead of waited on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function readPrivateFile(path: string, limit: number): Promise<Uint8Array>; // throws ReadRefusal
 /// ```
 pub fn read_regular_file(path: &Path, limit: u64) -> Result<Vec<u8>, ReadRefusal> {
-    let file: File = match open_no_follow(path) {
-        Ok(opened) => opened,
-        Err(error) => return Err(open_refusal(error)),
-    };
+    let file: File = open_regular_file(path)?;
     // The handle's own metadata, so a swap between the check and the read is impossible.
     let metadata: std::fs::Metadata = file.metadata().map_err(ReadRefusal::Io)?;
-    if !metadata.is_file() {
-        return Err(ReadRefusal::NotRegular);
-    }
     if metadata.len() > limit {
         return Err(ReadRefusal::TooLarge);
     }

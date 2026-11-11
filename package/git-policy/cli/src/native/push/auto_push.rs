@@ -31,7 +31,7 @@ use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, ru
 use crate::lfs_bounded_push::run_push;
 /// The verdicts a post-commit gate kept,
 /// and where they make this push stop.
-use crate::blocked_commit_lines::{held_back_line, unanswered_line};
+use crate::blocked_commit_lines::{held_back_line, undecided_line, unanswered_line};
 use crate::blocked_commit_questions::QueueHistory;
 use crate::push_held_back_by_a_blocked_commit::{WhereThePushStops, where_the_push_stops};
 /// The blocked verdicts of the worktree the push is for.
@@ -267,7 +267,7 @@ pub(crate) fn push_arguments(source: &str, sent: &Sent, set_upstream: bool) -> V
 pub(crate) fn source_of(stop: &WhereThePushStops, sent: &Sent, branch_ref: &str) -> Option<String> {
     return match stop {
         WhereThePushStops::Nothing => Some(branch_ref.to_owned()),
-        WhereThePushStops::Before(stopped) => match sent.targets.is_empty() {
+        WhereThePushStops::Before(stopped) | WhereThePushStops::Undecided(stopped) => match sent.targets.is_empty() {
             true => None,
             false => stopped.pushable.clone(),
         },
@@ -388,6 +388,7 @@ pub(crate) fn held_back_result(branch_ref: &str, stop: &WhereThePushStops, err: 
     let line: String = match stop {
         WhereThePushStops::Nothing => String::new(),
         WhereThePushStops::Before(stopped) => held_back_line(branch_ref, stopped),
+        WhereThePushStops::Undecided(stopped) => undecided_line(branch_ref, stopped),
         WhereThePushStops::Unanswered(stopped) => unanswered_line(branch_ref, stopped),
     };
     debug(TAG, format!("nothing is pushed of {branch_ref}: {line}").as_str());
@@ -408,7 +409,14 @@ pub(crate) fn held_back_result(branch_ref: &str, stop: &WhereThePushStops, err: 
 /// ```ts
 /// const result = await pushOnce({ gitPath, cwd }, landedOid);
 /// ```
-pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, blocked: &[BlockedVerdict], err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+pub fn push_once(
+    git: &PushGit,
+    branch_ref: &str,
+    landed_oid: &str,
+    blocked: &[BlockedVerdict],
+    undecided: &[String],
+    err: &mut dyn Write,
+) -> Result<AutoPushResult, SingleFlightError> {
     // The record names the branch, and the worktree may switch away from it at any instant, including between a check of
     //  `HEAD` and the push itself: the plan never reads `HEAD`, so what is pushed is always the recorded branch.
     let planned: Planned = plan_named_push(git, branch_ref, err)?;
@@ -416,8 +424,9 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, blocked: &[B
         Planned::Skip(result) => return Ok(result),
         Planned::Push { branch_ref: planned_ref, upstream, sent, set_upstream } => (planned_ref, upstream, sent, set_upstream),
     };
-    // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it.
-    let stop: WhereThePushStops = where_the_push_stops(&QueueHistory { git }, pushed_ref.as_str(), upstream.as_deref(), blocked);
+    // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it,
+    //  and so does a commit whose own checks still run: its answer may keep it local, and a push of the tip would publish it.
+    let stop: WhereThePushStops = where_the_push_stops(&QueueHistory { git }, pushed_ref.as_str(), upstream.as_deref(), blocked, undecided);
     let Some(source) = source_of(&stop, &sent, pushed_ref.as_str()) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
     };
@@ -463,6 +472,7 @@ pub(crate) fn reported(attempt: PushAttempt, stop: &WhereThePushStops, branch_re
     let held_back: Option<String> = match stop {
         WhereThePushStops::Nothing => None,
         WhereThePushStops::Before(stopped) => Some(held_back_line(branch_ref, stopped)),
+        WhereThePushStops::Undecided(stopped) => Some(undecided_line(branch_ref, stopped)),
         WhereThePushStops::Unanswered(stopped) => Some(unanswered_line(branch_ref, stopped)),
     };
     let said: String = filter_push_output(&attempt.output, attempt.exit_code);
