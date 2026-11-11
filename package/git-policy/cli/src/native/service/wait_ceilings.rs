@@ -488,6 +488,19 @@ pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 ///  gives serves better.
 pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 
+/// The longest a preparation's own file read waits:
+/// the `-F` file of a commit message,
+/// which `landing/service_message.rs` reads as a job of the blocking pool.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a read waits in the kernel on a mount that stopped answering,
+/// so the wait is bounded and a read that gives no answer is the answer an unreadable file gives,
+/// which hands the line to native `git commit` and the person reads Git's own words.
+/// No measurement fixes the value:
+/// it is `LANDING_STATE_CEILING`,
+/// the wait a landing's own state step is granted,
+/// because both are one read of a known file and a read that outlasts either is one the answer Git gives serves better.
+pub const PREPARATION_READ_CEILING: Duration = LANDING_STATE_CEILING;
+
 /// How long one package-manager tool of a worktree repair may run before the command says which tool it waits for,
 /// where,
 /// and until when.
