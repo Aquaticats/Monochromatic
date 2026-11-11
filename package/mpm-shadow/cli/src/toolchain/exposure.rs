@@ -307,7 +307,15 @@ pub(crate) fn postinstall_path(
     if let Some(existing) = inherited {
         directories.extend(std::env::split_paths(existing));
     }
-    return std::env::join_paths(&directories).map(|path| return path.to_string_lossy().to_string());
+    return std::env::join_paths(&directories).map(path_text);
+}
+
+/// One joined `PATH` entry as text.
+/// A named function and not a closure:
+/// nothing is captured,
+/// and a reader sees where the text comes from.
+fn path_text(path: std::ffi::OsString) -> String {
+    return path.to_string_lossy().to_string();
 }
 
 /// What:
