@@ -96,6 +96,24 @@ pub fn head_of(context: &GitContext, identity: &WorktreeIdentity) -> Option<Stri
     return (!text.is_empty()).then_some(text);
 }
 
+/// What:
+///  The branch as the merge finds it,
+///  with the context any later reading of it needs,
+///  or nothing when the branch has no commit yet.
+/// Why:
+///   The sweep compares the landed branch before and after the merge,
+///  so the reading has to be taken before Git moves the branch,
+///  and the pair is what a caller keeps until the merge ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// window(context, identity) // [context, before] | undefined
+/// ```
+pub fn window(context: GitContext, identity: &WorktreeIdentity) -> Option<(GitContext, String)> {
+    let before: String = head_of(&context, identity)?;
+    return Some((context, before));
+}
+
 /// The branch this worktree has checked out,
 /// in Git's own short spelling,
 /// or nothing for a detached `HEAD`.
