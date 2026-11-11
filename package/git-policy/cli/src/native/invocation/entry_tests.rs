@@ -73,21 +73,20 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
 ///  The forward action for these fixtures:
 ///  real Git,
 ///  the lock-PID overlay,
-/// the forward-target marker,
-/// and the never-prompt pair when the process running this control has no controlling terminal.
+///  the forward-target marker,
+///  the never-prompt pair when the process running this control has no controlling terminal,
+///  and no warning.
 /// Why:
 ///  A forwarded command's overlay carries that pair exactly when its process has no controlling terminal,
-/// so the
-///  expectation has to be built from the same reading (`control_terminal`) the wrapper takes.
-/// A control that froze the
-///  overlay without the pair passed at a person's terminal and failed under a test runner,
-/// an agent's shell and a
-///  container started without `--tty`,
-/// where no controlling terminal exists:
-/// both arrangements must pass.
+///  so the expectation has to be built from the same reading (`control_terminal`) the wrapper takes.
+///  A control that froze the overlay without the pair passed at a person's terminal.
+///  The same control failed under a test runner,
+///  an agent's shell,
+///  and a container started without `--tty`,
+///  where no controlling terminal exists:
+///  both arrangements must pass.
 ///  The pair's own order and contents are controlled in `child_environment_tests.rs`;
-/// these controls are about which
-///  action is planned and with which arguments.
+///  these controls are about which action is planned and with which arguments.
 pub(super) fn forward(arguments: Vec<OsString>) -> Action {
     let mut overlay: Vec<(OsString, OsString)> = vec![
         (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),

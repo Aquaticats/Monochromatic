@@ -348,16 +348,70 @@ impl ShadowTemplate {
     ///  and a claim checks that a member names this invocation's object directory;
     ///  the object directory's own bytes name it,
     ///  because a spelling of it loses a name that is not UTF-8 and would send the shadow to a store that does not exist.
+    ///  A pathname a line would break is written C-quoted,
+    /// which Git reads back exactly:
+    ///  `parse_alternates` in `odb.c` hands a line that begins with a double quote to
+    ///  `unquote_c_style` in `quote.c` of Git 2.56.0.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// Buffer.concat([Buffer.from(this.objectDirectory), Buffer.from('\n')])
+    /// Buffer.concat([alternatesLine(pathBytes), Buffer.from('\n')])
     /// ```
     pub fn alternates_bytes(&self) -> Vec<u8> {
-        let mut text: Vec<u8> = path_bytes_of(self.object_directory.as_path()).to_vec();
+        let path: &[u8] = path_bytes_of(self.object_directory.as_path());
+        let mut text: Vec<u8> = match alternates_line_needs_quoting(path) {
+            true => c_quoted(path),
+            false => path.to_vec(),
+        };
         text.push(b'\n');
         return text;
     }
+}
+
+/// What:
+///  Whether a pathname has to be written as a quoted line of the shadow's alternates.
+/// Why:
+///   The file holds one pathname per line and Git reads a line that begins with a double quote as a C-quoted pathname,
+///  so a line feed would split the entry in two and a leading quote or hash would change how the line is read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// path.includes('\n') || path.startsWith('"') || path.startsWith('#')
+/// ```
+fn alternates_line_needs_quoting(path: &[u8]) -> bool {
+    return path.contains(&b'\n') || path.starts_with(b"\"") || path.starts_with(b"#");
+}
+
+/// What:
+///  A pathname as one C-quoted line of the shadow's alternates,
+/// which Git unquotes byte for byte.
+/// Why:
+///   A quote inside a quoted line would end the pathname early and a backslash would start an escape,
+///  so the quote,
+/// the backslash and the control bytes are written as the escapes Git reads back
+///  (`unquote_c_style` in `quote.c`),
+/// and every other byte is written as itself,
+///  which keeps a name that is not text the name it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `"${path.replace(/[\\"\n\r\t]/g, escapeC)}"`
+/// ```
+fn c_quoted(path: &[u8]) -> Vec<u8> {
+    let mut text: Vec<u8> = Vec::with_capacity(path.len() + 2);
+    text.push(b'"');
+    for byte in path {
+        match byte {
+            b'"' => text.extend_from_slice(b"\\\""),
+            b'\\' => text.extend_from_slice(b"\\\\"),
+            b'\n' => text.extend_from_slice(b"\\n"),
+            b'\r' => text.extend_from_slice(b"\\r"),
+            b'\t' => text.extend_from_slice(b"\\t"),
+            _ => text.push(*byte),
+        }
+    }
+    text.push(b'"');
+    return text;
 }
 
 /// What:

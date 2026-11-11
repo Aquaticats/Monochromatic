@@ -25,9 +25,15 @@ mod reader_fsmonitor_tests;
 ///  top level and the path below it.
 pub mod repository_location;
 
+/// The one query for the worktree a repository's shared settings belong to.
+pub mod repo_read_main_worktree;
+
 /// Lazily fetched repository facts behind one interface,
 ///  with the real-Git provider.
 pub mod repository_facts;
+
+/// The ignored-and-tracked fact of the real-Git provider.
+pub mod repository_facts_ignored_files;
 
 /// What one `git add` selects,
 ///  counted from real Git's own listings.

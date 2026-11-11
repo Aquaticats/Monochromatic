@@ -59,9 +59,26 @@ pub(crate) fn start_directory(global_prefix: &[OsString]) -> Option<PathBuf> {
 
 /// A small regular file's text,
 /// refusing links.
+/// Why:
+///   Text is what a caller that compares the file's spelling needs;
+///  a caller that reads a pathname out of the file needs the bytes (`small_file_bytes`).
 pub(crate) fn small_file(path: &Path) -> Option<String> {
-    let bytes: Vec<u8> = read_regular_file(path, SMALL_FILE_LIMIT).ok()?;
-    return String::from_utf8(bytes).ok();
+    return String::from_utf8(small_file_bytes(path)?).ok();
+}
+
+/// What:
+///  A small regular file's bytes,
+/// refusing links.
+/// Why:
+///   A file that names a pathname names it as bytes,
+/// and only a decoding would lose a name that is not UTF-8.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readFile(path) // a link or a file of another type is refused
+/// ```
+pub(crate) fn small_file_bytes(path: &Path) -> Option<Vec<u8>> {
+    return read_regular_file(path, SMALL_FILE_LIMIT).ok();
 }
 
 /// Whether `directory` holds the three entries Git takes for a Git directory.
