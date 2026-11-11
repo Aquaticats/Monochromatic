@@ -44,7 +44,9 @@ export const plantedCommitControls: readonly PlantedControl[] = [
     file: "src/native/commit/commit_index.rs",
     from: "if !selection.stage_into_index {",
     to: "if false {",
-    failing: "commit::commit_index::tests::index_without_staging_matches_the_real_index",
+    // The index commit this guard serves names paths, so the control names the test that builds one; the plain index
+    // commit stages nothing either way, so a control naming it catches no removal of this guard.
+    failing: "commit::commit_index::tests::an_index_commit_without_staging_stages_none_of_the_paths_it_names",
   },
   {
     name: "a branch base is written to the shadow branch",
