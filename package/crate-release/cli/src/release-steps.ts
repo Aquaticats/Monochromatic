@@ -321,10 +321,14 @@ function publishDryRunStep({
  Whether a release of this version compiles the crate before it commits.
 
  An alpha release does not: the owner's standing rule of 2026-11-11 is "make the release pipeline avoid running any
- extra work for alphas", after "Alphas don't even have to resolve all flakes", and `cargo-publish.yml` builds the binary
- of the same commit on both Linux targets after the push, which is the compile evidence an alpha gets. Every other
- release, a beta included, still checks here, because the check is the last compile before a version that can never be
- taken back exists.
+ extra work for alphas", after "Alphas don't even have to resolve all flakes". Every other release, a beta included,
+ still checks here, because the check is the last compile before a version that can never be taken back exists.
+
+ What an alpha gets instead depends on the crate it releases: for a crate that ships a binary, `cargo-publish.yml`
+ builds that binary of the same commit on both Linux targets, so the compile evidence follows the push; a crate that
+ ships none is compiled nowhere before its bump reaches `main`, and the next release's check is its first compile. A
+ version bump alone cannot break a compile, and the lockfile refresh (`lockTheCrateStep`) keeps the locked build
+ resolvable, so an alpha's evidence is deferred and never invented.
 
  @param version - version being released
 
@@ -342,11 +346,17 @@ export function releaseRunsCargoCheck(version: string): boolean {
 /**
  The step that records the crate's own changed version in the `Cargo.lock` beside its manifest.
 
- A released crate needs it whichever version it moves to: `cargo-publish.yml` builds the pushed commit with `--locked`,
- which refuses a lockfile the bump left stale (measured 2026-11-11: after a version bump, `cargo build --locked` fails
- with "cannot update the lock file ... because --locked was passed", and `cargo update --workspace` clears it). A release
- that checks the crate gets this for free, because `cargo check` rewrites the lockfile; an alpha, which checks nothing,
- runs this instead, so skipping the check never costs the alpha its GitHub release.
+ A released crate needs it whichever version it moves to: the bump moves the crate's own version in the lockfile, and two
+ `--locked` cargo calls refuse a lockfile the bump left stale. Both were measured on a throwaway crate on 2026-11-11:
+ the push command's `cargo metadata --locked` fails with "cannot update the lock file ... because --locked was passed"
+ (status 101), and `cargo build --release --locked` fails the same way when `cargo-publish.yml` builds the pushed commit;
+ `cargo update --workspace` clears both. A release that checks the crate gets the refresh for free, because `cargo check`
+ rewrites the lockfile; an alpha, which checks nothing, runs this instead, so skipping the check never costs the alpha
+ its push or its release.
+
+ Every entry of `releasable-crates.json` is the root of its own workspace with its own `Cargo.lock` beside the manifest
+ (read with `cargo metadata --no-deps` for all sixteen on 2026-11-11), so this refresh rewrites exactly the lockfile the
+ commit names, never a lockfile of some parent workspace that nothing commits.
 
  @param options - validated release options
 

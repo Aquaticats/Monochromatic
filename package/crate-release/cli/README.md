@@ -252,28 +252,37 @@ A release of an alpha runs
   in a real run and in a `--dry-run` alike.
   The gate holds the checks only the developer machine can make,
   and it is the last thing before a run nothing can take back,
-  which is a crates.io publish;
-  an alpha never reaches crates.io,
-  so it has no such publish to protect.
-  What waiting costs when it runs:
-  3286 seconds,
-  measured 2026-11-10
+  which is a crates.io publish.
+  A beta also never reaches crates.io and still waits for it,
+  so the exemption is the owner's rule for alphas,
+  not the crates.io route:
+  he named alphas,
+  and waiting cost 3286 seconds the last time it was measured
   (`doc/handover/cli-git-rust-implementation.md`,
   "When the btrfs controls run").
 - no `cargo check`.
   The release command commits the bump without compiling the crate.
-  `cargo-publish.yml` builds the binary of that same commit on both Linux targets after the push,
-  and that build is the compile evidence an alpha gets.
-  A crate that does not compile therefore leaves its bump on `main` with no GitHub release,
-  and the fix lands in the next alpha,
-  which is what "fixes in alpha.11" asks for.
   The crate's own `Cargo.lock` is still refreshed there,
   with `cargo update --workspace` in the crate directory,
-  because the bump moves the crate's own version
-  and `cargo-publish.yml` builds the pushed commit with `--locked`,
-  which refuses a lockfile the bump left stale.
-  A release that checks the crate gets that refresh for free,
+  because the bump moves the crate's own version in it
+  and two `--locked` cargo calls refuse a lockfile the bump left stale:
+  the push command's `cargo metadata --locked`,
+  which fails with "cannot update the lock file ... because --locked was passed",
+  and `cargo-publish.yml`'s `cargo build --release --locked`;
+  a release that checks the crate gets that refresh for free,
   because `cargo check` rewrites the lockfile.
+  What an alpha gets instead of the check depends on the crate:
+  a crate that ships a binary is compiled by `cargo-publish.yml` on both Linux targets from the same commit,
+  so its compile evidence follows the push,
+  while a library crate,
+  which has no binary job and no GitHub release,
+  is not compiled again at all before its bump reaches `main`,
+  and the next release's check is its first compile
+  (nine of the sixteen registered crates ship a binary;
+  the other seven are libraries).
+  A crate that does not compile therefore leaves its bump on `main` with no release,
+  and the fix lands in the next alpha,
+  which is what "fixes in alpha.11" asks for.
 - no `cargo publish --dry-run`,
   which every version that never goes to crates.io leaves out.
 

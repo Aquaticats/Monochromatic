@@ -55,9 +55,9 @@ function printLines({
  Then the crate's own release gate runs, when its registry entry names one: the command holds the checks that only this
  machine can make, so it is the last thing between the person and a run nothing can take back. A `--dry-run` skips it,
  because a dry run runs nothing that the gate's evidence would cover. An alpha release skips it too, for a real run as
- well as a dry run: the owner's standing rule of 2026-11-11 is "make the release pipeline avoid running any extra work
- for alphas", after "Alphas don't even have to resolve all flakes", and an alpha goes to its GitHub release only, so no
- unpublished version is left behind by skipping the gate.
+ well as a dry run, because of the owner's standing rule of 2026-11-11, "make the release pipeline avoid running any
+ extra work for alphas", after "Alphas don't even have to resolve all flakes". The rule names alphas: a beta, which
+ likewise never reaches crates.io, still waits for the gate.
 
  Nothing else happens on this machine: the workflow does the bump, the check, the dry run, the commit, the push and the
  publish start. A refusal by `gh` is shown as `gh` wrote it, with the call that made it, so the person sees the cause.
