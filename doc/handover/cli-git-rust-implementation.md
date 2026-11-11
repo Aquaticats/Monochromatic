@@ -101,6 +101,122 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A Kimi K3.1 Pro audit of the integration tip for waits, lost commits and lost records: three findings, all reproduced and fixed (2026-11-11T02:28:06-05:00)
+
+Branch `fix/git-policy-cli-kimi-never-stuck-audit-findings`,
+from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `84b737d1cc`.
+The audit asked how a commit,
+a worktree add or remove,
+a merge,
+a landing or a push can wait on another command,
+wait without a bound,
+or fail where Git would succeed,
+and reported three findings from the code alone,
+reproduced there but not here
+(`~/temp/agent/kimi-reviews/integration-tip-never-stuck-audit/review.md`).
+All three are reproduced here,
+each with a control that failed before its fix,
+and each is fixed with that control passing.
+The owner's standing words behind all of them are "never discard user data",
+"Commits should never fail.",
+and "nothing should ever wait forever or indefinitely".
+
+#### Finding 1: a failed side-reference write did not stop a worktree removal
+
+`keep_held_commits` answered only the lines the person reads,
+so a commit held by a lock on `refs/cli-git/kept/<batch>` was reported and then removed with its worktree
+(`worktree_removal_held_commits.rs`,
+its caller in `wrapped_command_notices_snapshots_and_manual_push.rs`).
+This finding was fixed on the branch of the agent that reviewed the same code
+(`93ef6b2438`, branch `fix/git-policy-cli-kimi-findings-dead-branch-lock-side-ref-review-findings`),
+and this branch merges that commit rather than redoing it:
+its questions run in the common Git directory,
+a locked kept reference is answered by `refs/cli-git/kept/<batch>-rescue`,
+and when no reference at all can be written the command stops with status `2` before Git runs.
+Verified by removing the fix's refusal (guarding only the rescue) and running the controls:
+
+```text
+FAIL [  23.323s] worktree::worktree_removal_held_commits::tests::a_removal_stops_when_no_reference_can_hold_the_held_commit
+  panicked at worktree_removal_held_commits_tests.rs:254:5:
+  nothing was kept, so no line claims it was: [...]
+```
+
+With the fix restored, all six controls of that module and the binary-level
+`binary_worktree_removal_held_commit_tests.rs` pass.
+
+#### Finding 2: a failed blocked-verdict write deleted the only refusal record
+
+`block` discarded the result of `write_private_file_unsynced` and called `forget_held` whatever happened,
+so a verdict record that could not be written left neither the verdict nor the held record
+(`work_item_holding.rs`,
+callers `forget_the_push` and the recovery's blocked settlement in `service_handoff.rs`).
+Reproduced by compiling that module alone with the verdict write made to fail
+(`~/temp/agent/pi-kimi-never-stuck/repro/reproduce_blocked_verdict_lost_when_write_fails.rs`):
+
+```text
+held record exists: false; blocked verdict exists: false
+DEFECT: the failed verdict write deleted the only record of the refusal
+```
+
+The fix makes `block` answer whether the verdict is durable and forget the held record only after the write
+returned;
+a verdict another command already wrote counts as durable,
+because a record is never replaced.
+`forget_the_push` and the recovery's blocked settlement follow that answer,
+and a recovery that cannot write the verdict leaves the record and says what still holds the commit.
+The refusal a held record carries is read as a blocked verdict as well (`blocked_verdicts`),
+so a command killed between the verdict and its record,
+or a verdict record that could not be written at all,
+still keeps the commit local and still stops the branch's push.
+Controls: `work_item_holding_tests.rs` (three),
+`service_handoff_tests.rs::a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal`.
+Limit:
+when no held record existed and both the verdict record and its directory are unwritable,
+nothing durable records the refusal;
+the failure is logged through the service log rather than swallowed,
+and the command that refused the commit still exits `2` with the gate's findings.
+
+#### Finding 3: a `Cargo.lock` restore overwrote a newer edit with no copy kept
+
+`restore_lock` wrote the snapshot it read before the clean over any file that differed from it,
+and the clean runs in a worktree another command may already be working in
+(`package_repair_cargo_lock.rs`,
+both of its callers,
+`package_repair_cargo.rs` and `package_repair_prewarm_job.rs`).
+A real `cargo clean --offline --package a` was measured rewriting a lock that no longer matches its manifest
+(this repository has ten such workspaces),
+so the restore's write is the ordinary path and not a corner.
+Reproduced by compiling that module alone against a lock a command wrote while the clean ran:
+
+```text
+Cargo.lock after restore_lock: "the checked-out lock\n"
+bytes that hold the newer edit after the restore: []
+DEFECT: restore_lock discarded the newer edit: nothing holds its bytes any more
+```
+
+The fix keeps the bytes the clean displaced before the checked-out ones go back:
+under the worktree's Git directory,
+in `monochromatic-git-policy-cli-displaced-locks`,
+under a directory named by the lock's own path in hexadecimal,
+written and synced before the displacing write,
+one file per displacement.
+A lock whose bytes cannot be kept,
+and a repair handed no Git directory to keep them in,
+is left exactly as the clean found it,
+because the checked-out bytes are in the branch and those are not;
+such a worktree shows the difference.
+The add's Cargo finding names every kept copy;
+the prewarm job writes the same line to its diagnostic log,
+because it runs in the service and has no terminal.
+Controls:
+the new `package_repair_cargo_lock_tests.rs` (seven,
+including a second displacement of one lock and a lock the clean created).
+Limit:
+no pass ever removes `monochromatic-git-policy-cli-displaced-locks`,
+so a worktree repaired many times keeps one small copy per clean that displaced a lock.
+The copies are inside the Git directory,
+so they never make the worktree dirty and never appear in `git status`.
+
 ### A Kimi K3.1 Pro audit of every wait since `0.6.1-alpha.8`: three findings, all reproduced and fixed (2026-11-10T19:04:54-05:00)
 
 Branch `fix/git-policy-cli-kimi-all-waits-findings`,

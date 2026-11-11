@@ -3563,6 +3563,23 @@ of which the two that rewrite link layouts in place are the service's work whene
   the lock is read before and put back byte for byte after,
   so the new worktree stays as
   checked out.
+  The clean runs in a worktree another command may already be working in,
+  and nothing read after it can tell Cargo's own rewrite of that lock from a command's or person's newer write,
+  so the bytes standing there when the clean ends are kept whole before the checked-out ones go back:
+  under the worktree's Git directory,
+  in `monochromatic-git-policy-cli-displaced-locks`,
+  under a directory named by the lock's own path in hexadecimal,
+  one file per displacement,
+  written and synced before the write that displaces them.
+  A lock whose bytes cannot be kept,
+  and a repair handed no Git directory to keep them in,
+  is left exactly as the clean found it,
+  because the checked-out bytes are in the branch and those are not;
+  the worktree then shows the difference.
+  The add's Cargo finding names every kept copy;
+  the prewarm job,
+  which runs in the service and has no terminal,
+  writes the same line to its diagnostic log.
   Nothing is cloned or cleaned when the source and the worktree share one build directory,
   when the source has no such
   workspace,
@@ -3682,6 +3699,12 @@ as one line),
 and the durable fact that this commit may not be published.
 A verdict outlives the command that wrote it,
 because the queue pushes a branch and not one commit (see "Auto-push").
+The verdict's words are written into the held record before that record is given up,
+and a verdict record that cannot be written leaves the held record standing and is said,
+because a refusal a held record carries is itself one of the verdicts a push of the branch stops before:
+a command killed between the two,
+and a storage failure on the second,
+then still keep that commit local.
 
 ### Auto-push
 
@@ -9681,6 +9704,11 @@ A blocked record is not deleted:
 it is moved into the queue's `blocked` state with the branch and the gate's words,
 and it is what makes the next push of that branch stop before that commit (see "A blocked commit is never
 published").
+A held record whose own words say its gate refused the commit is read as a blocked verdict as well,
+because the verdict is written into that record before the record is promoted or forgotten:
+a command killed in that gap,
+and a verdict record that could not be written at all,
+then still keep the commit local and still stop the branch's push.
 A record an earlier release wrote holds the word `blocked` alone,
 so its commit,
 its branch and its reason are read from the file's name and from nothing else;
