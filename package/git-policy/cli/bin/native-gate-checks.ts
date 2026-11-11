@@ -245,8 +245,8 @@ async function settledWithinBound<T>({
 
  Both are started before either is awaited, and both are waited for even when one failed: a container left running
  behind a failure would hold the image and the host's CPUs that the next gate needs. Neither can hold the gate open: the
- check that failed is reported beside the one that never answered, and the gate itself gives up at the bound it gave
- them.
+ check that failed is reported beside the one that never answered, and the gate itself gives up at the grace after the
+ bound it gave them.
 
  @param testRun - the whole suite, started immediately
 

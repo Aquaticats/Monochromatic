@@ -702,7 +702,8 @@ so it is not this change either.
 ### The bound on each check
 
 Starting the two checks together added a wait the gate did not have:
-on 2026-11-11 a review of that change found that a failed test run could be known while Clippy's client never answered,
+on 2026-11-11 a review of that change found that a failed test run could be known while Clippy's client never
+answered,
 and the gate waited for both forever,
 so the failure a person needs was never reported.
 
