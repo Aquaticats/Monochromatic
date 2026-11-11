@@ -12184,6 +12184,9 @@ The markers of that answer carry labels made unguessable for every merge
 Git does not escape the markers it writes,
 so a block the file already held that looks exactly like a conflict would otherwise be taken for a region
 and replaced by the word pass.
+A marker of a file whose lines end with a carriage return and a line feed ends with both bytes,
+as Git writes that file's markers,
+so both endings are a marker's own and such a file is still merged.
 An answer that ends inside a region,
 that nests a region inside another,
 or whose region count is other than the conflict count Git reported is refused,

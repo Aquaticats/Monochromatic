@@ -58,6 +58,30 @@ fn an_answer_that_cannot_be_cut_is_refused() {
     let text: Cut = cut(b"<<<<<<\n>>>>>>\n=======\n", &LABELS).expect("six characters and a marker outside a region are text");
     assert!(text.regions.is_empty());
     assert_eq!(text.settled[0], b"<<<<<<\n>>>>>>\n=======\n".to_vec());
+    // A second, label-free split line after the real one is out of order: a line that is exactly
+    // `=======` cannot carry a label, so the order of the parts is what refuses it.
+    assert!(
+        cut(b"<<<<<<< ours-0f8b1c\none\n=======\ntwo\n=======\nthree\n>>>>>>> theirs-0f8b1c\n", &LABELS).is_err(),
+        "a second split line cannot be cut"
+    );
+    // A line with the seven characters and another merge's label is the file's own text.
+    let other: Cut = cut(b"<<<<<<< ours-other\n>>>>>>> theirs-other\n", &LABELS).expect("another merge's labels are text");
+    assert!(other.regions.is_empty());
+    assert_eq!(other.settled[0], b"<<<<<<< ours-other\n>>>>>>> theirs-other\n".to_vec());
+}
+
+/// An answer whose lines end with a carriage return and a line feed is cut,
+/// with the markers Git writes for such a file,
+/// which carry that ending too.
+#[test]
+fn an_answer_whose_lines_end_with_both_bytes_is_cut() {
+    let answer: &[u8] = b"head\r\n<<<<<<< ours-0f8b1c\r\nours one\r\n||||||| base-0f8b1c\r\nbase one\r\n=======\r\ntheirs one\r\n>>>>>>> theirs-0f8b1c\r\ntail\r\n";
+    let cut: Cut = cut(answer, &LABELS).expect("an answer whose lines end with both bytes cuts");
+    assert_eq!(cut.regions.len(), 1);
+    assert_eq!(cut.settled, vec![b"head\r\n".to_vec(), b"tail\r\n".to_vec()]);
+    assert_eq!(cut.regions[0].ours, b"ours one\r\n".to_vec());
+    assert_eq!(cut.regions[0].base, b"base one\r\n".to_vec());
+    assert_eq!(cut.regions[0].theirs, b"theirs one\r\n".to_vec());
 }
 
 /// A region's place is found at a line start after the region before it,

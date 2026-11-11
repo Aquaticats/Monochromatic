@@ -410,6 +410,36 @@ fn marker_shaped_text_of_the_person_is_kept_at_the_truncated_conflict_count() {
     remove(world.root.as_path());
 }
 
+/// What:
+///  A conflicted file whose lines end with a carriage return and a line feed is merged by word.
+/// Why:
+///  Git writes the markers of such a file with that ending too;
+///  a cut that accepts only a lone line feed reads no region,
+///  the region count then refuses the answer,
+///  and the file stays conflicted where the pass used to resolve it.
+#[test]
+fn a_file_whose_lines_end_with_both_bytes_is_merged() {
+    let world: World = world(
+        "second-pass-crlf",
+        &[("a.md", b"head\r\nalpha one\r\n")],
+        &[("a.md", Change::Write(b"head\r\nalpha uno\r\n"))],
+        &[("a.md", Change::Write(b"head\r\nALPHA one\r\n"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let summary: Vec<String> = verdicts
+        .iter()
+        .map(|verdict| {
+            return match verdict {
+                Verdict::Merged(file) => format!("merged, {} bytes: {:?}", file.bytes.len(), String::from_utf8_lossy(file.bytes.as_slice())),
+                Verdict::Left { why, .. } => format!("left: {why:?}"),
+            };
+        })
+        .collect();
+    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {summary:?}") };
+    assert_eq!(file.bytes, b"head\r\nALPHA uno\r\n".to_vec(), "the word merge of the two sides keeps the file's own line ending");
+    remove(world.root.as_path());
+}
+
 /// A path both sides added has no common ancestor stage and is left.
 #[test]
 fn a_path_both_sides_added_is_left_for_the_person() {

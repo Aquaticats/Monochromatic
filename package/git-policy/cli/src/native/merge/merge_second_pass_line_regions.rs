@@ -76,6 +76,9 @@ const MARKER_WIDTH: usize = 7;
 /// The byte that ends a line.
 const LINE_END: u8 = b'\n';
 
+/// The byte that comes before the line end of a file whose lines end with both.
+const CARRIAGE_RETURN: u8 = b'\r';
+
 /// Whether one byte ends a line.
 fn is_line_end(byte: &u8) -> bool {
     return *byte == LINE_END;
@@ -97,6 +100,8 @@ fn is_line_end(byte: &u8) -> bool {
 /// The second pass makes the labels unguessable for every merge
 /// (`merge_second_pass_git_lines.rs`),
 /// so a line of the person's file that happens to look like a marker is the file's own text.
+/// A file whose lines end with a carriage return and a line feed gets that ending in its markers too,
+/// so both endings are a marker's own.
 /// The split line carries no label,
 /// and a line of that shape inside a region is refused as out of order.
 ///
@@ -121,8 +126,10 @@ fn marker_of(line: &[u8], labels: &MarkerLabels<'_>) -> Option<u8> {
         rest = rest.strip_prefix(b" ")?;
     }
     let tail: &[u8] = rest.strip_prefix(label)?;
+    // Git writes the marker of a file whose lines end with a carriage return and a line feed with that
+    // ending too, so both endings are a marker's own.
     return match tail {
-        [] | [LINE_END] => Some(character),
+        [] | [LINE_END] | [CARRIAGE_RETURN, LINE_END] => Some(character),
         _ => None,
     };
 }
