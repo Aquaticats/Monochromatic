@@ -11,6 +11,7 @@
 //! ```
 
 use super::{LandedPlace, LandedSweep, sweep_landed_worktrees};
+use crate::held_commit_record::{Held, write};
 use crate::shadow_pool::pool_root_for;
 use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository, spawn_owned};
 use crate::worktree_added_by_the_wrapper::record;
@@ -96,6 +97,57 @@ fn place_of<'a>(landed: &'a Landed, context: &'a crate::transaction_git::GitCont
 /// The head of the main checkout now.
 fn head_of(main: &Path) -> String {
     return git_text(main, &["rev-parse", "HEAD"]);
+}
+
+/// The worktree's own Git directory, as Git's pointer names it.
+fn admin_of(worktree: &Path) -> PathBuf {
+    let pointer: String = std::fs::read_to_string(worktree.join(".git")).expect("the worktree's pointer");
+    let path: &str = pointer.trim().strip_prefix("gitdir: ").expect("a pointer to its Git directory");
+    return PathBuf::from(path);
+}
+
+/// What:
+///  The state a commit that met a reference lock leaves in the worktree:
+///  a commit no branch names, held by the worktree's own reference and named by a held record.
+/// Why:
+///   Both of those go with the removal,
+///  so a sweep that removes the worktree without keeping the commit loses it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = holdACommitInTheWorktree(landed, 7);
+/// ```
+fn hold_a_commit_in_the_worktree(landed: &Landed, seq: u64) -> String {
+    let tree: String = git_text(landed.worktree.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let held: String = git_text(landed.worktree.as_path(), &["commit-tree", tree.as_str(), "-p", "HEAD", "-m", "the held edit"]);
+    let reference: String = format!("refs/worktree/cli-git-service/{seq}");
+    git(landed.worktree.as_path(), &["update-ref", "--no-deref", reference.as_str(), held.as_str()]);
+    // The branch, its reflog and every other ref were expired by the hold, so the worktree's own reference is the only thing
+    //  that names the commit.
+    git(landed.main.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
+    let admin: PathBuf = admin_of(landed.worktree.as_path());
+    let record: Held = Held {
+        seq,
+        journal: landed.root.join("journal"),
+        repository: landed.worktree.clone(),
+        common_dir: landed.common.clone(),
+        git_dir: admin.clone(),
+        reference: String::from("refs/heads/feature"),
+        old: head_of(landed.worktree.as_path()),
+        new: held.clone(),
+        commits: vec![held.clone()],
+        index: admin.join("index"),
+        reflog: b"commit: the held edit".to_vec(),
+        locks: vec![landed.common.join("refs/heads/feature.lock")],
+        created: String::from("2026-01-01T00:00:00+00:00"),
+    };
+    write(admin.as_path(), &record).expect("the record of the hold");
+    assert_eq!(
+        git_text(landed.worktree.as_path(), &["for-each-ref", "--contains", held.as_str(), "--format=%(refname)"]).trim(),
+        reference,
+        "nothing but the worktree's own reference names the held commit"
+    );
+    return held;
 }
 
 /// What:
@@ -278,6 +330,30 @@ fn a_landed_worktree_holding_an_ignored_build_directory_is_removed() {
     let sweep: LandedSweep = land_feature(&landed);
     assert_eq!(sweep.removed.len(), 1, "the worktree is removed: {sweep:?}");
     assert!(!landed.worktree.exists(), "the worktree directory is gone");
+}
+
+/// What:
+///  The commit a reference lock holds in a landed worktree reaches a reference of this repository
+///  before the sweep removes that worktree,
+///  and real Git's maintenance then leaves it alone.
+/// Why:
+///   The hold's record and its per-worktree reference live in the worktree's own Git directory,
+///  which the removal deletes,
+///  so a sweep that skipped this lost a commit the wrapper said it kept
+///  (a cross-vendor review of the landed sweep).
+#[test]
+fn a_landed_worktree_holding_a_commit_keeps_it_on_a_side_reference() {
+    let landed: Landed = a_repository_with_a_worktree("landed-held-commit");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let held: String = hold_a_commit_in_the_worktree(&landed, 7);
+    let sweep: LandedSweep = land_feature(&landed);
+    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed: {sweep:?}");
+    assert_eq!(sweep.kept_commits.len(), 1, "the person is told about the one held commit: {sweep:?}");
+    let kept: String = String::from("refs/cli-git/kept/7");
+    assert!(sweep.kept_commits[0].contains(kept.as_str()), "the line names where the commit is kept: {}", sweep.kept_commits[0]);
+    assert_eq!(git_text(landed.main.as_path(), &["rev-parse", kept.as_str()]), held, "the kept reference names the held commit");
+    git(landed.main.as_path(), &["gc", "--prune=now"]);
+    assert_eq!(git_text(landed.main.as_path(), &["cat-file", "-t", held.as_str()]), "commit", "the commit is not lost with the worktree");
 }
 
 #[test]

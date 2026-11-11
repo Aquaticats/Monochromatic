@@ -464,6 +464,16 @@ The comparison is a stat and a bounded byte read per ignored file Git lists,
 A query or a comparison that cannot be made keeps the worktree and says why,
  because nothing proves the files are not the person's.
 
+A commit a reference lock holds in a landed worktree lives in that worktree's own Git directory
+ and on the per-worktree reference `refs/worktree/cli-git-service/<batch>`,
+ and the removal deletes both,
+ so the sweep keeps it on `refs/cli-git/kept/<batch>` of the common Git directory before it examines a candidate,
+ through the same `worktree_removal_held_commits.rs` `keep_held_commits` the ordinary removal uses.
+Another cross-vendor review found that the sweep skipped this
+ and that `git gc --prune=now` then took the commit.
+The held lines are printed before the removal lines,
+ so a person reads where the commit is before reading that the worktree went.
+
 Every merge that lands a branch prints one line per worktree it removed,
  left,
  or could not prove it made,

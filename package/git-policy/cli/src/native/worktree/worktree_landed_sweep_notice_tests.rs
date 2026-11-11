@@ -82,6 +82,21 @@ fn a_sweep_that_looked_at_nothing_says_why() {
 }
 
 #[test]
+fn a_commit_a_removal_would_have_deleted_is_said_before_the_removal() {
+    let sweep: LandedSweep = LandedSweep {
+        landed_branch: String::from("main"),
+        kept_commits: vec![String::from("the commit abcdef is held behind a lock and is kept at `refs/cli-git/kept/7`")],
+        removed: vec![RemovedWorktree { worktree: PathBuf::from("/a worktree/held"), branch: String::from("refs/heads/feature") }],
+        ..LandedSweep::default()
+    };
+    let lines: Vec<String> = landed_sweep_lines(&sweep);
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert!(lines[0].starts_with("monochromatic-git-policy-cli: the commit abcdef"), "{}", lines[0]);
+    assert!(lines[0].contains("refs/cli-git/kept/7"), "{}", lines[0]);
+    assert!(lines[1].contains("removed the worktree /a worktree/held"), "{}", lines[1]);
+}
+
+#[test]
 fn a_sweep_with_nothing_to_say_prints_nothing() {
     let sweep: LandedSweep = LandedSweep { landed_branch: String::from("main"), ..LandedSweep::default() };
     assert!(landed_sweep_lines(&sweep).is_empty(), "a merge that landed no branch of this program says nothing");

@@ -36,6 +36,11 @@
 //!  so a worktree holding a modified or untracked file is refused by Git exactly as it is for a person,
 //!  and what the person reads here is Git's sentence.
 //!  Everything else is named with its reason and left alone.
+//!  A commit a reference lock holds in a landed worktree lives in that worktree's own Git directory
+//!  and on its per-worktree reference, and both go with the removal,
+//!  so every held commit reaches `refs/cli-git/kept/<batch>` of the common Git directory before a candidate is examined
+//!  (`worktree_removal_held_commits.rs`),
+//!  and the person reads where the commit is before reading that the worktree went.
 //!  Nothing here can fail the merge that woke it.
 //!
 //! In TS you'd write (pseudocode):
@@ -50,6 +55,7 @@ use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
+use crate::worktree_removal_held_commits::keep_held_commits;
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
 use crate::worktree_remove_plan::RemovePlan;
 use std::collections::HashSet;
@@ -127,6 +133,9 @@ pub struct LandedSweep {
     pub kept: Vec<KeptWorktree>,
     /// What landed and the wrapper cannot prove it made.
     pub unproven: Vec<UnprovenWorktree>,
+    /// The lines that say which commit a removal would have deleted,
+    /// and the reference of this repository that now names it.
+    pub kept_commits: Vec<String>,
     /// Why no candidate was examined,
     /// when the repository could not be read.
     pub failed: Option<String>,
@@ -193,6 +202,10 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
     if candidates.is_empty() {
         return sweep;
     }
+    // A held commit lives on the worktree's own reference and in its own Git directory, and both go with the removal, so
+    // every one of them reaches a reference of this repository first: the ordinary `git worktree remove` keeps them the same
+    // way (`worktree_removal_held_commits.rs`). Nothing here can fail the merge, so the lines are kept for the notice.
+    sweep.kept_commits = keep_held_commits(place.common_dir, place.context);
     let registered: Vec<Registration> = match registrations_of(place.common_dir) {
         Ok(found) => found,
         Err(reason) => {
