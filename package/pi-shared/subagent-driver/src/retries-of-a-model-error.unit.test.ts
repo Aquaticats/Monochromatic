@@ -48,6 +48,11 @@ const OPERATION_ABORTED = 'This operation was aborted';
 const TOO_MANY_REQUESTS = '429 {"error":{"message":"Too many requests"}}';
 
 /**
+ The same status with words in front of it, which some gateways and clients write.
+ */
+const HTTP_429 = 'HTTP 429: upstream request failed';
+
+/**
  A plan limit sent as a rate limit, which another attempt cannot refill.
  */
 const QUOTA_EXCEEDED = '429 {"error":{"code":"insufficient_quota","message":"You exceeded your current quota"}}';
@@ -95,11 +100,20 @@ await describe({
       fn: async () => {
         // The 429 a real run met: a concurrency limit rather than a quota, which Pi's own retry answers.
         expect(kindOfModelError(NEURALWATT_FLEX_429,),).toBe('throttled',);
-        expect(driverRetries('throttled',),).toBe(false,);
-        expect(driverRetries('quota-reached',),).toBe(false,);
+        expect(driverRetries({ kind: 'throttled', problem: NEURALWATT_FLEX_429, },),).toBe(false,);
+        expect(driverRetries({ kind: 'quota-reached', problem: QUOTA_EXCEEDED, },),).toBe(false,);
+        // A status a gateway writes a word in front of is the same 429, whatever kind the text reads as otherwise.
+        expect(kindOfModelError(HTTP_429,),).toBe('throttled',);
+        expect(driverRetries({ kind: 'throttled', problem: HTTP_429, },),).toBe(false,);
+        expect(driverRetries({ kind: 'transient', problem: HTTP_429, },),).toBe(false,);
         // The control: a failure that is no 429 stays the driver's own to answer, and one no attempt can fix never is.
-        expect(driverRetries('transient',),).toBe(true,);
-        expect(driverRetries('permanent',),).toBe(false,);
+        expect(driverRetries({ kind: 'transient', problem: REQUEST_TIMED_OUT, },),).toBe(true,);
+        expect(driverRetries({ kind: 'permanent', problem: PROVIDER_NOT_CONFIGURED, },),).toBe(false,);
+        // A rate limit word in a failure that names no 429 keeps the attempt it had before, and a number that is no status
+        // names no limit at all.
+        expect(driverRetries({ kind: 'throttled', problem: '503 Service Unavailable: rate limit exceeded', },),).toBe(true,);
+        expect(driverRetries({ kind: 'transient', problem: 'the request held 4290 tokens', },),).toBe(true,);
+        expect(driverRetries({ kind: 'transient', problem: 'the request held 429 tokens', },),).toBe(false,);
       },
     },),
     it({

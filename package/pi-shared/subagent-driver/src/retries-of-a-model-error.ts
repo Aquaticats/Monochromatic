@@ -19,8 +19,9 @@
  limit and a quota, so the driver neither re-prompts one nor waits one out. Which layer owns which errors is in `README.md`.
 
  Every text is folded to lower case once, and each shape is then a plain substring of it, so a failure of a few kilobytes is
- read in one pass and nothing here can backtrack. A status code is read only where the text starts with one, which is where a
- response writes it: the same digits inside a body name a token count or a limit the provider states, and neither is transient.
+ read in one pass and nothing here can backtrack. A 429 is read wherever its digits stand whole, because a gateway may write a
+ word in front of the status; every other status is read only where the text starts with one, which is where a response writes it,
+ so the same digits inside a body name a token count or a limit the provider states, and neither is transient.
 
  @module
  */
@@ -33,7 +34,8 @@ import {
 import { preview, } from './previews-of-pi-messages.ts';
 
 /**
- What kind of failure a model error is. The kind decides both whether another attempt can fix it and how the run counts it.
+ What kind of failure a model error is. The kind decides how the run counts a failure and, with the failure's own text, whether
+ the driver answers it with an attempt of its own.
  */
 export type ModelErrorKind =
   /**
@@ -41,8 +43,8 @@ export type ModelErrorKind =
    */
   | 'transient'
   /**
-   A rate limit that passes, such as HTTP 429: Pi's own automatic retry answers one, so the driver makes no attempt at it. The
-   coordinator measures these apart from other failures all the same.
+   A rate limit: written as a rate limit, and usually sent as HTTP 429, which Pi's own automatic retry answers, so the driver
+   makes no attempt at one. The coordinator measures these apart from other failures all the same.
    */
     | 'throttled'
   /**
@@ -137,7 +139,8 @@ const THROTTLE_PHRASES: readonly string[] = [
 ];
 
 /**
- The status code of a throttle, read only where the failure text starts with one.
+ The status code of a throttle, looked for wherever it stands whole in the text: a response starts with it, and a gateway or a
+ library may write a word in front of it (`HTTP 429`, `status: 429`).
  */
 const THROTTLE_CODE = '429';
 
@@ -336,6 +339,35 @@ function holdsOneOf({
 }
 
 /**
+ Tells whether a text folded to lower case names an HTTP 429, wherever it stands.
+
+ A response writes its status first, and a gateway or library may write a word in front of it, so the digits are looked for
+ wherever they are whole. A 429 inside a longer number or word is a count, a request number or a limit the provider states, and
+ none of those is a status.
+
+ @param text - text folded to lower case
+
+ @returns whether the text names that status
+ */
+function namesRateLimitStatus(text: string,): boolean {
+  for (
+    let at = text.indexOf(THROTTLE_CODE,);
+    at !== (-1);
+    at = text.indexOf(
+      THROTTLE_CODE,
+      at + 1,
+    )
+  ) {
+    // An occurrence with a letter or a digit either side of it is part of a longer word or number, which names no status. An
+    // index at either edge of the text answers an empty character, so one standing there is no part of a longer word.
+    if ((!isLetterOrDigit(text.charAt(at - 1,),)) && (!isLetterOrDigit(text.charAt(at + THROTTLE_CODE.length,),))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  Reads what kind of failure a model error is.
 
  @param problem - what the model said when its message ended in an error
@@ -363,10 +395,9 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
   },)) {
     return 'quota-reached';
   }
-  if (holdsOneOf({
+  if (namesRateLimitStatus(text,) || holdsOneOf({
     text,
     phrases: THROTTLE_PHRASES,
-    statusCodes: [THROTTLE_CODE,],
   },)) {
     return 'throttled';
   }
@@ -387,22 +418,34 @@ export function kindOfModelError(problem: string,): ModelErrorKind {
 }
 
 /**
- Tells whether the driver itself answers a failure of this kind with another attempt.
+ Tells whether the driver itself answers a model error with another attempt.
 
- A 429 is Pi's own automatic retry's to answer, in every form it comes: a rate limit, a concurrency limit and a quota all reach
- the driver only once Pi's retry has given up on them, so the driver re-prompts none of them and waits none of them out.
+ A 429 is Pi's own automatic retry's to answer, in every form it comes, wherever the text names it: the driver re-prompts none of
+ them and waits none of them out. Every other failure keeps the reading it had: one another attempt may fix is answered here,
+ and one it cannot fix ends the run.
 
  @param kind - what kind of failure a model error is
+
+ @param problem - what the model said when its message ended in an error
 
  @returns whether the driver answers it with another attempt
 
  @example
  ```ts
- const retried = driverRetries('transient',);
+ const retried = driverRetries({ kind: 'transient', problem: 'Request timed out.', },);
  ```
  */
-export function driverRetries(kind: ModelErrorKind,): boolean {
-  return kind === 'transient';
+export function driverRetries({
+  kind,
+  problem,
+}: {
+  readonly kind: ModelErrorKind;
+  readonly problem: string
+},): boolean {
+  if (namesRateLimitStatus(problem.toLowerCase(),)) {
+    return false;
+  }
+  return (kind === 'transient') || (kind === 'throttled');
 }
 
 /**

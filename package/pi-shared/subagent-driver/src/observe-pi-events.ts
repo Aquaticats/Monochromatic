@@ -189,6 +189,9 @@ export function startObservingPiRun({
     const endedInError = message.stop === 'error';
     if (endedInError) {
       state.pendingModelError = message.error === '' ? MODEL_ERROR_WITHOUT_TEXT : message.error;
+      // A failure of its own supersedes what Pi said about the retry that answered the one before it, so a run that ends on
+      // this failure names no retry of an earlier one.
+      delete state.piRetryGaveUp;
       countModelError(state.pendingModelError,);
     }
     else {

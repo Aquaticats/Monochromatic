@@ -323,14 +323,17 @@ export async function answerModelError(
    What kind of failure the model named.
    */
   const kind = kindOfModelError(failure.problem,);
-  if (!driverRetries(kind,)) {
+  if (!driverRetries({
+    kind,
+    problem: failure.problem,
+  },)) {
     // A 429 in any form is Pi's own automatic retry's to answer: the driver re-prompts none of them and waits none of them out,
     // so the run ends on what Pi reported when its own retry gave up.
     if (isRateLimit(kind,)) {
       watch.record
         .note({
           kind: 'problem',
-          problem: 'the model error names a rate limit, which Pi\'s own automatic retry answers, so the driver made no attempt at it',
+          problem: 'the model error names a rate limit, which the driver leaves to Pi\'s own automatic retry, so no attempt was made at it here',
         },);
     }
     return 'model-error';

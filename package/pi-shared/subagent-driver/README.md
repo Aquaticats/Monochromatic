@@ -304,6 +304,9 @@ before the error Pi's retry gave up on can settle.
 
 The driver neither re-prompts a 429 nor waits one out,
 whether the provider sent a rate limit, a concurrency limit or a quota.
+A 429 counts wherever the text names it whole,
+even behind a word (`HTTP 429: upstream request failed`),
+while the same digits inside a longer number are a count, a request number or a stated limit, and no status.
 Once Pi settles on one, the run ends `model-error` on the next look,
 with that error's own text standing:
 
@@ -344,6 +347,12 @@ in the shape the providers write it:
   an unknown provider or model,
   a context overflow,
   and an abort the coordinator asked for.
+
+One case stays as it was, and costs a retry of Pi's as well as one of the driver's:
+an error that names no 429 keeps the attempt it had,
+even when its own words name a rate limit,
+so `503 Service Unavailable: rate limit exceeded` is answered by the driver as it always was.
+Only a 429 itself is left to Pi.
 
 A status is read only where the error text starts with one,
 which is where a response writes it:

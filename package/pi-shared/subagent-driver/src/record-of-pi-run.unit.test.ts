@@ -90,6 +90,11 @@ function declineNothing(): void {
  */
 const RATE_LIMIT_ERROR_TEXT = '429 {"error":{"message":"Too many requests"}}';
 
+/**
+ A plan limit sent as a rate limit: Pi's own retry leaves it to the run, so a run can end on one after a rate limit it retried.
+ */
+const QUOTA_ERROR_TEXT = '429 {"error":{"code":"insufficient_quota","message":"You exceeded your current quota"}}';
+
 function assistantMessage(
   content: readonly Record<string, unknown>[],
   ending: Record<string, unknown> = {},
@@ -298,6 +303,35 @@ await describe({
         const summary = await summaryOf(record,);
         expect('piRetryGaveUp' in summary,).toBe(false,);
         expect('modelError' in summary,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'names no retry of an earlier failure once a failure of its own stands',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: assistantMessage([], { stopReason: 'error', errorMessage: RATE_LIMIT_ERROR_TEXT, },),
+          declineDialog: declineNothing,
+        },);
+        record.observe({
+          event: {
+            type: 'auto_retry_end',
+            success: false,
+            attempt: 1,
+            finalError: RATE_LIMIT_ERROR_TEXT,
+          },
+          declineDialog: declineNothing,
+        },);
+        // The failure the run ends on is a later one Pi never retried, such as a quota it leaves to the run.
+        record.observe({
+          event: assistantMessage([], { stopReason: 'error', errorMessage: QUOTA_ERROR_TEXT, },),
+          declineDialog: declineNothing,
+        },);
+        record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
+        const summary = await summaryOf(record,);
+        expect(summary.modelError,).toBe(QUOTA_ERROR_TEXT,);
+        expect('piRetryGaveUp' in summary,).toBe(false,);
       },
     },),
     it({
