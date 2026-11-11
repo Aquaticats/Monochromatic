@@ -124,6 +124,7 @@ fn the_standing_notice_variable_is_the_one_the_client_reads() {
     assert!(source.contains("waiting_notice_after: crate::wait_ceilings::waiting_notice_after()"), "the client's setting is read where the config is made");
 }
 
+/// What:
 ///  A command that only has to tell the service about work whose record it already wrote waits the hand-over's greeting
 ///  bound,
 /// and a command whose own next step depends on the answer keeps the longer start wait.
