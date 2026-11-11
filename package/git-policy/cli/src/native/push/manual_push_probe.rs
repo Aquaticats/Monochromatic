@@ -44,10 +44,15 @@ use crate::command_push::{PUSH_TABLE, push_shape};
 use std::ffi::OsString;
 /// Maps each ref the remote listed to the object name it reported.
 use std::collections::HashMap;
+/// The diagnostic log of the wrapper.
+use crate::diagnostic_log::debug;
 /// The parser of the ls-remote listing,
 /// beside the other listing parsers.
 use crate::manual_push_range_published_tips::oids_by_ref;
 pub use crate::manual_push_update_and_query_limits::{LOCAL_QUERY_GAIN_STOPS_AT, MEASURED_WHOLE_HISTORY_QUERY, MOST_CONCURRENT_LOCAL_QUERIES, MOST_CONCURRENT_REMOTE_QUERIES, PushUpdate};
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// The bytes one query holds at its peak:
 /// `MEASURED_WHOLE_HISTORY_QUERY` rounded up to a power of two.
@@ -226,6 +231,9 @@ pub fn confirm_group(
         // A destination that moved to any other value is a change this push cannot account for.
         if changed && authoritative.as_ref() != local.as_ref() {
             return Err(probe_error(ManualPushCause::RemoteMoved, format!("Remote ref changed during manual-push discovery: {}", update.to)));
+        }
+        if changed {
+            debug(TAG, &format!("{} already holds the object this push sends, so nothing is left to publish from it", update.to));
         }
         confirmed.push(PushUpdate {
             local_oid: local.clone(),

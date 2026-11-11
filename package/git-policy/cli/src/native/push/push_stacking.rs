@@ -181,6 +181,7 @@ pub fn stack_failed_push(
     //       that push for an expectation only the auto-push outran (`cannot lock ref ...: is at X but expected Y`); native
     //       Git answers "Everything up-to-date" with status zero for the same state, so this push ends that way and says why.
     if updates.iter().all(already_holds_its_object) {
+        debug(TAG, "every destination of the failed push already holds the object it sends, so nothing is left to push");
         // Terminal output error: the report is advisory; the exit status already carries the result.
         let _written = writeln!(
             err,
