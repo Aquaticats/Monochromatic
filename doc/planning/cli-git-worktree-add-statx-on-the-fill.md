@@ -27,7 +27,7 @@ run at
 2026-11-10T17:35:12-05:00 over 545 s here:
 one disposable btrfs subvolume holding a `git clone --shared` of this repository
 (23,082 tracked files,
-2,407 of their directories),
+1,876 distinct directories over them),
 the ignored state a working checkout of it carries
 (4,800 files in a root `node_modules`,
 3,000 in twenty per-package stores,
