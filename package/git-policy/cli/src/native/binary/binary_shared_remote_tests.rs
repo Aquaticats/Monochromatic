@@ -475,6 +475,26 @@ fn a_write_that_names_or_edits_the_shared_configuration_is_refused() {
         String::from_utf8_lossy(&config_bytes(repo.as_path())).contains(EDITOR_SECTION),
         "real Git's editor session changed nothing shared, so the refusals above prove nothing"
     );
+    // The hatch the refusal names runs the same editor session, and leaves the line that attributes it.
+    let hatched: Observed = observe(
+        wrapped(&fixture)
+            .current_dir(linked.as_path())
+            .env("GIT_EDITOR", editor_text.as_str())
+            .args(["config", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--edit"]),
+        b"",
+    );
+    assert_eq!(hatched.code, Some(0), "the hatch did not run the editor session: {}", stderr_of(&hatched));
+    assert_eq!(
+        edited_files(&fixture).lines().next_back(),
+        Some(spelled.as_str()),
+        "the hatch ran the editor on another file than the shared one"
+    );
+    let audit: PathBuf = repo
+        .join(".git")
+        .join("monochromatic-git-policy-cli-audit.jsonl");
+    let lines: String = std::fs::read_to_string(audit.as_path()).expect("audit file after the hatch");
+    assert!(lines.contains("\"form\":\"SharedRemote\""), "{lines}");
+    assert!(lines.contains("\"outcome\":\"hatch\""), "{lines}");
     remove(&fixture);
 }
 

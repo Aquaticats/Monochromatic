@@ -15018,15 +15018,31 @@ A region Git refuses writes nothing and is not rejected:
 no action and four or more arguments,
 two actions at once,
 and two scope options at once.
-`git config --edit` names no key and is left to Git.
+`git config --edit` names no key and edits the file the region selects,
+which without a scope option is the shared one:
+an editor session is rejected where the shared file is,
+because the editor can change any remote setting,
+and `--edit` with `--global`,
+`--system`,
+`--worktree` or a `--file` of its own runs.
+The `edit` subcommand takes no argument,
+so `git config edit <key>` is Git's own refusal and not this one,
+while the legacy `--edit` runs the editor whatever follows it and is rejected as the editor session it is.
 
 No read is rejected.
 No write to another file is rejected:
 `--global`,
 `--system`,
-`--worktree`,
-`--file` and `--blob`,
+`--worktree` and `--blob`,
 the last of which Git refuses for a write anyway.
+`--file` names another file only when the path it takes is not `$GIT_COMMON_DIR/config`:
+the path is resolved the way the filesystem resolves it,
+from the directory the command runs in,
+so an absolute spelling,
+one written with `=`,
+a relative one,
+one through `..` or a link and one reached after `-C` are the plain form's rejection when they name that file,
+and a path that names any other file runs.
 A `-c` global option is one command's override,
 changes no file and is not a write to the shared settings.
 The main checkout,
@@ -15061,6 +15077,13 @@ every read and every write to another file,
 the hatch,
 the main checkout and an allowlisted cache through the built executable,
 and compares the shared configuration byte for byte before and after each rejection.
+It also runs every spelling of the shared file a `--file` write can take and both editor forms,
+requires the shared bytes unchanged and the editor never started,
+and keeps the positive control that the same editor on the same worktree does change the shared file when Git
+itself runs it.
+The decision is `src/native/command/rule_shared_remote.rs`,
+the path a `--file` region names is read by `src/native/command/command_config.rs`,
+and the comparison with `$GIT_COMMON_DIR/config` is `src/native/policy/policy_linked_worktree.rs`.
 
 ### Dependent version bump
 
