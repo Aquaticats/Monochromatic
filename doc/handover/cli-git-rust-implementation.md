@@ -12051,6 +12051,27 @@ because another agent's build replaced this worktree's test binary while the run
 which is why the gate judges a run by the controls it names
 and by what each control printed,
 not by the exit status alone.
+Narrowed for alphas,
+2026-11-11,
+by his words
+"make the release pipeline avoid running any extra work for alphas",
+spoken beside "Release now,
+fixes in alpha.11",
+"Prioritize fixing the jams and release jam fixes asap"
+and his standing rule
+"Alphas don't even have to resolve all flakes".
+As read by the coordinator and built in `package/crate-release/cli`
+(`isAlphaVersion` and `releaseRunsCargoCheck`,
+used by the dispatch command and the release command):
+an alpha release no longer waits for the btrfs controls,
+nor for the `cargo check` of the release job,
+and every other release,
+a beta included,
+still does both.
+The reading stands in `package/crate-release/cli/README.md` ("What an alpha release leaves out")
+and `package/git-policy/cli/README.md` ("Development"),
+with those quotes and dates,
+so he can veto it.
 
 ## Working rules for this effort
 
