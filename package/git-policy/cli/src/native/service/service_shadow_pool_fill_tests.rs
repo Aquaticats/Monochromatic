@@ -87,7 +87,8 @@ fn a_full_pool_is_not_filled_again() {
     remove(root.as_path());
 }
 /// What:
-///  A repository at `directory`, with one commit behind it.
+///  A repository at `directory`,
+/// with one commit behind it.
 /// Why:
 ///   A fill asks Git the same questions a capture does,
 ///  and a capture needs a repository with a `HEAD`.

@@ -407,7 +407,8 @@ fn variables_that_can_change_an_answer_are_not_plain() {
 ///  A `.git` file whose `gitdir:` line names a Git directory that is not UTF-8 text names that directory,
 ///  and every other line of the layout still equals Git's.
 /// Why:
-///   The pointer was read as UTF-8 text, so the whole layout of such a worktree was declined
+///   The pointer was read as UTF-8 text,
+/// so the whole layout of such a worktree was declined
 ///  and every read of it started Git.
 #[test]
 fn a_gitfile_that_names_a_directory_that_is_not_text_names_it() {

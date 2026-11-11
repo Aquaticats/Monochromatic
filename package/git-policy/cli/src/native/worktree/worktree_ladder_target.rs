@@ -22,6 +22,8 @@
 //! ```
 
 use crate::config_snapshot::{ConfigEntry, read_config_snapshot};
+/// A pathname from the bytes a configuration value holds.
+use crate::hooks_path_values::path_answer;
 use crate::forwarding::NoChildRecorded;
 use crate::landed_summary::short_name;
 use crate::repo_read_layout::ObjectFormat;
@@ -192,19 +194,33 @@ fn conversion_agrees(source: &[ConfigEntry], target: &[ConfigEntry]) -> Result<(
 
 /// The attribute names a line of an attributes file applies as a filter,
 /// one per `filter=<name>` token.
-fn filters_named(text: &str) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
-    for line in text.lines() {
-        if line.trim_start().starts_with('#') {
+/// Why:
+///   An attributes file is bytes,
+/// and a name it selects is compared with the standard one as those same bytes,
+/// so a name that is not text is not folded onto a name that is.
+fn filters_named(text: &[u8]) -> Vec<Vec<u8>> {
+    let mut names: Vec<Vec<u8>> = Vec::new();
+    for line in text.split(is_a_line_break) {
+        if line.trim_ascii_start().starts_with(b"#") {
             continue;
         }
-        for token in line.split_whitespace() {
-            if let Some(name) = token.strip_prefix("filter=") {
-                names.push(name.to_owned());
+        for token in line.split(is_ascii_whitespace) {
+            if let Some(name) = token.strip_prefix(b"filter=") {
+                names.push(name.to_vec());
             }
         }
     }
     return names;
+}
+
+/// Whether one byte ends a line of an attributes file.
+fn is_a_line_break(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// Whether one byte separates two tokens of an attributes file.
+fn is_ascii_whitespace(byte: &u8) -> bool {
+    return byte.is_ascii_whitespace();
 }
 
 /// The standard definition of the Git LFS filter,
@@ -217,55 +233,23 @@ const LFS_FILTER: [(&str, &str); 4] = [
 ];
 
 /// What:
-///  Bytes as text,
-/// with anything that is not UTF-8 replaced.
-/// Why:
-///   Configuration values are compared as text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// new TextDecoder().decode(bytes)
-/// ```
-fn lossy_text(bytes: &[u8]) -> String {
-    return String::from_utf8_lossy(bytes).into_owned();
-}
-
-/// What:
-///  Refuse a conversion that equal settings do not prove equal:
-/// an attribute that selects a filter other than the standard
-///  Git LFS one,
-/// an attributes file named by a relative path,
-/// or LFS configured beyond its standard definition.
-/// Why:
-///   A filter command may behave by branch,
-/// directory or environment,
-/// `core.attributesFile` may mean another file in
-///  another worktree,
-/// and LFS extensions change the pointer a clean produces;
-/// none of that is visible in equal strings.
-///  The standard LFS filter is a function of the file's content and the same program,
-/// so it is allowed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function externalConversionRefusal(settings: ConfigEntry[], attributeTexts: string[]): string | undefined;
-/// ```
-/// What:
 ///  The last value the configuration gives `key`,
-/// as text,
+/// as its own bytes,
 /// if any entry has the key.
 /// Why:
 ///   Git reads later entries over earlier ones,
-/// so the search runs from the end.
+/// so the search runs from the end,
+/// and a value is the bytes the configuration file holds,
+///  which a decoding would shorten.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// entries.findLast((entry) => entry.key === key)?.value?.toString()
+/// entries.findLast((entry) => entry.key === key)?.value
 /// ```
-fn last_value_of(entries: &[ConfigEntry], key: &str) -> Option<String> {
+fn last_value_of<'entries>(entries: &'entries [ConfigEntry], key: &str) -> Option<&'entries [u8]> {
     for entry in entries.iter().rev() {
         if entry.key == key {
-            return entry.value.as_deref().map(lossy_text);
+            return entry.value.as_deref();
         }
     }
     return None;
@@ -283,7 +267,7 @@ fn last_value_of(entries: &[ConfigEntry], key: &str) -> Option<String> {
 /// ```
 fn lfs_filter_is_standard(entries: &[ConfigEntry]) -> bool {
     for (key, expected) in LFS_FILTER {
-        if last_value_of(entries, key).as_deref() != Some(expected) {
+        if last_value_of(entries, key) != Some(expected.as_bytes()) {
             return false;
         }
     }
@@ -309,7 +293,29 @@ fn has_lfs_extension(entries: &[ConfigEntry]) -> bool {
     return false;
 }
 
-fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[String]) -> Option<String> {
+/// What:
+///  Refuse a conversion that equal settings do not prove equal:
+/// an attribute that selects a filter other than the standard
+///  Git LFS one,
+/// an attributes file named by a relative path,
+/// or LFS configured beyond its standard definition.
+/// Why:
+///   A filter command may behave by branch,
+/// directory or environment,
+/// `core.attributesFile` may mean another file in
+///  another worktree,
+/// and LFS extensions change the pointer a clean produces;
+/// none of that is visible in equal settings.
+///  The standard LFS filter is a function of the file's content and the same program,
+/// so it is allowed,
+/// and a name is compared with the standard one as its own bytes,
+///  so a name that is not text is not read as the standard name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function externalConversionRefusal(settings: ConfigEntry[], attributeTexts: Buffer[]): string | undefined;
+/// ```
+fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[Vec<u8>]) -> Option<String> {
     // The first entry that names a relative attributes file; the loop stops there, as `find` did.
     for entry in entries {
         let absolute: bool = match entry.value.as_deref() {
@@ -320,13 +326,13 @@ fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[Strin
             return Some(format!("core.attributesFile is {:?}, which is not an absolute path", entry.value.as_deref().map(String::from_utf8_lossy)));
         }
     }
-    let mut used: Vec<String> = Vec::new();
+    let mut used: Vec<Vec<u8>> = Vec::new();
     for text in attribute_texts {
-        used.extend(filters_named(text.as_str()));
+        used.extend(filters_named(text.as_slice()));
     }
     for name in &used {
-        if name != "lfs" {
-            return Some(format!("an attribute applies the filter {name}, whose result is not proven equal in both worktrees"));
+        if name.as_slice() != b"lfs" {
+            return Some(format!("an attribute applies the filter {}, whose result is not proven equal in both worktrees", String::from_utf8_lossy(name)));
         }
         if !lfs_filter_is_standard(entries) {
             return Some(String::from("the lfs filter is not the standard Git LFS definition"));
@@ -342,13 +348,27 @@ fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[Strin
 /// the repository's
 ///  `info/attributes`,
 /// the file `core.attributesFile` names and the default global file.
-fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -> Vec<String> {
+/// What:
+///  The bytes of every attributes file that applies to both worktrees besides the tracked ones:
+/// the repository's
+///  `info/attributes`,
+/// the file `core.attributesFile` names and the default global file.
+/// Why:
+///   The value that names a file is that file's path as bytes,
+///  so a file whose own path is not UTF-8 is still the file this worktree reads,
+/// and its rules are kept as the bytes they are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readdirAttributes([commonDir + '/info/attributes', pathFromBytes(attributesFileValue), ...]).filter(found => found)
+/// ```
+fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -> Vec<Vec<u8>> {
     let mut paths: Vec<PathBuf> = vec![source.common_dir.join("info/attributes")];
     // The last entry that names an attributes file decides, even when its value is empty; the loop stops there.
     for entry in entries.iter().rev() {
         if entry.key == "core.attributesfile" {
             if let Some(value) = entry.value.as_deref() {
-                paths.push(PathBuf::from(String::from_utf8_lossy(value).into_owned()));
+                paths.push(path_answer(value));
             }
             break;
         }
@@ -359,10 +379,10 @@ fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -
     if let Some(config) = std::env::var_os("XDG_CONFIG_HOME") {
         paths.push(PathBuf::from(config).join("git/attributes"));
     }
-    let mut texts: Vec<String> = Vec::new();
+    let mut texts: Vec<Vec<u8>> = Vec::new();
     for path in &paths {
         if let Ok(bytes) = std::fs::read(path.as_path()) {
-            texts.push(String::from_utf8_lossy(bytes.as_slice()).into_owned());
+            texts.push(bytes);
         }
     }
     return texts;
@@ -460,12 +480,12 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
         attributes_agree(&database, source.clean.head_tree.as_slice(), fields.tree.as_slice(), format)?;
     }
     // The tracked attributes files are the same in both trees by now, so the source's stand for both.
-    let mut attribute_texts: Vec<String> = untracked_attribute_texts(source, target_config.entries());
+    let mut attribute_texts: Vec<Vec<u8>> = untracked_attribute_texts(source, target_config.entries());
     for (path, id) in &source.clean.attribute_blobs {
         let Some(blob) = database.read(id.as_slice()) else {
             return Err(format!("{} is unreadable", String::from_utf8_lossy(path)));
         };
-        attribute_texts.push(String::from_utf8_lossy(blob.bytes.as_slice()).into_owned());
+        attribute_texts.push(blob.bytes.clone());
     }
     if let Some(reason) = external_conversion_refusal(target_config.entries(), attribute_texts.as_slice()) {
         return Err(reason);

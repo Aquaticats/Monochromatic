@@ -214,7 +214,8 @@ fn real_git_resolves_a_worktree_whose_path_holds_a_line_break() {
 /// What:
 ///  A `gitdir:` pointer that names a Git directory whose own path is not UTF-8 text names that directory.
 /// Why:
-///   The pointer was read as UTF-8 text, so such a worktree's facts were reported as unread
+///   The pointer was read as UTF-8 text,
+/// so such a worktree's facts were reported as unread
 ///  and a removal recorded nothing about what it took.
 #[test]
 fn a_pointer_to_a_directory_that_is_not_text_names_it() {
