@@ -18,7 +18,8 @@ use std::path::{Path, PathBuf};
 ///  A stand-in process table with one process whose working folder is `working`.
 /// Why:
 ///   The real table cannot be made to hold a process in a folder that a control chose,
-///  so the control writes the two things the read looks at: a numbered entry and its `cwd` link.
+///  so the control writes the two things the read looks at:
+/// a numbered entry and its `cwd` link.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

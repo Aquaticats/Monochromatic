@@ -174,7 +174,12 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
             return sweep;
         }
     };
-    let candidates: HashSet<String> = landed.into_iter().filter(|branch| { return !earlier.contains(branch) }).collect();
+    let mut candidates: HashSet<String> = HashSet::new();
+    for branch in landed {
+        if !earlier.contains(branch.as_str()) {
+            candidates.insert(branch);
+        }
+    }
     if candidates.is_empty() {
         return sweep;
     }

@@ -82,5 +82,8 @@ fn head_branch(admin: &Path) -> Option<String> {
     let text: String = std::fs::read_to_string(admin.join("HEAD")).ok()?;
     let line: &str = text.trim_end();
     let branch: &str = line.strip_prefix("ref: ")?;
-    return branch.starts_with("refs/heads/").then(|| { return branch.to_owned() });
+    if !branch.starts_with("refs/heads/") {
+        return None;
+    }
+    return Some(branch.to_owned());
 }

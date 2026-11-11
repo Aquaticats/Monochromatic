@@ -4137,7 +4137,8 @@ It is written once the add that Git accepted has returned,
  so nothing removes it on its own.
 It is the only proof a later command accepts that this program made that worktree,
  and a merge uses it to remove the worktree once its branch has landed
- (see "What a worktree snapshot holds, and when the wrapper removes one").
+ (see "What a worktree snapshot holds,
+and when the wrapper removes one").
 
 A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
  common Git directory.

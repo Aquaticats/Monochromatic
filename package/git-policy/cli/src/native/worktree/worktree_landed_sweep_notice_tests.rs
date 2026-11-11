@@ -1,7 +1,9 @@
 //! What:
 //!  Controls for the words one landed sweep prints.
 //! Why:
-//!   A person whose worktree went, or stayed, must be able to read why and what to do,
+//!   A person whose worktree went,
+//! or stayed,
+//! must be able to read why and what to do,
 //!  and a line that leaves out the path,
 //!  the branch,
 //!  or the reason is no such line.

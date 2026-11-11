@@ -305,7 +305,8 @@ pub mod worktree_added_by_the_wrapper;
 /// and the sweep of the worktrees whose branches it landed.
 pub mod worktree_landed_after_a_merge;
 
-/// The linked worktrees a repository registers, with the branch each one has checked out.
+/// The linked worktrees a repository registers,
+/// with the branch each one has checked out.
 pub mod worktree_landed_registrations;
 
 /// The removal of every wrapper-made worktree whose branch a merge landed.

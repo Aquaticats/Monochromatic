@@ -137,7 +137,10 @@ pub fn after_a_merge(context: &GitContext, identity: &WorktreeIdentity, before: 
     let directory: PathBuf = working_directory(identity)?;
     let common_dir: PathBuf = common_directory(identity)?;
     let root: Option<PathBuf> = current_root(identity);
-    let branch: String = current_branch(context, directory.as_path()).unwrap_or_else(|| { return String::from("a head with no branch") });
+    let branch: String = match current_branch(context, directory.as_path()) {
+        Some(found) => found,
+        None => String::from("a head with no branch"),
+    };
     let place: LandedPlace<'_> = LandedPlace {
         context,
         cwd: directory.as_path(),
