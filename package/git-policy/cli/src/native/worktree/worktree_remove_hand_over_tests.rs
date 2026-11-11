@@ -217,6 +217,50 @@ fn two_subvolumes_of_one_id_on_two_filesystems_are_two_records() {
 }
 
 /// What:
+///  A claim on the record, whose consumer already looked and found nothing to delete,
+///  is no proof that a delete is still coming,
+///  so the removal deletes the renamed subvolume itself.
+/// Why:
+///  A consumer claims the record before it looks at the directory,
+/// so a claim is taken while the directory still stands at its old name;
+///  the consumer then finds the hidden path absent,
+/// holds the claim while it settles the record,
+///  and the removal's own look at the record still sees that claim.
+/// A removal that trusted it would leave the worktree's files under a name no record names,
+///  which is the state this control builds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claimRecord(id); assert(deleteSubvolumeOf(item) === Done); handOverWith(...); assert(!exists(hidden));
+/// ```
+#[test]
+fn a_claimed_record_whose_consumer_found_no_directory_is_deleted_here() {
+    let Some((root, made)) = made_subvolume("remove-claimed-before-rename") else { return };
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("common");
+    let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
+    let name: OsString = made.file_name().expect("name").to_os_string();
+    let parent: File = open_root(parent_path.as_path()).expect("parent handle");
+    let child: File = File::open(made.as_path()).expect("child handle");
+    let id: u64 = subvolume_id(&child, made.as_path()).expect("the subvolume id the removal records");
+    let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), id);
+    let work: PathBuf = work_directory(common.as_path());
+    enqueue(work.as_path(), &item).expect("the record");
+    let claimed: crate::work_item::Claimed = crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::SubvolumeDelete])
+        .expect("claim")
+        .expect("the record is claimable");
+    assert_eq!(
+        delete_subvolume_of(&claimed.item),
+        Verdict::Done,
+        "a directory that is not at its hidden name yet is nothing to delete, and the consumer has yet to settle the claim"
+    );
+    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), id, made.as_path(), &|_: &Path| { return Ok(()); }).expect("handed over");
+    let hidden: PathBuf = parent_path.join(deleting_name(id));
+    assert!(!hidden.exists(), "a claim is no promise of a delete, so the removal deletes the directory: {}", hidden.display());
+    remove(root.as_path());
+}
+
+/// What:
 ///  A record a service settled before the removal renamed the subvolume leaves the rename's subvolume named by nothing,
 ///  so the removal deletes it here.
 /// Why:

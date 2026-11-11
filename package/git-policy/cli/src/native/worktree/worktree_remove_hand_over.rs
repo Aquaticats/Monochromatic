@@ -207,10 +207,10 @@ fn wake_the_service(context: &GitContext, common_dir: &Path) -> Result<(), Strin
 /// so a hand-over is never what makes a removal fail.
 /// The record is written first so that a kill in this window leaves one of two safe states,
 /// and a running service can
-///  settle that record before the rename happens:
-/// it finds the hidden path absent and is done with it,
+///  claim that record before the rename happens:
+/// it looks for the hidden path and finds nothing,
 /// so this command asks whether
-///  a record still awaits the directory it renamed and deletes it itself when none does.
+///  a record is still queued for the directory it renamed and deletes it itself when none is.
 /// Otherwise the worktree's files
 ///  would stand under a hidden name no record names.
 ///
@@ -245,8 +245,8 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         return Err(format!("the subvolume of {} cannot be renamed out of the way ({error})", target.display()));
     }
     debug(TAG, format!("the subvolume of {} waits for the service's delete at {}", target.display(), Path::new(&item.parent).display()).as_str());
-    if !a_record_awaits(common_dir, &item) {
-        // A service settled the record while the directory still stood at its old name, so nothing names the directory now:
+    if !a_record_is_queued(common_dir, &item) {
+        // A service settled the record, or claimed it and looked while the directory still stood at its old name, so nothing names the directory now:
         //  this command deletes it rather than leave the person's files under a name no record names.
         let verdict: Verdict = delete_subvolume_of(&item);
         if verdict != Verdict::Done {
@@ -270,28 +270,26 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
 }
 
 /// What:
-///  Whether a record for `item` still waits to be run:
-/// queued,
-/// or claimed by one consumer.
+///  Whether a record for `item` is still queued for a consumer to run.
 /// Why:
 ///   A record a service already settled names no directory,
-/// so a directory renamed after that would be one nothing deletes;
-/// a claimed record is a
-///  consumer's own work,
-/// which deletes the subvolume in its own time.
-/// A path is asked for rather than listed,
-/// so the look costs one
-///  lookup when the record is queued and a listing only when it is claimed.
+/// and neither does a claimed one:
+/// the claim is taken before the consumer looks,
+/// so a consumer that looked while
+///  the directory still stood at its old name found nothing to delete
+/// and settles the record without a delete.
+/// A record still
+///  queued is work a consumer has yet to begin,
+/// so only that one leaves the directory to the service.
+/// A queued record is asked for rather than listed,
+///  which costs one lookup.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// exists(pending/<id>) || findClaim(workDir, id) !== undefined
+/// exists(pending/<id>)
 /// ```
-fn a_record_awaits(common_dir: &Path, item: &WorkItem) -> bool {
-    if pending_record_path(common_dir, item).is_file() {
-        return true;
-    }
-    return crate::work_item::find_claim(work_directory(common_dir).as_path(), item.id().as_str()).is_some();
+fn a_record_is_queued(common_dir: &Path, item: &WorkItem) -> bool {
+    return pending_record_path(common_dir, item).is_file();
 }
 
 /// What:

@@ -232,10 +232,16 @@ and each fix has a control that failed at `ee545033ad`:
   the rename then left the worktree's files under a name no record named.
   `hand_over_with` now asks,
   after the rename,
-  whether a record for the item is still queued or claimed
-  (`a_record_awaits`),
+  whether a record for the item is still queued
+  (`a_record_is_queued`),
   and deletes the renamed subvolume itself when none is,
   so the files still go.
+  A claimed record is not trusted either:
+  the claim is taken before the consumer looks,
+  so a consumer that looked while the directory still stood at its old name
+  holds the claim while it settles a record with no delete to its name
+  (`a_claimed_record_whose_consumer_found_no_directory_is_deleted_here`),
+  and the removal deletes the directory itself instead of waiting on it.
 - A parent path that is not valid UTF-8 was written into the record as `U+FFFD`,
   a path that names a different directory,
   and the record then settled as done while the real directory stayed.
