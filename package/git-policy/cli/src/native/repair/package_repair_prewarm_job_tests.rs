@@ -351,30 +351,42 @@ fn cargo_that_succeeds(root: &Path) -> PathBuf {
 }
 
 /// What:
-///  A directory at the staging name that this filling did not make is never removed,
+///  A directory at the staging name that this filling did not make,
+/// and a file at the marker name that is not this job's,
+/// are never removed,
 /// and the worktree is filled anyway.
 /// Why:
-///   The staging name is this job's by convention,
+///   The staging and marker names are this job's by convention,
 ///   not by proof:
-/// only a marker this job writes says a directory there is its own leftover.
-/// A directory without one is somebody's work,
+/// only the text this job writes at the marker name says a directory there is its own leftover.
+/// Anything else at those names is somebody's work,
 /// which "never discard user data" forbids deleting,
-/// so the filling stages under a name of its own and leaves that directory alone.
+/// so the filling stages under a name of its own and leaves what it found alone.
 #[test]
 fn a_directory_at_the_staging_name_that_this_job_did_not_make_is_never_removed() {
-    let root: PathBuf = fixture("prewarm-stranger-staging");
-    let entry: PrewarmEntry = entry_of(root.as_path());
-    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
-    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
-    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
-    let staged: PathBuf = staging_of(entry.to.as_path());
-    std::fs::create_dir_all(staged.join("keep-me")).expect("a directory this filling did not make");
-    std::fs::write(staged.join("keep-me/a-file"), b"someone's work").expect("the file");
-    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) } };
-    let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
-    assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
-    assert_eq!(std::fs::read(staged.join("keep-me/a-file")).expect("the file this filling did not make is still there"), b"someone's work");
-    remove(root.as_path());
+    // What a stranger leaves at each of the two names.
+    const STRANGERS: [&str; 2] = ["staging", "marker"];
+    for stranger in STRANGERS {
+        let root: PathBuf = fixture(format!("prewarm-stranger-{stranger}").as_str());
+        let entry: PrewarmEntry = entry_of(root.as_path());
+        std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+        std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+        std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+        let staged: PathBuf = staging_of(entry.to.as_path());
+        std::fs::create_dir_all(staged.join("keep-me")).expect("a directory this filling did not make");
+        std::fs::write(staged.join("keep-me/a-file"), b"someone's work").expect("the file");
+        let marker: PathBuf = super::marker_of(staged.as_path());
+        if stranger == "marker" {
+            // A file at the marker name that does not hold this job's text claims nothing.
+            std::fs::write(marker.as_path(), b"a person's own note").expect("a file this filling did not make");
+        }
+        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) } };
+        let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
+        assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name ({stranger})");
+        assert_eq!(std::fs::read(staged.join("keep-me/a-file")).expect("the file this filling did not make is still there"), b"someone's work");
+        assert_eq!(std::fs::read(marker.as_path()).unwrap_or_default(), if stranger == "marker" { b"a person's own note".to_vec() } else { Vec::new() }, "a file this filling did not make is never removed ({stranger})");
+        remove(root.as_path());
+    }
 }
 
 /// What:

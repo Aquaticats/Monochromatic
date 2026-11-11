@@ -21,8 +21,8 @@
 //! so the staging copy is dropped and the build keeps everything it made.
 //! The staging directory,
 //! the clean's target directory and the marker beside them are names of this job's own,
-//! and the marker is what proves a directory at one of them is its leftover:
-//! a directory no marker claims is somebody's work and is never removed,
+//! and the marker holding this job's own text is what proves a directory at one of them is its leftover:
+//! anything at those names without that proof is somebody's work and is never removed,
 //! so a workspace whose usual names are taken is filled under names of this run's own.
 //!
 //! In TS you'd write (pseudocode):
@@ -166,6 +166,23 @@ and the '.target' directory beside it is the target its clean deletes from. \
 Both are the wrapper's own and are removed or published when the filling ends.\n";
 
 /// What:
+///  Whether a marker is this job's:
+/// the exact text its own filling wrote.
+/// Why:
+///   The name alone is a convention anyone can type,
+/// and only the text this job writes is proof that it made the directories the name is derived from.
+/// The marker is published whole by an exclusive write,
+/// so a file at that name either holds that text or is somebody else's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const markerClaims = (marker) => readFileSync(marker).equals(MARKER_TEXT);
+/// ```
+fn marker_claims(marker: &Path) -> bool {
+    return matches!(std::fs::read(marker), Ok(text) if text == MARKER_TEXT);
+}
+
+/// What:
 ///  The three names one filling of one workspace works in.
 /// Why:
 ///   The staging copy is what the source's build state is cloned into and published from,
@@ -192,11 +209,15 @@ struct TheNames {
 /// What:
 ///  Take the names one workspace is filled under:
 /// the usual ones when nothing is there or when this job's own marker claims what is,
-/// and names of this run's own when another directory holds the usual ones.
+/// and names of this run's own when another file or directory holds the usual ones.
 /// Why:
 ///   The usual name is where a killed filling's leftovers sit,
-/// and only the marker proves they are this job's,
-/// so a directory no marker claims is never removed and the filling still happens.
+/// and only the marker this job wrote proves they are its own,
+/// so nothing at those names is removed without that proof and the filling still happens.
+/// Two fillings of one workspace can run at once when a worktree is removed and added again at the
+/// same path while its first record is still queued,
+/// and then the second one removes the first one's staging copy and the first one reports a failure;
+/// the loser touches nothing but directories this job made.
 ///
 /// # Errors
 ///
@@ -206,14 +227,14 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
     let usual: PathBuf = staging_of(destination);
     let usual_target: PathBuf = target_of(usual.as_path());
     let marker: PathBuf = marker_of(usual.as_path());
-    if marker.exists() {
+    if marker_claims(marker.as_path()) {
         // An earlier filling of this same workspace was interrupted, so what it left under these names is this job's.
         remove_if_any(usual.as_path())?;
         remove_if_any(usual_target.as_path())?;
         return Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker) });
     }
-    if usual.exists() || usual_target.exists() {
-        // Another directory holds the usual name: it is somebody's work, so this run stages under a name of its own.
+    if usual.exists() || usual_target.exists() || marker.exists() {
+        // Somebody else's file or directory holds one of the names, so this run stages under names of its own.
         let own: PathBuf = a_name_of_this_runs_own(usual.as_path());
         let own_target: PathBuf = target_of(own.as_path());
         return Ok(TheNames { staging: own, target: own_target, marker: None });
@@ -278,7 +299,11 @@ fn write_marker(marker: &Path) -> Result<(), String> {
 /// removeIfAny(target); removeFile(marker, { force: true });
 /// ```
 fn give_back(names: &TheNames) {
-    let _removed_target = remove_if_any(names.target.as_path());
+    if let Err(reason) = remove_if_any(names.target.as_path()) {
+        // The filling itself is done and published, and this directory is this job's own: the next filling of the same
+        //  workspace clears it.
+        debug(TAG, format!("{reason}; the filling is done and the directory stays for the next one").as_str());
+    }
     let Some(marker) = names.marker.as_ref() else { return };
     match std::fs::remove_file(marker.as_path()) {
         Ok(()) => {}

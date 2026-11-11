@@ -353,3 +353,31 @@ so each hand-over is its own record.
 A second record for one destination costs nothing when it runs:
 the destination-exists check answers `Filled::Kept` before anything is cloned
 (`repair::package_repair_prewarm::tests::a_worktree_added_again_at_the_same_path_gets_its_own_filling`).
+
+### What the filling still cannot make safe
+
+Codex reviewed the branch as well,
+and named the windows that remain after these fixes.
+Each one costs at most work this job made,
+never a file a person wrote:
+
+- Two fillings of one destination can run at once when a worktree is removed and added again at the
+  same path while its first record is still queued.
+  The second takes the names the first is working in,
+  the loser reports a failure,
+  and only directories this job made are removed.
+- A kill between Cargo's rewrite of `Cargo.lock` and the restore leaves the rewritten lock,
+  because the bytes that were checked out sit in memory.
+  The add's own clean has the same window.
+- A person who edits `Cargo.lock` while the clean runs has that edit replaced by the bytes that were
+  checked out before the clean.
+- A fill that answers `Filled::Kept` because a build got there first leaves a killed fill's staging
+  directory and its target where they are.
+- A fill that ran under names of its own,
+  because somebody else's file or directory held the usual ones,
+  strands its staging copy if it is killed,
+  since no later fill learns that name.
+
+The first two are what a lock file kept on disk and a per-directory claim would fix,
+and both cost more than they buy while `cargo clean` is the only writer of the lock and one service
+instance claims a record once.
