@@ -10295,6 +10295,15 @@ Each commit passes through three phases:
     asked for only when the copy no longer describes the worktree,
     and left out for the entries the reset just wrote),
     and installs it by renaming the lock over `index`.
+    The copy carries the access and modification times the live index had,
+    before and after each step that writes it,
+    because Git re-reads the stat data of an entry only while that entry is as new as the index file
+    (`is_racy_stat`):
+    a stat check compares the fields it reads to the second,
+    so an edit made in the same second as the stat the live index records differs from it in nothing Git reads,
+    and a copy written a moment ago would make Git answer from that recorded stat,
+    hiding the edit from `git status` and the next commit.
+    The commit's private copies keep the same times for the same reason (issue #544).
     The lock is therefore held for the branch move and the index build only
     (`lock_hold_ms` in the service's log line for the request),
     and a foreign holder is waited for after the objects and the intent exist,

@@ -795,25 +795,62 @@ fn an_exclusion_of_an_exact_path_leaves_nothing_to_commit() {
     remove_settled(&fixture);
 }
 
+/// The stat data of one worktree file as an index entry stores it,
+/// for a failure that names how the index and the file disagree.
+fn held_file_state(path: &Path) -> Option<(u64, u64, u32, u32, u32, i64, i64)> {
+    use std::os::unix::fs::MetadataExt as _;
+    return std::fs::symlink_metadata(path).ok().map(|held| {
+        return (held.dev(), held.ino(), held.size() as u32, held.ctime() as u32, held.ctime_nsec() as u32, held.mtime(), held.mtime_nsec());
+    });
+}
+
+/// The modification time of a repository's index,
+/// which a landing must keep when it installs the index it built.
+fn index_time(repo: &Path) -> std::time::SystemTime {
+    return std::fs::metadata(repo.join(".git/index")).expect("the repository's index").modified().expect("a modification time");
+}
+
 /// The exclusion narrows the exact paths and takes no path the person did not name:
 /// `a.txt b.txt ':(exclude)b.txt'` lands the edit of `a.txt` and leaves the edit of `b.txt` pending.
+///  The index the landing installs keeps the time the person's index had,
+/// so Git still reads the entry of `b.txt`:
+/// a stat check compares the fields it reads only to the second,
+/// and an edit made in the same second as the stat that index records differs from it in nothing Git compares.
 #[test]
 fn an_exclusion_keeps_the_unselected_exact_path_out_of_the_commit() {
     let fixture: Fixture = fixture("commit-exclusion-narrows");
     let repo: PathBuf = two_edited_files(&fixture, "repo");
+    let stamped: std::time::SystemTime = index_time(repo.as_path());
     let landed: Observed = run_commit(
         &fixture,
         repo.as_path(),
         &["commit", "--message=selected", "--", "a.txt", "b.txt", ":(exclude)b.txt"],
     );
     assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    assert_eq!(
+        index_time(repo.as_path()),
+        stamped,
+        "the installed index must keep the time the person's index had, or Git trusts stat data it would read again"
+    );
     assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]), "a edit\n");
     assert_eq!(
         git_text(&fixture, repo.as_path(), &["show", "HEAD:b.txt"]),
         "b base\n",
         "b.txt is excluded from this selection"
     );
-    assert_eq!(porcelain(&fixture, repo.as_path()), " M b.txt\n");
+    assert_eq!(
+        std::fs::read(repo.join("b.txt")).expect("b.txt stays in the worktree"),
+        b"b edit\n",
+        "the worktree edit of b.txt stays where the person left it"
+    );
+    assert_eq!(
+        porcelain(&fixture, repo.as_path()),
+        " M b.txt\n",
+        "the index records {}; the file is {:?}; the unstaged listing is {:?}",
+        git_text(&fixture, repo.as_path(), &["ls-files", "--debug", "--", "b.txt"]),
+        held_file_state(repo.join("b.txt").as_path()),
+        git_text(&fixture, repo.as_path(), &["diff-files", "--name-status", "--"])
+    );
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
 }
