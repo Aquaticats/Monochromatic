@@ -28,8 +28,9 @@ pub const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 ///  when failing tests leave fixtures behind (issue 1809),
 /// and then every command of every session fails.
 ///  A container gate keeps that directory inside the wrapper crate's own folder (`target/tmp`),
-/// so a fixture that writes a Cargo package manifest below the fixture root must give that crate a
-///  `[workspace]` table of its own (`binary_package_repair_tests.rs`, `shared_target_manifest`),
+/// so a fixture crate written below the fixture root must declare a `[workspace]` of its own
+///  (`binary_package_repair_tests.rs`,
+///  `shared_target_manifest`),
 /// or Cargo finds the wrapper crate above it and refuses to build the fixture
 ///  (`doc/troubleshooting/cargo-fixture-crate-joins-the-wrapper-workspace.md`).
 pub fn fixture_root() -> PathBuf {
