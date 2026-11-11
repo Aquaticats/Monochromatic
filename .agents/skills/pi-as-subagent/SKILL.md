@@ -348,6 +348,28 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     run only the compile or type check,
     which is what the agent could not have run on the combined tree,
     and skip that too when `main` was already in the branch.
+9.  Remove a run's worktree as soon as its unit has ended,
+    whether or not its branch has landed yet.
+    The owner,
+    2026-11-10:
+    "You're the coordinator and you're supposed to remove finished worktrees automatically."
+    A worktree added on btrfs is a snapshot of `main`,
+    so it keeps every file `main` held when it was taken,
+    build folders included,
+    after `main` has replaced them.
+    That day the owner found the 860 nearly full with 460 worktrees in place,
+    and one finished worktree measured 26.5 GiB,
+    48.7 MiB of it its own and 14.35 GiB shared with other subvolumes,
+    so removing one frees little and removing all finished ones frees what only they keep.
+    Remove it with the wrapper's `git worktree remove <worktree>`,
+    without `--force`,
+    which refuses a worktree holding uncommitted work.
+    The branch stays,
+    and a later run of the same name adds the worktree again from it.
+    Leave a worktree whose unit is active,
+    one a process still works in,
+    and one with uncommitted work,
+    and say which were left and why.
 
 ## Protocol
 
