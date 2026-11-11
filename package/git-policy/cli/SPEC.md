@@ -12913,6 +12913,21 @@ and replaced by the word pass.
 A marker of a file whose lines end with a carriage return and a line feed ends with both bytes,
 as Git writes that file's markers,
 so both endings are a marker's own and such a file is still merged.
+Those three labels do not reach the split marker,
+which Git writes as seven equals signs and a line end with no room for a label,
+so a line of the person's file that is exactly that cannot be told from Git's own by its bytes.
+A region is therefore cut with its split-shaped lines still unchosen,
+and its split is chosen from them:
+behind the common ancestor marker only one such line is Git's,
+because Git writes one split per region,
+and where a region holds more than one behind that marker,
+the split is the only one whose three sides are found in their own stages,
+at or after the place the region before it ended.
+A region no single split explains stays exactly as Git left it,
+as does a region that holds no text on any side.
+The searches are bounded at 256 candidate lines per file,
+which is about six hundred passes over the stages at the largest size the pass takes,
+so a file whose answer holds more split-shaped lines than that inside its regions is left as well.
 An answer that ends inside a region,
 that nests a region inside another,
 or whose region count is other than the conflict count Git reported is refused,

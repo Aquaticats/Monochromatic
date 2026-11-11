@@ -411,6 +411,44 @@ fn marker_shaped_text_of_the_person_is_kept_at_the_truncated_conflict_count() {
 }
 
 /// What:
+///  A split-marker-shaped line one side inserted is that side's text,
+///  and the file is merged by word.
+/// Why:
+///   Git writes its split marker as seven equals signs with no label,
+///   so the inserted line read as the split,
+///   Git's common ancestor marker then arrived behind it,
+///   and the whole answer was refused as out of order although every side of it is what the stages hold
+///   (cross-vendor review of round 198,
+///   finding 1).
+#[test]
+fn a_split_marker_shaped_line_of_a_side_is_merged_as_text() {
+    let world: World = world(
+        "second-pass-literal-split-marker",
+        &[("f.txt", b"alpha one\nbeta one\n")],
+        &[("f.txt", Change::Write(b"alpha uno\n=======\nbeta one\n"))],
+        &[("f.txt", Change::Write(b"alpha one\nbeta uno\n"))],
+    );
+    // The fixture is a real conflict Git leaves, and the second pass is what settles it.
+    let (_, conflicts) = merge_tree_of(&world);
+    assert_eq!(conflicts.len(), 1, "the fixture conflicts in one file");
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let summary: Vec<String> = verdicts
+        .iter()
+        .map(|verdict| {
+            return match verdict {
+                Verdict::Merged(file) => format!("merged, {} bytes: {:?}", file.bytes.len(), String::from_utf8_lossy(file.bytes.as_slice())),
+                Verdict::Left { why, .. } => format!("left: {why:?}"),
+            };
+        })
+        .collect();
+    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {summary:?}") };
+    // Both sides edited a different line, so the merge is the first side's line, its inserted text, and the second
+    // side's line.
+    assert_eq!(file.bytes, b"alpha uno\n=======\nbeta uno\n".to_vec(), "the inserted line is the first side's text, and every other line comes from one side");
+    remove(world.root.as_path());
+}
+
+/// What:
 ///  A conflicted file whose lines end with a carriage return and a line feed is merged by word.
 /// Why:
 ///  Git writes the markers of such a file with that ending too;
