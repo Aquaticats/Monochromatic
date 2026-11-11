@@ -124,11 +124,28 @@ pub enum Announce {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface Announcer { announce(note: Announce): void }
+/// interface Announcer { announce(note: Announce): void; clientIsGone(place: number): boolean }
 /// ```
 pub trait Announcer {
     /// Tell the clients `note`.
     fn announce(&self, note: Announce);
+
+    /// What:
+    ///  Whether the client of the request at `place` of the batch is gone,
+    ///  so its commit is not made.
+    /// Why:
+    ///   The landing asks this where it can still stop without moving the branch,
+    /// and a client that is gone cannot be told anything,
+    ///  so its commit exists for nobody (`service_land_batch_body.rs`).
+    ///  A caller that lands without clients answers `false`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// interface Announcer { announce(note: Announce): void; clientIsGone(place: number): boolean }
+    /// ```
+    fn client_is_gone(&self, _place: usize) -> bool {
+        return false;
+    }
 }
 
 /// Why the lock was not taken.

@@ -142,6 +142,10 @@ pub mod service_client;
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
 
+/// The signals a waiting commit answers by withdrawing its request,
+/// and the flag they set for the wait.
+pub mod service_client_interrupted;
+
 /// Connecting to the service,
 /// reading one line from it,
 /// and asking an older service to retire.

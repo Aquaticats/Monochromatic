@@ -161,6 +161,23 @@ pub enum ClientFailure {
     ///  was stuck in,
     /// such as a branch write that has not returned.
     WithdrawalUnconfirmed { blocker: Option<String> },
+    /// The person interrupted the command with `signal` while it waited,
+    /// and the service confirmed that the request will never land.
+    Interrupted {
+        /// The signal the person sent.
+        signal: i32,
+        /// What the service last said it was waiting for.
+        blocker: Option<String>,
+    },
+    /// The person interrupted the command with `signal`,
+    /// and the service did not confirm that it gave the request up,
+    /// so whether the commit was made is not known.
+    InterruptedNotKnown {
+        /// The signal the person sent.
+        signal: i32,
+        /// What the service last said it was waiting for.
+        blocker: Option<String>,
+    },
     /// A Git step of the landing ran longer than the wrapper allows and was ended;
     /// the commit was withdrawn and kept.
     StepTooSlow,
@@ -373,6 +390,25 @@ pub fn render(failure: &ClientFailure) -> String {
              that it withdrew it, so it is not known whether the commit was made.{} Run `{}` to see whether it was made, and `{}` to \
              see what is still staged. If it was not made, run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
+            match blocker.as_ref() {
+                Some(text) => format!(" The service had said: {}", text.trim()),
+                None => String::new(),
+            },
+            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
+        ),
+        ClientFailure::Interrupted { signal, blocker } => format!(
+            "This commit was interrupted with signal {signal} before it landed, so it was not made, and nothing lands later by itself.{} \
+             Your staged changes and your worktree are as they were. Run the commit again. {NOTHING_CHANGED}",
+            match blocker.as_ref() {
+                Some(text) => format!(" It was waiting for: {text}."),
+                None => String::new(),
+            }
+        ),
+        ClientFailure::InterruptedNotKnown { signal, blocker } => format!(
+            "This commit was interrupted with signal {signal}, and the commit service did not confirm that it gave the commit up, so \
+             it is not known whether the commit was made.{} Run `{}` to see whether it was made, and `{}` to see what is still staged. \
+             If it was not made, run the commit again; if the service is stuck, look at why with `{LOG_COMMAND}` and restart it with \
+             `{RESTART_COMMAND}`.",
             match blocker.as_ref() {
                 Some(text) => format!(" The service had said: {}", text.trim()),
                 None => String::new(),

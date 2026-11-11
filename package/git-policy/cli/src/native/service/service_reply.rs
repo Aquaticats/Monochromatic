@@ -78,6 +78,23 @@ impl Reply {
     }
 
     /// What:
+    ///  Whether the client this reply answers is gone,
+    ///  so nothing will read an answer written to it.
+    /// Why:
+    ///   A commit exists for the person who asked for it,
+    ///  and a client that is gone cannot be given its answer.
+    /// The channel closes when the task that writes the connection ends,
+    ///  which it does when the connection breaks.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reply.clientIsGone() // this.queue.isClosed()
+    /// ```
+    pub fn client_is_gone(&self) -> bool {
+        return self.sender.is_closed();
+    }
+
+    /// What:
     ///  The channel this reply's messages go to,
     /// for a task that must answer through the connection's one writer
     ///  without counting as a request of its own.

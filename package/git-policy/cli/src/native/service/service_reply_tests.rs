@@ -219,3 +219,17 @@ fn a_note_that_takes_a_while_leaves_the_other_tasks_their_turns() {
     });
     assert!(ticks > 0, "the note's wait was awaited on the runtime");
 }
+
+/// What:
+///  A reply whose client went away says so.
+/// Why:
+///  The channel closes when the task that writes the connection ends,
+///  which is what a connection that broke leaves;
+///  the landing asks this before it makes a commit nobody would read (`service_server_land_group.rs`).
+#[test]
+fn a_reply_whose_client_went_away_says_so() {
+    let (reply, messages) = Reply::new();
+    assert!(!reply.client_is_gone(), "the writer of the connection is there");
+    drop(messages);
+    assert!(reply.client_is_gone(), "nothing reads an answer, so the client is gone");
+}

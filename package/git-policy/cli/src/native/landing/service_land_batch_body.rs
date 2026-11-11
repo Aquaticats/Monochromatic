@@ -35,6 +35,22 @@ use crate::service_land_context::LandContext;
 use crate::service_land_outcomes::Outcome;
 use crate::service_land_reference_lock::{Waiting, wait_out_the_reference_locks};
 use crate::service_land_settings::{LANDING_ATTEMPTS, Settings};
+/// What:
+///  The places of a batch whose client is gone,
+///  so its commit is not made.
+/// Why:
+///   The landing asks this where it can still stop without moving the branch,
+///  and every place is asked once rather than short-circuiting,
+///  so one interrupted command never hides another's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// landing.filter(([place]) => announce.clientIsGone(place)).map(([place]) => place)
+/// ```
+fn places_whose_client_is_gone(landing: &[(usize, &CommitRequest)], announce: &dyn Announcer) -> Vec<usize> {
+    return landing.iter().map(|(place, _request)| { return *place; }).filter(|place| { return announce.client_is_gone(*place); }).collect();
+}
+
 /// The landing itself;
 /// `land_batch_timed` adds what is told when a step is ended at its ceiling.
 ///
@@ -71,6 +87,9 @@ pub(crate) fn land_batch_body(
     }
     let scratch: String = scratch_ref(seq);
     let mut outcomes: Vec<Outcome>;
+    // The places of the batch whose client went away before its commit landed: nothing reads an answer written for them, so
+    //  their commits are not made and the rest of the batch is built again without them.
+    let mut gone: Vec<usize> = Vec::new();
     let mut attempts_left: usize = LANDING_ATTEMPTS;
     // When the branch write was first refused while the branch stood still: every wait for a reference lock that refused
     //  it shares this one bound, so a lock that keeps being taken again cannot hold the landing past it.
@@ -119,11 +138,33 @@ pub(crate) fn land_batch_body(
         timing.reads_split.parents += parents_began.elapsed();
         // One tree comparison per distinct base: the paths that changed on the branch since then.
         outcomes = vec![Outcome::RetryPrepare { base: old.clone() }; requests.len()];
+        for place in &gone {
+            outcomes[*place] = Outcome::ClientGone;
+        }
         let changed_began: Instant = Instant::now();
-        let landing: Vec<(usize, &CommitRequest)> = requests_that_land(&git, repository, requests, old.as_str())?;
+        let landing: Vec<(usize, &CommitRequest)> = requests_that_land(&git, repository, requests, old.as_str())?.into_iter().filter(|(place, _request)| { return !gone.contains(place); }).collect();
         timing.reads_split.changed += changed_began.elapsed();
         if landing.is_empty() {
             return Ok(outcomes);
+        }
+        // What:
+        //  A request whose client went away before its commit landed is not made,
+        //  and the rest of the batch is built again without it.
+        // Why:
+        //  A commit exists for the person who asked for it,
+        //  and nothing reads the answer of a client that is gone.
+        // Nothing of this attempt is written yet,
+        //  so the batch is built again from the rest.
+        let left_before_the_objects: Vec<usize> = places_whose_client_is_gone(&landing, announce);
+        if !left_before_the_objects.is_empty() {
+            gone.extend(left_before_the_objects);
+            for place in &gone {
+                outcomes[*place] = Outcome::ClientGone;
+            }
+            if gone.len() == requests.len() {
+                return Ok(outcomes);
+            }
+            continue;
         }
         let mut batch: Vec<&CommitRequest> = Vec::new();
         for (_index, request) in &landing {
@@ -232,6 +273,33 @@ pub(crate) fn land_batch_body(
                 Ok(_) => Ok(vec![Outcome::BranchMoved; requests.len()]),
                 Err(code) => Err(code),
             };
+        }
+        // What:
+        //  The same question is asked with the index lock held,
+        //  because the wait for another program's lock is where a person's interrupt lands.
+        // Why:
+        //  That wait can last a minute,
+        //  and a commit whose client went away in it is not made either.
+        //  What this attempt took is given back and the batch is built again from the rest.
+        let left_while_waiting: Vec<usize> = places_whose_client_is_gone(&landing, announce);
+        if !left_while_waiting.is_empty() {
+            gone.extend(left_while_waiting);
+            for place in &gone {
+                outcomes[*place] = Outcome::ClientGone;
+            }
+            drop(held);
+            crate::service_land_hold_a_batch::drop_the_batch(&crate::service_land_hold_a_batch::DropTheBatch {
+                git: &git,
+                context,
+                repository,
+                seq,
+                intent: &intent,
+                scratch: scratch.as_str(),
+            });
+            if gone.len() == requests.len() {
+                return Ok(outcomes);
+            }
+            continue;
         }
         // What: Everything this batch owes is taken now, before the branch moves and with the index lock held.
         // Why:  A kill between the move and the index install leaves the record of the index update and the held push of
