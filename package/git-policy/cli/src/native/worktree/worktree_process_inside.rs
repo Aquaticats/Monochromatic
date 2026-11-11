@@ -30,6 +30,16 @@
 //!  A process of another account is skipped:
 //!  its folder is unreadable to this account by design,
 //!  and `git worktree remove` has never waited for one.
+//!  This command's own process is read like every other one:
+//!  a wrapper started with a worktree as its working folder
+//!  (a program that spawns `git -C <another worktree> merge <branch>` there,
+//!  which is what a tool driving this wrapper does)
+//!  does not work in the worktree `-C` names,
+//!  and skipping it removed the folder the command itself was started in,
+//!  which a cross-vendor audit of the landed sweep reproduced:
+//!  `/proc/<pid>/cwd` of the wrapper was the landed worktree, and no other process was in it.
+//!  The worktree then stays, the notice says this command was started in it,
+//!  and a person removes it when nothing there is theirs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -64,13 +74,18 @@ impl WorkingProcess {
     ///  The words that say why this process keeps the worktree.
     /// Why:
     ///   A person reads the reason and decides,
-    ///  so it names the process and says whether its folder was seen there or could not be read at all.
+    ///  so it names the process and says whether its folder was seen there or could not be read at all,
+    ///  and this command's own process is named as itself:
+    ///  "process 4242 is working in it" about the command a person just ran says nothing to them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// working.why() // 'process 4242 is working in it'
     /// ```
     pub fn why(&self) -> String {
+        if self.folder == WorkingFolder::Inside && self.pid == std::process::id() {
+            return String::from("this command is working in it, because it was started in that folder");
+        }
         return match self.folder {
             WorkingFolder::Inside => format!("process {} is working in it", self.pid),
             WorkingFolder::Unreadable => format!(
@@ -88,9 +103,9 @@ impl WorkingProcess {
 ///   The removal needs only one reason to keep a worktree,
 ///  and the question is the same for every process,
 ///  so the walk stops at the first answer.
-///  The caller's own process is skipped:
-///  a command that runs in the worktree is excluded from the removal by its path,
-///  and a command that does not could still have been started there.
+///  The caller's own process is read like every other one:
+///  a command started in a worktree is a process working there,
+///  and `-C` names the repository rather than that folder.
 ///  `worktree_age` is how long `root` has existed,
 ///  which is what a hidden folder is judged by:
 ///  a process older than the folder cannot have its working folder inside it.
@@ -100,7 +115,6 @@ impl WorkingProcess {
 /// processWorkingInside(root, procRoot, worktreeAge) // WorkingProcess | undefined
 /// ```
 pub fn process_working_inside(root: &Path, proc_root: &Path, worktree_age: Option<Duration>) -> Option<WorkingProcess> {
-    let own: u32 = std::process::id();
     let listing = std::fs::read_dir(proc_root).ok()?;
     let uptime: Option<Duration> = uptime_of(proc_root);
     for entry in listing.flatten() {
@@ -108,9 +122,6 @@ pub fn process_working_inside(root: &Path, proc_root: &Path, worktree_age: Optio
         let Ok(pid) = name.parse::<u32>() else {
             continue;
         };
-        if pid == own {
-            continue;
-        }
         match std::fs::read_link(entry.path().join("cwd")) {
             Ok(working) if working.starts_with(root) => return Some(WorkingProcess { pid, folder: WorkingFolder::Inside }),
             Ok(_elsewhere) => {}

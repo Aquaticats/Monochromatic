@@ -613,6 +613,66 @@ fn a_landed_worktree_with_a_hidden_process_inside_stays() {
 }
 
 /// What:
+///  A landed worktree holding an unfinished bisect stays, and so does its `BISECT_LOG`.
+/// Why:
+///  An unfinished bisect leaves `BISECT_LOG` in the worktree's own Git directory and moves nothing else:
+///  the checkout stays on its branch and every file stays clean,
+///  so no other condition of the sweep notices it,
+///  and real Git's own `git worktree remove` deleted the worktree and the log without a word
+///  (measured with Git 2.56 on a fixture: exit 0, the log gone).
+///  The sweep's module doc lists a bisect among the operations that keep a worktree,
+///  and the marks it checked did not include the one a bisect leaves
+///  (a cross-vendor audit of the landed sweep).
+#[test]
+fn a_landed_worktree_with_a_bisect_in_progress_stays() {
+    let landed: Landed = a_repository_with_a_worktree("landed-bisect");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    git(landed.worktree.as_path(), &["bisect", "start"]);
+    let bisect_log: PathBuf = admin_of(landed.worktree.as_path()).join("BISECT_LOG");
+    assert!(bisect_log.exists(), "the bisect leaves its log in the worktree");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.failed.is_none(), "{:?}", sweep.failed);
+    assert!(sweep.removed.is_empty(), "nothing is removed while a bisect is unfinished there: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
+    assert!(sweep.kept[0].why.contains("a bisect is unfinished there"), "the reason says what holds it: {}", sweep.kept[0].why);
+    assert!(bisect_log.exists(), "the bisect log stays with its worktree");
+    assert!(landed.worktree.exists(), "the worktree stays");
+}
+
+/// What:
+///  A landed worktree the command itself was started in stays.
+/// Why:
+///  `-C` names the repository a command works on, never its own working folder,
+///  so a program that spawns a wrapped merge with the landed worktree as its working folder
+///  left that worktree protected by no path at all,
+///  and the only process in it was the command's own,
+///  which the process read skipped:
+///  the sweep removed the folder the program had set the command loose in
+///  (a cross-vendor audit of the landed sweep).
+#[test]
+fn a_landed_worktree_the_command_itself_was_started_in_stays() {
+    let landed: Landed = a_repository_with_a_worktree("landed-own-process");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let own: u32 = std::process::id();
+    let table: PathBuf = a_table_with_one_process(&landed, own, Some(landed.worktree.as_path()), 1_000, 100);
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    let before: String = head_of(landed.main.as_path());
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let after: String = head_of(landed.main.as_path());
+    let context: crate::transaction_git::GitContext = git_context();
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
+    assert!(sweep.removed.is_empty(), "nothing is removed while the command itself works there: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "{sweep:?}");
+    assert_eq!(
+        sweep.kept[0].why,
+        "this command is working in it, because it was started in that folder",
+        "the reason names the command itself rather than a number"
+    );
+    assert!(landed.worktree.exists(), "the worktree stays");
+}
+
+/// What:
 ///  An ignored file the person wrote in the worktree after the add keeps that worktree,
 ///  named in the reason the person reads.
 /// Why:

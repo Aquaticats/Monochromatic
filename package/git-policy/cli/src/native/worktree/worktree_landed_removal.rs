@@ -46,6 +46,15 @@
 //!  a repository that keeps no reflog for it proves nothing,
 //!  and the branch stays a candidate as it did before.
 //!  Ignored directories are the build state this sweep exists to give back and go with the worktree.
+//!  The process the sweep runs in counts as one working in a worktree:
+//!  `-C` names the repository a command works on,
+//!  never its own working folder,
+//!  so excluding the worktree the command runs in by its path did not cover
+//!  a wrapper a program started in a landed one,
+//!  and the sweep removed the folder that program had set the command loose in
+//!  (a cross-vendor audit of the landed sweep).
+//!  The worktree then stays, the notice says this command was started in it,
+//!  and a person removes it when nothing there is theirs.
 //!  What is left is Git's own decision in Git's own words:
 //!  the removal runs real `git worktree remove` unless the btrfs destroy applies,
 //!  so a worktree holding a modified or untracked file is refused by Git exactly as it is for a person,
@@ -82,6 +91,20 @@ use std::time::{Duration, SystemTime};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLandedRemoval";
+
+/// The marks of an unfinished operation the sweep keeps a worktree for,
+/// on top of the ones Git's own merge isolation already checks.
+/// Why:
+///  `IN_PROGRESS_MARKERS` answers the same question for a merge the wrapper runs itself,
+///  so its list is reused rather than written again,
+///  and this one names what that question has to include for a removal.
+///  An unfinished bisect leaves `BISECT_LOG` in a worktree and never touches `HEAD`:
+///  the checkout stays on its branch and every file stays clean,
+///  and `git worktree remove` deletes the worktree and that log without a word
+///  (measured with Git 2.56 on a fixture: exit 0, the log gone).
+///  The sweep's own module doc promises a bisect keeps the worktree,
+///  and it did not, which a cross-vendor audit of the landed sweep reproduced.
+const FURTHER_UNFINISHED_MARKERS: [&str; 1] = ["BISECT_LOG"];
 
 /// What:
 ///  Where one sweep looks,
@@ -461,6 +484,25 @@ fn names_of(inside: &[&Registration]) -> String {
     return parts.join(", ");
 }
 
+/// What:
+///  What an unfinished operation's mark means,
+///  in a person's words.
+/// Why:
+///   The mark is the file Git leaves behind,
+///  and `BISECT_LOG` says nothing to a person who does not know Git,
+///  while `MERGE_HEAD` is Git's own name for an operation they were in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unfinishedOperationReason('BISECT_LOG') // 'a bisect is unfinished there ...'
+/// ```
+fn unfinished_operation_reason(marker: &str) -> String {
+    return match marker {
+        "BISECT_LOG" => format!("a bisect is unfinished there, and its {marker} is still in the worktree"),
+        _ => format!("a {marker} stands in it, so an operation there is unfinished"),
+    };
+}
+
 /// What one candidate came to.
 enum Examined {
     /// The worktree and its registration are gone.
@@ -498,9 +540,9 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
     if one.admin.join("locked").exists() {
         return Examined::Kept(String::from("it is locked, and a lock is a promise to keep it"));
     }
-    for marker in IN_PROGRESS_MARKERS {
+    for marker in IN_PROGRESS_MARKERS.iter().copied().chain(FURTHER_UNFINISHED_MARKERS.iter().copied()) {
         if one.admin.join(marker).exists() {
-            return Examined::Kept(format!("a {marker} stands in it, so an operation there is unfinished"));
+            return Examined::Kept(unfinished_operation_reason(marker));
         }
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be

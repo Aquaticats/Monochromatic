@@ -1027,8 +1027,18 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    and it is not locked;
 - no merge,
    rebase,
-   cherry-pick or revert is in progress in it;
-- no process is working in it or in a folder below it;
+   cherry-pick,
+   revert,
+   bisect or sequencer state is in progress in it
+   (`BISECT_LOG` included:
+   an unfinished bisect moves nothing a removal would notice,
+   and Git's own `git worktree remove` deletes the worktree and that log without a word);
+- no process is working in it or in a folder below it,
+   the command that ran the merge included:
+   `-C` names the repository a command works on,
+   never its own working folder,
+   so a program that spawns a wrapped merge with a linked worktree as that folder
+   leaves the worktree kept by this rule;
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
 
@@ -1081,6 +1091,18 @@ When no kept reference can be written for a commit a reference lock holds,
  because a branch that already landed makes that merge up to date.
 Nothing is removed in silence,
  and nothing is removed while a person is working in it.
+A worktree held by an unfinished merge,
+ cherry-pick,
+ revert,
+ rebase,
+ bisect or sequencer state says which file stands there,
+ and the same merge run again looks at no worktree:
+ the notice names the `git worktree remove` line that finishes it.
+A worktree the command itself was started in is kept the same way,
+ and says so:
+ `-C` names the repository a command works on,
+ never the folder a program set that command loose in,
+ so that folder is one a process is working in.
 
 **Seeing what the snapshots hold.**
 The commands that answer this on this repository's filesystem,
