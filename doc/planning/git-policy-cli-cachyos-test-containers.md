@@ -629,11 +629,18 @@ and both times the Clippy container started in the same second as the suite's an
   7,190 passed and 2 failed.
 
 So a gate whose build is cached,
-the common case for a source-only change once the layers are warm,
-takes 512 s where the same work took 1,214 s to 1,268 s before:
-475 s of suite instead of 954 s to 1,004 s,
-no Clippy tail instead of 203 s to 261 s,
-and the same 7,192 tests.
+which is the common case once the layers are warm,
+takes 512 s.
+The like-for-like gate before it is `9d38e1c7b9`,
+the one cached-build gate of 2026-11-10 that ran Clippy,
+at 1,268 s:
+10 s of startup and 27 s of image build against 37 s of both,
+954 s of suite against 475 s,
+and a 261 s Clippy tail against none,
+with 7,192 tests here against 6,974 there.
+The three gates of the day whose build recompiled the subject layer took 1,186 s to 1,256 s,
+and their suite stood at 967 s to 1,004 s,
+so the build is not what the 512 s rests on.
 The failures in those two runs are tests that were already failing on this base.
 `repair::package_repair_prewarm_job::tests::the_filling_publishes_a_clean_copy_and_leaves_the_source_alone`
 failed the same way in gate `cd9b8132f8` at two CPUs.
