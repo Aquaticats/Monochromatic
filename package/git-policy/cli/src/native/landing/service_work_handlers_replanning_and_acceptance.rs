@@ -31,7 +31,7 @@ use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 /// The kinds of work the service runs itself.
-pub const SERVICE_KINDS: [WorkKind; 6] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete];
+pub const SERVICE_KINDS: [WorkKind; 7] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
@@ -158,6 +158,25 @@ pub trait WorkHandlers {
     /// ```
     fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.prewarm(item)));
+    }
+    /// Relink the copied package state of a new worktree with each tool's own install;
+    /// a handler that does not know it skips.
+    fn relink(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler does not relink the package state of a worktree"));
+    }
+    /// The same relinking,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The drain of a round is a task,
+    /// and each tool's install is a child process the synchronous face would refuse to start from inside the runtime;
+    /// a handler that knows nothing of the runtime keeps the synchronous one as its answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// relinkAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn relink_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.relink(item)));
     }
     /// Delete the subvolume of a removed worktree that the removal handed over;
     /// a handler that does not know it skips.

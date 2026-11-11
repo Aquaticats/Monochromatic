@@ -207,6 +207,15 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
 }
 
 /// What:
+///  Whether an age the metadata reported is longer than one claim lease.
+/// Why:
+///   The comparison is the whole of the staleness rule,
+/// so it is named once beside the record it is asked of.
+fn longer_than_a_claim(age: std::time::Duration) -> bool {
+    return age > crate::service_work::CLAIM_LEASE;
+}
+
+/// What:
 ///  Whether this record has been pending for longer than one claim lease without being claimed.
 /// Why:
 ///   The lease is the one the drain already keeps (`CLAIM_LEASE`),
@@ -225,7 +234,7 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
 fn waited_longer_than_a_claim(record: &Path) -> bool {
     let Ok(found) = std::fs::metadata(record) else { return false };
     let Ok(written) = found.modified() else { return false };
-    return written.elapsed().is_ok_and(|age: std::time::Duration| return age > crate::service_work::CLAIM_LEASE);
+    return written.elapsed().is_ok_and(longer_than_a_claim);
 }
 
 /// What:
@@ -531,6 +540,17 @@ fn entry_removal_of(TheRemovalOfTrashEntries { inside, trash, manifest }: TheRem
 }
 
 /// What:
+///  Remove the trash's own directory,
+/// which only its permissions kept.
+/// Why:
+///   The name inside its parent is the trash's name,
+/// so the removal deletes exactly what the snapshot made and nothing beside it.
+fn remove_the_trash_parent(state: (&File, &Path)) -> std::io::Result<()> {
+    let (parent, inside) = state;
+    return remove_at(parent, std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true);
+}
+
+/// What:
 ///  Remove the trash directory itself once its entries are gone,
 /// and the parent above it when nothing else is in it.
 /// Why:
@@ -568,7 +588,7 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     let Some(parent) = holders.last() else { return Ok(()) };
     // Everything the trash held is gone, so only its parent's permissions kept it: a removal that names it deletes
     //  exactly what the snapshot made.
-    path_failure(with_idle_io_priority(|| return remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true)), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
+    path_failure(with_idle_io_priority((parent.as_ref(), inside.as_path()), remove_the_trash_parent), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
     // The parent goes when nothing else is in it; a refusal only means another trash directory is still there.
     if let [.., above, _] = holders.as_slice()
         && let Some(last) = names.last()

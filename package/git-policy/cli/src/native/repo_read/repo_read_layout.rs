@@ -50,7 +50,9 @@ use std::path::{Path, PathBuf};
 pub use crate::repo_read_layout_environment_rules::{WRAPPER_ENVIRONMENT_PREFIX, env_config_avoids};
 pub(crate) use crate::repo_read_layout_environment_rules::{effective_environment, environment_is_plain};
 pub(crate) use crate::repo_read_layout_disk_and_directory_facts::start_directory;
-use crate::repo_read_layout_disk_and_directory_facts::{device_of, has_git_directory_entries, has_git_directory_entries_split, is_hex_byte, owned_by_current_user, small_file};
+use crate::repo_read_layout_disk_and_directory_facts::{device_of, has_git_directory_entries, has_git_directory_entries_split, is_hex_byte, owned_by_current_user, small_file, small_file_bytes};
+/// A pathname from the bytes a `gitdir:` line holds.
+use crate::hooks_path_values::path_answer;
 
 /// The per-worktree configuration file in a worktree's own Git directory.
 const WORKTREE_CONFIG_NAME: &str = "config.worktree";
@@ -122,10 +124,20 @@ fn head_is_valid(text: &str, format: ObjectFormat) -> bool {
     return line.len() == format.hex_length() && line.bytes().all(is_hex_byte);
 }
 
-/// The Git directory a `.git` entry names:
+/// What:
+///  The Git directory a `.git` entry names:
 /// the entry itself when it is a directory,
 ///  the `gitdir:` line of a plain file,
 /// `None` for a link or anything else.
+/// Why:
+///   The line is read as the bytes the file holds and the path it names is built from them,
+///  because a Git directory whose own path is not UTF-8 is still the one this worktree uses,
+/// and declining it sent every read of that worktree to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = contents.subarray('gitdir: '.length).trimEnd('\r\n'); // Buffer, never a string
+/// ```
 pub fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
     let dot_git: PathBuf = worktree.join(".git");
     let metadata = match std::fs::symlink_metadata(&dot_git) {
@@ -139,13 +151,16 @@ pub fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
     if !metadata.is_file() {
         return None;
     }
-    let text: String = small_file(dot_git.as_path())?;
+    let contents: Vec<u8> = small_file_bytes(dot_git.as_path())?;
     // Git strips every trailing carriage return and line feed (`read_gitfile_gently` in `setup.c`).
-    let target: &str = text.strip_prefix("gitdir: ")?.trim_end_matches(['\r', '\n']);
-    if target.is_empty() || target.contains('\n') {
+    let mut target: &[u8] = contents.strip_prefix(b"gitdir: ")?;
+    while matches!(target.last(), Some(b'\r' | b'\n')) {
+        target = &target[..target.len() - 1];
+    }
+    if target.is_empty() || target.contains(&b'\n') {
         return None;
     }
-    return Some(Some((worktree.join(target), true)));
+    return Some(Some((worktree.join(path_answer(target)), true)));
 }
 
 /// What:

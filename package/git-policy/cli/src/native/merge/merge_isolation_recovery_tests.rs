@@ -2354,7 +2354,11 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
         "it does not claim the checkout is clean: {}",
         refused.0
     );
-    assert!(refused.0.contains("git restore --no-enforce-worktree --staged"), "it names the way to undo the staged content, as a command this wrapper runs: {}", refused.0);
+    assert!(
+        refused.0.contains("git restore --no-enforce-worktree --staged --worktree"),
+        "it names the way to undo the staged content, as the wrapper runs it: {}",
+        refused.0
+    );
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
     assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree is where the other command put it");
