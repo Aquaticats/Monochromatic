@@ -497,3 +497,22 @@ fn removing_the_pool_of_a_gone_worktree_leaves_what_a_member_links_to() {
     assert_eq!(std::fs::read(kept.join("a-pack").as_path()).expect("what the link pointed at"), b"the repository's own bytes\n", "the removal followed no link");
     remove(root.as_path());
 }
+
+/// What:
+///  A second sweep of the same repository removes nothing and fails nothing.
+/// Why:
+///   Every command in the repository sweeps,
+///  and two commands can run at once:
+///  the one that comes second finds the pool already collected.
+///  A folder that vanished while the sweep looked at it is nothing to remove,
+///  never an error a command would have to carry.
+#[test]
+fn a_second_sweep_removes_nothing() {
+    let root: PathBuf = fixture("shadow-pool-swept-twice");
+    let common: PathBuf = root.join("repo/.git");
+    let gone: PathBuf = a_pool_folder(common.as_path(), "worktree-gone");
+    assert_eq!(sweep_gone_worktrees(common.as_path()), vec![gone.clone()], "the first sweep collects it");
+    let again: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
+    assert!(again.is_empty(), "the second sweep finds nothing to remove: {again:?}");
+    remove(root.as_path());
+}
