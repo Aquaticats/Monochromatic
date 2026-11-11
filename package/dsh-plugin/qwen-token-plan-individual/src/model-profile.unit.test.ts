@@ -56,6 +56,8 @@ const NON_REASONING_MODEL_FACTS: QwenTokenPlanResolvedModelFacts = {
   id: 'probe-non-reasoning',
   name: 'Probe Non Reasoning',
   kind: 'chat',
+  contextWindow: 128_000,
+  maxTokens: 16_384,
   input: ['text'],
   reasoning: false,
   compat: COMPAT_PINS,
