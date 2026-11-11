@@ -123,6 +123,44 @@ fn a_refused_removal_leaves_the_units_alone() {
     remove(fixture.root.as_path());
 }
 
+/// A removal the name guard leaves to Git still deletes the registration the plan names,
+/// so that worktree's units are stopped once Git has removed it.
+/// Why:
+///  Reading the registration only through the name guard lost the instance whenever a second registration ended in the
+///  name,
+///  and the socket unit,
+///  which has no idle exit,
+///  kept listening after Git's removal.
+#[test]
+fn a_removal_left_to_git_still_stops_the_units_of_the_removed_worktree() {
+    let root: PathBuf = fixture("removal-units-left-to-git");
+    let main: PathBuf = repository(root.as_path(), "main");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "TOPIC", "../TOPIC"]);
+    // The second worktree moves and a link is left at its old name, so two registrations name the topic directory.
+    std::fs::rename(root.join("TOPIC"), root.join("upper-kept")).expect("move the second worktree");
+    std::os::unix::fs::symlink(root.join("topic"), root.join("TOPIC")).expect("leave a link at the old name");
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    let topic: PathBuf = std::fs::canonicalize(root.join("topic")).expect("canonical");
+    let runtime: PathBuf = root.join("run");
+    std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("socket directory");
+    let state: PathBuf = root.join("state");
+    std::fs::create_dir_all(&state).expect("state directory");
+    let plan: RemovePlan = RemovePlan { target: topic.clone(), operand: topic.clone().into_os_string(), force: false };
+    // Git's suffix match finds two registrations for this name, so the wrapper leaves the removal to Git.
+    assert!(crate::worktree_remove_registry::registration_of(common.as_path(), topic.as_path(), plan.operand.as_os_str()).is_err());
+    let about: WorktreeAboutToGo = before_removal(common.as_path(), &plan).expect("the registration names the units");
+    let socket: PathBuf = socket_path(runtime.as_path(), about.instance.as_str());
+    std::fs::write(socket.as_path(), b"listening").expect("socket file");
+    git(main.as_path(), &["worktree", "remove", topic.to_str().expect("text")]);
+    let mut recorder: Recorder = Recorder::default();
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime.as_path(), state_dir: Some(state.as_path()) };
+    assert!(stop_units_after_removal(&about, &folders, &mut recorder).expect("stopped"));
+    assert_eq!(recorder.stops(), vec![format!("stop {}", socket_unit_instance(about.instance.as_str())), format!("stop {}", service_unit_instance(about.instance.as_str()))]);
+    assert!(!socket.exists(), "the stopped socket's file is removed");
+    remove(root.as_path());
+}
+
 /// A worktree that never had a unit costs the removal no question to the manager.
 #[test]
 fn a_worktree_that_never_had_units_costs_the_manager_nothing() {
