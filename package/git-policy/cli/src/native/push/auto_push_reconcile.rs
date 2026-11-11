@@ -47,7 +47,7 @@ use crate::push_retry::CONFLICT_PHRASE;
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv, fetch_remote_tip, is_ancestor, unpublished};
 use crate::auto_push_reconcile_branch_advance::advance_local_branch;
 use crate::auto_push_reconcile_merge_commit::commit_merge;
-pub use crate::auto_push_reconcile_basics_and_limits::{MAX_RECONCILE_ATTEMPTS, RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, journal_identifier, was_rejected_as_stale};
+pub use crate::auto_push_reconcile_basics_and_limits::{MAX_RECONCILE_ATTEMPTS, RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, journal_identifier, run_line_prefix, was_rejected_as_stale};
 /// What:
 ///  Merge the remote tip into the pushed branch's tip and publish the result,
 /// a bounded number of times.
@@ -252,7 +252,7 @@ pub(crate) struct Wording {
 /// ```
 pub(crate) fn wording_of(plan: &Reconcile<'_>) -> Wording {
     let label: &str = plan.label;
-    let line_prefix: String = format!("monochromatic-git-policy-cli: {label}: ");
+    let line_prefix: String = crate::auto_push_reconcile_basics_and_limits::run_line_prefix(label);
     let failed_prefix: String = format!("{line_prefix}not published: ");
     let short: String = plan
         .destination

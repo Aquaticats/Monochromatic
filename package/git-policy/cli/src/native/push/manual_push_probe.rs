@@ -219,7 +219,12 @@ pub fn confirm_group(
             RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),
             RemoteBefore::Unknown => false,
         };
-        if changed {
+        // What: a destination that moved to exactly the object this update sends asks for nothing.
+        // Why:  the commit's own auto-push publishes the same commit while a typed push is on its way, so the one
+        //       change a destination can take between Git's dry run and this read is that push landing; the person asked
+        //       for this object, the destination holds it, and the update adds no commit to the range the policies read.
+        // A destination that moved to any other value is a change this push cannot account for.
+        if changed && authoritative.as_ref() != local.as_ref() {
             return Err(probe_error(ManualPushCause::RemoteMoved, format!("Remote ref changed during manual-push discovery: {}", update.to)));
         }
         confirmed.push(PushUpdate {

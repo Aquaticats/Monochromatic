@@ -32,7 +32,7 @@
 
 /// The reconcile loop that auto-push shares,
 /// and what it needs.
-use crate::auto_push_reconcile::{Destination, Integrated, MergePusher, Reconcile, integrate_and_push};
+use crate::auto_push_reconcile::{Destination, Integrated, MergePusher, Reconcile, integrate_and_push, run_line_prefix};
 /// The coordinator's Git,
 /// its read-only query runner and its error type.
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
@@ -132,6 +132,11 @@ fn checked_out_branch(git: &PushGit) -> Option<String> {
 ///  (a conflict,
 /// a gate that refused the merge,
 /// a remote that kept moving);
+/// a failure of a push whose destinations already hold every object it sends
+///  also ends `0`,
+/// with one line saying so,
+/// because another push of the same commits
+///  delivered them;
 /// every other failure returns nothing
 ///  and prints nothing,
 /// so the person sees only Git's own report.
@@ -157,6 +162,19 @@ pub fn stack_failed_push(
             return None;
         }
     };
+    // What: a push whose destinations now hold exactly the objects it sends has delivered everything it was asked to.
+    // Why:  the commit's own auto-push publishes the same branch while a typed push is on its way, so the origin can refuse
+    //       that push for an expectation only the auto-push outran (`cannot lock ref ...: is at X but expected Y`); native
+    //       Git answers "Everything up-to-date" with status zero for the same state, so this push ends that way and says why.
+    if updates.iter().all(|update| update.remote_oid == update.local_oid) {
+        // Terminal output error: the report is advisory; the exit status already carries the result.
+        let _written = writeln!(
+            err,
+            "{}the remote already holds everything this push sends; nothing is left to push, so the push succeeds.",
+            run_line_prefix("push")
+        );
+        return Some(0);
+    }
     let [update] = updates.as_slice() else {
         return None;
     };
