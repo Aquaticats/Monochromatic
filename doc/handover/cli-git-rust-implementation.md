@@ -188,8 +188,34 @@ and reran lean with a 240-minute deadline.
 The structural cause is the open item from `wrapper-cleans-up-after-its-own-worktrees-1`:
 a removed worktree's build tree stays until lean finds its workspace gone,
 and lean's pass over 154 checkouts is slower than agents fill the disk.
+At 21G free (01:20) the coordinator stopped every remaining agent,
+22 in all, the Kimi-findings fixers and the three never-stuck audit fixers among them
+(names appended to the same file);
+free space was 27G at 2026-11-11T01:44:04-05:00.
+
+By 2026-11-11T01:44:04-05:00 every branch on the list was merged.
+The coordinator resolved the last two conflicts by hand:
+`4795db198c` drops the planted-controls branch's `expected_overlay` fixture,
+because the integrated entry fix hands planning the terminal through its inputs,
+and `bc3d54f9cd` keeps both sides' checks in the rebuild-ceiling test.
+Clippy is clean on `bc3d54f9cd`.
+Its library suite passed 6,598 of 6,599 tests.
+The failure was a cleanup race in the markdown linter's ceiling control:
+the fix it abandons keeps writing into the fixture on its own thread,
+so `remove_dir_all` met "Directory not empty".
+`ba1be33739` makes both ceiling controls wait for the job's last write (`markdown::` 50 of 50);
+the binary suite runs on `ba1be33739`.
+
+The Kimi review starter had reviewed `main...branch`,
+which for a branch cut from an integration tip holds every integrated change:
+163 to 271 files against the branch's own 0 to 2.
+It now reviews each branch's own merge range (`M^1...M^2` of its merge into the integration branch),
+pinned to `bc3d54f9cd`;
+branches whose change under the source folder is only tests are skipped by design.
 Next:
-merge the resolved branches,
+the binary suite's result,
+the Kimi reviews of the newly merged branches,
+the Kimi-findings and audit fixes once free space allows,
 gate,
 land on `main`,
 release `0.6.1-alpha.10`.
