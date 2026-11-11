@@ -205,16 +205,20 @@ fn the_servers_a_failure_names_are_read_in_order() {
 
 //region The rest of an LFS URL: a token in a path segment, a query and a fragment
 
-/// The user the audit's fixture wrote in `lfs.url`, made up for this control.
+/// The user the audit's fixture wrote in `lfs.url`,
+/// made up for this control.
 const CANARY_USER: &str = "CANARYUSER4411";
 
-/// The password of the same fixture, made up.
+/// The password of the same fixture,
+/// made up.
 const CANARY_PASS: &str = "CANARYPASS9137";
 
-/// The token the fixture wrote as a path segment, made up.
+/// The token the fixture wrote as a path segment,
+/// made up.
 const CANARY_PATH: &str = "CANARYPATH5521";
 
-/// The token the fixture wrote as a query value, made up.
+/// The token the fixture wrote as a query value,
+/// made up.
 const CANARY_QUERY: &str = "CANARYQUERY7720";
 
 /// The batch error of the audit's fixture:

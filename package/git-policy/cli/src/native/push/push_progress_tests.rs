@@ -722,7 +722,8 @@ fn a_stat_line_gives_its_state_and_its_processor_ticks() {
 /// bytes,
 /// processor ticks,
 ///  a task able to run or waiting for the disk.
-/// The bytes are told apart from the other two, because only they are work for a process that holds a
+/// The bytes are told apart from the other two,
+/// because only they are work for a process that holds a
 /// connection.
 #[test]
 fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {

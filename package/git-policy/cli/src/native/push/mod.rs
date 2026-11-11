@@ -37,6 +37,10 @@ pub mod stacked_merge_push;
 /// the final failure.
 pub mod push_retry;
 
+/// The server a push waits for,
+/// named from the command's own destination.
+pub mod push_server_naming;
+
 /// The first of Git's own lines that gives a reason for a push's failure.
 pub mod push_retry_cause_line;
 

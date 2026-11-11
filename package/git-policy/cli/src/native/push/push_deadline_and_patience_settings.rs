@@ -51,7 +51,8 @@ pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";
 pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
 
 /// The variable a control sets to shorten the window a run whose connection is open may stay silent for.
-///  It is named as a control's because the window is fixed for every shipped run (`SPEC.md`, "Every wait has a
+///  It is named as a control's because the window is fixed for every shipped run (`SPEC.md`,
+/// "Every wait has a
 ///  bound"),
 /// and a control cannot wait the shipped 150 seconds.
 pub const CONNECTED_WINDOW_VARIABLE: &str = "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS";

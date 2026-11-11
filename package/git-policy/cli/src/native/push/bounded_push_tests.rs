@@ -462,6 +462,10 @@ fn the_wait_line_names_the_connected_window_that_ends_the_wait() {
         line.contains(&format!("{} seconds is stopped as a stall", CONNECTED_PUSH_QUIET_WINDOW.as_secs())),
         "the connected window that ends it is named: {line}"
     );
+    // A run that knew its destination names the server the connection is to, and one that did not says "the remote".
+    let named: String = wait_line("git push", &report, Some("127.0.0.1:8080"));
+    assert!(named.contains("the connection to the server `127.0.0.1:8080` is open"), "the line names the server: {named}");
+    assert!(line.contains("the connection to the remote is open"), "a run that named no server says the remote: {line}");
 }
 
 /// What:
@@ -486,6 +490,12 @@ fn a_connected_stop_says_its_window_is_fixed_and_a_stall_stop_offers_the_setting
     );
     assert!(!connected.contains("to allow longer"), "no remedy that cannot work is offered: {connected}");
     assert!(connected.contains(PUSH_QUEUED_LINE), "the retry that does settle it is named: {connected}");
+    assert!(connected.contains("held its connection to the remote open"), "a stop that knew no server says the remote: {connected}");
+    let named: String = stalled_reason(&StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window }, Some("127.0.0.1:8080"));
+    assert!(
+        named.contains("held its connection to the server `127.0.0.1:8080` open"),
+        "a stop names the server the run waited for: {named}"
+    );
     let stalled: String = stalled_reason(&StopReport { window: StopWindow::Stall, limit: window, moved: 12, elapsed: window }, None);
     assert!(stalled.contains("limit=stall"), "the window that fired is named: {stalled}");
     assert!(stalled.contains("to allow longer"), "the setting that moves this window is offered: {stalled}");

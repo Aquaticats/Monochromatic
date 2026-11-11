@@ -256,7 +256,8 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
 /// no shipped run sets it.
 const WINDOW_VARIABLE: &str = "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS";
 
-/// The connected window a control asks for, in whole seconds.
+/// The connected window a control asks for,
+/// in whole seconds.
 const CONTROL_WINDOW_SECONDS: u64 = 2;
 
 /// How many connected windows the fixture holds its connection open and silent before it lets go,

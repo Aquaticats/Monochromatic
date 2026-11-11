@@ -261,6 +261,17 @@ pub struct Signs {
     pub busy: bool,
 }
 
+/// The sockets one process of the tree holds,
+/// with its number.
+fn inodes_of(member: &TreeMember) -> (i32, Vec<u64>) {
+    return (member.pid, socket_inodes_of(member.pid));
+}
+
+/// Whether a process of the tree holds no socket at all.
+fn holds_no_socket(held: &(i32, Vec<u64>)) -> bool {
+    return held.1.is_empty();
+}
+
 /// What:
 ///  The work of the tree under a root so far,
 /// and whether a sample saw any sign of work since the one before.
@@ -358,16 +369,14 @@ impl Meter {
     /// true when a socket it has seen before carried bytes since the last look,
     /// and records the processes that hold them.
     /// Why a socket seen for the first time is kept apart:
-    ///   Its counters stand for the handshake and the request this side wrote, not for an answer from the remote,
+    ///   Its counters stand for the handshake and the request this side wrote,
+    /// not for an answer from the remote,
     /// so a client that goes on reconnecting would reset the wait for its remote for good.
     fn observe_sockets(&mut self, members: &[TreeMember]) -> bool {
-        let held: Vec<(i32, Vec<u64>)> = members
-            .iter()
-            .map(|member| return (member.pid, socket_inodes_of(member.pid)))
-            .collect();
+        let held: Vec<(i32, Vec<u64>)> = members.iter().map(inodes_of).collect();
         self.connected = false;
         self.holders.clear();
-        if held.iter().all(|(_, inodes)| return inodes.is_empty()) {
+        if held.iter().all(holds_no_socket) {
             return false;
         }
         let Some(connected) = established_sockets() else {

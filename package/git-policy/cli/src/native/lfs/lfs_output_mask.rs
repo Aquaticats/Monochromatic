@@ -142,6 +142,57 @@ fn is_equals_sign(byte: &u8) -> bool {
     return *byte == b'=';
 }
 
+/// Whether a byte separates two parts of a path.
+fn is_slash(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
+/// The index of the next `/` of a path,
+/// or nothing when the path ends first.
+fn next_slash(path: &[u8]) -> Option<usize> {
+    return path.iter().position(is_slash);
+}
+
+/// The index of the next `#` of a query,
+/// or nothing when the query ends first.
+fn next_hash(query: &[u8]) -> Option<usize> {
+    return query.iter().position(is_hash);
+}
+
+/// Whether a byte separates two parts of a query or a fragment.
+fn is_ampersand(byte: &u8) -> bool {
+    return *byte == b'&';
+}
+
+/// Whether a byte begins the fragment of a URL.
+fn is_hash(byte: &u8) -> bool {
+    return *byte == b'#';
+}
+
+/// Whether a byte begins the query of a URL,
+/// or its fragment.
+fn begins_the_rest(byte: &u8) -> bool {
+    return *byte == b'?' || *byte == b'#';
+}
+
+/// Whether a byte is one this module keeps as the punctuation that ends a URL in a sentence.
+/// `&&u8` borrows the byte twice,
+/// as a reversed iterator's `take_while` hands it over.
+fn ends_a_sentence(byte: &&u8) -> bool {
+    return matches!(**byte, b',' | b';' | b')' | b']' | b'}' | b'.' | b'!' | b'?' | b':' | b'\'');
+}
+
+/// Whether a byte is one a plain label is made of.
+fn is_label_byte(byte: &u8) -> bool {
+    return byte.is_ascii_lowercase() || matches!(byte, b'-' | b'.' | b'_' | b'~');
+}
+
+/// Whether an offset into an authority is a byte for the userinfo,
+/// which needs at least one byte before it.
+fn is_not_the_first(offset: &usize) -> bool {
+    return *offset > 0;
+}
+
 /// The index of the next scheme separator at or after `from`.
 fn next_separator(text: &[u8], from: usize) -> Option<usize> {
     for (offset, window) in text.get(from..)?.windows(SCHEME_SEPARATOR.len()).enumerate() {
@@ -189,19 +240,19 @@ fn url_end_of(text: &[u8], from: usize) -> usize {
 /// a percent encoding,
 /// a slash written encoded,
 /// is what a token looks like.
-/// An empty label is plain: `//` and a trailing `/` carry nothing.
+/// An empty label is plain:
+/// `//` and a trailing `/` carry nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// /^[a-z._~-]*$/.test(label)
 /// ```
 fn is_plain_label(label: &[u8]) -> bool {
-    return label
-        .iter()
-        .all(|byte| return byte.is_ascii_lowercase() || matches!(byte, b'-' | b'.' | b'_' | b'~'));
+    return label.iter().all(is_label_byte);
 }
 
-/// Append one label as it stands when it is plain, and the mask when it is not.
+/// Append one label as it stands when it is plain,
+/// and the mask when it is not.
 fn push_label(label: &[u8], masked: &mut Vec<u8>) {
     if is_plain_label(label) {
         masked.extend_from_slice(label);
@@ -214,7 +265,7 @@ fn push_label(label: &[u8], masked: &mut Vec<u8>) {
 fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
     loop {
-        match path.get(from..).and_then(|rest| return rest.iter().position(|byte| return *byte == b'/')) {
+        match path.get(from..).and_then(next_slash) {
             Some(offset) => {
                 push_label(&path[from..from + offset], masked);
                 masked.push(b'/');
@@ -247,7 +298,7 @@ fn push_masked_values(values: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
     loop {
         let (chunk, separator): (&[u8], Option<usize>) = match values.get(from..) {
-            Some(rest) => match rest.iter().position(|byte| return *byte == b'&') {
+            Some(rest) => match rest.iter().position(is_ampersand) {
                 Some(offset) => (&values[from..from + offset], Some(from + offset)),
                 None => (&values[from..], None),
             },
@@ -292,12 +343,13 @@ fn trailing_punctuation(rest: &[u8]) -> &[u8] {
     let kept: usize = rest
         .iter()
         .rev()
-        .take_while(|byte| return matches!(byte, b',' | b';' | b')' | b']' | b'}' | b'.' | b'!' | b'?' | b':' | b'\''))
+        .take_while(ends_a_sentence)
         .count();
     return &rest[rest.len() - kept..];
 }
 
-/// Append the rest of a URL (its path, query and fragment) with its secrets masked,
+/// Append the rest of a URL (its path,
+/// query and fragment) with its secrets masked,
 /// and the punctuation that follows it as it stands.
 fn push_masked_rest(rest: &[u8], masked: &mut Vec<u8>) {
     let sentence_end: &[u8] = trailing_punctuation(rest);
@@ -305,21 +357,19 @@ fn push_masked_rest(rest: &[u8], masked: &mut Vec<u8>) {
     masked.extend_from_slice(sentence_end);
 }
 
-/// Append the path, query and fragment of a URL with their secrets masked.
+/// Append the path,
+/// query and fragment of a URL with their secrets masked.
 fn push_masked_url(rest: &[u8], masked: &mut Vec<u8>) {
-    let path_end: usize = rest
-        .iter()
-        .position(|byte| return *byte == b'?' || *byte == b'#')
-        .unwrap_or(rest.len());
+    let path_end: usize = rest.iter().position(begins_the_rest).unwrap_or(rest.len());
     push_masked_path(&rest[..path_end], masked);
     let mut from: usize = path_end;
     if rest.get(from) == Some(&b'?') {
         masked.push(b'?');
         from += 1;
-        let query_end: usize = rest
-            .get(from..)
-            .and_then(|query| return query.iter().position(|byte| return *byte == b'#'))
-            .map_or(rest.len(), |offset| return from + offset);
+        let query_end: usize = match rest.get(from..).and_then(next_hash) {
+            Some(offset) => from + offset,
+            None => rest.len(),
+        };
         push_masked_values(&rest[from..query_end], masked);
         from = query_end;
     }
@@ -362,7 +412,7 @@ pub fn mask_url_secrets(text: &[u8]) -> Vec<u8> {
         let userinfo_end: Option<usize> = text[authority_start..authority_end]
             .iter()
             .rposition(is_at_sign)
-            .filter(|offset| return *offset > 0);
+            .filter(is_not_the_first);
         if let Some(offset) = userinfo_end {
             masked.extend_from_slice(&text[copied..authority_start]);
             masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
