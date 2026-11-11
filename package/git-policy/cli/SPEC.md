@@ -1673,6 +1673,12 @@ the lowest Linux offers:
 the class is set on the thread that unlinks and put back after it,
 so the service's own push and review work keeps its priority,
 and a thread whose class cannot be read or set is left as it is.
+That value belongs to the thread that lowered it:
+it cannot be carried to another thread,
+because a drop writes the
+priority of the thread that drops it,
+and a value that travelled would overwrite the receiving thread's own priority while the lowered
+thread stayed at the idle class.
 
 A trash that cannot be emptied is reported by the service as a line that names the trash and the reason,
 and a refusal settles its record as failed,

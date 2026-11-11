@@ -819,7 +819,10 @@ Read-only commands,
    kind of work already uses,
      so no lock is added.
      Each removal runs at I/O priority class `idle`,
-     the lowest Linux offers.
+     the lowest Linux offers,
+     on the thread that removes,
+     and the class is put back as that thread finishes;
+     nothing carries the putting-back to another thread.
    Unless `--quiet` is given the add prints one line saying how many directories were set aside,
      which worktree
    they were left out of,
