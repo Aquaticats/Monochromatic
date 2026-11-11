@@ -108,5 +108,14 @@ git -C ${HOME}/temp/agent/<name> remote set-url --push origin DISABLED
 ```
 
 The owner also chose a refusal in the wrapper for those commands in a worktree of this repository,
-so a mistyped one ends there instead of changing the shared configuration;
-another agent is building it.
+so a mistyped one ends there instead of changing the shared configuration.
+That refusal names the file every worktree shares,
+so it also covers the two spellings that reach the same file without naming a `remote.` key:
+a `git config --file <path>` whose path resolves to `<common git dir>/config`,
+in any spelling,
+and `git config --edit`,
+which opens that file when no scope option names another one.
+A write to a file of the command's own,
+and an edit of the per-user,
+system or per-worktree file,
+still run there.

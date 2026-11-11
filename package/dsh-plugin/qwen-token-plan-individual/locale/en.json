@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Qwen Token Plan Individual provider",
+    "description": "Owns the qwen-token-plan-individual provider route over the shipped pi-ai adapter: the model list is fetched live from the Qwen Token Plan endpoint at activation, serving every serviceable chat model with its context window and selectable thinking levels, and a checked-in snapshot serves while the endpoint is unreachable."
+  }
+}

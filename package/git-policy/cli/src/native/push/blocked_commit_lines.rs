@@ -34,6 +34,20 @@ use crate::push_held_back_by_a_blocked_commit::{Held, Stopped};
 pub const UNRECORDED_REASON: &str = "its post-commit check blocked the automatic backup";
 
 /// What:
+///  The sentence a commit whose own post-commit check has not decided is named with.
+/// Why:
+///   The commit is not refused and nothing found it wanting:
+/// the answer that may keep it local has simply not
+///  been written yet,
+/// and a line that borrowed the refusal's sentence would claim a check had blocked it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const UNDECIDED = 'its post-commit check has not decided whether it may be published';
+/// ```
+pub const UNDECIDED_REASON: &str = "its post-commit check has not decided whether it may be published";
+
+/// What:
 ///  The words a person is given for one verdict.
 /// Why:
 ///   A record with no words of its own is still a refusal,
@@ -112,6 +126,37 @@ pub fn held_back_line(branch_ref: &str, stopped: &Stopped) -> String {
     return format!(
         "{name} is held back by the commit {}, because {}. The automatic push stops before it, a person's `git push` still sends it, and the push resumes once it is off {name}'s way out.",
         only.commit, only.reason
+    );
+}
+
+/// What:
+///  The line a command prints when the automatic push stops before commits whose own checks have not decided.
+/// Why:
+///   The person must know why a commit they made is not on the remote yet,
+/// that nothing was refused,
+///  and that the push runs by itself as soon as the checks answer:
+/// no command waits for another's checks,
+///  and nothing here sends the commit before they decide.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const waitingLine = (branchRef, stopped) => `${name(branchRef)} is not sent yet: the post-commit checks of ${commits} have not decided, so the automatic push stops before ${them} and a person's \`git push\` still sends the branch; the push resumes as soon as those checks answer.`;
+/// ```
+pub fn undecided_line(branch_ref: &str, stopped: &Stopped) -> String {
+    let name: &str = branch_name(branch_ref);
+    let mut named: Vec<String> = Vec::new();
+    for held in &stopped.commits {
+        named.push(held.commit.clone());
+    }
+    let [only] = stopped.commits.as_slice() else {
+        return format!(
+            "{name} is not sent yet: the post-commit checks of these commits have not decided whether they may be published: {}. The automatic push stops before them, a person's `git push` still sends the branch, and the push resumes as soon as those checks answer.",
+            named.join(", ")
+        );
+    };
+    return format!(
+        "{name} is not sent yet: the post-commit check of the commit {} has not decided whether it may be published. The automatic push stops before it, a person's `git push` still sends the branch, and the push resumes as soon as that check answers.",
+        only.commit
     );
 }
 

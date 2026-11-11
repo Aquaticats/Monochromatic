@@ -1,5 +1,7 @@
 //! What:
-//!  The names of the two side references a landing uses,
+//!  The names of the two side references a landing uses
+//! and of the reference a removal keeps a held commit on
+//!  when one of those cannot be written,
 //! and what a landing or a restart does with the scratch reference of a batch that will not land.
 //! Why:
 //!  A landing keeps the objects of its batch reachable with `refs/worktree/cli-git-service/<seq>`,
@@ -74,6 +76,32 @@ pub(crate) fn scratch_ref(seq: u64) -> String {
 /// ```
 pub(crate) fn kept_ref(seq: u64) -> String {
     return format!("refs/cli-git/kept/{seq}");
+}
+
+/// What:
+///  The reference that keeps a held commit a removal may destroy
+///  when that batch's own kept reference cannot be written.
+/// Why:
+///   A lock standing on `refs/cli-git/kept/<batch>` refuses every write to that exact name,
+///  and the removal that follows deletes the worktree's own Git directory
+///  and the per-worktree reference that are the only other holders of the commit:
+///  `git gc --prune=now` then takes it,
+///  which loses a commit the wrapper said it kept
+///  (the owner's rule "never discard user data").
+///  A name beside the batch's own is free of that lock,
+///  and it stays in the kept family,
+/// where anyone who looks for a commit the wrapper kept
+///  looks (`worktree_removal_held_commits.rs`).
+///  `is_side_ref_name` in `transaction_git_step_rerun_and_end_rules.rs` spells the same suffix,
+///  as it already spells these prefixes,
+/// because that folder may not use this one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `refs/cli-git/kept/${seq}-rescue`
+/// ```
+pub(crate) fn rescue_ref(seq: u64) -> String {
+    return format!("refs/cli-git/kept/{seq}-rescue");
 }
 
 /// What:

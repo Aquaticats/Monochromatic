@@ -169,7 +169,7 @@ pub struct PushGit {
 /// ```
 pub fn git_command(git: &PushGit, arguments: &[OsString]) -> Command {
     let mut command = Command::new(&git.real_git);
-    crate::hooks_off::add_arguments(&mut command, arguments);
+    crate::hooks_off::add_arguments(&mut command, arguments, crate::hooks_off::StartOwner::Wrapper);
     let mut in_place = in_push_environment(command, git);
     // The push environment is built from nothing, so the marker is added after it: this start says it is Git's too.
     crate::started_as_git::mark_real_git_start(&mut in_place, crate::started_as_git::StartMode::Child);

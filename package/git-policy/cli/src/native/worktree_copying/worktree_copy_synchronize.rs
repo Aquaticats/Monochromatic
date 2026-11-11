@@ -22,6 +22,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::transaction_git::GitContext;
+use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_add_binding::Binding;
 use crate::worktree_copy_notices::{DestinationOwnership, UNKNOWN_DESTINATION_NOTICE, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of, registered_by_another_notice, registration_changed, unconfirmed_destination_notice, unreadable_notice, unsettled_notice};
 use crate::worktree_subvolume::Reservation;
@@ -94,6 +95,7 @@ pub fn synchronize_created_worktree(
         selection,
         None,
         None,
+        &CopyCeiling::unbounded(),
         &mut std::io::sink(),
     );
 }
@@ -129,6 +131,7 @@ pub fn synchronize_created_worktree_noting(
     selection: &CopySelection,
     recorded: Option<StageClaim>,
     binding: Option<&Binding>,
+    ceiling: &CopyCeiling,
     notice: &mut dyn std::io::Write,
 ) -> Result<usize, WorktreeCopyError> {
     let started: std::time::Instant = std::time::Instant::now();
@@ -149,6 +152,7 @@ pub fn synchronize_created_worktree_noting(
         registered_roots,
         selection,
         binding,
+        ceiling,
     ) {
         Ok(snapshot) => snapshot,
         Err(error) => {
@@ -185,8 +189,13 @@ pub fn synchronize_created_worktree_noting(
         return Err(registration_changed(destination_root, reason.as_str()));
     }
     let staged_after: std::time::Duration = started.elapsed();
+    // The last moment before installation: a command that finishes a copy it did not start stops here too, rather than
+    //  installing a tree that cost more than its ceiling.
+    if ceiling.reached() {
+        return Err(ceiling.stopped_error());
+    }
     let staged: StagedSnapshot = snapshot.clone();
-    let outcome: Outcome = complete_journal(pending, &SnapshotSource::Staged(&staged))?;
+    let outcome: Outcome = complete_journal(pending, &SnapshotSource::Staged(&staged), ceiling)?;
     debug(
         "worktreeCopyTransaction",
         format!(
@@ -394,6 +403,7 @@ pub(crate) fn synchronize_after(
                     &observation.selection,
                     held.take(),
                     Some(&created.binding),
+                    &CopyCeiling::unbounded(),
                     stderr,
                 )?;
             }

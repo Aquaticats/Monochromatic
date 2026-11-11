@@ -12,6 +12,12 @@ import {
   type Lookup,
   missingValue,
 } from './lookup.ts';
+import {
+  describeRunFailures,
+  describeRunOutcome,
+  type RunOutcome,
+  runPassed,
+} from './run-outcome.ts';
 
 /**
  Check that a listed workflow run was built from a commit.
@@ -246,15 +252,59 @@ export function describeDuration(totalSeconds: number): string {
 export type PublishReport = {
   readonly lines: readonly string[];
   /**
-   True when the workflow succeeded, crates.io has the version, and the release holds every expected asset.
+   True when the workflow run ended with success, crates.io has the version, and the release holds every expected
+   asset.
    */
   readonly ok: boolean;
 };
 
 /**
+ List why a workflow run is not a pass.
+
+ @param workflow - workflow file of the run
+
+ @param runId - numeric identifier of the run
+
+ @param outcome - what the run says about itself, or a miss that says why it could not be followed to its end
+
+ @returns one reason per way the run keeps the publish from being complete; empty when the run ended with success
+
+ @example
+ ```ts
+ problemsOfRun({ workflow: 'cargo-publish.yml', runId: '42', outcome });
+ ```
+ */
+function problemsOfRun({
+  workflow,
+  runId,
+  outcome,
+}: {
+  readonly workflow: string;
+  readonly runId: string;
+  readonly outcome: Lookup<RunOutcome>;
+}): readonly string[] {
+  if (!outcome.found)
+    return [`${workflow} run ${runId} did not finish: ${outcome.reason}`];
+  if (runPassed(outcome.value))
+    return [];
+  /**
+   Conclusion the run ended with.
+   */
+  const { conclusion } = outcome.value;
+  return [`${workflow} run ${runId} concluded ${conclusion}`];
+}
+
+/**
  Format what was found after a publish and decide whether it is complete.
 
- @param watchStatus - exit status of `gh run watch --exit-status`
+ The verdict on the workflow run comes from the run's own answer (see `RunOutcome`), never from the exit status of a
+ watcher: a watcher fails for its own reasons too, and a run that passed must not be reported as failed.
+
+ @param workflow - workflow file of the run that built the crate and its archives
+
+ @param runId - numeric identifier of that run
+
+ @param outcome - what the run says about itself, or a miss that says why it could not be followed to its end
 
  @param version - released version
 
@@ -274,11 +324,13 @@ export type PublishReport = {
 
  @example
  ```ts
- formatPublishResult({ watchStatus: 0, version: '1.0.0', createdAt: foundValue('x'), tag: 't', expectedAssets: [], release: foundValue([]) });
+ formatPublishResult({ workflow: 'cargo-publish.yml', runId: '42', outcome, version: '1.0.0', createdAt: foundValue('x'), tag: 't', expectedAssets: [], release: foundValue([]) });
  ```
  */
 export function formatPublishResult({
-  watchStatus,
+  workflow,
+  runId,
+  outcome,
   version,
   createdAt,
   skippedCratesIoReason,
@@ -286,7 +338,9 @@ export function formatPublishResult({
   expectedAssets,
   release,
 }: {
-  readonly watchStatus: number;
+  readonly workflow: string;
+  readonly runId: string;
+  readonly outcome: Lookup<RunOutcome>;
   readonly version: string;
   readonly createdAt: Lookup<string>;
   readonly skippedCratesIoReason?: string;
@@ -305,7 +359,11 @@ export function formatPublishResult({
    Reasons the check failed, in report order.
    */
   const problems = [
-    ...(watchStatus === 0 ? [] : [`workflow run exited ${String(watchStatus)}`]),
+    ...problemsOfRun({
+      workflow,
+      runId,
+      outcome
+    }),
     ...((skippedCratesIoReason !== undefined) || createdAt.found ? [] : [`${version} is not on crates.io`]),
     ...(missing.length === 0 ? [] : [`missing release assets: ${missing.join(', ')}`]),
   ];
@@ -318,12 +376,19 @@ export function formatPublishResult({
       .join(', ')) : release.reason;
   return {
     lines: [
-      `watch exit ${String(watchStatus)}`,
+      outcome.found
+        ? describeRunOutcome({
+          workflow,
+          runId,
+          outcome: outcome.value
+        })
+        : `${workflow} run ${runId}: ${outcome.reason}`,
+      ...(outcome.found ? describeRunFailures(outcome.value) : []),
       skippedCratesIoReason === undefined
         ? `crates.io ${version}: ${createdAt.found ? createdAt.value : 'not found'}`
         : `crates.io ${version}: skipped, ${skippedCratesIoReason}`,
       `release ${tag} assets: ${assetText}`,
-      problems.length === 0 ? 'PUBLISHED' : `PUBLISH CHECK FAILED: ${problems.join('; ')}`,
+      problems.length === 0 ? `PUBLISHED ${tag}` : `PUBLISH CHECK FAILED: ${problems.join('; ')}`,
     ],
     ok: problems.length === 0,
   };
