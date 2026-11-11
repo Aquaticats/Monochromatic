@@ -797,14 +797,18 @@ fn a_stage_folder_another_command_emptied_does_not_block_the_removal() {
 }
 
 /// What:
-///  A live stage container inside the old tree is not the old tree's to delete:
+///  A stage container a live command is filling below an exchanged worktree is not the old tree's to
+///  delete:
 ///  the conversion keeps the old tree,
 ///  says which stage holds it,
 ///  and leaves the payload where it is.
 /// Why:
 ///   The container is another command's copy in progress,
-/// so its payload is that command's work,
-///  and the comparison may approve deleting the old tree only for a container no live command is filling.
+/// so its payload is that command's work.
+/// The claim names the container below the worktree,
+/// which is the name the exchange moved the old tree away from,
+/// so a reader that trusted only the claim's own path would find nothing and delete the live stage with
+///  the tree.
 #[test]
 fn a_live_stage_inside_the_old_tree_keeps_it() {
     let (parent, _root, worktree) = quiet_worktree("convert-live-stage");
@@ -812,9 +816,10 @@ fn a_live_stage_inside_the_old_tree_keeps_it() {
     let candidate: Candidate = inspect(worktree.as_path()).expect("registered");
     let converting: PathBuf = converting_path(worktree.as_path());
     assert!(run_quiet(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).is_err(), "the run stopped after the exchange");
-    let claim: StageClaim = claim_stage_for_add_as(candidate.common.as_path(), converting.join("inside/wt").as_path(), &current_copy_owner().expect("this process")).expect("claim a stage beside a destination in the old tree");
-    let payload: PathBuf = claim.container().join("payload/credentials");
-    std::fs::create_dir_all(payload.parent().expect("the payload's folder")).expect("the stage container");
+    let claim: StageClaim = claim_stage_for_add_as(candidate.common.as_path(), worktree.join("inside/wt").as_path(), &current_copy_owner().expect("this process")).expect("claim a stage beside a destination in the worktree");
+    let name: std::ffi::OsString = claim.container().file_name().expect("the container's name").to_os_string();
+    let payload: PathBuf = converting.join("inside").join(name.as_os_str()).join("payload/credentials");
+    std::fs::create_dir_all(payload.parent().expect("the payload's folder")).expect("the stage container the exchange moved aside");
     std::fs::write(payload.as_path(), b"state still being staged\n").expect("fill the stage");
     let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
     let survived: bool = payload.exists();
@@ -824,6 +829,44 @@ fn a_live_stage_inside_the_old_tree_keeps_it() {
     };
     assert!(survived, "conversion verdict: {said}; stage payload survived: {survived}; output: {lines:#?}");
     assert!(std::fs::symlink_metadata(converting.as_path()).is_ok(), "the old tree is kept: {said}");
-    assert!(said.contains("stage") && said.contains(claim.container().file_name().expect("name").to_string_lossy().as_ref()), "the run says which stage holds the old tree: {said}");
+    assert!(said.contains("stage") && said.contains(name.to_string_lossy().as_ref()), "the run says which stage holds the old tree: {said}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A live stage container below the worktree stops the conversion before its swap,
+///  so the command filling it keeps the place it writes to;
+///  once that command has removed its container,
+///  a rerun finishes the conversion even though its claim is still recorded.
+/// Why:
+///   The swap moves the whole worktree aside,
+/// and a container another command is filling below it would stop naming
+///  anything that command could write to,
+/// so refusing before the exchange is the only way its add can finish.
+#[test]
+fn a_live_stage_inside_the_worktree_stops_the_conversion_before_the_swap() {
+    let (parent, _root, worktree) = quiet_worktree("convert-live-stage-swap");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let candidate: Candidate = inspect(worktree.as_path()).expect("registered");
+    let converting: PathBuf = converting_path(worktree.as_path());
+    let claim: StageClaim = claim_stage_for_add_as(candidate.common.as_path(), worktree.join("inside/wt").as_path(), &current_copy_owner().expect("this process")).expect("claim a stage beside a destination in the worktree");
+    let name: std::ffi::OsString = claim.container().file_name().expect("the container's name").to_os_string();
+    let payload: PathBuf = claim.container().join("payload/credentials");
+    std::fs::create_dir_all(payload.parent().expect("the payload's folder")).expect("the stage container");
+    std::fs::write(payload.as_path(), b"state still being staged\n").expect("fill the stage");
+    let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    let said: String = match &verdict {
+        Ok(found) => format!("{found:?}"),
+        Err(error) => format!("{error}"),
+    };
+    assert!(payload.exists(), "conversion verdict: {said}; the live stage payload survived: {}; output: {lines:#?}", payload.exists());
+    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped: {said}");
+    assert!(said.contains("stage") && said.contains(name.to_string_lossy().as_ref()), "the run says which stage holds the worktree: {said}");
+    // The command filling the container finishes and removes it; its claim outlives the container for a moment, and the rerun
+    // says nothing about a claim whose container is gone.
+    std::fs::remove_dir_all(claim.container()).expect("the other command removes its container");
+    let (again, again_lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(again.expect("the unfinished conversion finishes"), Verdict::Resumed, "{again_lines:#?}");
+    assert!(std::fs::symlink_metadata(converting.as_path()).is_err(), "the old tree is gone");
     remove(parent.as_path());
 }
