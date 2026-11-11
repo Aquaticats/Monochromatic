@@ -528,3 +528,42 @@ fn a_retry_that_finishes_the_commit_takes_the_first_try_s_hold_over() {
     assert_eq!(written.id(), item.id(), "the record is the first try's own, not a second one");
     remove(root.as_path());
 }
+
+/// What:
+///  A gate whose verdict record cannot be written keeps the held record,
+///  and the refusal is still read from it.
+/// Why:
+///   The verdict is written into the held record before the verdict record is made,
+/// so a verdict record that cannot be written leaves a record that still says the gate refused the commit;
+/// forgetting that record would leave neither,
+///  and the next push of the branch would publish the commit the gate refused
+///  (a review of `ee545033ad`, finding 2).
+#[test]
+#[cfg(unix)]
+fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: std::path::PathBuf = fixture("handoff-blocked-verdict-not-written");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let item: WorkItem = push_item(&handoff, OID);
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
+    std::fs::create_dir_all(held.parent().expect("the held directory")).expect("the held directory");
+    std::fs::write(held.as_path(), item.encode()).expect("the held record the gate's command left");
+    // The verdict record cannot be written: its directory refuses every new name.
+    let blocked: std::path::PathBuf = state_directory(work.as_path(), "blocked");
+    std::fs::create_dir_all(blocked.as_path()).expect("the blocked directory");
+    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory no name can be made in");
+    forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
+    assert!(held.exists(), "the held record stays: it is the only statement of the refusal");
+    assert_eq!(
+        crate::work_item_holding::blocked_verdicts(work.as_path()),
+        vec![crate::work_item_holding::BlockedVerdict {
+            branch_ref: String::from("refs/heads/main"),
+            commit: String::from(OID),
+            reason: String::from("final-newline: the file does not end with a newline"),
+        }],
+        "the refusal the record still states is what the next push of the branch stops before"
+    );
+    std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o700)).expect("writable again");
+    remove(root.as_path());
+}

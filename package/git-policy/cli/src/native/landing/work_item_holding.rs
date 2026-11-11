@@ -23,9 +23,9 @@
 //! await hold(workDir, item); promote(workDir, id); forgetHeld(workDir, id);
 //! ```
 
-use crate::held_push_holder_and_verdict::{Holding, Verdict, this_command, with_holding};
+use crate::held_push_holder_and_verdict::{Holding, Verdict, holding_in, this_command, with_holding};
 use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced, write_private_file_unsynced};
-use crate::work_item::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, WorkItem, state_directory};
+use crate::work_item::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -208,7 +208,8 @@ pub struct BlockedVerdict {
 /// What:
 ///  Says durably that the gate of this commit kept it local,
 /// with the words of the verdict,
-/// and gives the held record up.
+/// gives the held record up,
+/// and answers whether the verdict is now durable.
 /// Why:
 ///   `forget_the_push` alone leaves no trace of the verdict,
 /// so a later recovery of the same batch would hold the push again
@@ -217,20 +218,43 @@ pub struct BlockedVerdict {
 /// because the automatic push must stop before this commit and every
 ///  command must say why,
 /// and a digest of the branch is not the branch.
+///   The held record is given up only after the verdict is there:
+/// a record forgotten beside a verdict that was not written leaves neither,
+/// `is_blocked` then reads false,
+/// and the next hold and push publish the commit the gate refused
+///  (a review of `ee545033ad`, finding 2).
+/// A verdict that cannot be written leaves the held record standing,
+/// which is the state that keeps the commit local,
+///  and the failure is said rather than swallowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// block(workDir, item, reason) // write `blocked/<id>` with the branch and the words, hold nothing
+/// block(workDir, item, reason) // write `blocked/<id>` with the branch and the words; forget the held record only when that write returned
 /// ```
-pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) {
+pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) -> bool {
     let id: String = item.id();
     if create_private_directory_all(state_directory(work_dir, BLOCKED).as_path()).is_err() {
-        crate::service_error!("the blocked verdict of the push record {id} cannot be kept");
-        return;
+        crate::service_error!(
+            "the blocked verdict of the push record {id} cannot be kept, because its directory cannot be made; the held record stays, so nothing \
+             here publishes that commit"
+        );
+        return false;
     }
     let record: String = blocked_record(item.branch_ref.as_str(), item.oid.as_str(), reason);
-    let _written: std::io::Result<()> = write_private_file_unsynced(state_directory(work_dir, BLOCKED).join(id.as_str()).as_path(), record.as_bytes());
+    match write_private_file_unsynced(state_directory(work_dir, BLOCKED).join(id.as_str()).as_path(), record.as_bytes()) {
+        Ok(()) => {}
+        // A verdict another command already wrote for this commit is the same refusal: a record is never replaced, and the verdict stands.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => {
+            crate::service_error!(
+                "the blocked verdict of the push record {id} could not be written ({error}); the held record stays, so nothing here publishes \
+                 that commit"
+            );
+            return false;
+        }
+    }
     forget_held(work_dir, id.as_str());
+    return true;
 }
 
 /// What:
@@ -296,7 +320,59 @@ pub fn blocked_verdicts(work_dir: &Path) -> Vec<BlockedVerdict> {
         };
         verdicts.push(read.unwrap_or(BlockedVerdict { branch_ref: String::new(), commit, reason: String::new() }));
     }
+    // A held record whose own words say its gate refused the commit is a refusal as well: the command that wrote them was killed
+    //  between the verdict and the verdict record, or that record could not be written. The commit must not be published by the
+    //  branch's next push in that state either (`held_push_holder_and_verdict.rs`), and one verdict per commit is enough.
+    for refusal in refused_while_held(work_dir) {
+        if !verdicts.iter().any(|verdict| verdict.commit == refusal.commit) {
+            verdicts.push(refusal);
+        }
+    }
     return verdicts;
+}
+
+/// What:
+///  The refusals the held records of this worktree still state,
+///  one per commit,
+///  in name order.
+/// Why:
+///   A verdict record is written after the verdict is written into the held record,
+/// so a command killed in that gap,
+///  or a verdict record that could not be written,
+///  leaves the refusal in the record alone;
+///  the push of the branch is decided from the refusals this worktree can read,
+///  and a held refusal is one of them.
+/// A record that cannot be read,
+///  or names a kind that is not a push, states no refusal a push of a branch must stop before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refusedWhileHeld(workDir) // for each held record whose holding says 'blocked': { branch, commit, reason }
+/// ```
+fn refused_while_held(work_dir: &Path) -> Vec<BlockedVerdict> {
+    let held: PathBuf = state_directory(work_dir, HELD);
+    let Ok(listing) = std::fs::read_dir(held.as_path()) else {
+        return Vec::new();
+    };
+    let mut entries: Vec<(String, PathBuf)> = Vec::new();
+    for entry in listing.flatten() {
+        entries.push((entry.file_name().to_string_lossy().into_owned(), entry.path()));
+    }
+    entries.sort();
+    let mut refusals: Vec<BlockedVerdict> = Vec::new();
+    for (_name, path) in entries {
+        let Ok(text) = std::fs::read_to_string(path.as_path()) else { continue };
+        let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
+        if item.kind != WorkKind::Push {
+            continue;
+        }
+        let holding: Holding = holding_in(text.as_str());
+        if holding.verdict != Verdict::Blocked {
+            continue;
+        }
+        refusals.push(BlockedVerdict { branch_ref: item.branch_ref.clone(), commit: item.oid.clone(), reason: holding.reason.clone() });
+    }
+    return refusals;
 }
 
 /// What:
@@ -356,3 +432,8 @@ fn create_states(work_dir: &Path) -> bool {
 pub fn forget_held(work_dir: &Path, id: &str) {
     let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir, HELD).join(id));
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "work_item_holding_tests.rs"]
+mod tests;
