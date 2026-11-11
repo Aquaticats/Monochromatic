@@ -71,10 +71,13 @@ pub async fn relink_awaiting(item: &WorkItem) -> Verdict {
 
 /// What:
 ///  `relink_awaiting` with what the tools read from the process injected,
-/// so a control runs fixture tools and reaches no real one.
+/// and the add's own search path taken from the record.
 /// Why:
 ///   The tools' programs and bounds come from the process a service runs in,
-/// which a control cannot choose for the test binary.
+/// which a control cannot choose for the test binary;
+/// the search path is the add's when it recorded one,
+/// because that is the path the owner decided the repair resolves on,
+/// and the service's own path need hold no pnpm or another one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,10 +88,14 @@ async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdic
         Ok(decoded) => decoded,
         Err(reason) => return Verdict::Failed(reason),
     };
+    if let Some(refusal) = refusal_of_a_record_that_is_not_about_its_own_directory(item, &entry) {
+        return Verdict::Skipped(refusal);
+    }
+    let as_the_add_left_it: RepairEnvironment = environment_as_the_add_left_it(&entry, environment);
     let mut failures: Vec<String> = Vec::new();
     let mut repaired: usize = 0;
     for tool in &entry.tools {
-        match relink_one(*tool, entry.root.as_path(), environment).await {
+        match relink_one(*tool, entry.root.as_path(), &as_the_add_left_it).await {
             // The worktree no longer needs this tool, which a person's own command may have seen to.
             None => debug(TAG, format!("{}: {} had nothing to relink", entry.root.display(), tool.name()).as_str()),
             Some(Finding { outcome: Outcome::Repaired { .. }, .. }) => repaired += 1,
@@ -99,6 +106,63 @@ async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdic
     return match failures.first() {
         None => Verdict::Done,
         Some(first_failure) => Verdict::Failed(first_failure.clone()),
+    };
+}
+
+/// What:
+///  Why this record is not acted on:
+/// its two names of the directory disagree,
+/// or the directory is no longer this repository's worktree.
+/// Why:
+///   A record outlives the worktree it was written for:
+/// a service that died holds a claim,
+/// a claim that ran out is queued again,
+/// and a person may remove the worktree and put their own directory at that path meanwhile.
+/// The tools rewrite link layouts in place,
+/// so the directory is proved to be one of this repository's registrations before any of them starts,
+/// and the answer names what was left exactly as it is.
+/// A worktree removed and added again at the same path before this record was drained is a registration
+/// of this repository too,
+/// and each tool decides its need again from the directory it finds,
+/// so the run there is the one that worktree's own record asks for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = (item, entry) => entry.root !== item.repository ? 'the record names two directories' : registrationOf(item.gitDir, entry.root).error;
+/// ```
+fn refusal_of_a_record_that_is_not_about_its_own_directory(item: &WorkItem, entry: &RelinkEntry) -> Option<String> {
+    if entry.root != item.repository {
+        return Some(format!(
+            "the record names {} as its worktree and {} in its payload, so neither was touched",
+            item.repository.display(),
+            entry.root.display()
+        ));
+    }
+    return match crate::worktree_added_by_the_wrapper::registration_admin(item.git_dir.as_path(), entry.root.as_path()) {
+        Ok(_registration) => None,
+        Err(reason) => Some(format!("this directory is no worktree of the repository any more ({reason})")),
+    };
+}
+
+/// What:
+///  The environment the tools run in:
+/// the service's own bounds and workers,
+/// with the search path the add recorded when it recorded one.
+/// Why:
+///   The bounds are the service's own and are not the add's to set,
+/// while the search path is the person's:
+/// it decides which pnpm and mpm-shadow run,
+/// and their own children read it too,
+/// so a record without one (written before this release carried it) keeps the service's path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const environmentAsTheAddLeftIt = (entry, environment) => entry.searchPath === undefined ? environment : { ...environment, searchPath: entry.searchPath };
+/// ```
+fn environment_as_the_add_left_it(entry: &RelinkEntry, environment: &RepairEnvironment) -> RepairEnvironment {
+    return match entry.search_path.as_ref() {
+        None => environment.clone(),
+        Some(search_path) => RepairEnvironment { search_path: Some(search_path.clone()), ..environment.clone() },
     };
 }
 

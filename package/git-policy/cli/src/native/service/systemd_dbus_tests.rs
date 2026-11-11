@@ -338,6 +338,85 @@ fn error_return(serial: u32, name: &str, text: &str) -> Vec<u8> {
     return hand_message(ERROR, serial + 10, &[hand_field(FIELD_ERROR_NAME, b's', name), serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b's', 0]], &body);
 }
 
+/// What:
+///  The body of a list of address pairs (`a(ss)`):
+/// the byte length of the entries,
+/// padding to the eight-byte boundary one pair starts on,
+/// then each pair as its two strings,
+/// each on a four-byte boundary.
+/// Why:
+///   A socket unit's `Listen` is one pair per address,
+/// and a control has to be able to hand the client a reply the manager could send.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// addressesBody(['/run/user/1000/x.sock']) // bytes of an a(ss) body
+/// ```
+fn addresses_body(addresses: &[&str]) -> Vec<u8> {
+    let mut entries: Vec<u8> = Vec::new();
+    for address in addresses {
+        while entries.len() % 8 != 0 {
+            entries.push(0);
+        }
+        for text in ["Stream", *address] {
+            while entries.len() % 4 != 0 {
+                entries.push(0);
+            }
+            entries.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
+            entries.extend(text.as_bytes());
+            entries.push(0);
+        }
+    }
+    let mut body: Vec<u8> = Vec::new();
+    body.extend(u32::try_from(entries.len()).expect("short").to_le_bytes());
+    while body.len() % 8 != 0 {
+        body.push(0);
+    }
+    body.extend(entries);
+    return body;
+}
+
+/// A return whose body is one variant holding a list of address pairs.
+fn addresses_return(serial: u32, addresses: &[&str]) -> Vec<u8> {
+    let mut body: Vec<u8> = vec![5, b'a', b'(', b's', b's', b')', 0, 0];
+    body.extend(addresses_body(addresses));
+    return hand_message(METHOD_RETURN, serial + 10, &[serial_field(serial), vec![FIELD_SIGNATURE, 1, b'g', 0, 1, b'v', 0]], &body);
+}
+
+/// What:
+///  The addresses of a unit are read from its object,
+/// and a unit the manager does not hold has none.
+/// Why:
+///   The address the manager made is the one fact that says whether a client given another runtime directory can
+///  reach the service,
+/// so the reading of `Listen` is what the refusal rests on.
+#[test]
+fn the_addresses_of_a_unit_are_read_from_its_object_and_an_unloaded_unit_has_none() {
+    let root = short_directory("listen");
+    let socket = root.join("bus");
+    let listener = UnixListener::bind(&socket).expect("listen");
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let script: Script = Script {
+        answers: vec![
+            vec![string_return(1, ":1.42")],
+            vec![path_return(2, "/org/freedesktop/systemd1/unit/cli_2dgit_40a_2esocket")],
+            vec![addresses_return(3, &["/run/user/1000/monochromatic-git-policy-cli/a.sock"])],
+            vec![error_return(4, NO_SUCH_UNIT, "not loaded")],
+        ],
+    };
+    serve_bus(listener, script, sender);
+    let mut bus: Bus = Bus::connect(socket.as_path(), Duration::from_secs(10)).expect("connected");
+    assert_eq!(bus.listen_addresses("cli-git@a.socket"), Ok(Some(vec![String::from("/run/user/1000/monochromatic-git-policy-cli/a.sock")])));
+    assert_eq!(bus.listen_addresses("cli-git@b.socket"), Ok(None), "a unit the manager does not hold has no address");
+    let (_auth, calls) = receiver.recv().expect("seen");
+    // The property asked for is `Listen`, of the socket interface: the one property that says where a service answers.
+    let interface: &[u8] = b"org.freedesktop.systemd1.Socket";
+    let asked: bool = calls[2].windows(6).any(|window| { return window == b"Listen"; });
+    let named: bool = calls[2].windows(interface.len()).any(|window| { return window == interface; });
+    assert!(asked && named, "the address question names the socket interface's Listen");
+    remove(root.as_path());
+}
+
 /// An object path and a variant holding a string are read as the first text of a reply;
 /// a variant holding another type,
 /// or

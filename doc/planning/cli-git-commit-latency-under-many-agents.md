@@ -482,6 +482,73 @@ three commits per arm through `strace -f -T -e trace=%file,%desc,fsync`:
   so this record claims no whole-commit improvement from it:
   what it removes is one flush whose own cost was measured directly.
 
+### The conclusion entry's own flush, the last wait in `buildMs` (2026-11-11T08:15:00-05:00)
+
+The change that removed the empty `store-held.json` record left one kind of flush in `buildMs`:
+`package/git-policy/cli/src/native/commit/conclusion_copy.rs` publishes every conclusion entry it finds twice,
+once into the shadow the scratch `git commit` reads and once into the transaction's comparison copy,
+and both writes go through `write_private_file`,
+which syncs the file.
+A merge,
+a cherry-pick or a revert leaves any of nine entries,
+so one conclusion commit makes two flushes per entry.
+
+Measured on this host on 2026-11-11,
+three arms alternating over the four commits of
+`service_landing_state::a_squash_merge_conclusion_lands_through_the_service_and_removes_its_squash_state`,
+with each commit's own timing record read out of its served copy:
+
+- Synced:
+  `buildParts.shadow conclusion` 3,601,
+  1,464,
+  480 and 487 ms,
+  whole commits 3,823,
+  2,087,
+  688 and 780 ms.
+- The same bytes through `write_private_file_unsynced`:
+  `buildParts.shadow conclusion` 0 ms in all four,
+  whole commits 63,
+  53,
+  330 and 47 ms.
+- Synced again:
+  `buildParts.shadow conclusion` 2,892,
+  4,614,
+  1,313 and 105 ms,
+  whole commits 3,415,
+  4,997,
+  1,908 and 179 ms.
+
+The whole of that stretch is those syncs:
+no Git step falls inside it,
+and the scratch `git commit` of the same commits took 37 to 106 ms.
+A conclusion commit through the wrapper therefore takes 0.2 to 4.9 s more than native Git's 25 to 463 ms for the same four commits,
+and on a host whose disk stalls one flush costs what this record measured for it
+("The change:
+an empty conclusion record no longer flushes the disk";
+24.9 s).
+
+Why no sync is dropped here:
+the table of what a torn pre-landing record does
+(`doc/planning/cli-git-spawn-and-sync-reduction.md`,
+"J3 outcome:
+what recovery does with emptied,
+halved and dropped records")
+covers `T/conclusion/store-held.json` and no other file of `T/conclusion`,
+so the two copies of a conclusion entry are outside the evidence that rule asks for before a pre-landing record's file sync goes
+(`doc/planning/cli-git-spawn-and-sync-reduction.md`,
+"Journal syncs").
+Extending that harness to `T/conclusion/<entry>` and to the shadow's copy is what the next reading needs;
+whether the syncs then go is the owner's call,
+because one direction that loses is a merge that lands as a plain commit.
+
+What it costs a control:
+`service_landing_state::a_conclusion_lands_through_the_service_and_removes_the_state_native_git_removes`
+landed 28 conclusion commits in one test,
+took 284.9 s alone on 2026-11-11 with other sessions loading the host,
+15 s under the runner's five-minute stop,
+and one run of it reached that stop and was ended naming no state.
+Each conclusion state is its own control since `4bf304b393`.
+
 ## The scratch commit's ceiling, which turns a wait into a refusal
 
 `package/git-policy/cli/src/native/commit/commit_preparation.rs` runs the scratch `git commit`
@@ -2689,6 +2756,22 @@ Nothing in the creation can be removed without changing what a commit is allowed
   a file an earlier release left).
   The private index copies were taken out of the enumeration already,
   on the argument that no hook resolves one.
+
+  Taken on 2026-11-11,
+  by the brief on the pooled shadow's refusals:
+  the links are a named list now
+  (`SHARED_ENTRY_NAMES` in `shadow_links.rs`)
+  and a claim of the pool is judged on it,
+  so an entry no commit reads costs neither a link nor a refused member.
+  The list holds `modules`,
+  `lfs`,
+  `info`,
+  `rr-cache`,
+  `branches` and `remotes`,
+  so what it stops is a file an earlier release left,
+  which no Git reads,
+  and a member of the pool stays usable across it
+  (`shadow_pool_member.rs`).
 - The creation has to exist before the scratch `git commit` runs,
   so it is on the commit's path by construction.
   It could be made beside the preparation,
@@ -3720,6 +3803,13 @@ a creation would link the pool into every shadow,
 so one shadow could reach every other member,
 and whether the folder existed would decide what a claimed member has to hold:
 the first fill of a repository would refuse the member it had just made.
+
+An in-place note, 2026-11-11:
+`is_private_shadow_entry` no longer exists.
+A shadow links the named entries a commit reads and nothing else
+(`SHARED_ENTRY_NAMES` in `shadow_links.rs`),
+so the pool still never reaches a shadow,
+and the occasion for it is the named list rather than a denylist.
 
 ### What says it works
 

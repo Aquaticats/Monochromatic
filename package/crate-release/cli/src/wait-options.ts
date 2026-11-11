@@ -4,6 +4,7 @@ import {
   defaultAssetTemplates,
   defaultAttempts,
   defaultCurlMaxTimeSeconds,
+  defaultFollowAttempts,
   defaultPollIntervalSeconds,
   defaultRunListLimit,
   defaultTagTemplate,
@@ -53,6 +54,10 @@ export type PublishCheckSettings = {
    Seconds between two looks.
    */
   readonly pollIntervalSeconds: number;
+  /**
+   Looks used to follow one run to its own end before the wait gives up.
+   */
+  readonly followAttempts: number;
   /**
    Recent runs listed on each look.
    */
@@ -106,6 +111,7 @@ export const publishCheckOptionDefinitions = {
   'repo': { type: 'string' },
   'attempts': { type: 'string' },
   'poll-interval': { type: 'string' },
+  'follow-attempts': { type: 'string' },
   'run-limit': { type: 'string' },
   'tag-template': { type: 'string' },
   'asset-template': {
@@ -213,6 +219,11 @@ export function parsePublishCheckSettings(raw: RawArguments): PublishCheckSettin
       raw,
       name: 'poll-interval',
       fallback: defaultPollIntervalSeconds
+    }),
+    followAttempts: numberOption({
+      raw,
+      name: 'follow-attempts',
+      fallback: defaultFollowAttempts
     }),
     runLimit: numberOption({
       raw,

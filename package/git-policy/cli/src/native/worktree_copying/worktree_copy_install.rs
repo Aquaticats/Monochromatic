@@ -446,6 +446,7 @@ pub fn install_snapshot(
     claimed: &BTreeSet<Vec<u8>>,
     prior: &[InstalledPath],
     recorder: &mut dyn InstallRecorder,
+    ceiling: &crate::worktree_copy_ceiling::CopyCeiling,
 ) -> Result<usize, WorktreeCopyError> {
     let mut created: Vec<InstalledPath> = prior.to_vec();
     match install_all(
@@ -455,6 +456,7 @@ pub fn install_snapshot(
         claimed,
         &mut created,
         recorder,
+        ceiling,
     ) {
         Ok(copied) => return Ok(copied),
         Err(error) => {
@@ -494,6 +496,7 @@ fn install_all(
     claimed: &BTreeSet<Vec<u8>>,
     created: &mut Vec<InstalledPath>,
     recorder: &mut dyn InstallRecorder,
+    ceiling: &crate::worktree_copy_ceiling::CopyCeiling,
 ) -> Result<usize, WorktreeCopyError> {
     let started: std::time::Instant = std::time::Instant::now();
     let absent: BTreeSet<Vec<u8>> =
@@ -501,6 +504,12 @@ fn install_all(
     let preflighted: std::time::Duration = started.elapsed();
     let mut known: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
     for batch in entries.chunks(INSTALL_BATCH_ENTRIES) {
+        // One check per batch: a command that finishes a copy it did not start ends its own write here rather than
+        //  installing a tree that costs more than its ceiling, and the rollback below keeps what it wrote from being
+        //  half a worktree.
+        if ceiling.reached() {
+            return Err(ceiling.stopped_error());
+        }
         install_batch(
             stage_root,
             destination_root,

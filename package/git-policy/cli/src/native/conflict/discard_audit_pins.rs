@@ -4,7 +4,8 @@
 //!  removes generations must keep it.
 //! Why:
 //!  A `saved-conflict` line says where the content that vanished from a conflicted path went,
-//! and it is the only account of that place.
+//!  a `saved-nested-repository` line says where a repository a clean would have deleted went,
+//! and such a line is the only account of that place.
 //! A generation that
 //!  names a copy still on disk therefore outlives the bound the other generations live under (the owner's answer of
 //!  2026-11-10 in the question tool:
@@ -25,26 +26,30 @@
 use std::io::BufRead;
 use std::path::Path;
 
-/// The words a saved-conflict line carries,
-/// which no other line has.
-const SAVED_CONFLICT_MARK: &[u8] = b"\"outcome\":\"saved-conflict\"";
+/// The words each line that names a saved copy carries,
+/// which no other line has:
+/// a conflicted file the command replaced,
+/// and a nested repository the command would have deleted.
+const SAVED_COPY_MARKS: [&[u8]; 2] = [b"\"outcome\":\"saved-conflict\"", b"\"outcome\":\"saved-nested-repository\""];
 
 /// The characters that stand for a byte the line's writer could not show as text:
 /// a place that has one cannot be looked up.
 const REPLACEMENT: char = '\u{FFFD}';
 
-/// Whether a line holds the mark of a `saved-conflict` record anywhere in it.
-fn holds_saved_conflict_mark(line: &[u8]) -> bool {
-    for window in line.windows(SAVED_CONFLICT_MARK.len()) {
-        if window == SAVED_CONFLICT_MARK {
-            return true;
+/// Whether a line holds the mark of a record that saved a copy anywhere in it.
+fn holds_a_saved_copy_mark(line: &[u8]) -> bool {
+    for mark in SAVED_COPY_MARKS {
+        for window in line.windows(mark.len()) {
+            if window == mark {
+                return true;
+            }
         }
     }
     return false;
 }
 
 /// What:
-///  Whether a `saved-conflict` line names a saved copy that exists,
+///  Whether a saved-copy line names a saved copy that exists,
 /// or might.
 /// Why:
 ///   The line lists `<path> => <place>`;
@@ -87,10 +92,10 @@ fn line_names_a_copy(line: &[u8]) -> bool {
 }
 
 /// What:
-///  Whether a generation holds a `saved-conflict` line that names a copy still on disk,
+///  Whether a generation holds a `saved-conflict` or `saved-nested-repository` line that names a copy still on disk,
 /// read in one pass over the file.
 /// Why:
-///   Only that line says where a copy went;
+///   Only such a line says where a copy went;
 /// a pruned directory's line records a removal and explains nothing that is still
 ///  there.
 /// This is the `pins` of the audit log's `LogRetention`,
@@ -112,7 +117,7 @@ pub fn names_a_copy_on_disk(path: &Path) -> std::io::Result<bool> {
         if reader.read_until(b'\n', &mut line)? == 0 {
             return Ok(false);
         }
-        if holds_saved_conflict_mark(line.as_slice()) && line_names_a_copy(line.as_slice()) {
+        if holds_a_saved_copy_mark(line.as_slice()) && line_names_a_copy(line.as_slice()) {
             return Ok(true);
         }
     }

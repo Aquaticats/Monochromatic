@@ -364,21 +364,22 @@ await describe({
           status: 1,
           stderr: 'does not answer here',
         });
-        const failure = await assertServiceAnswers({
-          root,
-          runtime: join(
+        /**
+         Failure the refused answer raised, and nothing when it was accepted.
+         */
+        let failure: unknown;
+        try {
+          await assertServiceAnswers({
             root,
-            'rt',
-          ),
-          directory: root,
-        }).then(
-          function unexpected() {
-            return undefined;
-          },
-          function caught(error: unknown) {
-            return error;
-          },
-        );
+            runtime: join(
+              root,
+              'rt',
+            ),
+            directory: root,
+          });
+        } catch (error: unknown) {
+          failure = error;
+        }
         expect(failure).toBeInstanceOf(Error);
         expect((failure as Error).message).toContain(root);
         expect((failure as Error).message).toContain('does not answer here');

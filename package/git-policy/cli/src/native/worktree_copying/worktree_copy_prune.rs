@@ -16,6 +16,11 @@
 //!  The rule is a handful of directory names rather than a list of paths,
 //! so a reader can predict it
 //!  (`doc/planning/cli-git-main-worktree-ignored-copy.md` measures the set it leaves out).
+//! A folder that held nothing but a container is no state either:
+//! the tree walk of a conversion
+//!  leaves it out whole and the comparison that follows does not demand it,
+//! so the converted worktree gains no empty
+//!  folder nothing names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,8 +30,10 @@
 //! ```
 
 /// The prefix of every stage container any rung makes beside its destination.
+use crate::path_bytes::path_bytes_of;
 use crate::worktree_copy_selection::{STAGE_PREFIX, is_separator_byte};
 use crate::worktree_trash_manifest::is_trash_name;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Whether the records of earlier runs (logs,
@@ -206,6 +213,102 @@ pub fn names_a_private_stage(relative_path: &[u8]) -> bool {
     return false;
 }
 
+/// What:
+///  Whether everything a folder holds is another command's stage container,
+///  at any depth,
+///  with `empty_folders_are_state` saying what a folder with nothing in it is.
+/// Why:
+///   A container holds the whole ignored state another worktree's copy is filling and no copy carries it,
+/// so the folders
+///  that held nothing else are no state of the tree either:
+/// a copy leaves them out and a comparison must not demand them.
+///  A folder that a command emptied by removing only its container is the one case the two callers
+///  answer differently:
+/// a copy that made a destination folder and finds its source empty has nothing to hand over,
+///  while a folder the installed worktree does not hold at all was left out of the copy because it
+///  held only containers then,
+/// so what arrived in it since is what the comparison has to judge.
+///  Everything else is state,
+/// so a folder holding one other entry is state,
+/// and a name that begins the stage prefix
+///  without being a directory is not a container and is state too.
+/// A folder this
+///  user cannot list is not proven to hold nothing but a container,
+/// so it counts as state as well.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// leavesOutWhole(directory, true)
+/// // true when that folder holds only `.cli-git-worktree-copy-*` folders and the folders around those
+/// ```
+fn leaves_out_whole(directory: &Path, empty_folders_are_state: bool) -> bool {
+    // The walk uses a work stack, not recursion, so a deep tree cannot overflow the stack.
+    let mut pending: Vec<PathBuf> = vec![directory.to_path_buf()];
+    while let Some(current) = pending.pop() {
+        let listing: std::fs::ReadDir = match std::fs::read_dir(current.as_path()) {
+            Ok(found) => found,
+            Err(_unreadable) => return false,
+        };
+        let mut holds_entry: bool = false;
+        for item in listing {
+            let entry: std::fs::DirEntry = match item {
+                Ok(found) => found,
+                Err(_unreadable) => return false,
+            };
+            holds_entry = true;
+            let file_name: std::ffi::OsString = entry.file_name();
+            // Only a folder is another command's stage container, and only a folder can hold nothing but one further down; a
+            // link is not followed, because the folder it names is somewhere else and is nobody's to leave out.
+            match entry.file_type() {
+                Ok(kind) if kind.is_dir() => {}
+                _ => return false,
+            }
+            // The rule for a name is the one `names_a_private_stage` states, read on the one component this entry is.
+            if names_a_private_stage(path_bytes_of(Path::new(file_name.as_os_str()))) {
+                continue;
+            }
+            pending.push(current.join(file_name));
+        }
+        if !holds_entry && empty_folders_are_state {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  Whether a source folder holds nothing but another command's stage containers,
+///  every folder below it holding at least one.
+/// Why:
+///   The tree walk of a conversion asks this before it forgets the destination folder it made,
+/// so a folder that held an empty folder of the person's own as well keeps its counterpart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsOnlyPrivateStages('.claude/worktrees')
+/// ```
+pub fn holds_only_private_stages(directory: &Path) -> bool {
+    return leaves_out_whole(directory, true);
+}
+
+/// What:
+///  Whether a folder the installed worktree does not hold carries nothing a copy would have carried:
+///  every entry below it is another command's stage container or a folder of them,
+///  and a folder emptied by removing only its container counts as nothing.
+/// Why:
+///   Such a folder was left out of the copy because it held only containers at the time,
+/// so its absence is what the copy asked for and the comparison must not demand it;
+///  anything that arrived in it since is named by the entry walk of the comparison itself,
+///  which is why only the emptiness of the folder is judged here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsNothingACopyCarries('.claude/worktrees')
+/// ```
+pub fn holds_nothing_a_copy_carries(directory: &Path) -> bool {
+    return leaves_out_whole(directory, false);
+}
+
 impl Prune {
     /// What:
     ///  The rule the main checkout uses,
@@ -254,11 +357,9 @@ impl Prune {
         let Prune::MainCheckout { run_records } = self else {
             return false;
         };
+        // The component before this one, which the two nested names below are judged by; nothing at the first.
+        let mut parent: Option<&[u8]> = None;
         for (index, component) in components.iter().enumerate() {
-            let parent: Option<&[u8]> = match index.checked_sub(1) {
-                Some(before) => Some(components[before]),
-                None => None,
-            };
             let below_target: bool = components[..index].contains(&"target".as_bytes());
             // The repository root's own `.cache` is where the repository keeps tools and generated inputs that tasks read.
             let nested_cache: bool = *component == b".cache" && index > 0;
@@ -272,6 +373,7 @@ impl Prune {
             if cache || (record && !run_records) {
                 return true;
             }
+            parent = Some(component);
         }
         return false;
     }

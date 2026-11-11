@@ -12,6 +12,12 @@ import {
   releaseWorkflow,
 } from './constants.ts';
 import {
+  recordedCargoPublishRunPassed,
+  recordedReleaseRunFailed,
+  recordedReleaseRunPassed,
+  recordedRunStillGoing,
+} from './fixture/recorded-run-answers.ts';
+import {
   describeDuration,
   expandTemplate,
 } from './publish-results.ts';
@@ -32,6 +38,7 @@ const options: AwaitOptions = {
   workflow: 'cargo-publish.yml',
   attempts: 3,
   pollIntervalSeconds: 20,
+  followAttempts: 3,
   runLimit: 10,
   tagTemplate: '{crate}-v{version}',
   assetTemplates: ['{crate}-{version}-x86_64-unknown-linux-gnu.tar.gz'],
@@ -40,14 +47,19 @@ const options: AwaitOptions = {
 };
 
 /**
- When the release run reports it was created.
- */
-const releaseCreatedAt = '2026-11-01T10:00:00Z';
-
-/**
  Milliseconds the await sleeps between two looks, as the production poll computes it.
  */
 const pollSleepMilliseconds = options.pollIntervalSeconds * millisecondsPerSecond;
+
+/**
+ How long the await may follow one run, in the words its lines use.
+ */
+const followBound = describeDuration(options.followAttempts * options.pollIntervalSeconds);
+
+/**
+ When the release run of the recorded pass was created.
+ */
+const releaseCreatedAt = (recordedReleaseRunPassed as { createdAt: string }).createdAt;
 
 /**
  Commit of the publish run that the happy listing holds after the release run, and of the run older than it.
@@ -59,6 +71,56 @@ const olderSha = 'a'.repeat(40);
  Version that the commit of the crate holds before the release, which is not the released one.
  */
 const previousVersion = '0.6.0';
+
+/**
+ An answer of `gh run view` that reports the given text.
+
+ @param body - the answer as JSON text
+ @returns the finished call
+ */
+function answer(body: string): ProgramResult {
+  return {
+    status: 0,
+    stdout: body,
+    stderr: ''
+  };
+}
+
+/**
+ The recorded release run that completed with success, as an answer.
+
+ @returns the finished call
+ */
+function releasePassedAnswer(): ProgramResult {
+  return answer(JSON.stringify(recordedReleaseRunPassed));
+}
+
+/**
+ The recorded release run that failed at its `pnpm install` step, as an answer.
+
+ @returns the finished call
+ */
+function releaseFailedAnswer(): ProgramResult {
+  return answer(JSON.stringify(recordedReleaseRunFailed));
+}
+
+/**
+ The recorded `cargo-publish` run that built the archives, as an answer.
+
+ @returns the finished call
+ */
+function publishPassedAnswer(): ProgramResult {
+  return answer(JSON.stringify(recordedCargoPublishRunPassed));
+}
+
+/**
+ The recorded run that was still going when it was captured, as an answer.
+
+ @returns the finished call
+ */
+function stillGoingAnswer(): ProgramResult {
+  return answer(JSON.stringify(recordedRunStillGoing));
+}
 
 /**
  Text of a crate manifest that holds a version.
@@ -82,36 +144,34 @@ const happyVersions: ReadonlyMap<string, string> = new Map([
  Answers of the stubbed programs, in the order a successful await asks for them.
  */
 const happy = {
-  watchRelease: { status: 0, stdout: '', stderr: '' },
-  view: { status: 0, stdout: `{"createdAt":"${releaseCreatedAt}","status":"completed"}`, stderr: '' },
-  list: {
-    status: 0,
-    stdout: JSON.stringify([
-      { databaseId: 902, headSha: publishSha, createdAt: '2026-11-01T10:05:00Z' },
-      { databaseId: 901, headSha: olderSha, createdAt: '2026-11-01T09:00:00Z' },
-    ]),
-    stderr: '',
-  },
-  watchPublish: { status: 0, stdout: '', stderr: '' },
-  curl: { status: 0, stdout: '{"version":{"created_at":"2026-11-01T10:30:00+00:00"}}', stderr: '' },
-  release: {
-    status: 0,
-    stdout: JSON.stringify({ assets: [{ name: 'forbidden-strings-0.6.1-x86_64-unknown-linux-gnu.tar.gz' }] }),
-    stderr: '',
-  },
+  release: releasePassedAnswer(),
+  list: answer(JSON.stringify([
+    { databaseId: 902, headSha: publishSha, createdAt: '2026-11-11T01:00:30Z' },
+    { databaseId: 901, headSha: olderSha, createdAt: '2026-10-01T09:00:00Z' },
+  ])),
+  publish: publishPassedAnswer(),
+  curl: answer('{"version":{"created_at":"2026-11-11T01:30:00+00:00"}}'),
+  releaseView: answer(JSON.stringify({
+    assets: [{ name: expandTemplate({ template: options.assetTemplates[0] ?? '', crateName: options.crateName, version: options.version }) }],
+  })),
 };
 
 /**
  Answers to give in place of the happy ones.
  */
 type Answers = {
-  readonly watchRelease?: ProgramResult;
-  readonly view?: ProgramResult;
+  /**
+   Answers of `gh run view` for the release run, in order; the last one repeats.
+   */
+  readonly releaseViews?: readonly ProgramResult[];
+  /**
+   Answer of `gh run view` for every other run.
+   */
+  readonly publish?: ProgramResult;
   readonly list?: ProgramResult;
   readonly versions?: ReadonlyMap<string, string>;
-  readonly watchPublish?: ProgramResult;
   readonly curl?: ProgramResult;
-  readonly release?: ProgramResult;
+  readonly releaseView?: ProgramResult;
 };
 
 /**
@@ -153,6 +213,7 @@ async function record({
   const calls: ProgramCall[] = [];
   const sleeps: number[] = [];
   const printed: string[] = [];
+  const releaseViews = [...(merged.releaseViews ?? [merged.release])];
   const status = await awaitRelease({
     options: awaitOptions,
     run: async function run(call) {
@@ -160,20 +221,18 @@ async function record({
       const [first, second] = call.args;
       if (call.program === 'curl')
         return merged.curl;
-      if ((first === 'run') && (second === 'watch')) {
-        // The current call is already recorded, so the first watch is the release run's and the second the publish run's.
-        const watches = calls.filter(function isWatch(recorded) {
-          return (recorded.args[0] === 'run') && (recorded.args[1] === 'watch');
-        }).length;
-        return watches === 1 ? merged.watchRelease : merged.watchPublish;
+      if ((first === 'run') && (second === 'view')) {
+        // The release run is read first, so its answer is the one still left in the queue while the queue holds more.
+        const next = releaseViews.length > 1 ? releaseViews.shift() : releaseViews[0];
+        // The publish run is every run this await reads after the release run.
+        const isReleaseRun = call.args[2] === options.releaseRunId;
+        return isReleaseRun ? (next ?? merged.release) : merged.publish;
       }
-      if ((first === 'run') && (second === 'view'))
-        return merged.view;
       if ((first === 'run') && (second === 'list'))
         return merged.list;
       if (first === 'api')
         return manifestAnswer({ call, versions: merged.versions });
-      return merged.release;
+      return merged.releaseView;
     },
     sleep: async function sleep(milliseconds) {
       sleeps.push(milliseconds);
@@ -192,59 +251,69 @@ await describe({
       name: awaitRelease.name,
       children: [
         it({
-          name: 'watches the release run, finds the publish run it started, watches that and checks crates.io and the release',
+          name: 'follows the release run, finds the publish run it started, follows that and checks crates.io and the release',
           fn: async () => {
             const result = await record();
             expect(result.status).toBe(0);
             expect(result.calls.map(function argsOf(call) {
               return call.args.slice(0, call.args[0] === 'api' ? 2 : 3).join(' ');
             })).toEqual([
-              'run watch 500',
               'run view 500',
               `run list --workflow=${options.workflow}`,
               `api repos/{owner}/{repo}/contents/${options.manifestPath}?ref=${publishSha}`,
-              'run watch 902',
+              'run view 902',
               '--silent --show-error --max-time',
               `release view ${expandTemplate({ template: options.tagTemplate, crateName: options.crateName, version: options.version })}`,
             ]);
             expect(result.printed).toContain(`${releaseWorkflow} run ${options.releaseRunId}`);
+            expect(result.printed).toContain(`${releaseWorkflow} run ${options.releaseRunId}: completed with success`);
             expect(result.printed).toContain(`publish run built from ${publishSha}`);
-            expect(result.printed).toContain('run 902');
-            expect(result.printed.at(-1)).toBe('PUBLISHED');
+            expect(result.printed).toContain(`${options.workflow} run 902: completed with success`);
+            expect(result.printed.at(-1)).toBe(
+              `PUBLISHED ${expandTemplate({ template: options.tagTemplate, crateName: options.crateName, version: options.version })}`,
+            );
           },
         }),
         it({
-          name: 'asks for manually started publish runs only, and watches the release run with its exit status',
+          name: 'asks for what the release run says about itself before it looks for any publish run',
           fn: async () => {
             const result = await record();
-            expect(result.calls[0]?.args).toEqual(['run', 'watch', '500', '--exit-status']);
-            expect(result.calls[2]?.args).toContain('--event=workflow_dispatch');
+            expect(result.calls[0]?.args).toEqual([
+              'run',
+              'view',
+              '500',
+              '--json=createdAt,status,conclusion,jobs',
+            ]);
+            expect(result.calls[1]?.args).toContain('--event=workflow_dispatch');
           },
         }),
         it({
           name: 'picks the publish run created since the release run, not an older manual one',
           fn: async () => {
             const result = await record();
-            expect(result.calls[4]?.args.slice(0, 3)).toEqual(['run', 'watch', '902']);
+            expect(result.calls[3]?.args.slice(0, 3)).toEqual(['run', 'view', '902']);
+            expect(result.sleeps).toEqual([]);
           },
         }),
         it({
           name: 'picks the release publish run, not an unrelated dispatch created after the release run but before it',
           fn: async () => {
-            const unrelated = { databaseId: 903, headSha: 'c'.repeat(40), createdAt: '2026-11-01T10:04:00Z' };
-            const own = { databaseId: 904, headSha: 'd'.repeat(40), createdAt: '2026-11-01T10:04:17Z' };
+            const unrelated = { databaseId: 903, headSha: 'c'.repeat(40), createdAt: '2026-11-11T00:56:00Z' };
+            const own = { databaseId: 904, headSha: 'd'.repeat(40), createdAt: '2026-11-11T00:56:17Z' };
             const result = await record({
               answers: {
-                list: { status: 0, stdout: JSON.stringify([own, unrelated]), stderr: '' },
+                list: answer(JSON.stringify([own, unrelated])),
                 versions: new Map([
                   [unrelated.headSha, previousVersion],
                   [own.headSha, options.version],
                 ]),
+                releaseView: answer(JSON.stringify({
+                  assets: [{ name: expandTemplate({ template: options.assetTemplates[0] ?? '', crateName: options.crateName, version: options.version }) }],
+                })),
               },
             });
             expect(result.status).toBe(0);
             expect(result.printed).toContain(`publish run built from ${own.headSha}`);
-            expect(result.printed).toContain(`run ${String(own.databaseId)}`);
             expect(result.calls.some(function watchesUnrelated(call) {
               return call.args.includes(String(unrelated.databaseId));
             })).toBe(false);
@@ -268,24 +337,27 @@ await describe({
         it({
           name: 'skips a run whose commit cannot be read and takes a later run that holds the released version',
           fn: async () => {
-            const unreadable = { databaseId: 903, headSha: 'c'.repeat(40), createdAt: '2026-11-01T10:04:00Z' };
-            const own = { databaseId: 904, headSha: 'd'.repeat(40), createdAt: '2026-11-01T10:04:17Z' };
+            const unreadable = { databaseId: 903, headSha: 'c'.repeat(40), createdAt: '2026-11-11T00:56:00Z' };
+            const own = { databaseId: 904, headSha: 'd'.repeat(40), createdAt: '2026-11-11T00:56:17Z' };
             const result = await record({
               answers: {
-                list: { status: 0, stdout: JSON.stringify([own, unreadable]), stderr: '' },
+                list: answer(JSON.stringify([own, unreadable])),
                 versions: new Map([[own.headSha, options.version]]),
+                releaseView: answer(JSON.stringify({
+                  assets: [{ name: expandTemplate({ template: options.assetTemplates[0] ?? '', crateName: options.crateName, version: options.version }) }],
+                })),
               },
             });
             expect(result.status).toBe(0);
-            expect(result.printed).toContain(`run ${String(own.databaseId)}`);
+            expect(result.printed).toContain(`${options.workflow} run 904: completed with success`);
           },
         }),
         it({
           name: 'passes over a run whose commit is not a hash, without calling gh for it, and names why',
           fn: async () => {
-            const odd = { databaseId: 903, headSha: 'main?x=1', createdAt: '2026-11-01T10:04:00Z' };
+            const odd = { databaseId: 903, headSha: 'main?x=1', createdAt: '2026-11-11T00:56:00Z' };
             const result = await record({
-              answers: { list: { status: 0, stdout: JSON.stringify([odd]), stderr: '' } },
+              answers: { list: answer(JSON.stringify([odd])) },
             });
             expect(result.status).toBe(failureExitCode);
             expect(result.printed.at(-1)).toContain(`run ${String(odd.databaseId)}`);
@@ -302,29 +374,57 @@ await describe({
             const lastResult = result.printed.at(-1) ?? '';
             expect(result.status).toBe(failureExitCode);
             expect(lastResult).toContain(`holds version ${JSON.stringify(previousVersion)} in ${options.manifestPath}, not ${JSON.stringify(options.version)}`);
-            expect(lastResult).toContain(`run 902 (created 2026-11-01T10:05:00Z, commit ${publishSha})`);
-            expect(lastResult).toContain(`run 901 (created 2026-11-01T09:00:00Z, commit ${olderSha}) was created before the release run (${releaseCreatedAt})`);
-            expect(result.calls.some(function watchesPublish(call) {
-              return call.args.slice(0, 3).join(' ') === 'run watch 902';
+            expect(lastResult).toContain(`run 902 (created 2026-11-11T01:00:30Z, commit ${publishSha})`);
+            expect(lastResult).toContain(`run 901 (created 2026-10-01T09:00:00Z, commit ${olderSha}) was created before the release run (${releaseCreatedAt})`);
+            expect(result.calls.some(function readsPublish(call) {
+              return (call.args[0] === 'run') && (call.args[1] === 'view') && (call.args[2] === '902');
             })).toBe(false);
           },
         }),
         it({
-          name: 'stops at a failed release run, names its log, and looks for no publish run',
+          name: 'stops at a release run that failed, names the job and the step, and looks for no publish run',
           fn: async () => {
-            const result = await record({ answers: { watchRelease: { status: 1, stdout: '', stderr: '' } } });
+            const result = await record({ answers: { releaseViews: [releaseFailedAnswer()] } });
             expect(result.status).toBe(failureExitCode);
+            expect(result.printed).toContain(`${releaseWorkflow} run ${options.releaseRunId}: completed with failure`);
+            expect(result.printed).toContain(
+              'job release concluded failure at step "Install Node, pnpm and the workspace dependencies"',
+            );
             expect(result.printed.at(-1)).toContain('RELEASE RUN FAILED: no publish was started');
-            expect(result.printed.at(-1)).toContain('gh run view 500 --log-failed');
+            expect(result.printed.at(-1)).toContain(`gh run view ${options.releaseRunId} --log-failed`);
             expect(result.calls).toHaveLength(1);
           },
         }),
         it({
-          name: 'stops when the release run cannot be read, with the reason',
+          name: 'reads the release run again after a look that failed, and passes a release whose run then completed with success',
           fn: async () => {
-            const result = await record({ answers: { view: { status: 1, stdout: '', stderr: 'HTTP 404' } } });
+            const result = await record({
+              answers: {
+                releaseViews: [
+                  { status: 1, stdout: '', stderr: 'HTTP 500: Server Error' },
+                  releasePassedAnswer(),
+                ],
+              },
+            });
+            expect(result.status).toBe(0);
+            expect(result.sleeps).toEqual([pollSleepMilliseconds]);
+            expect(result.printed[1]).toContain(`${releaseWorkflow} run ${options.releaseRunId} could not be read (HTTP 500: Server Error)`);
+            expect(result.printed).toContain(`${releaseWorkflow} run ${options.releaseRunId}: completed with success`);
+            expect(result.printed.at(-1)).toContain('PUBLISHED ');
+          },
+        }),
+        it({
+          name: 'says a release run that never ended is still going, names what it waited for, and looks for no publish run',
+          fn: async () => {
+            const result = await record({ answers: { releaseViews: [stillGoingAnswer()] } });
             expect(result.status).toBe(failureExitCode);
-            expect(result.printed.at(-1)).toBe('RELEASE RUN UNREADABLE: HTTP 404');
+            expect(result.sleeps).toEqual([pollSleepMilliseconds, pollSleepMilliseconds]);
+            expect(result.printed[1]).toContain(`${releaseWorkflow} run ${options.releaseRunId} is still going: `);
+            expect(result.printed[1]).toContain(`waiting up to ${followBound}`);
+            // The line names the bound and what the wait was still waiting for.
+            expect((result.printed.at(-1) ?? '').startsWith(
+              `RELEASE RUN NOT FINISHED: The run was still going after ${followBound}, waiting for `,
+            )).toBe(true);
             expect(result.calls.some(function isList(call) {
               return call.args[1] === 'list';
             })).toBe(false);
@@ -335,27 +435,28 @@ await describe({
           fn: async () => {
             let lists = 0;
             const sleeps: number[] = [];
+            const printed: string[] = [];
             const status = await awaitRelease({
               options,
               run: async function run(call) {
                 if (call.program === 'curl')
                   return happy.curl;
-                if (call.args[1] === 'watch')
-                  return happy.watchRelease;
-                if ((call.args[1] === 'view') && (call.args[0] === 'run'))
-                  return happy.view;
-                if (call.args[1] === 'list') {
+                if ((call.args[0] === 'run') && (call.args[1] === 'view'))
+                  return call.args[2] === options.releaseRunId ? happy.release : happy.publish;
+                if ((call.args[0] === 'run') && (call.args[1] === 'list')) {
                   lists += 1;
-                  return lists < 3 ? { status: 0, stdout: '[]', stderr: '' } : happy.list;
+                  return lists < 3 ? answer('[]') : happy.list;
                 }
                 if (call.args[0] === 'api')
                   return manifestAnswer({ call, versions: happyVersions });
-                return happy.release;
+                return happy.releaseView;
               },
               sleep: async function sleep(milliseconds) {
                 sleeps.push(milliseconds);
               },
-              print: function print() {},
+              print: function printLine(line) {
+                printed.push(line);
+              },
             });
             expect(status).toBe(0);
             expect(lists).toBe(options.attempts);
@@ -365,7 +466,7 @@ await describe({
         it({
           name: 'gives up after the last look without sleeping after it, names the bound and the last reason',
           fn: async () => {
-            const result = await record({ answers: { list: { status: 0, stdout: '[]', stderr: '' } } });
+            const result = await record({ answers: { list: answer('[]') } });
             expect(result.status).toBe(failureExitCode);
             expect(result.sleeps).toEqual([pollSleepMilliseconds, pollSleepMilliseconds]);
             expect(result.printed).toContain(
@@ -400,18 +501,37 @@ await describe({
           },
         }),
         it({
-          name: 'fails when the publish run failed, but still reports crates.io and the release',
+          name: 'fails when the publish run failed, names its job and step, but still reports crates.io and the release',
           fn: async () => {
             const result = await record({
               answers: {
-                watchPublish: { status: 1, stdout: '', stderr: '' },
-                curl: { status: 0, stdout: '{"errors":[]}', stderr: '' },
+                publish: answer(JSON.stringify({
+                  createdAt: '2026-11-11T01:00:30Z',
+                  status: 'completed',
+                  conclusion: 'failure',
+                  jobs: [{
+                    name: 'gpc-publish-crate',
+                    status: 'completed',
+                    conclusion: 'failure',
+                    steps: [{
+                      name: 'Publish the crate to crates.io',
+                      number: 3,
+                      status: 'completed',
+                      conclusion: 'failure'
+                    }],
+                  }],
+                })),
+                curl: answer('{"errors":[]}'),
+                releaseView: answer(JSON.stringify({ assets: [] })),
               },
             });
             expect(result.status).toBe(failureExitCode);
+            expect(result.printed).toContain(
+              'job gpc-publish-crate concluded failure at step "Publish the crate to crates.io"',
+            );
             expect(result.printed.at(-1)).toContain('PUBLISH CHECK FAILED');
             expect(result.printed.some(function isCrates(line) {
-              return line.startsWith('crates.io 0.6.1: not found');
+              return line.startsWith(`crates.io ${options.version}: not found`);
             })).toBe(true);
           },
         }),

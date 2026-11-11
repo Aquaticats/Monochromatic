@@ -30,6 +30,12 @@ use crate::work_item::WorkItem;
 use crate::worktree_trash_dispose::delete_trash_awaiting;
 use crate::worktree_trash_manifest::TrashManifest;
 
+/// The point a control holds to keep a trash running while it checks what the service did meanwhile;
+/// it is reached on whichever thread runs the trash,
+/// and inert unless a control asks for it.
+#[cfg(test)]
+pub(crate) const INSIDE_A_SLOW_STEP: &str = "inside-a-slow-step";
+
 /// What:
 ///  Empty the trash directory the manifest of `item` describes,
 /// awaited by a caller that is itself a task of the runtime.
@@ -43,6 +49,10 @@ use crate::worktree_trash_manifest::TrashManifest;
 /// const manifest = TrashManifest.decode(item.oid, item.parent); await deleteTrashAwaiting({ repository: item.repository, gitDir: item.gitDir, manifest })
 /// ```
 pub async fn empty_trash_awaiting(item: &WorkItem) -> Verdict {
+    // A control holds the service here, which is where this kind's slow step begins and before any path of the record is used,
+    //  so a control can say what the round did while the trash ran. The release executable keeps nothing of it.
+    #[cfg(test)]
+    crate::service_fault::hooks::await_on_any_thread(INSIDE_A_SLOW_STEP).await;
     let manifest: TrashManifest = match TrashManifest::decode(item.oid.as_str(), item.parent.as_str()) {
         Ok(found) => found,
         Err(reason) => return Verdict::Failed(reason),

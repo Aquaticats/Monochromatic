@@ -53,13 +53,20 @@ const WHO_PROCESS: libc::c_int = 1;
 const IDLE: libc::c_int = (3 << 13) | 0;
 
 /// What:
-///  Whether a value the kernel answered is a priority it reported,
-///  rather than the failure it answers with.
+///  Whether the kernel's answer is a priority it holds,
+/// rather than the `-1` it gives when it has none to give.
 /// Why:
-///   The read reports a refusal as a negative number,
-/// so a value at or above zero is the only one worth restoring later.
-fn is_a_priority(value: &libc::c_int) -> bool {
-    return *value >= 0;
+///   `ioprio_get` answers `-1` and puts the reason in `errno`,
+/// and no class the kernel sets is negative,
+/// so a
+///  negative answer is a refusal and never a priority to restore.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAPriority = (answered) => answered >= 0;
+/// ```
+fn is_a_priority(answered: &libc::c_int) -> bool {
+    return *answered >= 0;
 }
 
 /// What:
@@ -100,6 +107,64 @@ fn set_priority_here(value: libc::c_int) -> bool {
 }
 
 /// What:
+///  This thread's I/O priority at the lowest class for as long as the value lives:
+///  the lowering when it is made,
+///  and the priority the thread had back when it is dropped.
+/// Why:
+///   A value dropped on the way out of a stretch puts the priority back however the stretch ends,
+/// panic included,
+///  which is what a pool's thread needs when a removal unwinds.
+/// It is also how a caller that has state to reach its work lowers the priority:
+/// the work
+///  is then an ordinary call and needs no closure.
+/// A value that cannot be read or set leaves the thread alone in that direction:
+/// no write without a
+///  reading to restore,
+/// and no promise that the class changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class LoweredIoPriority { static lower(): LoweredIoPriority; [Symbol.dispose](): void }
+/// ```
+pub struct LoweredIoPriority {
+    /// The priority this thread had before the lowering,
+    /// or nothing when the kernel will not say it.
+    before: Option<libc::c_int>,
+    /// Whether this thread's priority stays the idle class until this value is dropped.
+    lowered: bool,
+}
+
+impl LoweredIoPriority {
+    /// What:
+    ///  Lower this thread's I/O priority to the idle class;
+    /// a thread the kernel refuses is left as it is.
+    /// Why:
+    ///   See the type's own description;
+    /// nothing here is an error of the emptying.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const lowered = LoweredIoPriority.lower();
+    /// ```
+    pub fn lower() -> LoweredIoPriority {
+        let before: Option<libc::c_int> = priority_here();
+        let lowered: bool = set_priority_here(IDLE);
+        return LoweredIoPriority { before, lowered };
+    }
+}
+
+/// Being dropped is what gives the thread back the priority it had.
+impl Drop for LoweredIoPriority {
+    fn drop(&mut self) {
+        if self.lowered
+            && let Some(value) = self.before
+        {
+            let _restored: bool = set_priority_here(value);
+        }
+    }
+}
+
+/// What:
 ///  Run `work` with this thread's I/O priority at the lowest class,
 /// and give the thread back the priority it had.
 /// Why:
@@ -110,6 +175,8 @@ fn set_priority_here(value: libc::c_int) -> bool {
 /// and restoring it keeps the pool's
 ///  other work (a push reading a pack,
 /// a review reading a commit) at the priority it expects.
+/// The restore is the lowered value's own (`LoweredIoPriority`),
+/// dropped when this call returns or unwinds.
 /// A value that cannot be read or set leaves the thread alone in that direction:
 /// no write without a
 ///  reading to restore,
@@ -120,18 +187,11 @@ fn set_priority_here(value: libc::c_int) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function withIdleIoPriority(state, work) { const before = priorityHere(); const lowered = setPriorityHere(IDLE); try { return work(state); } finally { if (lowered && before !== undefined) setPriorityHere(before); } }
+/// function withIdleIoPriority(state, work) { const lowered = LoweredIoPriority.lower(); try { return work(state); } finally { lowered[Symbol.dispose](); } }
 /// ```
 pub fn with_idle_io_priority<S, T>(state: S, work: fn(S) -> T) -> T {
-    let before: Option<libc::c_int> = priority_here();
-    let lowered: bool = set_priority_here(IDLE);
-    let outcome: T = work(state);
-    if lowered
-        && let Some(value) = before
-    {
-        let _restored: bool = set_priority_here(value);
-    }
-    return outcome;
+    let _lowered: LoweredIoPriority = LoweredIoPriority::lower();
+    return work(state);
 }
 
 /// The class this thread's I/O priority names,

@@ -200,9 +200,21 @@ export const defaultWorkflow = 'cargo-publish.yml';
 export const defaultAttempts = 45;
 
 /**
- Seconds between two looks for the run.
+ Seconds between two looks for the run, and between two looks at a run that is still going.
  */
 export const defaultPollIntervalSeconds = 20;
+
+/**
+ Looks used to follow one run to its own end before the wait gives up.
+
+ With `defaultPollIntervalSeconds`, forty minutes of following per run. Measured on 2026-11-11: the release run
+ `42935168319` of `monochromatic-git-policy-cli` 0.6.1-alpha.9 was created at 00:55:54Z and completed at 01:00:32Z (4
+ minutes 38 seconds), and the `cargo-publish` run `42935721432` it started reached its GitHub release at 01:07:58Z,
+ 7 minutes 28 seconds after that run was created, across 57 jobs. Forty minutes is about five times the widest of those
+ two and still bounded, so a run whose answer never says it ended ends the wait with a line naming what was still going.
+ Raise it with `--follow-attempts` for a crate whose archive build is slower.
+ */
+export const defaultFollowAttempts = 120;
 
 /**
  Most recent workflow runs listed on each look; a commit's run is among the latest when it was just pushed.

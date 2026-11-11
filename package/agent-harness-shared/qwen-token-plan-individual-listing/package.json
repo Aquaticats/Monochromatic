@@ -1,0 +1,32 @@
+{
+  "name": "@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing",
+  "description": "Harness-neutral Qwen Token Plan individual listing core: facts table, listing-to-models mapping with sibling-facts fallback, thinking-level expansion, the checked-in snapshot, and the bounded listing fetch shared by the DSH and pi qwen-token-plan-individual plugins",
+  "type": "module",
+  "private": true,
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/agent-harness-shared/qwen-token-plan-individual-listing"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./test-fixtures": "./src/test-fixtures/fixture.pi-ai-qwen-token-plan-individual-catalog.ts"
+  },
+  "files": [
+    "dist/final",
+    "src"
+  ],
+  "sideEffects": false,
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

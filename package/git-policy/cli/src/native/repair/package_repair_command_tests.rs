@@ -473,3 +473,65 @@ fn the_reaping_of_a_leader_that_does_not_end_lets_other_tasks_run() {
     let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
     assert!(is_gone_soon(pid), "the task the leader was handed to reaped it when it ended");
 }
+
+/// What:
+///  A tool that is still running when the notice bound has passed says once which tool it is,
+/// where it runs,
+/// and what ends it.
+/// Why:
+///  An add whose `pnpm` never ended printed its last line at two seconds and then nothing for 613 s,
+/// though the quiet window that
+///  ends such a tool and the ceiling above it were both running
+/// (`wait_ceilings.rs`,
+/// `REPAIR_TOOL_NOTICE_AFTER`):
+/// a wait nobody can see is indistinguishable from a hang.
+/// The line is said once,
+/// because a line every few seconds buries the output a person
+///  reads for everything else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const run = runTool(slow, command, limits); expect(noticesSaid().filter((line) => line.includes(root))).toHaveLength(1);
+/// ```
+#[test]
+fn a_tool_that_outlasts_the_notice_bound_says_once_what_it_waits_for() {
+    let root: PathBuf = fixture("says-what-it-waits-for");
+    let program: PathBuf = root.join("pnpm");
+    // Long past the notice bound, and short of the quiet window so the tool ends by itself.
+    executable(program.as_path(), b"#!/bin/sh\necho working\nsleep 3\n");
+    let command: ToolCommand = ToolCommand { arguments: vec![OsString::from("install"), OsString::from("--offline")], directory: root.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: ROOMY });
+    assert_eq!(run.end, ToolEnd::Succeeded);
+    let said: Vec<String> = notices_said().into_iter().filter(|line| { return line.contains(root.display().to_string().as_str()); }).collect();
+    assert_eq!(said.len(), 1, "one line, and one only: {said:?}");
+    let line: &String = &said[0];
+    assert!(line.contains("pnpm"), "the line names the tool: {line}");
+    assert!(line.contains("install --offline"), "the line names what it runs: {line}");
+    assert!(line.contains("60 seconds") && line.contains("60 minutes"), "the line names both bounds that end it: {line}");
+    remove(&root);
+}
+
+/// What:
+///  A tool that ends before the notice bound says nothing about scaling.
+/// Why:
+///   Every add starts several tools,
+/// and a line for each of them would bury the one line that says what became of the add;
+/// a tool that works quickly
+///  is what the person expects and needs no telling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runTool(quick, command, limits); expect(noticesSaid().filter((line) => line.includes(root))).toHaveLength(0);
+/// ```
+#[test]
+fn a_tool_that_ends_before_the_notice_bound_says_nothing() {
+    let root: PathBuf = fixture("says-nothing-when-quick");
+    let program: PathBuf = root.join("tool");
+    executable(program.as_path(), b"#!/bin/sh\nexit 0\n");
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: ROOMY });
+    assert_eq!(run.end, ToolEnd::Succeeded);
+    let said: Vec<String> = notices_said().into_iter().filter(|line| { return line.contains(root.display().to_string().as_str()); }).collect();
+    assert!(said.is_empty(), "a quick tool says nothing: {said:?}");
+    remove(&root);
+}

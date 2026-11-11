@@ -30,13 +30,13 @@
 //! wakeTheService(gitDir); // route from the environment, provision, wake; a failure is not the command's
 //! ```
 
-use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for, wake};
+use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::provision;
 use crate::service_provision_host_and_manager::units_record_dir_of;
 use crate::service_route::{Route, route_from_environment};
 use crate::transaction_git::GitContext;
-use crate::wait_ceilings::{ANSWER_CEILING, SHORT_EXTRA_WAIT, START_CEILING, WITHDRAW_CEILING, waiting_notice_after};
+use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use std::path::Path;
 
 /// What:
@@ -88,7 +88,8 @@ impl WakeTheService for AskTheService<'_> {
         let config: ClientConfig = ClientConfig {
             address,
             activation: Activation::Managed,
-            start_wait: START_WAIT,
+            // The held push's record is durable, so the wake waits the hand-over's own greeting bound.
+            start_wait: HAND_OVER_GREETING_WAIT,
             heartbeat_silence: HEARTBEAT_SILENCE,
             start_watch: host.as_ref().map(manager_watch_for),
             keep_fresh: None,
@@ -96,7 +97,7 @@ impl WakeTheService for AskTheService<'_> {
             withdraw_ceiling: WITHDRAW_CEILING,
             waiting_notice_after: waiting_notice_after(),
             extra_wait: SHORT_EXTRA_WAIT,
-            start_ceiling: START_CEILING,
+            start_ceiling: HAND_OVER_GREETING_WAIT,
             units_record_dir: host.as_ref().map(units_record_dir_of),
         };
         // The wake's own lines are not the command's report, and a service that cannot be reached is not its failure.

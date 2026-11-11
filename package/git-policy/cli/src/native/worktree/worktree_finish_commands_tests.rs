@@ -12,7 +12,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(finishAndRemove('/tmp/half')).toEqual(['git -C /tmp/half reset --no-enforce-worktree --hard', ...]);
+//! // expect(finishAndRemove('/tmp/half')).toEqual(['git -C /tmp/half reset --no-enforce-worktree --hard --no-recurse-submodules', ...]);
 //! ```
 
 use super::{finish_and_remove, finish_or_remove_sentence};
@@ -20,16 +20,18 @@ use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use std::path::Path;
 
 /// A path a shell reads back unquoted is printed as it is,
-/// and the finish command carries the guard's hatch directly after
+/// the finish command carries the guard's hatch directly after
 ///  the subcommand,
-/// which is the only place the wrapper reads it.
+/// which is the only place the wrapper reads it,
+/// and it carries the ladder's own `--no-recurse-submodules`,
+/// because a person's `submodule.recurse` setting fails the checkout without it.
 #[test]
 fn a_plain_path_is_printed_bare_with_the_hatch_after_the_subcommand() {
     let (finish, remove): (String, String) = finish_and_remove(Path::new("/home/person/half-added"));
     assert_eq!(
         finish,
-        format!("git -C /home/person/half-added reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard"),
-        "the hatch is where the wrapper reads it, and the path is bare"
+        format!("git -C /home/person/half-added reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard --no-recurse-submodules"),
+        "the hatch is where the wrapper reads it, the submodule recursion is the ladder's own, and the path is bare"
     );
     assert_eq!(remove, "git worktree remove --force /home/person/half-added");
 }
@@ -41,7 +43,7 @@ fn a_path_that_needs_quoting_is_quoted() {
     let (finish, _remove): (String, String) = finish_and_remove(Path::new("/home/person/a b'c"));
     assert_eq!(
         finish,
-        format!("git -C '/home/person/a b'\\''c' reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard"),
+        format!("git -C '/home/person/a b'\\''c' reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard --no-recurse-submodules"),
         "a space and a quote are read back as one word"
     );
 }

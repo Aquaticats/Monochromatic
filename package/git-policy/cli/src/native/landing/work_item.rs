@@ -275,7 +275,8 @@ pub fn settled_record_of(work_dir: &Path, id: &str) -> bool {
     return state_directory(work_dir, DONE).join(id).exists() || state_directory(work_dir, FAILED).join(id).exists();
 }
 
-pub use crate::work_item_holding::{block, forget_held, hold, promote, record_pass, record_refusal, record_verdict};
+pub use crate::work_item_holding::{block, forget_held, hold, promote, record_pass, record_refusal, record_verdict, requeue_after_giving_up};
+pub use crate::work_item_queued_ids::queued_ids;
 
 /// What:
 ///  Write every item of one producer's round as a pending record,
@@ -426,7 +427,7 @@ pub fn find_claim(work_dir: &Path, id: &str) -> Option<PathBuf> {
 /// await rename(join(workDir, 'pending', id), join(workDir, 'claimed', claimFileName(id, newGeneration(), now)))
 /// ```
 pub fn claim_next(work_dir: &Path, now: &ClaimTime) -> Result<Option<Claimed>, String> {
-    return claim_next_of(work_dir, now, &[WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete]);
+    return claim_next_of(work_dir, now, &[WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead]);
 }
 
 /// What:
