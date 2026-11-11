@@ -44,9 +44,14 @@ use crate::command_options::{
     DEFAULT_MODE, OptionError, OptionSpec, ParseMode, ParsedOptions, WrapperOccurrence,
     parse_options,
 };
-use crate::command_options_query::{is_enabled, is_stated, positional_tokens};
+use crate::command_options_query::{is_enabled, is_stated, last_occurrence, positional_tokens, value_bytes};
+/// The reader that turns the bytes Git prints or receives into a path,
+///  whose form differs per platform.
+use crate::git_metadata::path_from_git_bytes;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
+/// `PathBuf` is an owned filesystem path of the same bytes.
+use std::path::PathBuf;
 
 /// What:
 ///  The form `cmd_config` dispatches to (builtin/config.c:1633-1660).
@@ -165,8 +170,8 @@ pub enum ConfigWrite {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ConfigRegion = { form: ConfigForm; file: ConfigFile; write: ConfigWrite; global: boolean;
-///   system: boolean; lists: boolean; arguments: number[]; wrapper: WrapperOccurrence[] };
+/// type ConfigRegion = { form: ConfigForm; file: ConfigFile; namedFile?: string; write: ConfigWrite;
+///   global: boolean; system: boolean; lists: boolean; arguments: number[]; wrapper: WrapperOccurrence[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigRegion {
@@ -174,6 +179,12 @@ pub struct ConfigRegion {
     pub form: ConfigForm,
     /// Which file the region reads or writes.
     pub file: ConfigFile,
+    /// The file `--file` names,
+    ///  when the region states that option without `--blob`;
+    ///  a blob
+    ///  names no path,
+    ///  and nothing else here can name the file every worktree shares.
+    pub named_file: Option<PathBuf>,
     /// What the region writes.
     pub write: ConfigWrite,
     /// `--global` is on after every use was applied.
@@ -316,6 +327,40 @@ fn config_file(parsed: &ParsedOptions) -> ConfigFile {
 }
 
 /// What:
+///  The file `--file` names,
+///  when the region states that option without `--blob`.
+///  `&ParsedOptions` borrows the tokenizer result,
+///  `&[OsString]` the tokens after the offset.
+/// Why:
+///   `--file` takes any path,
+///  and one of the paths it takes is the file every worktree shares;
+///  only the caller that
+///       knows the working directory can compare the two,
+///  so this reader reports the path and decides nothing.
+///  `--blob` names a
+///       stored object and never a file,
+///  so a region that states both names neither.
+///  The last use wins, as Git's own
+///       variables do.
+///  A region that names several files runs nothing,
+///  so the caller reads the path only of the one file
+///       `ConfigFile::Named` reports.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namedFilePath = (parsed, region, offset) => parsed.file ? valueBytes(region.slice(offset), parsed.file) : undefined;
+/// ```
+fn named_file_path(parsed: &ParsedOptions, region: &[OsString], offset: usize) -> Option<PathBuf> {
+    // A blob is no path: only `--file` names one, and Git refuses both options together.
+    if !is_enabled(parsed, FILE) || is_enabled(parsed, BLOB) {
+        return None;
+    }
+    // `?` answers nothing when the option took no value, which Git refuses before it writes.
+    let value = last_occurrence(parsed, FILE)?.value?;
+    return path_from_git_bytes(value_bytes(&region[offset..], value));
+}
+
+/// What:
 ///  What a region writes,
 ///  from its form,
 ///  its action options and the number of arguments Git hands it.
@@ -340,7 +385,14 @@ fn config_write(form: ConfigForm, parsed: &ParsedOptions, arguments: usize) -> C
         ConfigForm::Set | ConfigForm::Unset => return ConfigWrite::Key,
         ConfigForm::RenameSection => return ConfigWrite::RenameSection,
         ConfigForm::RemoveSection => return ConfigWrite::RemoveSection,
-        ConfigForm::Edit => return ConfigWrite::Edit,
+        // The subcommand form takes no argument ("wrong number of arguments, should be 0"),
+        // while the legacy `--edit` runs the editor whatever follows it.
+        ConfigForm::Edit => {
+            return match arguments {
+                0 => ConfigWrite::Edit,
+                _ => ConfigWrite::Nothing,
+            };
+        }
         ConfigForm::Legacy => {}
     }
     // The legacy form names its action as an option, and Git runs exactly one of them.
@@ -469,6 +521,7 @@ pub fn parse_config_region(
     return Ok(ConfigRegion {
         form,
         file: config_file(&parsed),
+        named_file: named_file_path(&parsed, region, offset),
         write: config_write(form, &parsed, argument_count),
         global: is_enabled(&parsed, GLOBAL),
         system: is_enabled(&parsed, SYSTEM),

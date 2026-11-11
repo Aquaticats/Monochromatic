@@ -974,6 +974,18 @@ fn linked_worktree_refuses_the_shared_remote_settings_only_in_a_linked_worktree(
             vec!["config", "remove-section", "remote.origin"],
             SharedRemoteWrite::Section(String::from("remote.origin")),
         ),
+        // A `--file` write that names the shared file is the same write, and an editor session
+        //  names no key and can change any of them.
+        (
+            vec!["config", "--file", "/r/.git/config", "remote.origin.url", "https://example.invalid/two.git"],
+            SharedRemoteWrite::Key(String::from("remote.origin.url")),
+        ),
+        (
+            vec!["config", "--file", "/r/.git/config", "--remove-section", "remote.origin"],
+            SharedRemoteWrite::Section(String::from("remote.origin")),
+        ),
+        (vec!["config", "--edit"], SharedRemoteWrite::Edit),
+        (vec!["config", "edit"], SharedRemoteWrite::Edit),
     ] {
         assert_eq!(
             pre_forward(
@@ -1008,10 +1020,29 @@ fn linked_worktree_refuses_the_shared_remote_settings_only_in_a_linked_worktree(
         vec!["remote", "get-url", "origin"],
         vec!["config", "--get", "remote.origin.url"],
         vec!["config", "--worktree", "remote.origin.url", "own"],
+        vec!["config", "--global", "--edit"],
+        vec!["config", "--system", "--edit"],
+        vec!["config", "edit", "user.name"],
     ] {
         assert_eq!(
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unlocatable()),
             (clean(), Vec::<String>::new()),
+            "{values:?}"
+        );
+    }
+    // A `--file` write that names a file of its own is no write to the settings every worktree shares:
+    //  the location decides that, and nothing else is asked.
+    for values in [
+        vec!["config", "--file", "/elsewhere/other.config", "remote.origin.url", "https://example.invalid/two.git"],
+        vec!["config", "--file", "/elsewhere/other.config", "--edit"],
+    ] {
+        assert_eq!(
+            pre_forward(
+                PolicyId::LinkedWorktreeOnly,
+                values.as_slice(),
+                located(linked_worktree("/r", "/w"))
+            ),
+            (clean(), location_only()),
             "{values:?}"
         );
     }
