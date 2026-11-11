@@ -224,6 +224,24 @@ fn records_in(work: &Path, state: &str) -> Vec<String> {
 }
 
 /// What:
+///  Wait,
+/// bounded,
+///  for the clock to show another millisecond.
+/// Why:
+///   A record's object name carries the moment the add asked for the work,
+/// so a control that stands for two hand-overs of one path needs two moments;
+/// a clock that did not move answers the second one as `Known`,
+/// and the control would then prove nothing
+/// (the suite run of 2026-11-11 failed this way).
+fn after_the_clock_moves(moment: &str) {
+    let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while crate::iso_time::now_iso() == moment {
+        assert!(std::time::Instant::now() < deadline, "the clock did not move past {moment}");
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
+/// What:
 ///  A worktree removed from a path and added again there gets a filling of its own,
 /// whether the record of the earlier worktree finished or failed.
 /// Why:
@@ -246,6 +264,11 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
         let _told: Result<(), String> = hand_over_with(&git_context(), common.as_path(), destination.as_path(), entries.as_slice(), &no_reach());
         let first: Vec<String> = records_in(work.as_path(), PENDING);
         assert_eq!(first.len(), 1, "the first worktree's record is queued: {first:?}");
+        let queued: String = std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&first[0])).expect("the first record");
+        let first_item: WorkItem = WorkItem::decode(queued.as_str()).expect("the first record is a work item");
+        // The object name carries the moment the add asked, so the second hand-over needs a moment of its own: within
+        //  one millisecond it would be answered as the first record's known id, and this control proved nothing.
+        after_the_clock_moves(first_item.created.as_str());
         // The service runs the record and settles it into the state its verdict names.
         let settled_at: PathBuf = state_directory(work.as_path(), settled).join(&first[0]);
         std::fs::rename(state_directory(work.as_path(), PENDING).join(&first[0]), settled_at.as_path()).expect("the record is settled");
@@ -256,6 +279,9 @@ fn a_worktree_added_again_at_the_same_path_gets_its_own_filling() {
         let second: Vec<String> = records_in(work.as_path(), PENDING);
         assert_eq!(second.len(), 1, "the worktree added again is queued for a filling of its own, though its predecessor settled into {settled}: {second:?}");
         assert_ne!(second[0], first[0], "the second record is not the first one ({settled})");
+        let queued_again: String = std::fs::read_to_string(state_directory(work.as_path(), PENDING).join(&second[0])).expect("the second record");
+        let second_item: WorkItem = WorkItem::decode(queued_again.as_str()).expect("the second record is a work item");
+        assert_ne!(second_item.created, first_item.created, "the two hand-overs are two moments ({settled})");
         remove(root.as_path());
     }
 }
