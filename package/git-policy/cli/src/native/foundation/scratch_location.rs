@@ -6,7 +6,10 @@
 //!  the folder an earlier release made under its own name (`cli-git-scratch`) is swept by the same rules.
 //!  Both are checked as private (a real directory of this user,
 //! mode `0700`) and swept of entries
-//!       older than a day each time they are prepared.
+//!       older than a day each time they are prepared,
+//!  except for a commit's own tree: a commit makes its tree and collects nothing,
+//! and the resident service collects beside its landing loop
+//!  (`service_repository_scratch_sweep.rs`).
 //! Why:
 //!  The system temporary directory is never used (issue 1809,
 //! repo rule XTD):
@@ -265,6 +268,12 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
 ///   A tree in the repository scratch directory is collected after a day even when the command that made it is killed at
 ///  any instruction and no service ever holds it,
 ///  which a tree in the Git directory is not.
+///  The collection is the resident service's,
+///  run beside its landing loop,
+///  and never this command's:
+///  the listing and the question to the file system per entry cost a commit 13,482 ms of 48 on 2026-11-11
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+///  "The causes, ranked by the time they cost").
 ///  A repository whose scratch directory cannot be made private still commits,
 ///  into the Git directory,
 ///  and says so in the debug log:
@@ -278,7 +287,7 @@ fn append_only(file: &std::fs::File) -> std::io::Result<()> {
 /// const tree = prepareCommitScratch(commonDir, gitDir, name);
 /// ```
 pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling: Duration) -> std::io::Result<PathBuf> {
-    let covered: Option<PathBuf> = match prepare_repository_scratch(common_dir) {
+    let covered: Option<PathBuf> = match prepare_repository_scratch_for_a_commit(common_dir) {
         Ok(directory) => Some(directory),
         Err(error) => {
             debug(
@@ -367,6 +376,34 @@ pub fn prepare_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, cei
 /// async function prepareRepositoryScratch(commonDir: string): Promise<string>;
 /// ```
 pub fn prepare_repository_scratch(common_dir: &Path) -> std::io::Result<PathBuf> {
+    let directory: PathBuf = prepare_repository_scratch_for_a_commit(common_dir)?;
+    sweep_repository_scratch(common_dir);
+    return Ok(directory);
+}
+
+/// What:
+///  Create the repository scratch directory beside the common Git directory's other private storage,
+///  check that it is private,
+///  and return it,
+///  collecting nothing.
+/// Why:
+///   A commit makes its own tree and never reads what a collection answered,
+///  so the listing and the question to the file system per entry are free work on its path:
+///  they were 13,482 ms of the 48 wrapped commits of 2026-11-11T12:33:40Z to 13:15:27Z,
+///  4,775 ms in one
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+///  "The causes, ranked by the time they cost").
+///  The resident service collects beside its landing loop
+///  (`service_repository_scratch_sweep.rs`),
+///  so nothing a command killed at any instruction left is lost,
+///  and no commit waits for the collection.
+///  Every other caller keeps the collecting form above.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function prepareRepositoryScratchForACommit(commonDir: string): Promise<string>; // no sweep
+/// ```
+pub fn prepare_repository_scratch_for_a_commit(common_dir: &Path) -> std::io::Result<PathBuf> {
     let directory: PathBuf = common_dir.join(REPOSITORY_SCRATCH_NAME);
     match create_private_directory(directory.as_path()) {
         Ok(()) => {}
@@ -374,9 +411,30 @@ pub fn prepare_repository_scratch(common_dir: &Path) -> std::io::Result<PathBuf>
         Err(error) => return Err(error),
     }
     assert_private_directory(directory.as_path())?;
-    sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
-    sweep_earlier_repository_scratch(common_dir);
     return Ok(directory);
+}
+
+/// What:
+///  Collect what earlier commands left in the repository scratch directory,
+///  and in the folder an earlier release made under its own name,
+///  and answer how many entries went.
+/// Why:
+///   A process killed between making a scratch file and removing it leaves the file behind,
+///  and nothing else would ever collect it.
+///  The work is housekeeping no command reads, so it is a job of its own that a command may run
+///  off its own path
+///  (`service_repository_scratch_sweep.rs`).
+///  A directory that is not there collects nothing and is no failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removed = sweepRepositoryScratch(commonDir);
+/// ```
+pub fn sweep_repository_scratch(common_dir: &Path) -> usize {
+    let directory: PathBuf = common_dir.join(REPOSITORY_SCRATCH_NAME);
+    let removed: usize = sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
+    sweep_earlier_repository_scratch(common_dir);
+    return removed;
 }
 
 /// What:

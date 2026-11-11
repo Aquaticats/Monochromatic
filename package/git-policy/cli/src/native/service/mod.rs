@@ -18,6 +18,10 @@
 /// beside the landing loop.
 pub mod service_scratch_release_removal;
 
+/// The collection of the repository scratch directory a killed command left,
+/// beside the landing loop.
+pub mod service_repository_scratch_sweep;
+
 /// The fill of the shadow pool a commit takes its private repository from,
 /// beside the landing loop.
 pub mod service_shadow_pool_fill;
