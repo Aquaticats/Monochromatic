@@ -89,10 +89,15 @@ impl Announcer for AnnounceToStreams<'_> {
         }
     }
 
-    /// Whether the client of the request at `place` of the batch is gone: its channel is closed when the task that writes its
-    /// connection ends, which it does when the connection breaks.
+    /// Whether the client of the request at `place` of the batch is gone:
+    /// its channel is closed when the task that writes its
+    /// connection ends,
+    /// which it does when the connection breaks.
     fn client_is_gone(&self, place: usize) -> bool {
-        return self.fresh.get(place).is_some_and(|(_, stream, _)| { return stream.client_is_gone(); });
+        return match self.fresh.get(place) {
+            Some((_, stream, _)) => stream.client_is_gone(),
+            None => false,
+        };
     }
 }
 

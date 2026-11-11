@@ -64,9 +64,25 @@ pub mod service_messages;
 /// because the address cannot exist or the manager made the service listen elsewhere.
 pub mod service_messages_of_a_start_that_cannot_come;
 
+/// The words for a commit the person interrupted,
+/// which the service either gave up or left unsettled.
+pub mod service_messages_of_an_interrupted_commit;
+
 /// What a commit says while it waits for the service,
 /// and that the service is restarted or the commit built again.
 pub mod service_messages_of_a_wait_for_the_service;
+
+/// The one branch write of a settlement,
+/// and what the batch owes around it.
+pub mod held_commit_settle_move;
+
+/// The record a landing puts in the journal before it moves a branch,
+/// and the reflog row that move writes.
+pub mod service_land_record_the_batch;
+
+/// Which requests of a batch a landing still makes,
+/// given which of their clients went away before their commits landed.
+pub mod service_land_requests_whose_client_is_gone;
 
 /// The commit service's serialized step.
 pub mod service_land;

@@ -33,16 +33,9 @@
 use crate::held_commit_record::{Held, forget, list};
 use crate::held_commit_replay::{Replay, onto, value_now};
 use crate::service_journal::{DONE_EXTENSION, Intent, OPEN_EXTENSION, batch_path, parse_intent, write_intent};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
-use std::ffi::OsStr;
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-
-/// What a Git that could not be started is said to be,
-/// in one sentence the callers share.
-fn git_did_not_start(error: std::io::Error) -> String {
-    return format!("Git could not be started ({error})");
-}
 
 /// The exit status `git merge-base --is-ancestor` gives when the first commit is not below the second.
 const NOT_AN_ANCESTOR: i32 = 1;
@@ -150,38 +143,6 @@ fn readiness(roots: &[PathBuf], clearing: Clearing) -> Result<(), Vec<PathBuf>> 
     }
     let locks: Vec<PathBuf> = standing_locks(roots);
     return if locks.is_empty() { Ok(()) } else { Err(locks) };
-}
-
-/// What:
-///  Moves the branch from the value it was read at to `new`,
-///  and removes the side reference the commit was kept on.
-/// Why:
-///  The compare-and-swap is the one step that decides whether this settlement or another one
-///  (another command,
-///  or a landing) moved the branch,
-///  so a commit can never be applied twice.
-///  The message is one argument of `-m`,
-///  never a line of the transaction,
-///  so no byte of it can change the grammar Git reads on standard input
-///  (`AGENTS.md` rules `SYB` and `STB`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// updateRef(['-m', reflog, '--stdin'], `start\nupdate ${ref} ${new} ${old}\ndelete ${scratch}\nprepare\ncommit\n`)
-/// ```
-fn move_branch(git: &GitContext, held: &Held, intent: &Intent, new: &str, expected: &str) -> Result<bool, String> {
-    let scratch: String = kept_reference(held.seq);
-    let text: String = format!("start\nupdate {} {new} {expected}\ndelete {scratch}\nprepare\ncommit\n", intent.reference);
-    let mut request: GitRequest = GitRequest::new(held.repository.as_path(), &["update-ref"]);
-    request.arguments.push(OsStr::new("-m").to_os_string());
-    request.arguments.push(crate::path_bytes::os_from_path_bytes(held.reflog.as_slice()));
-    request.arguments.push(OsStr::new("--stdin").to_os_string());
-    request.input = Some(text.into_bytes());
-    let output: GitOutput = run_git(git, &request).map_err(git_did_not_start)?;
-    if output.succeeded() {
-        return Ok(true);
-    }
-    return Err(String::from_utf8_lossy(output.stderr.as_slice()).trim().to_string());
 }
 
 /// What:
@@ -537,12 +498,7 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
                 Err(settled) => return settled,
             }
         };
-        // What: Everything the batch owes is taken here, before the branch moves.
-        // Why:  A kill between the move and the index install leaves the record of the index update and the held push of
-        //  every commit the move lands, and the push is held before the branch names it (`work_item_holding.rs`).
-        //  A settlement that is refused takes them back below, because a branch that did not move owes nothing.
-        crate::service_server_land_group::what_a_batch_owes(&written);
-        match move_branch(git, held, &written, commit.as_str(), current.as_str()) {
+        match crate::held_commit_settle_move::move_the_branch(git, held, &written, commit.as_str(), current.as_str()) {
             Ok(true) => {
                 let waits: bool = finish(git, held, &written, lock.take());
                 forget(held.git_dir.as_path(), held.seq);
@@ -552,11 +508,8 @@ fn one_for(git: &GitContext, held: &Held, clearing: Clearing) -> Settled {
             //  The record this round wrote is read back by the next one, so the decision is made from the branch and the record
             //  as they are then, and the witness recorded under the lock describes the index that is about to be read again;
             //  nothing was staged meanwhile because the lock is still held.
-            Ok(false) => {
-                crate::service_server_land_group::forget_what_a_batch_owes(&written);
-            }
+            Ok(false) => {}
             Err(said) => {
-                crate::service_server_land_group::forget_what_a_batch_owes(&written);
                 return Settled::Cannot { commit, because: format!("Git refused the branch write ({said}), and the settlement waits for the next command") };
             }
         }

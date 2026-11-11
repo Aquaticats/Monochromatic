@@ -146,6 +146,10 @@ pub mod service_warm_request;
 /// and the flag they set for the wait.
 pub mod service_client_interrupted;
 
+/// Why a request a commit sent is given up,
+/// and the failure that says what became of the commit.
+pub mod service_client_why_withdrawn;
+
 /// Connecting to the service,
 /// reading one line from it,
 /// and asking an older service to retire.

@@ -3,7 +3,8 @@
 //!  where it stands,
 //!  what the wait is waiting for and on whom,
 //!  that the service is asked to restart,
-//!  and that the commit is built again because its branch moved.
+//!  and that the commit is built again because its branch moved,
+//!  and the sentence about what the service last said it waited for.
 //! Why:
 //!  Every one of them is a wait the person would otherwise not see,
 //! and the owner's rules are that nothing waits without saying so and
@@ -22,6 +23,44 @@
 //! ```
 
 use std::time::Duration;
+
+/// What:
+///  The sentence about what the service last said it waited for,
+///  and nothing when it said nothing.
+/// Why:
+///  The notices the service sends end in a full stop,
+///  and a second one after a quoted notice reads as a mistake.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitingFor(blocker) // ' It was waiting for: <text>' | ''
+/// ```
+pub(crate) fn waiting_for(blocker: Option<&str>) -> String {
+    return match blocker {
+        Some(text) => format!(" It was waiting for: {}", text.trim_end_matches('.')),
+        None => String::new(),
+    };
+}
+
+/// What:
+///  The sentence about what the service last said while it kept the request,
+///  and nothing when it said nothing.
+/// Why:
+///  The same reading as `waiting_for`,
+/// for the words the service said on the connection it was asked on,
+/// and quoted as the service sent them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// it_had_said(blocker)
+/// ```
+pub(crate) fn it_had_said(blocker: Option<&str>) -> String {
+    // The notice is quoted as the service sent it: this sentence ends with no full stop of its own, so the quoted one stands.
+    return match blocker {
+        Some(text) => format!(" The service had said: {}", text.trim()),
+        None => String::new(),
+    };
+}
 
 /// Printed once when the service takes longer than the grace to answer.
 pub const STARTING_NOTICE: &str = "Waiting for the commit service of this worktree...";

@@ -264,7 +264,7 @@ fn a_service_that_withdraws(
         greet_and_read(&requested);
         let _sent = arrived.send(());
         // The connection the withdrawal comes on, which the client opens itself.
-        let (withdrawing, _address) = service.accept().expect("the client asks to withdraw");
+        let (withdrawing, _withdrawn) = service.accept().expect("the client asks to withdraw");
         let _greeting = (&withdrawing).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
         let mut asked: String = String::new();
         std::io::BufReader::new(&withdrawing).read_line(&mut asked).expect("the withdrawal reaches the service");

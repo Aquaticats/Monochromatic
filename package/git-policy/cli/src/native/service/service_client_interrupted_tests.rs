@@ -24,12 +24,14 @@ fn action_of(signal: std::os::raw::c_int) -> libc::sigaction {
 }
 
 /// What:
-///  The first signal of a wait is noted, not acted on:
+///  The first signal of a wait is noted,
+/// not acted on:
 ///  the command must stay alive to withdraw the request it sent.
 /// Why:
 ///   A default action ends this process where the signal arrives,
 ///  and the request it sent would then land with nobody to read the answer.
-///  This control dies of the interrupt if the watch is not installed, which the test harness reports as a death by signal.
+///  This control dies of the interrupt if the watch is not installed,
+/// which the test harness reports as a death by signal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

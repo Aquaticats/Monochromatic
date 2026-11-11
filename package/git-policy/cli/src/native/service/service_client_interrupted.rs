@@ -5,8 +5,10 @@
 //!  A commit the person interrupts is not made:
 //!  native Git makes none when it is interrupted,
 //!  and the wrapper's promise for a commit that is not made is that nothing lands later by itself
-//!  (`SPEC.md`, "The commit protocol").
-//!  The request a commit already sent is the service's, so ending this process where the signal arrives would leave it
+//!  (`SPEC.md`,
+//! "The commit protocol").
+//!  The request a commit already sent is the service's,
+//! so ending this process where the signal arrives would leave it
 //!  to land with nobody to read the answer;
 //!  the signal is noted instead,
 //!  the wait asks at each step,
@@ -46,7 +48,8 @@ const WATCHED: [std::os::raw::c_int; 2] = [libc::SIGINT, libc::SIGTERM];
 /// Why:
 ///   A signal handler may call only what the kernel allows,
 ///  so this writes one word and nothing else:
-///  `signal`, `raise` and a lock-free atomic store are all on that list.
+///  `signal`,
+/// `raise` and a lock-free atomic store are all on that list.
 ///  The second signal restores the default action first,
 ///  so the process ends the way the shell expects a Ctrl-C to end it.
 ///
@@ -77,11 +80,26 @@ extern "C" fn note_the_stop(signal: std::os::raw::c_int) {
     }
 }
 
-/// The signal a waiting commit stops for,
-/// and nothing while none was sent.
+/// What:
+///  The signal a waiting commit stops for,
+///  and nothing while none was sent.
+/// Why:
+///   A signal that arrives while a Git child of the preparation runs is relayed to that child
+///  (`signal_relay.rs`),
+///  and the child may be gone or may not act on it,
+///  so the relay notes the stop for this wait:
+///  an interrupted commit is not made whatever its preparation was inside.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stopRequested() ?? takeRelayedStop()
+/// ```
 pub(crate) fn stop_requested() -> Option<i32> {
     let signal: i32 = STOP_REQUESTED.load(Ordering::SeqCst);
-    return if signal == 0 { None } else { Some(signal) };
+    if signal != 0 {
+        return Some(signal);
+    }
+    return crate::signal_relay_relayed_stop::take();
 }
 
 /// What:
@@ -135,7 +153,8 @@ impl Drop for ReadAwake {
 /// const watch = watchForAStop(); ... watch.release();
 /// ```
 pub(crate) struct StopWatch {
-    /// The actions that were in place before this watch, in the order of `WATCHED`.
+    /// The actions that were in place before this watch,
+    /// in the order of `WATCHED`.
     previous: Vec<(std::os::raw::c_int, libc::sigaction)>,
 }
 

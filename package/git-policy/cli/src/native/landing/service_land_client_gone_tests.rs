@@ -5,7 +5,8 @@
 //!  The person's own words for a commit that is not made are "nothing lands later by itself",
 //!  and native Git makes none when its command was ended,
 //!  so a request nobody is waiting for answers nothing and makes nothing
-//!  (`SPEC.md`, "The commit protocol").
+//!  (`SPEC.md`,
+//! "The commit protocol").
 
 use super::tests::{World, request, world};
 use super::*;
@@ -18,7 +19,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// What:
 ///  An announcer whose client is gone from the first ask on.
 /// Why:
-///  It is the state a killed command leaves: the service's channel to it is closed,
+///  It is the state a killed command leaves:
+/// the service's channel to it is closed,
 ///  so nothing reads an answer.
 struct Gone;
 
@@ -75,25 +77,28 @@ impl Announcer for GoingAwayAfterTheFirstAsk {
 }
 
 /// What:
-///  `hold_the_index`, for the landing of these controls.
+///  A program of this test that takes the worktree's index lock and keeps it,
+///  with the lock and the program that holds it.
 /// Why:
 ///   A lock nothing holds is removed by the landing's own rule,
 /// so only a lock a live program holds makes the wait last.
-fn hold_the_index(world: &World, release: &Path) -> PathBuf {
+///  The caller waits for the program,
+///  because a child nothing waits for is a process this test left behind.
+fn hold_the_index(world: &World, release: &Path) -> (PathBuf, std::process::Child) {
     let lock: PathBuf = world.repo.join(".git/index.lock");
     let script: PathBuf = world.root.join("hold-the-index.sh");
     crate::test_support::executable(
         script.as_path(),
         b"#!/bin/sh\nexec 9>\"$1\"\nwhile [ ! -e \"$2\" ]; do /usr/bin/sleep 0.02; done\nrm -f \"$1\"\n".as_slice(),
     );
-    let _holder = crate::test_support::spawn_owned(std::process::Command::new(script.as_path()).arg(lock.as_path()).arg(release))
+    let holder: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new(script.as_path()).arg(lock.as_path()).arg(release))
         .expect("the holder of the index runs");
     let began: std::time::Instant = std::time::Instant::now();
     while !lock.exists() {
         assert!(began.elapsed() < std::time::Duration::from_secs(60), "the holder did not take {}", lock.display());
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    return lock;
+    return (lock, holder);
 }
 
 /// A commit whose client is gone before anything is written is not made:
@@ -124,7 +129,7 @@ fn a_commit_whose_client_goes_away_while_the_index_lock_is_waited_for_is_not_mad
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let asked: CommitRequest = request(&world, "interrupted", "interrupted.txt", "interrupted\n");
     let release: PathBuf = world.root.join("release-the-index");
-    let _lock: PathBuf = hold_the_index(&world, release.as_path());
+    let (_lock, mut holder): (PathBuf, std::process::Child) = hold_the_index(&world, release.as_path());
     let announce: GoingAwayAfterTheFirstAsk = GoingAwayAfterTheFirstAsk { asked: AtomicUsize::new(0), release };
     let outcomes = land_batch_announcing(&world.context, 1, std::slice::from_ref(&asked), &announce).expect("nothing fails: nothing lands");
     assert_eq!(outcomes, vec![Outcome::ClientGone], "the wait ended with the client gone, and no commit was made");
@@ -132,6 +137,7 @@ fn a_commit_whose_client_goes_away_while_the_index_lock_is_waited_for_is_not_mad
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "?? interrupted.txt", "the worktree is as it was");
     assert!(!crate::service_journal::batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the batch the wait took is given back");
     assert!(!crate::owed_index_update::path_of(world.repo.join(".git").as_path(), 1).exists(), "a batch that did not land owes nothing");
+    let _ended = holder.wait();
     remove(world.root.as_path());
 }
 

@@ -251,7 +251,30 @@ pub(crate) fn drop_the_batch(drop: &DropTheBatch<'_>) {
 }
 
 /// What:
-///  The intent, what the batch owes and the witness it saw: everything a batch that will never land gives back,
+///  The ending of a batch whose branch write Git never started:
+///  the branch did not move,
+///  so nothing of the batch lands and everything it took is given back.
+/// Why:
+///  A step that ended at its ceiling keeps the commit the side reference holds before this
+///  (`keep_what_an_ended_step_built`),
+///  so that reference is left where the keeping reads it and only the records go.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// endABatchTheWriteNeverStarted(drop, code) // the records go; a ceiling step keeps the commit first
+/// ```
+pub(crate) fn end_a_batch_the_write_never_started(drop: &DropTheBatch<'_>, code: FailureCode) {
+    if code == FailureCode::StepTooSlow {
+        forget_the_batch_that_will_not_land(drop);
+        return;
+    }
+    drop_the_batch(drop);
+}
+
+/// What:
+///  The intent,
+/// what the batch owes and the witness it saw:
+/// everything a batch that will never land gives back,
 ///  except the side reference that holds what it built.
 /// Why:
 ///   A landing that gives up before its branch move removes those three as its last step;

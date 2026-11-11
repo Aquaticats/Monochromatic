@@ -33,6 +33,7 @@ use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
 use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice, unplaced_notice};
+use crate::service_client_why_withdrawn::WhyWithdrawn;
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
 };
@@ -449,52 +450,6 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             let _written = writeln!(notices, "{SILENT_NOTICE}");
         }
         std::thread::sleep(CONNECT_PAUSE * u32::try_from(breaks).unwrap_or(1));
-    }
-}
-
-/// What:
-///  Why a request is given up,
-///  and the words the command ends with when the service says it will not land.
-/// Why:
-///   What is withdrawn decides what the person is told:
-///  a commit that reached the answer ceiling waited too long,
-///  and one the person interrupted is not made at all,
-///  so the two ends read differently
-///  (`service_messages.rs`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WhyWithdrawn = { kind: 'ceiling', minutes: number } | { kind: 'interrupted', signal: number }
-/// ```
-enum WhyWithdrawn {
-    /// The wait passed the answer ceiling.
-    Ceiling {
-        /// The ceiling in whole minutes, as the person reads it.
-        minutes: u64,
-    },
-    /// The person stopped the command with a signal.
-    Interrupted {
-        /// The signal the person sent.
-        signal: i32,
-    },
-}
-
-impl WhyWithdrawn {
-    /// What the command ends with when the service confirmed that the request will never land.
-    fn it_will_not_land(&self, blocker: Option<String>) -> ClientFailure {
-        return match self {
-            Self::Ceiling { minutes } => ClientFailure::StillWithService { minutes: *minutes, blocker },
-            Self::Interrupted { signal } => ClientFailure::Interrupted { signal: *signal, blocker },
-        };
-    }
-
-    /// What the command ends with when the service did not confirm the withdrawal,
-    /// so whether the commit was made is not known.
-    fn not_known(&self, blocker: Option<String>) -> ClientFailure {
-        return match self {
-            Self::Ceiling { .. } => ClientFailure::WithdrawalUnconfirmed { blocker },
-            Self::Interrupted { signal } => ClientFailure::InterruptedNotKnown { signal: *signal, blocker },
-        };
     }
 }
 
