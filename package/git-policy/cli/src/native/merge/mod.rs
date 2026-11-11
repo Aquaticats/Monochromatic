@@ -203,6 +203,18 @@ pub mod merge_isolation_carry_kept_path;
 /// and the sentence that stops the merge before anything is written.
 pub mod merge_isolation_a_directory_the_merge_replaces;
 
+/// A named pipe,
+/// a socket or a device standing where the merge writes or deletes a path,
+/// which no layer of the carry
+///  can hold and which no command may open,
+/// and the sentence that stops the merge before anything is written.
+pub mod merge_isolation_a_special_file_the_merge_changes;
+
+/// The paths a merge changes whose edit Git's status does not show,
+/// because their index entry carries the
+///  `assume-unchanged` or `skip-worktree` mark.
+pub mod merge_isolation_marks_the_status_hides;
+
 /// Putting one planned worktree write in place,
 /// or leaving a path alone because what stands there is not the entry that was judged.
 pub mod merge_isolation_carry_place;

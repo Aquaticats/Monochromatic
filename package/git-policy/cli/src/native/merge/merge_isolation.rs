@@ -52,6 +52,12 @@ use crate::merge_isolation_carry::{capture_work, keep_capture};
 /// The directory a merge would replace with a file,
 /// and the sentence that stops the merge instead.
 use crate::merge_isolation_a_directory_the_merge_replaces::{a_directory_the_merge_would_replace, the_line};
+/// A named pipe,
+/// a socket or a device at a path the merge writes or deletes,
+/// and the sentence that stops the merge instead.
+use crate::merge_isolation_a_special_file_the_merge_changes::{a_special_file_the_merge_changes, the_line as a_special_file_line};
+/// The paths a merge changes whose edit Git's status does not show.
+use crate::merge_isolation_marks_the_status_hides::paths_the_status_hides;
 use crate::merge_isolation_carry_parts::Capture;
 /// The editor a merge opens for its message when the checkout holds the person's own work.
 use crate::merge_isolation_editor::{EditorPlace, EditorRefusal, asked_once};
@@ -270,7 +276,10 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
     //  tree exists. Whether the checkout holds any of the paths the merge touches is what decides that a conflict of the merge
     //  itself is resolved here rather than handed to native Git: its merge refuses such a checkout outright
     //  (`SPEC.md`, "Merges and commits never fail", "Carry edits forward").
-    let dirty: Vec<Vec<u8>> = dirty_paths(&session)?;
+    let mut dirty: Vec<Vec<u8>> = dirty_paths(&session)?;
+    // Git's status reads an entry marked assume-unchanged or skip-worktree as one not to compare, so an edit there is work the
+    //  person's, listed here so the capture carries it and Git's own update of the checkout never meets it unjudged.
+    dirty.extend(paths_the_status_hides(&session.context, root, touched.as_slice())?);
     let carrying: bool = !overlapping_paths(dirty.as_slice(), touched.as_slice()).is_empty();
     // A merge that would open an editor is native Git's while the checkout holds nothing the merge would write over:
     //  it performs the merge itself and then opens the editor. Over the person's own work it cannot run at all, because
@@ -295,6 +304,13 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
             .as_slice(),
     );
     let overlap: Vec<Vec<u8>> = overlapping_paths(dirty.as_slice(), incoming.as_slice());
+    // A named pipe, a socket or a device at a path this merge writes or deletes holds no bytes for the carry, and Git's update
+    //  of the checkout would remove it without a copy; reading one could wait for a writer that never comes, so the merge stops
+    //  before the first write and names what it kept (`SPEC.md`, "Merges and commits never fail").
+    let special: Vec<Vec<u8>> = a_special_file_the_merge_changes(root, incoming.as_slice());
+    if !special.is_empty() {
+        return Err(refused(1, a_special_file_line(reference.as_str(), special.as_slice())));
+    }
     let written: Vec<u8> = match (&shape.message, description) {
         (Some(given), _) => given.clone(),
         (None, Some(line)) => default_merge_message(&session.context, line.as_str(), shape.log)?,

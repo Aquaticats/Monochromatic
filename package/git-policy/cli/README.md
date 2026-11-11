@@ -2748,6 +2748,11 @@ Now the merge runs and the person's work is carried across it:
   before the first byte of the checkout changes;
   the merge's record names them.
   A `SIGKILL` at any instant leaves them where the next command finds them.
+  A path whose index entry carries the `assume-unchanged` or `skip-worktree` mark counts here too:
+  Git's status does not list an edit at such a path,
+  so the wrapper compares the worktree copy with the index entry itself
+  (`src/native/merge/merge_isolation_marks_the_status_hides.rs`).
+  A marked path with no worktree file is no edit of yours and stays Git's own answer.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
   Each path is read again just before the write that replaces it,
@@ -3004,6 +3009,13 @@ Each with its cause:
   or an index that holds unmerged entries:
   the command is native Git's whole,
   which refuses such a checkout itself.
+- A named pipe,
+  a socket or a device standing at a path the merge writes or deletes (exit 1):
+  it holds no bytes a merge can carry,
+  and opening one for reading could wait for a writer that never comes,
+  so the merge stops with every such path named before anything is written,
+  and the entry is left in your checkout as it was.
+  Move it out of the way and run the merge again.
 - A merge whose commit cannot be kept on a side ref while the lock stays held:
   the command is refused with status 2,
   changes nothing and leaves the lock.
