@@ -10,12 +10,15 @@
 //! const fixture = aRepositoryWithAWorktree(); const sweep = sweepLandedWorktrees(...); expect(sweep.removed).toHaveLength(1);
 //! ```
 
-use super::{LandedPlace, LandedSweep, holds_its_own_commits, sweep_landed_worktrees};
+use super::{Examined, LandedPlace, LandedSweep, examine_and_remove, holds_its_own_commits, sweep_landed_worktrees};
 use crate::held_commit_record::{Held, write};
+use crate::push_failure_notice::{PushOutcome, notice_directory, orphaned_push_failures, record_push_failure};
 use crate::shadow_pool::pool_root_for;
-use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository};
+use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository, shown_notices};
 use crate::worktree_added_by_the_wrapper::record;
-use crate::worktree_landed_registrations::{RegisteredBefore, registered_before};
+use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registered_before, registrations_of};
+use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, settle_removals, snapshot_linked_worktrees};
+use crate::worktree_removal_snapshot_promotion::files_of;
 use std::path::{Path, PathBuf};
 
 /// A repository with one linked worktree whose branch holds a commit of its own.
@@ -908,6 +911,229 @@ fn a_branch_that_merely_sat_on_an_older_commit_is_no_candidate() {
     assert_eq!(sweep.removed.len(), 1, "only the branch the merge landed is removed: {sweep:?}");
     assert_eq!(sweep.removed[0].worktree, landed.worktree);
     assert!(older.exists(), "a branch that sat on an older commit is no work this merge brought in");
+}
+
+/// The words of every notice a person sees after a removal snapshot was settled.
+fn orphaned_notice_texts(landed: &Landed) -> Vec<String> {
+    return shown_notices(orphaned_push_failures(landed.common.as_path(), &plain));
+}
+
+/// What:
+///  A worktree a command adds inside a landed one after the sweep read the registrations keeps the worktree that
+///  holds it,
+/// and the edited and untracked files in it stay.
+/// Why:
+///  The registrations are read once, before the candidates are examined,
+///  and a command that adds a worktree inside a candidate while the sweep runs is not in that list.
+///  The check that would have kept the candidate rests on that list alone,
+///  and the ignored directory the nested checkout sits in is never read,
+/// so the removal took the nested worktree's modified tracked file and its untracked file with it
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+#[test]
+fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_that_holds_it() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-nested-late-registration", ".claude/\n");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    // The list the sweep read before it began to examine candidates,
+    // which names the worktree this merge landed and not the one a command adds below.
+    let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
+    let outer: Registration = registered
+        .iter()
+        .find(|one| one.worktree == landed.worktree)
+        .expect("the registration of the worktree this program made")
+        .clone();
+    // A command that adds a worktree inside this one finishes after that read and exits.
+    let inside: PathBuf = landed.worktree.join(".claude/worktrees/b");
+    git(
+        landed.worktree.as_path(),
+        &["worktree", "add", "--quiet", "-b", "sub", inside.to_str().expect("a UTF-8 fixture path")],
+    );
+    let changed: PathBuf = inside.join("README.md");
+    std::fs::write(changed.as_path(), b"# the fixture, edited in the nested worktree\n").expect("a tracked file the person changed there");
+    let notes: PathBuf = inside.join("notes.txt");
+    std::fs::write(notes.as_path(), b"work the person has not committed\n").expect("an untracked file the person wrote there");
+    let context: crate::transaction_git::GitContext = git_context();
+    let table: PathBuf = an_empty_process_table(&landed);
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
+    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
+    assert!(
+        matches!(examined, Examined::Kept(_)),
+        "a worktree that holds another worktree stays, whatever list was read before it arrived"
+    );
+    assert_eq!(
+        std::fs::read(changed.as_path()).expect("the changed file is still there"),
+        b"# the fixture, edited in the nested worktree\n",
+        "the tracked file the person changed in the nested worktree is still there"
+    );
+    assert_eq!(
+        std::fs::read(notes.as_path()).expect("the untracked file is still there"),
+        b"work the person has not committed\n",
+        "the untracked file the person wrote in the nested worktree is still there"
+    );
+}
+
+/// What:
+///  An unshown push failure recorded after the sweep took its removal snapshot still reaches the person from the next
+///  command.
+/// Why:
+///  The snapshot is taken once, before any candidate is examined,
+///  and the push service records a refused push in the candidate's own Git directory at any moment.
+///  A record written after that one copy and before the removal was in no snapshot,
+///  and the removal deleted its only copy with the Git directory
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+#[test]
+fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
+    let landed: Landed = a_repository_with_a_worktree("landed-push-notice-after-snapshot");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
+    let outer: Registration = registered
+        .iter()
+        .find(|one| one.worktree == landed.worktree)
+        .expect("the registration of the worktree this program made")
+        .clone();
+    // The one snapshot the sweep takes before it examines a candidate, when there was nothing to copy yet.
+    assert!(snapshot_linked_worktrees(landed.common.as_path()).is_empty(), "a worktree with no records needs no snapshot");
+    let admin: PathBuf = admin_of(landed.worktree.as_path());
+    let commit: String = head_of(landed.worktree.as_path());
+    record_push_failure(
+        admin.as_path(),
+        "refs/heads/feature",
+        commit.as_str(),
+        PushOutcome::Refused,
+        "refused after the removal snapshot",
+    )
+    .expect("a failed push nobody has seen yet, recorded after the snapshot");
+    let context: crate::transaction_git::GitContext = git_context();
+    let table: PathBuf = an_empty_process_table(&landed);
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
+    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
+    assert!(matches!(examined, Examined::Removed), "the account is clean, so the worktree is removed");
+    assert!(!admin.exists(), "the removal took the record's original with the Git directory");
+    // What the next command does with the removal this one made.
+    settle_removals(landed.common.as_path());
+    let texts: Vec<String> = orphaned_notice_texts(&landed);
+    assert!(
+        texts.iter().any(|text| { return text.contains("refused after the removal snapshot"); }),
+        "the push failure written after the snapshot is shown to the person: {texts:?}"
+    );
+}
+
+/// What:
+///  A landed worktree whose unshown push failures cannot be copied into a removal snapshot stays,
+///  and the record is still in its own Git directory.
+/// Why:
+///  The snapshot is the only thing that keeps a record whose Git directory the removal deletes.
+///  A copy that could not be made was reported and the removal went on anyway,
+/// so neither the original nor a snapshot was left for the person to read
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+#[test]
+fn a_landed_worktree_whose_unshown_push_failure_cannot_be_saved_stays() {
+    let landed: Landed = a_repository_with_a_worktree("landed-push-notice-unsavable");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let admin: PathBuf = admin_of(landed.worktree.as_path());
+    let commit: String = head_of(landed.worktree.as_path());
+    record_push_failure(admin.as_path(), "refs/heads/feature", commit.as_str(), PushOutcome::Refused, "refused by a policy somebody wrote")
+        .expect("a failed push nobody has seen yet");
+    // A file stands where the snapshots go, so no snapshot of any worktree can be made.
+    let blocked: PathBuf = landed.common.join(SNAPSHOT_DIRECTORY);
+    std::fs::create_dir_all(blocked.parent().expect("the parent of the snapshot directory")).expect("the snapshot directory's parent");
+    std::fs::write(blocked.as_path(), b"a file where the snapshots of removals go").expect("the file that blocks every snapshot");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.removed.is_empty(), "a worktree whose records could not be saved stays: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "the worktree that stays is named: {sweep:?}");
+    assert!(!sweep.rescue_problems.is_empty(), "the failed copy is reported: {sweep:?}");
+    assert!(
+        sweep.kept[0].why.contains(admin.display().to_string().as_str()),
+        "the reason names the Git directory the records stay in: {}",
+        sweep.kept[0].why
+    );
+    assert!(landed.worktree.exists(), "the worktree stays, so its records stay where the reason names them");
+    let records: Vec<PathBuf> = files_of(notice_directory(admin.as_path()).as_path());
+    assert_eq!(records.len(), 1, "the one record is still the only copy: {records:?}");
+    let kept: String = std::fs::read_to_string(records[0].as_path()).expect("the record is still readable");
+    assert!(kept.contains("refused by a policy somebody wrote"), "the record still holds Git's words: {kept}");
+}
+
+/// What:
+///  A worktree whose branch a person reset onto another branch's commit is not removed by a merge that later takes
+///  that commit in.
+/// Why:
+///  The oldest entry of a branch's own reflog names the commit it was made at,
+///  and the sweep read a tip that differs from it as the branch's own work.
+///  A branch moved onto a commit another branch already holds moved without making anything,
+///  so a merge that brings that other branch in landed none of its work,
+/// and the worktree went with a merge it had nothing to do with
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+#[test]
+fn a_worktree_whose_branch_was_reset_onto_another_branchs_commit_is_not_removed() {
+    let root: PathBuf = fixture("landed-reset-onto-another-branch");
+    let main: PathBuf = repository(root.as_path(), "main");
+    let common: PathBuf = main.join(".git");
+    let merged_in: PathBuf = root.join("feature");
+    let task: PathBuf = root.join("z");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", merged_in.to_str().expect("a UTF-8 fixture path")]);
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "task-z", task.to_str().expect("a UTF-8 fixture path")]);
+    record(common.as_path(), task.as_path()).expect("the record of a worktree this program made");
+    // The main checkout commits, which is work of main's and of no other branch.
+    let moved: PathBuf = main.join("more.txt");
+    std::fs::write(moved.as_path(), b"main's own commit\n").expect("a file main commits");
+    age(moved.as_path());
+    git(main.as_path(), &["add", "--", "more.txt"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=main moves"]);
+    // The person moves the task's branch onto main's commit without making anything of its own.
+    git(task.as_path(), &["reset", "--hard", "--quiet", "main"]);
+    let before: String = head_of(merged_in.as_path());
+    let registered_before: RegisteredBefore = registered_before(common.as_path()).expect("the registrations of the fixture");
+    git(merged_in.as_path(), &["merge", "--quiet", "--no-ff", "--message=bring main in", "main"]);
+    let now: String = head_of(merged_in.as_path());
+    let context: crate::transaction_git::GitContext = git_context();
+    let table: PathBuf = root.join("proc");
+    std::fs::create_dir_all(table.as_path()).expect("an empty process table");
+    let place: LandedPlace<'_> = LandedPlace {
+        context: &context,
+        cwd: merged_in.as_path(),
+        common_dir: common.as_path(),
+        current_root: Some(merged_in.as_path()),
+        proc_root: table.as_path(),
+        registered_before: &registered_before,
+    };
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), now.as_str(), "feature");
+    assert!(sweep.removed.is_empty(), "a branch the person reset onto another branch's commit landed no work of its own: {sweep:?}");
+    assert!(sweep.kept.is_empty() && sweep.unproven.is_empty(), "it was no candidate at all: {sweep:?}");
+    assert!(task.exists(), "the worktree the person has is where it was");
+}
+
+/// What:
+///  A landed worktree is still removed when another branch was made at its tip,
+///  as `git worktree add -b` makes one.
+/// Why:
+///  The rule that keeps a worktree whose branch moved onto another branch's commit asks the other branch's own reflog,
+///  and a branch made at a commit records no commit as the value before its first line.
+///  A rule that read a shared tip as another branch's work would keep every landed worktree a person had just branched
+///  from,
+///  which is what the program's own `git worktree add` does on every task.
+#[test]
+fn a_landed_worktree_whose_tip_another_branch_was_made_at_is_removed() {
+    let landed: Landed = a_repository_with_a_worktree("landed-branch-made-at-the-tip");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let tip: String = head_of(landed.worktree.as_path());
+    let child: PathBuf = landed.root.join("child");
+    git(
+        landed.worktree.as_path(),
+        &["worktree", "add", "--quiet", "-b", "child", child.to_str().expect("a UTF-8 fixture path")],
+    );
+    assert_eq!(head_of(child.as_path()).trim(), tip.trim(), "the branch a person made at the tip starts on the same commit");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed: {sweep:?}");
+    assert_eq!(sweep.removed[0].worktree, landed.worktree);
+    assert!(sweep.kept.is_empty(), "nothing keeps it: {sweep:?}");
+    assert!(!landed.worktree.exists(), "the worktree whose branch landed is gone");
+    assert!(child.exists(), "the branch made at its tip holds no landed work, so its worktree stays");
 }
 
 /// The path of the host's Git,
