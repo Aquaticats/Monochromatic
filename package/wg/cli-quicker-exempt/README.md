@@ -1028,6 +1028,13 @@ a candidate that has not spoken within sixty seconds is refused and ended,
 and a candidate that never ends is ended by the same bounded wait.
 Without the bound a child that neither spoke nor exited held the lifecycle lock of `watch-start`,
 and every later lifecycle command waited for ever for it.
+The limit covers every byte of the line and not only the first one:
+readiness and the line are separate steps,
+a child can write part of a line and keep its stream open,
+and a read to the newline then waits for the rest of a line that may never come.
+A handshake that stops arriving, mid-line or before it, ends at the sixty seconds with the message it waited for,
+and one line is capped at a few kilobytes,
+so a stream that never sends a newline cannot fill memory either.
 `line_ready_tests.rs` reads both handshakes' sources to keep the blocking read and the unbounded child wait out of them,
 because a child that speaks in time proves nothing about the one that never speaks.
 A candidate creates all links before the parent writes transition state and sends `COMMIT`.

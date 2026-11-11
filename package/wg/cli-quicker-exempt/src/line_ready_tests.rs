@@ -109,3 +109,31 @@ fn both_handshakes_use_the_bounded_read_and_wait() {
         );
     }
 }
+
+/// A handshake that arrives without its newline must not hold the caller past the limit.
+///
+/// Readiness and the line are not one step:
+/// a child can write part of a line and then keep its stream open,
+/// so a reader that polled once and then read to the newline
+/// waits for the rest of a line that may never come,
+/// while `watch-start` holds the lifecycle lock.
+#[test]
+fn a_partial_line_does_not_hold_the_handshake_past_its_limit() {
+    let mut child = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("printf READY; exec /usr/bin/sleep 30")
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("start a child that writes half a line");
+    let stdout = child.stdout.take().expect("the child keeps its stream open");
+    let mut reader = BufReader::new(stdout);
+    let started = std::time::Instant::now();
+    let answer = read_message_within(&mut reader, Duration::from_millis(100), "readiness");
+    let elapsed = started.elapsed();
+    let _killed = child.kill();
+    let _reaped = child.wait();
+    assert!(elapsed < Duration::from_secs(2), "the handshake held the caller for {elapsed:?}");
+    let refusal = answer.expect_err("half a line is not a handshake");
+    assert_eq!(refusal.kind(), std::io::ErrorKind::TimedOut, "{refusal}");
+    assert!(refusal.to_string().contains("readiness"), "{refusal}");
+}
