@@ -128,6 +128,24 @@ Eight choices, each asked with its options, pros, cons and a ranking; the owner'
   the round 218 agent fixes the Kimi finding that the check can match a different snapshot holding the only copy of data.
 - Issues #492, #574, #1717, #3796 and #630, whose options are not yet researched: "Defer until alpha.11 (Recommended)".
 
+Two more from the owner the same hour:
+
+- "Before the Qwen 4 review verdict, avoid starting more reviews."
+  The coordinator stopped every queued Kimi review that had not started (12: ten of round 219, one of round 210, and round 221's rerun of the driver-port review) and the starters of rounds 219 and 221;
+  the 22 reviews already running finish.
+  No hourly fill starts a review until the qwen4-max-preview verdict is delivered.
+- "I want desktop notifications."
+  The Pi extension `package/pi-plugin/agent-settled-notification` failed in 100 of the 373 agent runs started that day
+  ("settled-agent desktop notification unavailable: Command failed with exit code 1: notify-send ..."),
+  with `notify-send`'s standard error discarded and a one-second bound (`NOTIFICATION_TIMEOUT_MS = 1_000`);
+  the same command from a transient user unit exited 0.
+  Round 222 (`fix/pi-plugin-agent-settled-notification-delivers-under-load`) finds the cause and makes delivery work under the host's load.
+  The shared brief rules now say desktop notifications are the one thing allowed on the desktop and never to be disabled.
+
+The driver-port review (round 212) ended `model-error` on Neuralwatt's
+"429 ... lowpri_budget_exceeded ... You've hit your concurrent flex request limit for moonshotai/Kimi-K3.1-Pro (max 22 in flight at once)",
+with the Kimi pool at its limit of 22: the first measured statement of that limit.
+
 Still to ask: the shadow pool claim's rename once round 212's proposal lands,
 and Sonnet's finding that an add can stay quiet for 600 s against "60s is fine for adding worktrees" once it is framed with options.
 
