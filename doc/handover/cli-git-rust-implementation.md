@@ -561,19 +561,30 @@ a person's own push is still unchanged,
 and only the automatic push stops.
 ### 0.6.1-alpha.10 dispatched, and the alpha.11 integration gated (2026-11-11T07:01:28-05:00)
 
-The alpha.10 gate on `b96767962c` ran 7574 tests: 7573 passed, 1 failed,
-`testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive` (the test watchdog's own control, in 5.2 s),
-so it shipped under "Alphas don't even have to resolve all flakes." and "Release now, fixes in alpha.11".
+The alpha.10 gate on `b96767962c` ran 7574 tests:
+7573 passed,
+1 failed,
+`testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive` (the test watchdog's own control,
+in 5.2 s),
+so it shipped under "Alphas don't even have to resolve all flakes."
+and "Release now,
+fixes in alpha.11".
 That failure is not yet rerun alone.
 The integration merged into `main` as `84b67256a7`;
-`native:clippy` on `main` then refused `clippy::manual_map` at `worktree_copy_prune.rs:319`, fixed in `574063773d`, and passed on the rerun.
+`native:clippy` on `main` then refused `clippy::manual_map` at `worktree_copy_prune.rs:319`,
+fixed in `574063773d`,
+and passed on the rerun.
 `native:release -- 0.6.1-alpha.9 0.6.1-alpha.10` runs in unit `gpc-release-0-6-1-alpha-10`
-(log `${HOME}/temp/agent/gate/release-0.6.1-alpha.10.log`; its host gate runs `native:test:host:btrfs` first).
+(log `${HOME}/temp/agent/gate/release-0.6.1-alpha.10.log`;
+its host gate runs `native:test:host:btrfs` first).
 
-For alpha.11, pass 8 of `integrate-jam-fixes-after-alpha-9.ts` merged ten branches onto `main` at `7b9eba790e`.
+For alpha.11,
+pass 8 of `integrate-jam-fixes-after-alpha-9.ts` merged ten branches onto `main` at `7b9eba790e`.
 Two type errors where they met were fixed in `a735f75caa`.
-The landed-worktree sweep now removes nothing when a held commit could not be kept, and reports the refusal as its reason.
-A `clippy::ptr_arg` was fixed in `82829a1696`, and Clippy is clean there.
+The landed-worktree sweep now removes nothing when a held commit could not be kept,
+and reports the refusal as its reason.
+A `clippy::ptr_arg` was fixed in `82829a1696`,
+and Clippy is clean there.
 Two branches conflicted and went back to their agents (round 166):
 `fix/git-policy-cli-commands-never-wait-on-or-fail-with-a-silent-service` (`wait_ceilings_tests.rs`)
 and `fix/git-policy-cli-kimi-findings-merge-carry-review-round-2-findings` (the merge carry files).
@@ -582,17 +593,28 @@ Gate `gpc-gate-alpha-11-on-82829a1696-20261111T070128-0500` runs on `82829a1696`
 ### An impostor user manager throttled the alpha.10 gate and failed thread creation (2026-11-11T06:45:00-05:00)
 
 At 2026-11-11T03:51:27-05:00 a Kimi agent's probe script started a second `/usr/lib/systemd/systemd --user --log-target=console`
-(pid 2477887, in scope `run-p2476658-i316681074`).
+(pid 2477887,
+in scope `run-p2476658-i316681074`).
 systemd requests `org.freedesktop.systemd1` on the session bus with replacement allowed,
-and the real manager (pid 5697, main process of `user@1000.service`) never asks for it back,
+and the real manager (pid 5697,
+main process of `user@1000.service`) never asks for it back,
 so the impostor owned the name for almost three hours.
-Every `systemctl --user` and `systemd-run --user` call in that time, and every `busctl --user call org.freedesktop.systemd1` call of `wg-quicker-exempt`,
+Every `systemctl --user` and `systemd-run --user` call in that time,
+and every `busctl --user call org.freedesktop.systemd1` call of `wg-quicker-exempt`,
 went to the impostor.
 `wg-quicker-exempt` adopted processes into scopes the impostor created,
-named for the probe's origin and holding its limits (CPUQuota 100%, MemoryMax 1 GiB, TasksMax 256):
-the alpha.10 gate's podman build compiled there, with `nr_throttled 71282` of `nr_periods 90513`,
-and a Git merge failed with "fatal: unable to create threaded lstat: Resource temporarily unavailable".
-The host itself was not short of threads (`threads-max` 503082, `ulimit -u` 32768, `user-1000.slice` TasksMax 32768, about 5,000 in use).
+named for the probe's origin and holding its limits (CPUQuota 100%,
+MemoryMax 1 GiB,
+TasksMax 256):
+the alpha.10 gate's podman build compiled there,
+with `nr_throttled 71282` of `nr_periods 90513`,
+and a Git merge failed with "fatal:
+unable to create threaded lstat:
+Resource temporarily unavailable".
+The host itself was not short of threads (`threads-max` 503082,
+`ulimit -u` 32768,
+`user-1000.slice` TasksMax 32768,
+about 5,000 in use).
 Earlier the same night pass 8 of the integration script failed on that error too,
 and the coordinator's own `TasksMax=1024` scope for it was a second cause.
 
@@ -600,34 +622,57 @@ What was done:
 
 - The coordinator raised the impostor scope's limits by hand so the gate could finish,
   killed pid 2477887 with SIGKILL (SIGTERM would have made it stop the units it had started),
-  and ran `systemctl --user daemon-reexec`; pid 5697 owns the name again.
-- Stopgap: user service `guard-user-manager-bus-name`
-  (`${HOME}/temp/agent/pi-runs/guard-user-manager-bus-name.ts`, Restart=always)
-  watches `NameOwnerChanged` for the name, polls every 5 s as a backstop,
-  kills any owner that is not the real manager and re-executes the manager, logging every action to the journal.
-- Owner, 2026-11-11: "Make sure no imposer can never succeed again."
-  Rule `MHX` in `AGENTS.md` (owner-approved as written, commit `6e62e0aafe`) and the shared Pi brief rules forbid starting a service manager on the host;
-  a private `dbus-daemon` on its own socket stays allowed, as the `nested-wayland-session` and `music-player` tests use one.
+  and ran `systemctl --user daemon-reexec`;
+  pid 5697 owns the name again.
+- Stopgap:
+  user service `guard-user-manager-bus-name`
+  (`${HOME}/temp/agent/pi-runs/guard-user-manager-bus-name.ts`,
+  Restart=always)
+  watches `NameOwnerChanged` for the name,
+  polls every 5 s as a backstop,
+  kills any owner that is not the real manager and re-executes the manager,
+  logging every action to the journal.
+- Owner,
+  2026-11-11:
+  "Make sure no imposer can never succeed again."
+  Rule `MHX` in `AGENTS.md` (owner-approved as written,
+  commit `6e62e0aafe`) and the shared Pi brief rules forbid starting a service manager on the host;
+  a private `dbus-daemon` on its own socket stays allowed,
+  as the `nested-wayland-session` and `music-player` tests use one.
   A search of `package/` found no test that starts `systemd --user`.
 - The durable fix belongs to the wg packages:
-  agent `wg-exempt-adopted-scopes-say-what-they-hold` (run 3, branch `fix/wg-exempt-adopted-scopes-say-what-they-hold`)
-  has it first in its brief: manager calls only over the private socket with an `SO_PEERCRED` check against `user@<uid>.service`'s `MainPID`,
-  root-watcher eviction of any other owner of the name, controls for both,
-  then a moved process keeping its own origin's limits, the scope names and descriptions, and the Claude Sonnet audit's findings F2 to F9
+  agent `wg-exempt-adopted-scopes-say-what-they-hold` (run 3,
+  branch `fix/wg-exempt-adopted-scopes-say-what-they-hold`)
+  has it first in its brief:
+  manager calls only over the private socket with an `SO_PEERCRED` check against `user@<uid>.service`'s `MainPID`,
+  root-watcher eviction of any other owner of the name,
+  controls for both,
+  then a moved process keeping its own origin's limits,
+  the scope names and descriptions,
+  and the Claude Sonnet audit's findings F2 to F9
   (`${HOME}/temp/agent/sonnet-audits/wg-packages/report.md`).
-  Its round 164 launches at 06:05 and 06:23 exited with status 1 and left empty run folders, most likely because the name had no owner or an impostor then;
+  Its round 164 launches at 06:05 and 06:23 exited with status 1 and left empty run folders,
+  most likely because the name had no owner or an impostor then;
   run 3 started at 06:38.
 
-Also seen at 06:42: the commit service's auto-push of `main` (`6e62e0aafe`) was refused with "GH006: Protected branch update failed for refs/heads/main." and an empty reason line,
+Also seen at 06:42:
+the commit service's auto-push of `main` (`6e62e0aafe`) was refused with "GH006:
+Protected branch update failed for refs/heads/main."
+and an empty reason line,
 one minute after another session pushed `7731b5fbe6`;
 a push by hand at 06:44 went through as a fast-forward.
-`main`'s protection requires signed commits (the commit is signed, `G`) and has no required checks.
+`main`'s protection requires signed commits (the commit is signed,
+`G`) and has no required checks.
 The cause on GitHub's side is unmeasured.
 The wrapper gave up because `final_failure` in `package/git-policy/cli/src/native/push/push_retry.rs` calls every `[remote rejected]` line with `hook declined` final,
 `protected branch hook declined` included.
-The owner, 2026-11-11: "Make the wrapper auto retry on  GH006".
-Agent `push-retries-a-protected-branch-refusal` (round 165, branch `fix/git-policy-cli-push-retries-a-protected-branch-refusal`) makes GH006 retried within the service's bounded retry,
-with a plain report once the bound is spent, for alpha.11.
+The owner,
+2026-11-11:
+"Make the wrapper auto retry on  GH006".
+Agent `push-retries-a-protected-branch-refusal` (round 165,
+branch `fix/git-policy-cli-push-retries-a-protected-branch-refusal`) makes GH006 retried within the service's bounded retry,
+with a plain report once the bound is spent,
+for alpha.11.
 ### A Kimi K3.1 Pro audit of the integration tip for waits, lost commits and lost records: three findings, all reproduced and fixed (2026-11-11T02:28:06-05:00)
 
 Branch `fix/git-policy-cli-kimi-never-stuck-audit-findings`,
@@ -1617,32 +1662,42 @@ and Pi ends a run on either 429;
 `.agents/skills/pi-as-subagent/SKILL.md` records the numbers and three launcher defects fixed then.
 
 By 2026-11-10T23:50-05:00 passes 3 and 4 had merged the integration tip to `ee545033ad`
-(Clippy clean; two more test-initializer fixes where branches met, `171edd1c00` and `b17817f15d`).
+(Clippy clean;
+two more test-initializer fixes where branches met,
+`171edd1c00` and `b17817f15d`).
 The suites at `b17817f15d` failed 33 tests,
-28 of them the area agents' and 5 new (`package_repair` twice, `catalog_specifiers`,
-`service_connections_tasks`, `worktree_clean`), sent to `integration-failures-after-pass-3`.
+28 of them the area agents' and 5 new (`package_repair` twice,
+`catalog_specifiers`,
+`service_connections_tasks`,
+`worktree_clean`),
+sent to `integration-failures-after-pass-3`.
 The commit-budget agent found a real regression behind six budget failures:
 `77e8348a84` made every commit flush its push-verdict record and directory (2 fsyncs per commit),
-fixed by `44bd759bc5` (the verdict is published by one rename without a flush, with its reasoning in
+fixed by `44bd759bc5` (the verdict is published by one rename without a flush,
+with its reasoning in
 `doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
-Nine branches, mostly the area fixes and round-139 follow-ups cut from `5686c7bb29`,
+Nine branches,
+mostly the area fixes and round-139 follow-ups cut from `5686c7bb29`,
 went back to their agents to merge the new tip (round 150).
 
 The 860 nearly filled overnight:
 free space fell from 256G at 20:20 to 29G at 01:00 on 2026-11-11,
 while about 25 agents each built the wrapper in their own Cargo build tree.
-`cargo-shadow lean run --only trees`, started early at 23:35,
+`cargo-shadow lean run --only trees`,
+started early at 23:35,
 hit its 90-minute deadline while the host build base went from 93.57 to 28.99 GiB free,
 so building outran removal.
 The coordinator stopped the 16 opencode-go agents
-(names in `~/temp/agent/pi-runs/paused-for-disk-2026-11-11.txt`, 14 of them the Kimi-findings fixers;
+(names in `~/temp/agent/pi-runs/paused-for-disk-2026-11-11.txt`,
+14 of them the Kimi-findings fixers;
 their worktrees keep their work)
 and reran lean with a 240-minute deadline.
 The structural cause is the open item from `wrapper-cleans-up-after-its-own-worktrees-1`:
 a removed worktree's build tree stays until lean finds its workspace gone,
 and lean's pass over 154 checkouts is slower than agents fill the disk.
 At 21G free (01:20) the coordinator stopped every remaining agent,
-22 in all, the Kimi-findings fixers and the three never-stuck audit fixers among them
+22 in all,
+the Kimi-findings fixers and the three never-stuck audit fixers among them
 (names appended to the same file);
 free space was 27G at 2026-11-11T01:44:04-05:00.
 
@@ -1665,7 +1720,8 @@ which for a branch cut from an integration tip holds every integrated change:
 It now reviews each branch's own merge range (`M^1...M^2` of its merge into the integration branch),
 pinned to `bc3d54f9cd`,
 and a branch whose own change under the source folder is only tests is skipped.
-That starter keyed a branch by its current tip, so it saw only a branch's last merge:
+That starter keyed a branch by its current tip,
+so it saw only a branch's last merge:
 five branches were merged twice,
 and for `worktree-add-killed-mid-copy-is-finished-or-named` the last merge was a README change,
 so its real change would have gone unreviewed.
@@ -1677,33 +1733,46 @@ The binary suite on `ba1be33739` passed 962 of 965.
 The three failures are the killed-copy controls
 (`fault_trace::a_worktree_copy_killed_at_each_{chmod,openat2,write}_leaves_a_recoverable_repository`):
 a worktree add killed at that call leaves a worktree without its source's ignored files,
-and the next command only prints manual steps (remove an `index.lock`, `reset --hard`, or rerun the add)
+and the next command only prints manual steps (remove an `index.lock`,
+`reset --hard`,
+or rerun the add)
 or names a stage it cannot prove it made.
-Run alone, the 14 such controls failed 0 and then 1 at `8bd685935d`,
+Run alone,
+the 14 such controls failed 0 and then 1 at `8bd685935d`,
 and 2 to 10 at every later commit tried;
 the step comes at `5197a5537b`,
 the merge of `feat/git-policy-cli-shared-remote-settings-refused-in-worktrees`,
 which moved the reading of ignored files into `repo_read/repository_facts_ignored_files.rs`.
 Alternating runs of the two commits and of the alpha.9 base `edbbafa190` are measuring whether that step is real
-(unit `alternate-killed-copy-controls`, results in `~/temp/agent/pi-runs/alternate-killed-copy-controls-results.txt`).
+(unit `alternate-killed-copy-controls`,
+results in `~/temp/agent/pi-runs/alternate-killed-copy-controls-results.txt`).
 Agent `killed-add-leftover-copy-is-not-another-commands-wait` has the evidence.
 Release rule applied:
 only a reproduced data-loss or recovery regression that is new since alpha.9 holds `0.6.1-alpha.10`
-(the owner: "Prioritize fixing the jams and release jam fixes asap.", "Alphas don't even have to resolve all flakes.");
+(the owner:
+"Prioritize fixing the jams and release jam fixes asap.",
+"Alphas don't even have to resolve all flakes.");
 a Sonnet subagent is classifying the Kimi data-loss findings as older than alpha.9 or new
 (`~/temp/agent/pi-runs/kimi-data-loss-findings-against-alpha-9.md`).
-Both answers came back by 2026-11-11T02:40:00-05:00, and both hold `0.6.1-alpha.10`.
+Both answers came back by 2026-11-11T02:40:00-05:00,
+and both hold `0.6.1-alpha.10`.
 Alternating runs of the 14 killed-copy controls gave
-8 and 1 failing at `5197a5537b`, 2 and 1 at `8bd685935d`,
+8 and 1 failing at `5197a5537b`,
+2 and 1 at `8bd685935d`,
 and 14 of 14 passing at the alpha.9 base `edbbafa190`:
 the spread at one commit (1 to 10) swamps the step seen earlier,
 and the regression is older than `8bd685935d` but newer than alpha.9.
 `~/temp/agent/pi-runs/bisect-killed-copy-controls.ts` searches that range in worktree `bisect-killed-copy-controls`,
 calling a commit good only after two clean runs
 (results in `~/temp/agent/pi-runs/bisect-killed-copy-controls-results.txt`).
-The Sonnet classification (`~/temp/agent/pi-runs/kimi-data-loss-findings-against-alpha-9.md`, by blame, nothing run)
+The Sonnet classification (`~/temp/agent/pi-runs/kimi-data-loss-findings-against-alpha-9.md`,
+by blame,
+nothing run)
 found 28 data-loss findings:
-8 already in alpha.9, 2 mixed, 18 new since alpha.9 (2 of them in `cargo-shadow`), 17 still present at `ba1be33739`.
+8 already in alpha.9,
+2 mixed,
+18 new since alpha.9 (2 of them in `cargo-shadow`),
+17 still present at `ba1be33739`.
 The most direct new ones:
 the landed-merge sweep deletes an ignored `.env` written after the add,
 a by-name fallback destroys a replacement subvolume holding a user file,
@@ -1712,66 +1781,98 @@ marker-shaped user text is deleted when Git's conflict count reaches 127,
 `git worktree remove TOPIC` removes `topic`,
 a swept worktree's held commit disappears at `gc`,
 and the trash manifest write follows a planted symlink.
-Each is Kimi's reproduction, so each is reproduced again and fixed, or disproved, by its round-152 fix agent;
+Each is Kimi's reproduction,
+so each is reproduced again and fixed,
+or disproved,
+by its round-152 fix agent;
 all 22 were resumed (rounds 155 and 156) once the paused agents' build trees and 26 finished worktrees were cleaned
 (about 330 GiB by `cargo clean`).
 Pass 7 merged seven finished branches the runs had left unmerged
-(three Kimi-findings fixes, `commits-that-stop-after-their-add-steps`, `gate-flakes-scratch-sweep-and-descriptor-limit`,
-the `mpm-shadow` printed-remedy fix and the release-waiter fix) at `6df69b62f8`, Clippy clean;
+(three Kimi-findings fixes,
+`commits-that-stop-after-their-add-steps`,
+`gate-flakes-scratch-sweep-and-descriptor-limit`,
+the `mpm-shadow` printed-remedy fix and the release-waiter fix) at `6df69b62f8`,
+Clippy clean;
 `pushes-of-main-that-stalled-today` conflicts in five landing files and went to a re-merge agent (round 157).
 By 2026-11-11T05:05:00-05:00:
 the bisect named `950d24bd78` (the merge of `perf/git-policy-cli-worktree-removal-delete-load`),
 but more runs did not hold it up:
-its parent `3702fa307f` passed 5 of 5, `950d24bd78` failed 1 run of 4, `8bd685935d` 3 of 4, later tips nearly every run,
+its parent `3702fa307f` passed 5 of 5,
+`950d24bd78` failed 1 run of 4,
+`8bd685935d` 3 of 4,
+later tips nearly every run,
 and a commit that fails one run in four passes five in a row about a quarter of the time.
 The reading kept is a recovery gap in a killed worktree add that the integration's changes hit more and more often,
 not one merge's regression;
-it is worse on the integration than on alpha.9 either way, so it still holds the release,
+it is worse on the integration than on alpha.9 either way,
+so it still holds the release,
 and agent `killed-add-leftover-copy-is-not-another-commands-wait` owns closing every kill point.
 The suites on `6df69b62f8` ran under the load of about 30 agents
-(library 6,602 of 6,606 in 1,168 s, binary 954 of 967 in 1,435 s).
-Run alone, six of the seven failures outside the killed-copy controls passed:
+(library 6,602 of 6,606 in 1,168 s,
+binary 954 of 967 in 1,435 s).
+Run alone,
+six of the seven failures outside the killed-copy controls passed:
 contention or ordering defects in those tests (a preparation step given a ceiling of 0 s,
-a waiting notice that grows lines on a slow host, two prewarm-job controls and two binary controls that ran past 300 s).
+a waiting notice that grows lines on a slow host,
+two prewarm-job controls and two binary controls that ran past 300 s).
 `service_landing_state::a_conclusion_lands_through_the_service_and_removes_the_state_native_git_removes`
-ran past 300 s alone twice, a hang to compare against `ba1be33739`;
+ran past 300 s alone twice,
+a hang to compare against `ba1be33739`;
 `cargo-shadow`'s launcher-shim control failed only in its suite;
 `crate-release` and `mpm-shadow` passed lint and tests.
 A commit through alpha.9 printed `[warn] ... [shadowPool] refused the pooled shadow member-...: the shared ...`:
 a pooled shadow is refused whenever the common Git directory's shared entries change,
 which makes the commit build its own shadow and prints an internal-cache warning to the person;
 agent `pooled-shadow-refusals-are-rare-and-quiet` (round 158) measures and fixes both.
-Eighteen more Kimi reviews came back, fourteen with findings;
+Eighteen more Kimi reviews came back,
+fourteen with findings;
 fix agents for the gravest started in rounds 159 and 160 (ten),
 four reviews that ended on model errors were started again,
-and ten fix agents of rounds 155 and 156 finished, to merge as pass 8.
-The owner came back at 2026-11-11T05:30-05:00 and asked "What is going on? Why did you downgrade everything to 6 and 7?",
+and ten fix agents of rounds 155 and 156 finished,
+to merge as pass 8.
+The owner came back at 2026-11-11T05:30-05:00 and asked "What is going on?
+Why did you downgrade everything to 6 and 7?",
 then decided two things:
-"I've re-enabled auto-renew. Treat the prev Neuralwatt 429s void."
-(the launcher's pools are back to standard DeepSeek 20, DeepSeek flex 22, Kimi flex 22;
+"I've re-enabled auto-renew.
+Treat the prev Neuralwatt 429s void."
+(the launcher's pools are back to standard DeepSeek 20,
+DeepSeek flex 22,
+Kimi flex 22;
 the DeepSeek flex 7 had been an unmeasured assumption),
-and, asked whether to hold `0.6.1-alpha.10` for the new data-loss findings,
-picked "Release now, fixes in alpha.11".
+and,
+asked whether to hold `0.6.1-alpha.10` for the new data-loss findings,
+picked "Release now,
+fixes in alpha.11".
 That choice is also an older standing rule the coordinator misapplied overnight:
 "didn't I also say reviews and mutation testings don't block publishing?"
 (recorded under "Working rules for this effort"),
-so review findings become follow-up fixes and later releases, never a hold.
+so review findings become follow-up fixes and later releases,
+never a hold.
 `main` merged into the integration at `b96767962c`;
 the release gate runs on it
-(unit `gpc-gate-wrapper-alpha-10-on-b96767962c-20261111T053330-0500`, log in `~/temp/agent/gate/`).
+(unit `gpc-gate-wrapper-alpha-10-on-b96767962c-20261111T053330-0500`,
+log in `~/temp/agent/gate/`).
 `native:gate:verdict` could not run in the integration worktree
 ("Cannot find package '@monochromatic-dev/async-time-core'"),
 so the verdict is read with `~/temp/agent/gate/wait-for-gate-verdict.ts`;
 the task failing outside a fully installed checkout is a defect to fix.
-Pass 8's first merge failed with "fatal: unable to create threaded lstat: Resource temporarily unavailable"
+Pass 8's first merge failed with "fatal:
+unable to create threaded lstat:
+Resource temporarily unavailable"
 (the host near its thread limit under about 30 agents' builds);
-the wrapper applied nothing and said so, and pass 8 is retried after the release.
+the wrapper applied nothing and said so,
+and pass 8 is retried after the release.
 Next:
-the gate's verdict, then merge to `main`, `native:clippy` on `main`, `native:release`, `native:release:wait`,
+the gate's verdict,
+then merge to `main`,
+`native:clippy` on `main`,
+`native:release`,
+`native:release:wait`,
 the upgrade and a sample commit (nothing touching the release's paths lands on `main` until the bump commit is there),
 pass 8 and its suites for alpha.11,
 the fix agents' reproductions,
-the suites on `6df69b62f8` and the checks of `crate-release`, `cargo-shadow` and `mpm-shadow`,
+the suites on `6df69b62f8` and the checks of `crate-release`,
+`cargo-shadow` and `mpm-shadow`,
 the Kimi reviews of the newly merged branches,
 the Kimi-findings and audit fixes once free space allows,
 gate,
