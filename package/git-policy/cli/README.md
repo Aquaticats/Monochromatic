@@ -389,8 +389,22 @@ Read-only commands,
   and a typed `git push` ends at the first server error,
   with `git-lfs`'s own words,
   so that you push again.
-  The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the user and
-   password of every URL replaced by `<credentials>`.
+  The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the secrets
+   of every URL replaced by `<credentials>`:
+  the userinfo,
+  every path segment that is not a plain label (the letters `a` to `z` and `-`,
+  `.`,
+  `_` and `~` alone,
+   which is what `lfs`,
+  `objects` and `batch` are),
+  and every query and fragment value,
+  with a key kept only while it is a plain label.
+  The punctuation that ends a URL in a sentence stays after the mask.
+  The owner's rule,
+  quoted:
+  "Never print or commit secrets".
+  The same mask covers the wrapper's own diagnostic lines and the service's journal,
+  and a token made only of lowercase letters reads as a label and is not hidden.
   It covers a typed `git push` (including the merge push of a lost race),
   the auto-push after a commit and its
    reconcile pushes.
@@ -508,7 +522,7 @@ Read-only commands,
    and the branch when it is known;
    a failed command's line carries the branch and the tip it was at before the command.
    `level` is `warn` for a step that could not decide or a hand-over that failed and `info` otherwise,
-   and the userinfo of a URL in `detail` is masked.
+   and the secrets of a URL in `detail` are masked.
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
@@ -3387,7 +3401,9 @@ Real Git keeps the normal standard streams.
 The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MONOCHROMATIC_VERBOSE=true`,
  and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words,
 which can name a remote.
- The userinfo of any URL in such a line is replaced by `<credentials>`,
+ The userinfo of any URL in such a line,
+every path segment that is not a plain label,
+and every query and fragment value are replaced by `<credentials>`,
 and every control character by a space.
 
 ## Configuration
@@ -3887,6 +3903,13 @@ fractional or non-numeric value is ignored.
    and is not stopped here,
   however slow;
   one that does none of these is stopped after this many seconds.
+  While a connection to the remote is open,
+  the processor time and the task able to run of the process that holds it are not work:
+  measured on 2026-11-11,
+  `git-remote-http` uses one tick every three seconds polling a server that never answers,
+  and counting that tick is why a 150 second window never ended a silent server (the audit's F8).
+  Every byte the tree moves is work,
+  and so is the processor time of every process that holds no connection.
   A run whose connection to the remote is open (the push,
   the fetch that follows a refused push,
   and the Git LFS upload)
@@ -3901,9 +3924,10 @@ fractional or non-numeric value is ignored.
   The wrapper says so once,
   in a line that starts with `monochromatic-git-policy-cli: git push is waiting for the server`
    (`git fetch` or `git-lfs push` for those runs),
+  names the server the connection is to as its host and port when the run knows it,
   and waits until the remote answers or the connection closes,
    or until the connection stays open with nothing moving for that window,
-  when the run is stopped as a stall.
+  when the run is stopped as a stall that names the same server.
   "Connected" means that a process of the run holds a TCP socket in state `ESTABLISHED`,
   read from the kernel.
   A connection that dies without a reset is noticed only when TCP gives up;
@@ -6552,7 +6576,9 @@ a warning line on the stream).
 Every line ends with `at_ms=<milliseconds since the epoch>`,
 the time of its event,
 on both paths.
-The userinfo of any URL in a line is replaced by `<credentials>`.
+The userinfo of any URL in a line,
+every path segment that is not a plain label,
+and every query and fragment value are replaced by `<credentials>`.
 
 The lines,
 each prefixed `monochromatic-git-policy-cli-service:` on standard error and identified as `monochromatic-git-policy-cli-service` in the journal:
@@ -6623,7 +6649,7 @@ each prefixed `monochromatic-git-policy-cli-service:` on standard error and iden
 - `pushed branch="<ref>" oid=<oid> items=<n> outcome=done|failed|skipped push_ms=<n>` comes once for each push
   the service ran for a branch after commits
   (a failed push is a `warning` and carries Git's words,
-  credentials masked,
+  URL secrets masked,
   after a colon),
   `automatic maintenance ran maintenance_ms=<n>` and `the review of <oid> is done review_ms=<n>`
   say the other work ran,
