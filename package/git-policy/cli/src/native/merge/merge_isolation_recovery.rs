@@ -41,6 +41,8 @@ use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_awaiting;
 /// The install and the branch move of a merge that is finished from its record.
 use crate::merge_isolation_recovery_complete::complete_awaiting;
+/// The permission bits a file the install wrote keeps from before the merge wrote it.
+use crate::merge_isolation_recovery_install::give_back_the_permissions_of_the_files_the_install_wrote_awaiting;
 use crate::merge_isolation_recovery_steps::{
     index_standings_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes_awaiting,
 };
@@ -374,6 +376,10 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
         }
         return Ok(MergeRecoveryAction::IndexHeld);
     }
+    // `checkout-index` writes a file with the mode Git's entry implies, and the permission bits the person's file had are not
+    //  recorded there; they are read from the judgement and given back before the reading of what Git's update left, so the
+    //  carry judges and keeps that mode rather than the one the checkout gave the file.
+    give_back_the_permissions_of_the_files_the_install_wrote_awaiting(place, root, changes.as_slice(), judgements.as_slice(), out).await;
     // The checkout holds the merge, so the person's own work in its paths is merged with it before the record goes. The
     //  checkout was written by this command, so no earlier reading describes it: the reading of what it left is taken now, and a
     //  file written between this look and the carry's own take is caught by that take's check of the entry it removes.

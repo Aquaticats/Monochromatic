@@ -266,6 +266,75 @@ pub fn install_entries(
 }
 
 /// What:
+///  Give each file the merge's install wrote the permission bits the person's file had when the command judged it,
+///  with the executable bit Git's entry decided.
+/// Why:
+///  Git records one permission bit of a file and no other,
+/// and the capture a saved merge keeps holds the same bit and the bytes;
+/// the read and write bits of each of the owner,
+///  the group and everyone,
+/// and the setuid,
+/// setgid and sticky bits above them,
+/// are the person's,
+/// and a `chmod 0600` on a tracked `0644` file is invisible to Git and to the capture.
+/// `checkout-index` writes the merge's content with the mode its entry implies,
+/// so without this the
+///  permission the person set would be replaced by that mode
+/// (a Kimi K3.1 Pro review of `1a98764d1f`,
+/// its fifth finding).
+///  A path whose bytes are no longer the merge's own is somebody's newer save,
+/// which keeps its bytes and its mode.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function giveBackThePermissionsOfTheFilesTheInstallWrote({ place, root, changes, judgements }): Promise<void>; // (judged & 0o7666) | (written & 0o111)
+/// ```
+pub async fn give_back_the_permissions_of_the_files_the_install_wrote_awaiting<W: std::io::Write + ?Sized>(
+    place: &RecoveryPlace,
+    root: &Path,
+    changes: &[Change],
+    judgements: &[Judged],
+    out: &mut W,
+) {
+    for (change, judged) in changes.iter().zip(judgements.iter()) {
+        let Some(identity) = judged.identity else { continue };
+        let location: PathBuf = worktree_path(root, change.path.as_slice());
+        // What the install wrote, and nothing else, is what takes the person's permissions.
+        let state = crate::merge_isolation_changes::worktree_state_awaiting(&place.git, root, change.path.as_slice()).await;
+        match state {
+            Ok(crate::merge_isolation_changes::WorktreeState::Content { object, .. }) if object == change.new_oid => {}
+            _ => continue,
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let Ok(written) = std::fs::symlink_metadata(location.as_path()) else { continue };
+            if !written.file_type().is_file() {
+                continue;
+            }
+            let bits: u32 = (identity.mode & PERMISSION_BITS_WITHOUT_EXECUTE) | (written.permissions().mode() & 0o111);
+            if (written.permissions().mode() & 0o7777) == bits {
+                continue;
+            }
+            if let Err(error) = std::fs::set_permissions(location.as_path(), std::fs::Permissions::from_mode(bits)) {
+                let _noted = out.write_all(
+                    format!("monochromatic-git-policy-cli: {} could not be given back the permissions it had ({bits:o}): {error}\n", location.display()).as_bytes(),
+                );
+            }
+        }
+        // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+        #[cfg(not(unix))]
+        {
+            let _ = (&location, identity, out);
+        }
+    }
+}
+
+/// Every permission bit a person can set except the three the merge decides from Git's entry.
+#[cfg(unix)]
+const PERMISSION_BITS_WITHOUT_EXECUTE: u32 = 0o7666;
+
+/// What:
 ///  Remove the directories a deleted path leaves empty up to the worktree top.
 /// Why:
 ///   Git removes a deleted file's emptied directories too,
