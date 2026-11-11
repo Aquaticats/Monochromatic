@@ -82,9 +82,7 @@ pub(crate) fn land_batch_body(
         // The commit the branch names, asked in the one spelling the in-process readers answer (`<ref>^{commit}`), so the question
         //  starts no Git; for a branch, which only ever names a commit, the answer is the same as for the bare name.
         let branch_began: Instant = Instant::now();
-        let mut branch_commit: std::ffi::OsString = first.reference.as_os_str().to_os_string();
-        branch_commit.push("^{commit}");
-        let branch_value: [std::ffi::OsString; 4] = [std::ffi::OsString::from("rev-parse"), std::ffi::OsString::from("--verify"), std::ffi::OsString::from("--quiet"), branch_commit.clone()];
+        let branch_value: [std::ffi::OsString; 4] = crate::service_land_branch_move_transaction::branch_commit_question(&first.reference);
         let old: String = match checked(&git, repository, &branch_value, None) {
             Ok(found) => found,
             Err(_) if unborn => first.base.clone(),
@@ -265,10 +263,7 @@ pub(crate) fn land_batch_body(
         //  (measured: `option no-deref` with `update HEAD <new> <old>` replaced `ref: refs/heads/B` at the old name with the
         //  detached new one). A head that became a branch at another value fails the compare; at the same value the branch it
         //  names takes the commit, and the head is read again below.
-        // The name is bytes and the rest of the line is the wrapper's own text, so a name that is not text reaches Git whole.
-        let mut transaction: Vec<u8> = b"start\nupdate ".to_vec();
-        transaction.extend_from_slice(first.reference.bytes());
-        transaction.extend_from_slice(format!(" {new} {old}\n{removal}prepare\ncommit\n").as_bytes());
+        let transaction: Vec<u8> = crate::service_land_branch_move_transaction::reference_move_transaction(&first.reference, new.as_str(), old.as_str(), removal.as_str());
         // The message is one argument of `-m`, never a line of the transaction, so no byte of the commit's message can change
         // the grammar Git reads on standard input (`AGENTS.md` rules `SYB` and `STB`).
         let moving: Vec<std::ffi::OsString> = vec![

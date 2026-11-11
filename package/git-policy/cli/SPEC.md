@@ -11458,11 +11458,13 @@ and the message the person typed saved in a file.
 Every name is bytes:
 the symbolic `HEAD` and its target are read from Git's answer unchanged,
 so a branch whose name holds a byte that is not UTF-8 is captured,
-recorded, prepared and moved as that name,
+recorded,
+prepared and moved as that name,
 and every message shows it in the `$'...'` form a shell reads back
 (`src/native/foundation/ref_name.rs`).
 The same holds for the arguments of the command:
-a message, a message file's name or a `--pathspec-from-file` name reaches real Git with the bytes the person typed
+a message,
+a message file's name or a `--pathspec-from-file` name reaches real Git with the bytes the person typed
 (`src/native/commit/commit_args.rs`,
 `src/native/landing/service_prepare_changes_config_and_pathspec_steps.rs`).
 

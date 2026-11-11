@@ -27,7 +27,7 @@
 //! ```
 
 pub use crate::service_commit_args_editor_opening::opens_editor;
-use crate::commit_args::is_one_of;
+use crate::commit_args_token_bytes::{is_an_equals_sign, is_one_of};
 use crate::path_bytes::{argument_bytes, os_from_path_bytes};
 use std::ffi::OsString;
 
@@ -341,7 +341,7 @@ pub fn with_fixed_message(arguments: &[OsString], subcommand_index: usize, file:
         if bytes.starts_with(b"--") {
             // The name ends where the value an `=` attached begins, and the name is the caller's bytes so a token that is
             //  not text is never taken for one of these options.
-            let (rest, attached): (&[u8], bool) = match bytes.iter().position(|byte| { return *byte == b'='; }) {
+            let (rest, attached): (&[u8], bool) = match bytes.iter().position(is_an_equals_sign) {
                 Some(at) => (&bytes[..at], true),
                 None => (bytes, false),
             };

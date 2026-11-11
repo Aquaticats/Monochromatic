@@ -456,13 +456,7 @@ const NOT_AN_ANCESTOR: i32 = 1;
 /// async function currentValue(git, intent): Promise<string | undefined> // '' for a missing reference
 /// ```
 fn current_value(git: &GitContext, intent: &Intent) -> Option<String> {
-    let words: [std::ffi::OsString; 4] = [
-        std::ffi::OsString::from("rev-parse"),
-        std::ffi::OsString::from("--verify"),
-        std::ffi::OsString::from("--quiet"),
-        intent.reference.as_os_str().to_os_string(),
-    ];
-    let request: GitRequest = GitRequest::new(intent.repository.as_path(), words.as_slice());
+    let request: GitRequest = GitRequest::new(intent.repository.as_path(), intent.reference.value_question().as_slice());
     let Ok(output) = run_git(git, &request) else {
         return None;
     };

@@ -24,6 +24,20 @@ use crate::path_bytes::{argument_bytes, os_from_path_bytes};
 use std::ffi::{OsStr, OsString};
 use std::fmt::{Display, Formatter};
 
+/// What:
+///  Whether one byte ends a line.
+/// Why:
+///   Git's answer ends with a line feed,
+/// and the name is the bytes before it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isALineFeed = (byte: number) => byte === 10
+/// ```
+fn is_a_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
 /// The prefix of every local branch,
 /// which the wrapper's own words leave out.
 const HEADS_PREFIX: &str = "refs/heads/";
@@ -63,7 +77,7 @@ impl RefName {
     /// const refNameFromGit = (printed: Uint8Array) => ({ os: printed.subarray(0, printed.lastIndexOf(10)) })
     /// ```
     pub fn from_git_output(printed: &[u8]) -> Self {
-        let end: usize = printed.iter().rposition(|byte| { return *byte == b'\n'; }).unwrap_or(printed.len());
+        let end: usize = printed.iter().rposition(is_a_line_feed).unwrap_or(printed.len());
         return Self { os: os_from_path_bytes(&printed[..end]) };
     }
 
@@ -87,7 +101,8 @@ impl RefName {
     /// Why:
     ///   A record is text,
     /// so a name that is not text travels in it as its bytes
-    ///  (`path_bytes_in_records`), and a reader turns those back into the name.
+    ///  (`path_bytes_in_records`),
+    /// and a reader turns those back into the name.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -201,6 +216,22 @@ impl RefName {
     /// ```
     pub fn spoken(&self) -> String {
         return crate::shell_quote::shell_quote(self.bytes());
+    }
+
+    /// What:
+    ///  The words of `git rev-parse --verify --quiet <this name>`,
+    ///  as one command line a start takes.
+    /// Why:
+    ///   Two readers ask a worktree's branch or a held record's branch for its commit,
+    /// and the name in the question is bytes:
+    ///  a spelling with replacement characters would ask about another ref.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const words = ['rev-parse', '--verify', '--quiet', refName.os]
+    /// ```
+    pub fn value_question(&self) -> [OsString; 4] {
+        return [OsString::from("rev-parse"), OsString::from("--verify"), OsString::from("--quiet"), self.os.clone()];
     }
 
     /// What:

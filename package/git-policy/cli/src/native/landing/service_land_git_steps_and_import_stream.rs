@@ -126,8 +126,25 @@ pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: 
 }
 
 pub(crate) fn run<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
-    let words: Vec<std::ffi::OsString> = arguments.iter().map(|word| { return word.as_ref().to_os_string(); }).collect();
-    return run_words(git, repository, words.as_slice(), input);
+    return run_words(git, repository, owned_words(arguments).as_slice(), input);
+}
+
+/// What:
+///  One command line as the owned words a byte-native start takes.
+/// Why:
+///   The words may hold bytes that are not text,
+/// so each one is taken as the operating system has it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ownedWords = (arguments) => arguments.map((word) => Buffer.from(word))
+/// ```
+fn owned_words<S: AsRef<std::ffi::OsStr>>(arguments: &[S]) -> Vec<std::ffi::OsString> {
+    let mut words: Vec<std::ffi::OsString> = Vec::with_capacity(arguments.len());
+    for argument in arguments {
+        words.push(argument.as_ref().to_os_string());
+    }
+    return words;
 }
 
 /// What:

@@ -67,8 +67,9 @@ pub fn path_bytes_of(path: &Path) -> &[u8] {
 /// a message file's name) reaches Git as it was typed.
 ///  `&[u8]` borrows from `argument`.
 /// Why:
-///   An argument is bytes and not text: a commit message or a file name the person typed may hold a byte that is not
-///  UTF-8, and a spelling with replacement characters names another message and another file.
+///   An argument is bytes and not text:
+/// a commit message or a file name the person typed may hold a byte that is not UTF-8,
+///  and a spelling with replacement characters names another message and another file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

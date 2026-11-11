@@ -86,13 +86,7 @@ pub enum Replay {
 /// revParseQuiet(reference) // '' when the ref is missing, undefined when Git gave no answer
 /// ```
 fn current_value(git: &GitContext, held: &Held) -> Option<String> {
-    let words: [std::ffi::OsString; 4] = [
-        std::ffi::OsString::from("rev-parse"),
-        std::ffi::OsString::from("--verify"),
-        std::ffi::OsString::from("--quiet"),
-        held.reference.as_os_str().to_os_string(),
-    ];
-    let request: GitRequest = GitRequest::new(held.repository.as_path(), words.as_slice());
+    let request: GitRequest = GitRequest::new(held.repository.as_path(), held.reference.value_question().as_slice());
     let output: GitOutput = run_git(git, &request).ok()?;
     if output.succeeded() {
         return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());

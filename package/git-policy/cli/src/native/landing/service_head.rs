@@ -63,7 +63,7 @@ const REFTABLE_PLACEHOLDER: &str = "refs/heads/.invalid";
 
 fn interpret(text: &[u8]) -> HeadFile {
     // The first line only, without the whitespace its end carries; a name that is not text is still a name.
-    let first: &[u8] = text.split(|byte| { return *byte == b'\n'; }).next().unwrap_or(b"");
+    let first: &[u8] = text.split(is_a_line_feed).next().unwrap_or(b"");
     let line: &[u8] = trim_ascii_end(first);
     if let Some(reference) = line.strip_prefix(b"ref: ") {
         if reference == REFTABLE_PLACEHOLDER.as_bytes() {
@@ -75,6 +75,20 @@ fn interpret(text: &[u8]) -> HeadFile {
         return HeadFile::Unreadable;
     }
     return HeadFile::Detached(String::from_utf8_lossy(line).trim_end().to_string());
+}
+
+/// What:
+///  Whether one byte ends a line.
+/// Why:
+///   A `HEAD` file is one line,
+/// and the name is the bytes before the line feed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isALineFeed = (byte: number) => byte === 10
+/// ```
+fn is_a_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
 }
 
 /// What:

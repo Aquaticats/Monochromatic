@@ -181,7 +181,10 @@ fn probe<S: AsRef<OsStr>>(context: &GitContext, cwd: &Path, arguments: &[S]) -> 
         Ok(output) => Ok(output),
         Err(error) => {
             // The words are a message here, so a name that is not text is shown as the shell reads it back.
-            let shown: Vec<String> = arguments.iter().map(|word| { return crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(word.as_ref())); }).collect();
+            let mut shown: Vec<String> = Vec::with_capacity(arguments.len());
+            for argument in arguments {
+                shown.push(crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(argument.as_ref())));
+            }
             Err(GitFailure(format!("git {} could not start: {error}", shown.join(" "))))
         }
     };
