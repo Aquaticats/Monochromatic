@@ -33,11 +33,13 @@ use crate::service_commit_input_notes_and_embedded_commit::managed_client_config
 use crate::service_messages::{ClientFailure, render};
 use crate::service_provision::provision;
 use crate::service_route::route_from_environment;
+use crate::service_server::Bind;
 use crate::service_work::work_directory;
 use crate::transaction_git::GitContext;
-use crate::work_item::{WorkItem, WorkKind, enqueue};
+use crate::work_item::{Enqueued, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_trash_hand_over::Reach;
 
+use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
@@ -93,20 +95,29 @@ impl RelinkTool {
 /// What:
 ///  The work one relink record asks for:
 /// the new worktree,
+/// the search path the add resolved its programs on,
 /// and the tools whose state needs relinking there.
 /// Why:
-///   Both facts are what the add already read from the worktree,
+///   The first two facts are what the add already read from the worktree and the person's environment,
 /// so the service repeats no decision the add made,
 /// and the record says exactly what the add would have run.
+/// The search path travels because the service is a resident process of another session:
+/// its own path may hold no pnpm or another one,
+/// and the owner decided the repair starts whatever pnpm is first on the person's path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RelinkEntry = { root: string; tools: RelinkTool[] };
+/// type RelinkEntry = { root: string; searchPath?: string; tools: RelinkTool[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RelinkEntry {
     /// The new worktree.
     pub root: PathBuf,
+    /// The search path the add resolved each tool's program on,
+    /// and that the tools' own children inherit;
+    /// absent only in a record written before this release carried it,
+    /// where the service searches its own path.
+    pub search_path: Option<OsString>,
     /// The tools the service runs there,
     /// in the order the report has always named them.
     pub tools: Vec<RelinkTool>,
@@ -131,11 +142,11 @@ fn name_of_tool(tool: &RelinkTool) -> serde_json::Value {
 /// Why:
 ///   The queue's record holds one text field,
 /// so the entry travels as one JSON object,
-/// and the path is refused rather than written lossily.
+/// and a path or a search path is refused rather than written lossily.
 ///
 /// # Errors
 ///
-/// A path that is not UTF-8,
+/// A path or a search path that is not UTF-8,
 /// which no record could name back,
 /// and an entry that asks for no tool,
 /// which would be a record of nothing.
@@ -148,6 +159,12 @@ pub fn encode(entry: &RelinkEntry) -> Result<String, String> {
     };
     let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
     fields.insert(String::from("root"), serde_json::Value::from(root));
+    if let Some(search_path) = entry.search_path.as_deref() {
+        let Some(text) = search_path.to_str() else {
+            return Err(String::from("the search path of the relink is not valid UTF-8, so no record can carry it"));
+        };
+        fields.insert(String::from("searchPath"), serde_json::Value::from(text));
+    }
     let names: Vec<serde_json::Value> = entry.tools.iter().map(name_of_tool).collect();
     fields.insert(String::from("tools"), serde_json::Value::Array(names));
     return Ok(serde_json::Value::Object(fields).to_string());
@@ -159,6 +176,9 @@ pub fn encode(entry: &RelinkEntry) -> Result<String, String> {
 ///   A payload that is not the object `encode` writes is refused,
 /// and so is a tool name this release does not know or a list of no tool:
 /// the service must run exactly the tools the add decided on.
+/// A record written before this release carried a search path names none,
+/// and the service then searches its own path,
+/// so such a record still relinks the worktree it was written for.
 ///
 /// # Errors
 ///
@@ -189,26 +209,36 @@ pub fn decode(payload: &str) -> Result<RelinkEntry, String> {
     if tools.is_empty() {
         return Err(String::from("the relink names no tools"));
     }
-    return Ok(RelinkEntry { root: PathBuf::from(root), tools });
+    let search_path: Option<OsString> = parsed.get("searchPath").and_then(serde_json::Value::as_str).map(OsString::from);
+    return Ok(RelinkEntry { root: PathBuf::from(root), search_path, tools });
 }
 
 /// What:
-///  The record's object name for a worktree:
-/// a digest of its path,
-/// which no commit and no other worktree shares.
+///  The record's object name for one hand-over:
+/// a digest of the worktree's path and the moment the add asked for the relink.
 /// Why:
-///   The record's id is its idempotency key,
-/// and two worktrees added from the same commit must each get their own relink,
-/// while a record a killed add wrote and the next add's record are one item.
+///   A work item's id is its idempotency key,
+/// and the queue answers an id it already knows as known in every state.
+/// With the path alone,
+/// a worktree removed and added again at the same path would be answered by the earlier record,
+/// and its copied links would stay exactly as the copy left them while the add reported a relink
+/// that can never arrive.
+/// A previous failure would keep every later add at that path from ever asking again.
+/// The moment tells two hand-overs of one path apart,
+/// and the path keeps two worktrees apart.
 /// Forty hexadecimal digits is what a work item's object name must have,
 /// and a SHA-256 slice is cheap to compute.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const objectNameOf = (destination) => sha256(utf8(destination)).toString('hex').slice(0, 40);
+/// const objectNameOf = (destination, queuedAt) => sha256(utf8(`${destination}\n${queuedAt}`)).toString('hex').slice(0, 40);
 /// ```
-pub fn object_name_of(destination: &Path) -> String {
-    let digest: [u8; 32] = crate::subvolume_sha::sha256(destination.as_os_str().as_bytes());
+pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
+    let mut text: Vec<u8> = Vec::new();
+    text.extend_from_slice(destination.as_os_str().as_bytes());
+    text.push(b'\n');
+    text.extend_from_slice(queued_at.as_bytes());
+    let digest: [u8; 32] = crate::subvolume_sha::sha256(text.as_slice());
     return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(&digest[..20]);
 }
 
@@ -217,30 +247,52 @@ pub fn object_name_of(destination: &Path) -> String {
 /// Why:
 ///   The producer and its controls both write exactly this,
 /// so a control can compare a record without reaching a service.
+/// The stamp is read once and is both the record's `created` and part of its object name,
+/// so a control can tell which record it is looking at from the record alone,
+/// and two adds at one path are two records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const itemOf = ({ commonDir, destination, entry }) => ({ kind: 'relink', repository: destination, gitDir: commonDir, ref: RELINK_REFERENCE, oid: objectNameOf(destination), parent: encode(entry), created: nowISO(), tries: 0 });
+/// const itemOf = ({ commonDir, destination, entry }) => { const created = new Date().toISOString(); return { kind: 'relink', repository: destination, gitDir: commonDir, ref: RELINK_REFERENCE, oid: objectNameOf(destination, created), parent: encode(entry), created, tries: 0 }; };
 /// ```
 pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<WorkItem, String> {
+    let created: String = now_iso();
     return Ok(WorkItem {
         kind: WorkKind::Relink,
         repository: destination.to_path_buf(),
         git_dir: common_dir.to_path_buf(),
         branch_ref: String::from(RELINK_REFERENCE),
-        oid: object_name_of(destination),
+        oid: object_name_of(destination, created.as_str()),
         parent: encode(entry)?,
-        created: now_iso(),
+        created,
         tries: 0,
     });
 }
 
 /// What:
-///  Write the relink's record and wake the service that runs it.
+///  Write the relink's record and wake the service that runs it,
+/// or take the record back when no service holds it.
 /// Why:
 ///   The record is written first,
 /// so a wake that cannot reach the service leaves the work named rather than lost,
 /// and the add never waits for the relinking.
+/// A record nobody took owes nothing,
+/// because the add relinks the worktree itself,
+/// and it must go:
+/// a record names a path and the tools for it,
+/// and a service that drained it later would run those tools in whatever directory holds that path by then,
+/// which need not be the worktree the add relinked.
+/// Taking the pending record back is one unlink,
+/// which the queue's claim answers by finding nothing to take,
+/// so the two never both do the work.
+///
+/// Ok:
+///  A service holds the record,
+/// so the relinking is its work.
+/// Err:
+///  No service holds the record and none can be given it,
+/// so the add relinks the worktree itself;
+/// the text says why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -255,7 +307,8 @@ pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destina
 /// so a control reaches no service and no session bus.
 /// Why:
 ///   The same reach a prewarm is handed over with,
-/// so a relink is queued and woken exactly as that work is.
+/// so a relink is queued and woken exactly as that work is,
+/// and a hand-over that reaches nothing answers as `hand_over_to_the_service` documents.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -263,28 +316,130 @@ pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destina
 /// ```
 pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry, reach: &Reach<'_>) -> Result<(), String> {
     let item: WorkItem = item_of(common_dir, destination, entry)?;
-    if let Err(reason) = enqueue(work_directory(common_dir).as_path(), &item) {
-        debug(TAG, format!("the work item could not be written: {reason}").as_str());
-        return Err(format!("the work item could not be written: {reason}"));
+    let work_dir: PathBuf = work_directory(common_dir);
+    let id: String = item.id();
+    match enqueue(work_dir.as_path(), &item) {
+        Ok(Enqueued::Added) => {}
+        Ok(Enqueued::Known) => {
+            // The id says this add's own record is already queued: the moment is part of the name, so no earlier add's
+            //  record answers for this one. A record of this add that is not pending any more was claimed by a service,
+            //  which knows what became of it.
+            return if pending_record(&work_dir, id.as_str()).exists() {
+                Ok(())
+            } else {
+                Err(format!("the record {id} of this relink was already taken by a service, which holds it"))
+            };
+        }
+        Err(reason) => {
+            debug(TAG, format!("the work item could not be written: {reason}").as_str());
+            return Err(format!("the work item could not be written: {reason}"));
+        }
     }
-    let Some(route) = (reach.router)(context.real_git.as_path(), common_dir) else {
-        return Err(String::from("no commit service can be started from this session"));
+    let reason: String = match (reach.router)(context.real_git.as_path(), common_dir) {
+        None => String::from("no commit service can be started from this session"),
+        Some(route) => {
+            let crate::service_route::Route { address, provision: host } = route;
+            let reached: Result<(), String> = match host.as_ref() {
+                Some(setup) => match (reach.provisioner)(setup) {
+                    Ok(()) => wake_the_service(address, host.as_ref(), common_dir, reach.start_wait),
+                    Err(failure) => Err(render(&failure)),
+                },
+                None => wake_the_service(address, host.as_ref(), common_dir, reach.start_wait),
+            };
+            match reached {
+                Ok(()) => return Ok(()),
+                Err(reason) => reason,
+            }
+        }
     };
-    let crate::service_route::Route { address, provision: host } = route;
-    if let Some(setup) = host.as_ref()
-        && let Err(failure) = (reach.provisioner)(setup)
-    {
-        return Err(render(&failure));
-    }
-    // What: The record is written before this wake, so the wake waits the hand-over's own greeting bound and never the
-    //       commit's start wait.
-    // Why:  The worktree must work for the person's next command either way: an answer that does not come within the bound
-    //       means this command does the relinking itself instead of waiting on a service
-    //       (`wait_ceilings.rs`, `HAND_OVER_GREETING_WAIT`).
-    let config: ClientConfig = ClientConfig { start_wait: reach.start_wait, start_ceiling: reach.start_wait, ..managed_client_config(address, host.as_ref()) };
-    // The wake's lines are not the add's: it says once what became of the relinking.
+    debug(TAG, format!("{}: no service took the relink ({reason})", destination.display()).as_str());
+    return Err(match withdraw_pending(&work_dir, id.as_str()) {
+        Withdrawal::Withdrew => reason,
+        // Another party took the record between the write and the unlink: a service holds it, so its work is not lost
+        //  and the add must not run the same install beside it.
+        Withdrawal::Taken => {
+            debug(TAG, format!("{}: a service took the record {id} before it could be withdrawn", destination.display()).as_str());
+            return Ok(());
+        }
+        // The record could not be removed, so it stays and the service may run the same install again: the add relinks
+        //  the worktree too, because a worktree whose copied links were never relinked is wrong either way.
+        Withdrawal::Unremoved(error) => format!("{reason}; the record {id} stays ({error}), so the commit service may relink this worktree again"),
+    });
+}
+
+/// What:
+///  Tell the service at `address` that the repository has work to drain,
+///  waiting `start_wait` for its greeting and no longer than that for a start.
+/// Why:
+///   The wake's lines are not the add's:
+/// it says once what became of the relinking,
+/// so the client's output is dropped here,
+/// and the wait is the reach's,
+/// which a control sets short enough that a service which never answers cannot hold it.
+/// The record is written before this wake,
+/// so the bound is the hand-over's own greeting wait and never the commit's start wait:
+/// a greeting that does not come within it means this command does the relinking itself
+/// (`wait_ceilings.rs`,
+/// `HAND_OVER_GREETING_WAIT`),
+/// and the ceiling moves with it so no other bound lengthens the wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wakeTheService = (address, host, commonDir, startWait) => { const config = { ...managedClientConfig(address, host), startWait, startCeiling: startWait }; wake(config, commonDir, undefined, silent) };
+/// ```
+fn wake_the_service(address: Bind, host: Option<&crate::service_provision::ProvisionHost>, common_dir: &Path, start_wait: std::time::Duration) -> Result<(), String> {
+    let config: ClientConfig = ClientConfig { start_wait, start_ceiling: start_wait, ..managed_client_config(address, host) };
     let mut silent: std::io::Sink = std::io::sink();
     return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
+}
+
+/// What:
+///  What a hand-over's attempt to take its pending record back found.
+/// Why:
+///   The three answers differ in what the add does next:
+/// nothing took the record,
+/// another party took it,
+/// or it could not be removed and both may run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Withdrawal = 'withdrew' | 'taken' | { unremoved: string };
+/// ```
+enum Withdrawal {
+    /// The pending record was removed,
+    /// so no service can claim it.
+    Withdrew,
+    /// The pending record was gone already,
+    /// so a claim or a settlement took it.
+    Taken,
+    /// The record is still queued and says why it could not be removed.
+    Unremoved(String),
+}
+
+/// The pending record of one id.
+fn pending_record(work_dir: &Path, id: &str) -> PathBuf {
+    return state_directory(work_dir, PENDING).join(id);
+}
+
+/// What:
+///  Remove the pending record of one id,
+///  so no service drains work the add did itself.
+/// Why:
+///   The claim moves the file out of `pending` in one rename,
+/// so this unlink either wins and the claim finds nothing,
+/// or loses and the service owns the work;
+/// neither party runs the install for nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withdrawPending = (workDir, id) => { try { unlink(pending(workDir, id)); return 'withdrew' } catch (error) { return error.code === 'ENOENT' ? 'taken' : { unremoved: error.message } } };
+/// ```
+fn withdraw_pending(work_dir: &Path, id: &str) -> Withdrawal {
+    return match std::fs::remove_file(pending_record(work_dir, id).as_path()) {
+        Ok(()) => Withdrawal::Withdrew,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Withdrawal::Taken,
+        Err(error) => Withdrawal::Unremoved(error.to_string()),
+    };
 }
 
 /// What:

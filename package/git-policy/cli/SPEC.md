@@ -3696,6 +3696,9 @@ of which the two that rewrite link layouts in place are the service's work whene
   which runs it after the add returns,
   and runs it here when no service took the record,
   because a worktree whose copied links were never relinked resolves the source's packages without an error.
+  A hand-over no service took takes its record back:
+  the add's own run is the work that record named,
+  and a record left queued names only a path.
 - Cargo,
   for every Cargo workspace among the worktree's tracked `Cargo.toml` files (found with `git ls-files`,
   so no walk reads
@@ -3782,6 +3785,26 @@ of which the two that rewrite link layouts in place are the service's work whene
   which in this repository is the pnpm-shadow.
   The owner decided this on 2026-11-03:
   "The repair should start whatever pnpm is first on path."
+  The `relink` record carries that search path,
+  so the service starts the program the add resolved,
+  and the program's own children read the same path;
+  the service's own path may hold no pnpm or another one.
+  The record's object name is a digest of the worktree's path and the moment the add asked,
+  so a worktree removed and added again at the same path never takes an earlier record's answer,
+  whether that record settled or failed there.
+
+What the service proves before it relinks:
+the record's payload and its repository field must name one directory,
+and that directory's `.git` must name a registration under the repository's `worktrees`.
+A record outlives the worktree it was written for
+(a service that died holds a claim until the claim runs out),
+and its tools rewrite link layouts in place,
+so a directory that is no longer this repository's worktree is left exactly as it is,
+and the service's journal says so.
+A worktree removed and added again at the same path before that record was drained is a registration of the
+repository too,
+and each tool decides from the directory it finds whether it has anything to relink there,
+so the run is the one the new worktree's own record asks for.
 
 Each tool ends in a finding.
 A tool that shows no sign of work for the quiet window (600 seconds;

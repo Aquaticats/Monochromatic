@@ -48,12 +48,16 @@ pub const ADDED_RECORD_NAME: &str = "monochromatic-git-policy-cli-worktree-added
 ///  is another repository's worktree or not a worktree at all.
 ///  Only the trailing line breaks Git's own reader takes are taken,
 ///  so a directory whose name ends in a space is the registration the pointer names.
+/// The same proof answers where a record's directory is still that worktree
+///  (`package_repair_relink_job.rs`):
+///  the link layout a delayed relink rewrites belongs to this repository's worktree at the recorded path,
+///  and no other directory is touched.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const admin = registrationAdminOf(commonDir, worktree); // throws the reason
 /// ```
-fn registration_admin(common_dir: &Path, worktree: &Path) -> Result<PathBuf, String> {
+pub(crate) fn registration_admin(common_dir: &Path, worktree: &Path) -> Result<PathBuf, String> {
     let pointer_path: PathBuf = worktree.join(".git");
     let pointer: Vec<u8> = match std::fs::read(pointer_path.as_path()) {
         Ok(bytes) => bytes,
