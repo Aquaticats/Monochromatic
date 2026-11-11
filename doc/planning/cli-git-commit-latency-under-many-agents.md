@@ -3326,7 +3326,7 @@ The conclusion copies:
 one `mkdir` of the transaction's `conclusion` directory,
 one `stat` per name in `CONCLUSION_STATE_FILES`,
 and a write per entry that exists (`conclusion_copy.rs`),
-which was a synced one until 2026-11-10T18:33:20-05:00
+which was a synced one until 2026-11-10T18:05:00-05:00
 ("A merge commit's conclusion copies no longer flush,
 and the checkout it lands in").
 Only a commit that concludes a merge,
@@ -3931,7 +3931,7 @@ and nothing names which `ClientFailure` ended it nor its words,
 so the six-send silence above had to be read from the counts and from the service's journal rather than
 stated by the record.
 
-## A merge commit's conclusion copies no longer flush, and the checkout it lands in (2026-11-10T18:33:20-05:00)
+## A merge commit's conclusion copies no longer flush, and the checkout it lands in (2026-11-10T19:29:14-05:00)
 
 What this answers:
 where a merge commit's time goes,
@@ -3945,6 +3945,8 @@ The owner's words behind the question:
 "Agents should never wait on each other on commits or merges.",
 "commits vs native git should not take 5s longer.",
 "Commits should never fail."
+The numbers in the next section come from the installed wrapper;
+every number after it comes from two binaries built from this branch.
 The landing shape is `git merge --no-ff --no-commit` followed by `git commit` in the main checkout,
 which holds other sessions' unstaged edits,
 while dozens of agents commit in their worktrees,
@@ -4047,165 +4049,265 @@ A plain commit of the same paths publishes none.
 ### The shape, reproduced in a disposable clone
 
 The fixture is a `git clone --local --no-hardlinks` of this repository at
-`${HOME}/temp/agent/merge-commit-cost/repro-k5Lw47`,
+`${HOME}/temp/agent/merge-commit-cost/signed-Pqb8da`,
 23,082 tracked files and a 0.61 GB checkout,
+cloned from this repository at `4ce898c328`,
 with its one remote removed so nothing can be pushed anywhere.
 On it:
 
 - 300 of its `.rs` files are edited and left uncommitted:
   the person's unsaved work,
   which survives every arm (the status after each arm lists exactly those 300 paths).
+- Twelve groups of 300 `.rs` files and four groups of 20,
+  no two of which share a path,
+  so no two arms ever change one path and a conflict can never be mistaken for a measurement.
 - One linked worktree,
   `features`,
   carries the branch the coordinator lands:
-  one commit per round,
-  each changing 200 `.rs` files that no other round and no plain arm touches.
-- Four linked worktrees,
-  `writer-0` to `writer-3`,
-  commit small changes through the wrapper for the
-  whole measurement:
-  about 50 commits each landed,
-  and 20 more of their commits ended `stopped`
-  (two causes,
-  named under "What this could not determine").
-- Both arms run in the main checkout:
-  `merge` is `git merge --no-ff --no-commit features` then `git commit --no-edit`,
-  `plain` is `git add -- <200 paths>` then `git commit --message <label> -- <200 paths>`.
-  Only the `git commit` is timed.
+  one commit per merge arm,
+  over that arm's own group.
+- Eight linked worktrees,
+  `writer-0` to `writer-7`,
+  commit small changes through the wrapper for the whole measurement.
+- **Every commit is signed.**
+  The fixture's own keyring holds one throwaway ed25519 key,
+  made by `gpg --quick-generate-key` inside the run folder,
+  and the clone sets `commit.gpgsign = true` and `user.signingkey` to it.
+  This is what makes the two arms honest:
+  a signed commit needs Git,
+  so the wrapper builds it in a shadow repository exactly as it builds a merge commit,
+  and the only thing left that can differ is the state the commit concludes.
+  A first pass without signing had the plain arm built by the service itself in 3 to 9 ms,
+  which made the merge commit look more expensive than it is;
+  those numbers are not quoted here.
 
 Two binaries were built from this branch with
 `mise run //package/git-policy/cli:native:build:release`:
-`before` at the commit the branch started from,
-and `after` once the conclusion copies stopped flushing.
-Each arm's services are started by the harness itself under a `HOME` and `XDG_RUNTIME_DIR` inside the run folder,
-so nothing it does reaches this repository's services,
-its configuration or its Git directory,
-and the arms alternate between the two binaries.
+`before` from `9695badc11` (the branch head with the control committed and the fix not applied),
+and `after` from `75de8b98a8`.
+Each arm starts its own services from the arm's binary,
+under a `HOME` and a fresh `XDG_RUNTIME_DIR` inside the run folder,
+so no command reaches this repository's services,
+configuration or Git directory,
+and no client can dial a socket a previous arm's service left behind.
+The arms alternate between the two binaries and the two modes.
+Each arm is one commit:
 
-Host at the time:
-load average 130 to 160 on eight CPUs,
-`/proc/pressure/io` `full` at 20.9 percent over ten seconds and 10.8 percent over five minutes,
-which is the load there was and not one this measurement made.
+- `merge`:
+  `git merge --no-ff --no-commit features`,
+  then `git commit --no-edit`.
+- `plain`:
+  `git add -- <300 paths>`,
+  then `git commit --message <label> -- <300 paths>`.
+
+Only the `git commit` is timed;
+the merge and the add are reported apart,
+because neither is in the commit.
+
+Host at the time,
+read rather than waited for:
+at 2026-11-10T17:40:33-05:00,
+about two hours before this run began,
+load average was 155.89 on eight CPUs and
+`/proc/pressure/io` `full` was 20.86 percent over ten seconds,
+14.03 over sixty and 10.83 over five minutes.
+Nothing waited for a quieter host,
+and no load was made for this measurement:
+the arms shared the machine with the other sessions working on it.
+What the run itself met is in its own records:
+the landing queue both arms queued in
+(`submitMs` 159 to 2,953 ms),
+the services' own lines,
+and 19 of the fixture's 72 commits ending without landing.
 
 ### What each arm spent
 
-Seconds are the wrapper's own record of the commit that ended each arm,
-`conclusion` is `buildParts["shadow conclusion"]`,
-and the arms are listed in the order they ran,
-the first pair on 2026-11-10T23:33:20Z and the rest on 2026-11-10T23:47:12Z:
+Every figure is the wrapper's own record of the commit that ended the arm,
+attached to the arm by the millisecond clock its record carries,
+never transcribed by hand.
+`copies` is `buildParts["shadow conclusion"]`,
+which is the stretch the conclusion copies hold.
 
-- `b1`,
-  merge,
-  `before`:
-  commit 91,245 ms,
-  conclusion 84,692 ms,
-  build 85,602 ms,
-  submit 5,123 ms,
+Before the change,
+merge arms over 300 paths:
+
+- `b-merge-1`,
+  2026-11-11T00:35:32.905Z:
+  commit 17,771 ms,
+  copies 15,565 ms,
+  build 15,984 ms,
+  submit 883 ms,
   two parents,
+  signed,
   one attempt,
   `landed`.
-- `b2`,
-  plain,
-  `before`:
-  commit 1,952 ms,
-  conclusion 0 ms,
-  build 4 ms,
-  submit 1,259 ms,
-  one parent,
-  `landed`.
-- `e1`,
-  merge,
-  `before`:
-  commit 12,885 ms,
-  conclusion 10,492 ms,
-  build 10,729 ms,
-  submit 1,060 ms,
+- `b-merge-2`,
+  2026-11-11T00:37:35.687Z:
+  commit 13,094 ms,
+  copies 7,442 ms,
+  build 8,570 ms,
+  submit 2,953 ms,
   two parents,
   `landed`.
-- `e2`,
-  plain,
-  `before`:
-  commit 1,280 ms,
-  conclusion 0 ms,
-  build 3 ms,
-  submit 712 ms,
-  one parent,
-  `landed`.
-- `f1`,
-  merge,
-  `after`:
-  commit 6,319 ms,
-  conclusion 0 ms,
-  build 2,692 ms,
-  submit 2,941 ms,
+- `b-merge-3`,
+  2026-11-11T00:39:32.290Z:
+  commit 12,246 ms,
+  copies 7,022 ms,
+  build 8,778 ms,
+  submit 1,381 ms,
   two parents,
   `landed`.
-- `f2`,
-  plain,
-  `after`:
-  commit 12,226 ms,
-  conclusion 0 ms,
-  build 3 ms,
-  submit 11,683 ms,
-  one parent,
-  `landed`.
-- `e3`,
-  merge,
-  `before`:
-  commit 10,560 ms,
-  conclusion 8,149 ms,
-  build 9,047 ms,
-  submit 820 ms,
-  two parents,
-  `landed`.
-- `e4`,
-  plain,
-  `before`:
-  commit 2,780 ms,
-  conclusion 0 ms,
-  build 9 ms,
-  submit 1,541 ms,
-  one parent,
-  `landed`.
-  The harness read this arm's record as absent;
-  the fixture's own record file holds it at
-  2026-11-10T23:49:19.635Z with `totalMs` 2,682,
-  because the read and the record's append raced.
-- `f3`,
-  merge,
-  `after`:
-  commit 4,970 ms,
-  conclusion 60 ms,
-  build 1,324 ms,
-  submit 1,845 ms,
-  two parents,
-  `landed`.
-- `f4`,
-  plain,
-  `after`:
-  commit 8,805 ms,
-  conclusion 0 ms,
-  build 3 ms,
-  submit 4,163 ms,
-  one parent,
-  `landed`.
+- Median:
+  commit 13,094 ms,
+  copies 7,442 ms.
+- Their merge command (`git merge --no-ff --no-commit`) took 2,338,
+  1,170 and 1,667 ms.
 
-The conclusion copy of a merge commit,
-before the change:
-84,692,
-10,492 and 8,149 ms.
-After it:
-0 and 60 ms.
-In the plain arm it is 0 ms in all five samples.
-That stretch is what the merge commit paid and a plain commit of the same 200 paths never did,
-and it is the whole of the difference the owner's bar names when it is over five seconds.
+Before the change,
+plain arms over the same 300 paths:
 
-The whole commit is a noisier figure in this fixture,
-because it also waits in the service's landing queue behind the four writers:
-the plain arms range from 1,280 to 12,226 ms,
-one of them with 11,683 ms of that in `submitMs`.
-The conclusion stretch does not wait for another process:
-it is a file the commit itself publishes.
+- `b-plain-1`,
+  2026-11-11T00:37:00.933Z:
+  commit 1,429 ms,
+  build 75 ms,
+  copies 0 ms.
+- `b-plain-2`,
+  2026-11-11T00:38:03.007Z:
+  commit 659 ms,
+  build 85 ms,
+  copies 0 ms.
+- `b-plain-3`,
+  2026-11-11T00:40:01.412Z:
+  commit 1,410 ms,
+  build 65 ms,
+  copies 0 ms.
+- Median:
+  commit 1,410 ms,
+  copies 0 ms.
+- Their `git add` took 3,294,
+  3,018 and 1,020 ms.
+
+After the change,
+merge arms over 300 paths:
+
+- `a-merge-1`,
+  2026-11-11T00:37:12.794Z:
+  commit 3,733 ms,
+  build 47 ms,
+  copies 0 ms,
+  two parents,
+  signed,
+  `landed`.
+- `a-merge-2`,
+  2026-11-11T00:39:11.840Z:
+  commit 1,456 ms,
+  build 34 ms,
+  copies 0 ms,
+  two parents,
+  `landed`.
+- `a-merge-3`,
+  2026-11-11T00:40:08.377Z:
+  commit 6,204 ms,
+  build 1,010 ms,
+  copies 17 ms,
+  two parents,
+  `landed`.
+- Median:
+  commit 3,733 ms,
+  copies 0 ms.
+
+After the change,
+plain arms over the same 300 paths:
+
+- `a-plain-1`,
+  2026-11-11T00:37:22.183Z:
+  commit 2,986 ms,
+  build 69 ms,
+  copies 0 ms.
+- `a-plain-2`,
+  2026-11-11T00:39:22.312Z:
+  commit 3,830 ms,
+  build 218 ms,
+  copies 0 ms.
+- `a-plain-3`,
+  2026-11-11T00:41:31.998Z:
+  commit 2,314 ms,
+  build 399 ms,
+  copies 0 ms.
+- Median:
+  commit 2,986 ms,
+  copies 0 ms.
+
+Read as four cells:
+
+- The copies cost a merge commit 7,022 to 19,706 ms before the change and 0 to 17 ms after it.
+  The 19,706 ms is a warm-up arm over 20 paths,
+  2026-11-11T00:34:21.872Z,
+  whose commit took 21,813 ms:
+  the number of flushes per merge is what fixes its cost,
+  not the size of the merge.
+- A merge commit went from 13,094 ms at the median to 3,733 ms,
+  and a plain commit of the same paths,
+  signed and built in the same kind of shadow,
+  sits at 2,986 ms.
+  After the change the merge commit is inside the plain arm's own spread (2,314 to 3,830 ms),
+  which is what "no slower than a plain commit of the same paths" means for three samples per cell.
+- Every arm left exactly the 300 unsaved edits in the checkout,
+  every merge arm's commit had two parents and every plain arm's one,
+  every commit carried a `gpgsig` header,
+  and every one landed on its first attempt.
+- The staging stays outside the commit:
+  the merge command took 291 to 4,015 ms,
+  the add 1,020 to 3,294 ms,
+  and neither is slower than the other by an amount this measurement can resolve.
+
+### The flushes, counted
+
+Two arms were traced with
+`strace --follow-forks --decode-fds=path --timestamps=ms --trace=fsync,fdatasync`,
+one merge commit each,
+over paths no measured arm touches.
+
+`before`,
+commit 2,070 ms,
+`2026-11-11T00:41:38.513Z` to `00:41:38.560Z` in the trace,
+eight `fsync` calls,
+exactly two for each of four entries,
+the shadow copy and the comparison copy of:
+
+```text
+shadow/.MERGE_HEAD.gaFaaN.partial   conclusion/.MERGE_HEAD.UXYgC7.partial
+shadow/.MERGE_MSG.5ToORe.partial    conclusion/.MERGE_MSG.g2B956.partial
+shadow/.MERGE_MODE.vbLQin.partial   conclusion/.MERGE_MODE.LZmR38.partial
+shadow/.AUTO_MERGE.gyrxMe.partial   conclusion/.AUTO_MERGE.N9zT94.partial
+```
+
+`after`,
+commit 1,857 ms,
+**zero** `fsync` calls.
+The same commands,
+the same paths,
+the same signed commit,
+and the eight flushes are gone.
+The checkout held four conclusion entries in this Git (2.56.0):
+`MERGE_HEAD`,
+`MERGE_MSG`,
+`MERGE_MODE`,
+and `AUTO_MERGE`,
+which a clean `--no-commit` merge also leaves behind.
+The copy loop is one loop over `CONCLUSION_STATE_FILES`,
+so a merge in this Git waits for the disk eight times,
+not six.
+
+The eight,
+six to eight milliseconds apart when the disk answers at once,
+are also the reason the cost is a tail and not a constant:
+each merge commit had eight chances to meet a btrfs log commit that took seconds,
+and the arms above met them.
+That is where a 50 ms copy became 7 s,
+15.6 s and,
+in the installed wrapper's records,
+70.6 s.
 
 ### The change
 
@@ -4229,7 +4331,7 @@ Why neither needs the flush:
 - The publish does not sync the directory that holds the entry
   (`write_then_publish` and `settle_exclusive_publish`),
   so the flush could not make the entry findable after a power loss even before this change.
-  It made every merge commit wait for the disk and bought nothing.
+  It made every merge commit wait for the disk eight times and bought nothing.
 
 The test is `a_merge_in_progress_copies_its_entries_and_flushes_neither_copy`
 (`package/git-policy/cli/src/native/commit/conclusion_copy_tests.rs`),
@@ -4239,6 +4341,10 @@ asserts first that the recorder sees the flush of a file published durably (the 
 then that a copy of `MERGE_HEAD`,
 `MERGE_MSG` and `MERGE_MODE` makes none,
 and that both copies hold the worktree's bytes.
+The control writes those three entries;
+a real merge here leaves four,
+and every entry of the loop is published the same way,
+which is why the traced commit below counts eight flushes and not six.
 On the head it was committed on it failed with the six paths it names
 (paths abbreviated here):
 
@@ -4252,59 +4358,56 @@ a merge's copies are published without a flush: [".../shadow/MERGE_HEAD",
 and after the change the same test passes:
 `Summary [   7.243s] 1 test run: 1 passed, 6289 skipped`.
 
+The end-to-end controls of the same path pass as well
+(`mise run //package/git-policy/cli:native:test:binary:host -- conclusion_on_a_moved_branch`):
+`Summary [  34.688s] 4 tests run: 4 passed, 920 skipped`,
+of them `a_merge_conclusion_lands_on_a_branch_that_moved_while_it_was_prepared`,
+the same control for a cherry-pick,
+one for a revert and one for an amend.
 
 The change itself is the commit `75de8b98a8`.
 
 ### What this leaves
 
 - A merge commit still needs Git:
-  its conclusion state makes `service_prepare` force the native route
+  its conclusion state forces the native route in `service_prepare`
   (`ready.needs_native = config_native || unborn || detached || state_present || changes.is_none()`),
-  so it builds a shadow and runs `git commit` in it,
-  which the plain arm here did not (3 to 4 ms of build against 1,324 to 2,692 ms after the change).
-  In this repository every commit signs,
-  so a plain commit here takes that route too,
-  and the records of the installed wrapper show plain commits at a median of 2,588 ms.
-- The staging of the merge's paths is paid before the commit:
-  `git add` of 200 paths took 463 to 6,843 ms,
-  and the merge itself,
-  with 300 unsaved edits in the checkout,
-  435 to 10,857 ms.
-  Neither is in the commit.
+  so it builds a shadow and runs `git commit` in it.
+  After the change that build is 34 to 1,010 ms,
+  against 69 to 399 ms for the plain arm's own shadow,
+  which this fixture signs into existence.
+- The staging of the merge's paths is paid before the commit,
+  and it is not what the change touched.
 - The two-minute step ceiling and the 16,332 ms scratch commit ceiling were not touched.
-  Removing the flush moves a merge commit away from them instead:
-  a stretch that reached 70,564 ms under this disk now holds no flush to wait for.
+  Removing the flushes moves a merge commit away from them instead:
+  eight disk waits,
+  one of which the installed wrapper's records show at 70,564 ms,
+  are now zero.
+- What this does not say is that a merge commit is free.
+  Its remaining cost is the shadow build any signed commit pays,
+  and the landing queue both arms wait in.
 
 ### What this could not determine
 
-- The arms commit 200 paths and not the few hundred the coordinator lands,
-  and four worktrees commit beside them and not dozens,
-  because each worktree of this fixture is a copy of a 0.61 GB checkout on a volume at 99 percent
-  and 29 to 63 GB free.
-  The repository's own worktrees are btrfs snapshots;
-  this fixture's are copies,
-  because its checkout does not live in a subvolume of its own.
-- The writers' 20 `stopped` commits have two causes,
-  and only one is the wrapper's:
-  records with `lockHolderKind: "unproven"` ended after 3,694 ms of waiting for an `index.lock`
-  nothing could prove dead,
-  which is the known refusal,
-  and others show `connectTries` up to 398 with 396 refused connections,
-  which is this harness starting and stopping each worktree's service between arms while a writer was
-  still committing.
-  A measurement of the unproven-lock refusal is not this record's subject and is not measured here.
-- One arm's record was read as absent by the harness,
-  because a record is appended as the command ends and the harness read the file at that moment.
-  Every arm's record is in the fixture's own file,
-  and the figures quoted here are its own.
+- Eight worktrees committing beside the arms,
+  not dozens.
+  Each linked worktree of this fixture is a copy of a 0.61 GB checkout,
+  because its clone does not live in a btrfs subvolume of its own;
+  this repository's own worktrees are snapshots.
+  Eight is what the volume carried while the run went.
+- Nineteen of the fixture's 72 records ended without landing,
+  all of them writer branches,
+  each with two attempts and no lock holder named:
+  they ended when the harness stopped their arm's service while their loop was still running.
+  That is this harness's doing and not the wrapper's;
+  the arms themselves landed on their first attempt.
 - There is no native-Git arm in this measurement,
-  so the bar "commits vs native git should not take 5s longer" is only answered for the wrapper
+  so the bar "commits vs native git should not take 5s longer" is answered here only for the wrapper
   against itself,
-  which is where the conclusion copy lived.
-  The owner's bar against native Git is measured by
+  which is where the conclusion copies lived.
+  The bar against native Git is measured by
   `mise run //package/git-policy/cli:native:perf`.
-- The clone does not sign commits
-  (`commit.gpgsign` is unset there),
-  which is why its plain arms take the service-built route.
-  The conclusion stretch does not depend on that choice:
-  it is 0 ms for a plain commit in both routes.
+- Two samples per cell were planned and three were taken,
+  which is enough to show a 7 s cost disappearing and not enough to state a percentile.
+  The percentile of this cost comes from the installed wrapper's own 55 records,
+  which is where 70,564 ms comes from.
