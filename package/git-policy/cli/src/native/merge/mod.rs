@@ -149,6 +149,10 @@ pub mod pull_isolation;
 /// and the words that name every copy.
 pub mod pull_untracked_paths_in_the_way;
 
+/// One such file or link copied beside the Git directory,
+/// and the numbered folder a pull's copies go into.
+pub mod pull_untracked_paths_in_the_way_kept_copies;
+
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
 

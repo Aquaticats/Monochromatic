@@ -198,6 +198,103 @@ and one each in `service_durable.rs`,
 and `service_work_drain_pending_claims.rs`).
 
 ### A killed merge's recovery judges a path by the entry Git wrote, and two review findings stand as recorded (2026-11-11T00:38:51-05:00)
+### A Kimi K3.1 Pro review of the pull's printed remedies: two findings, both reproduced and fixed (2026-11-11T15:13:43-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-printed-remedies-review-findings`,
+from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `fc9f7f5f4b`.
+The review,
+`~/temp/agent/kimi-reviews/kimi-findings-printed-remedies-run-as-printed-round-198/review.md`,
+read `7ecf4a8525`;
+both findings are about the untracked files a pull's branch move would overwrite,
+both were reproduced here through the built executable in a throwaway clone,
+and both are fixed with controls that failed on `fc9f7f5f4b`.
+The owner's standing words are "never discard user data",
+and `SPEC.md` "Pull" promises that a pull which must stop names what it kept and where.
+
+#### Finding 1: a relative `-C` made the backup's listing fail, and the reset the words offered then took the only copy
+
+Reproduced with `git -C clone pull --no-rebase origin` from the clone's parent:
+the pull stopped as Git's does with status 128,
+printed
+"the files this move would overwrite could not be listed (git diff-tree answered status 128),
+so nothing could be kept",
+left no `pull-kept` folder,
+and the hatch reset the same sentence offered then replaced the person's `new.txt` with the remote's content.
+Cause:
+`paths_the_move_adds` ran `git diff-tree` with `cwd` set to the worktree root while the request still carried the caller's
+global options (`pull_untracked_paths_in_the_way.rs`),
+so Git read the relative `-C` again from the directory it had already reached.
+Fix:
+the request keeps no caller option and names the repository by its absolute paths
+(`repository_selection::of_paths`,
+the pattern `in_the_callers_repository` exists for),
+so no relative directory change or relative `--git-dir` is read twice.
+Control that failed first:
+`merge::pull_untracked_paths_in_the_way::tests::a_relative_directory_change_of_the_caller_is_not_applied_twice`
+and
+`printed_remedies::the_pulls_recovery_keeps_the_file_behind_a_relative_directory_change`,
+the second one running the printed reset and reading the copy afterwards.
+Cost:
+no Git start is added or removed.
+
+#### Finding 2: an untracked file or link on the way to an added path was never kept
+
+Reproduced twice,
+with `dir` an untracked plain file and with `dir` a dangling symlink,
+where the remote's commit adds `dir/new.txt`:
+the pull stopped with status 128,
+the symlink case copied nothing and printed no warning before offering the hatch reset,
+the plain-file case named `dir/new.txt` (which cannot be read through a file) instead of `dir`,
+and in both the printed reset replaced `dir` with a directory,
+deleting the only copy of the file's bytes and of the link's target text.
+Measured on the same fixture with real Git:
+`read-tree -u -m` refuses in both cases
+("Untracked working tree file 'dir' would be overwritten by merge"),
+and `reset --hard` then removes the entry,
+a symlink to an existing directory included.
+Cause:
+the loop copied only `worktree_root.join(added_name)`,
+so a blocker standing at an ancestor component was skipped
+(`NotFound` through a dangling link) or misnamed (`ENOTDIR` through a file).
+Fix:
+each added path is walked component by component,
+the first entry that is not a folder is the one kept,
+and a component the previous commit tracked as a file is left alone because `git diff <old head>` holds its bytes
+(`standing_in_the_way`).
+The listing asks for added and deleted paths in one `diff-tree --name-status --diff-filter=AD` call,
+so telling the two apart costs no second Git start.
+A second added path below the same entry is one line and one copy.
+The copies themselves moved to `pull_untracked_paths_in_the_way_kept_copies.rs`
+(the file was over the 300-line lint limit).
+Controls that failed first:
+`a_file_on_the_way_to_an_added_path_is_copied`,
+`a_link_on_the_way_to_an_added_path_is_kept_as_a_link`,
+`a_file_the_previous_commit_tracked_on_the_way_is_not_copied`,
+`one_entry_on_the_way_of_two_added_paths_is_copied_once`,
+and the binary controls
+`the_pulls_recovery_keeps_a_file_standing_where_an_added_path_needs_a_folder`
+and
+`the_pulls_recovery_keeps_a_link_standing_where_an_added_path_needs_a_folder`.
+
+`SPEC.md` "Pull" now says that a file or link on the way to an added path is copied too,
+that a component the previous commit tracked is not,
+and that the listing names the repository by absolute paths.
+
+Not fixed here,
+and unmeasured:
+the merge's own queries keep the caller's global options in their context while they run from the worktree root
+(`src/native/merge/merge_isolation.rs:174`),
+which is the same shape as finding 1.
+Two probes behind a relative `-C`,
+a plain merge and one that conflicts,
+behaved exactly as the same merges inside the repository,
+so nothing user-visible was measured there;
+a control per site is what would decide it.
+The rest of the package's `monochromatic-lint` run still reports errors in files this branch does not touch
+(`worktree_copy.rs` and the `worktree_copying` family over the line limit,
+and `markdown/semantic-line-breaks` findings across them);
+this branch's own files lint clean.
+
 
 Branch `fix/git-policy-cli-kimi-findings-merge-carry-review-round-2-findings`,
 from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `ee545033ad`.
