@@ -975,30 +975,52 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
 }
 
 /// What:
-///  A push that delivered the branch while another Git held the lock of its remote-tracking reference leaves that reference
-///  naming the pushed commit.
+///  A push whose tracking reference could not be written says so,
+///  and the reference is written once the lock that refused it is gone.
 /// Why:
 ///   Git delivers such a push, prints `cannot lock ref`, and exits `0`,
-///  so the service records the push as made while the reference stays behind what the remote holds.
-/// Every later question about the branch's remote is answered from that reference, so a stale one makes every command say a
-///  published commit is held.
-/// The fixture is a real push killed at the moment it holds that lock (`stale_ref_lock_killed_git`), which is that state:
-///  the remote took the commit and the reference still names the commit before it.
+///  so the service records the push as made while the reference names an older commit.
+/// The reference is what every later question about the branch's remote is answered from,
+/// so a silent one makes `git status` and the wrapper disagree for as long as nothing else writes it.
+/// A lock nobody proves gone is not cleared (`stale_ref_locks.rs`),
+/// so the state is said instead.
+/// The fixture kills a real push at the moment it holds that lock (`stale_ref_lock_killed_git`),
+/// which is exactly the state: the remote took the commit and the reference names the commit before it.
 #[test]
-fn a_push_whose_tracking_reference_was_left_behind_writes_it() {
-    let stage: crate::stale_ref_lock_killed_git::Stage = crate::stale_ref_lock_killed_git::stage("auto-push-tracking-ref-repaired", true);
+fn a_push_whose_tracking_reference_could_not_be_written_says_so() {
+    let stage: crate::stale_ref_lock_killed_git::Stage = crate::stale_ref_lock_killed_git::stage("auto-push-tracking-ref-locked", true);
     let mut held: crate::stale_ref_lock_killed_git::Held = crate::stale_ref_lock_killed_git::hold_push(&stage);
     assert!(stage.lock_of("refs/remotes/origin/main").exists(), "the killed push holds the tracking reference");
     held.kill();
-    // The person clears the lock the notice names, and the next push of the branch runs with nothing left to deliver.
-    std::fs::remove_file(stage.lock_of("refs/remotes/origin/main")).expect("the lock goes");
+    // The branch tracks the remote, which is what makes the reference a push's own to write.
+    git(stage.repo.as_path(), &["branch", "--set-upstream-to=origin/main", "main"]);
+    // The fixture's own state: the branch tracks the reference the push updates, and that reference is behind the branch.
+    //  The question Git answers for a branch's upstream abbreviates the reference to `origin/main`, which is the name the push
+    //  plan carries and the name the repair resolves to its full ref before writing it.
+    let upstream: String = git_text(stage.repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "main@{upstream}"]);
+    assert_eq!(upstream, "origin/main", "the branch tracks the reference a push of it writes");
     let tip: String = head_oid(stage.repo.as_path());
     let tracked: String = git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]);
     assert_ne!(tracked, tip, "the fixture starts with the reference behind the branch, as the refused update left it");
+    // The lock the killed push left still stands, so nothing may write the reference, and the push says where it stands.
     let mut err: Vec<u8> = Vec::new();
     let result = push_once(&push_git(stage.repo.as_path()), "refs/heads/main", tip.as_str(), &[], &[], &mut err).expect("auto-push");
-    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(err.as_slice()));
-    let tracked_after: String = git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]);
-    assert_eq!(tracked_after, tip, "the successful push leaves the tracking reference naming its own commit");
+    let shown: String = String::from_utf8_lossy(err.as_slice()).into_owned();
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "the commits were delivered, so the push itself is a success: {shown}");
+    assert_eq!(
+        git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]),
+        tracked,
+        "nothing writes a reference another Git holds"
+    );
+    assert!(
+        shown.contains("could not update the tracking reference refs/remotes/origin/main"),
+        "the push names the reference it could not write: {shown}"
+    );
+    // The person clears the lock the notice names, and the next push of the branch writes the reference.
+    std::fs::remove_file(stage.lock_of("refs/remotes/origin/main")).expect("the lock goes");
+    let mut again: Vec<u8> = Vec::new();
+    let second = push_once(&push_git(stage.repo.as_path()), "refs/heads/main", tip.as_str(), &[], &[], &mut again).expect("auto-push");
+    assert_eq!(second.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(again.as_slice()));
+    assert_eq!(git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]), tip, "the next push leaves the reference naming its own commit");
     stage.finish();
 }

@@ -562,9 +562,15 @@ Read-only commands,
   so no line ever claims a commit stays local while nothing stops a push of its branch.
   When Git delivered a push but was refused the update of the branch's remote-tracking reference,
   because another Git held that reference's lock, the wrapper writes the reference itself once the push is over,
-  with the reflog message `update by push` and the same bounded retries,
-  so the reference names what the remote holds as soon as the push says it delivered.
-  A reference that could not be written is logged and left; the next push or fetch writes it.
+  with the reflog message `update by push`, the same bounded retries and the value it read, so a write never replaces
+  another writer's value.
+  The write names the reference's full name: `git update-ref origin/main <commit>` is accepted and changes nothing
+  (measured with Git 2.56.0), so a write from the name a branch's upstream is reported as would leave the reference behind.
+  A lock that refuses the write through every retry is not cleared, because nothing may clear another Git's lock
+  without a proof that its holder is gone: the push then says that it delivered the commit and that the reference names
+  an older commit until a push or a fetch writes it.
+  The line about a commit that is not published yet reads the same reference,
+  so it never claims a publication state: a reference that lags a remote Git already holds changes nothing about what the line says.
    A commit whose check is still running holds the push back the same way a refusal does,
   because that check may refuse it:
   the push stops before it,

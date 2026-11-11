@@ -137,3 +137,77 @@ fn a_tracking_reference_whose_lock_stands_is_reported_and_then_written() {
     assert_eq!(tracking(world.repo.as_path()), world.delivered, "the reference names what the remote holds");
     remove(world.root.as_path());
 }
+
+/// What:
+///  A reference this program cannot write is named,
+///  and the words say what becomes of it.
+/// Why:
+///   Silently leaving a reference behind is the state a later command cannot explain;
+/// the sentence names the reference,
+/// the commit the push
+///  delivered and the one thing that writes the reference next.
+#[test]
+fn a_reference_that_could_not_be_written_is_named_with_what_writes_it() {
+    let said: String = still_behind(TRACKING, "b".repeat(40).as_str());
+    assert!(said.contains("could not update the tracking reference refs/remotes/origin/main"), "{said}");
+    assert!(said.contains("until a push or a fetch writes it"), "{said}");
+}
+
+/// What:
+///  The awaited repair writes the reference as the synchronous one does.
+/// Why:
+///   The service's push runs on the runtime,
+/// where a synchronous Git start is refused,
+/// so the face it uses is the awaited one and it must reach the same reference.
+#[test]
+fn the_awaited_repair_writes_the_reference_the_synchronous_one_does() {
+    let world: World = world("tracking-ref-repair-awaiting");
+    let git: PushGit = push_git(world.repo.as_path());
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let resolved: Option<String> = runtime.block_on(resolve_awaiting(&git, "origin/main"));
+    assert_eq!(resolved, Some(String::from(TRACKING)), "the awaited face resolves the same shorthand");
+    let wrote: bool = runtime.block_on(bring_up_to_date_awaiting(&git, TRACKING, world.delivered.as_str()));
+    assert!(wrote, "the awaited repair writes the reference");
+    assert_eq!(tracking(world.repo.as_path()), world.delivered, "the reference names what the remote holds");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A reference named the way a branch's upstream names it (`origin/main`) is written by its full name.
+/// Why:
+///   `git update-ref origin/main <commit>` is accepted and changes nothing
+/// (Git 2.56.0, measured on 2026-11-11),
+/// so a repair that wrote the name it was given would report success while the reference stayed behind.
+#[test]
+fn a_reference_named_short_is_written_by_its_full_name() {
+    let world: World = world("tracking-ref-repair-short-name");
+    let git: PushGit = push_git(world.repo.as_path());
+    assert_eq!(resolve(&git, "origin/main"), Some(String::from(TRACKING)), "the shorthand a branch's upstream is answered with is resolved to its ref");
+    assert!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), "the full reference is written");
+    assert_eq!(tracking(world.repo.as_path()), world.delivered, "the full reference names what the remote holds");
+    let about_origin: Vec<String> = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)"])
+        .lines()
+        .filter(|name| { return name.contains("origin"); })
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(about_origin, vec![String::from("refs/remotes/origin/main")], "no other reference took the short name");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A name that is no reference writes nothing.
+/// Why:
+///   The write names what the caller asked for,
+/// so a name this repository does not have must leave the repository exactly as it is
+///  rather than create a reference nobody named.
+#[test]
+fn a_name_that_is_no_reference_is_not_written() {
+    let world: World = world("tracking-ref-repair-not-a-ref");
+    let git: PushGit = push_git(world.repo.as_path());
+    assert_eq!(resolve(&git, "no-such-reference"), None, "a name this repository does not have is no reference");
+    assert!(!bring_up_to_date(&git, "no-such-reference", world.delivered.as_str()), "nothing is written under it");
+    assert_eq!(tracking(world.repo.as_path()), world.before, "the reference is as it was");
+    let names: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)"]);
+    assert!(!names.contains("no-such-reference"), "no reference was made under the name: {names}");
+    remove(world.root.as_path());
+}

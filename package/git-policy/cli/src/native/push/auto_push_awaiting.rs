@@ -21,7 +21,7 @@
 
 use crate::auto_push::{
     AutoPushOutcome, AutoPushResult, PUSH_LOCK_PAUSE, PUSH_LOCK_RETRIES, Planned, REFERENCE_LOCK_REFUSAL, Sent,
-    TAG, held_back_result, push_arguments, reported, skipped_with, source_of,
+    TAG, held_back_result, push_arguments, pushed_tracking_ref, reported, skipped_with, source_of,
 };
 use crate::auto_push_destination::{NamedPush, named_push_awaiting};
 use crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting;
@@ -180,12 +180,26 @@ pub async fn push_once_awaiting(
         tokio::time::sleep(PUSH_LOCK_PAUSE * pause).await;
         attempt = run_push_command_awaiting(git, argument_views.as_slice()).await?;
     }
+    // The push delivered, and Git may have been refused the update of the branch's remote-tracking reference while another Git
+    //  held its lock; the repeats above write it when that lock went in the meantime, and one that outlives them leaves the
+    //  reference behind, so it is written here and the state is said when it could not be
+    //  (`push_tracking_ref_repair.rs`). Nothing a person asked for waits on it: the push is over.
+    let mut note: String = String::new();
+    if attempt.exit_code == 0
+        && let Some(of) = pushed_tracking_ref(upstream.as_deref(), &sent, pushed_ref.as_str())
+    {
+        // The reference is written by its full name: the name a branch's upstream is answered with, `origin/main`, is no ref.
+        let full: String = crate::push_tracking_ref_repair::resolve_awaiting(git, of).await.unwrap_or_else(|| of.to_owned());
+        if !crate::push_tracking_ref_repair::bring_up_to_date_awaiting(git, full.as_str(), source.as_str()).await {
+            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), source.as_str());
+        }
+    }
     // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would
     //  carry the very commit the gate refused. It stays a plain push of the base, and the branch is tried again by itself.
     if upstream.is_some() && pushing_whole && attempt.exit_code != 0 {
         attempt = reconcile_divergent_push_awaiting(git, &pushed_ref, attempt).await?;
     }
-    return reported(attempt, &stop, pushed_ref.as_str(), err);
+    return reported(attempt, &stop, pushed_ref.as_str(), note.as_str(), err);
 }
 
 
