@@ -1590,7 +1590,7 @@ fn a_plan_the_start_could_not_list_is_listed_again_and_its_push_is_made() {
     let git_dir: PathBuf = stage.repo.join(".git");
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
     // The fault: a file stands where the plan's directory must be, so the start's listing of it gives no answer.
-    std::fs::create_dir_all(plans.parent().expect("the journal").to_path_buf()).expect("the journal directory");
+    std::fs::create_dir_all(plans.parent().expect("the journal")).expect("the journal directory");
     std::fs::write(plans.as_path(), b"not a directory\n").expect("the blocker");
     let retries_at_the_start: PushRetries = PushRetries::restored(PAUSE, plans.as_path());
     assert!(retries_at_the_start.directories().is_empty(), "a listing that gave no answer names no push yet");
