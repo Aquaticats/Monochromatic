@@ -522,7 +522,8 @@ no change was made without a reproduction.
 
 A full disk (`No space left on device`) in `opening_fifty_thousand_lines_never_blocks_the_window_thread`
 and a wgpu `vello.scene` buffer validation error in `the_extent_settles_as_chunks_arrive` were seen once each.
-Video memory sits at the card's limit in full runs (next section),
+Video memory sits at the card's limit in full runs
+(see "The runtime task is safe for concurrent callers"),
 which is one candidate for the second;
 unproven.
 

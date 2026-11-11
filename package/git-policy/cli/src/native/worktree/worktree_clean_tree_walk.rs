@@ -14,7 +14,8 @@
 //! const reason = treeDiffersFromIndex(root, entries, indexSeconds); // undefined when every file agrees
 //! ```
 
-use crate::fs_beneath::{entry_metadata_at, open_directory_beneath, open_root, plain_components};
+use crate::fs_beneath::{entry_metadata_at, open_root, plain_components};
+use crate::fs_beneath_directory_chain::DirectoryChain;
 use crate::repo_read_index::IndexEntry;
 use crate::repo_read_layout::ObjectFormat;
 use crate::subvolume_index::StatFields;
@@ -26,21 +27,19 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 /// What:
-///  Whether the cached directory handle is not the one for `parents`,
-/// so the directory must be opened.
+///  The directory `parents` lead to below the walk's root,
+/// from the chain that keeps the directories it has already opened.
 /// Why:
-///   Entries come in path order,
-/// so most share the directory of the one before.
+///   The index's paths come in order,
+/// so a chain that keeps the part it shares opens each directory once
+///  instead of opening every directory above it again for each entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// cached === undefined || !sameNames(cached.names, parents)
+/// const directory = chain.directory(parents); // the handle, or the refusal
 /// ```
-fn cache_misses(cached: &Option<(Vec<std::ffi::OsString>, std::fs::File)>, parents: &[std::ffi::OsString]) -> bool {
-    return match cached {
-        Some((known, _directory)) => known.as_slice() != parents,
-        None => true,
-    };
+fn directory_of<'chain>(chain: &'chain mut DirectoryChain<'_>, parents: &[std::ffi::OsString]) -> Option<&'chain std::fs::File> {
+    return chain.directory(parents).ok();
 }
 
 /// What:
@@ -151,7 +150,7 @@ pub fn tree_fields_by_content(target: &ContentTarget<'_>, entries: &[StatEntry],
         Err(error) => return Err(CleanRefusal::unreadable(format!("{} cannot be opened without following a link ({error})", target.root.display()))),
     };
     let mut judge: ContentJudge<'_> = ContentJudge::new(&held, target.git_dir, target.common_dir, target.environment, target.format);
-    let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
+    let Ok(mut chain) = DirectoryChain::new(&held) else { return Err(CleanRefusal::unreadable(format!("{} cannot be examined", target.root.display()))) };
     let mut fields: Vec<StatFields> = Vec::with_capacity(entries.len());
     for (entry, committed) in entries.iter().zip(indexed) {
         if entry.path != committed.path {
@@ -160,11 +159,7 @@ pub fn tree_fields_by_content(target: &ContentTarget<'_>, entries: &[StatEntry],
         let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
         let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Err(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
         let Some((name, parents)) = names.split_last() else { return Err(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
-        if cache_misses(&cached, parents) {
-            let Ok(directory) = open_directory_beneath(&held, parents) else { return Err(file_changed(format!("{shown} is missing from the worktree or reached through a link"))) };
-            cached = Some((parents.to_vec(), directory));
-        }
-        let Some((_known, directory)) = cached.as_ref() else { return Err(file_changed(format!("{shown} is missing from the worktree"))) };
+        let Some(directory) = directory_of(&mut chain, parents) else { return Err(file_changed(format!("{shown} is missing from the worktree or reached through a link"))) };
         let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return Err(file_changed(format!("{shown} is missing from the worktree"))) };
         match metadata_verdict(entry, &metadata, index_seconds) {
             StatVerdict::Agrees => {}
@@ -206,16 +201,12 @@ pub fn tree_differs_from_index_beneath(root: &std::fs::File, entries: &[StatEntr
 /// The first refusal of a tracked file below the held directory `root` against its index entry,
 /// with its kind.
 fn tree_refusal_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Option<CleanRefusal> {
-    let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
+    let Ok(mut chain) = DirectoryChain::new(root) else { return Some(CleanRefusal::unreadable(String::from("the worktree root cannot be examined"))) };
     for entry in entries {
         let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
         let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Some(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
         let Some((name, parents)) = names.split_last() else { return Some(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
-        if cache_misses(&cached, parents) {
-            let Ok(directory) = open_directory_beneath(root, parents) else { return changed_file(format!("{shown} is missing from the worktree or reached through a link")) };
-            cached = Some((parents.to_vec(), directory));
-        }
-        let Some((_held, directory)) = cached.as_ref() else { return changed_file(format!("{shown} is missing from the worktree")) };
+        let Some(directory) = directory_of(&mut chain, parents) else { return changed_file(format!("{shown} is missing from the worktree or reached through a link")) };
         let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return changed_file(format!("{shown} is missing from the worktree")) };
         if let Some(refusal) = stat_finding(entry, &metadata, index_seconds) {
             return Some(refusal);
@@ -238,16 +229,15 @@ fn tree_refusal_beneath(root: &std::fs::File, entries: &[StatEntry], index_secon
 /// const cursor = new StatCursor(root); cursor.fields(path); // StatFields | undefined
 /// ```
 pub struct StatCursor<'a> {
-    /// The directory every path is found below.
-    root: &'a std::fs::File,
-    /// The components and the handle of the last directory opened.
-    held: Option<(Vec<std::ffi::OsString>, std::fs::File)>,
+    /// The chain of directories opened below the root,
+    /// or the reason the root cannot be examined.
+    chain: Result<DirectoryChain<'a>, std::io::Error>,
 }
 
 impl<'a> StatCursor<'a> {
     /// A cursor below `root` that has opened nothing.
     pub fn new(root: &'a std::fs::File) -> Self {
-        return Self { root, held: None };
+        return Self { chain: DirectoryChain::new(root) };
     }
 
     /// The metadata of the file `path` names below the root,
@@ -256,11 +246,8 @@ impl<'a> StatCursor<'a> {
         let shown: String = String::from_utf8_lossy(path).into_owned();
         let Ok(names) = plain_components(Path::new(OsStr::from_bytes(path))) else { return Err(format!("{shown} is not a plain path")) };
         let Some((name, parents)) = names.split_last() else { return Err(format!("{shown} is not a plain path")) };
-        if cache_misses(&self.held, parents) {
-            let Ok(directory) = open_directory_beneath(self.root, parents) else { return Err(format!("{shown} is missing from the worktree or reached through a link")) };
-            self.held = Some((parents.to_vec(), directory));
-        }
-        let Some((_known, directory)) = self.held.as_ref() else { return Err(format!("{shown} is missing from the worktree")) };
+        let Ok(chain) = &mut self.chain else { return Err(format!("{shown} is missing from the worktree: the worktree root cannot be examined")) };
+        let Some(directory) = directory_of(chain, parents) else { return Err(format!("{shown} is missing from the worktree or reached through a link")) };
         return match entry_metadata_at(directory, name.as_os_str()) {
             Ok(found) => Ok(found),
             Err(_missing) => Err(format!("{shown} is missing from the worktree")),

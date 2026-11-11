@@ -258,6 +258,34 @@ fn index_without_staging_matches_the_real_index() {
     remove(root.as_path());
 }
 
+/// What:
+///  A repository whose index file does not exist yet is prepared without writing one.
+/// Why:
+///  The preparation ran `read-tree --empty` against the real index when the file was absent,
+///  so it took the real index's lock and created the person's index before any landing;
+///  two commits in such a repository therefore failed each other with `index.lock` `file exists`,
+///  and the decision record says every commit prepares without the real index lock
+///  (`doc/decision/cli-git-concurrent-commits.md`,
+///  "Parallel preparation").
+///  A process for another program's hold on that lock is what a second commit is,
+/// so the lock is held here while the preparation runs.
+#[test]
+fn a_repository_with_no_index_file_is_prepared_without_taking_the_real_index() {
+    let root: PathBuf = fixture("commit-index-no-index-file");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    let real: PathBuf = repo.join(".git").join("index");
+    std::fs::remove_file(&real).expect("remove the real index");
+    // Another command of the same repository, staging something at this instant.
+    let held: PathBuf = repo.join(".git").join("index.lock");
+    std::fs::write(&held, "held by another command\n").expect("hold the index lock");
+    let pathspecs: Vec<OsString> = Vec::new();
+    initialize(&repo, &indexes, &selection(TransactionMode::Index, &pathspecs, &base));
+    assert!(!real.exists(), "the preparation wrote the person's index");
+    assert!(indexes.commit_index.exists(), "the commit's own copy is built");
+    std::fs::remove_file(&held).expect("release the index lock");
+    remove(root.as_path());
+}
+
 /// `commit -a` staging stages every tracked change and leaves untracked files out.
 #[test]
 fn index_with_tracked_staging_stages_only_tracked_changes() {

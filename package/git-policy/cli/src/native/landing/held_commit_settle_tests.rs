@@ -336,3 +336,93 @@ fn a_held_commit_lands_in_a_repository_whose_git_directory_is_beside_it() {
     assert!(!path_of(held.git_dir.as_path(), 1).exists(), "the record goes with the settlement");
     remove(root.as_path());
 }
+
+/// What:
+///  A second settlement of one record puts nothing on the branch,
+///  when the first one landed the change in the instant between the record being read and the branch being decided from.
+/// Why:
+///  Every command of a worktree settles the records it finds,
+///  so two commands can settle one record at once,
+///  and the record is what each of them decides from.
+///  A settlement that carries the change onto a moved branch rewrites the batch's record before it moves the branch
+///  (`carry`),
+///  so a decision taken from the value read before that rewrite puts the same change on the branch twice,
+///  as two commits with the same tree
+///  (a review of `aa7f601c6d`,
+///  finding 3).
+#[test]
+fn a_second_settlement_of_one_record_lands_the_change_once() {
+    /// Where the second settlement of the same record runs.
+    const POINT: &str = "held-before-a-settlement-decides";
+    let (root, repo, context) = repository("held-settle-two-settlers");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    std::fs::write(repo.join(OTHER), b"the other edit\n").expect("the other session's file");
+    git(repo.as_path(), &["add", "--", OTHER]);
+    git(repo.as_path(), &["commit", "--quiet", "--message", OTHER_SUBJECT]);
+    let inside: GitContext = context.clone();
+    let record: Held = held.clone();
+    let ran: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
+    crate::service_fault::hooks::set(
+        POINT,
+        std::rc::Rc::new(move || {
+            // Once: the settlement this one starts reaches the same instant, and settling that record again is what the
+            //  first settlement would do on another command.
+            if ran.replace(true) {
+                return;
+            }
+            let other: Held = record.clone();
+            let _settled: Settled = one(&inside, &other, Clearing::Never);
+        }),
+    );
+    let settled: Settled = one(&context, &held, Clearing::Never);
+    crate::service_fault::hooks::clear();
+    assert_eq!(subjects(repo.as_path(), 3), format!("{HELD_SUBJECT}\n{OTHER_SUBJECT}\nbase"), "the change is on the branch once: {settled:?}");
+    assert_eq!(git_text(repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "3", "the branch carries the base, the other session's commit and the held change, and nothing else");
+    assert_eq!(git_text(repo.as_path(), &["show", format!("HEAD:{EDITED}").as_str()]), "the edit", "the change landed with its bytes");
+    assert!(!path_of(held.git_dir.as_path(), 1).exists(), "no settlement leaves the record behind");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record a kill leaves after its batch landed on a branch that moved is recognized,
+///  reported as there,
+///  and removed,
+///  instead of being said for ever to name a commit the batch never landed.
+/// Why:
+///  The settlement writes the commit it made in the batch's record before it moves the branch
+///  (`carry`),
+///  and the finished record is written after the move:
+///  a kill between them leaves a record whose `new` is the commit the batch started with,
+///  while the branch names the commit made from it.
+///  Comparing only the first value would keep the record and its warning for ever,
+///  and the side reference it tells the person about is already gone
+///  (a review of `aa7f601c6d`,
+///  finding 4).
+#[test]
+fn a_record_left_by_a_kill_after_its_replayed_landing_is_recognized_and_removed() {
+    let (root, repo, context) = repository("held-settle-killed-after-finish");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    std::fs::write(repo.join(OTHER), b"the other edit\n").expect("the other session's file");
+    git(repo.as_path(), &["add", "--", OTHER]);
+    git(repo.as_path(), &["commit", "--quiet", "--message", OTHER_SUBJECT]);
+    let base_of_the_replay: String = head_of(repo.as_path());
+    let replayed = crate::held_commit_replay::onto(&context, &held, base_of_the_replay.as_str(), repo.join(".git").as_path());
+    let crate::held_commit_replay::Replay::Replayed { commits } = replayed else { panic!("the change combines with the branch: {replayed:?}") };
+    let landed: String = commits.last().cloned().expect("the replayed commit");
+    let journal: &Path = held.journal.as_path();
+    let open: std::path::PathBuf = batch_path(journal, 1, OPEN_EXTENSION);
+    let mut written: Intent = crate::service_journal::parse_intent(std::fs::read_to_string(open.as_path()).expect("the record the landing wrote").as_str()).expect("the record reads");
+    written.new = landed.clone();
+    written.commits = commits;
+    write_intent(journal, &written).expect("the record names the commit made from the change");
+    // The branch move, and the finished record written after it: the kill is after both, and before the record of the hold goes.
+    git(repo.as_path(), &["update-ref", "--no-deref", "refs/heads/main", landed.as_str(), base_of_the_replay.as_str()]);
+    git(repo.as_path(), &["update-ref", "-d", "--no-deref", kept_reference(1).as_str()]);
+    crate::service_journal::mark_done(journal, 1).expect("the finished record");
+    assert!(path_of(held.git_dir.as_path(), 1).exists(), "the kill left the record of the hold");
+    let settled: Settled = one(&context, &held, Clearing::Never);
+    assert_eq!(settled, Settled::AlreadyThere { commit: landed.clone() }, "the branch is shown to hold the commit the batch became");
+    assert!(!path_of(held.git_dir.as_path(), 1).exists(), "the record goes, so no command says it waits any more");
+    assert_eq!(head_of(repo.as_path()), landed, "the branch was not moved again");
+    remove(root.as_path());
+}
