@@ -178,7 +178,7 @@ pub fn intent_text(intent: &Intent) -> String {
         format!("new={}", intent.new),
         format!("ids={}", intent.ids.join("\t")),
         format!("commits={}", intent.commits.join("\t")),
-        format!("holders={}", intent.holders.iter().map(|holder| { return holder_text(holder.as_str()); }).collect::<Vec<String>>().join("\t")),
+        format!("holders={}", intent.holders.iter().map(String::as_str).map(holder_text).collect::<Vec<String>>().join("\t")),
         format!("paths={}", intent.paths.iter().map(Vec::as_slice).map(String::from_utf8_lossy).map(std::borrow::Cow::into_owned).collect::<Vec<String>>().join("\t")),
         format!("paths{HEX_SUFFIX}={}", intent.paths.iter().map(Vec::as_slice).map(path_bytes::hex_of_bytes).collect::<Vec<String>>().join("\t")),
         format!("derived={}", u8::from(intent.derived)),
@@ -289,7 +289,26 @@ pub(crate) fn intent_list(text: &str, key: &str) -> Option<Vec<String>> {
 /// ```
 fn holders_of(text: &str) -> Option<Vec<String>> {
     let items: Vec<String> = intent_list(text, "holders")?;
-    return Some(items.iter().map(|item| { return match item.as_str() { NO_HOLDER => String::new(), command => command.to_owned() }; }).collect());
+    return Some(items.iter().map(String::as_str).map(holder_of_item).collect());
+}
+
+/// What:
+///  The command one item of an intent's holder line names,
+///  and nothing when the item is the word for silence.
+/// Why:
+///   [`NO_HOLDER`] stands for a request that named no deciding command,
+/// and the item is read back as that silence rather
+///  than as a command called `-`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holderOfItem = (item) => item === '-' ? '' : item;
+/// ```
+fn holder_of_item(item: &str) -> String {
+    return match item {
+        NO_HOLDER => String::new(),
+        command => command.to_owned(),
+    };
 }
 
 /// What:

@@ -198,7 +198,10 @@ pub async fn resolve_awaiting(git: &PushGit, name: &str) -> Option<String> {
 fn value_of(git: &PushGit, full: &str) -> Option<String> {
     let peeled: String = format!("{full}^{{commit}}");
     let answer: Answer = ask(git, &["rev-parse", "--verify", "--quiet", peeled.as_str()])?;
-    return answer.ok().then(|| { return answer.text(); });
+    return match answer.ok() {
+        true => Some(answer.text()),
+        false => None,
+    };
 }
 
 /// The same,
@@ -211,7 +214,10 @@ fn value_of(git: &PushGit, full: &str) -> Option<String> {
 async fn value_of_awaiting(git: &PushGit, full: &str) -> Option<String> {
     let peeled: String = format!("{full}^{{commit}}");
     let answer: Answer = ask_awaiting(git, &["rev-parse", "--verify", "--quiet", peeled.as_str()]).await?;
-    return answer.ok().then(|| { return answer.text(); });
+    return match answer.ok() {
+        true => Some(answer.text()),
+        false => None,
+    };
 }
 
 /// What:
