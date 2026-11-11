@@ -53,7 +53,7 @@ pub(crate) fn is_valid_id(id: &str) -> bool {
 
 /// The most characters the part of an id after its kind may have:
 /// an object name,
-/// and for a push the branch digest a hyphen separates from it.
+/// and for a push or a subvolume delete the digest a hyphen separates from it.
 /// With the longest kind,
 /// a generation,
 /// a reading that fills every field and the suffix of a recovery's temporary file,
@@ -69,26 +69,61 @@ pub(crate) const MAX_ID_SUFFIX_LENGTH: usize = MAX_OBJECT_NAME_LENGTH + 1 + BRAN
 const BRANCH_DIGEST_LENGTH: usize = 16;
 
 /// What:
-///  The digest of a branch reference that a push's id carries.
+///  The digest of a branch reference that a push's id carries,
+/// and of the directory that holds the subvolume a delete's id carries.
 /// Why:
 ///   A record's id is its file name and its idempotency key,
-/// so it must hold the branch:
-/// the same commit on two branches is two pushes to two remotes.
-/// Only ASCII letters and digits may join the id,
+/// so it must hold every choice it stands for:
+/// the same commit on two branches is two pushes to two
+///  remotes,
+/// and a subvolume id is unique on one filesystem only,
+/// so two removals on two filesystems can carry one id.
+/// Only ASCII
+///  letters and digits may join the id,
 /// because the id is part of a claim's name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// createHash('sha256').update(branchRef).digest('hex').slice(0, 16)
+/// createHash('sha256').update(text).digest('hex').slice(0, 16)
 /// ```
-pub(crate) fn branch_digest(branch_ref: &str) -> String {
-    let full: [u8; 32] = sha256(branch_ref.as_bytes());
+pub(crate) fn digest_of(text: &str) -> String {
+    let full: [u8; 32] = sha256(text.as_bytes());
     return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(&full[..BRANCH_DIGEST_LENGTH / 2]);
 }
 
-/// Whether `digest` is a branch digest as `branch_digest` writes one:
+/// What:
+///  The digest of a branch reference that a push's id carries.
+/// Why:
+///   Two ref names that a push's record confuses would have to be found,
+/// and no one does that by accident.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// branchDigest = (ref) => digestOf(ref)
+/// ```
+pub(crate) fn branch_digest(branch_ref: &str) -> String {
+    return digest_of(branch_ref);
+}
+
+/// What:
+///  The digest of the directory that holds the subvolume a delete's record names.
+/// Why:
+///   A subvolume id is unique on one filesystem,
+/// so the id alone cannot tell a removal on one filesystem from a removal on another;
+///  the directory that held the subvolume can,
+/// and it is the one field of the record that differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// parentDigest = (parent) => digestOf(parent)
+/// ```
+pub(crate) fn parent_digest(parent: &str) -> String {
+    return digest_of(parent);
+}
+
+/// Whether `digest` is a digest as `digest_of` writes one:
 /// `BRANCH_DIGEST_LENGTH` lowercase hexadecimal digits.
-fn is_branch_digest(digest: &str) -> bool {
+fn is_join_digest(digest: &str) -> bool {
     return digest.len() == BRANCH_DIGEST_LENGTH && digest.as_bytes().iter().all(is_lowercase_hexadecimal_digit);
 }
 
@@ -99,23 +134,41 @@ fn is_lowercase_hexadecimal_digit(byte: &u8) -> bool {
 }
 
 /// What:
-///  Whether `suffix` is what follows the kind in an id of `kind`,
-/// which makes every name built from the id fit in a file name.
+///  Whether `kind`'s ids carry a digest after their object name.
 /// Why:
-///   A push's suffix carries the branch its record is for,
-/// so the check must read the object name and the digest separately;
-/// every other kind's suffix is the object name alone,
-/// and a push record an earlier release named by the kind and the object alone keeps its name.
+///   A push's id carries the branch its record is for,
+/// and a subvolume delete's carries the directory that held the subvolume,
+/// each separated
+///  from the object by a hyphen;
+/// every other kind's suffix is the object name alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (kind) => (suffix) => kind === 'push' ? /^[\w]{1,64}(-[0-9a-f]{16})?$/.test(suffix) : /^[\w]{1,64}$/.test(suffix)
+/// const carriesDigest = (kind) => kind === 'push' || kind === 'subvolume-delete'
+/// ```
+fn carries_a_digest(kind: &WorkKind) -> bool {
+    return *kind == WorkKind::Push || *kind == WorkKind::SubvolumeDelete;
+}
+
+/// What:
+///  Whether `suffix` is what follows the kind in an id of `kind`,
+/// which makes every name built from the id fit in a file name.
+/// Why:
+///   A push's suffix carries the branch its record is for and a delete's the directory that held the subvolume,
+/// so the check
+///  must read the object name and the digest separately;
+/// a record an earlier release named by the kind and the object alone keeps
+///  its name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (kind) => (suffix) => carriesDigest(kind) ? /^[\w]{1,64}(-[0-9a-f]{16})?$/.test(suffix) : /^[\w]{1,64}$/.test(suffix)
 /// ```
 pub(crate) fn is_id_suffix(kind: &WorkKind, suffix: &str) -> bool {
-    if *kind == WorkKind::Push
+    if carries_a_digest(kind)
         && let Some((object_name, digest)) = suffix.split_once('-')
     {
-        return is_object_name(object_name) && is_branch_digest(digest);
+        return is_object_name(object_name) && is_join_digest(digest);
     }
     return is_object_name(suffix);
 }
@@ -138,7 +191,7 @@ pub(crate) fn object_of_a_record_name(name: &str) -> Option<&str> {
     let kind: String = format!("{}-", WorkKind::Push.name());
     let rest: &str = name.strip_prefix(kind.as_str())?;
     let object_name: &str = match rest.split_once('-') {
-        Some((object_name, digest)) if is_branch_digest(digest) => object_name,
+        Some((object_name, digest)) if is_join_digest(digest) => object_name,
         _ => rest,
     };
     return is_object_name(object_name).then_some(object_name);
