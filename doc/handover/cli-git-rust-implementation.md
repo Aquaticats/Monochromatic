@@ -8881,10 +8881,16 @@ Cross-vendor audit `alpha-10-worktree-add`
 (`${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-10-worktree-add/`)
 reported three defects in this area against `97aeffe75bfb`.
 Branch `fix/git-policy-cli-alpha-10-audit-add-recovery-keeps-its-records`
-starts at `6777017fc4` and fixes them;
-every control failed first,
-with the fix's proof disabled rather than on a full revert,
-and the process-level reproductions ran on the built binary with a disposable `HOME` and `XDG_RUNTIME_DIR`.
+starts at `6777017fc4` and fixes them.
+Eight of the ten controls failed first,
+with the fix's proof disabled by an environment gate rather than by a full revert
+(`ALPHA10_WITHOUT_SWAP_SETTLEMENT`,
+`ALPHA10_WITHOUT_UNFILLED_RECORD_FIRST`,
+`ALPHA10_WITHOUT_SOURCE_GONE`,
+all removed before the commit);
+the two that assert the settled end state alone do not discriminate an order,
+which the write-failure control and the process-level kills do.
+The process-level reproductions ran on the built binary with a disposable `HOME` and `XDG_RUNTIME_DIR`.
 
 A kill after `RENAME_EXCHANGE` left the directory real Git made at the stage name for ever.
 The record of the stage's creation still named the snapshot,
@@ -8895,11 +8901,13 @@ every later command therefore repeated a missing-copy warning about a worktree t
 settles the folder the way the creating command settles it,
 releases the claim without a copy,
 and is asked by the reaping and by the owed-copy pass.
-Measured: after the kill at the post-exchange pause,
+Measured:
+after the kill at the post-exchange pause,
 the first wrapped `status` in another worktree printed one settlement line,
 the second printed nothing,
-no stage container and no `.stage`,
-`.add` or `.made` record was left,
+no stage container was left,
+and no `.stage`,
+`.add` or `.made` record was left either;
 the snapshot's ignored file stayed in the worktree,
 and removing the worktree and adding it again left nothing either.
 
@@ -8929,17 +8937,30 @@ did not reproduce on this branch:
 the claim and its `.add` record stayed and the wrong line repeated.
 
 `SPEC.md` carries the settlement and the order ("After the journals" and the snapshot rung's paragraph),
-and the modules' controls are in `worktree_copy_swapped_add_settlement_tests.rs`
-and `worktree_copy_owed_copy_tests.rs`.
+and the modules' controls are in `worktree_copy_swapped_add_settlement_tests.rs`,
+`worktree_copy_owed_copy_tests.rs` and `worktree_copy_owed_copy_source_tests.rs`.
 Measured on this host:
 `worktree_copy_owed_copy`,
 `worktree_copy_swapped_add_settlement`,
 `worktree_copy_stage_claim`,
 `worktree_copy_recovery`,
-`worktree_copy_unfilled_record` and `worktree_copy_lifecycle` ran `130` of `130`,
+`worktree_copy_unfilled_record`,
+`worktree_copy_owed_copy_source` and `worktree_copy_lifecycle` ran `132` of `132`,
 the binary suite's `worktree_ladder` filter ran `10` of `10`,
 Clippy ends with no finding,
 and the three process-level reproductions print `FIXED` or the unfilled line they assert.
+`worktree_copying::worktree_copy::tests::a_creation_recovers_a_dead_journal_first` is red on `6777017fc4`
+itself:
+with all four of its files at that commit it fails the same way,
+its expectation that a creating command in the main checkout recovers another worktree's dead journal
+contradicting the rule that a copy belongs to the worktree it fills,
+so the package suite stays red for reasons this branch did not make.
+The linter's package run stays non-zero for the over-limit files it already named
+(`worktree_copy_owed_copy.rs` `398` to `404` code lines and
+`worktree_copy_stage_claim_reaping.rs` `309` to `315`,
+both already past `300` at `6777017fc4`,
+with the new helpers put in sibling files rather than grown in place),
+and for the two `avoidable-closure` warnings in code this branch does not touch.
 
 ### The source layout waits for the owner's read (2026-11-08T23:57:46-05:00)
 
