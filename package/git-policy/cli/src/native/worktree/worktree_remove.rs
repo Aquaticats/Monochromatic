@@ -418,6 +418,12 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         warn(TAG, report.as_str());
         return RemoveOutcome::Refused(report);
     }
+    // The walk and the clear above took time, and the destroy names the held subvolume, so the names and the lock are looked
+    // at once more: what the first look proved is what this destroy answers for, and a lock or a swap since it is Git's.
+    if let Err(reason) = confirm(&held, &registration) {
+        debug(TAG, format!("{reason}; Git decides").as_str());
+        return RemoveOutcome::LeftToGit;
+    }
     // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the
     // removal of the registration leaves a state the next command can finish instead of one only `git worktree prune`
     // could. A record that cannot be written costs that finish and nothing else, so the destruction goes on.
