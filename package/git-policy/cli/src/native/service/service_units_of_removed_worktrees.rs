@@ -1,7 +1,7 @@
 //! What:
 //! The commit service units of worktrees that no longer exist:
 //! the note that says which worktree a unit belongs to,
-//! the test of whether that worktree is gone,
+//! the test of whether that worktree or its repository is gone,
 //! and the stop of the units of a gone one through the user manager.
 //! Why:
 //! A unit instance is named by a hash of its worktree's own Git directory (`service_instance.rs`),
@@ -123,15 +123,24 @@ pub struct SweepOutcome {
 }
 
 /// What:
-/// Whether the worktree whose own Git directory is `git_dir` is certainly gone:
-/// the directory is missing while the place that holds it is there.
+/// Whether the worktree whose own Git directory is `git_dir` is certainly gone.
 /// Why:
-///   A repository on a drive that is not mounted has a missing Git directory too,
-/// and its worktrees are not gone.
-/// A linked worktree's directory is `<common>/worktrees/<id>`,
+///   A Git directory that is missing while the place that holds it is there is the worktree Git removed:
+/// a linked worktree's directory is `<common>/worktrees/<id>`,
 /// and Git removes `worktrees` itself with the last one,
 /// so the common directory is the place that must be there;
 /// a main checkout's Git directory is held by the checkout.
+/// A directory that is on a drive which is not mounted has a missing Git directory too,
+/// and its worktree is not gone,
+/// so a place that is missing as well is read by the same proof the pushes waiting for a new try are read by
+/// (`unreachable_git_dir_proven_gone.rs`):
+/// the nearest directory above the Git directory that exists,
+/// which proves the repository deleted when it is the root of a mounted filesystem or holds other entries,
+/// and proves nothing when it holds nothing at all.
+/// Both questions are asked here,
+/// so the service,
+/// the survey,
+/// the sweep and `doctor` never disagree about a gone worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -144,10 +153,18 @@ pub fn worktree_is_gone(git_dir: &Path) -> bool {
     }
     let Some(parent) = git_dir.parent() else { return false };
     let anchor: Option<&Path> = if parent.file_name() == Some(std::ffi::OsStr::new("worktrees")) { parent.parent() } else { Some(parent) };
-    return match anchor {
-        Some(place) => place.is_dir(),
-        None => false,
-    };
+    if let Some(place) = anchor
+        && place.is_dir()
+    {
+        return true;
+    }
+    // The place that held the Git directory is missing too: the whole repository may have been deleted, or it may be on a
+    //  drive that is not mounted. The proof the retry plans use is what tells the two apart, and it reads no worktree of its
+    //  own: a worktree that is still there is one whose Git directory moved, which the caller of the proof names where it knows it.
+    return matches!(
+        crate::unreachable_git_dir_proven_gone::prove(git_dir, None, crate::unreachable_git_dir_proven_gone::the_mounts()),
+        crate::unreachable_git_dir_proven_gone::Proof::Gone(_)
+    );
 }
 
 /// What:
@@ -413,7 +430,8 @@ fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), Call
 }
 
 /// What:
-/// Stops the socket unit of one instance through the manager
+/// Stops the socket unit of one instance through the manager,
+/// ends the pushes it kept for a repository that is gone,
 /// and keeps the journal,
 /// the note and the socket file for the sweep that follows this process's end,
 /// when the worktree of that instance is gone,
@@ -421,8 +439,13 @@ fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), Call
 /// Why:
 ///   This is what a service of a gone worktree does about itself:
 /// it serves nothing,
-/// and no connection starts it again.
-/// `doctor` counts the instance until the sweep removes it,
+/// and no connection starts it again;
+/// the retry plan of every branch of the gone repository ends
+/// (`service_plans_of_a_gone_repository.rs`),
+/// so a service started later has no try left to spend;
+/// nothing of the journal is removed here,
+/// because this process is still one of that journal's writers,
+/// so `doctor` counts the instance until the sweep removes it,
 /// which is the price of never taking a record this process may still publish.
 /// Only the socket is stopped,
 /// and with the mode that leaves what requires it alone:
@@ -440,6 +463,21 @@ fn stop_own_socket(instance: &str, manager: &mut dyn Manager) -> Result<(), Call
 pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<Option<PathBuf>, CallError> {
     let Some(gone) = own_worktree_gone(folders, instance) else { return Ok(None) };
     stop_own_socket(instance, manager)?;
+    // What: The pushes this service kept for the repository that is gone end here.
+    // Why:  Nothing is left to deliver, and a plan that stayed would be read by a service of this instance started later, which
+    //       would spend a try on a directory nothing can reach: the owner's "nothing should ever wait forever or indefinitely".
+    //       A plan of a repository that is still there, and every other record, stays and keeps the journal.
+    if let Some(state) = folders.state_dir {
+        let journal: PathBuf = journal_of(state.join(SERVICE_UNIT.current).as_path(), instance);
+        let ended: Vec<String> = crate::service_plans_of_a_gone_repository::end_plans_of_gone_repositories(journal.as_path());
+        if !ended.is_empty() {
+            crate::service_log!(
+                "the pushes this commit service kept for {} end without another try, because its repository is gone: {}; nothing is left there for a try to reach",
+                gone.display(),
+                ended.join(", ")
+            );
+        }
+    }
     // Nothing of the journal is removed here, because this process is one of its writers and still runs:
     //  the task that runs the after-commit work writes the note that names a repository to look at and the plan of a push
     //  to try again, on a thread of its own and from jobs of the blocking pool, and both may write between the listing that

@@ -6748,6 +6748,8 @@ on the commit path:
   and a service the manager made listen at another address than the one this command waits at,
   which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
   because the unit names its address with `%t` and `%t` is the manager's runtime directory.
+  A socket unit the manager already holds at another address is asked about before this command starts anything,
+  so a runtime directory of its own leaves no unit listening for a worktree it never looks at.
   Two spellings of one folder are one address there:
   a link,
   a `..` part,
@@ -10614,11 +10616,19 @@ task and disk limits,
 after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
 A service that finds the worktree it serves gone stops its own socket and serves nothing,
 and it asks when it starts and once a minute while it serves:
-the administrative directory is missing while the repository that held it is there
-(a repository on a drive that is not mounted proves nothing),
+the administrative directory is missing and the repository that held it is proven gone
+(the nearest directory above it that exists is the root of a mounted filesystem or holds other entries;
+a repository on a drive that is not mounted,
+whose mount point holds nothing,
+proves nothing),
 and the note provisioning wrote beside the socket,
 or the `gitdir=` records of the service's own journal,
 names that directory and hashes to the instance.
+It asks this before the after-commit work counts itself busy,
+so a service that keeps a push waiting for a new try is asked too,
+and the pushes it kept for the gone repository end with it:
+one journal line names the branches no try will reach again,
+while a plan of a repository that is still there stays.
 It stops its socket unit with the job mode that leaves the units requiring it alone,
 because its own end is what stops its service unit,
 and a stop of that unit from inside the service would signal it before it could stop its own socket and leave its files as the sweep finds them.

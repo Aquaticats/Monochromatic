@@ -251,8 +251,10 @@ const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 /// the removal that takes a worktree while its service runs is what leaves a socket listening for a directory that is gone.
 /// The answer is the same rule the sweep and `doctor` use (`worktree_is_gone`),
 /// so an unmounted device and an instance nothing names keep the service serving.
-/// The idle bound alone ends the service,
-/// and that is answered before this one.
+/// The question is asked before the busy count and before the idle bound:
+/// after-commit work that counts itself busy,
+/// and a service that has served nothing for hours,
+/// both answer it the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -391,13 +393,13 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         let wait: Duration = if settings.own_git_dir.is_some() { until_idle.min(settings.own_worktree_check) } else { idle };
         let first: Job = match receive_for_at_most(&mut receiver, Some(wait)) {
             Received::Item(job) => job,
-            // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
-            Received::Timeout if busy.load(Ordering::SeqCst) > 0 => {
-                last_work = Instant::now();
-                continue;
-            }
-            // The interval of a service whose worktree is known, with the idle bound still ahead: the worktree may have been
-            //  removed by another Git, and then no start of this service ever comes again to notice it.
+            // Work: The worktree whose units are this service's may have been removed while the service runs, and that
+            //       question is answered before any other answer to a timeout.
+            // Why:  The after-commit work counts itself busy while a push waits for a new try, and the busy arm below keeps the
+            //       service alive for that work's sake; a service of a repository that was deleted, with a plan nothing can run,
+            //       therefore never reached this question and never ended (measured 2026-11-11: units retrying at try 149 for a
+            //       repository deleted hours before). Nothing can be delivered to a directory that is gone, so nothing waits for
+            //       the work to finish first.
             Received::Timeout if own_worktree_gone_now(settings, until_idle) => {
                 let instance: &str = settings.instance.as_deref().unwrap_or_default();
                 let _asked = (settings.own_units_stop)(instance, context.journal.as_path());
@@ -405,6 +407,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 crate::service_durable::drain();
                 log(exit_line(ExitReason::WorktreeGone, serving_since.elapsed()).as_str());
                 return;
+            }
+            // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
+            Received::Timeout if busy.load(Ordering::SeqCst) > 0 => {
+                last_work = Instant::now();
+                continue;
             }
             // The interval of a service whose worktree is known, and that worktree is still there: serve on.
             Received::Timeout if settings.own_git_dir.is_some() && until_idle > settings.own_worktree_check => continue,
