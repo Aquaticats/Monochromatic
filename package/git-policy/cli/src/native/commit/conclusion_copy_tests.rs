@@ -224,13 +224,15 @@ fn a_worktree_with_nothing_to_conclude_gets_no_copies_directory() {
 ///  A merge in progress copies its entries into the shadow and into the transaction,
 ///  and flushes neither copy.
 /// Why:
-///  A merge leaves `MERGE_HEAD`, `MERGE_MSG` and `MERGE_MODE` behind,
+///  A merge leaves `MERGE_HEAD`,
+/// `MERGE_MSG` and `MERGE_MODE` behind,
 ///  so a copy that flushed every publish would wait for the disk six times per merge commit
 ///  where a plain commit of the same paths waits none,
 ///  and the records put that wait at up to 47.9 s for one merge commit
 ///  (`doc/planning/cli-git-merge-commit-landing-in-a-busy-checkout.md`).
 ///  Every copy here is read inside this commit's own transaction,
-///  which a power loss ends without a verdict (`doc/planning/cli-git-spawn-and-sync-reduction.md`, the tearing
+///  which a power loss ends without a verdict (`doc/planning/cli-git-spawn-and-sync-reduction.md`,
+/// the tearing
 ///  table),
 ///  so nothing is left that a flush would have made findable.
 #[test]
