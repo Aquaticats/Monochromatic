@@ -63,8 +63,8 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: "the sequencer is copied into the shadow",
     file: "src/native/commit/conclusion_copy.rs",
-    from: "if recovery_step(path_present(sequencer.as_path()))? {",
-    to: "if false && recovery_step(path_present(sequencer.as_path()))? {",
+    from: "    if sequencer_present {",
+    to: "    if false {",
     failing: "commit::conclusion_copy::tests::sequencer_is_copied_recursively",
   },
   {
