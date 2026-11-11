@@ -89,11 +89,19 @@ const QUIET_NOTICE_SECONDS: &str = "3600";
 /// A notice is *queued* by the landing, so it is ahead of the answer on the connection whatever the writer's timing.
 const RACE_NOTICE_SECONDS: &str = "1";
 
-/// How long the foreign program holds the lock past the client's ceiling in the control where the withdrawal must cross it:
-/// two seconds,
-/// a whole notice interval past the ceiling,
-/// so the notice that crosses the ceiling is queued before the program lets go and long before the landing answers.
-const HOLD_PAST_THE_CEILING: Duration = Duration::from_secs(2);
+/// The ceiling the client of that control gives the service's answer:
+/// half a second,
+/// shorter than one notice interval,
+/// so a notice is certainly due after it and never before it by more than half an interval.
+const RACE_CLIENT_CEILING: Duration = Duration::from_millis(500);
+
+/// How long the foreign program holds the lock past that ceiling:
+/// five seconds,
+/// five notice intervals,
+/// so a notice is queued after the ceiling even when the landing took seconds to start,
+/// and the landing can only answer after the program lets go,
+/// which is past every one of those notices.
+const HOLD_PAST_THE_CEILING: Duration = Duration::from_secs(5);
 
 /// A request that sets `path` to `content`,
 /// prepared against the branch as it is now.
@@ -217,8 +225,8 @@ fn a_request_withdrawn_at_its_bound_never_lands_not_even_after_a_restart() {
 /// and the answer is that the commit landed:
 /// the command reports success and
 /// the commit is on the branch exactly once.
-/// The client's ceiling passes while the foreign program still holds the lock,
-/// and a repeated notice of the wait reaches the client after that ceiling and before the answer,
+/// The bound passes while the foreign program still holds the lock,
+/// and a repeated notice of the wait reaches the client after that bound and before the answer,
 /// so the withdrawal is decided while the landing is in progress:
 /// nothing here depends on when the connection's writer gets a turn.
 #[test]
@@ -229,9 +237,14 @@ fn a_landing_that_starts_as_the_bound_passes_is_reported_as_landed() {
     let _service: Held = service_with_arguments(&fixture, name.as_str(), RACE_NOTICE_SECONDS, &[]);
     let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
     let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, 0);
-    let waiting = submit_on_a_thread(config_for(&fixture, name.as_str(), CLIENT_CEILING), request_for(&fixture, &repo, "racer", "a.txt", "racer\n"));
+    let mut client: ClientConfig = config_for(&fixture, name.as_str(), RACE_CLIENT_CEILING);
+    // The wait a client gives a write it is inside is the owner's short one (`SHORT_EXTRA_WAIT`, seven seconds), which a landing
+    //  the machine stalled spends before it answers; this control is about the withdrawal meeting a landing, not about that wait
+    //  (which `service_heartbeat` proves), so its client waits like a person's.
+    client.extra_wait = PATIENCE;
+    let waiting = submit_on_a_thread(client, request_for(&fixture, &repo, "racer", "a.txt", "racer\n"));
     // The foreign program holds the lock past the bound, so the withdrawal is decided while the landing waits for it.
-    std::thread::sleep(CLIENT_CEILING + HOLD_PAST_THE_CEILING);
+    std::thread::sleep(RACE_CLIENT_CEILING + HOLD_PAST_THE_CEILING);
     std::fs::write(&release, b"").expect("the foreign commit is told to let go");
     let held = holder.wait_with_output().expect("the foreign commit ends");
     assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
