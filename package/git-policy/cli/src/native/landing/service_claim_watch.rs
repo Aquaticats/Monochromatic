@@ -223,18 +223,19 @@ impl ClaimWatch {
     }
 
     /// What:
-    ///  A watch kept in `directory` whose notes have not been read yet.
+    ///  A watch for a service that starts now without having read its notes:
+    /// nothing is known about the repositories an earlier service was woken for,
+    /// the watch knows where they are kept,
+    ///  and the store is read again after a pause.
     /// Why:
-    ///   The read of the notes is bounded,
-    /// and a journal that stopped answering can outlast its ceiling,
-    /// so the service starts before its notes are known.
-    /// The directory is kept either way,
-    /// so a note written now is kept for a restart,
-    /// and `needs_retry` names the read to be made again (`retry`).
+    ///   The read of a journal that stopped answering is bounded,
+    /// so a service starts without it rather than never starting;
+    /// a watch kept in memory only would then write no note for the whole life of that service,
+    ///  so a restart after it killed the service would not know where pending after-commit work waits.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// new ClaimWatch(dir, instance, { unread: true })
+    /// new ClaimWatch(dir, instance, { unread: true, failures: 1 })
     /// ```
     pub fn unread(directory: &Path, instance: Option<&str>) -> Self {
         return Self {
@@ -366,6 +367,27 @@ impl ClaimWatch {
             }
         }
         return false;
+    }
+
+    /// What:
+    ///  Note that a retry of the watch outlasted its ceiling and gave no answer,
+    /// so the notes are read again at the next pause,
+    ///  which grows with each attempt.
+    /// Why:
+    ///   That job is still holding a place of the blocking bound until the journal answers,
+    /// so trying the notes at the shortest pause for ever would fill the pool with reads of a journal that never answers;
+    /// and what it read is not known here,
+    /// so the store is listed again either way,
+    /// which writes the same note twice at worst.
+    /// A job the system gave no thread for promises that nothing ran and holds no place.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// watch.retryCameToNothing(); // the next retry is owed at pauseBefore(++failures, first)
+    /// ```
+    pub fn retry_came_to_nothing(&mut self) {
+        self.unread = true;
+        self.failures = self.failures.saturating_add(1);
     }
 
     /// Tries again what failed:

@@ -288,6 +288,38 @@ fn sha256_and_reftable_repositories_get_matching_shadows() {
     remove(root.as_path());
 }
 
+/// What:
+///  A reftable repository whose own directory name is not UTF-8 gets its shadow at its own path,
+///  and that shadow answers the real `HEAD`.
+/// Why:
+///   The reftable backend's tables are Git's to create,
+///  so the shadow is made by `git init`,
+///  which was handed a spelling of the shadow's path:
+///  `display()` wrote the bytes that are not UTF-8 as U+FFFD,
+///  Git initialized that other directory,
+///  and the creation then protected a path that did not exist,
+///  so the commit could not be prepared and a stray shadow stayed under the replacement-character name.
+#[test]
+fn a_reftable_shadow_is_made_at_a_path_that_is_not_text() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("shadow-create-reftable-not-utf8");
+    let repo: PathBuf = root.join(OsString::from_vec(b"reftable-\xef".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let (shadow, _transaction, capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
+    assert_eq!(capture.layout.ref_format, RefFormat::Reftable);
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        head,
+        "the shadow's Git reads the real reftable refs through the shadow's own path"
+    );
+    let stray: PathBuf = root.join(OsString::from_vec("reftable-\u{fffd}".as_bytes().to_vec()));
+    assert!(!stray.exists(), "no shadow is made at a spelling of the repository's path: {}", stray.display());
+    remove(root.as_path());
+}
+
 /// The shadow and the directories above it are private,
 /// as the incumbent's recursive private mkdir makes them.
 #[cfg(unix)]

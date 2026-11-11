@@ -528,46 +528,78 @@ pub(crate) struct Replanning {
     pub(crate) first: Option<Duration>,
     /// What was asked of the plan.
     pub(crate) changes: Vec<RetryChange>,
-    /// The directory a plan is kept in,
+    /// The directory the plan's files are kept in,
+    /// which is where this drain writes the plan it promises and removes the one it forgets,
     /// or nothing for a plan kept in memory only.
     pub(crate) plans: Option<PathBuf>,
 }
 
 /// Methods over the state.
 impl Replanning {
-    /// Ask the plan to drop the branch:
-    /// its push landed,
-    /// or the person must act.
+    /// What:
+    ///  Ask the plan to drop the branch,
+    /// and take its file out of the journal now.
+    /// Why:
+    ///   The file is what a restarted service rebuilds the plan from,
+    /// so a forget that reached only the list of this process would leave the next service trying a push that has already landed
+    ///  (finding 3 of the review of `bc3d54f9cd`).
+    /// It goes here,
+    /// on the thread that decided the branch needs no new try,
+    /// as the plan a worker promises is already written here,
+    ///  and not by a round that may reach the journal later,
+    /// when a newer plan of the branch may have been written since
+    ///  (finding 4 of the same review).
+    /// A removal that fails is said,
+    /// and the next start reads the file again.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// forget(gitDir, branch): removePlans(this.plans, gitDir, branch); this.changes.push({ forget: { gitDir, branch } });
+    /// ```
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.take_the_plan_file(git_dir, branch_ref);
         self.push_forget(git_dir, branch_ref, false);
     }
 
     /// What:
-    ///  Ask the plan to drop a branch whose repository a reading of the filesystem proved gone.
+    ///  Ask the plan to drop a branch whose repository a reading of the filesystem proved gone,
+    /// and take its file out of the journal unless the repository is back.
     /// Why:
     ///   That reading is a point in time,
-    /// and the change is applied after it:
+    /// and this runs after it:
     /// a repository renamed back by then is there again,
     ///  so its plan must not be dropped on the stale proof.
-    /// The applier asks the filesystem once more
+    /// The file goes where every forget's file goes,
+    /// on the thread that decided the branch needs no new try,
+    /// so this is the last place the filesystem can be asked before the file is gone;
+    /// the applier asks it once more before it drops the branch from the list
     /// (`push_retry.rs`,
-    /// `Retrying::apply`).
+    /// `PushRetries::apply`),
+    ///  which is what keeps a repository that came back during the round trying.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// replanning.forgetWhenUnreachable(gitDir, branchRef); // the plan goes only while the directory is still missing
+    /// forgetWhenUnreachable(gitDir, branchRef): if (!isDirectory(gitDir)) removePlans(this.plans, gitDir, branchRef); this.changes.push({ forget: { gitDir, branchRef, onlyWhileUnreachable: true } });
     /// ```
     pub(crate) fn forget_when_unreachable(&mut self, git_dir: &Path, branch_ref: &str) {
+        if !git_dir.is_dir() {
+            self.take_the_plan_file(git_dir, branch_ref);
+        }
         self.push_forget(git_dir, branch_ref, true);
+    }
+
+    /// Removes the plan's file of a branch from the journal,
+    /// where a directory keeps one at all.
+    fn take_the_plan_file(&mut self, git_dir: &Path, branch_ref: &str) {
+        if let Some(directory) = self.plans.as_deref() {
+            crate::push_retry_store::remove(directory, git_dir, branch_ref);
+        }
     }
 
     /// The one place a forget is added,
     /// so both kinds name the directory and the branch the same way.
     fn push_forget(&mut self, git_dir: &Path, branch_ref: &str, only_while_unreachable: bool) {
-        // The instant is the worker's own, so a forget an abandoned job writes late is still judged against the plans
-        //  that were there when this round drained the branch.
-        let asked: u64 = crate::push_retry_store::micros_now();
-        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable, asked });
+        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable });
     }
 
     /// What:
@@ -581,7 +613,8 @@ impl Replanning {
     /// and a notice that says the service keeps trying would be the only statement left and it would be false.
     /// A worker writes only its own branch's plan,
     /// whose file name the branch key and the try number make,
-    /// and the loop writes the same file again when it applies the change.
+    /// and the loop writes no file:
+    /// what it applies is the list it reads.
     ///  A plan that cannot be written answers that it is not kept,
     /// so the caller promises nothing the next service cannot keep.
     ///
@@ -724,8 +757,8 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
         named.push(format!("{} of {}", due.item.branch_ref, due.item.oid));
         replanning.forget_when_unreachable(git_dir, due.item.branch_ref.as_str());
     }
-    // Nothing of this drain ran, so the caller has nothing to wait for; the changes it applies drop the plans of the branch from the
-    //  store as well as from memory.
+    // Nothing of this drain ran, so the caller has nothing to wait for; the file of each ended plan goes here, and the change
+    //  drops the branch from the list the loop reads.
     if !named.is_empty() {
         crate::service_warn!("{} ({unreachable})", crate::unreachable_git_dir_proven_gone::gone_line(git_dir, gone, named.as_slice()));
     }

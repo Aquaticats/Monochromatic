@@ -14,6 +14,12 @@
 //! and the identity of the top directory is compared with the recorded one on the object that is
 //!  opened,
 //! so a replacement is never emptied.
+//! A whole first pass looks at every directory below the tree and deletes nothing
+//!  (`subvolume_remove_walk.rs`):
+//! a nested subvolume or a mount point anywhere in it refuses the removal
+//!  before one entry is unlinked,
+//! so the ordinary directories beside it are still there when the reason comes back and the person
+//!  decides what happens to the tree.
 //! The one directory of another device that is no boundary is the stand-in btrfs shows where a snapshot left a nested
 //!  subvolume out:
 //! it holds nothing and belongs to the tree being removed,
@@ -29,6 +35,8 @@
 //! ```
 
 use crate::fs_beneath::{ObjectId, device_of, handle_path, identity_at, identity_of, open_directory_at, remove_at};
+use crate::subvolume_remove_walk::verify_below;
+use crate::worktree_path_failure_message::path_failure;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -197,6 +205,9 @@ fn enter(parent: &File, name: &OsStr, device: u64, shown: Describe<'_>) -> Resul
 /// Nothing is followed and nothing outside the directory is touched.
 /// An entry
 ///  that vanishes meanwhile counts as removed.
+/// A boundary below the top directory is refused before one entry is unlinked,
+/// and one that appears
+///  afterwards is refused again where it is met.
 /// Directories are entered with a work stack,
 /// so depth costs no recursion.
 ///
@@ -223,6 +234,11 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
             return Err(format!("{} is not the object that was set aside ({} instead of {}), so it is left alone", top.display(), opened.encode(), wanted.encode()));
         }
     }
+    // The whole tree is looked at first, and nothing is deleted: a nested subvolume or a mount point anywhere in it
+    //  refuses the removal before one entry is unlinked, so the person still has every file the removal was not allowed
+    //  to destroy. The walk below checks the same boundary again at each directory, which catches one that appeared in
+    //  between.
+    path_failure(verify_below(&first.dir, top.as_path()), top.as_path(), "cannot be removed")?;
     let mut stack: Vec<Frame> = vec![first];
     // The names from the top directory down to the frame being worked on, for messages.
     let mut shown: Vec<OsString> = Vec::new();

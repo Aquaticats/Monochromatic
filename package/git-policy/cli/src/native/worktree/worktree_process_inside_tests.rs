@@ -76,6 +76,32 @@ fn a_process_working_elsewhere_does_not_count() {
     );
 }
 
+/// What:
+///  This command's own process working in the folder keeps it,
+///  and is named as this command rather than by its number.
+/// Why:
+///  `-C` names the repository a command works on,
+/// never its own working folder,
+///  so a program that spawns a wrapped merge with the worktree a landed branch holds as its working folder
+///  is the only process there,
+///  and skipping the command's own number removed that folder
+///  (a cross-vendor audit of the landed sweep).
+///  The table is written,
+/// not read from the machine,
+///  because a control cannot choose where its own process works.
+#[test]
+fn this_command_working_in_the_folder_keeps_it() {
+    let root: PathBuf = fixture("process-own");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
+    let own: u32 = std::process::id();
+    let table: PathBuf = a_table_with_one_process_in(worktree.as_path(), own);
+    let found: Option<WorkingProcess> = process_working_inside(worktree.as_path(), table.as_path(), None);
+    assert_eq!(found, Some(WorkingProcess { pid: own, folder: WorkingFolder::Inside }), "the command itself works there");
+    let why: String = found.expect("the command's own process").why();
+    assert_eq!(why, "this command is working in it, because it was started in that folder");
+}
+
 #[test]
 fn a_real_process_in_a_real_folder_is_found_in_the_hosts_own_table() {
     let root: PathBuf = fixture("process-real");
@@ -94,7 +120,8 @@ fn a_real_process_in_a_real_folder_is_found_in_the_hosts_own_table() {
 ///   A program can hide its working folder from every other reader,
 ///  and a fixture cannot make a link unreadable,
 ///  so the control writes a `cwd` that is no link at all:
-///  the read fails, the entry is this account's,
+///  the read fails,
+/// the entry is this account's,
 ///  and the answer must be the same as for a hidden folder.
 ///
 /// In TS you'd write (pseudocode):
