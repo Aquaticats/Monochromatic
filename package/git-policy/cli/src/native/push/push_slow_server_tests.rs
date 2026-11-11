@@ -252,6 +252,123 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
     remove(root.as_path());
 }
 
+/// The variable a control sets to shorten the window a connected run may stay silent for;
+/// no shipped run sets it.
+const WINDOW_VARIABLE: &str = "CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS";
+
+/// The connected window a control asks for, in whole seconds.
+const CONTROL_WINDOW_SECONDS: u64 = 2;
+
+/// How many connected windows the fixture holds its connection open and silent before it lets go,
+/// so a wrapper that stopped the push is told apart from a fixture that ended it.
+const WINDOWS_HELD: u32 = 3;
+
+/// Run the push under a patience and the environment a control needs besides,
+/// with its time.
+fn run_with(repo: &std::path::Path, patience: Patience, extra: &[(&str, &str)]) -> (PushAttempt, Duration) {
+    let mut environment: Vec<(OsString, OsString)> = scratch_environment();
+    for (name, value) in extra {
+        environment.push((OsString::from(name), OsString::from(value)));
+    }
+    let started: Instant = Instant::now();
+    let attempt: PushAttempt = run_bounded_push(push_command(repo), patience, GRACE, environment.as_slice()).expect("runs");
+    return (attempt, started.elapsed());
+}
+
+/// What:
+///  A push to a server that takes the connection and answers nothing is ended at the connected window,
+///  although the helper that holds the connection uses processor time while it waits,
+///  and the stop names the server and the window.
+/// Why:
+///   The audit's F8 measured the service's push to such a server running for 290 to 330 seconds with a 150 second
+///  window,
+/// and the helper's own polling ticks were why:
+/// the clock counted them as work,
+/// so the silence it measures never reached the window.
+///  The fixture holds the connection for several windows before it lets go,
+/// so an ending before that is the wrapper's and never the server's.
+#[test]
+fn a_server_that_takes_the_connection_and_answers_nothing_is_ended_at_the_connected_window() {
+    let listener: std::net::TcpListener = TcpListener::bind("127.0.0.1:0").expect("a local listener");
+    let port: u16 = listener.local_addr().expect("its address").port();
+    let (reached, arriving) = std::sync::mpsc::channel::<Reached>();
+    let (let_go, letting_go) = std::sync::mpsc::channel::<()>();
+    let server = std::thread::spawn(move || {
+        // Take the connection, read what the push sends, answer nothing, and hold it until this control lets go.
+        listener.set_nonblocking(true).expect("the fixture's listener can be looked at between two readers");
+        let mut held: Vec<std::net::TcpStream> = Vec::new();
+        let mut told: bool = false;
+        let mut sink: [u8; 4096] = [0; 4096];
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    let _blocking = stream.set_nonblocking(false);
+                    let _timeout = stream.set_read_timeout(Some(READ_SLICE));
+                    if !told && reached.send(Reached::Connected).is_err() {
+                        return;
+                    }
+                    told = true;
+                    held.push(stream);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(error) => {
+                    let _sent = reached.send(Reached::Failed(error));
+                    return;
+                }
+            }
+            for stream in &mut held {
+                let _read = stream.read(&mut sink);
+            }
+            if letting_go.try_recv().is_ok() {
+                return;
+            }
+            std::thread::sleep(READ_SLICE);
+        }
+    });
+    let root: PathBuf = fixture("silent-server-window");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{port}/silent.git").as_str()]);
+    let window: Duration = Duration::from_secs(CONTROL_WINDOW_SECONDS);
+    let window_value: String = CONTROL_WINDOW_SECONDS.to_string();
+    let extra: [(&str, &str); 1] = [(WINDOW_VARIABLE, window_value.as_str())];
+    std::thread::scope(|scope| {
+        let push = scope.spawn(|| return run_with(repo.as_path(), Patience::Progress { stall: STALL }, extra.as_slice()));
+        let arrival: Reached = arriving.recv_timeout(STOP_SLACK).expect("the fixture's listener took the push's connection");
+        if let Reached::Failed(error) = arrival {
+            let _let_go = let_go.send(());
+            let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+            panic!("the fixture's listener refused the push's connection ({error}), and the push ended after {elapsed:?} with {}: {}", attempt.exit_code, attempt.output);
+        }
+        std::thread::sleep(window * WINDOWS_HELD);
+        let ended_while_held: bool = push.is_finished();
+        let _let_go = let_go.send(());
+        let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+        assert!(
+            ended_while_held,
+            "the push was still running while the server held the connection open and silent for {:?}, so the wrapper did not end it at its window: {}: {}",
+            window * WINDOWS_HELD,
+            attempt.exit_code,
+            attempt.output
+        );
+        assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "{}", attempt.output);
+        assert!(attempt.output.contains("limit=connected"), "the stop names the connected window: {}", attempt.output);
+        assert!(
+            attempt.output.contains(&format!("to the server `127.0.0.1:{port}`")),
+            "the stop names the server: {}",
+            attempt.output
+        );
+        assert!(
+            attempt.output.contains(&format!("nothing moving for {CONTROL_WINDOW_SECONDS} seconds")),
+            "the stop names the window it was ended by: {}",
+            attempt.output
+        );
+        assert!(attempt.output.contains(WAIT_NOTE_PHRASE), "the output names the wait: {}", attempt.output);
+        assert!(elapsed >= window && elapsed < window + STOP_SLACK, "ended near its window: {elapsed:?}");
+    });
+    server.join().expect("the fixture's server thread ends");
+    remove(root.as_path());
+}
+
 /// A server check that outlasts several stall windows does not stop the push,
 /// and no total time does:
 /// it lands.

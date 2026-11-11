@@ -646,6 +646,61 @@ fn a_silent_open_connection_is_ended_at_the_connected_window() {
     assert!(words.contains("git lfs push --all"), "a remedy that works is named: {words}");
 }
 
+/// What:
+///  A tree whose only change between two looks is the processor time of the process that holds the connection
+/// is waiting,
+/// and its wait ends at the connected window.
+/// Why:
+///   The helper that speaks HTTP for a push polls its socket while it waits,
+/// and the kernel charges it one tick every few seconds:
+/// measured on 2026-11-11 against a server that takes the connection and never answers,
+/// `git-remote-http` used one tick every three seconds and moved no byte.
+/// A clock that counts those ticks as work
+/// never reaches a connected window,
+/// which is what the audit's F8 measured:
+/// 290 to 330 seconds of a service push that had a 150 second window.
+///  The holder here does what that helper does:
+/// it holds its connection and burns a few processor milliseconds between two polls of it,
+/// so every look finds either a tick or a task able to run,
+/// and the tree is still waiting.
+#[test]
+fn a_connected_tree_that_only_uses_processor_time_is_waiting() {
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    // No fork and no write: the holder only burns the processor between two timed reads of the socket it holds.
+    let mut holder: Command = Command::new("bash");
+    holder
+        .args([
+            "-c",
+            format!("exec 3<>/dev/tcp/127.0.0.1/{port}; while :; do n=0; while [ $n -lt 4000 ]; do n=$((n+1)); done; read -t 0.1 -u 3 line; done")
+                .as_str(),
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut holder).expect("start the holder");
+    let (_accepted, _) = listener.accept().expect("the holder connects");
+    let stall: Duration = Duration::from_millis(1500);
+    let window: Duration = Duration::from_secs(4);
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
+    let began: Instant = Instant::now();
+    let cause: Option<StopCause> = loop {
+        if let Some(cause) = clock.check() {
+            break Some(cause);
+        }
+        if began.elapsed() > window * 3 {
+            break None;
+        }
+        std::thread::sleep(LOOK);
+    };
+    end(child);
+    let Some(StopCause::Stalled(report)) = cause else {
+        panic!("a tree whose only sign of life is its holder's processor time was not ended within {:?}", began.elapsed())
+    };
+    assert_eq!(report.window, StopWindow::Connected, "ended by the connected window after {:?}", began.elapsed());
+    assert!(began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+}
+
 /// A `/proc/<pid>/stat` line is read after its last parenthesis:
 /// the state,
 /// and the user and system ticks added.
