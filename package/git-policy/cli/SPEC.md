@@ -13680,9 +13680,9 @@ and the whole history of an ordinary audit log
 (782,685 bytes in 1,619 lines over twenty days).
 The audit log's generations are the only ones whose lines name something outside the log,
 so before the pass removes one it reads it,
-and a generation holding a `saved-conflict` line whose copy place exists stays past the bound;
+and a generation holding a `saved-conflict` or `saved-nested-repository` line whose copy place exists stays past the bound;
 so does one that cannot be read,
-one with a `saved-conflict` line that cannot be parsed,
+one with either of those lines that cannot be parsed,
 and one that names a place the line could not show as text,
 because a wrong answer in that direction costs disk and the other costs the only account of a copy.
 A file left at a private name by a killed rotation is counted and kept,
@@ -14938,7 +14938,9 @@ with `schemaVersion`,
 (`rejected`,
 `allowed`,
 `exempt`,
-`hatch` or `saved-conflict`),
+`hatch`,
+`logged`,
+`saved-conflict` or `saved-nested-repository`),
 `dirty`,
 `cwd` and `arguments`.
 Each path and argument this line names is written beside its text as its bytes
@@ -14950,7 +14952,9 @@ so a command whose working directory or argument is not UTF-8 is still the comma
 the line exists to attribute a loss to it.
 The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
-a list of `<path> => <place>` (`none` when there was nothing to copy).
+a list of `<path> => <place>` (`none` when there was nothing to copy),
+and so does a `saved-nested-repository` line,
+whose places hold the repositories a clean would have deleted.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,
