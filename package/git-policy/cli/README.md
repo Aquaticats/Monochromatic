@@ -4965,6 +4965,8 @@ mise run //package/git-policy/cli:native:test:binary:host -- <test name filter>
 mise run //package/git-policy/cli:native:test:host:btrfs -- <test name filter>
 mise run //package/git-policy/cli:native:release:host-controls
 mise run //package/git-policy/cli:native:test:container
+mise run //package/git-policy/cli:native:ts-checks
+mise run //package/git-policy/cli:native:install -- --dry-run <version>
 ```
 
 - `native:check` type-checks every target.
@@ -5161,6 +5163,13 @@ mise run //package/git-policy/cli:native:test:container
   and `--refresh` first re-resolves only the entries a raised floor made unsatisfiable,
   which writes a lockfile before it checks again.
   It exits nonzero when any locked check failed.
+- `native:ts-checks` runs this package's TypeScript unit tests and type checks,
+  or any tasks the command line names,
+  each in its own capped systemd scope and all at once,
+  and prints one line per check.
+  `native:install` moves the installed wrapper to a released version and samples one commit with it
+  (`bin/native-install.ts`);
+  see "The checks and the install" below for both.
 
 A release build of the executable:
 
@@ -5263,6 +5272,85 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   none with 0).
   A wait that ends without a verdict names its reason,
   `no verdict in <log> within <n> s` or `unit <name> stopped without a verdict in <log>`.
+
+### The checks and the install
+
+Two further commands fold the coordinator's last scratch scripts into the package:
+the one that ran a change's TypeScript checks,
+and the one that installed a released wrapper and sampled a commit with it.
+They replace `~/temp/agent/gate/ts-checks.ts` and `~/temp/agent/upgrade-wrapper.ts`,
+which stay where they are until the coordinator has switched over;
+nothing in this package reads them.
+
+```sh
+# Run from the repository top level.
+mise run //package/git-policy/cli:native:ts-checks
+mise run //package/git-policy/cli:native:ts-checks -- //package/mutation-test/cli-cargo-mutants:test:unit
+mise run //package/git-policy/cli:native:install -- 0.6.1-alpha.10
+mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
+```
+
+- `native:ts-checks` runs a change's TypeScript checks and unit tests,
+  one per task,
+  all at once,
+  each in a transient systemd user scope of its own
+  (`bin/native-capped-scope-command.ts`),
+  and prints one line per check with its status.
+  A check that passed prints its status alone;
+  a check that failed prints its status and then the lines that name the failure and the tail of its output,
+  which is what a person reads.
+  The tasks are this package's `test:unit` and `lint:types` when the command line names none,
+  and every positional argument is a task to run instead,
+  so the same run serves any package a change touched.
+  `--worktree <path>` names the checkout
+  (the caller's own folder by default)
+  and its commit is printed above the checks,
+  so a log says what was checked even when the folder name does not.
+  Every check has a deadline,
+  `--deadline-seconds`
+  (900 by default,
+  ten times the 91 seconds the two default checks took in one full run on 2026-11-11),
+  and a check still running then has its scope ended by name and is reported as stopped at its deadline
+  rather than waited on:
+  killing the `systemd-run` client alone would leave the command running in the scope.
+  The caps the scopes carry are the ones the scratch script used
+  (`CPUQuota=200%`,
+  `MemoryMax=4G`,
+  `TasksMax=400`)
+  except the disk weight,
+  which is 1 rather than that script's 30,
+  because a per-command control group never carries more than 10 (rule `RXS`);
+  `--unit-cpu-quota`,
+  `--unit-memory-max`,
+  `--unit-tasks-max`
+  and `--unit-io-weight`
+  override them.
+  The exit status is 0 when every check passed and 2 when one failed or ran past its deadline,
+  so a coordinator can branch on it;
+  a command line or a cap that is refused exits 1 and prints the reason.
+- `native:install <version>` moves the installed wrapper to a released version and takes one real commit sample with
+  it (`bin/native-install.ts`,
+  whose steps and texts live in `bin/native-install-steps.ts`):
+  `mise run toolchain:update -- cargo:monochromatic-git-policy-cli`,
+  the `toolchain.lock.json` diff printed whole,
+  `mise run toolchain:install`,
+  a refusal unless `git --version` prints this release's own line,
+  the lock committed as `chore(toolchain): monochromatic-git-policy-cli <version>`,
+  and then the newest line of the wrapper's commit timing record beside the common Git directory
+  and the service journal of that commit.
+  A lockfile that already names the release commits nothing and says so,
+  and reads no journal,
+  because there is then no sample commit;
+  an install of a release already recorded therefore survives instead of failing a commit with nothing to stage.
+  Every toolchain step is bounded by `--deadline-seconds`
+  (1800 by default;
+  no run of either step was timed,
+  so the bound is a ceiling that a slower host overrides rather than a measurement),
+  each git query by the same ten minutes the other gate commands give git,
+  and the journal read by one minute.
+  `--repository <path>` names the checkout
+  (otherwise the nearest folder above the caller whose `.git` is a folder)
+  and `--dry-run` prints the same plan and changes nothing.
 
 ### Lint
 
