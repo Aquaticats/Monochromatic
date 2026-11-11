@@ -884,8 +884,10 @@ Read-only commands,
    (a mount without `user_subvol_rm_allowed`,
    for one).
      Nothing of yours is in it:
-   a worktree is only removed
-   after the wrapper proved it clean and unlocked.
+   a removal without `--force` runs only
+   after the wrapper proved the worktree clean and unlocked,
+   and a forced removal deletes whatever the worktree held,
+   which its own line says on standard error because nothing was checked first.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that
    names the leftover `.git/worktrees/<name>` directory and the command that finishes the removal
