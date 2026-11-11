@@ -230,6 +230,9 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
         // The checkout carries no `--quiet`; what Git said of it is kept in the journal.
         record_words(&["checkout-index", "-z", "--stdin"], &checked_out);
     }
+    // The checkout wrote each file with the mode Git's entry implies, and the rest of the permission bits the person's file
+    //  had are not in that entry: they come back before the reading of what Git's update left, so the carry keeps them.
+    give_back_the_permissions_of_the_files_the_install_wrote(root, &taken_writes, out);
     if let Err(error) = finish_asides_awaiting(place, root, &taken_writes, out).await {
         return Err(MergeRefusal { error, began });
     }
@@ -266,7 +269,7 @@ pub fn install_entries(
 }
 
 /// What:
-///  Give each file the merge's install wrote the permission bits the person's file had when the command judged it,
+///  Give each file the merge's install wrote back the permission bits it had when the take read it,
 ///  with the executable bit Git's entry decided.
 /// Why:
 ///  Git records one permission bit of a file and no other,
@@ -282,51 +285,57 @@ pub fn install_entries(
 ///  permission the person set would be replaced by that mode
 /// (a Kimi K3.1 Pro review of `1a98764d1f`,
 /// its fifth finding).
-///  A path whose bytes are no longer the merge's own is somebody's newer save,
-/// which keeps its bytes and its mode.
+/// The entries are the ones this install took aside,
+/// which the take checked against the judgement,
+/// so nothing else
+///  can have written the path since;
+/// a path with nothing standing there before the install has no bits of the person's to keep.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function giveBackThePermissionsOfTheFilesTheInstallWrote({ place, root, changes, judgements }): Promise<void>; // (judged & 0o7666) | (written & 0o111)
+/// for (const taken of takenWrites) keepThePermissionsAfterTheCheckout(taken.location, taken.taken.mode); // (taken & 0o7666) | (written & 0o111)
 /// ```
-pub async fn give_back_the_permissions_of_the_files_the_install_wrote_awaiting<W: std::io::Write + ?Sized>(
-    place: &RecoveryPlace,
-    root: &Path,
-    changes: &[Change],
-    judgements: &[Judged],
-    out: &mut W,
-) {
-    for (change, judged) in changes.iter().zip(judgements.iter()) {
-        let Some(identity) = judged.identity else { continue };
-        let location: PathBuf = worktree_path(root, change.path.as_slice());
-        // What the install wrote, and nothing else, is what takes the person's permissions.
-        let state = crate::merge_isolation_changes::worktree_state_awaiting(&place.git, root, change.path.as_slice()).await;
-        match state {
-            Ok(crate::merge_isolation_changes::WorktreeState::Content { object, .. }) if object == change.new_oid => {}
-            _ => continue,
+fn give_back_the_permissions_of_the_files_the_install_wrote<W: std::io::Write + ?Sized>(root: &Path, taken: &[TakenOnDisk], out: &mut W) {
+    for entry in taken {
+        give_back_one_files_permissions(worktree_path(root, entry.path.as_slice()).as_path(), entry.taken.mode, out);
+    }
+}
+
+/// What:
+///  Give one file the permission bits `taken` held,
+///  keeping the executable bits the checkout wrote.
+/// Why:
+///  The executable bit is the one Git decides,
+/// so it comes from the file the checkout wrote;
+/// every other bit is the
+///  person's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function giveBackOneFilesPermissions(location: string, taken: number): void;
+/// ```
+fn give_back_one_files_permissions<W: std::io::Write + ?Sized>(location: &Path, taken: u32, out: &mut W) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let Ok(written) = std::fs::symlink_metadata(location) else { return };
+        if !written.file_type().is_file() {
+            return;
         }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let Ok(written) = std::fs::symlink_metadata(location.as_path()) else { continue };
-            if !written.file_type().is_file() {
-                continue;
-            }
-            let bits: u32 = (identity.mode & PERMISSION_BITS_WITHOUT_EXECUTE) | (written.permissions().mode() & 0o111);
-            if (written.permissions().mode() & 0o7777) == bits {
-                continue;
-            }
-            if let Err(error) = std::fs::set_permissions(location.as_path(), std::fs::Permissions::from_mode(bits)) {
-                let _noted = out.write_all(
-                    format!("monochromatic-git-policy-cli: {} could not be given back the permissions it had ({bits:o}): {error}\n", location.display()).as_bytes(),
-                );
-            }
+        let bits: u32 = (taken & PERMISSION_BITS_WITHOUT_EXECUTE) | (written.permissions().mode() & 0o111);
+        if (written.permissions().mode() & 0o7777) == bits {
+            return;
         }
-        // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-        #[cfg(not(unix))]
-        {
-            let _ = (&location, identity, out);
+        if let Err(error) = std::fs::set_permissions(location, std::fs::Permissions::from_mode(bits)) {
+            let _noted = out.write_all(
+                format!("monochromatic-git-policy-cli: {} could not be given back the permissions it had ({bits:o}): {error}\n", location.display()).as_bytes(),
+            );
         }
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        let _ = (location, taken, out);
     }
 }
 

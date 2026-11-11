@@ -4499,7 +4499,7 @@ and "never discard user data"):
   for the execute bits and the staged mode).
   A saved merge's install gives the files it wrote the permission bits the command judged before the carry
   writes over them
-  (`give_back_the_permissions_of_the_files_the_install_wrote_awaiting` in
+  (`give_back_the_permissions_of_the_files_the_install_wrote` in
   `src/native/merge/merge_isolation_recovery_install.rs`),
   because `checkout-index` writes the mode Git's entry implies and the chmod the judgement saw is nowhere else.
   A mode at a path the merge deletes keeps the person's side whole and is named with the others,
