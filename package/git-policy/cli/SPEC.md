@@ -14755,6 +14755,113 @@ the wrapper lists the stage entries of the pre-landing and post indexes,
 and warns with the differing paths outside the committed and guarded paths.
 The warning never changes the landing.
 
+### The remote settings every worktree shares
+
+The owner answered "Refuse in worktrees (Recommended)" on 2026-11-10
+(`doc/handover/questions-for-the-owner.md`,
+"A push URL changed from a worktree"),
+after a worktree of this repository ran `git remote set-url --push origin DISABLED` as if it were a clone.
+Every worktree of a repository shares one `.git/config`,
+so that change broke every push of the main checkout until someone removed the entry,
+with nothing recording which command had made it.
+
+In a linked worktree,
+which is any worktree whose Git directory is not the common one,
+wherever it sits on disk,
+`linked-worktree-only` rejects a command that writes those shared remote settings,
+with the finding code `shared-remote-settings`:
+
+`git remote set-url`,
+`git remote add`,
+`git remote remove`,
+`git remote rm`,
+`git remote rename`,
+`git remote set-branches` and `git remote set-head`,
+in every position Git accepts `git remote`'s own options.
+`git remote`'s only option before a subcommand is `OPT__VERBOSE`:
+`-v`,
+`--verbose`,
+its unique abbreviations and `--no-verbose` with theirs,
+so `git remote -v set-url origin <url>` and `git remote --verb add beta <url>` are the same writes as the plain
+forms.
+The subcommand words are matched exactly,
+because Git dispatch matches them exactly and refuses every abbreviation.
+The tokens after the subcommand belong to the subcommand's own option table and are not read as this one's,
+so `git remote add -t main beta <url>` is still `add`.
+A word no built-in shares is resolved as an alias before this reading,
+so `git -c alias.su=remote set-url su origin <url>` is the same rejection.
+
+`git config` rejects a write whose key or section falls under `remote.`:
+
+- the plain `name value` form (two arguments),
+  `set-all` (three arguments,
+  which replaces the values a pattern selects),
+  `--add`,
+  `--unset`,
+  `--unset-all` and `--replace-all`;
+- `--remove-section` and `--rename-section`,
+  including a rename whose new section lies under `remote.`
+  because it creates remote settings just as renaming out of `remote.` removes them;
+- the `set`,
+  `unset`,
+  `remove-section` and `rename-section` subcommands.
+
+The key or section is the first token Git hands the command as an argument,
+and the scope is read only where Git reads it:
+with `PARSE_OPT_STOP_AT_NON_OPTION` every option after the key is data,
+so `git config remote.origin.url --worktree` stores the text `--worktree` in the shared file and is rejected.
+Section names are compared without case,
+as Git compares them,
+while the subsection keeps its case,
+so `Remote.Origin.URL` is a write to the same section as `remote.origin.url`.
+A region Git refuses writes nothing and is not rejected:
+no action and four or more arguments,
+two actions at once,
+and two scope options at once.
+`git config --edit` names no key and is left to Git.
+
+No read is rejected.
+No write to another file is rejected:
+`--global`,
+`--system`,
+`--worktree`,
+`--file` and `--blob`,
+the last of which Git refuses for a write anyway.
+A `-c` global option is one command's override,
+changes no file and is not a write to the shared settings.
+The main checkout,
+a bare repository,
+a place outside any worktree and a repository under an allowlisted tool directory keep today's behavior.
+
+The rejection changes nothing,
+exits non-zero and never starts Git.
+It says that every worktree of the repository shares the setting,
+names the file (`<common-git-dir>/config`) and the main checkout,
+and names both ways forward:
+run the same command in the main checkout,
+or make a real clone for a copy whose remote settings are its own
+(`git clone --no-hardlinks <path> <destination>`).
+It also names `--no-enforce-worktree`,
+the hatch of this policy,
+which runs the command as before:
+directly after `remote`,
+the only position a command without a ported table reads it,
+or in option position of `git config`.
+A run under the hatch leaves one `hatch` line in the audit file whose `form` is `SharedRemote`,
+with the working directory and the arguments,
+so the change is attributable;
+a rejection leaves no audit line,
+because nothing was written.
+The refusal is the guard's decision on the command Git will run,
+so a shell alias (`git -c 'alias.su=!git remote set-url' su origin <url>`) is refused as the command is.
+
+`src/native/binary/binary_shared_remote_tests.rs` runs every refused form in a linked worktree made inside and
+one made outside the repository folder,
+every read and every write to another file,
+the hatch,
+the main checkout and an allowlisted cache through the built executable,
+and compares the shared configuration byte for byte before and after each rejection.
+
 ### Dependent version bump
 
 `mono/dependent-version-bump` reads the publish set from the generated registry configuration

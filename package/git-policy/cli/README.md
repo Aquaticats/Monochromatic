@@ -1981,9 +1981,11 @@ A wrapper-only option is removed before Git sees the arguments and applies to th
 - `--no-enforce-<policy id>` skips one policy,
    for example `--no-enforce-final-newline` or
   `--no-enforce-security/forbidden-strings`.
-- `--no-enforce-worktree` skips `linked-worktree-only` for the forms listed in "Discarding commands".
+- `--no-enforce-worktree` skips `linked-worktree-only` for the forms listed in "Discarding commands"
+  and "The remote settings every worktree shares".
   Write it directly after the subcommand,
-   for example `git restore --no-enforce-worktree -- <path>`.
+   for example `git restore --no-enforce-worktree -- <path>` or
+  `git remote --no-enforce-worktree set-url origin <url>`.
 - `--no-enforce-worktree-branch` skips `branch-worktree-only`.
 - `--no-enforce-bulk-add` skips `add-explicit`.
 - `--no-worktree-copy` skips the ignored-state copy into a new linked worktree and the whole worktree ladder:
@@ -2413,6 +2415,112 @@ Commands without a table of their own (`rm`,
  `checkout-index`,
  `read-tree`,
  `restore` and the `--abort` commands) take the hatch directly after the subcommand.
+
+### The remote settings every worktree shares
+
+The owner chose "Refuse in worktrees (Recommended)" on 2026-11-10
+ (`doc/handover/questions-for-the-owner.md`,
+"A push URL changed from a worktree").
+Every worktree of a repository shares one `.git/config`,
+ so a remote setting changed from a linked worktree changes the main checkout and every other worktree too.
+An agent had made a worktree outside the repository folder,
+ran `git remote set-url --push origin DISABLED` in it believing it was a separate clone,
+and every push of `main` failed from then on with
+`fatal: 'DISABLED' does not appear to be a git repository` until someone removed that entry,
+with nothing recording which command had made it.
+
+In a linked worktree,
+ the one whose Git directory is not the common one,
+ wherever it sits on disk,
+ `linked-worktree-only` rejects:
+
+- `git remote set-url`,
+  `git remote add`,
+  `git remote remove`/`rm`,
+  `git remote rename`,
+  `git remote set-branches` and `git remote set-head`.
+  `-v`/`--verbose` and its abbreviations are the only options `git remote` reads before a subcommand,
+  so `git remote --verbose add beta <url>` is the same rejection as the plain form,
+  and the subcommand's own options belong to the subcommand.
+- a `git config` write whose key or section falls under `remote.`,
+  in the plain `name value` form and with `--add`,
+  `--unset`,
+  `--unset-all`,
+  `--replace-all`,
+  `--rename-section`,
+  `--remove-section`,
+  `set`,
+  `unset`,
+  `rename-section` and `remove-section`.
+  A rename into the `remote` section creates remote settings just as renaming out of it removes them.
+  Section names are compared the way Git compares them,
+  without case,
+  so `git config Remote.Origin.URL <url>` writes the same section as `remote.origin.url`.
+  An option after the key is a value Git stores,
+  so `git config remote.origin.url --worktree` stores the text `--worktree`,
+  and the scope is read where Git reads it.
+
+No read is rejected:
+`git remote -v`,
+`git remote get-url`,
+`git remote show`,
+`git config --get`,
+`git config get`,
+`git config list`,
+`git config --get-regexp`.
+No write to another file is rejected either:
+`--global`,
+`--system`,
+`--worktree`,
+`--file`,
+`--blob` and `git config --edit`.
+`git -c remote.origin.url=<value>` is one command's override and changes no file,
+so it runs.
+The main checkout keeps today's behavior,
+and so do a bare repository and a repository under an allowlisted tool directory.
+
+The rejection says that every worktree of the repository shares the setting,
+names the shared file and the main checkout,
+and offers both ways forward:
+
+- change the setting on purpose in the main checkout,
+  which owns that file;
+- make a real clone for a copy whose remote settings are its own:
+  `git clone --no-hardlinks <path> <destination>`.
+
+A rejection changes nothing,
+and Git never runs.
+The deliberate way through is the hatch every other rejection of this policy takes,
+`--no-enforce-worktree`,
+written directly after `remote` for a remote subcommand
+ (the only place a command without a table of its own reads it)
+ or in option position of `git config`:
+
+```text
+git remote --no-enforce-worktree set-url origin <url>
+git config --no-enforce-worktree remote.origin.url <value>
+```
+
+A hatch run is not silent about the change it makes:
+the decision leaves one `hatch` line in `monochromatic-git-policy-cli-audit.jsonl`,
+with `form` `SharedRemote` and the working directory and arguments every audit line carries,
+so a later reader can attribute the change to the command that made it.
+A rejection leaves no audit line,
+because nothing was written and the JSONL finding on standard error is the record.
+A linked worktree is also one whose remote settings a shell alias would change:
+the guard reads the `git` command a `!` alias runs,
+and `git -c 'alias.su=!git remote set-url' su origin <url>` is refused like `git remote set-url`.
+
+`src/native/binary/binary_shared_remote_tests.rs` runs every refused form in a linked worktree made inside and
+ outside the repository folder,
+every allowed form,
+the hatch and the main checkout through the built executable,
+and compares the shared configuration byte for byte after each rejection.
+The decision is `src/native/command/rule_shared_remote.rs`,
+the options `git remote` reads before a subcommand are `src/native/command/command_remote.rs`,
+and the `git config` form,
+file scope and write are `src/native/command/command_config.rs`.
+The rejection text is `src/native/command/rule_shared_remote_messages.rs`.
 
 ### Merging
 

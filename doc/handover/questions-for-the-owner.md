@@ -1971,6 +1971,12 @@ Asked whether to tighten `AGENTS.md` rule `APQ`,
 the owner chose:
 "Use the proposed text (Recommended)",
 so `APQ` now says "never in any `git worktree add` folder of this repo".
+Built on branch `feat/git-policy-cli-shared-remote-settings-refused-in-worktrees`:
+`src/native/command/rule_shared_remote.rs` decides the forms,
+`src/native/command/rule_shared_remote_messages.rs` holds the text,
+and the refusal is `linked-worktree-only`'s when the worktree is a linked one.
+The README section "The remote settings every worktree shares" and `SPEC.md` state the rule,
+and `src/native/binary/binary_shared_remote_tests.rs` runs every refused and allowed form through the built executable.
 
 ### Two tokio choices made by an agent (coordinator's pick, veto open)
 
