@@ -310,14 +310,20 @@ pub fn begin(common_dir: PathBuf) {
 pub fn begin_step(name: &str) -> bool {
     // The recording is taken out of its cell while it is updated and put back at once, so the body never runs with the cell borrowed.
     let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
+    let mut standing: Option<(Instant, Option<String>)> = None;
     let entered: bool = match recording.as_mut() {
         Some((began, recorder)) => {
             recorder.enter(name, began.elapsed());
+            standing = Some((*began, recorder.open.last().map(|frame: &Frame| { return frame.name.clone(); })));
             true
         }
         None => false,
     };
     ACTIVE.set(recording);
+    // The step is published for the notice a long wait prints, so the add's own thread never holds a stream for it.
+    if let Some((began, innermost)) = standing {
+        crate::add_standing_notice::a_step_began(innermost.as_deref(), began);
+    }
     return entered;
 }
 
@@ -336,10 +342,15 @@ pub fn begin_step(name: &str) -> bool {
 pub fn end_step(entered: bool) {
     if entered {
         let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
+        let mut standing: Option<(Instant, Option<String>)> = None;
         if let Some((began, recorder)) = recording.as_mut() {
             recorder.leave(began.elapsed());
+            standing = Some((*began, recorder.open.last().map(|frame: &Frame| { return frame.name.clone(); })));
         }
         ACTIVE.set(recording);
+        if let Some((began, innermost)) = standing {
+            crate::add_standing_notice::a_step_began(innermost.as_deref(), began);
+        }
     }
 }
 
@@ -468,6 +479,8 @@ pub fn finish(exit_code: i32) {
         recorder.add_work(name.as_str(), spent);
     }
     recorder.quiet = drain();
+    // No step is published once the add answered, so a notice that arrives after the answer cannot name one.
+    crate::add_standing_notice::the_add_ended();
     let target: PathBuf = recorder.common_dir().join(ADD_TIMING_FILE);
     let line: String = recorder.line(began.elapsed(), exit_code);
     if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {

@@ -561,10 +561,14 @@ fn settle_invocation(
     if recorded {
         begin_timing(observation.common_dir.clone());
     }
+    // An add that is still running after a few seconds says which step it is in, on a thread of its own, so the wait is
+    // never silent and the add never waits for the line (owner: "nothing should ever wait forever or indefinitely").
+    let standing: Option<crate::add_standing_notice::StandingNotice> = if recorded { Some(crate::add_standing_notice::begin()) } else { None };
     let settled: Result<Settlement, WorktreeCopyError> = settle_observed(invocation, &observation, run_git, stderr);
     if recorded {
         finish_timing(settled.as_ref().map_or(1, exit_code));
     }
+    drop(standing);
     return settled;
 }
 
