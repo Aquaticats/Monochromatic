@@ -974,9 +974,9 @@ fn marker_files(repo: &Path) -> Vec<String> {
     return names;
 }
 
-/// The first commit of a service stages its marker itself and the service then makes the next batch's while it is idle:
-/// the second commit's lock is placed from that file (`lock_stage_kind=pre`),
-/// one file at most waits in the Git directory between commits,
+/// The first commit of a service stages its marker itself and the service then makes the next batches' while it is idle:
+/// the second and third commits' locks are placed from those files (`lock_stage_kind=pre`),
+/// as many files wait in the Git directory between commits as the design makes ahead and never more,
 /// and none is left when the service retires.
 #[test]
 fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires() {
@@ -985,17 +985,24 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
     let name: String = format!("timing-prestage-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
     let instance: String = instance_argument(&repo);
+    let made_ahead: usize = git_policy_cli::service_index_prestage::MARKERS_MADE_AHEAD;
     let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
     let runtime: PathBuf = runtime_for(name.as_str());
     for round in 0..3 {
         let served = commit_a(&fixture, &repo, runtime.as_path());
         assert_eq!(served.code, Some(0), "round {round}: {}", String::from_utf8_lossy(&served.stderr));
-        // The marker of the next batch is made after the answer, while the service is idle.
+        // The markers of the batches after this one are made after the answer, while the service is idle.
         let began: Instant = Instant::now();
-        while marker_files(&repo).len() != 1 {
+        while marker_files(&repo).len() < made_ahead {
             assert!(began.elapsed() < Duration::from_secs(10), "round {round}: {:?}", marker_files(&repo));
             std::thread::sleep(Duration::from_millis(10));
         }
+        // A file on the disk is not yet a marker the next commit places: the making ends when its flush is handed to the
+        //  background task, so one more interval with the same files is what says the making has returned.
+        let settled: Vec<String> = marker_files(&repo);
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(marker_files(&repo), settled, "round {round}: the markers changed while the commit was about to come");
+        assert!(settled.len() <= made_ahead, "round {round}: no more files wait than the design makes ahead: {settled:?}");
     }
     let answered: Vec<String> = lines_of(&places.log, "answered");
     assert_eq!(answered.len(), 3, "{answered:?}");
@@ -1030,9 +1037,10 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let runtime: PathBuf = runtime_for(name.as_str());
     let served: super::support::Observed = commit_a(&fixture, &repo, runtime.as_path());
     assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
-    // The marker of the next batch is made after the answer, while the service is idle.
+    // The markers of the batches after this one are made after the answer, while the service is idle.
+    let made_ahead: usize = git_policy_cli::service_index_prestage::MARKERS_MADE_AHEAD;
     let began: Instant = Instant::now();
-    while marker_files(&repo).len() != 1 {
+    while marker_files(&repo).len() < made_ahead {
         assert!(began.elapsed() < Duration::from_secs(10), "{:?}", marker_files(&repo));
         std::thread::sleep(Duration::from_millis(10));
     }

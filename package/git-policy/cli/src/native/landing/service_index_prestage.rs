@@ -100,7 +100,8 @@ static MADE_AHEAD: std::sync::Mutex<Vec<MadeAhead>> = std::sync::Mutex::new(Vec:
 /// How many markers the service keeps made ahead:
 /// the one the next batch takes and the one after that,
 /// so every flush has a whole landing to finish in.
-const MARKERS_MADE_AHEAD: usize = 2;
+/// Public so the artifact-level controls wait for this many files rather than repeat the number.
+pub const MARKERS_MADE_AHEAD: usize = 2;
 
 /// One file made ahead and where it was written.
 #[derive(Clone, Debug, Eq, PartialEq)]
