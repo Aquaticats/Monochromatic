@@ -728,7 +728,9 @@ fn a_connected_tree_that_only_writes_its_own_meter_is_waiting() {
         .args([
             "-c",
             format!(
-                "exec 3<>/dev/tcp/127.0.0.1/{port}; trap '' TERM; while :; do printf 'uploading 0%%\n' >> '{meter}'; sleep 0.2; done",
+                // No child process: the throttle is a timed read of its own silent socket, which is what `git-lfs` does
+                //  between two of its upload meter's lines.
+                "exec 3<>/dev/tcp/127.0.0.1/{port}; trap '' TERM; while :; do printf 'uploading 0%%\n' >> '{meter}'; read -t 0.2 -u 3 line; done",
                 meter = meter_file.display()
             )
             .as_str(),
@@ -759,6 +761,53 @@ fn a_connected_tree_that_only_writes_its_own_meter_is_waiting() {
     };
     assert_eq!(report.window, StopWindow::Connected, "ended by the connected window after {:?}", began.elapsed());
     assert!(began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+}
+
+/// What:
+///  A process seen to hold a connection is remembered after a look that finds no socket at all.
+/// Why:
+///   The kernel's socket list cannot always be read:
+/// a look whose `NETLINK_SOCK_DIAG` dump times out answers nothing about who holds what.
+/// A holder whose own bytes counted again on such a look would clear the wait,
+/// and under load those looks fail now and then.
+/// One plain-push control ended at its window on an idle host and left its work item claimed while
+/// the suite ran beside it,
+/// which is the shape of that.
+/// So a holder is remembered for the life of the clock,
+/// by its number and start time,
+/// and the empty look below is a look that saw no socket rather than one that saw no holder.
+#[test]
+fn a_holder_is_remembered_after_a_look_that_finds_no_socket() {
+    let root: std::path::PathBuf = fixture("progress-holder-remembered");
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    // The holder keeps its connection open and writes nothing: it is the remote's silent peer.
+    let mut holder: Command = Command::new("bash");
+    holder
+        .args(["-c", format!("exec 3<>/dev/tcp/127.0.0.1/{port}; exec sleep 30").as_str()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut holder).expect("start the holder");
+    let (_accepted, _) = listener.accept().expect("the holder connects");
+    let pid: i32 = i32::try_from(child.id()).expect("pid");
+    let members: Vec<TreeMember> = member_of(pid).into_iter().collect();
+    let mut meter: Meter = Meter::new();
+    // The first look records the holder, and its own socket carries nothing yet.
+    assert!(!meter.observe_sockets(members.as_slice()), "a socket seen for the first time carries no progress");
+    assert!(meter.connected(), "the holder's connection is open");
+    let holder_member: TreeMember = members.first().expect("the holder is a member of its own tree").clone();
+    assert!(meter.holders.contains(&(holder_member.pid, holder_member.started)), "the holder is remembered");
+    // A look that cannot read the socket list finds no socket, and must not forget who held one.
+    assert!(!meter.observe_sockets(&[]), "a look with no socket carries no progress");
+    assert!(!meter.connected(), "nothing says the connection is open on that look");
+    assert!(
+        meter.holders.contains(&(holder_member.pid, holder_member.started)),
+        "a holder stays remembered across a look that could not read the socket list: {:?}",
+        meter.holders
+    );
+    end(child);
+    remove(root.as_path());
 }
 
 /// A `/proc/<pid>/stat` line is read after its last parenthesis:

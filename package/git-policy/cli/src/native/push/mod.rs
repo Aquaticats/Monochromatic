@@ -37,6 +37,10 @@ pub mod stacked_merge_push;
 /// the final failure.
 pub mod push_retry;
 
+/// The two signs one look at a process of a push finds,
+/// and the identities a holder is remembered by.
+pub mod push_progress_signs;
+
 /// The server a push waits for,
 /// named from the command's own destination.
 pub mod push_server_naming;

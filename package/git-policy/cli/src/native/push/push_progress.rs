@@ -125,10 +125,13 @@ use crate::push_deadline_and_patience_settings::Patience;
 /// The processes below the push,
 /// and the identity of each.
 use crate::process_tree::{TreeMember, descendants_of, member_of};
+/// What one look at one process found,
+/// and the identities a look at a tree's sockets works with.
+pub use crate::push_progress_signs::{Signs, holds_no_socket, inodes_of, start_time_of};
 /// The connected sockets of the machine with their byte counts,
 /// and the sockets a process holds.
 use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
-use crate::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
+use crate::tcp_sockets::{ESTABLISHED, established_sockets};
 /// What each process of the tree was last seen to have moved.
 use std::collections::HashMap;
 /// Time spans and the monotonic clock.
@@ -248,37 +251,6 @@ fn system_measures() -> bool {
     return bytes_moved_by(i32::try_from(std::process::id()).unwrap_or(1)).is_some();
 }
 
-/// What one look at one process found:
-/// the bytes it moved since the look before,
-/// and whether it used processor time or has a task at work.
-/// Why:
-///   The signs are kept apart because a process that holds the connection to the remote may be polling it,
-/// and a poll is not work the remote sees.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Signs = { moved: boolean; busy: boolean };
-/// ```
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Signs {
-    /// Bytes read or written since the look before.
-    pub moved: bool,
-    /// Processor time used since the look before,
-    /// or a task able to run or waiting for the disk now.
-    pub busy: bool,
-}
-
-/// The sockets one process of the tree holds,
-/// with its number.
-fn inodes_of(member: &TreeMember) -> (i32, Vec<u64>) {
-    return (member.pid, socket_inodes_of(member.pid));
-}
-
-/// Whether a process of the tree holds no socket at all.
-fn holds_no_socket(held: &(i32, Vec<u64>)) -> bool {
-    return held.1.is_empty();
-}
-
 /// What:
 ///  The work of the tree under a root so far,
 /// and whether a sample saw any sign of work since the one before.
@@ -309,9 +281,11 @@ pub struct Meter {
     socket_moved: u64,
     /// Whether the last sample found a process of the tree holding a connected socket.
     connected: bool,
-    /// The processes of the tree that held a connected socket at the last sample:
-    /// the helpers that speak to the remote.
-    holders: Vec<i32>,
+    /// Every process of the tree that has been seen to hold a connected socket,
+    /// by its number and start time:
+    /// the helpers that speak to the remote,
+    /// whose own bytes and processor time are not work.
+    holders: Vec<(i32, u64)>,
     /// How many times a sample listed the processes of the whole machine to find the tree;
     /// a stand-in for the cost of a
     ///  sample,
@@ -379,10 +353,16 @@ impl Meter {
     ///   Its counters stand for the handshake and the request this side wrote,
     /// not for an answer from the remote,
     /// so a client that goes on reconnecting would reset the wait for its remote for good.
+    /// Why the processes that held one are remembered for the life of the clock:
+    ///   A look that cannot read the kernel's socket list answers nothing about who holds what,
+    /// and a holder whose own meter counted again on such a look would reset the window:
+    /// under load those looks fail now and then,
+    /// and the window would then never be reached.
+    /// Each holder is remembered by its number and start time,
+    /// so a number the kernel reuses is not taken for the process that held a connection before.
     fn observe_sockets(&mut self, members: &[TreeMember]) -> bool {
         let held: Vec<(i32, Vec<u64>)> = members.iter().map(inodes_of).collect();
         self.connected = false;
-        self.holders.clear();
         if held.iter().all(holds_no_socket) {
             return false;
         }
@@ -398,8 +378,9 @@ impl Meter {
             for (pid, inodes) in &held {
                 if inodes.contains(&socket.inode) {
                     carried_by_a_holder = true;
-                    if !self.holders.contains(pid) {
-                        self.holders.push(*pid);
+                    let holder: (i32, u64) = (*pid, start_time_of(members, *pid));
+                    if !self.holders.contains(&holder) {
+                        self.holders.push(holder);
                     }
                 }
             }
@@ -499,7 +480,7 @@ impl Meter {
             let signs: Signs = self.observe((member.pid, member.started), bytes.unwrap_or(0), ticks, working);
             // A process that holds the connection reports its own wait while it waits, and what it writes about itself is no
             //  work the remote sees; everything it really sends shows on the socket's own counters, which are counted above.
-            if (signs.moved || signs.busy) && !self.holders.contains(&member.pid) {
+            if (signs.moved || signs.busy) && !self.holders.contains(&(member.pid, member.started)) {
                 progressed = true;
             }
         }
