@@ -41,6 +41,12 @@ the Kimi flex 429 of 21:4xZ ("max 22 in flight at once") was that race.
 Minutes later: "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 So the opencode-go pool's limit is 0 (no new run goes there) until the owner says the week has reset;
 the one run already on it continues, and if the cap ends it, it resumes on Neuralwatt.
+And: "It's Pi's native retry's responsibility to deal with 429s."
+The driver on `main` re-prompts after model errors on its own (`MODEL_ERROR_RETRY_CAP` and its siblings in `package/pi-shared/subagent-driver/src/driver-constants.ts`),
+and on the driver-port review's 429 both layers retried (Pi at 1, 2 and 4 s, then the driver three times) before the run ended.
+Round 225 (`fix/pi-shared-subagent-driver-leaves-429s-to-pis-native-retry`) takes 429s out of the driver's retry;
+`fix/pi-shared-subagent-driver-runs-survive-a-concurrency-429` (driver-side 429 handling, unmerged since 2026-11-10) does not land,
+and round 224, briefed to bring it onto `main`, was stopped before its agent started.
 So a release that carries a jam fix goes out on its own as soon as its gate passes,
 other wrapper branches wait for the release after it,
 and free slots take jam work first.
