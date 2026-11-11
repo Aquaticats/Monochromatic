@@ -24,6 +24,10 @@
 use crate::commit_command::effective_directory;
 /// The builder of real-Git commands.
 use crate::forwarding::git_command;
+/// The wait a question that shows no sign of work is ended by,
+/// and its grace.
+use crate::bounded_push::STOP_GRACE;
+use crate::bounded_query::{query_window, run_bounded_query};
 /// The refusal texts.
 use crate::lfs_pre_push::plan_failed_message;
 /// The pre-check that the program can start.
@@ -70,7 +74,8 @@ pub struct InteractiveUpload<'a> {
 /// What:
 ///  The read-only Git questions of the upload plan,
 /// asked by starting the real Git with the invocation's prefix and
-///  overlay.
+///  overlay,
+/// each bounded by the push's stall window.
 /// `&'a InteractiveUpload<'a>` lends the invocation's facts for as long as this value lives.
 /// Why:
 ///   The plan asks through the `GitQuery` trait,
@@ -92,12 +97,18 @@ impl GitQuery for InteractiveQuery<'_> {
     fn ask(&mut self, query_arguments: &[&str]) -> Result<String, String> {
         let mut arguments: Vec<OsString> = self.request.prefix.to_vec();
         arguments.extend(query_arguments.iter().map(OsString::from));
-        let output = match git_command(self.request.real_git, arguments.as_slice(), self.request.overlay).output() {
+        // The question is asked through the push's own bounded query, so a Git that never answers is stopped and named instead of
+        //  holding the push for good; the wait is the push's stall window, as it is for every query of a push. That query also
+        //  starts the child through `spawn_retrying_without_blocking`, so a start the system refuses for lack of processes is
+        //  tried again instead of ending the push.
+        let command: std::process::Command = git_command(self.request.real_git, arguments.as_slice(), self.request.overlay);
+        let asked: String = query_arguments.join(" ");
+        let output = match run_bounded_query(command, asked.as_str(), query_window(self.request.environment), STOP_GRACE, self.request.environment) {
             Ok(done) => done,
             Err(error) => return Err(error.to_string()),
         };
         let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-        return match output.status.code() {
+        return match output.code {
             Some(0) => Ok(text),
             Some(1) if text.is_empty() => Ok(text),
             code => Err(format!("exited with {code:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
@@ -169,3 +180,8 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
         }
     }
 }
+
+/// The questions are controlled in the test module.
+#[cfg(test)]
+#[path = "lfs_interactive_tests.rs"]
+mod tests;

@@ -130,6 +130,40 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>,
 }
 
 /// What:
+///  The worktree path Git picks for `operand` by the last components of the registered paths,
+///  or nothing when it picks none or more than one.
+/// Why:
+///   Git matches the typed name against the end of every registered worktree path at a directory boundary before it
+///  resolves a real path (`find_worktree_by_suffix` in `worktree.c`),
+///  so a person may name a worktree by its last component and the wrapper serves the same removal.
+/// A name two registered paths end in is Git's ambiguous case,
+/// which falls back to the resolved path,
+///  and no path here resolves to a directory for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pathGitPicksForOperand(commonDir: string, operand: string): string | undefined;
+/// ```
+pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<PathBuf> {
+    let worktrees: PathBuf = common_dir.join("worktrees");
+    let registered: Vec<Vec<u8>> = registered_paths(common_dir, worktrees.as_path()).ok()?;
+    let mut picked: Option<&Vec<u8>> = None;
+    for path in &registered {
+        if !ends_with_name(path.as_slice(), operand.as_bytes()) {
+            continue;
+        }
+        // Git's suffix match answers a unique worktree or none; two matches send it to the resolved path instead.
+        if picked.is_some() {
+            return None;
+        }
+        picked = Some(path);
+    }
+    let only: &Vec<u8> = picked?;
+    let resolved: PathBuf = std::fs::canonicalize(Path::new(OsStr::from_bytes(only.as_slice()))).ok()?;
+    return resolved.is_dir().then_some(resolved);
+}
+
+/// What:
 ///  Whether a path of Git's worktree list names the same directory as `target`.
 /// Why:
 ///   Git's list may spell a worktree through a symbolic link or by another name of the same directory,

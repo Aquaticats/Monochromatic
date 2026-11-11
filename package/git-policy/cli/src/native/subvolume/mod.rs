@@ -46,6 +46,12 @@ pub mod fs_clone_exchange;
 #[cfg(target_os = "linux")]
 pub mod fs_beneath;
 
+/// The directories a path walk has already opened,
+/// kept as one chain from the root,
+/// so a walk over paths in order opens each directory once.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath_directory_chain;
+
 /// The btrfs fixture root of the primitive and migration controls,
 /// and the loud report where there is none.
 #[cfg(all(test, target_os = "linux"))]

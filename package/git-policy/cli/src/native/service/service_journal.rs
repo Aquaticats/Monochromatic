@@ -36,7 +36,7 @@ pub const DONE_EXTENSION: &str = "done";
 
 /// Extension of a file being written;
 /// never read as an intent.
-const TEMPORARY_EXTENSION: &str = "tmp";
+pub const TEMPORARY_EXTENSION: &str = "tmp";
 
 /// Extension of the empty file that holds a batch number for the service landing it,
 /// from the moment the number is taken until

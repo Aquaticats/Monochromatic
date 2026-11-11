@@ -280,7 +280,7 @@ and consolidation work fell on five of six entries:
 `lintong` 25 to 12.
 `Zha_Ke` rose,
 14 to 30,
-for a reason the next section gives.
+for a reason "The pipeline does not publish the same text twice" gives.
 
 ### The pipeline does not publish the same text twice
 
@@ -438,7 +438,8 @@ and together they explain every row with no residue.
 
 `refined=false` and "the cached text is what shipped" are the same fact on
  16 of 18 rows,
-and the two remaining rows are explained in the next section.
+and the two remaining rows are explained by
+"The wrap is not length-preserving inside a blockquote".
 
 The correlation carries its own positive control,
 which is why it is worth more than a count.

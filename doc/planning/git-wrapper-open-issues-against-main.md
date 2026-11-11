@@ -135,12 +135,41 @@ Issues whose named module is gone but whose behaviour is not were marked
  and each one that fails maps a non-`NotFound` error through `io_failure` with its operation and path,
  so no io reason is reported as an identity change.
 - `#6007`:
-  `parse_layout` and `replay_*` are gone.
- The layout report is produced in process by `repo_read_adapter::invocation_report`,
- whose path conversions are `to_str()?`,
- so a non-UTF-8 path gives no report instead of a lossy one.
- Whether a non-UTF-8 repository path should work at all is a separate decision,
-  not this defect.
+  `parse_layout` and `replay_*` are gone,
+ and the defect lived on in the layout the commit records,
+ not in the lossy conversion the issue quotes.
+ The report was produced in process by `repo_read_adapter::invocation_report`,
+ which spelled its paths with `to_str()?`,
+ so a name that is not UTF-8 gave no report and the capture asked Git,
+ whose report it then decoded as UTF-8 and refused;
+ and a name holding a line feed gave a report the capture split at every line feed,
+ which moved every path after it.
+ Measured with the built wrapper in throwaway repositories before the fix:
+ a directory whose name is not UTF-8 failed its commit with
+ "Git returned non-UTF-8 output.",
+ and one whose name holds a line feed failed with
+ "repository root is unreadable:
+ No such file or directory (os error 2)".
+ With `CLI_GIT_IN_PROCESS_READS=off`
+ the first failed on a Git directory spelled with
+ U+FFFD in place of the byte,
+ and the second was refused by the identity reader.
+ Branch `fix/git-policy-cli-layout-paths-keep-their-bytes` makes the layout the bytes Git printed,
+ reads the report as bytes,
+ asks each pathname on its own when a report holds more answers than the layout has pathnames,
+ and writes the object directory,
+ the shadow's `config` and its `--git-dir` option from those bytes.
+ Measured after it:
+ a repository whose directory name is not UTF-8 commits,
+ with the in-process reads on and off.
+ One case still fails:
+ a directory name holding a line feed,
+ because `objects/info/alternates` holds one pathname per line and Git has no escape for a line feed in it.
+ That commit stops in the shadow's read-back with "unable to normalize alternate object path",
+ and closing it needs an owner decision:
+ `GIT_ALTERNATE_OBJECT_DIRECTORIES` for the shadow's Git children,
+ or a symlink under a clean name,
+ each with its own lifetime to sweep.
 - `#6005`:
   `index_writer_coordination.rs` and `transaction_lease.rs` are gone,
  and no lossy-write against a strict `Path::to_str` compare survives in
@@ -160,6 +189,20 @@ Issues whose named module is gone but whose behaviour is not were marked
   a replaced lock released,
  a long name classified) lives in `src/native/lock/` and `src/native/transaction/recovery_files.rs`,
  so the six need a fresh read rather than a close.
+  Note 2026-11-10:
+  `#1136`,
+  `#1137` and `#1138` were closed after that fresh read.
+  The release and install they report hold the judged file open and compare the name against that descriptor,
+  in `src/native/landing/service_index_hold.rs` and `src/native/landing/service_index_ownership.rs`.
+  A replacement nobody proved unheld is left where it is,
+  and the reference-lock clearing compares device,
+  inode,
+  size,
+  birth time and modification time (`src/native/lock/stale_ref_lock_identity.rs`).
+  The record is `doc/troubleshooting/git-policy-replaced-lock-filesystem.md`,
+  section "Where the boundary stands on main".
+  `#1135`,
+  `#1139` and `#1140` are closed.
 
 ## Still true, and left in another agent's folder
 
@@ -1002,3 +1045,260 @@ and they are the reason a missing path is not a missing defect:
   #677 or #678,
  which sit in the same numbering block but are not duplication campaigns,
  and it does not re-measure the drifts inside a campaign beyond the code the issue names.
+
+## The five citation issues and the three rebuilt records, checked 2026-11-10T16:53:37-05:00 against `e498914475`
+
+What:
+ issues 1907,
+ 1911,
+ 4408,
+ 5933 and 4103,
+ which each report a document naming a path,
+ function or task the tree no longer holds,
+ and issues 4132,
+ 4133 and 4134,
+ which report three troubleshooting records that commit `5ac11cf09e` rebuilt on 2026-11-10.
+
+Why:
+ four of the five issues name one of two decision records,
+ which this branch may not edit,
+ so those entries carry the exact note that would fix the citation and wait for the owner,
+ while 4103 and the three rebuilt records only needed a re-check against `main`.
+
+- `#1907`:
+  the document is a decision record,
+  so nothing in it changed here;
+  the two fenced blocks in this entry are the proposal.
+ `doc/decision/private-npm-registry.md` lines 165 to 168 name
+ `package/git-policy/cli/src/policy-engine/apply-policy-patches.ts`,
+  which `git log --follow` shows deleted 2026-10-13 in `642b6d72cb`,
+  and lines 178 to 188 name the root task
+ `mise run //package/git-policy/repository:bump:dependents` and its runner
+ `package/git-policy/repository/src/bump-dependents.ts`,
+  whose calling line `changeset:version` dropped in `d39c883c4d` and which `a2b56c548c` deleted with the package,
+  both on 2026-10-13.
+ `git ls-files` returns none of the three,
+  and no note marks any of them.
+ Proposal,
+  the original text kept and one dated note added after each citation:
+
+```md
+<!-- doc/decision/private-npm-registry.md, after `and its fixes never reach the worktree.` -->
+   cli-git's commit transaction cannot do this today:
+    it patches only paths already staged in the commit
+    (`package/git-policy/cli/src/policy-engine/apply-policy-patches.ts` lines 99 to 112 reject other targets),
+    and its fixes never reach the worktree.
+    Note 2026-11-10T16:53:37-05:00: that file is deleted (2026-10-13 `642b6d72cb`).
+    Which paths a commit carries is decided in
+    `package/git-policy/cli/src/native/commit/commit_selection_staging.rs`,
+    and a fix installs its corrections into the worktree through
+    `package/git-policy/cli/src/native/policy/direct_fix_install.rs`.
+```
+
+```md
+<!-- doc/decision/private-npm-registry.md, after `so the job needs no build step.` -->
+    The runner (`package/git-policy/repository/src/bump-dependents.ts`)
+     compares worktree manifests with `HEAD`
+     and shares its planning module (`dependent-bump-workflow.ts`) with the cli-git policy,
+     so both apply the same edge and publishability rules.
+    It imports only Node built-ins and sibling source files,
+     so the job needs no build step.
+     Note 2026-11-10T16:53:37-05:00: the task and that runner are deleted (2026-10-13 `a2b56c548c`).
+     `changeset:version` in `mise.toml:1514` runs
+     `monochromatic-git-policy-cli monochromatic-git-policy-cli fix --all --policy mono/dependent-version-bump`,
+     and the edge and publishability rules it applies live under
+     `package/git-policy/cli/src/native/dependent_version/`.
+```
+
+- `#1911`:
+  a decision record again,
+  so nothing in it changed here.
+ `doc/decision/monorepo-manager-per-user-config.md:35` names
+ `package/git-policy/cli/src/allowed-worktree-dirs.ts` as half of the trust model cli-git already owns.
+  The file is gone:
+ `git log --follow` shows it deleted 2026-10-13 in `642b6d72cb`,
+ `git ls-files` returns nothing for it,
+  and the `trust`,
+ `untrust` and `status` commands the same record adopts are retired,
+  printing `git monochromatic-git-policy-cli trust is retired.` from
+ `retired_explanation` at `package/git-policy/cli/src/native/invocation/management.rs:93`.
+ The other half of that bullet,
+  `doc/decision/cli-git-policies-platform.md`,
+  still resolves.
+ Proposal,
+  the two lines kept and one dated note added after them:
+
+```md
+<!-- doc/decision/monorepo-manager-per-user-config.md, after line 35 -->
+   [`doc/decision/cli-git-policies-platform.md`](cli-git-policies-platform.md)
+   and `package/git-policy/cli/src/allowed-worktree-dirs.ts`.
+   Note 2026-11-10T16:53:37-05:00: that file is deleted (2026-10-13 `642b6d72cb`).
+   The allowlist it held is `default_allowed_worktree_dirs` in
+   `package/git-policy/cli/src/native/invocation/effective_target.rs`,
+   and the `trust`, `untrust` and `status` commands this decision adopts are retired
+   (`package/git-policy/cli/src/native/invocation/management.rs:93`).
+```
+
+- `#4103`:
+  the claim no longer holds on `main`,
+  and nothing needed changing.
+ `doc/troubleshooting/cli-git-windows-nested-registry-acls.md` was rebuilt in `37d69e10e6`,
+  one of the commits merge `5ac11cf09e` brought in on 2026-11-10.
+  Its dated opening note names `642b6d72cb`,
+  the 112 files of `package/git-policy/cli/src/trust/` and the deleted
+ `.github/workflows/cli-git-trust.yml`,
+  the retired command at `package/git-policy/cli/src/native/invocation/management.rs:71` and `:93`,
+  and states that no registry ACL carrier is left in the tree.
+  `Verified workarounds` and `What does not work` replaced the old headings,
+  and the six numbered constraints of `Upstream filing decision` replaced the one-sentence status.
+ Each of those citations was re-read here:
+  `management.rs:71` is `RetiredCommand::Trust => return "trust",` and `:93` is the signature of
+ `retired_explanation`.
+ `git show --name-status --format='' 642b6d72cb -- package/git-policy/cli/src/trust/` counts 112 deleted files,
+  and the same commit deletes the workflow.
+ `rg` finds `ensureRegistryRoot` and `TrustStorageError` in that record and in the 2026-10-07 cluster ledger under
+ `doc/artifact/`,
+ `ensurePrivateRegistryDirectory` and `AreAccessRulesProtected` only in that record,
+  and none of the four under `package/`.
+ The issue can be closed against `37d69e10e6`.
+ The owner's pause on Windows still governs any new Windows work in that record.
+
+- `#4132`:
+  the claim no longer holds on `main`.
+ `doc/troubleshooting/git-policy-auto-push-reconciliation.md` was rebuilt in `6de0037d96`,
+  one of the commits merge `5ac11cf09e` brought in.
+  Its title and six second-level headings are the seven sections the skill requires,
+ `Symptom`,
+ `Root cause`,
+ `Verification`,
+ `Verified workarounds`,
+ `What does not work` and `Upstream filing artifact`,
+  the last carrying the six numbered constraints of `Upstream filing decision`,
+  and the release-by-release narrative sits in the specification now.
+ The issue can be closed against `6de0037d96`.
+ Two citations the rebuild left in that record were wrong,
+  and both are corrected on this branch:
+ `package/git-policy/cli/src/native/lfs_bounded_push` is
+ `package/git-policy/cli/src/native/lfs/lfs_bounded_push.rs`,
+  where `run_push` is declared at line 142,
+  and `Reconcile and bounds` sits at `package/git-policy/cli/SPEC.md:6174`,
+  not at the line the note gave.
+
+- `#4133`:
+  the claim no longer holds on `main`.
+ `doc/troubleshooting/git-policy-shadow-lfs.md` was rebuilt in `7d9121d810`,
+  one of the commits merge `5ac11cf09e` brought in.
+  It carries the title and all six required sections,
+  its `Root cause` walks the chain to the read-only `.git/lfs` and the absent `tmp` subdirectory,
+  and `Reading the observation as an unidentified boundary failure` now sits under `What does not work`,
+  so the two records no longer disagree about whether the cause is known.
+ `doc/troubleshooting/git-policy-wrapper-launcher-path.md` keeps a three-line pointer to it instead of a
+  second copy.
+ The issue can be closed against `7d9121d810`.
+ One citation in it was off:
+  the excerpt it presents as `fn link_directory_entries` is at
+ `package/git-policy/cli/src/native/shadow/shadow_links.rs:294`,
+  not at the line the fence named,
+  and that is corrected on this branch.
+
+- `#4134`:
+  the half about a second incident is resolved,
+  the half about the heading set still holds.
+ `doc/troubleshooting/git-policy-wrapper-launcher-path.md` on `main` ends with a pointer to
+ [git-policy-shadow-lfs.md](git-policy-shadow-lfs.md) instead of a second incident under its own headings,
+  so the file carries one incident,
+  no longer duplicates that record and no longer contradicts its verdict,
+  and the claim in the issue's title is gone.
+ Its title and headings are still not the seven sections the skill requires:
+  it has `Symptom`,
+ `Root cause`,
+ `Verification` and `Remedy and ownership`,
+  and no `Verified workarounds`,
+ `What does not work` or `Upstream filing artifact`;
+  the qualified-wrapper fixture,
+  the missing-helper fixture and the two issue links all sit under `Remedy and ownership`.
+ Every path it names resolves or carries its dated note:
+ `package/git-policy/cli/src/native/rule_commit_only.rs` is noted as moved to
+ `package/git-policy/cli/src/native/commit/rule_commit_only.rs` on 2026-11-03 in `a004a6ab2c`,
+  and the program and settings-file rename is noted at the top of the file.
+ Proposed,
+  not applied here,
+  because this check asked only whether the issue still holds and this half is a structure change:
+  keep one incident,
+  rename `Remedy and ownership` to `Verified workarounds` and state the tradeoff of invoking the wrapper by
+  absolute path,
+  move the missing-helper and qualified-invocation fixtures into `Verification`,
+  add `What does not work` for the documentation-only remedy the owner rejected,
+  and add `Upstream filing artifact` naming issues 1768 and 575 with its six-constraint decision.
+
+- `#4408`:
+  the two citations the `#1907` entry also names,
+  in the same decision record,
+  and resolved by the same two notes;
+  this entry adds the check the issue asks for.
+ `doc/decision/private-npm-registry.md:167` names the deleted
+ `package/git-policy/cli/src/policy-engine/apply-policy-patches.ts` for the commit transaction's target rule,
+  and `:183` names the deleted runner
+ `package/git-policy/repository/src/bump-dependents.ts` for the shared edge and publishability rules,
+  so both behaviours the owner decision extends are described through files no reader can open.
+ `package/git-policy/repository` is not a directory on `main`,
+  and the commit transaction,
+  the direct fix and the ripple rules are the three modules the `#1907` notes name.
+ The proposal is the two blocks in the `#1907` entry.
+
+- `#5933`:
+  the same line as `#1911`,
+ `doc/decision/monorepo-manager-per-user-config.md:35`,
+  and the same proposal.
+  The question the issue adds,
+  which module owns that trust model now,
+  has two answers:
+  the allowlist the line names is `default_allowed_worktree_dirs` at
+ `package/git-policy/cli/src/native/invocation/effective_target.rs:218`,
+  read by `classify_effective_target` in the same file and by
+ `package/git-policy/cli/src/native/policy/policy_linked_worktree.rs:126`,
+  and the `trust`,
+ `untrust` and `status` commands are retired commands in
+ `package/git-policy/cli/src/native/invocation/management.rs`,
+  whose explanation says the wrapper reads its settings file as data and runs no repository-supplied code.
+ No trust registry survives under `package/git-policy`:
+ `package/git-policy/cli/src/trust/` was the last of it,
+  and `642b6d72cb` deleted the folder with the TypeScript wrapper.
+
+### What the check ran
+
+- `gh issue view <number> --repo Aquaticats/Monochromatic --json number,title,state,body,comments` for all eight,
+  each of which reports its state as `OPEN`.
+- `rg` for the identifiers and paths the issues quote:
+ `allowed-worktree-dirs`,
+ `apply-policy-patches`,
+ `bump-dependents`,
+ `ensureRegistryRoot`,
+ `ensurePrivateRegistryDirectory`,
+ `TrustStorageError` and
+ `AreAccessRulesProtected`.
+- `git ls-files` and `git log --follow` for the three deleted paths,
+  and `git log -S` for each of those names and for `bump:dependents`.
+- every backticked `package/`,
+ `doc/` and root-file path in the four troubleshooting records,
+  tested for existence,
+  with each absence read in its own sentence to see whether it is framed as moved or removed.
+- `git show --name-status --format='' 642b6d72cb -- package/git-policy/cli/src/trust/`:
+ 112 deleted files.
+- `mise run //:lint:monochromatic-lint -- doc/planning/git-wrapper-open-issues-against-main.md`:
+  no finding on that file alone,
+  run after every entry added to it.
+- `mise run //:lint:monochromatic-lint -- doc/planning/git-wrapper-open-issues-against-main.md doc/troubleshooting/git-policy-auto-push-reconciliation.md`:
+ no finding.
+- `mise run //:lint:monochromatic-lint -- doc/planning/git-wrapper-open-issues-against-main.md doc/troubleshooting/git-policy-shadow-lfs.md`:
+ no finding.
+
+### What this section does not do
+
+- It edits no decision record:
+ `doc/decision/private-npm-registry.md` and `doc/decision/monorepo-manager-per-user-config.md` are unchanged,
+  and the four notes wait for the owner.
+- It closes,
+  comments on and edits no issue.
+- It does not reshape `doc/troubleshooting/git-policy-wrapper-launcher-path.md`;
+  the heading change `#4134` still needs is proposed in that entry.

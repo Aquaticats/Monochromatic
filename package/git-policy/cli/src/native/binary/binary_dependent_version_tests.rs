@@ -31,7 +31,7 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 /// The configuration that turns the policy on.
-const CONFIGURATION: &str = "{ \"policies\": { \"mono/dependent-version-bump\": \"error\" } }\n";
+pub(super) const CONFIGURATION: &str = "{ \"policies\": { \"mono/dependent-version-bump\": \"error\" } }\n";
 
 /// Run a wrapped command in a repository and return what the caller saw.
 fn run_wrapped(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
@@ -39,7 +39,7 @@ fn run_wrapped(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
 }
 
 /// A manifest as two-space JSON with a final newline.
-fn manifest(name: &str, version: &str, dependency: Option<&str>) -> String {
+pub(super) fn manifest(name: &str, version: &str, dependency: Option<&str>) -> String {
     let dependencies: String = dependency.map_or_else(String::new, |depended: &str| {
         return format!(",\n  \"dependencies\": {{\n    \"{depended}\": \"workspace:*\"\n  }}");
     });
@@ -50,7 +50,7 @@ fn manifest(name: &str, version: &str, dependency: Option<&str>) -> String {
 
 /// Write a file below the repository,
 /// creating its directory.
-fn write(repo: &Path, path: &str, text: &str) {
+pub(super) fn write(repo: &Path, path: &str, text: &str) {
     let file: PathBuf = repo.join(path);
     std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
     std::fs::write(file, text).expect("file");
@@ -59,7 +59,7 @@ fn write(repo: &Path, path: &str, text: &str) {
 /// The registry configuration the generator writes around one publish set,
 /// four levels down at `auth.oidc[].workloads[].packages`;
 /// an empty slice writes the list with no item.
-fn publish_set(names: &[&str]) -> String {
+pub(super) fn publish_set(names: &[&str]) -> String {
     let items: Vec<String> = names
         .iter()
         .map(|name: &&str| return format!("            - '{name}'"))
@@ -165,7 +165,7 @@ fn stale(sequence: u64, name: &str, from: &str, to: &str) -> String {
 }
 
 /// The worktree text of dependent `name`.
-fn read(repo: &Path, name: &str) -> String {
+pub(super) fn read(repo: &Path, name: &str) -> String {
     return std::fs::read_to_string(repo.join(format!("package/module/{name}/package.json")))
         .expect("manifest");
 }

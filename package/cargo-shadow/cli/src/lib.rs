@@ -1044,6 +1044,10 @@ mod lean_podman_cleanup_tests;
 /// The numbers of the lean-folder tools and what each rests on.
 pub mod lean_policy;
 
+/// Where each long pass stopped,
+/// so the next run continues there.
+pub mod lean_progress;
+
 /// Where the lean-folder run looks.
 pub mod lean_run_discovery;
 
@@ -1058,6 +1062,13 @@ pub mod lean_run_steps;
 
 /// The lean-folder run.
 pub mod lean_run;
+
+/// The idle-trees mechanism of a run and what its pass reports.
+pub mod lean_run_trees;
+
+/// The tests of the record of where a pass stopped.
+#[cfg(test)]
+mod lean_progress_tests;
 
 /// The tests of the order a run takes its mechanisms in.
 #[cfg(test)]

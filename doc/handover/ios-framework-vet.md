@@ -619,7 +619,7 @@ headlessly.
   the React Native gate).
 - Slint (rank 1):
    DISQUALIFIED (iOS-17 API death).
-   See next section.
+   See "The Slint disqualification (decisive)".
 - Qt (rank 9):
    CULLED (no prebuilt arm64-iphonesimulator slice;
    fails dual-target and the no-C++ rule).
