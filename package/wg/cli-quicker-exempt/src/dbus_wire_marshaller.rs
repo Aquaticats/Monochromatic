@@ -139,6 +139,15 @@ pub fn body_signature(arguments: &[Argument]) -> String {
     return signature;
 }
 
+/// Where an array's length field sits and where its first element begins,
+/// because the padding that puts the elements on their boundary is not part of the length.
+struct ArrayStart {
+    /// Offset of the length field.
+    length_at: usize,
+    /// Offset of the first element.
+    content_at: usize,
+}
+
 /// Writes D-Bus values at their aligned offsets.
 pub(crate) struct Writer {
     /// The bytes written so far.
@@ -198,22 +207,22 @@ impl Writer {
     }
 
     /// Starts an array whose element alignment is `element_alignment`,
-    /// and returns where its length field is,
-    /// so `finish_array` fills it in once the elements are written.
-    fn start_array(&mut self, element_alignment: usize) -> usize {
+    /// and answers where its length field and its first element will be,
+    /// so `finish_array` fills the length in once the elements are written.
+    fn start_array(&mut self, element_alignment: usize) -> ArrayStart {
         self.pad(FOUR);
         let length_at = self.bytes.len();
         self.bytes.extend([0; FOUR]);
         self.pad(element_alignment);
-        return length_at;
+        return ArrayStart { length_at, content_at: self.bytes.len() };
     }
 
-    /// Fills in the length of the array that started at `length_at`,
-    /// which is what lies after that field's place.
-    fn finish_array(&mut self, length_at: usize) {
-        let content_at = length_at.saturating_add(FOUR);
-        let content_length = u32::try_from(self.bytes.len().saturating_sub(content_at)).unwrap_or(u32::MAX);
-        self.bytes[length_at..length_at.saturating_add(FOUR)].copy_from_slice(&content_length.to_le_bytes());
+    /// Fills in the length of the array that started at `start`:
+    /// the bytes its elements occupy,
+    /// and not the padding after the length field that put the first of them on its boundary.
+    fn finish_array(&mut self, start: ArrayStart) {
+        let content_length = u32::try_from(self.bytes.len().saturating_sub(start.content_at)).unwrap_or(u32::MAX);
+        self.bytes[start.length_at..start.length_at.saturating_add(FOUR)].copy_from_slice(&content_length.to_le_bytes());
     }
 
     /// Writes one property value under its own signature,
@@ -224,21 +233,21 @@ impl Writer {
             PropertyValue::Text(text) => self.text(text),
             PropertyValue::Flag(flag) => self.flag(*flag),
             PropertyValue::Pids(pids) => {
-                let length_at = self.start_array(FOUR);
+                let start = self.start_array(FOUR);
                 for pid in pids {
                     self.uint32(*pid);
                 }
-                self.finish_array(length_at);
+                self.finish_array(start);
             }
             PropertyValue::Devices(devices) => {
-                let length_at = self.start_array(EIGHT);
+                let start = self.start_array(EIGHT);
                 for (path, number) in devices {
                     // Every element of an array starts on the element's own boundary.
                     self.pad(EIGHT);
                     self.text(path);
                     self.number(*number);
                 }
-                self.finish_array(length_at);
+                self.finish_array(start);
             }
         }
     }
@@ -249,14 +258,14 @@ impl Writer {
             Argument::Text(text) => self.text(text),
             Argument::Flag(flag) => self.flag(*flag),
             Argument::Numbers(numbers) => {
-                let length_at = self.start_array(FOUR);
+                let start = self.start_array(FOUR);
                 for number in numbers {
                     self.uint32(*number);
                 }
-                self.finish_array(length_at);
+                self.finish_array(start);
             }
             Argument::Properties(properties) => {
-                let length_at = self.start_array(EIGHT);
+                let start = self.start_array(EIGHT);
                 for property in properties {
                     // Every element of an array starts on the element's own boundary,
                     // which a variant's value may not have ended on.
@@ -265,11 +274,11 @@ impl Writer {
                     self.signature(property_signature(&property.value));
                     self.property_value(&property.value);
                 }
-                self.finish_array(length_at);
+                self.finish_array(start);
             }
             Argument::NoAuxUnits => {
-                let length_at = self.start_array(EIGHT);
-                self.finish_array(length_at);
+                let start = self.start_array(EIGHT);
+                self.finish_array(start);
             }
         }
     }
