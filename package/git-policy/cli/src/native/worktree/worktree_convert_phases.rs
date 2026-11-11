@@ -30,7 +30,7 @@ use crate::subvolume_sync_pass_state_and_checks::SAMPLE_SIZE;
 use crate::worktree_convert_inspection::{Candidate, GIT_FILE_LIMIT, converting_path};
 use crate::worktree_convert_unrecorded_stage::owns_unrecorded_stage;
 use crate::worktree_convert_journal::{JOURNAL_NAME, Journal, Phase, io_step, is_recorded_object};
-use crate::worktree_copy_stages_being_filled::{FilledStage, filled_stages_below};
+use crate::worktree_convert_filled_stages::{removal_refusal, swap_refusals};
 use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use std::path::{Path, PathBuf};
 
@@ -407,36 +407,8 @@ pub fn refusals_after_lock(_platform: &dyn Platform, candidate: &Candidate) -> V
     // A container another command is filling is that command's work, and the swap moves the whole tree it stands in, so the
     // command filling it would lose the place it writes to. The exchange has not happened yet, so refusing here leaves that
     // command's work where it is.
-    match filled_stages_below(candidate.common.as_path(), candidate.path.as_path(), candidate.path.as_path()) {
-        Ok(filled) => {
-            for stage in &filled {
-                reasons.push(format!(
-                    "{}; nothing is swapped, so run the command again when that command has finished",
-                    filled_stage_words(stage)
-                ));
-            }
-        }
-        Err(error) => reasons.push(format!("the stage claims of {} cannot be read ({}), so no stage another command is filling can be ruled out", candidate.common.display(), error.0)),
-    }
+    reasons.extend(swap_refusals(candidate.common.as_path(), candidate.path.as_path()));
     return reasons;
-}
-
-/// What:
-///  The words for one stage container another command is filling.
-/// Why:
-///   The person reading a refusal has to know which container it is about and which process fills it,
-/// so both a swap refusal and a removal refusal say the same thing about it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// filledStageWords({ container, owner }); // 'process 1234 is filling the stage container ... below it'
-/// ```
-fn filled_stage_words(stage: &FilledStage) -> String {
-    let filler: String = match stage.owner {
-        Some(pid) => format!("process {pid} is"),
-        None => String::from("its owner is"),
-    };
-    return format!("{filler} filling the stage container {} below it, which is another command's copy of a worktree's ignored state", stage.container.display());
 }
 
 /// The checks after the swap:
@@ -530,25 +502,7 @@ pub fn removal_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Int
     }
     // Another command's stage container below the old tree is that command's work even though no process holds the tree
     // open: its claim's owner still runs, so nothing here deletes the tree it stands in.
-    let filled: Vec<FilledStage> = filled_stages_below(job.candidate.common.as_path(), job.candidate.path.as_path(), job.converting.as_path()).map_err(|error| {
-        return MigrateError::Journal(format!(
-            "the stage claims of {} cannot be read ({}), so no stage another command is filling can be ruled out; the old tree at {} is kept",
-            job.candidate.common.display(),
-            error.0,
-            job.converting.display()
-        ));
-    })?;
-    if !filled.is_empty() {
-        let mut filling: Vec<String> = Vec::new();
-        for stage in &filled {
-            filling.push(filled_stage_words(stage));
-        }
-        return Err(MigrateError::Journal(format!(
-            "the old tree at {} is kept: {}; nothing is deleted, so run this command again when that command has finished",
-            job.converting.display(),
-            filling.join("; ")
-        )));
-    }
+    removal_refusal(job.candidate.common.as_path(), job.candidate.path.as_path(), job.converting.as_path())?;
     match remove_recorded_old_tree(platform, &parent, job.converting_name(), job.journal.old_identity, job.candidate.path.as_path(), job.journal.synced_ms)? {
         Removal::Removed | Removal::Absent => {}
         Removal::Kept(why) => {

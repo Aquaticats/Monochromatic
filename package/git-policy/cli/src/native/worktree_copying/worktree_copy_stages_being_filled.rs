@@ -64,7 +64,10 @@ fn filled_stages(common_dir: &Path) -> Result<Vec<FilledStage>, WorktreeCopyErro
         if token_owner_is_dead(owner.as_deref(), claim.as_path())? {
             continue;
         }
-        let filling: Option<i64> = owner.as_deref().and_then(CopyOwner::from_token).map(|found: CopyOwner| return found.pid);
+        let filling: Option<i64> = match owner.as_deref().and_then(CopyOwner::from_token) {
+            Some(found) => Some(found.pid),
+            None => None,
+        };
         stages.push(FilledStage { container, owner: filling });
     }
     return Ok(stages);

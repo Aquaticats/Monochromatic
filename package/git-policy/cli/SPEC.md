@@ -2067,7 +2067,8 @@ owner and group,
 and 38.02 with the attributes as well,
 which is 0.62 s more on that tree,
 paid once per conversion.
-One entry of the old tree is not demanded: another command's stage container,
+One entry of the old tree is not demanded:
+another command's stage container,
 a directory whose own name begins `.cli-git-worktree-copy-`,
 which no copy carries and whose payload is that command's work rather than this tree's.
 A folder that held nothing else is not demanded either,

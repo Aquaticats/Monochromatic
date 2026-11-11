@@ -20,7 +20,8 @@ fn parent_with_a_common_directory(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     return (parent, common, tree);
 }
 
-/// A claim on a stage beside a destination below `tree`, with a container created and filled.
+/// A claim on a stage beside a destination below `tree`,
+/// with a container created and filled.
 fn filled_container(common: &Path, tree: &Path, owner: &CopyOwner) -> StageClaim {
     let claim: StageClaim = claim_stage_for_add_as(common, tree.join("inside/wt").as_path(), owner).expect("claim");
     let payload: PathBuf = claim.container().join("payload/credentials");
@@ -70,7 +71,8 @@ fn a_dead_claims_container_and_an_unclaimed_one_are_not_reported() {
 ///  converting name afterwards,
 ///  and it is reported there rather than at the name the claim spells.
 /// Why:
-///   The claim is written once, before the exchange,
+///   The claim is written once,
+/// before the exchange,
 /// so a reader after the exchange that looked only at the claim's own path would find nothing,
 ///  and the live container below the old tree would go with it.
 #[test]

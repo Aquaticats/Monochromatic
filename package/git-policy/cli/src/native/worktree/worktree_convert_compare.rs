@@ -49,8 +49,10 @@
 //! so an old-tree entry of another kind whose name merely begins
 //!  the stage prefix is the person's own file and is compared like any other entry.
 //! A container another command is still
-//!  filling is not covered by this comparison: the removal phase keeps the old tree before it asks
-//!  (`worktree_convert_phases.rs`).
+//!  filling is not covered by this comparison:
+//! the removal phase keeps the old tree before it asks,
+//!  and the swap phase refuses to exchange the worktree
+//!  (`worktree_convert_filled_stages.rs`).
 //! The
 //!  extended attributes are two `llistxattr` calls per entry on most filesystems and the rest comes from
 //!  the metadata already read.
