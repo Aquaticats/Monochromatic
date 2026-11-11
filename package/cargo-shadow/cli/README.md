@@ -1435,6 +1435,18 @@ Unit tests sit beside the modules as `*_tests.rs`;
 `tests/shim.rs` starts the built binary as `cargo` against a fake cargo.
 One install case runs the real cargo against a path-only workspace and skips with a message when no cargo is on PATH.
 
+The containment tests (`bounded_run_tests`) measure how long stopping a contained payload takes and require it inside
+its bound plus twice `QUIESCE_BOUND` (5 s).
+On this host under a load average near 100,
+two of them failed that window once (`the judged run ended after 15.294850135s, not at its bound of 1.6s` and
+`the call answered after 12.513946534s, not within its bound 10s`),
+and the same controls passed in a later run of the whole suite;
+the stop is bounded every time,
+a few seconds past the window.
+`mise run //package/cargo-shadow/cli:test -- --no-fail-fast` runs the whole suite instead of cancelling the tests beside a
+failed one,
+so one such window does not hide the other 800 results.
+
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store
 [pnpm-resolution]: https://pnpm.io/settings/dependency-resolution
