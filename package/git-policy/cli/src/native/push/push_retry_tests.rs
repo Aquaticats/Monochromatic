@@ -277,7 +277,9 @@ fn the_words_of_a_final_failure_say_what_is_known_and_promise_no_outcome() {
 /// so a bound of one would leave the service planning a try it must not make.
 #[test]
 fn a_protected_branch_refusal_is_given_a_fixed_number_of_tries() {
-    assert!(PROTECTED_BRANCH_TRIES >= 2, "the first failure plans the second try, so no bound can be below two");
+    // The first failure of a push always plans its next try, so a bound below two would leave the service planning a try it must not
+    //  make: the figure is checked where it is compiled, not where the control runs.
+    const _: () = assert!(PROTECTED_BRANCH_TRIES >= 2);
     for try_number in 1..PROTECTED_BRANCH_TRIES {
         assert!(!out_of_tries(GITHUB_PROTECTED_BRANCH, try_number), "try {try_number} is not the last one");
     }
