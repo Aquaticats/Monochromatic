@@ -108,6 +108,65 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The package repair left a stale lock rewritten, and touched two directories it did not own (2026-11-11T11:10:41-05:00)
+
+Branch `fix/git-policy-cli-pass-8-stale-cargo-lock-left-as-checked-out`,
+from the jam-fix integration at `82829a1696`.
+
+The alpha.11 gate failed
+`package_repair::real_cargo_leaves_a_stale_lockfile_as_checked_out` (1.583 s)
+at `binary_package_repair_tests.rs:569`,
+"the worktree's lock was rewritten".
+Run alone on the branch it fails too,
+so it was never contention.
+The cause is between two branches of pass 8:
+`8b872b3eed` (the never-stuck audit's finding 3,
+merged as `f0dfab8853`)
+made `restore_lock` keep the bytes a clean displaces
+and leave the file exactly as found when the repair is handed no Git directory to keep them in,
+and the add builds the repair's `GitContext` in `run_settled`
+(`worktree_copy_forward.rs`,
+`common_dir: None`,
+because the copy queries it was written for send no input).
+The repair runs after the copy with that same context,
+so the restore took the no-place arm:
+a probe of `git worktree add` in a throwaway workspace printed
+"no Git directory was named to keep those bytes in,
+so the file is left exactly as it is found"
+and left `git status` at ` M Cargo.lock`.
+`f9d58e5dc1` names the identity's common Git directory,
+which is the directory the service's prewarm job already uses for the same lock,
+and `real_cargo_leaves_a_stale_lockfile_as_checked_out` now also reads the kept bytes back,
+so a restore that drops them fails there too.
+
+Claude Sonnet's audit of `574063773d`
+(`~/temp/agent/sonnet-audits/alpha-10-merge-lfs-and-package-repair`,
+F1 and F2)
+found two more,
+both rerun on this branch with its scripts.
+F2:
+a copied `target` that is a link to a directory outside the worktree
+made the plan choose the clean,
+and `cargo clean --package` deleted the source checkout's build output through the link.
+F1:
+the service's clean runs after the add returned,
+so the person may be working in the worktree,
+and the restore put the checked-out `Cargo.lock` back over a lock the person wrote or created.
+`aec1ae9f76` fixes both:
+the plan reads where each directory it deletes from really is and leaves a link that leaves the worktree alone
+(the pnpm repair does the same for a linked `node_modules`),
+and the service's clean is given `--locked`,
+asks Cargo for the stale lock's resolution as a step of its own,
+and puts the checked-out bytes back only when the file still holds exactly what that resolution wrote.
+Its controls fail with each rule planted away,
+and both audit scripts now report the person's file and the source's artifact surviving.
+
+Limits:
+the resolution's own write can still replace a write of the person's that lands inside it,
+which is one `cargo metadata` run and not the clean;
+a worktree whose `target` link the person shares is left uncleaned,
+so its first build compiles the worktree's own crates again.
+
 ### An impostor user manager throttled the alpha.10 gate and failed thread creation (2026-11-11T06:45:00-05:00)
 
 At 2026-11-11T03:51:27-05:00 a Kimi agent's probe script started a second `/usr/lib/systemd/systemd --user --log-target=console`
