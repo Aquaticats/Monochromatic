@@ -721,3 +721,44 @@ fn the_real_manager_creates_attaches_and_follows_limits() {
     assert!(weight == "default 100" && bfq == "default 100", "{weight} {bfq}");
     assert!(ended, "the scope was collected when its last process exited");
 }
+
+/// The cgroup of the process as a lookalike origin spells it:
+/// a unit the user named after the updates slice,
+/// which sits beside the slice and not in it.
+const LOOKALIKE_ORIGIN: &str = "/user.slice/user-1000.slice/user@1000.service/app.slice/app-monochromatic\\x2dupdates.slice-task.scope";
+
+/// A process the manager never moved is not confirmed as moved because its own cgroup spells the slice name.
+///
+/// An adoption is confirmed from `/proc/<pid>/cgroup`,
+/// and a unit whose name contains the slice's name sits beside the slice,
+/// not in it:
+/// `.../app.slice/app-monochromatic\x2dupdates.slice-task.scope` holds every character of
+/// `app-monochromatic\x2dupdates.slice`.
+/// A confirmation that asks whether the text contains the slice
+/// therefore accepts that lookalike as proof that the process moved,
+/// records a successful adoption,
+/// and leaves the process outside the updates slice with no retry and no report.
+#[test]
+fn a_lookalike_cgroup_name_is_not_proof_that_the_process_moved() {
+    let place = place("lookalike", &|paths| return Manager { create: makes_scope(paths, true), ..accepting() });
+    std::fs::write(&place.paths.process_cgroup, format!("0::{LOOKALIKE_ORIGIN}\n")).expect("write the lookalike cgroup");
+    let slow = PrivateSocketAdopter { confirmation_timeout: Duration::from_millis(50), ..place.adopter };
+    let error = slow.adopt(&request(&all_limits(), &[77])).expect_err("the process never moved");
+    assert!(
+        matches!(&error, AdoptError::Failed(text) if text.contains("is not in")),
+        "the lookalike origin was accepted as a move: {error}"
+    );
+}
+
+/// The same text with the slice as a whole path component is a move,
+/// so the check reads components and not characters.
+#[test]
+fn a_process_inside_the_slice_is_confirmed() {
+    let place = place("inside", &|paths| return Manager { create: makes_scope(paths, true), ..accepting() });
+    let inside = format!(
+        "/user.slice/user-1000.slice/user@1000.service/app.slice/{SLICE}/{}",
+        SCOPE
+    );
+    std::fs::write(&place.paths.process_cgroup, format!("0::{inside}\n")).expect("write the cgroup");
+    assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77])), Ok(Joined::Created), "{inside}");
+}

@@ -982,6 +982,19 @@ a manager restart,
 and a bug in the sentinel itself.
 The bypass route watcher of `wg-quicker` has its own sentinel.
 
+### Confirming a move
+
+An adoption is confirmed from `/proc/<pid>/cgroup`,
+and the answer is the scope's own cgroup path, compared by whole components:
+a unit whose name contains the slice's name sits beside the slice and not in it,
+so `.../app.slice/app-monochromatic\x2dupdates.slice-task.scope` is not a move
+even though it holds every character of `app-monochromatic\x2dupdates.slice`.
+A confirmation that asked whether the text contained the slice accepted that lookalike,
+recorded a successful adoption,
+and left the process outside the updates slice with no retry and no report.
+A process that does not appear in the scope within the confirmation limit is a failure that is reported,
+and `a_lookalike_cgroup_name_is_not_proof_that_the_process_moved` covers it.
+
 ### Verification
 
 `mise run //package/wg/cli-quicker-exempt:test:unit` runs matcher,

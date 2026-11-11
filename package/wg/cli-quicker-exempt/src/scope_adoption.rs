@@ -22,8 +22,9 @@ use crate::process_info::parse_stat_fields;
 use crate::report_cause::quote_name;
 /// The calls of the manager.
 use crate::scope_calls::{attach_call, create_call, ensure_slice_call, scope_description, set_properties_call, stop_call};
-/// The names of the scope of an origin.
-use crate::scope_naming::{origin_scope_names, scope_cgroup_directory};
+/// The names of the scope of an origin,
+/// and the path of that scope as procfs spells it.
+use crate::scope_naming::{origin_scope_names, scope_cgroup_directory, scope_cgroup_path};
 /// Why a process is kept outside the tunnel,
 /// which the scope's description names.
 use crate::update_entry_points::MatchReason;
@@ -200,6 +201,38 @@ fn is_unpopulated(line: &str) -> bool {
     return line.trim() == "populated 0";
 }
 
+/// The unified cgroup path one `/proc/<pid>/cgroup` text names.
+fn unified_cgroup_path(text: &str) -> Option<&str> {
+    for line in text.lines() {
+        if let Some(path) = line.strip_prefix("0::") {
+            return Some(path);
+        }
+    }
+    return None;
+}
+
+/// Reports whether one `/proc/<pid>/cgroup` text names `destination` or a cgroup below it.
+fn names_destination(text: &str, destination: &str) -> bool {
+    let Some(cgroup) = unified_cgroup_path(text) else {
+        return false;
+    };
+    return is_within(cgroup, destination);
+}
+
+/// Reports whether a process's cgroup path is `destination` or lies below it.
+///
+/// Whole path components are compared,
+/// because a unit whose name contains the slice's name sits beside the slice and not in it:
+/// `.../app.slice/app-monochromatic\x2dupdates.slice-task.scope` holds every character of
+/// `app-monochromatic\x2dupdates.slice`,
+/// and a check on the text alone takes that lookalike for a move.
+fn is_within(cgroup: &str, destination: &str) -> bool {
+    if cgroup == destination {
+        return true;
+    }
+    return cgroup.starts_with(&format!("{destination}/"));
+}
+
 /// Construction and the steps of an adoption.
 impl PrivateSocketAdopter {
     /// Builds the production adopter.
@@ -252,19 +285,19 @@ impl PrivateSocketAdopter {
         return Presence::Alive;
     }
 
-    /// Waits until the pid's cgroup path names the slice,
+    /// Waits until the pid's cgroup path is `destination` or lies below it,
     /// and notices at once when the process exits meanwhile.
     /// A process that is exiting is never moved:
     /// the kernel skips it while the write to `cgroup.procs` still succeeds,
     /// and a zombie keeps its old cgroup path,
     /// so waiting out the timeout would report a failure for a process that is simply gone.
     /// A process whose state cannot be established is waited for like a living one.
-    fn confirm_moved(&self, pid: i32, slice: &str, start_time: Option<u64>) -> Result<(), AdoptError> {
+    fn confirm_moved(&self, pid: i32, destination: &str, start_time: Option<u64>) -> Result<(), AdoptError> {
         let path = self.proc_root.join(pid.to_string()).join("cgroup");
         let started = Instant::now();
         loop {
             match std::fs::read_to_string(&path) {
-                Ok(text) if text.contains(slice) => return Ok(()),
+                Ok(text) if names_destination(&text, destination) => return Ok(()),
                 Ok(_text) => {
                     if self.presence(pid, start_time) == Presence::Gone {
                         return Err(AdoptError::Vanished);
@@ -277,7 +310,7 @@ impl PrivateSocketAdopter {
             }
             if started.elapsed() > self.confirmation_timeout {
                 return Err(AdoptError::Failed(format!(
-                    "the manager accepted the job but pid {pid} is not in {slice} after {:?}",
+                    "the manager accepted the job but pid {pid} is not in {destination} after {:?}",
                     self.confirmation_timeout
                 )));
             }
@@ -354,7 +387,8 @@ impl PrivateSocketAdopter {
     /// The emptiness check runs after a failed confirmation too,
     /// because a process that was exiting never moves and leaves a new scope empty.
     fn settle(&self, request: &AdoptRequest<'_>, first: i32, joined: Joined) -> Result<Joined, AdoptError> {
-        let confirmed = self.confirm_moved(first, request.slice, request.first_start_time);
+        let destination = scope_cgroup_path(request.uid, request.slice, request.scope_name);
+        let confirmed = self.confirm_moved(first, &destination, request.first_start_time);
         let emptied = self.stop_if_empty(request);
         return match confirmed {
             Ok(()) if emptied => Err(AdoptError::Vanished),
