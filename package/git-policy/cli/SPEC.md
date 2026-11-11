@@ -1887,6 +1887,10 @@ before and after the read,
 and the read is bounded at the limit plus one byte,
 so the bytes that were hashed are the bytes of
 the one file that was judged.
+The directories on the way are kept open from one tracked path to the next,
+at most 32 by `MOST_DIRECTORIES_HELD` in `src/native/subvolume/fs_beneath_directory_chain.rs`,
+and a path deeper than that is walked one directory at a time,
+so the proof holds no more descriptors than that bound whatever the tree's depth.
 The rungs of the add keep the stat-only check.
 A real run takes no lock.
 It owns the conversion through a numbered claim file in the administrative directory
