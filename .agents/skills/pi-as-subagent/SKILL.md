@@ -135,6 +135,22 @@ from the owner's "Kimi alone" and "Both side by side (Recommended)"
 after the trial in `doc/planning/kimi-as-auditor-and-reviewer-trial.md`.
 Kimi runs through Pi on Synthetic,
 under the owner's "Kimi trials don't count within 20 slots because 20 is neuralwatt's effective concurrency and kimi runs on Synthetic."
+When Synthetic answers 429,
+the run moves to Neuralwatt's Kimi flex model and resumes its session there
+(`--provider=neuralwatt --model=kimi-k3.1-pro-flex`, with the doubled wall clock flex runs get),
+under the owner's "Use neuralwatt/kimi-k3.1-pro-flex whenever Synthetic 429s." (2026-11-10).
+Those runs take no DeepSeek slots,
+because "Neuralwatt rate limits are per model." (the owner,
+2026-11-10).
+Neuralwatt's rate-limit endpoint (`https://api.neuralwatt.com/v1/rate_limits`,
+read 2026-11-10) gives `moonshotai/Kimi-K3.1-Pro` an `effective_concurrency` of 20 and lists no `-flex` model;
+the Kimi flex pool holds 22 runs of its own,
+under the owner's "Use 22 against Kimi K3.1 Pro flex from neuralwatt for now, until upstream clarifies or we hit something." (2026-11-10).
+Default runs never take the Kimi pool;
+only a run that names that model does.
+Synthetic sets no limit on runs at once;
+its 429 means the quota is spent ("Synthetic doesn't have a concurrent limit. The Synthetic quota got blown once again."),
+so retrying on Synthetic fails until the quota comes back.
 The owner also wrote "Kimi K3.1 Pro has a tendency to cheat.",
 and the trial caught none,
 so rerun a finding's reproduction before believing it,
@@ -337,22 +353,37 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     run only the compile or type check,
     which is what the agent could not have run on the combined tree,
     and skip that too when `main` was already in the branch.
-9.  Give a finished run's worktree back.
+9.  Give a finished run's worktree back as soon as its unit has ended,
+    whether or not its branch has landed yet.
+    The owner,
+    2026-11-10:
+    "You're the coordinator and you're supposed to remove finished worktrees automatically."
+    and, the same day:
+    "The wrapper should have cleaned up after itself automatically deterministically."
+    A worktree added on btrfs is a snapshot of `main`,
+    so it keeps every file `main` held when it was taken,
+    build folders included,
+    after `main` has replaced them.
+    That day the owner found the 860 nearly full with 460 worktrees in place,
+    and one finished worktree measured 26.5 GiB,
+    48.7 MiB of it its own and 14.35 GiB shared with other subvolumes,
+    so removing one frees little and removing all finished ones frees what only they keep.
     `start-pi-run-in-a-free-slot` does it when the unit ends,
     for a run that has a worktree of its own,
     whose summary says `idle` or `stop-file`,
     whose `HEAD` is on a branch,
     and which has nothing uncommitted:
-    it removes the worktree with the wrapper's `git worktree remove` and keeps the branch,
-    so the next attempt of that run adds it again from the branch.
+    it removes the worktree with the wrapper's `git worktree remove <worktree>`,
+    without `--force`,
+    which refuses a worktree holding uncommitted work,
+    and keeps the branch,
+    so a later attempt of that run adds the worktree again from it.
     A worktree it keeps says why in one line.
-    Nothing else may remove a worktree:
-    each is a btrfs snapshot that pins the main branch's files, build folders included,
-    and 460 of them filled this machine's disk on 2026-11-10,
-    which is why the owner asked for this twice:
-    "You're the coordinator and you're supposed to remove finished worktrees automatically."
-    and "The wrapper should have cleaned up after itself automatically deterministically."
-    A run started by hand, without the command, leaves that to the person who started it.
+    A run started by hand, without the command, leaves that to the person who started it:
+    leave a worktree whose unit is active,
+    one a process still works in,
+    and one with uncommitted work,
+    and say which were left and why.
 
 ## Protocol
 
