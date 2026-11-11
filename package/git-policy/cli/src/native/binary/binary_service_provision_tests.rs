@@ -151,7 +151,9 @@ fn inactive_state_return(serial: u32) -> Vec<u8> {
 /// and when asked to start a
 ///  unit it runs the starter if one is left.
 /// It returns the names of the methods it was asked for.
-fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on_start: &mut Option<Box<dyn FnOnce() + Send>>) -> Vec<String> {
+/// `listens` is what it answers when the wrapper asks where a unit listens,
+/// which a manager that made the unit's address says.
+fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on_start: &mut Option<Box<dyn FnOnce() + Send>>, listens: &[String]) -> Vec<String> {
     let mut asked: Vec<String> = Vec::new();
     let mut one: [u8; 1] = [0];
     let mut line: Vec<u8> = Vec::new();
@@ -209,6 +211,8 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
             // `zbus` reads the unique name that `Hello` returns, so the reply to it carries one.
             "Hello" => unique_name_return(serial),
             "GetUnit" => unit_path_return(serial),
+            // The property the wrapper reads decides the answer: where the unit listens, or the state it is in.
+            "Get" if header.windows(6).any(|window| { return window == b"Listen"; }) => addresses_return(serial, listens),
             "Get" => inactive_state_return(serial),
             _ => return_for(serial),
         };
@@ -227,13 +231,19 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
 ///  runs at the first start of a unit,
 /// as the manager's socket activation would.
 pub(super) fn fake_bus_many(runtime: &Path, refuse: bool, connections: usize, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<Vec<String>>> {
+    return fake_bus_many_answering(runtime, refuse, connections, starter, Vec::new());
+}
+
+/// `fake_bus_many` whose manager also says where a unit listens,
+/// which a manager that made the unit's address answers.
+pub(super) fn fake_bus_many_answering(runtime: &Path, refuse: bool, connections: usize, starter: Box<dyn FnOnce() + Send>, listens: Vec<String>) -> std::thread::JoinHandle<Vec<Vec<String>>> {
     let listener: UnixListener = UnixListener::bind(runtime.join("bus")).expect("the bus socket");
     return std::thread::spawn(move || {
         let mut on_start: Option<Box<dyn FnOnce() + Send>> = Some(starter);
         let mut all: Vec<Vec<String>> = Vec::new();
         for _ in 0..connections {
             let Ok((stream, _)) = listener.accept() else { return all };
-            all.push(serve_connection(stream, refuse, &mut on_start));
+            all.push(serve_connection(stream, refuse, &mut on_start, listens.as_slice()));
         }
         return all;
     });
@@ -244,6 +254,35 @@ pub(super) fn fake_bus_many(runtime: &Path, refuse: bool, connections: usize, st
 fn fake_bus(runtime: &Path, refuse: bool, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<String>> {
     let many = fake_bus_many(runtime, refuse, 1, starter);
     return std::thread::spawn(move || { return many.join().expect("bus").into_iter().flatten().collect(); });
+}
+
+/// A method return whose body is a variant holding a list of address pairs (`a(ss)`).
+fn addresses_return(serial: u32, addresses: &[String]) -> Vec<u8> {
+    // Each pair starts on an eight-byte boundary; each string in it on a four-byte one.
+    let mut entries: Vec<u8> = Vec::new();
+    for address in addresses {
+        while entries.len() % 8 != 0 {
+            entries.push(0);
+        }
+        for text in ["Stream", address.as_str()] {
+            while entries.len() % 4 != 0 {
+                entries.push(0);
+            }
+            entries.extend(u32::try_from(text.len()).expect("short").to_le_bytes());
+            entries.extend(text.as_bytes());
+            entries.push(0);
+        }
+    }
+    let mut body: Vec<u8> = Vec::new();
+    body.extend(u32::try_from(entries.len()).expect("short").to_le_bytes());
+    while body.len() % 8 != 0 {
+        body.push(0);
+    }
+    body.extend(entries);
+    // The variant's signature: its length, `a(ss)`, and the byte that ends it, then padding to eight bytes.
+    let mut wrapped: Vec<u8> = vec![5, b'a', b'(', b's', b's', b')', 0, 0];
+    wrapped.extend(body);
+    return return_with(serial, "v", &wrapped);
 }
 
 /// Starts the real service at the socket the wrapper looks for,
@@ -299,8 +338,8 @@ fn the_first_commit_provisions_and_the_second_does_not() {
     assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
     assert_eq!(finished_batches(&fixture), 2);
     drop(second);
-    // The stand-in's connection ends with the wrapper's; it saw one hello, one start (a new unit file needs no reload), and the two questions about the earlier release's units of the worktree (its service and its socket).
-    assert_eq!(bus.join().expect("bus"), vec!["Hello", "StartUnit", "GetUnit", "Get", "GetUnit", "Get"]);
+    // The stand-in's connection ends with the wrapper's; it saw one hello, one start (a new unit file needs no reload), the question about where the service listens, and the two questions about the earlier release's units of the worktree (its service and its socket).
+    assert_eq!(bus.join().expect("bus"), vec!["Hello", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"]);
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }
@@ -350,8 +389,8 @@ fn a_unit_naming_a_removed_program_heals_on_the_next_commit() {
     assert_eq!(
         bus.join().expect("bus"),
         vec![
-            vec!["Hello", "StartUnit", "GetUnit", "Get", "GetUnit", "Get"],
-            vec!["Hello", "Reload", "ResetFailedUnit", "ResetFailedUnit", "StartUnit", "GetUnit", "Get", "GetUnit", "Get"],
+            vec!["Hello", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"],
+            vec!["Hello", "Reload", "ResetFailedUnit", "ResetFailedUnit", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"],
         ]
     );
     keep.lock().expect("lock").clear();
@@ -384,7 +423,7 @@ fn matching_units_cost_no_rewrite_no_reload_and_no_bus_call() {
     assert_eq!(finished_batches(&fixture), 4);
     assert_eq!(stamps([SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]), before, "no unit was rewritten");
     // Had a later commit connected, the stand-in would have been asked again, or the connection refused.
-    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StartUnit", "GetUnit", "Get", "GetUnit", "Get"]]);
+    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"]]);
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }
@@ -718,7 +757,70 @@ fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the
     assert!(!units.join(LEGACY_SOCKET_UNIT_NAME).exists() && !units.join(LEGACY_SERVICE_UNIT_NAME).exists(), "its units are gone");
     assert!(!runtime.join(LEGACY_SOCKET_RELATIVE).exists(), "its socket file is gone");
     assert!(socket_for(runtime.as_path(), repo.join(".git").as_path()).exists(), "the worktree has its own socket");
-    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "GetUnit", "Get", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit", "GetUnit", "Get", "GetUnit", "Get"]]);
+    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "GetUnit", "Get", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit", "GetUnit", "Get", "GetUnit", "Get", "GetUnit", "Get"]]);
     keep.lock().expect("lock").clear();
+    finish(&fixture, runtime.as_path());
+}
+
+/// What:
+///  A runtime directory that leaves no room for one socket address is refused at once,
+/// with the path,
+/// the room this system has and the remedy.
+/// Why:
+///   A person whose `XDG_RUNTIME_DIR` is longer than 40 bytes (an agent workspace,
+/// a container's own runtime directory)
+/// waited two minutes before the command said only that the service did not start,
+/// and the remedy it named (turning on user services)
+/// had nothing to do with the cause.
+#[test]
+fn a_runtime_directory_no_address_can_hold_is_refused_at_once() {
+    let (fixture, repo, _short) = prepared("provision-too-long");
+    let scratch: PathBuf = super::service_commit::runtime_for("provision-too-long").join("x");
+    std::fs::create_dir_all(&scratch).expect("the long runtime directory");
+    let runtime: PathBuf = scratch.join("x".repeat(80));
+    std::fs::create_dir_all(&runtime).expect("the runtime directory");
+    // The route needs a session bus, and this one is never reached: the address is refused before that.
+    std::fs::write(runtime.join("bus"), b"").expect("a bus that is never asked");
+    let began: Instant = Instant::now();
+    let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
+    let took: Duration = began.elapsed();
+    let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(took < PATIENCE / 6, "the refusal takes {took:?}, not the start ceiling: {stderr}");
+    assert!(stderr.contains("XDG_RUNTIME_DIR"), "the setting that has to change is named: {stderr}");
+    assert!(stderr.contains("107"), "the room this system has is named: {stderr}");
+    assert!(!stderr.contains(LINGER_COMMAND), "the remedy for an account without user services is not the cause: {stderr}");
+    assert_eq!(subject(&fixture, &repo), "base", "nothing was committed");
+    assert!(!runtime.join("systemd").exists(), "no unit was written for a service that could never answer");
+    finish(&fixture, runtime.as_path());
+}
+
+/// What:
+///  A service the manager made listen at another address than this command waits at is named at once,
+/// with both addresses and both runtime directories.
+/// Why:
+///   The unit's address is built from the manager's own runtime directory,
+/// so a commit run with one of its own (under a unit,
+/// in a container)
+/// reaches a service that is running and healthy,
+/// and waited two minutes before it said only that the service did not start.
+#[test]
+fn a_service_started_where_this_command_does_not_look_is_named_at_once() {
+    let (fixture, repo, runtime) = prepared("provision-elsewhere");
+    let elsewhere: String = String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock");
+    let bus = fake_bus_many_answering(runtime.as_path(), false, 1, Box::new(|| {}), vec![elsewhere.clone()]);
+    let began: Instant = Instant::now();
+    let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
+    let took: Duration = began.elapsed();
+    let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(took < PATIENCE / 6, "the refusal takes {took:?}, not the start ceiling: {stderr}");
+    assert!(stderr.contains(elsewhere.as_str()), "the address the service listens at is named: {stderr}");
+    assert!(stderr.contains("/run/user/1000"), "the manager's runtime directory is named: {stderr}");
+    assert!(stderr.contains(runtime.to_string_lossy().as_ref()), "the runtime directory this command used is named: {stderr}");
+    assert!(stderr.contains("XDG_RUNTIME_DIR"), "the setting that has to change is named: {stderr}");
+    assert_eq!(subject(&fixture, &repo), "base", "nothing was committed");
+    assert_eq!(finished_batches(&fixture), 0, "no service landed anything");
+    bus.join().expect("bus");
     finish(&fixture, runtime.as_path());
 }

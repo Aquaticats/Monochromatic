@@ -15,6 +15,7 @@
 
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
+use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, stamp_of};
 use crate::worktree_copy_error::failure_with_cause;
@@ -378,6 +379,7 @@ fn copy_leaves(
     positions: &[usize],
     failed: &AtomicBool,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
+    ceiling: &CopyCeiling,
 ) -> Result<SliceCopy, WorktreeCopyError> {
     let mut last_parent: Option<PathBuf> = None;
     let mut stamps: Vec<Option<FileStamp>> = Vec::with_capacity(positions.len());
@@ -386,6 +388,11 @@ fn copy_leaves(
         let Some(entry) = entries.get(*at) else { continue };
         if failed.load(Ordering::Relaxed) {
             return Ok(SliceCopy { stamps, gone });
+        }
+        // A command that finishes a copy it did not start stops at its ceiling, entry by entry, so no checkout's
+        //  size decides how long it waits.
+        if ceiling.reached() {
+            return Err(ceiling.stopped_error());
         }
         if entry.kind == EntryKind::Directory {
             stamps.push(None);
@@ -591,7 +598,7 @@ pub struct CopiedManifest {
 /// ```ts
 /// type ASliceToCopy = [entries: readonly WorktreeCopyEntry[], source: string, stage: string, positions: number[], failed: boolean, clone: CloneRequest];
 /// ```
-type ASliceToCopy = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>, Arc<AtomicBool>, fn(&std::fs::File, &std::fs::File) -> bool);
+type ASliceToCopy = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>, Arc<AtomicBool>, fn(&std::fs::File, &std::fs::File) -> bool, Arc<CopyCeiling>);
 
 /// What:
 ///  Copy one slice of leaf entries on a worker,
@@ -607,9 +614,9 @@ type ASliceToCopy = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>, Arc
 /// function copySliceAndFlagFailure([entries, sourceRoot, stageRoot, positions, failed]) { const outcome = copyLeaves(...); if (outcome.isErr()) failed.set(true); return outcome; }
 /// ```
 fn copy_slice_and_flag_failure(
-    (entries, source_root, stage_root, positions, failed, clone): ASliceToCopy,
+    (entries, source_root, stage_root, positions, failed, clone, ceiling): ASliceToCopy,
 ) -> Result<SliceCopy, WorktreeCopyError> {
-    let outcome: Result<SliceCopy, WorktreeCopyError> = copy_leaves(source_root.as_path(), stage_root.as_path(), entries.as_ref(), positions.as_slice(), failed.as_ref(), clone);
+    let outcome: Result<SliceCopy, WorktreeCopyError> = copy_leaves(source_root.as_path(), stage_root.as_path(), entries.as_ref(), positions.as_slice(), failed.as_ref(), clone, ceiling.as_ref());
     if outcome.is_err() {
         failed.store(true, Ordering::Relaxed);
     }
@@ -644,7 +651,7 @@ pub fn copy_manifest_entries(
     stage_root: &Path,
     entries: &[WorktreeCopyEntry],
 ) -> Result<CopiedManifest, WorktreeCopyError> {
-    return copy_manifest_entries_with(source_root, stage_root, entries, try_clone);
+    return copy_manifest_entries_with(source_root, stage_root, entries, try_clone, &CopyCeiling::unbounded());
 }
 
 /// What:
@@ -665,8 +672,9 @@ pub fn copy_manifest_entries_with(
     stage_root: &Path,
     entries: &[WorktreeCopyEntry],
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
+    ceiling: &CopyCeiling,
 ) -> Result<CopiedManifest, WorktreeCopyError> {
-    return match crate::lazy_runtime::run_on_runtime(copy_manifest_entries_awaiting(source_root, stage_root, Arc::from(entries), clone)) {
+    return match crate::lazy_runtime::run_on_runtime(copy_manifest_entries_awaiting(source_root, stage_root, Arc::from(entries), clone, Arc::new(*ceiling))) {
         Ok(copied) => copied,
         // Nothing was copied, and the reason the runtime could not run the workers is why.
         Err(refusal) => Err(raw_failure(&std::io::Error::other(format!("the staged copy could not be made ({refusal})")))),
@@ -689,10 +697,14 @@ async fn copy_manifest_entries_awaiting(
     stage_root: &Path,
     entries: Arc<[WorktreeCopyEntry]>,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
+    ceiling: Arc<CopyCeiling>,
 ) -> Result<CopiedManifest, WorktreeCopyError> {
     for entry in entries.iter() {
         if entry.kind != EntryKind::Directory {
             continue;
+        }
+        if ceiling.reached() {
+            return Err(ceiling.stopped_error());
         }
         let stage_path: PathBuf = filesystem_path(stage_root, entry.relative_path.as_slice())?;
         create_private_tree(stage_path.as_path())?;
@@ -706,7 +718,7 @@ async fn copy_manifest_entries_awaiting(
     let mut at: usize = 0;
     for chunk in entries.chunks(slice_length) {
         let range: std::ops::Range<usize> = at..at + chunk.len();
-        states.push((Arc::clone(&entries), source_root.to_path_buf(), stage_root.to_path_buf(), range.clone().collect(), Arc::clone(&failed), clone));
+        states.push((Arc::clone(&entries), source_root.to_path_buf(), stage_root.to_path_buf(), range.clone().collect(), Arc::clone(&failed), clone, Arc::clone(&ceiling)));
         slices.push(range);
         at += chunk.len();
     }

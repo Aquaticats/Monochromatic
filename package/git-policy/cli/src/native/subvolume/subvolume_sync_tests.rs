@@ -167,6 +167,28 @@ fn another_commands_stage_container_is_left_out_of_a_pass() {
     remove(parent.as_path());
 }
 
+/// What:
+///  A file or a link whose name begins the stage prefix is the source's own entry and is copied,
+///  beside the folder another command's container stands in,
+///  which stays because that file is state.
+/// Why:
+///   Only a folder is another command's stage container;
+/// a person's ignored file of that name is exactly what this pass hands over,
+///  and leaving it out would give the new worktree a file the source has.
+#[test]
+fn a_prefix_named_file_is_copied_beside_another_commands_stage_folder() {
+    let (parent, source, destination) = trees("sync-prefixed-file");
+    let worktrees: PathBuf = source.join(".claude/worktrees");
+    std::fs::create_dir_all(worktrees.join(format!(".cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload"))).expect("the stage container");
+    std::fs::write(worktrees.join("payload-note"), b"not in the container\n").expect("a name that merely begins the prefix");
+    run(source.as_path(), destination.as_path(), COPY);
+    assert_eq!(std::fs::read(destination.join(".claude/worktrees/payload-note")).expect("the copied file"), b"not in the container\n", "a prefix-named file is the source's own entry");
+    assert!(!destination.join(".claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543").exists(), "nothing of the container is copied");
+    let proved: SyncStats = run(source.as_path(), destination.as_path(), SyncOptions { delete: true, update_only: false, excluded: &[], created_since: None });
+    assert_eq!((proved.files_copied, proved.deleted), (0, 0), "the proving pass finds nothing to do");
+    remove(parent.as_path());
+}
+
 /// Without the deletion switch extras stay;
 /// with the update-only switch they stay even when deletion is also asked.
 #[test]
@@ -709,7 +731,7 @@ fn the_group_of_a_copy_follows_the_original_not_the_directory_it_was_made_in() {
 
 /// A pass over `source` and `destination` that the controls below drive one step at a time.
 fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a Path, interrupt: &'a Interrupt) -> Pass<'a> {
-    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new() };
+    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
 }
 
 /// The destination directory of a relative path,

@@ -634,6 +634,16 @@ fn a_silent_open_connection_is_ended_at_the_connected_window() {
     end(child);
     let Some(StopCause::Stalled(report)) = cause else { panic!("the silent connection was not ended within {:?}", began.elapsed()) };
     assert!(report.limit == window && began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+    // The words of the stop name the window that fired, and never offer the stall setting as its remedy: the setting does
+    //  not change the connected window, so advice to set it sends its reader to a limit that cannot be moved.
+    let words: String = crate::lfs_upload_explanations::stopped_upload_words(&StopCause::Stalled(report));
+    assert!(!words.contains("to allow longer"), "a connected stop does not offer a setting that cannot change its window: {words}");
+    assert!(
+        words.contains(&format!("{} does not change this window", crate::bounded_push::PUSH_DEADLINE_VARIABLE)),
+        "the setting is named as one that does not move this window: {words}"
+    );
+    assert!(words.contains("fixed at"), "the window it was ended by is named: {words}");
+    assert!(words.contains("git lfs push --all"), "a remedy that works is named: {words}");
 }
 
 /// A `/proc/<pid>/stat` line is read after its last parenthesis:

@@ -87,6 +87,8 @@ use crate::policy_engine::{PolicyFinding, PolicyNote, PolicyOutcome};
 use crate::policy_trigger::Trigger;
 /// The facts interface that prepares candidates and locates the worktree.
 use crate::repository_facts::RepositoryFacts;
+/// The repository location the commit path names its Git reads with.
+use crate::repository_location::RepositoryLocation;
 /// The worktree's top level.
 use crate::worktree_identity::worktree_root;
 /// Borrowed and owned filesystem paths.
@@ -401,14 +403,22 @@ pub fn check_dependent_version<F: RepositoryFacts>(check: DependentCheck<'_, '_,
     if !should_plan(&request) {
         return clean();
     }
-    let root: Option<PathBuf> = if trigger == Trigger::DirectFix || plans_commit {
+    let location: Option<RepositoryLocation> = if trigger == Trigger::DirectFix || plans_commit {
         match facts.location() {
-            Ok(location) => worktree_root(&location.identity).map(Path::to_path_buf),
+            Ok(found) => Some(found),
             Err(message) => return failed(EngineFailureCode::ContentUnavailable, message),
         }
     } else {
         None
     };
+    // The repository Git located once, never the caller's raw options: reading a relative `--git-dir` again from a
+    //  discovered directory applies the caller's `-C` a second time (`repository_selection::of_identity`).
+    let mut root: Option<PathBuf> = None;
+    if let Some(found) = location.as_ref()
+        && let Some(top) = worktree_root(&found.identity)
+    {
+        root = Some(top.to_path_buf());
+    }
     let listed: Vec<Vec<u8>> = candidates
         .iter()
         .filter(is_listed_change)
@@ -435,7 +445,7 @@ pub fn check_dependent_version<F: RepositoryFacts>(check: DependentCheck<'_, '_,
         &findings,
         version.as_ref(),
         facts,
-        root.as_deref(),
+        location.as_ref(),
         real_index,
     );
     let mut kept: Vec<DependentFinding> = Vec::new();

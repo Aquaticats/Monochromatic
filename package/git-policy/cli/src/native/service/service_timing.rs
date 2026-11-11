@@ -275,7 +275,7 @@ pub fn lock_notes_fields(notes: &WaitNotes) -> String {
 }
 
 /// The wait for the index lock that is written down even when no holder was met:
-/// a flush of the marker or a wait that long is a slow landing's first suspect.
+/// the making of the marker or a wait that long is a slow landing's first suspect.
 ///  Exempt from a citation under `LQM` (class:
 /// notice pacing):
 /// it times a line the person reads or a log threshold,

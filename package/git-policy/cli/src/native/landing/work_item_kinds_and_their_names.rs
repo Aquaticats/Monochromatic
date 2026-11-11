@@ -12,7 +12,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type WorkKind = 'review' | 'push' | 'maintenance' | 'trash' | 'prewarm'; kind.name(); kind.fromName('push')
+//! type WorkKind = 'review' | 'push' | 'maintenance' | 'trash' | 'prewarm' | 'relink' | 'subvolume-delete' | 'snapshot-ahead'; kind.name(); kind.fromName('push')
 //! ```
 
 /// What:
@@ -38,9 +38,16 @@ pub enum WorkKind {
     /// Filling a new worktree's Cargo build directory from its source's,
     /// which the add no longer waits for.
     Prewarm,
+    /// Relinking the copied package state of a new worktree,
+    /// with each tool's own install,
+    /// which the add no longer waits for.
+    Relink,
     /// Deleting the subvolume of a removed worktree,
     /// which the removal no longer waits for.
     SubvolumeDelete,
+    /// Making a snapshot of a worktree ahead of the next add,
+    /// which the add would otherwise force on the person's thread.
+    SnapshotAhead,
 }
 
 /// Methods over a kind.
@@ -54,13 +61,15 @@ impl WorkKind {
             WorkKind::Maintenance => "maintenance",
             WorkKind::Trash => "trash",
             WorkKind::Prewarm => "prewarm",
+            WorkKind::Relink => "relink",
             WorkKind::SubvolumeDelete => "subvolume-delete",
+            WorkKind::SnapshotAhead => "snapshot-ahead",
         };
     }
 
     /// The kind a name spells.
     pub fn from_name(name: &str) -> Option<WorkKind> {
-        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete] {
+        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead] {
             if kind.name() == name {
                 return Some(kind);
             }

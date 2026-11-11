@@ -458,7 +458,11 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     //  before the commit, so a failure shows ahead of the commit's own output.
     show_push_failures(stripped, checks);
     show_held_commits(stripped, checks);
-    snapshot_before_worktree_removal(stripped, checks);
+    // A held commit that no reference of the repository can hold stops the command before Git removes the only
+    //  references that name it (`worktree_removal_held_commits.rs`).
+    if let Some(stderr) = snapshot_before_worktree_removal(stripped, checks) {
+        return WrappedOutcome::Exit { code: ENGINE_FAILURE_EXIT_CODE, stderr };
+    }
     if let Some(config) = &loaded
         && let Some(ending) = run_commit_if_real(stripped, environment, checks, config)
     {

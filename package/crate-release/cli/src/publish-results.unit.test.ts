@@ -8,6 +8,7 @@ import {
   foundValue,
   missingValue,
 } from './lookup.ts';
+import type { RunOutcome } from './run-outcome.ts';
 import {
   describeDuration,
   expandTemplate,
@@ -36,6 +37,41 @@ const listing = JSON.stringify([
  Both tarballs the release is expected to hold.
  */
 const expectedAssets: readonly string[] = ['c-0.4.10-x86_64-unknown-linux-gnu.tar.gz', 'c-0.4.10-aarch64-unknown-linux-gnu.tar.gz'];
+
+/**
+ The publish run of a complete publish, as its own answer describes it.
+ */
+const passedRun: RunOutcome = {
+  createdAt: '2026-11-11T01:00:30Z',
+  status: 'completed',
+  conclusion: 'success',
+  jobs: [{
+    name: 'gpc-build-binary',
+    status: 'completed',
+    conclusion: 'success',
+    steps: [],
+  }],
+};
+
+/**
+ The publish run of a publish that failed at the upload, as its own answer describes it.
+ */
+const failedRun: RunOutcome = {
+  createdAt: '2026-11-11T01:00:30Z',
+  status: 'completed',
+  conclusion: 'failure',
+  jobs: [{
+    name: 'gpc-publish-crate',
+    status: 'completed',
+    conclusion: 'failure',
+    steps: [{
+      name: 'Publish the crate to crates.io',
+      number: 3,
+      status: 'completed',
+      conclusion: 'failure',
+    }],
+  }],
+};
 
 await describe({
   name: '',
@@ -226,10 +262,12 @@ await describe({
       name: formatPublishResult.name,
       children: [
         it({
-          name: 'reports a complete publish and succeeds',
+          name: 'reports a complete publish, names the run that built the archives and the release, and succeeds',
           fn: async () => {
             const result = formatPublishResult({
-              watchStatus: 0,
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: foundValue(passedRun),
               version: '0.4.10',
               createdAt: foundValue('2026-10-29T12:00:00+00:00'),
               tag: 'c-v0.4.10',
@@ -238,18 +276,20 @@ await describe({
             });
             expect(result.ok).toBe(true);
             expect(result.lines).toEqual([
-              'watch exit 0',
+              'cargo-publish.yml run 42: completed with success',
               'crates.io 0.4.10: 2026-10-29T12:00:00+00:00',
               `release c-v0.4.10 assets: ${[...expectedAssets, 'c-0.4.10-sha256sums.txt'].join(', ')}`,
-              'PUBLISHED',
+              'PUBLISHED c-v0.4.10',
             ]);
           },
         }),
         it({
-          name: 'fails and names the reason when the workflow run failed',
+          name: 'fails, names the job and step that did not pass, and says what the run concluded',
           fn: async () => {
             const result = formatPublishResult({
-              watchStatus: 1,
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: foundValue(failedRun),
               version: '0.4.10',
               createdAt: foundValue('2026-10-29'),
               tag: 't',
@@ -257,15 +297,39 @@ await describe({
               release: foundValue([]),
             });
             expect(result.ok).toBe(false);
-            expect(result.lines.at(-1)).toContain('PUBLISH CHECK FAILED');
-            expect(result.lines.at(-1)).toContain('workflow run exited 1');
+            expect(result.lines).toContain(
+              'job gpc-publish-crate concluded failure at step "Publish the crate to crates.io"',
+            );
+            expect(result.lines.at(-1)).toContain('cargo-publish.yml run 42 concluded failure');
+          },
+        }),
+        it({
+          name: 'says a run that never ended was still going rather than calling it passed or failed',
+          fn: async () => {
+            const result = formatPublishResult({
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: missingValue('The run was still going after 40 minutes, waiting for gpc-build-binary (in_progress).'),
+              version: '0.4.10',
+              createdAt: foundValue('x'),
+              tag: 't',
+              expectedAssets: [],
+              release: foundValue([]),
+            });
+            expect(result.ok).toBe(false);
+            expect(result.lines[0]).toBe(
+              'cargo-publish.yml run 42: The run was still going after 40 minutes, waiting for gpc-build-binary (in_progress).',
+            );
+            expect(result.lines.at(-1)).toContain('cargo-publish.yml run 42 did not finish');
           },
         }),
         it({
           name: 'fails when the version is not on crates.io',
           fn: async () => {
             const result = formatPublishResult({
-              watchStatus: 0,
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: foundValue(passedRun),
               version: '0.4.10',
               createdAt: missingValue('Not Found'),
               tag: 't',
@@ -281,7 +345,9 @@ await describe({
           name: 'fails and lists each expected asset the release lacks',
           fn: async () => {
             const result = formatPublishResult({
-              watchStatus: 0,
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: foundValue(passedRun),
               version: '0.4.10',
               createdAt: foundValue('x'),
               tag: 'c-v0.4.10',
@@ -297,7 +363,9 @@ await describe({
           name: 'shows the release lookup error when the release could not be read',
           fn: async () => {
             const result = formatPublishResult({
-              watchStatus: 0,
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: foundValue(passedRun),
               version: '0.4.10',
               createdAt: foundValue('x'),
               tag: 'c-v0.4.10',
@@ -312,7 +380,9 @@ await describe({
           name: 'shows none when the release holds no assets and none are expected',
           fn: async () => {
             const result = formatPublishResult({
-              watchStatus: 0,
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: foundValue(passedRun),
               version: '1.0.0',
               createdAt: foundValue('x'),
               tag: 't',
@@ -327,7 +397,9 @@ await describe({
           name: 'lists every failure reason together',
           fn: async () => {
             const result = formatPublishResult({
-              watchStatus: 2,
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: foundValue(failedRun),
               version: '1.0.0',
               createdAt: missingValue('Not Found'),
               tag: 't',
@@ -335,7 +407,7 @@ await describe({
               release: foundValue([]),
             });
             const last = result.lines.at(-1) ?? '';
-            expect(last).toContain('workflow run exited 2');
+            expect(last).toContain('cargo-publish.yml run 42 concluded failure');
             expect(last).toContain('not on crates.io');
             expect(last).toContain('missing release assets: a');
           },
@@ -344,7 +416,9 @@ await describe({
           name: 'leaves crates.io out of the check when the caller says the version is not published there, and still succeeds',
           fn: async () => {
             const result = formatPublishResult({
-              watchStatus: 0,
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: foundValue(passedRun),
               version: '0.2.7-alpha.1',
               createdAt: missingValue('crates.io was not asked'),
               skippedCratesIoReason: 'the alpha label is not published to crates.io',
@@ -354,10 +428,10 @@ await describe({
             });
             expect(result.ok).toBe(true);
             expect(result.lines).toEqual([
-              'watch exit 0',
+              'cargo-publish.yml run 42: completed with success',
               'crates.io 0.2.7-alpha.1: skipped, the alpha label is not published to crates.io',
               `release c-v0.2.7-alpha.1 assets: ${expectedAssets.join(', ')}`,
-              'PUBLISHED',
+              'PUBLISHED c-v0.2.7-alpha.1',
             ]);
           },
         }),
@@ -365,7 +439,9 @@ await describe({
           name: 'still fails for a missing release asset or a failed run when crates.io is left out',
           fn: async () => {
             const result = formatPublishResult({
-              watchStatus: 1,
+              workflow: 'cargo-publish.yml',
+              runId: '42',
+              outcome: foundValue(failedRun),
               version: '0.2.7-alpha.1',
               createdAt: missingValue('crates.io was not asked'),
               skippedCratesIoReason: 'the alpha label is not published to crates.io',
@@ -374,7 +450,7 @@ await describe({
               release: foundValue([]),
             });
             expect(result.ok).toBe(false);
-            expect(result.lines.at(-1)).toContain('workflow run exited 1');
+            expect(result.lines.at(-1)).toContain('cargo-publish.yml run 42 concluded failure');
             expect(result.lines.at(-1)).toContain('missing release assets');
             expect(result.lines.at(-1)).not.toContain('crates.io');
           },

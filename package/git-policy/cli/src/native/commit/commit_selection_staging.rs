@@ -2,11 +2,15 @@
 //!  The worktree paths an explicit-path commit stages into its private index:
 //!  which selected elements name one file,
 //!  which name a directory or a pattern,
-//!  and the two `git add` starts that stage them.
+//!  the two `git add` starts that stage them,
+//!  and the failure that is the caller's own pathspec naming nothing.
 //! Why:
 //!  Native Git commits the tracked paths and the already-staged additions a directory or a pattern matches,
 //! and never a file nothing staged,
 //!  while an exact path the person named is taken as the wrapper's own deliberate difference.
+//!  A start whose pathspecs are the caller's own ends for two different reasons,
+//! and only one of them is the caller's input (issue 6283),
+//!  so the two are told apart here and the caller reports each in its own class.
 //!  The file is split from `commit_index.rs`,
 //! which initializes the index and stays inside its line budget.
 //!
@@ -16,11 +20,49 @@
 //! ```
 
 use crate::commit_index_selection::{IndexSelection, selection_arguments};
+use crate::commit_pathspec_matching_nothing::{WrittenPathspecs, pathspec_matching_nothing};
 use crate::commit_staged_additions::{explain_ignored_refusal, pathspecs_of_file};
 use crate::private_index_request::{CaptureIndexes, caller_pathspec_request};
-use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, checked_from, run_git, run_git_checked};
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// What:
+///  Why a start of the private staging ended:
+///  Git's own failure,
+/// or the caller's pathspec that matches nothing.
+/// Why:
+///   Only one cause of these starts is the caller's input,
+/// so the two are kept apart:
+/// a Git failure stays the engine failure it was,
+///  and a refused pathspec ends the command with a finding of its own (issue 6283).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SelectionStagingFailure = { kind: 'git'; failure: GitFailure } | { kind: 'pathspec'; tokens: Uint8Array[] };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SelectionStagingFailure {
+    /// A Git start failed for a reason that is not a pathspec the caller wrote naming nothing.
+    Git(GitFailure),
+    /// Git refused pathspecs the caller wrote because they match nothing.
+    PathspecMatchesNothing(Vec<Vec<u8>>),
+}
+
+impl From<GitFailure> for SelectionStagingFailure {
+    /// What:
+    ///  A Git failure of the staging keeps the class it had before the classification existed.
+    /// Why:
+    ///  Every step that is not the classified refusal needs no change of report.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const fromGitFailure = (failure) => ({ kind: 'git', failure });
+    /// ```
+    fn from(failure: GitFailure) -> Self {
+        return Self::Git(failure);
+    }
+}
 
 /// What:
 ///  Stages the named paths into the private index,
@@ -41,25 +83,85 @@ pub(crate) fn add_selected_paths(
     cwd: &Path,
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
-) -> Result<(), GitFailure> {
+) -> Result<(), SelectionStagingFailure> {
     match selection_items(selection) {
         Selected::Items(items) => return stage_items(context, cwd, indexes, items.as_slice()),
         // An empty selection stages nothing, and the scratch commit then refuses as native Git refuses the command.
         Selected::Empty => return Ok(()),
         // A pathspec file too large to name on one command line keeps its own form, and only the tracked paths it matches
-        // are staged, so no file nothing staged reaches the commit.
+        // are staged, so no file nothing staged reaches the commit. Its start ends for the same two reasons the elements'
+        // does, and Git's refusal of one of its pathspecs is the caller's input too (issue 6283).
         Selected::File => {
             let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--update")];
             arguments.extend(selection_arguments(selection));
-            return private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_ignored_refusal);
+            return stage_the_callers_pathspec_file(context, cwd, indexes, arguments.as_slice());
         }
         // A pathspec file this reader cannot take is Git's to read, and every path it names is staged as before.
         Selected::Unreadable => {
             let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--all")];
             arguments.extend(selection_arguments(selection));
-            return private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_ignored_refusal);
+            return private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_a_git_failure);
         }
     }
+}
+
+/// What:
+///  The directory the relative pathspecs of this command are read from.
+/// Why:
+///   Git reads a relative pathspec below the top of the worktree the command works on,
+/// from the directory it runs in when that directory is inside that worktree,
+///  and from the worktree's own top when it is outside it.
+///  A command line that names another worktree (`--git-dir` with `--work-tree`) from a directory outside it
+/// reads the exact name `selected.js` as that worktree's top-level file,
+///  so a reader that asked the invocation directory instead would find no file,
+/// take the element for a pattern,
+///  and stage it with `git add --update`,
+/// which refuses a path nothing tracked and leaves the commit to fail.
+///  The worktree named is resolved against the directory the `-C` chain reached,
+/// as Git resolves it,
+///  and a worktree or directory that cannot be resolved answers with the invocation directory,
+/// which is where Git reads the pathspec when it names no worktree of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathspecBase = (context, cwd) => { const workTree = valueOf('--work-tree', repositorySelection(cwd, context.globalPrefix)); if (!workTree) return cwd; const root = realpath(workTree); return root && realpath(cwd)?.startsWith(root) ? cwd : root; };
+/// ```
+pub(crate) fn pathspec_base(context: &GitContext, cwd: &Path) -> PathBuf {
+    let selection: Vec<OsString> = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    let Some(work_tree) = named_work_tree(selection.as_slice()) else { return cwd.to_path_buf() };
+    let Ok(root) = std::fs::canonicalize(work_tree) else { return cwd.to_path_buf() };
+    let here: PathBuf = match std::fs::canonicalize(cwd) {
+        Ok(resolved) => resolved,
+        // A directory that cannot be resolved keeps the name it was given, and a pathspec is then read from it.
+        Err(_unresolved) => cwd.to_path_buf(),
+    };
+    if here.starts_with(root.as_path()) {
+        return cwd.to_path_buf();
+    }
+    return root;
+}
+
+/// What:
+///  The worktree a resolved repository selection names,
+///  and nothing when it names none.
+/// Why:
+///  `from_global_options` answers the selection as option-and-value pairs,
+/// and Git reads the last `--work-tree` of a command line,
+///  which is the one the selection kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namedWorkTree = (selection) => selection.find((token, at) => token === '--work-tree' && selection[at + 1])?.[1];
+/// ```
+fn named_work_tree(selection: &[OsString]) -> Option<&Path> {
+    let mut at: usize = 0;
+    while at + 1 < selection.len() {
+        if selection[at] == "--work-tree" {
+            return Some(Path::new(selection[at + 1].as_os_str()));
+        }
+        at += 2;
+    }
+    return None;
 }
 
 /// What:
@@ -81,12 +183,13 @@ pub(crate) fn add_selected_paths(
 /// ```ts
 /// await git(['add', '--', ...exactFiles]); await git(['add', '--update', '--', ...patterns]);
 /// ```
-fn stage_items(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, items: &[OsString]) -> Result<(), GitFailure> {
+fn stage_items(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, items: &[OsString]) -> Result<(), SelectionStagingFailure> {
     let literal: bool = pattern_characters_are_literal(context);
+    let base: PathBuf = pathspec_base(context, cwd);
     let mut named_files: Vec<&OsString> = Vec::new();
     let mut patterns: Vec<&OsString> = Vec::new();
     for item in items {
-        if names_one_file(cwd, item.as_os_str(), literal) {
+        if names_one_file(base.as_path(), item.as_os_str(), literal) {
             named_files.push(item);
         } else {
             patterns.push(item);
@@ -95,16 +198,110 @@ fn stage_items(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, items
     if !named_files.is_empty() {
         let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--")];
         arguments.extend(named_files.into_iter().cloned());
-        private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_ignored_refusal)?;
+        private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_a_git_failure)?;
     }
-    // A directory or a pattern stages the tracked paths it matches (`--update`), never a file nothing staged. A pathspec
-    // that matches no entry of the private index fails here as native Git fails it.
+    // A directory or a pattern stages the tracked paths it matches (`--update`), never a file nothing staged.
     if !patterns.is_empty() {
-        let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--update"), OsString::from("--")];
-        arguments.extend(patterns.into_iter().cloned());
-        private_git_with_modes(context, cwd, indexes, arguments.as_slice()).map_err(explain_ignored_refusal)?;
+        stage_patterns(context, cwd, indexes, patterns.as_slice())?;
     }
     return Ok(());
+}
+
+/// What:
+///  Stages the patterns the caller named into the private index,
+///  and reports Git's refusal of one that matches nothing as the caller's input error.
+/// Why:
+///   Git stays the only decider of whether a pathspec matches,
+/// so nothing here predicts a match:
+/// a directory,
+/// a pattern,
+/// a magic selector and an excluded one reach Git exactly as before.
+///  These are the caller's own elements that named no file this reader could take,
+/// so a path that exists is never classified here;
+///  a path that was there and is gone between the check and Git stays an engine failure,
+/// because that race is not a spelling (issue 6283).
+///  Every other failure of the start keeps the wording and the class it had.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = runGit(callerPathspecRequest(['add', '--update', '--', ...patterns])); const refused = outcome.ok ? null : pathspecMatchingNothing(outcome.stderr, patterns); if (refused) throw new InputRefusal(refused); checkedFrom(outcome);
+/// ```
+fn stage_patterns(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, patterns: &[&OsString]) -> Result<(), SelectionStagingFailure> {
+    let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--update"), OsString::from("--")];
+    for pattern in patterns {
+        arguments.push((*pattern).clone());
+    }
+    let request: GitRequest = caller_pathspec_request(
+        context,
+        cwd,
+        arguments.as_slice(),
+        Some(indexes.commit_index.as_path()),
+        Some(indexes.object_directory.as_path()),
+    );
+    let outcome: std::io::Result<GitOutput> = run_git(context, &request);
+    if let Ok(output) = outcome.as_ref()
+        && !output.succeeded()
+        && let Some(refused) = pathspec_matching_nothing(output.stderr.as_slice(), WrittenPathspecs::Elements(patterns))
+    {
+        return Err(SelectionStagingFailure::PathspecMatchesNothing(refused));
+    }
+    checked_from(outcome, request.arguments.as_slice()).map_err(explain_a_git_failure)?;
+    return Ok(());
+}
+
+/// What:
+///  Stages the pathspec file the caller named,
+/// as the file Git reads,
+///  and reports Git's refusal of a pathspec in it that matches nothing as the caller's input error.
+/// Why:
+///   A file past the bound on one command line is passed to Git as a file,
+/// so the tokens are never spelled here and every one of them is the caller's:
+/// the reading accepts whatever pathspec Git names (issue 6283).
+///  Every other failure of the start keeps the wording and the class it had,
+/// and the ignored-refusal sentence still applies to a pathspec Git reads from that file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = runGit(callerPathspecRequest(['add', '--update', '--pathspec-from-file=...'])); const refused = outcome.ok ? null : pathspecMatchingNothing(outcome.stderr, FromTheCallersFile); if (refused) throw new InputRefusal(refused); checkedFrom(outcome);
+/// ```
+fn stage_the_callers_pathspec_file(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    arguments: &[OsString],
+) -> Result<(), SelectionStagingFailure> {
+    let request: GitRequest = caller_pathspec_request(
+        context,
+        cwd,
+        arguments,
+        Some(indexes.commit_index.as_path()),
+        Some(indexes.object_directory.as_path()),
+    );
+    let outcome: std::io::Result<GitOutput> = run_git(context, &request);
+    if let Ok(output) = outcome.as_ref()
+        && !output.succeeded()
+        && let Some(refused) = pathspec_matching_nothing(output.stderr.as_slice(), WrittenPathspecs::FromTheCallersFile)
+    {
+        return Err(SelectionStagingFailure::PathspecMatchesNothing(refused));
+    }
+    checked_from(outcome, request.arguments.as_slice()).map_err(explain_a_git_failure)?;
+    return Ok(());
+}
+
+/// What:
+///  `explain_ignored_refusal` for a start of the selection staging,
+/// as the failure this file's callers take.
+/// Why:
+///  The ignored-refusal sentence still applies to a pathspec file this reader passes to Git,
+///  and what remains of the failure is Git's,
+/// which the caller reports as the engine failure it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const explainAStagingFailure = (failure) => ({ kind: 'git', failure: explainIgnoredRefusal(failure) });
+/// ```
+fn explain_a_git_failure(failure: GitFailure) -> SelectionStagingFailure {
+    return SelectionStagingFailure::Git(explain_ignored_refusal(failure));
 }
 
 /// What:

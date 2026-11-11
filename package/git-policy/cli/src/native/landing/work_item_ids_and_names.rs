@@ -40,7 +40,7 @@ pub(crate) fn is_object_name(object_name: &str) -> bool {
 /// Whether `id` is a kind and an object name,
 /// which makes every name built from it fit in a file name.
 pub(crate) fn is_valid_id(id: &str) -> bool {
-    for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete] {
+    for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead] {
         if let Some(rest) = id.strip_prefix(format!("{}-", kind.name()).as_str())
             && crate::work_item_ids_and_names::is_id_suffix(&kind, rest)
         {

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Qwen Token Plan Individual 提供方",
+    "description": "在随附的 pi-ai 适配器之上持有 qwen-token-plan-individual 模型路由：激活时从 Qwen Token Plan 端点实时获取模型列表，为每个可服务的对话模型携带上下文窗口与可选思考级别；端点不可达时由随包快照顶上。"
+  }
+}

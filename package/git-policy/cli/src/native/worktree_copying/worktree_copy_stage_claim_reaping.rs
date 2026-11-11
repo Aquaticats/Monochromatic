@@ -26,6 +26,7 @@ use crate::json_record::quote;
 use crate::path_bytes_in_records::path_of_the_two_fields;
 use crate::private_storage::sync_directory;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
+use crate::worktree_copy_recovery::{RecoveryDestinations, finishes_destination};
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals, temporary_writer_token};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
 use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
@@ -257,6 +258,48 @@ pub struct StageVerdicts {
     dead_temporaries: BTreeSet<String>,
 }
 
+impl StageVerdicts {
+    /// What:
+    ///  Whether the claim of this name has a dead owner.
+    /// Why:
+    ///   The pass that finishes an owed copy and the sweep that settles the claim act on one judgement,
+    /// taken before
+    ///  anything is changed,
+    /// so neither acts on a claim whose owner still runs or cannot be judged.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// verdicts.namesDeadClaim(name)
+    /// ```
+    pub fn names_dead_claim(&self, name: &str) -> bool {
+        return self.dead_claims.contains(name);
+    }
+}
+
+/// The suffix of the file one write is made in before its own temporary takes its name:
+/// a write cut off inside it leaves this rather than a temporary the sweep already knows.
+pub(crate) const SCRATCH_SUFFIX: &str = ".partial";
+
+/// What:
+///  The writer's owner token in the name of the file one write was making,
+/// or nothing for a name of another shape.
+/// Why:
+///   A write makes `<temporary>.<random>.partial` first,
+/// so the temporary's own name,
+/// with the writer in it,
+/// is what the sweep judges before removing it;
+/// a name of another shape names no writer and counts as a dead one's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const token = scratchWriterToken(name); // stem before the last dot, parsed as a temporary name
+/// ```
+fn scratch_writer_token(name: &str) -> Option<String> {
+    let stem: &str = name.strip_suffix(SCRATCH_SUFFIX)?;
+    let (temporary, _unique) = stem.rsplit_once('.')?;
+    return temporary_writer_token(temporary).map(str::to_string);
+}
+
 /// What:
 ///  Order two listed temporaries by name the way JavaScript's default sort does.
 /// Why:
@@ -311,14 +354,18 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
     for listed in listing {
         let entry: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(TEMPORARY_SUFFIX) {
+        if name.ends_with(TEMPORARY_SUFFIX) || name.ends_with(SCRATCH_SUFFIX) {
             temporaries.push((name, entry.path()));
         }
     }
     temporaries.sort_by(by_temporary_name);
     for (name, path) in temporaries {
         // The name is `<item>.<writer>.<unique>.tmp`; a name of another shape has no writer and counts as a dead one's.
-        if token_owner_is_dead(temporary_writer_token(name.as_str()), path.as_path())? {
+        let writer: Option<String> = match scratch_writer_token(name.as_str()) {
+            Some(token) => Some(token),
+            None => temporary_writer_token(name.as_str()).map(str::to_string),
+        };
+        if token_owner_is_dead(writer.as_deref(), path.as_path())? {
             verdicts.dead_temporaries.insert(name);
         }
     }
@@ -371,13 +418,17 @@ pub fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyEr
 /// const notices = await reapAbandonedStages(commonDir);
 /// ```
 pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeCopyError> {
-    return reap_judged_stages(common_dir, &judge_stage_owners(common_dir)?);
+    return reap_judged_stages(common_dir, &judge_stage_owners(common_dir)?, &RecoveryDestinations::EveryDestination);
 }
 
 /// `reap_abandoned_stages` on verdicts that were made before the command changed anything;
 /// a claim or a temporary that the verdicts
 ///  do not name as dead is left whole.
-pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result<Vec<String>, WorktreeCopyError> {
+pub fn reap_judged_stages(
+    common_dir: &Path,
+    verdicts: &StageVerdicts,
+    destinations: &RecoveryDestinations<'_>,
+) -> Result<Vec<String>, WorktreeCopyError> {
     let root: PathBuf = journal_root(common_dir);
     let names: Vec<String> = claim_names(root.as_path())?;
     let mut notices: Vec<String> = Vec::new();
@@ -428,6 +479,13 @@ pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result
                     }
                 }
             }
+            // A claim that still owes a copy into another worktree is that worktree's own work: the first command run
+            // there makes the copy, and the pending check has already named the worktree. Nothing here settles it, so the
+            // obligation outlives this command. The stage above is a partial copy nothing may resume, so its removal stays
+            // open to every command: a worktree that is gone has no command left to clean up its own stage.
+            if copy_owed_to_another_worktree(common_dir, record.as_path(), destinations) {
+                continue;
+            }
             let settled: Settlement = settle_interrupted_add(record.as_path());
             if let Some(notice) = settled.notice {
                 notices.push(notice);
@@ -447,6 +505,61 @@ pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result
     remove_records_nothing_claims(root.as_path())?;
     absent_is_fine(sync_directory(root.as_path()))?;
     return Ok(notices);
+}
+
+
+/// What:
+///  Whether an interrupted add's record still owes a copy into a worktree other than the one the command runs
+/// in,
+/// with a checkout whole enough for the installation.
+/// Why:
+///  Such a copy is that worktree's own work and has a future there,
+/// so this command must neither settle the obligation nor drop
+///  the claim that names it;
+/// the pending check writes one line naming the worktree
+///  instead,
+/// and the first command run there makes the copy or names why it cannot.
+/// A destination that is not a worktree of this repository,
+/// or one whose
+///  checkout is not whole,
+/// has no such future and settles as it always did,
+/// which is what names a half-made
+///  worktree to the person.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owedElsewhere = (record, destinations) => { const text = read(record); const destination = destinationOfRecord(text); return destination !== undefined && !finishesDestinations(destinations, destination) && owedCopyOf(text) !== undefined && addIsFinished(destination); };
+/// ```
+fn copy_owed_to_another_worktree(
+    common_dir: &Path,
+    record: &Path,
+    destinations: &RecoveryDestinations<'_>,
+) -> bool {
+    let Ok(text) = std::fs::read_to_string(record) else {
+        return false;
+    };
+    let destination: PathBuf = match crate::worktree_add_binding::decode_record(text.as_str()) {
+        Some(crate::worktree_add_binding::Recorded::Planned(named)) => named,
+        Some(crate::worktree_add_binding::Recorded::Registered(binding)) => binding.destination,
+        None => return false,
+    };
+    if finishes_destination(destinations, destination.as_path()) {
+        return false;
+    }
+    // A record written before the add named its source and selection owes no copy, so nothing may be filled from it.
+    if crate::worktree_add_binding::owed_copy_of(text.as_str()).is_none() {
+        return false;
+    }
+    // The copy has a future only where the registration and the checkout are whole under this repository.
+    if crate::worktree_copy_recovery::destination_registration(common_dir, destination.as_path())
+        != crate::worktree_copy_recovery::Registration::Registered
+    {
+        return false;
+    }
+    let Some(admin) = registration_directory(destination.as_path()) else {
+        return false;
+    };
+    return add_is_finished(destination.as_path(), admin.as_path());
 }
 
 /// What:

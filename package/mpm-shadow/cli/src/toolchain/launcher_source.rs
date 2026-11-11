@@ -162,6 +162,13 @@ fn install_directory_above(program: &Path) -> Option<&Path> {
 /// Why:
 /// A tree's launchers and the machine-global ones are the same set,
 /// and a program that belongs to neither root (a build folder) belongs to no install.
+/// The install directory and each root are compared as files,
+/// never as text:
+/// on a machine whose home is a symbolic link (`/home` to `/var/home`) the running program's own path is the
+/// resolved spelling `/proc/self/exe` reports,
+/// while a scope's root keeps the spelling `HOME` gives,
+/// so a text comparison found no install on any such machine and every launcher was a copy of whichever program ran
+/// `install` instead of the newest installed one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -169,8 +176,15 @@ fn install_directory_above(program: &Path) -> Option<&Path> {
 /// ```
 fn install_below_root(scope: &Scope, program: &Path) -> Option<PathBuf> {
     let install: &Path = install_directory_above(program)?;
+    let Ok(resolved_install) = fs::canonicalize(install) else {
+        return None;
+    };
     for root in [&scope.toolchain_root, &scope.other_toolchain_root] {
-        if let Ok(relative) = install.strip_prefix(root) {
+        // A root that does not exist yet holds no install, and has no resolved spelling to compare with.
+        let Ok(resolved_root) = fs::canonicalize(root) else {
+            continue;
+        };
+        if let Ok(relative) = resolved_install.strip_prefix(&resolved_root) {
             return Some(relative.to_path_buf());
         }
     }
@@ -181,13 +195,15 @@ fn install_below_root(scope: &Scope, program: &Path) -> Option<PathBuf> {
 /// The name of the program file,
 /// without the kernel's ` (deleted)` note on a running program whose file was removed.
 /// Why:
-/// The search under `current` looks for the same file name the running install had.
+/// The search under `current` looks for the same file name the running install had,
+/// and the exposure farm links the running `mpm-shadow` under this name,
+/// which is the word the sentences it prints tell a person to type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function programName(program: string): string | undefined
 /// ```
-fn program_name(program: &Path) -> Option<OsString> {
+pub fn program_name(program: &Path) -> Option<OsString> {
     let text: String = file_name_text(program);
     let name: &str = text.strip_suffix(DELETED_SUFFIX).unwrap_or(&text);
     if name.is_empty() {

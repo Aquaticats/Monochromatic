@@ -325,6 +325,21 @@ pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &Wor
 }
 
 /// What:
+///  The path `path` as the text a person reads.
+/// Why:
+///   The cleanup names every kept folder,
+/// and one named function keeps that naming out of the closure check it would
+///  otherwise be reported as.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathText = (path) => path.display().toString();
+/// ```
+fn path_text(path: &Path) -> String {
+    return path.display().to_string();
+}
+
+/// What:
 ///  Destroy the stage this process made,
 /// a subvolume or,
 /// where the mount does not allow the destroy,
@@ -339,6 +354,12 @@ pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &Wor
 /// The stage name is random and private,
 /// so the window between the check and the
 ///  destroy has no other party in practice.
+/// A stage that holds a folder the stand-in sweep kept is left as well,
+/// with every kept path named:
+/// those
+///  bytes are what the add decided never to delete (`never discard user data`),
+/// and destroying the stage would
+///  take them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -355,6 +376,20 @@ pub(crate) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::Object
     }
     if current != Some(expected) {
         warn(TAG, format!("the stage {} is not the directory this add made and is left in place", stage.display()).as_str());
+        return;
+    }
+    let kept: Vec<PathBuf> = crate::worktree_kept_folders::kept_folders(stage);
+    if !kept.is_empty() {
+        let places: Vec<String> = kept.iter().map(PathBuf::as_path).map(path_text).collect();
+        warn(
+            TAG,
+            format!(
+                "monochromatic-git-policy-cli: the stage {} is left in place because it holds what this add kept: {}; copy what you need from there and remove the folder yourself",
+                stage.display(),
+                places.join(", ")
+            )
+            .as_str(),
+        );
         return;
     }
     if subvolume_destroy_at(stage).is_ok() {
