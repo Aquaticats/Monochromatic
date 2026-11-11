@@ -33,7 +33,7 @@
 //! emptyTrash(item); // the service's handler, and the reason a trash stays
 //! ```
 
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::run_a_slow_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
 use crate::idle_io_priority::with_idle_io_priority;
@@ -665,7 +665,7 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
 /// ```
 pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), TrashLeft> {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
-    let opened_trash: Option<HeldTrash> = match run_a_job_or_in_turn(opened, prepare_trash_removal).await {
+    let opened_trash: Option<HeldTrash> = match run_a_slow_job_or_in_turn(opened, prepare_trash_removal).await {
         Ok(Ok(held)) => held,
         // A directory that is not the recorded one is left alone with its reason, and nothing was removed.
         Ok(Err(reason)) => return Err(TrashLeft::kept(reason)),
@@ -679,7 +679,7 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         //  them apart, so what the trash holds is not shown to be the snapshot's own.
         return Err(TrashLeft::kept(left.join("; ")));
     }
-    return match run_a_job_or_in_turn(held, settle_trash_removal).await {
+    return match run_a_slow_job_or_in_turn(held, settle_trash_removal).await {
         Ok(outcome) => outcome,
         // The entries are gone and the directory above them stays, which the words say.
         Err(refused) => Err(TrashLeft::kept(format!("the trash directory {} stays ({refused})", manifest.name))),

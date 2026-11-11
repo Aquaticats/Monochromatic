@@ -610,7 +610,7 @@ impl WorkHandlers for GitHandlers {
     fn snapshot_ahead_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
             let held: WorkItem = item.clone();
-            return match crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || { return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held); }).await {
+            return match crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || { return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held); }).await {
                 Ok(verdict) => verdict,
                 // Nothing was made and nothing is lost: the record keeps its lease and the next round finds it.
                 Err(reason) => Verdict::Retry(format!("the snapshot ahead of {} did not run ({reason})", item.repository.display())),
