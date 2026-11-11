@@ -103,6 +103,7 @@ fn a_request_for(repo: &Path) -> CommitRequest {
         index: common.join("index"),
         scratch: common.join("monochromatic-git-policy-cli-service-a-control"),
         captured: 0,
+        holder: String::new(),
     };
 }
 

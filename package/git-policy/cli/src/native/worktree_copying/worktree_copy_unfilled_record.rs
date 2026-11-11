@@ -481,7 +481,9 @@ fn standing_records(common_dir: &Path) -> Result<Vec<StandingRecord>, WorktreeCo
         let Some(copy) = read_unfilled(path.as_path())? else { continue };
         // Only the worktree the record was written about is one it still describes: the object at the path now is the
         // object the record recorded, so a worktree that was removed or replaced settles the record instead.
-        let describes_the_worktree: bool = crate::worktree_add_binding::path_identity(copy.destination.as_path()).is_some_and(|identity| identity == copy.destination_identity);
+        let describes_the_worktree: bool = crate::worktree_add_binding::path_identity(copy.destination.as_path()).is_some_and(|identity| {
+            return identity == copy.destination_identity;
+        });
         if describes_the_worktree {
             standing.push(StandingRecord {
                 path,
