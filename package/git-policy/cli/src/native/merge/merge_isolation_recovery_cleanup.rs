@@ -143,7 +143,7 @@ pub fn drop_record(record: &Path) -> Result<(), RecoveryError> {
 pub fn edits_on_the_merges_own_paths(root: &Path, paths: &[String], record: &Path) -> RecoveryError {
     return RecoveryError(format!(
         "A merge in {} was interrupted while Git updated these files, and they now hold neither their old nor their merged          content: {}. Nothing was changed and the record {} was kept. Save your edits to them elsewhere, restore them with \
-         `git restore -- <path>`, then run any git command again so recovery can finish the merge; or remove the record to \
+         `git restore --no-enforce-worktree -- <path>`, then run any git command again so recovery can finish the merge; or remove the record to \
          abandon the merge and check `git status` yourself.",
         root.display(),
         paths.join(", "),
@@ -217,7 +217,7 @@ pub fn a_worktree_that_switched(target: &str, root: &Path, checked_out: Option<&
          back where it was and the record {} was kept, but the merge's index entries and files are still in this worktree, which \
          now belongs to {landed}, so its staged content is the merge's until you deal with it. Check `git status` and `git diff \
          --cached` here: finish the merge by checking out {target} and running any git command again, or undo what is staged \
-         with `git restore --staged --worktree -- <path>`, and remove the record {} when the checkout is as you want it.",
+         with `git restore --no-enforce-worktree --staged --worktree -- <path>`, and remove the record {} when the checkout is as you want it.",
         root.display(),
         record.display(),
         record.display()
@@ -244,7 +244,7 @@ pub fn a_branch_that_could_not_be_put_back(target: &str, root: &Path, checked_ou
          back failed, so {target} still names the merge: {cause}. The merge's index entries and files are still in this \
          worktree, which now belongs to {landed}, so its staged content is the merge's until you deal with it. Check `git \
          status` and `git diff --cached` here: check out {target} and run any git command again once whatever holds its ref \
-         lock is gone, so recovery can settle the branch; or undo what is staged with `git restore --staged --worktree -- \
+         lock is gone, so recovery can settle the branch; or undo what is staged with `git restore --no-enforce-worktree --staged --worktree -- \
          <path>` and remove the record {} when the checkout is as you want it.",
         root.display(),
         record.display()
@@ -269,7 +269,7 @@ pub fn a_landed_merge_in_another_branchs_worktree(target: &str, root: &Path, che
         "A merge of {target} in {} is already in {target}, and this worktree has {landed} checked out: the merge's index \
          entries and files may still be in this worktree, which belongs to {landed}. Nothing was changed and the record {} \
          was kept. Check `git status` and `git diff --cached` here; check out {target} and run any git command again so \
-         recovery can settle the merge, or undo what is staged with `git restore --staged --worktree -- <path>`, and remove \
+         recovery can settle the merge, or undo what is staged with `git restore --no-enforce-worktree --staged --worktree -- <path>`, and remove \
          the record {} when the checkout is as you want it.",
         root.display(),
         record.display(),

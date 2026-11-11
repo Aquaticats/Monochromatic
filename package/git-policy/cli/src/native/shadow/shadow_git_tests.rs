@@ -43,6 +43,23 @@ fn shadow_requests_select_only_the_shadow() {
     );
 }
 
+/// What:
+///  The `--git-dir=` option keeps the shadow path's own bytes.
+/// Why:
+///   A shadow lives under the repository's Git directory,
+///  whose name may hold bytes that are not UTF-8;
+///  a spelling of it names a directory that does not exist,
+///  and Git answers "not a git repository".
+#[test]
+fn the_git_directory_option_keeps_a_path_that_is_not_text() {
+    use std::os::unix::ffi::OsStrExt;
+    let shadow: &Path = Path::new(std::ffi::OsStr::from_bytes(b"/repos/na\xefve/.git/shadow"));
+    let mut expected: Vec<u8> = b"--git-dir=".to_vec();
+    expected.extend_from_slice(b"/repos/na\xefve/.git/shadow");
+    let option: OsString = git_dir_option(shadow);
+    assert_eq!(option.as_os_str().as_bytes(), expected.as_slice(), "the option is the prefix and the path's bytes");
+}
+
 /// A redirecting variable in the overlay does not reach a shadow command.
 #[test]
 fn shadow_commands_ignore_redirects() {

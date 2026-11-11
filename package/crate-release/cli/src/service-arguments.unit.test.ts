@@ -19,7 +19,6 @@ import {
   buildReleaseViewArguments,
   buildRunListArguments,
   buildRunViewArguments,
-  buildRunWatchArguments,
   cratesIoUrl,
 } from './service-arguments.ts';
 
@@ -220,13 +219,13 @@ await describe({
       name: buildRunViewArguments.name,
       children: [
         it({
-          name: 'reads the creation time, status, conclusion and address of the run as JSON',
+          name: 'reads the creation time, the status, the conclusion and every job of the run as JSON',
           fn: async () => {
             expect(buildRunViewArguments({ runId: '123' })).toEqual([
               'run',
               'view',
               '123',
-              '--json=createdAt,status,conclusion,url',
+              '--json=createdAt,status,conclusion,jobs',
             ]);
           },
         }),
@@ -291,36 +290,6 @@ await describe({
             name: `rejects the request file ${JSON.stringify(path)}`,
             fn: async () => {
               expect(thrownBy(() => buildGraphqlInputArguments(path))).toBeInstanceOf(CrateReleaseError);
-            },
-          });
-        }),
-      ],
-    }),
-    describe({
-      name: buildRunWatchArguments.name,
-      children: [
-        it({
-          name: 'watches the run and exits with its status',
-          fn: async () => {
-            expect(buildRunWatchArguments({ runId: '123456789' })).toEqual([
-              'run',
-              'watch',
-              '123456789',
-              '--exit-status',
-            ]);
-          },
-        }),
-        it({
-          name: 'adds the repository when one is named',
-          fn: async () => {
-            expect(buildRunWatchArguments({ runId: '1', repo: 'o/n' })).toContain('--repo=o/n');
-          },
-        }),
-        ...['', 'abc', '12 3', '-1', '1;2', '1\n2', '--exit-status'].map(function rejectCase(runId) {
-          return it({
-            name: `rejects the run id ${JSON.stringify(runId)}`,
-            fn: async () => {
-              expect(thrownBy(() => buildRunWatchArguments({ runId }))).toBeInstanceOf(CrateReleaseError);
             },
           });
         }),

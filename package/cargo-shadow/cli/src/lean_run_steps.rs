@@ -67,30 +67,45 @@ impl Uninstaller for RealRustup {
 }
 
 /// What:
-/// `pub fn sweep_and_cap(profiles: &[(PathBuf, u64)], dry_run: bool, deadline: &Deadline, environment: &GuardEnvironment) -> Vec<String>`
+/// `pub struct UnitsPass` is what one pass over the profile directories did.
+/// Why:
+/// The count of judged directories is where the next run continues,
+/// and the lines are what the run reports.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct UnitsPass {
+    /// The lines the pass reports.
+    pub lines: Vec<String>,
+    /// How many of the profile directories it was given were judged before the deadline stopped it.
+    pub judged: usize,
+}
+
+/// What:
+/// `pub fn sweep_and_cap(profiles: &[(PathBuf, u64)], dry_run: bool, deadline: &Deadline, environment: &GuardEnvironment) -> UnitsPass`
 /// runs the older-compiler sweep and then the size cap on each profile directory.
 /// Why:
 /// Mechanisms B and E share the protocol and the directories;
-/// B runs first so E sizes what is left.
+/// B runs first so E sizes what is left,
+/// and a deadline that stops the pass says how far it got.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function sweepAndCap(profiles: [string, number][], dryRun: boolean, deadline: Deadline, env: GuardEnvironment): string[]
+/// export function sweepAndCap(profiles: [string, number][], dryRun: boolean, deadline: Deadline, env: GuardEnvironment): UnitsPass
 /// ```
-pub fn sweep_and_cap(profiles: &[(PathBuf, u64)], dry_run: bool, deadline: &Deadline, environment: &GuardEnvironment) -> Vec<String> {
+pub fn sweep_and_cap(profiles: &[(PathBuf, u64)], dry_run: bool, deadline: &Deadline, environment: &GuardEnvironment) -> UnitsPass {
     let now: i64 = now_seconds();
     let (mut sweep_units, mut sweep_incremental, mut sweep_bytes): (usize, usize, u64) = (0, 0, 0);
     let (mut cap_units, mut cap_incremental, mut cap_bytes): (usize, usize, u64) = (0, 0, 0);
     let mut notes: Vec<String> = Vec::new();
     let mut busy: usize = 0;
+    let mut judged: usize = 0;
     for (profile, cap) in profiles {
         if deadline.passed() {
-            notes.push(String::from("  the deadline passed before every profile directory was reached"));
             break;
         }
         let mut log: Vec<String> = Vec::new();
         let sweep: ProfileOutcome = apply_removals(profile, &OlderCompilerSweep { grace_seconds: GRACE_SECONDS }, environment, now, dry_run, deadline, &mut log);
         let capped: ProfileOutcome = apply_removals(profile, &SizeCap { cap_bytes: *cap, grace_seconds: GRACE_SECONDS, deadline: *deadline }, environment, now, dry_run, deadline, &mut log);
+        judged += 1;
         sweep_units += sweep.units;
         sweep_incremental += sweep.incremental;
         sweep_bytes += sweep.bytes;
@@ -114,12 +129,12 @@ pub fn sweep_and_cap(profiles: &[(PathBuf, u64)], dry_run: bool, deadline: &Dead
     }
     let verb: &str = if dry_run { "would remove" } else { "removed" };
     let mut lines: Vec<String> = vec![
-        format!("older-compiler sweep: {} profile directories read; {verb} {sweep_units} units and {sweep_incremental} incremental directories ({})", profiles.len(), gib(sweep_bytes)),
+        format!("older-compiler sweep: {judged} of {} profile directories read; {verb} {sweep_units} units and {sweep_incremental} incremental directories ({})", profiles.len(), gib(sweep_bytes)),
         format!("size caps: {verb} {cap_units} units and {cap_incremental} incremental directories ({})", gib(cap_bytes)),
         format!("profile directories with a running or queued build, retried by the next run: {busy}"),
     ];
     lines.extend(notes.into_iter().take(40));
-    return lines;
+    return UnitsPass { lines, judged };
 }
 
 /// What:

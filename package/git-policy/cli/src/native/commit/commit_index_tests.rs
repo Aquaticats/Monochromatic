@@ -258,6 +258,82 @@ fn index_without_staging_matches_the_real_index() {
     remove(root.as_path());
 }
 
+/// What:
+///  An index commit that stages nothing stages none of the paths it names either,
+/// so its private index is the person's own index and not the worktree.
+/// Why:
+///  The patch and interactive selections are index commits that name every path they may touch,
+/// and the answers the person
+///  gave supply the staged content;
+///  staging those paths from the worktree here would publish the worktree's version of each of them.
+///  Every control of this module passed with the guard that skips this staging planted out,
+/// because the only index
+///  commit any control built named no paths,
+/// where the step it skips stages nothing anyway
+///  (`index_without_staging_matches_the_real_index`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await initialize({ mode: 'index', pathspecs: ['a.txt'], stageIntoIndex: false });
+/// expect(privateTree).toBe(realTree);
+/// ```
+#[test]
+fn an_index_commit_without_staging_stages_none_of_the_paths_it_names() {
+    let root: PathBuf = fixture("commit-index-index-names-paths");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    // One path with staged content in the real index and different content in the worktree, so staging the named path
+    // writes the worktree's version where the person's selection had the staged one.
+    std::fs::write(repo.join("a.txt"), "staged\n").expect("stage a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    std::fs::write(repo.join("a.txt"), "worktree\n").expect("change a");
+    let pathspecs: Vec<OsString> = vec![OsString::from("a.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::Index, &pathspecs, &base));
+    let real_tree: String = write_private_tree(
+        &git_context(),
+        repo.as_path(),
+        repo.join(".git").join("index").as_path(),
+        indexes.object_directory.as_path(),
+    )
+    .expect("real tree");
+    let private_tree: String = write_private_tree(
+        &git_context(),
+        repo.as_path(),
+        indexes.commit_index.as_path(),
+        indexes.object_directory.as_path(),
+    )
+    .expect("private tree");
+    assert_eq!(private_tree, real_tree);
+    remove(root.as_path());
+}
+
+/// What:
+///  A repository whose index file does not exist yet is prepared without writing one.
+/// Why:
+///  The preparation ran `read-tree --empty` against the real index when the file was absent,
+///  so it took the real index's lock and created the person's index before any landing;
+///  two commits in such a repository therefore failed each other with `index.lock` `file exists`,
+///  and the decision record says every commit prepares without the real index lock
+///  (`doc/decision/cli-git-concurrent-commits.md`,
+///  "Parallel preparation").
+///  A process for another program's hold on that lock is what a second commit is,
+/// so the lock is held here while the preparation runs.
+#[test]
+fn a_repository_with_no_index_file_is_prepared_without_taking_the_real_index() {
+    let root: PathBuf = fixture("commit-index-no-index-file");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    let real: PathBuf = repo.join(".git").join("index");
+    std::fs::remove_file(&real).expect("remove the real index");
+    // Another command of the same repository, staging something at this instant.
+    let held: PathBuf = repo.join(".git").join("index.lock");
+    std::fs::write(&held, "held by another command\n").expect("hold the index lock");
+    let pathspecs: Vec<OsString> = Vec::new();
+    initialize(&repo, &indexes, &selection(TransactionMode::Index, &pathspecs, &base));
+    assert!(!real.exists(), "the preparation wrote the person's index");
+    assert!(indexes.commit_index.exists(), "the commit's own copy is built");
+    std::fs::remove_file(&held).expect("release the index lock");
+    remove(root.as_path());
+}
+
 /// `commit -a` staging stages every tracked change and leaves untracked files out.
 #[test]
 fn index_with_tracked_staging_stages_only_tracked_changes() {

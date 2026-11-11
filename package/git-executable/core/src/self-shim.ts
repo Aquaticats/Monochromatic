@@ -140,14 +140,33 @@ export class GitCandidateInspectionLimitError extends Error {
 }
 
 /**
+ Separator every platform writes a package name with.
+ */
+const PORTABLE_PATH_SEPARATOR = '/';
+
+/**
+ Separator a Windows command shim writes between package path segments.
+ */
+const WINDOWS_PATH_SEPARATOR = '\\';
+
+/**
  Package name used by scripts that delegate to Git policy wrapper.
+ This is the only spelling of the name in source.
  */
 const GIT_POLICY_CLI_PACKAGE_NAME = '@monochromatic-dev/git-policy-cli';
 
 /**
  Windows package path emitted when command shims spell package scope with backslash.
+ Computed from {@link GIT_POLICY_CLI_PACKAGE_NAME} rather than written out,
+ so a rename of the package updates both spellings at once:
+ a hand-written copy would keep naming the old package,
+ and Windows command shims would stop being recognised as this wrapper.
  */
-const WINDOWS_GIT_POLICY_CLI_PACKAGE_PATH = String.raw`@monochromatic-dev\git-policy-cli`;
+const WINDOWS_GIT_POLICY_CLI_PACKAGE_PATH = GIT_POLICY_CLI_PACKAGE_NAME
+  .replaceAll(
+  PORTABLE_PATH_SEPARATOR,
+  WINDOWS_PATH_SEPARATOR,
+  );
 
 /**
  Text markers that identify scripts delegating to Git policy wrapper.
@@ -166,8 +185,8 @@ const WINDOWS_GIT_POLICY_CLI_PACKAGE_PATH = String.raw`@monochromatic-dev\git-po
  
  @example
  ```ts
- [...SELF_SHIM_MARKERS];
- // => ['@monochromatic-dev/git-policy-cli', '@monochromatic-dev\\git-policy-cli']
+ SELF_SHIM_MARKERS.size;
+ // => 2: the package name as a POSIX shim spells it, and as a Windows command shim spells it
  ```
  */
 export const SELF_SHIM_MARKERS: ReadonlySet<string> = new Set([

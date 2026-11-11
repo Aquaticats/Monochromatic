@@ -175,14 +175,31 @@ mod conflict_side;
 #[path = "binary_discard_tests.rs"]
 mod discard;
 
+/// The remote settings every worktree of a repository shares:
+/// refused from a linked worktree,
+/// unchanged in the main checkout,
+/// and readable everywhere.
+#[path = "binary_shared_remote_tests.rs"]
+mod shared_remote;
+
 /// A clone made with `--no-checkout` has no index file,
 /// and the guard of uncommitted work lets its first checkout run.
 #[path = "binary_no_checkout_clone_tests.rs"]
 mod no_checkout_clone;
 
+/// A clone a build script made in its own output directory belongs to the build step,
+/// so the guard of uncommitted work exempts it.
+#[path = "binary_build_script_clone_tests.rs"]
+mod build_script_clone;
+
 /// The hints of blocks outside the discard guard reach the caller beside an unchanged message.
 #[path = "binary_hint_tests.rs"]
 mod hints;
+
+/// Every command a message prints as a remedy runs as printed,
+/// in the state that prints it.
+#[path = "binary_printed_remedies_tests.rs"]
+mod printed_remedies;
 
 /// `markdown/autofix` with the linter built from this repository,
 ///  a missing one and a failing one.
@@ -450,6 +467,12 @@ mod fault;
 #[path = "binary_fault_run.rs"]
 mod fault_run;
 
+/// The hang guard of those runs:
+/// a command that keeps moving is left alone,
+/// and one that stops moving is ended with the words that name the silence.
+#[path = "binary_fault_run_tests.rs"]
+mod fault_run_guard;
+
 /// Signals sent to the wrapper alone and to its process group.
 #[path = "binary_fault_signal_tests.rs"]
 mod fault_signal;
@@ -548,6 +571,12 @@ mod push_queued_after_a_killed_wrapper;
 /// so no command says the opposite of `git status`.
 #[path = "binary_held_push_carried_by_a_later_push_tests.rs"]
 mod held_push_carried_by_a_later_push;
+
+/// A landed commit whose command died before it settled the push record:
+/// the verdict it left settles the record,
+/// and a record with none names the command and what sends the commit.
+#[path = "binary_held_push_settled_by_the_verdict_tests.rs"]
+mod held_push_settled_by_the_verdict;
 
 /// A commit a post-commit gate refused:
 /// it stays local past the next commit of its branch,

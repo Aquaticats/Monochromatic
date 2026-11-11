@@ -25,9 +25,11 @@ use super::strace::{strace_available, strace_program};
 use super::support::{Fixture, fixture, observe};
 use super::wait_notice::{Watched, watch_notices};
 use git_policy_cli::commit_timing::TIMING_FILE;
+use git_policy_cli::landing::service_index_prestage::MARKERS_MADE_AHEAD;
 use git_policy_cli::service_client::ask_to_retire;
 use git_policy_cli::service_instance::{instance_of, socket_for};
 use git_policy_cli::service_protocol::RELEASE;
+use std::os::unix::fs::PermissionsExt as _;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -143,6 +145,31 @@ fn lines_of(log: &Path, word: &str) -> Vec<String> {
     let text: String = std::fs::read_to_string(log).expect("service log");
     let prefix: String = format!("{}{word}", git_policy_cli::service_timing::LOG_PREFIX);
     return text.lines().filter(|line| { return line.starts_with(prefix.as_str()); }).map(str::to_string).collect();
+}
+
+/// What:
+///  Waits until the service's log holds a line that begins with `prefix`,
+///  and answers the log as it then stood.
+/// Why:
+///  A fixture's socket answers a connection once the service binds it,
+///  and the service writes `ready` after that,
+///  so a control that read the log the moment the socket answered asserted on a file the service had not finished writing:
+///  on a loaded host it saw `started` alone and failed with the line it expected missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = await waitForLine(log, '<6>monochromatic-git-policy-cli-service: ready');
+/// ```
+fn log_until(log: &Path, prefix: &str) -> String {
+    let began: Instant = Instant::now();
+    loop {
+        let text: String = std::fs::read_to_string(log).unwrap_or_default();
+        if text.lines().any(|line| { return line.starts_with(prefix); }) {
+            return text;
+        }
+        assert!(began.elapsed() < PATIENCE, "the service never wrote a line beginning {prefix}: {text}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 /// The whole milliseconds a `key=<digits>` word of a line states.
@@ -517,6 +544,100 @@ fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
     remove_settled(&fixture);
 }
 
+/// A commit that a Git step refused states which step failed and the status it exited with,
+/// so a machine failure can be told from a refusal of the content the command named.
+/// Why:
+///  The stopped records of the live log stood at exit 2 inside the preparation,
+///  and nothing in them said whether a policy had refused content or the host had failed:
+///  one shape ended in the two `git add` starts the explicit-path staging makes and named no reason.
+///  The refusal is Git's own,
+/// so the status the record states is the one the same command line exits with here,
+/// measured rather than assumed.
+/// The input is a tracked file this user may not read:
+///  an explicit-path commit stages a named file with `git add --`,
+///  and that start is the one Git refuses.
+/// A pathspec matching nothing is no longer a Git step's refusal:
+///  `commit_pathspec_matching_nothing.rs` makes it the caller's input error,
+///  refused before any step starts,
+///  with a finding of its own (`binary_commit_tests.rs`).
+#[test]
+fn a_commit_stopped_by_a_failing_git_step_states_the_step_and_its_status() {
+    let fixture: Fixture = fixture("timing-stop-step");
+    let repo: PathBuf = base_repository(&fixture);
+    // A tracked file the worktree holds, which this process may not read: `git add -- a.txt` cannot index what it cannot
+    //  open, and nothing about the request is the caller's input error.
+    std::fs::write(repo.join("a.txt"), b"edit by the timing stop control\n").expect("a.txt");
+    let mut closed: std::fs::Permissions = std::fs::metadata(repo.join("a.txt")).expect("a.txt").permissions();
+    closed.set_mode(0o000);
+    std::fs::set_permissions(repo.join("a.txt"), closed).expect("a.txt with no permission of its own");
+    let name: String = format!("timing-stop-step-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let refused = super::support::run_direct(&fixture, &repo, &["add", "--", "a.txt"]);
+    let status: i64 = i64::from(refused.code.expect("Git's own status"));
+    assert_ne!(status, 0, "Git refuses a file it may not read");
+    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
+    let served = observe(&mut command, b"");
+    let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
+    assert_eq!(served.code, Some(2), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    println!("TIMING RECORD (stopped by a step): {record}");
+    assert_eq!(record["outcome"], "stopped", "{record}");
+    assert_eq!(record["exitCode"], 2, "{record}");
+    assert_eq!(record["stop"]["kind"], "git-step", "{record}");
+    assert_eq!(record["stop"]["step"], "git add", "{record}");
+    assert_eq!(record["stop"]["status"], status, "the record states Git's own status: {record}");
+    // The step the reason names is the last one the command started, so the reason and the steps agree.
+    let steps: &Vec<serde_json::Value> = record["steps"].as_array().unwrap_or_else(|| { panic!("the record has no steps: {record}") });
+    assert_eq!(steps.last().map(|step| { return step["name"].clone(); }), Some(serde_json::Value::from("git add")), "{record}");
+    remove_settled(&fixture);
+}
+
+/// A commit that a policy refused states the policy that refused it,
+/// so a content verdict is never read as a machine failure.
+/// Why:
+///  The stopped and ended records of the live log named their exit code only,
+/// and a policy that correctly refused content read exactly like the host failing.
+#[test]
+fn a_commit_refused_by_a_policy_states_the_policy() {
+    let fixture: Fixture = fixture("timing-stop-policy");
+    let repo: PathBuf = base_repository(&fixture);
+    // A candidate holding a string the scanner's rules name is what `security/forbidden-strings` refuses at error severity,
+    //  and that policy runs only where the repository's own configuration names it.
+    let needle: String = ["PLANTED", "TIMING", "NEEDLE"].join("_");
+    std::fs::write(repo.join("a.txt"), format!("first\n{needle}\n")).expect("a.txt");
+    std::fs::create_dir(repo.join("rules")).expect("rules directory");
+    std::fs::write(repo.join("rules/private.txt"), format!("{needle}\n")).expect("rules");
+    std::fs::write(
+        repo.join(git_policy_cli::config_file::CONFIG_FILE_NAME),
+        "{ \"policies\": { \"security/forbidden-strings\": [\"error\", { \"builtinRules\": false, \"rulesFile\": \"rules/private.txt\" }] } }\n",
+    )
+    .expect("configuration");
+    let name: String = format!("timing-stop-policy-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
+    let served = observe(&mut command, b"");
+    let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
+    assert_eq!(served.code, Some(1), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the refused commit wrote no record") });
+    println!("TIMING RECORD (stopped by a policy): {record}");
+    assert_eq!(record["outcome"], "ended", "{record}");
+    assert_eq!(record["stop"]["kind"], "policy", "{record}");
+    assert_eq!(record["stop"]["policy"], "security/forbidden-strings", "{record}");
+    remove_settled(&fixture);
+}
+
 /// Whole milliseconds each term of a sum may fall short by,
 /// because every phase is cut to whole milliseconds on its own.
 const ROUNDING_MS: u64 = 12;
@@ -863,9 +984,13 @@ fn marker_files(repo: &Path) -> Vec<String> {
     return names;
 }
 
-/// The first commit of a service stages its marker itself and the service then makes the next batch's while it is idle:
-/// the second commit's lock is placed from that file (`lock_stage_kind=pre`),
-/// one file at most waits in the Git directory between commits,
+/// The first commit of a service stages its marker itself and the landing that takes the lock starts the markers of the
+/// batches after it,
+/// as many as the service keeps made ahead:
+/// their flush is the background task's,
+/// so it runs while the service is idle,
+/// the second and third commits' locks are placed from those files (`lock_stage_kind=pre`),
+/// and no more files wait in the Git directory between commits than `MARKERS_MADE_AHEAD`,
 /// and none is left when the service retires.
 #[test]
 fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires() {
@@ -879,12 +1004,19 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
     for round in 0..3 {
         let served = commit_a(&fixture, &repo, runtime.as_path());
         assert_eq!(served.code, Some(0), "round {round}: {}", String::from_utf8_lossy(&served.stderr));
-        // The marker of the next batch is made after the answer, while the service is idle.
+        // The markers of the batches after this one are made while its landing holds the lock and flushed while the service
+        //  is idle.
         let began: Instant = Instant::now();
-        while marker_files(&repo).len() != 1 {
+        while marker_files(&repo).len() < MARKERS_MADE_AHEAD {
             assert!(began.elapsed() < Duration::from_secs(10), "round {round}: {:?}", marker_files(&repo));
             std::thread::sleep(Duration::from_millis(10));
         }
+        // A file on the disk is not yet a marker the next commit places: the making ends when its flush is handed to the
+        //  background task, so one more interval with the same files is what says the making has returned.
+        let settled: Vec<String> = marker_files(&repo);
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(marker_files(&repo), settled, "round {round}: the markers changed while the commit was about to come");
+        assert!(settled.len() <= MARKERS_MADE_AHEAD, "round {round}: no more files wait than the design makes ahead: {settled:?}");
     }
     let answered: Vec<String> = lines_of(&places.log, "answered");
     assert_eq!(answered.len(), 3, "{answered:?}");
@@ -894,20 +1026,20 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
     ask_to_retire(places.socket.as_path());
     let status = exit_of(&mut service, PATIENCE);
     assert!(status.success(), "{status:?}");
-    assert!(marker_files(&repo).is_empty(), "the marker made ahead is removed when the service ends: {:?}", marker_files(&repo));
+    assert!(marker_files(&repo).is_empty(), "the markers made ahead are removed when the service ends: {:?}", marker_files(&repo));
     remove_settled(&fixture);
 }
 
 /// What:
-///  A service the manager stops with `SIGTERM` removes the lock marker it made ahead,
+///  A service the manager stops with `SIGTERM` removes every lock marker it made ahead,
 /// as a service that retires does,
-/// and the service's own shutdown is what removes it.
+/// and the service's own shutdown is what removes them.
 /// Why:
-///  `SPEC.md` "Removing the lock and what is made durable" says the marker "is removed when the service ends,
+///  `SPEC.md` "Removing the lock and what is made durable" says they "are removed when the service ends,
 ///  whichever way its loop ends",
 /// and the signal path ended the process from the runtime's shutdown,
 ///  where no destructor runs,
-/// so every stop left one file behind in the Git directory.
+/// so every stop left files behind in the Git directory.
 #[test]
 fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let fixture: Fixture = fixture("timing-signal-marker");
@@ -919,9 +1051,10 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let runtime: PathBuf = runtime_for(name.as_str());
     let served: super::support::Observed = commit_a(&fixture, &repo, runtime.as_path());
     assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
-    // The marker of the next batch is made after the answer, while the service is idle.
+    // The markers of the batches after this one are made while its landing holds the lock and flushed while the service
+    //  is idle.
     let began: Instant = Instant::now();
-    while marker_files(&repo).len() != 1 {
+    while marker_files(&repo).len() < MARKERS_MADE_AHEAD {
         assert!(began.elapsed() < Duration::from_secs(10), "{:?}", marker_files(&repo));
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -931,7 +1064,7 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let status = exit_of(&mut service, PATIENCE);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
     assert!(lines_of(&places.log, "exiting")[0].contains(format!("reason=signal-{}", libc::SIGTERM).as_str()));
-    assert!(marker_files(&repo).is_empty(), "the marker made ahead is removed when the service ends by the signal: {:?}", marker_files(&repo));
+    assert!(marker_files(&repo).is_empty(), "the markers made ahead are removed when the service ends by the signal: {:?}", marker_files(&repo));
     remove_settled(&fixture);
 }
 
@@ -1113,8 +1246,10 @@ fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority
     environment.retain(|(variable, _)| { return *variable != git_policy_cli::journald_native::TEST_SOCKET_VARIABLE; });
     environment.push((git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@cli-git-test-journal-nobody-{}", std::process::id())));
     let _service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
-    let text: String = std::fs::read_to_string(&places.log).expect("log");
-    assert!(text.lines().any(|line| { return line.starts_with("<6>monochromatic-git-policy-cli-service: ready"); }), "{text}");
+    // The socket answers once the service binds, and `ready` follows it, so the control waits for the line it asserts on.
+    let ready: &str = "<6>monochromatic-git-policy-cli-service: ready";
+    let text: String = log_until(&places.log, ready);
+    assert!(text.lines().any(|line| { return line.starts_with(ready); }), "{text}");
     assert!(text.lines().all(|line| { return line.starts_with("<6>") && line.contains(" at_ms="); }), "{text}");
     remove_settled(&fixture);
 }

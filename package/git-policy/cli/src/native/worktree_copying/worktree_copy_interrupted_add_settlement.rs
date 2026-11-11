@@ -250,7 +250,7 @@ fn unfinished_copy_notice(shown: &str) -> String {
 /// ```ts
 /// !exists(destination) || (exists(join(admin, 'index')) && !exists(join(admin, 'index.lock')) && (entryCount(index) === 0 || entries(destination).length > 1))
 /// ```
-fn add_is_finished(destination: &Path, admin: &Path) -> bool {
+pub(crate) fn add_is_finished(destination: &Path, admin: &Path) -> bool {
     // `match` on the lookup: a destination that is gone is nothing to finish, while one that cannot be examined is kept.
     match std::fs::symlink_metadata(destination) {
         Ok(_present) => {}
@@ -310,7 +310,7 @@ pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
 ///  What finishes or removes an interrupted add,
 /// with the stale lock named first when one stands in the way.
 /// Why:
-///   `git -C <destination> reset --hard` cannot start while that lock exists,
+///   `git -C <destination> reset --no-enforce-worktree --hard` cannot start while that lock exists,
 /// and Git refuses it with
 /// `fatal: Unable to create '.../index.lock': File exists`;
 /// so the report names the file and the condition for removing it;
@@ -325,9 +325,10 @@ pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
 pub(crate) fn finish_instructions(destination: &Path, admin: &Path) -> String {
     // Both paths are read by the person's shell, so they are quoted the way a shell reads a word back, not the way JSON
     //  spells a string: `$bucket` and a backquote inside double quotes would be expanded by the shell that runs `rm`.
-    let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
-    let finish: String = format!("`git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.");
     let lock: PathBuf = admin.join(INDEX_LOCK);
+    // The commands name the worktree guard's hatch: a checkout that never ran reads as uncommitted changes, so the guard
+    //  refuses a hard reset in that worktree unless it is told.
+    let finish: String = crate::worktree_finish_commands::finish_or_remove_sentence(destination);
     if !lock.exists() {
         return finish;
     }

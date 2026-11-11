@@ -26,6 +26,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
+use crate::merge_isolation_kept_copies::any_kept_copy;
 use crate::merge_isolation_recovery::{RecoveryPlace, merge_intents_to_recover, recover_interrupted_merges};
 use crate::random_id::is_canonical_uuid;
 use crate::repository_link_gate::{LinkGate, link_gate};
@@ -208,7 +209,9 @@ fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
 /// if (await mergeIntentsToRecover(gitDir)) await recoverInterruptedMerges({ place, gitDir, stderr });
 /// ```
 fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &mut dyn Write) -> Result<(), RecoveryError> {
-    if !merge_intents_to_recover(git_dir)? {
+    // A copy a merge kept beside a path is decided here too: it is the one thing a worktree with no merge record still has to
+    //  look at, and a copy no later merge touches would otherwise be a file no command ever ends.
+    if !merge_intents_to_recover(git_dir)? && !any_kept_copy(git_dir) {
         return Ok(());
     }
     let place: RecoveryPlace = RecoveryPlace {

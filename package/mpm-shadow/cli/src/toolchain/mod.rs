@@ -320,6 +320,10 @@ mod install_rust_android_tests;
 #[cfg(test)]
 mod sync_tests;
 
+/// The unit tests of the farm link to the running `mpm-shadow`.
+#[cfg(test)]
+mod exposure_tests;
+
 /// The unit tests of every resolver.
 #[cfg(test)]
 mod update_resolve_tests;

@@ -23,28 +23,32 @@
 //! await hold(workDir, item); promote(workDir, id); forgetHeld(workDir, id);
 //! ```
 
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::held_push_holder_and_verdict::{Holding, Verdict, this_command, with_holding};
+use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced, write_private_file_unsynced};
 use crate::work_item::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, WorkItem, state_directory};
 use std::path::{Path, PathBuf};
 
 /// What:
 ///  Holds one item where nothing drains it,
-/// until its producer promotes it.
+/// until its producer promotes it,
+/// and says which command will decide whether it may run.
 /// Why:
 ///   A landed commit's push must be durable before the command that owes it can be killed,
 /// and it must not run
 ///  before that command's post-commit gate has decided:
 /// a held record is both.
+/// The holder is what lets a later command tell a wait that has a
+///  command behind it from one whose command is gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await hold(workDir, item)
+/// await hold(workDir, item, holder)
 /// ```
 ///
 /// # Errors
 ///
 /// The work queue's own words when the record cannot be written.
-pub fn hold(work_dir: &Path, item: &WorkItem) -> Result<(), String> {
+pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String> {
     // A gate that blocked this commit keeps it local: no later hold, recovery included, may publish it.
     if is_blocked(work_dir, item.id().as_str()) {
         return Ok(());
@@ -52,13 +56,96 @@ pub fn hold(work_dir: &Path, item: &WorkItem) -> Result<(), String> {
     if let Err(error) = create_private_directory_all(state_directory(work_dir, HELD).as_path()) {
         return Err(format!("creating the {HELD} directory failed: {error}"));
     }
+    let holding: Holding = Holding { holder: holder.to_string(), verdict: Verdict::Undecided, reason: String::new() };
+    let item_text: String = item.encode();
+    // A record this module cannot rewrite is the item's own words, which hold no holder and so release nothing.
+    let record: String = match with_holding(item_text.as_str(), &holding) {
+        Some(rewritten) => rewritten,
+        None => item_text,
+    };
     let path: PathBuf = state_directory(work_dir, HELD).join(item.id());
-    return match write_private_file_unsynced(path.as_path(), item.encode().as_bytes()) {
+    return match write_private_file_unsynced(path.as_path(), record.as_bytes()) {
         Ok(()) => Ok(()),
         // The same commit's push is already held; the gate has not decided either way.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(format!("writing the held record failed: {error}")),
     };
+}
+
+/// What:
+///  Writes what this command decided into the held record of `id`,
+/// beside the item the record already states,
+/// and answers whether a record was there to write it into.
+/// Why:
+///   The verdict must be in the record before it is promoted or forgotten:
+/// a command killed between its gate
+///  and that step leaves a record whose own words say what it decided,
+/// so a later command settles it from the verdict rather than
+///  from a guess,
+/// and a record with no verdict keeps the commit local with the words naming what holds it
+///  (`held_push_holder_and_verdict.rs`).
+/// The holder written with the verdict is the command that decided,
+/// which is the retry's own
+///  command when a retry is the one that finishes the commit.
+///   The record is published whole by one rename and flushed by nothing,
+/// because a commit's answer waits on no sync of the wrapper's own
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`):
+/// a kill keeps the verdict,
+/// and a machine crash keeps the record the gate found,
+/// which the settlement reads as no verdict.
+///   Flushing the verdict alone would protect nothing worth its wait,
+/// because `hold` writes the obligation itself into the same record unflushed
+///  (`write_private_file_unsynced`):
+/// a crash loses the promise to push with the verdict that approved it,
+/// and the commit stays local with every command naming the push a person can make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordVerdict(held/<id>, holder, verdict, reason) // replace the record whole, unflushed; false when there is none
+/// ```
+pub fn record_verdict(work_dir: &Path, id: &str, holder: &str, verdict: Verdict, reason: &str) -> bool {
+    let path: PathBuf = state_directory(work_dir, HELD).join(id);
+    let Ok(text) = std::fs::read_to_string(path.as_path()) else {
+        return false;
+    };
+    let holding: Holding = Holding { holder: holder.to_string(), verdict, reason: reason.to_string() };
+    let Some(record) = with_holding(text.as_str(), &holding) else {
+        return false;
+    };
+    return replace_private_file_unsynced(path.as_path(), record.as_bytes()).is_ok();
+}
+
+/// What:
+///  Writes a verdict beside the record this command is about to promote,
+/// naming this command as the one that decided.
+/// Why:
+///   A caller that promotes a record an earlier attempt held takes it over:
+/// the record then names the command that
+///  finished the commit,
+/// which is the one whose absence a later look can prove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const approved = recordVerdict(workDir, id, thisCommand(), 'passed', '');
+/// ```
+pub fn record_pass(work_dir: &Path, id: &str) -> bool {
+    return record_verdict(work_dir, id, this_command().as_str(), Verdict::Passed, "");
+}
+
+/// What:
+///  Writes a refusal beside the record this command is about to settle,
+/// with the gate's own words.
+/// Why:
+///   A refusal recorded before the record is forgotten survives a kill in that gap,
+/// and the words it keeps are the ones
+///  the next push of the branch must show.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = recordVerdict(workDir, id, thisCommand(), 'blocked', reason);
+/// ```
+pub fn record_refusal(work_dir: &Path, id: &str, reason: &str) -> bool {
+    return record_verdict(work_dir, id, this_command().as_str(), Verdict::Blocked, reason);
 }
 
 /// What:

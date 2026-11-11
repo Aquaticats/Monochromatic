@@ -35,6 +35,15 @@ mod release_bins_tests;
 #[path = "no_self_invocation_tests.rs"]
 mod no_self_invocation_tests;
 
+/// The owner's move to tokio needs its workers to await:
+/// no thread,
+/// no sleeping clock,
+/// no unretried child start
+/// and no blocking work inside a task.
+#[cfg(test)]
+#[path = "blocking_code_off_the_runtime_tests.rs"]
+mod blocking_code_off_the_runtime_tests;
+
 /// The structural check that the review's network client is reachable only from the service run;
 /// never in the release build.
 #[cfg(test)]

@@ -24,15 +24,18 @@ use std::path::Path;
 ///  An `enum` is a closed set of named alternatives.
 /// Why:
 ///   A `reset --hard` loses tracked changes only,
-/// a `clean` loses untracked files,
-/// and a `clean -x` also
-///  loses the ignored files a person keeps beside the build output;
-/// asking for the wrong set would
-///  reject a harmless command or let a destructive one through.
+/// a `clean` loses untracked files as well,
+///  and an ignored file
+///  is not counted at all:
+///  the owner decided on 2026-11-10 that an ignored file is not a reason to refuse a clean in
+///  a linked worktree,
+///  so nothing asks about them.
+///  Asking for the wrong set would reject a harmless command or let a destructive one
+///  through.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type DirtyScope = 'tracked' | 'tracked-and-untracked' | 'everything' | 'ignored-only';
+/// type DirtyScope = 'tracked' | 'tracked-and-untracked';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DirtyScope {
@@ -40,12 +43,6 @@ pub enum DirtyScope {
     Tracked,
     /// Tracked changes and untracked files that are not ignored.
     TrackedAndUntracked,
-    /// Tracked changes,
-    ///  untracked files and ignored files.
-    Everything,
-    /// Ignored files alone:
-    ///  what `git clean -X` deletes.
-    IgnoredOnly,
 }
 
 /// What:
@@ -56,13 +53,9 @@ pub enum DirtyScope {
 ///   `--no-optional-locks` keeps a read from writing the index,
 /// and the porcelain form is stable across
 ///  Git versions.
-///  A reading that reaches ignored files asks for them with
-///  `--ignored=matching`,
-///  which reports an ignored directory once instead of walking into it,
-/// and Git itself refuses
-///  that setting together with `--untracked-files=no`,
-/// so such a reading asks for untracked files as well and reads
-///  only the lines the reading is about.
+///  A reading that counts untracked files asks for them with
+///  `--untracked-files=normal`,
+/// and the tracked-only reading asks for none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,11 +70,7 @@ pub fn dirty_query_arguments(global_prefix: &[OsString], scope: DirtyScope) -> V
     arguments.push(OsString::from(match scope {
         DirtyScope::Tracked => "--untracked-files=no",
         DirtyScope::TrackedAndUntracked => "--untracked-files=normal",
-        DirtyScope::Everything | DirtyScope::IgnoredOnly => "--untracked-files=normal",
     }));
-    if matches!(scope, DirtyScope::Everything | DirtyScope::IgnoredOnly) {
-        arguments.push(OsString::from("--ignored=matching"));
-    }
     return arguments;
 }
 
@@ -401,15 +390,12 @@ fn is_nul(byte: &u8) -> bool {
 /// Why:
 ///   A status that failed says nothing,
 /// and a safety check must not read a failure as "clean".
-///  `IgnoredOnly` counts the entries Git marks with `!!`,
-/// because the untracked entries of the same
-///  answer are not what `git clean -X` deletes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dirtyFromOutput(output: MetadataOutput, scope: DirtyScope): boolean; // throws
+/// function dirtyFromOutput(output: MetadataOutput): boolean; // throws
 /// ```
-pub fn dirty_from_output(output: &MetadataOutput, scope: DirtyScope) -> Result<bool, String> {
+pub fn dirty_from_output(output: &MetadataOutput) -> Result<bool, String> {
     if !output.success {
         let detail: String = String::from_utf8_lossy(&output.stderr)
             .lines()
@@ -419,39 +405,7 @@ pub fn dirty_from_output(output: &MetadataOutput, scope: DirtyScope) -> Result<b
             .to_string();
         return Err(format!("Git could not read the worktree status: {detail}"));
     }
-    if scope == DirtyScope::IgnoredOnly {
-        return Ok(output.stdout.split(is_newline).any(is_ignored_entry));
-    }
     return Ok(!output.stdout.is_empty());
-}
-
-/// What:
-///  Whether a byte of the status answer ends a line.
-/// Why:
-///   The ignored-only reading looks at whole entries,
-/// and a named function keeps that pass free of closures.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (byte: number) => byte === 0x0a
-/// ```
-fn is_newline(byte: &u8) -> bool {
-    return *byte == b'\n';
-}
-
-/// What:
-///  Whether one line of `--porcelain=v1` is an ignored entry.
-/// Why:
-///   Git marks an ignored path with `!!` and a space,
-/// and the untracked entries of the same answer are
-///  not what `git clean -X` deletes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (line: Buffer) => line.subarray(0, 3).toString() === '!! '
-/// ```
-fn is_ignored_entry(line: &[u8]) -> bool {
-    return line.starts_with(b"!! ");
 }
 
 /// What:

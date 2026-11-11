@@ -162,3 +162,39 @@ fn a_long_line_is_masked_in_linear_time() {
     let unterminated: String = format!("https://{}", "@".repeat(1_000_000));
     assert!(masked(&unterminated).starts_with("https://<credentials>@"));
 }
+
+/// The host a destination names is the server,
+/// with no user,
+/// token or port left to guess about.
+#[test]
+fn the_host_of_a_destination_is_the_server_alone() {
+    let cases: [(&str, Option<&str>); 7] = [
+        ("https://lfs:<credentials>@monochromatic-lfs.aquaticat.workers.dev/objects/batch", Some("monochromatic-lfs.aquaticat.workers.dev")),
+        ("https://user:secret@127.0.0.1:36437/lfs", Some("127.0.0.1:36437")),
+        ("https://example.invalid/x", Some("example.invalid")),
+        ("ssh://git@host:22/repo.git", Some("host:22")),
+        ("origin", None),
+        ("/home/person/phone/pictures", None),
+        ("file:///home/person/repo.git", None),
+    ];
+    for (destination, expected) in cases {
+        assert_eq!(host_of(destination).as_deref(), expected, "{destination}");
+    }
+}
+
+/// The servers a failure's own words name are read in order,
+/// whoever they carry in front of the host.
+#[test]
+fn the_servers_a_failure_names_are_read_in_order() {
+    let line: &str = "fatal: could not read Username for 'https://lfs.example.invalid': No such device or address; \
+                      batch response: Authorization error: https://user:secret@other.example.invalid/objects/batch";
+    assert_eq!(hosts_in(line), vec![String::from("lfs.example.invalid"), String::from("other.example.invalid")]);
+    assert_eq!(hosts_in("nothing here names a server"), Vec::<String>::new());
+    assert_eq!(hosts_in("a path /home/person/repo is not one"), Vec::<String>::new());
+    assert_eq!(hosts_in("the same host twice: https://host.invalid/a and https://host.invalid/b"), vec![String::from("host.invalid")]);
+    // Text this module already masked still names its server: the mask stands where the userinfo was.
+    assert_eq!(
+        hosts_in(&format!("batch response: Authorization error: https://lfs:{CREDENTIALS_MASK}@host.invalid/objects/batch")),
+        vec![String::from("host.invalid")]
+    );
+}

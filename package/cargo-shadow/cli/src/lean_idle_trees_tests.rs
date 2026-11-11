@@ -6,13 +6,13 @@
 //! one whose lock is held,
 //! and one whose toolchain is still current are all kept.
 
-use std::{collections::HashSet, fs, fs::File, path::{Path, PathBuf}, process::{Child, Command}, time::Duration};
+use std::{collections::HashSet, fs, fs::File, os::unix::fs::PermissionsExt, path::{Path, PathBuf}, process::{Child, Command}, time::Duration};
 
 use rustix::fs::{FlockOperation, flock};
 
 use crate::lean_build_trees::{Tree, TreeKind, Workspace, list_trees, profile_dirs_of, workspace_of};
 use crate::lean_identity::Deadline;
-use crate::lean_idle_trees::{IdlePolicy, TreeOutcome, TreeVerdict, collect_idle_trees};
+use crate::lean_idle_trees::{IdlePolicy, TreeCollection, TreeOutcome, TreeVerdict, collect_idle_trees};
 use crate::lean_test_support::{DAY, NOW, age_everything, make_tree, real_environment};
 use crate::test_scratch::scratch;
 
@@ -40,10 +40,16 @@ impl Drop for Sleeper {
 
 /// Runs the collection over the base's trees.
 fn collect(base: &Path, retired: &[&str], dry_run: bool) -> Vec<TreeOutcome> {
+    return collect_reporting(base, retired, dry_run).0.outcomes;
+}
+
+/// Runs the collection and keeps the log lines it wrote.
+fn collect_reporting(base: &Path, retired: &[&str], dry_run: bool) -> (TreeCollection, Vec<String>) {
     let trees: Vec<Tree> = list_trees(base);
     let retired_set: HashSet<String> = retired.iter().map(|name| { return (*name).to_string(); }).collect();
     let mut log: Vec<String> = Vec::new();
-    return collect_idle_trees(&trees, base, &retired_set, &POLICY, &real_environment(), NOW, dry_run, &Deadline::after(Duration::from_secs(60)), &mut log);
+    let collection: TreeCollection = collect_idle_trees(&trees, &[], base, &retired_set, &POLICY, &real_environment(), NOW, dry_run, &Deadline::after(Duration::from_secs(60)), &mut log);
+    return (collection, log);
 }
 
 /// The verdict for one tree.
@@ -221,4 +227,77 @@ fn a_dependency_token_the_read_cut_in_two_is_no_lead_and_names_no_gone_source() 
     let outcomes = collect(&base, &[], false);
     assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep(_)), "{outcomes:?}");
     assert!(tree.exists());
+}
+
+/// What:
+/// `fn close(path: &Path, mode: u32)` makes a directory closed to its owner,
+/// after everything in it is written.
+/// Why:
+/// A directory this user may not write is what stopped the removal in issue 6282,
+/// and it has to be the last step because the files go in first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const close = (path: string, mode: number): void => chmodSync(path, mode);
+/// ```
+fn close(path: &Path, mode: u32) {
+    fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("mode");
+}
+
+#[test]
+fn a_tree_that_holds_directories_this_user_may_not_write_is_removed_and_the_line_says_their_mode_changed() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let gone: PathBuf = root.path().join("no-longer-here");
+    let tree: PathBuf = aged_tree(&base, "ab/00000000000002", &gone, 5 * DAY);
+    let closed: PathBuf = tree.join("debug").join("build").join("closed");
+    fs::create_dir_all(closed.join("inner")).expect("closed directories");
+    fs::write(closed.join("inner").join("file"), b"x").expect("file");
+    fs::write(closed.join("file"), b"x").expect("file");
+    close(&closed.join("inner"), 0o500);
+    close(&closed, 0o555);
+    let (collection, log): (TreeCollection, Vec<String>) = collect_reporting(&base, &[], false);
+    assert!(matches!(verdict_of(&collection.outcomes, &tree), TreeVerdict::Removed { .. }), "{:?}", collection.outcomes);
+    assert!(!tree.exists(), "the whole tree is gone");
+    assert_eq!(collection.judged, 1);
+    let line: &String = log.iter().find(|line| { return line.starts_with("removed tree "); }).expect("the removal line");
+    assert!(line.contains("mode changed on 2 directories this user could not write"), "{line}");
+}
+
+/// A tree whose record is the only thing keeping another tree from being removed is not removed itself,
+/// even when its own toolchain is retired:
+/// the record it holds is where the live workspace inside that other tree is known from,
+/// and a later pass has nothing else to guard with.
+#[test]
+fn a_retired_tree_is_kept_while_its_record_guards_a_live_workspace_inside_another_tree() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let outer: PathBuf = aged_tree(&base, "ab/00000000000010", &root.path().join("gone"), 5 * DAY);
+    let live: PathBuf = outer.join("live-workspace");
+    fs::create_dir_all(&live).expect("the live workspace");
+    let important: PathBuf = live.join("important.txt");
+    fs::write(&important, b"live user source\n").expect("the live workspace's file");
+    let retired: PathBuf = aged_tree(&base, "toolchain/nightly-old/ab/00000000000011", &live, 5 * DAY);
+    let first: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep(ref why) if why.contains("lies inside")), "{first:?}");
+    assert!(matches!(verdict_of(&first, &retired), TreeVerdict::Keep(_)), "the record that guards {} is not thrown away with its tree: {first:?}", outer.display());
+    assert!(retired.exists() && important.exists(), "{first:?}");
+    // The second pass has the same records to work from, so it makes the same decision.
+    let second: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Keep(_)), "a later pass keeps the tree the live workspace lies inside: {second:?}");
+    assert!(important.exists(), "the live workspace's file is user data and must never be removed by a pass over idle trees: {second:?}");
+}
+
+/// A retired tree whose record names a workspace outside the base still goes,
+/// so keeping the record of a nested workspace does not keep every retired tree.
+#[test]
+fn a_retired_tree_whose_workspace_is_outside_the_base_still_goes() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let alive: PathBuf = root.path().join("a-checkout-that-still-exists");
+    fs::create_dir_all(&alive).expect("the workspace");
+    let retired: PathBuf = aged_tree(&base, "toolchain/nightly-old/ab/00000000000012", &alive, 5 * DAY);
+    let outcomes: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&outcomes, &retired), TreeVerdict::Removed { .. }), "{outcomes:?}");
+    assert!(alive.exists(), "the workspace is outside the base and is not removed with the tree");
 }

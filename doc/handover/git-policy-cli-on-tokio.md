@@ -1131,24 +1131,35 @@
   and the package lint is clean on those folders;
   the whole `native:test:host` run and its failures are in the plan.
 
-## Step T13, not started, 2026-11-08T18:40:00-05:00
+## Step T13, the source guards, on a branch, 2026-11-10T15:21:49-05:00
 
-Nothing of T13 is done and nothing of it can be done first:
-its three source guards fail today
-(35 files start threads through `foundation/scoped_start.rs`,
-`foundation/side_by_side_threads.rs` and their callers,
-and the remaining sleeps are listed in the plan,
-"What T11 did not convert,
-and why"),
-and its removals (the hand wire format `service/systemd_dbus_wire_format.rs` and the fuzz
-target `dbus_reply`,
+The guards exist now
+(`doc/planning/git-policy-cli-full-tokio.md`,
+"Step T13,
+the guards that keep blocked work off the runtime"),
+on branch `feat/git-policy-cli-tokio-t13-guards`,
+not merged into main.
+Eight rules read the crate's own text:
+thread starts,
+sleeping clocks,
+starts outside the retried start (both on a `Command` and chained onto `git_command`),
+a storage call inside a task,
+a blocking wait inside a task,
+`tokio::fs`,
+and `block_in_place`.
+What they found is fixed on the branch
+(the four unretried child starts and the split removal's walk);
+the forty-six sites the move has not converted yet are listed in the guard's `ALLOWED` with what removes each,
+so the list shrinks as the call sites land and a new one fails the suite.
+
+What is left of the step itself:
+its removals (the hand wire format `service/systemd_dbus_wire_format.rs` and the fuzz target `dbus_reply`,
 the thread helpers,
-the poll constants) wait for their last caller to go.
-The `format:monochromatic-lint` fixer and the package lint are clean on this branch,
-so the tree is ready for whoever takes the guards once the call sites are converted
-("Step T12,
-the leaf-first asynchronous Git and the awaited runner",
-"Exact next steps").
+the poll constants) still wait for their last caller,
+which is the landing loop's conversion,
+and the mutation campaign and `native:perf` for the whole move are paused or unrunnable here
+(the owner paused mutation campaigns;
+nothing of the guards is in a forwarded command's path).
 
 ## Rules that bit during this work
 

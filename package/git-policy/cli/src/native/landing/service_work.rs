@@ -535,6 +535,86 @@ impl WorkHandlers for GitHandlers {
         return Box::pin(async move { return crate::package_repair_prewarm_job::prewarm_awaiting(item).await; });
     }
 
+    /// What:
+    ///  Relink the copied package state a new worktree's record names,
+    /// each tool's own install awaited on the runtime.
+    /// Why:
+    ///   The add hands this work over instead of waiting for it
+    /// (`package_repair_relink.rs`),
+    /// and the round is a task of the runtime,
+    /// so each tool is awaited here rather than started from a synchronous face.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// relinkAwaiting(item) { return relinkAwaiting(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn relink_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move { return crate::package_repair_relink_job::relink_awaiting(item).await; });
+    }
+
+    /// What:
+    ///  Delete the subvolume a removal renamed out of the person's way.
+    /// Why:
+    ///  The removal records the path and returns,
+    /// so this is where the one kernel call happens,
+    /// with no person waiting for it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// subvolumeDelete(item) { return deleteSubvolumeOf(item); }
+    /// ```
+    fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
+        return crate::worktree_remove_hand_over::delete_subvolume_of(item);
+    }
+
+    /// What:
+    ///  Make one snapshot of a worktree ahead of the next add,
+    /// where the caller has no runtime to hand a job to.
+    /// Why:
+    ///   The call is one btrfs ioctl and starts no child,
+    /// so a synchronous caller blocks here itself;
+    /// the round
+    ///  awaits it on the blocking pool through `snapshot_ahead_awaiting`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshotAhead(item) { return makeOneAhead(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn snapshot_ahead(&self, item: &WorkItem) -> Verdict {
+        return crate::worktree_snapshot_ahead_job::snapshot_ahead(item);
+    }
+
+    /// What:
+    ///  Make a snapshot of a worktree ahead of the next add,
+    /// on a thread of the blocking pool.
+    /// Why:
+    ///  The ioctl waits for a btrfs transaction commit of the whole filesystem,
+    /// so a worker of the runtime must not hold it:
+    /// the
+    ///  commits queued behind this one would wait on it too.
+    /// The service's own thread is what takes the wait,
+    /// and the
+    ///  add that asked for the snapshot waits for the answer instead of for the kernel
+    /// (`worktree_snapshot_ahead.rs`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshotAheadAwaiting(item) { return makeOneAhead(item); }
+    /// ```
+    #[cfg(target_os = "linux")]
+    fn snapshot_ahead_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            let held: WorkItem = item.clone();
+            return match crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || { return crate::worktree_snapshot_ahead_job::snapshot_ahead(&held); }).await {
+                Ok(verdict) => verdict,
+                // Nothing was made and nothing is lost: the record keeps its lease and the next round finds it.
+                Err(reason) => Verdict::Retry(format!("the snapshot ahead of {} did not run ({reason})", item.repository.display())),
+            };
+        });
+    }
+
     fn maintenance(&self, item: &WorkItem) -> Verdict {
         return match crate::lazy_runtime::run_on_runtime(self.maintenance_awaiting(item)) {
             Ok(verdict) => verdict,

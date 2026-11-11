@@ -3,14 +3,18 @@
 What:
  the three repairs an add runs once the new worktree is filled,
  the measured time each takes,
- and the change that stops the add waiting for the Cargo repair's clone.
+ and the two changes that stop the add waiting for the Cargo repair's clone and for the relinking
+ of pnpm's and the toolchain's copied state.
 Why:
  a traced add spent a third of its wall time in the repair,
  almost all of it inside one workspace's build-directory clone,
- while the two other repairs finished first.
+ while the two other repairs finished first,
+ and a second trace showed 49.6 s of `pnpm install` and 11.8 s of `mpm-shadow install`
+ (which runs `pnpm list --global` eleven times) inside the add.
 Status:
  measured on 2026-11-11 from the owner's trace of 2026-11-10T18:00:41Z,
- and changed on this branch.
+ changed on branch `fix/git-policy-cli-worktree-add-package-repair-off-the-waiting-path`
+ and on branch `perf/git-policy-cli-worktree-add-package-tools-off-the-waiting-path`.
 Future sessions read this before moving any of the three repairs,
 and before measuring an add again.
 
@@ -21,7 +25,11 @@ copies the ignored files,
 and then repairs the package managers of the new worktree
 (`package/git-policy/cli/src/native/worktree_copying/worktree_copy_after_lock.rs:63-152`,
 named in `doc/planning/cli-git-worktree-add-route-findings-on-main.md:256-263`).
-The repairs are three waits of one task (`package/git-policy/cli/src/native/repair/package_repair.rs:230-247`):
+The repairs are three waits of one task (`package/git-policy/cli/src/native/repair/package_repair.rs`),
+and only the Cargo plan is the add's work:
+the pnpm relink and the toolchain install are the commit service's
+(section "The pnpm relink and the toolchain install are the service's work"),
+and the Cargo clone and clean are the service's too (section "The change"):
 
 - pnpm:
   `pnpm install --offline --frozen-lockfile` in the worktree
@@ -285,3 +293,276 @@ passed on a host,
 and failed the release gate on `main` at `cd9b8132f8`.
 
 The records and counts of the six runs are in `${HOME}/temp/agent/prewarm-fixture/measure`.
+
+## What the review of the hand-over found
+
+Kimi K3.1 Pro reviewed the merged change at `aa7f601c6d` and wrote five findings
+(`${HOME}/temp/agent/kimi-reviews/worktree-add-package-repair-handover-1/review.md`).
+Each one was reproduced against this package's own code before anything changed.
+The controls that show them fail on `fc750a295d` and pass on the commits after it.
+
+### The service's clean rewrote `Cargo.lock`
+
+Reproduced with the job's own `prewarm_awaiting` against a real Cargo workspace.
+`cargo clean` resolves the worktree's workspace even though `CARGO_BUILD_BUILD_DIR` and
+`CARGO_TARGET_DIR` name directories of this job's own,
+so a lock that no longer matches its manifest is rewritten and a missing one is created,
+after the add has returned and the person may be working in the worktree.
+The lock is now read before the clean and put back exactly as checked out,
+through the same `package_repair_cargo_lock.rs` the add's own clean uses
+(`repair::package_repair_prewarm_job::tests::the_filling_puts_the_lock_back_as_checked_out`).
+
+### A directory at the staging name was removed without proof of ownership
+
+`fill_one` ran `remove_dir_all` on `<destination>.monochromatic-prewarm` whenever the destination
+was absent,
+so a directory at that name that this job did not make was deleted.
+The reviewer's own path to it,
+a build directory named `<other>.monochromatic-prewarm`,
+cannot happen:
+`doc/decision/cargo-build-dir-host-cache.md` hashes the workspace root into
+`<cache>/<two hex>/<fourteen hex>`,
+and no name with a suffix can be one of those hashes.
+The deletion itself is the defect,
+so the names are now claimed by a marker this job writes exclusively before it clones,
+and only names its own marker claims are removed.
+A directory no marker claims is somebody's work:
+the filling leaves it and stages under names of this run's own instead
+(`repair::package_repair_prewarm_job::tests::a_directory_at_the_staging_name_that_this_job_did_not_make_is_never_removed`).
+
+### The clean's target directory was left behind
+
+`Filled::Published` returned before removing `<staging>.target`,
+so a directory of private build state stayed behind for every build directory successfully filled.
+The target directory is now given back whatever the filling came to
+(`repair::package_repair_prewarm_job::tests::a_published_filling_leaves_no_target_directory_of_its_own`).
+
+### The worktree-local Cargo fallback looked in the wrong directory
+
+The fallback after the search path is the worktree's own `.cache/toolchain-bin/cargo`,
+which sits at the worktree root,
+and the filling looked for it under the record's first workspace root.
+A record whose workspace is nested,
+such as `package/example`,
+found nothing there and failed the whole filling.
+The lookup now starts from the record's repository,
+which is the worktree root
+(`repair::package_repair_prewarm_job::tests::the_worktrees_own_cargo_link_is_found_from_the_worktree_root_for_a_nested_workspace`).
+
+### A worktree added again at one path was answered as already known
+
+The record's object name was a digest of the worktree's path alone,
+and the queue answers an id it already knows as known in every state.
+A worktree removed and added again at the same path was therefore queued as known and never filled,
+and a filling that failed could never be asked for again:
+the service settles a failure into `failed` and reads no record back.
+The object name is now a digest of the worktree's path and the millisecond the add asked,
+so each hand-over is its own record.
+A second record for one destination costs nothing when it runs:
+the destination-exists check answers `Filled::Kept` before anything is cloned
+(`repair::package_repair_prewarm::tests::a_worktree_added_again_at_the_same_path_gets_its_own_filling`).
+
+### What the filling still cannot make safe
+
+Codex reviewed the branch as well,
+and named the windows that remain after these fixes.
+Each one costs at most work this job made,
+never a file a person wrote:
+
+- Two fillings of one destination can run at once when a worktree is removed and added again at the
+  same path while its first record is still queued.
+  The second takes the names the first is working in,
+  the loser reports a failure,
+  and only directories this job made are removed.
+- A kill between Cargo's rewrite of `Cargo.lock` and the restore leaves the rewritten lock,
+  because the bytes that were checked out sit in memory.
+  The add's own clean has the same window.
+- A person who edits `Cargo.lock` while the clean runs has that edit replaced by the bytes that were
+  checked out before the clean.
+- A fill that answers `Filled::Kept` because a build got there first leaves a killed fill's staging
+  directory and its target where they are.
+- A fill that ran under names of its own,
+  because somebody else's file or directory held the usual ones,
+  strands its staging copy if it is killed,
+  since no later fill learns that name.
+
+The first two are what a lock file kept on disk and a per-directory claim would fix,
+and both cost more than they buy while `cargo clean` is the only writer of the lock and one service
+instance claims a record once.
+
+## The pnpm relink and the toolchain install are the service's work
+
+What:
+ the two repairs that rewrite a copied layout in place,
+ what the add still does for them,
+ and what one measured pair of adds says they cost.
+Why:
+ neither run reads the worktree's files.
+`pnpm install --offline --frozen-lockfile` relinks `node_modules` for the new depth,
+`mpm-shadow install --frozen-lockfile` rebuilds the toolchain links and launchers for the new
+ checkout,
+and each is a whole program run through the shadow of the tool it repairs,
+so an add that waits for them queues behind every other add on the same disk.
+The owner's trace of the installed release `0.6.1-alpha.8`
+(2026-11-10T18:00:41Z,
+section "The time split of one traced add" of this document)
+puts 49.6 s in `pnpm install`,
+11.8 s in `mpm-shadow install`,
+and eleven `pnpm list --global --depth=0` runs inside that install,
+all on the add's waiting path.
+
+### What the add does now
+
+The add still makes both decisions,
+because a worktree that needs nothing must leave no record for the service,
+and it makes them from cheap reads:
+
+- pnpm:
+  a lockfile and a `node_modules` in the worktree
+  (the `need_of` function of `package_repair_pnpm.rs`).
+- toolchain:
+  a launcher record under `.cache/toolchain-launchers` that names another lock,
+  read as a job of the process's blocking pool
+  (the `need_within_the_budget` function of `package_repair_toolchain.rs`).
+
+It then writes one `relink` work item (`package_repair_relink.rs`),
+whose payload is `{"root": "<worktree>", "tools": ["pnpm", "toolchain"]}`,
+under the repository's common directory,
+keyed by a digest of the worktree's path,
+so two worktrees of one commit get one record each.
+Where a commit service answers,
+the add wakes it and prints one line naming what was handed over.
+The service runs `relink` items before a prewarm and before a trash
+(`service_work_drain_pending_claims.rs`),
+runs each tool's own command in the worktree,
+with the same quiet window and ceiling the add gave it
+(`package_repair_relink_job.rs`),
+and leaves one line per attempt in its journal.
+
+What stays on the waiting path,
+and why:
+
+- The two decisions above,
+  which are a few `stat` calls and one read of the launcher directory,
+  and are what keep a worktree that needs nothing from leaving a record.
+- The record write and the wake,
+  timed as `relinkHandOver` in the add's own record.
+- The two tools themselves,
+  when no commit service can be reached,
+  as in a session with no user service manager such as a container.
+  A worktree whose copied `node_modules` was never relinked
+  resolves the source checkout's packages without an error,
+  and one whose launchers were never rebuilt runs the source checkout's tool versions,
+  so in that one case the add does what every release before this one did,
+  and the line it prints names the command that does the same work by hand.
+  The record stays,
+  so a service that starts later repeats a relink that changes nothing.
+
+### Measured on a fixture, before and after
+
+The fixture is `${HOME}/temp/agent/git-policy-add-package-tools`:
+one Git repository of four tracked files,
+with `pnpm-lock.yaml` and a `node_modules` of two packages (6.4 MB),
+`.cache` ignored,
+and no tracked `Cargo.toml`,
+so the Cargo lane of the repair only lists tracked manifests.
+The fixture is not a btrfs subvolume,
+so every add took Git's checkout route and copied 2,339 ignored entries.
+The driver is `measure.ts` in that folder:
+one `git worktree add --detach <destination> HEAD` per arm,
+alternating before and after,
+a fresh destination each time,
+the fixture's own `HOME` and `XDG_RUNTIME_DIR`,
+a `git` of the arm on `PATH`,
+and the add's stderr and its own timing record kept per run.
+
+- Before:
+  a binary built from the branch's first commit,
+  extracted with `git archive`,
+  and built with
+  `cargo build --locked --offline --release --bin monochromatic-git-policy-cli`.
+- After:
+  this branch's binary,
+  built with `mise run //package/git-policy/cli:native:build:release`.
+- The service:
+  this branch's binary in its own mode,
+  `monochromatic-git-policy-cli service run --journal <folder> --path <socket>`,
+  with the fixture's `HOME` and runtime directory,
+  and no session bus.
+
+The adds,
+from the driver's log and each add's timing record
+(the record keeps milliseconds;
+these are printed to the second):
+
+- Before,
+  `2026-11-10T23:11:12Z` to `2026-11-10T23:13:23Z`,
+  exit 0:
+  `repairPnpm` 1,130 ms,
+  `repairToolchain` 13 ms,
+  `repairCargo` 16 ms.
+- After,
+  `2026-11-10T23:11:07Z` to `2026-11-10T23:11:12Z`,
+  exit 0:
+  `relinkHandOver` 28 ms,
+  no `repairPnpm` and no `repairToolchain` at all,
+  and the relink record was in `pending` when the add returned,
+  and gone at the driver's next look.
+- Before,
+  `2026-11-10T23:15:09Z` to `2026-11-10T23:17:17Z`,
+  exit 0:
+  `repairPnpm` 72,426 ms,
+  `repairToolchain` 1 ms,
+  `repairCargo` 2 ms.
+- After,
+  `2026-11-10T23:13:23Z` to `2026-11-10T23:15:09Z`,
+  exit 0:
+  `relinkHandOver` 216 ms,
+  no `repairPnpm` and no `repairToolchain`.
+- After,
+  `2026-11-10T23:17:17Z` to `2026-11-10T23:18:37Z`,
+  exit 0:
+  `relinkHandOver` 226 ms,
+  no `repairPnpm` and no `repairToolchain`.
+
+So the add's own work for the two tools falls from 1,130 ms and 72,426 ms
+to a record and a wake of 28 ms in one run and 216 and 226 ms in the other two,
+and the two tools run in the service instead.
+The two before adds differ by 71 s in the same step,
+which is this host and not the change,
+as rules `NQH` and `QNB` say,
+so no wall-time saving is claimed here:
+the whole-add times of the same runs were 131 s and 128 s before,
+and 5 s and 106 s and 80 s after,
+and `copyIgnored` alone was 127,658 ms in one of them.
+The first before add of the run is left out:
+it took a recovering rung of its own,
+which its record names as `claimStage` and `releaseClaim`,
+copied nothing,
+and so started no repair at all.
+
+What this fixture cannot show:
+
+- The toolchain install itself:
+  `mpm-shadow install` in a worktree writes into the account's tool store,
+  which is not a disposable thing to run extra installs against
+  while other checkouts read it,
+  so the fixture repository carries no `.cache/toolchain-launchers`,
+  and the toolchain lane only reads there.
+  The 11.8 s and the eleven `pnpm list` calls are therefore the owner's trace
+  of the installed release,
+  and the service's run of the same command is proven by
+  `repair::package_repair_relink_job::tests::both_tools_run_in_the_worktree_in_the_records_order`
+  and
+  `repair::package_repair_relink_job::tests::a_tool_that_fails_is_named_and_the_next_still_runs`.
+- The pnpm relink at this repository's size:
+  the fixture's `node_modules` holds two packages,
+  so its 1,130 ms is a small checkout's cost,
+  not the 49.6 s the owner's monorepo trace shows.
+- The time the service takes to relink one worktree:
+  the fixture's service was too busy with other worktrees to read its journal here,
+  and the driver only observed that the record left `pending`.
+
+The runs,
+their stderr and their timing records are in
+`${HOME}/temp/agent/git-policy-add-package-tools/measure`.

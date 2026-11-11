@@ -275,11 +275,37 @@ pub fn remember_unfilled(
     source: &Path,
     owner: Option<&str>,
 ) -> Result<(), WorktreeCopyError> {
+    return remember_unfilled_with(journal, destination, identity, source, owner, "the copy did not finish");
+}
+
+/// What:
+///  Name the worktree a copy gave up on,
+/// with what ended the copy in the record itself.
+/// Why:
+///   A reason that lived only in the output of the command that saw the failure is gone with it;
+/// the record repeats the words
+///  on every later command,
+/// so the person reads which entry differs or which worktree cannot be reached,
+/// not only that something
+///  is missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rememberUnfilledWith({ journal, destination, identity, source, owner, reason });
+/// ```
+pub fn remember_unfilled_with(
+    journal: &Path,
+    destination: &Path,
+    identity: crate::fs_beneath::ObjectId,
+    source: &Path,
+    owner: Option<&str>,
+    reason: &str,
+) -> Result<(), WorktreeCopyError> {
     let copy: UnfilledCopy = UnfilledCopy {
         destination: destination.to_path_buf(),
         destination_identity: identity,
         source: source.to_path_buf(),
-        reason: String::from("the copy did not finish"),
+        reason: reason.to_string(),
         owner: owner.map(str::to_string),
     };
     let path: PathBuf = unfilled_path_of(journal);
@@ -416,6 +442,84 @@ fn unfilled_notice(copy: &UnfilledCopy) -> String {
         "monochromatic-git-policy-cli: {shown} holds less than {source} ignores: the ignored-state copy ended before it finished ({}). Nothing in that worktree was changed by this command, and the files it did not receive are still in {source}. `git worktree remove --force {commands_destination}` removes that worktree, and running the same `git worktree add` line again copies the ignored state; this line comes again from every command in this repository until that worktree is removed or replaced.",
         copy.reason
     );
+}
+
+/// What:
+///  One record still standing,
+/// with the file it was read from.
+/// Why:
+///   A caller that judges the owner's liveness needs the record's own file,
+/// and the worktree it names is what a caller asks about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StandingRecord = { path: string; destination: string; owner?: string };
+/// ```
+pub struct StandingRecord {
+    /// The file the record was read from.
+    pub path: PathBuf,
+    /// The worktree the copy did not fill.
+    pub destination: PathBuf,
+    /// The owner token the record names,
+    /// when it names one.
+    pub owner: Option<String>,
+}
+
+/// What:
+///  The record of a worktree a copy ended in,
+/// while the worktree it names is the one standing at that path.
+/// Why:
+///   A record whose worktree is gone or was replaced describes nothing that stands,
+/// so it holds no copy back and its
+///  own command settles it;
+/// a worktree whose identity cannot be read is not answered for either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const standing = await standingRecords(commonDir).find((record) => canonicalize(record.destination) === sourceRoot);
+/// ```
+pub(crate) fn standing_record_of(common_dir: &Path, destination: &Path) -> Result<Option<StandingRecord>, WorktreeCopyError> {
+    for record in standing_records(common_dir)? {
+        let Ok(canonical) = std::fs::canonicalize(record.destination.as_path()) else { continue };
+        if canonical.as_path() == destination {
+            return Ok(Some(record));
+        }
+    }
+    return Ok(None);
+}
+
+/// What:
+///  Every record whose worktree is still the object it names.
+/// Why:
+///   The proof is the one every reader of these records takes:
+/// the object at the path now is the object the record recorded,
+/// so a record of a worktree that was removed or replaced describes nothing that stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of unfilledNames(root)) { const copy = await readUnfilled(root/name); if (copy && identityAt(copy.destination) === copy.destinationIdentity) yield copy }
+/// ```
+fn standing_records(common_dir: &Path) -> Result<Vec<StandingRecord>, WorktreeCopyError> {
+    let root: PathBuf = journal_root(common_dir);
+    let mut standing: Vec<StandingRecord> = Vec::new();
+    for name in unfilled_names(root.as_path())? {
+        let path: PathBuf = root.join(name.as_str());
+        let Some(copy) = read_unfilled(path.as_path())? else { continue };
+        // Only the worktree the record was written about is one it still describes: the object at the path now is the
+        // object the record recorded, so a worktree that was removed or replaced settles the record instead.
+        let describes_the_worktree: bool = match crate::worktree_add_binding::path_identity(copy.destination.as_path()) {
+            Some(identity) => identity == copy.destination_identity,
+            None => false,
+        };
+        if describes_the_worktree {
+            standing.push(StandingRecord {
+                path,
+                destination: copy.destination,
+                owner: copy.owner,
+            });
+        }
+    }
+    return Ok(standing);
 }
 
 /// What:

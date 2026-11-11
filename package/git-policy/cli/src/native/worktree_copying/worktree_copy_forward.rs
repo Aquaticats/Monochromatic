@@ -21,8 +21,13 @@
 //! ```
 
 use crate::forwarding::{ChildOutcome, ChildStarted, run_real_git, run_real_git_naming, run_real_git_until};
+/// Who a real-Git start runs for:
+/// the person's command,
+/// or the ladder's own step.
+use crate::hooks_off::StartOwner;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
@@ -168,6 +173,28 @@ pub enum ForwardedRun {
 }
 
 /// What:
+///  The repository's common Git directory,
+///  which owns the registrations a sweep reads and the record of a worktree this program made.
+/// Why:
+///   Both jobs write beside the registrations,
+///  and a bare repository has a common directory too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// identity.commonDir
+/// ```
+#[cfg(unix)]
+fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
+    // `match` on the repository shape: only a place outside a repository has none.
+    match identity {
+        WorktreeIdentity::MainWorktree { common_dir, .. }
+        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
+        | WorktreeIdentity::BareRepository { common_dir, .. } => return Some(common_dir.as_path()),
+        WorktreeIdentity::OutsideWorktree => return None,
+    }
+}
+
+/// What:
 ///  The directory the repository queries of the copy run in.
 /// Why:
 ///   Every query names absolute paths,
@@ -192,23 +219,27 @@ fn query_directory(identity: &WorktreeIdentity) -> PathBuf {
 }
 
 /// What:
-///  Runs real Git as a child with the given variables and reports how it ended.
+///  Runs real Git as a child with the given variables and reports how it ended,
+/// for `owner`.
 /// Why:
 ///   One start for the plain and the settled runs,
-/// so both report an unstartable Git the same way.
+/// so both report an unstartable Git the same way,
+/// and the caller names whose Git it runs
+///  instead of choosing the options here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await nanoSpawn(gitPath, args, { env, stdio: 'inherit' });
 /// ```
-fn run_plain(
+fn run_plain_of(
+    owner: StartOwner,
     real_git: &Path,
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> ForwardedRun {
     // `match` on the start result: the status is Git's, the death by a signal is Git's own too, and an unstartable Git
     //  is an engine failure.
-    match run_real_git(real_git, arguments, overlay) {
+    match run_real_git(real_git, arguments, overlay, owner) {
         Ok(ChildOutcome::Exited(code)) => return ForwardedRun::Ran(code),
         // What: A Git that a signal ended stays a death by that signal.
         // Why:  This route keeps a process around Git, so the death comes back as a value; flattening it into 128 + the
@@ -277,6 +308,8 @@ pub fn run_forwarded_git_with_unit_stop(
             // Only a removal that ended well can have taken the worktree; the stop checks that its Git directory is gone.
             if let (Some(gone), ForwardedRun::Ran(0)) = (about.as_ref(), &finished) {
                 stop_units(gone);
+                // The pool of a worktree is named from the same registration the removal deleted, and nothing of the repository looks at it again once the worktree is gone.
+                clear_the_pool_of_a_removed_worktree(gone.common_dir.as_path(), gone.git_dir.as_path());
             }
             return finished;
         }
@@ -287,7 +320,24 @@ pub fn run_forwarded_git_with_unit_stop(
         let _ = copy;
         let _ = stop_units;
     }
-    return run_plain(real_git, arguments, overlay);
+    return run_plain_of(StartOwner::Person, real_git, arguments, overlay);
+}
+
+/// What:
+///  Runs Git the wrapper starts for its own work,
+/// with the report a forwarded run gives.
+/// Why:
+///   A step the wrapper substitutes for part of the person's command (the fetch of a pull that merges) is still the
+/// wrapper's own Git:
+/// it takes the wrapper's options,
+/// and its failure is reported like any other run of this route.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runGitWithWrapperOptions({ args, gitPath });
+/// ```
+pub fn run_wrapper_own_git(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
+    return run_plain_of(StartOwner::Wrapper, real_git, arguments, overlay);
 }
 
 /// What:
@@ -304,12 +354,7 @@ pub fn run_forwarded_git_with_unit_stop(
 #[cfg(unix)]
 fn units_of_worktree_about_to_go(facts: &CopyFacts) -> Option<WorktreeAboutToGo> {
     let plan = facts.remove_plan.as_ref()?;
-    let common_dir: &Path = match &facts.identity {
-        WorktreeIdentity::MainWorktree { common_dir, .. }
-        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
-        | WorktreeIdentity::BareRepository { common_dir, .. } => common_dir.as_path(),
-        WorktreeIdentity::OutsideWorktree => return None,
-    };
+    let common_dir: &Path = common_directory(&facts.identity)?;
     return before_removal(common_dir, plan);
 }
 
@@ -354,14 +399,8 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
 fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts) -> Option<ForwardedRun> {
     use std::io::Write;
     use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
-    use crate::worktree_identity::WorktreeIdentity;
     let plan = facts.remove_plan.as_ref()?;
-    let common_dir: &Path = match &facts.identity {
-        WorktreeIdentity::MainWorktree { common_dir, .. }
-        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
-        | WorktreeIdentity::BareRepository { common_dir, .. } => common_dir.as_path(),
-        WorktreeIdentity::OutsideWorktree => return None,
-    };
+    let common_dir: &Path = common_directory(&facts.identity)?;
     let context: crate::transaction_git::GitContext = crate::transaction_git::GitContext {
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
@@ -371,8 +410,12 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
     match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir }) {
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed => {
-            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it.
-            let _closed = writeln!(std::io::stderr(), "{}", crate::worktree_remove::DESTROY_NOTICE);
+            // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it, which a forced removal words differently because nothing was checked for changes.
+            let notice: &str = match plan.force {
+                true => crate::worktree_remove::DESTROY_FORCED_NOTICE,
+                false => crate::worktree_remove::DESTROY_NOTICE,
+            };
+            let _closed = writeln!(std::io::stderr(), "{notice}");
             return Some(ForwardedRun::Ran(0));
         }
         RemoveOutcome::Incomplete(report) => {
@@ -514,10 +557,12 @@ fn run_settled(
             //  word it names, and a filter or a filesystem that never answers must not hold a ladder step (owner: nothing waits
             //  forever).
             let ladder_started: bool = matches!(step, GitStep::Other { .. });
+            // The person's step is the person's command and keeps the person's monitor setting; a ladder step is the wrapper's own.
+            let owner: StartOwner = if ladder_started { StartOwner::Wrapper } else { StartOwner::Person };
             let ceiling: Option<std::time::Duration> = if ladder_started { crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) } else { None };
             let ran: std::io::Result<ChildOutcome> = match ceiling {
-                Some(longest) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), longest),
-                None => run_real_git_naming(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), child_started),
+                Some(longest) => run_real_git_until(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), longest, owner),
+                None => run_real_git_naming(self.real_git, child_arguments.as_slice(), child_overlay.as_slice(), child_started, owner),
             };
             match ran {
                 Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
@@ -558,6 +603,16 @@ fn run_settled(
                 && let Some(signal) = run_git.signalled
             {
                 return ForwardedRun::Killed(signal);
+            }
+            // A worktree Git just registered is recorded as one this program made, so a later merge that lands its branch
+            // removes it by itself (`worktree_landed_removal.rs`). A record that cannot be written costs that one removal
+            // and never the add.
+            if facts.creates
+                && settlement.copy_failure.is_none()
+                && settlement.git.code == Some(0)
+                && let (Some(destination), Some(common_dir)) = (facts.destination.as_ref(), common_directory(&facts.identity))
+            {
+                crate::worktree_added_by_the_wrapper::record_or_log(common_dir, destination.as_path());
             }
             return ForwardedRun::Ran(exit_code(&settlement));
         }

@@ -19,11 +19,12 @@
 use super::{Selection, plan_management, plan_management_with_section, retired_explanation, status_git_dir};
 use crate::service_instance::{SOCKET_DIRECTORY, socket_for};
 use crate::action::Action;
+use crate::control_terminal::Terminal;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::{MANAGEMENT_HELP, MANAGEMENT_USAGE, RetiredCommand};
 use crate::policy_registry::PolicyId;
 use crate::real_git::{Platform, ResolutionInputs};
-use crate::test_support::{REAL_GIT, executable, fixture, isolated_overlay, remove, repository};
+use crate::test_support::{REAL_GIT, executable, fixture, git, isolated_overlay, remove, repository};
 use crate::wrapper_controls::{Controls, no_controls};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -44,6 +45,8 @@ fn no_git(root: &Path) -> ResolutionInputs {
         common_paths: Vec::<PathBuf>::new(),
         own_executable: root.join("own-wrapper"),
         service_unit: None,
+        // Management commands are answered by the wrapper and start no Git child, so the terminal decides nothing.
+        terminal: Terminal::Present,
     };
 }
 
@@ -791,6 +794,31 @@ fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
         let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), settings);
         assert_eq!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))), Selection::Found(expected.clone()), "{settings:?}");
     }
+    remove(root.as_path());
+}
+
+/// What:
+///  A status asked of Git names the Git directory by the bytes Git printed.
+/// Why:
+///   The answer is a pathname,
+///  and a name that is not UTF-8 spelled through lossy text named a directory that does not exist:
+///  a commit that asked whether a service held the worktree was then refused as
+///  "the Git directory cannot be resolved".
+#[test]
+fn a_status_asked_of_git_keeps_a_git_directory_that_is_not_text() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("management-status-not-utf8");
+    let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
+    // `--git-dir` is a selection the in-process reader leaves to Git, so this asks Git itself.
+    let selected: Vec<OsString> = vec![OsString::from("--git-dir"), repo.join(".git").into_os_string()];
+    assert_eq!(
+        status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))),
+        Selection::Found(std::fs::canonicalize(repo.join(".git")).expect("git directory")),
+        "the Git directory keeps the bytes Git printed"
+    );
     remove(root.as_path());
 }
 

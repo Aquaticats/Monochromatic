@@ -45,11 +45,21 @@ pub const THEIR_LABEL: &str = "the merge";
 /// The reason a path is named when the merge deletes it and the person changed it.
 pub const MODIFY_DELETE: &str = "the merge deletes it";
 
-/// The reason a path is named when the person deleted it and the merge changed it.
-pub const DELETE_MODIFY: &str = "you deleted it, and the merge changes it";
+/// The reason a path is named when nothing stood at it for the person and the merge changed it.
+///  The capture is what says that,
+/// so the words claim nothing about how the path came to be empty:
+/// a file a
+///  command set aside before the capture leaves the same state,
+/// and the line about that copy names it
+///  (`merge_isolation_kept_copies.rs`).
+pub const DELETE_MODIFY: &str = "nothing stood there when the merge captured it, and the merge changes it";
 
 /// The reason a path is named when both sides hold a kind of entry the text merge cannot take.
 pub const NOT_TEXT: &str = "its changes cannot be merged as text";
+
+/// The Git mode of a symbolic link,
+/// which is not a kind of entry the text merge reads.
+const SYMBOLIC_LINK_MODE: &str = "120000";
 
 /// One side of one layer:
 /// the mode Git records and the object it holds.
@@ -202,6 +212,28 @@ fn end_mode(layer: &Layer) -> Option<String> {
 }
 
 /// What:
+///  Whether the person's side and the merge's are the same kind of entry,
+/// where a symbolic link is a kind of its own.
+/// Why:
+///   The word pass reads a file's bytes as text;
+/// a link's bytes are its target's text,
+/// and writing the two
+///  sides into a file,
+/// or into a link,
+/// makes an entry that is neither side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sameKind = (layer) => (layer.ours.mode === '120000') === (layer.theirs.mode === '120000');
+/// ```
+fn the_same_kind_of_entry(layer: &Layer) -> bool {
+    let (Some(ours), Some(theirs)) = (&layer.ours, &layer.theirs) else {
+        return true;
+    };
+    return (ours.mode == SYMBOLIC_LINK_MODE) == (theirs.mode == SYMBOLIC_LINK_MODE);
+}
+
+/// What:
 ///  Read one object's bytes,
 /// which a kept conflict needs to hold both of its sides.
 /// Why:
@@ -278,6 +310,12 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
         (None, Some(_)) => return Ok(Decision { outcome: Outcome::Gone(DELETE_MODIFY), mode: None }),
         (Some(_), Some(_)) => {}
         (None, None) => return Ok(Decision { outcome: Outcome::Merges, mode: None }),
+    }
+    // A symbolic link and a file are not two texts a word pass can merge: measured, a merge wrote the person's link target
+    //  and the merge's lines between markers into a link whose target was that whole text, so the link they made was gone.
+    //  Their side is kept whole instead, and named with the merge's version in the merge commit.
+    if !the_same_kind_of_entry(layer) {
+        return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: end_mode(layer) });
     }
     if layer.base.is_none() {
         // Both sides added the path, so there is no ancestor to merge from: the two texts are the whole of it, and the word

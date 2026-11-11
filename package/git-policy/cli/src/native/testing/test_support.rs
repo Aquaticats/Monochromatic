@@ -125,6 +125,72 @@ pub(crate) fn fixture_root() -> PathBuf {
 }
 
 /// What:
+///  Give this user back the read,
+/// write and search permission on every directory of a tree that has lost it,
+///  without following a symbolic link.
+/// Why:
+///   A control that writes a directory its owner may not write (`0500`,
+/// `0555`,
+/// `0000`) proves what the product does with one,
+/// and removing that directory afterwards needs read to list it and write and search to unlink what it holds,
+/// so a fixture left in that state outlived the test that made it
+/// (issue 6282:
+/// fixtures named `rollback-read-only`,
+/// `remove-old-read-only`,
+/// `migrate-unreadable-dir` and `sync-unreadable-dir`),
+/// and a build-tree sweeper could not delete the tree they sat in.
+/// Only directories are changed,
+/// only ones this user owns,
+/// and only the owner's three bits:
+/// a file with no permissions of its own is unlinked from a writable directory,
+/// and a group or other-user bit a control set stays as it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function restoreOwnerAccess(root: string): void // lstat each entry, chmod OWNER_RWX on the directories this user owns
+/// ```
+#[cfg(unix)]
+pub(crate) fn restore_owner_access(root: &Path) {
+    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    let own: u32 = unsafe { libc::geteuid() };
+    let owner_bits: u32 = 0o700;
+    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(metadata) = std::fs::symlink_metadata(&directory) else {
+            continue;
+        };
+        if !metadata.is_dir() {
+            continue;
+        }
+        let mode: u32 = metadata.mode() & 0o7777;
+        if metadata.uid() == own && mode & owner_bits != owner_bits {
+            let _widened = std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(mode | owner_bits));
+        }
+        // The directory may have been closed to this user until a moment ago, so it is listed after the mode is restored.
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path: PathBuf = entry.path();
+            let Ok(found) = std::fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if found.is_dir() {
+                stack.push(path);
+            }
+        }
+    }
+}
+
+/// What:
+///  On a platform without Unix permissions there is nothing to give back.
+/// Why:
+///   The teardown calls this on every platform.
+#[cfg(not(unix))]
+pub(crate) fn restore_owner_access(_root: &Path) {}
+
+/// What:
 ///  Remove a fixture tree unless the person asked to keep it,
 /// trying again for up to five seconds.
 /// Why:
@@ -132,10 +198,14 @@ pub(crate) fn fixture_root() -> PathBuf {
 /// a tree already gone is the explicit
 ///  `remove` having run first,
 /// not a failure.
+/// A control that made a directory read-only inside its fixture is answered here,
+/// so the fixture goes however the control ended,
+/// panic included.
 pub(crate) fn settle_fixture(root: &Path, keep: bool) {
     if keep {
         return;
     }
+    restore_owner_access(root);
     for _ in 0..50 {
         match std::fs::remove_dir_all(root) {
             Ok(()) => return,
@@ -211,56 +281,6 @@ pub(crate) fn own_group(child: &std::process::Child) {
     THREAD_FIXTURES.with(|fixtures| { fixtures.groups.borrow_mut().push(group); });
 }
 
-/// What:
-///  Run `work` on its own thread and answer its result,
-///  or nothing when it did not finish within five seconds.
-/// Why:
-///   A read of a named pipe waits for a writer that never comes,
-/// and a control that called such a read
-///  directly would hold the suite for ever instead of failing;
-/// the deadline turns the wait into a failure the control
-///  can name,
-/// and the thread the read holds is abandoned with the process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const result = await finishedWithin(() => readPlainText(path)); // undefined when five seconds passed
-/// ```
-pub(crate) fn finished_within<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
-    return finished_within_at(std::time::Duration::from_secs(5), work);
-}
-
-/// What:
-///  `work`'s value,
-/// or nothing when it did not finish within `deadline`;
-/// the thread that runs it is abandoned with the process.
-/// Why:
-///   A control whose work waits on another job's work needs a bound that covers that work,
-/// which costs what the
-///  fixture and the host make it cost;
-/// a fixed short clock over work fails a busy host while the work itself is fine,
-/// so
-///  such a control states its own deadline and the wait it guards takes no clock.
-/// A panic inside the work is the work's own failure and is raised here as itself,
-/// so this
-///  deadline cannot be blamed for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const result = await finishedWithinAt(150_000, () => refresh()); // undefined when the deadline passed
-/// ```
-pub(crate) fn finished_within_at<T: Send + 'static>(deadline: std::time::Duration, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
-    let (sender, receiver) = std::sync::mpsc::channel::<std::thread::Result<T>>();
-    std::thread::spawn(move || {
-        let _ = sender.send(std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)));
-    });
-    return match receiver.recv_timeout(deadline) {
-        Ok(Ok(value)) => Some(value),
-        Ok(Err(payload)) => std::panic::resume_unwind(payload),
-        Err(_passed_or_abandoned) => None,
-    };
-}
-
 /// This test process's own executable,
 /// for the helper processes a control starts from the test binary.
 ///  A test starts the test binary,
@@ -281,6 +301,8 @@ pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     forbid_core_dumps();
     let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{name}", std::process::id()));
     if root.exists() {
+        // A fixture an earlier run was killed in the middle of may hold a directory it closed, so the permission is given back first.
+        restore_owner_access(&root);
         std::fs::remove_dir_all(&root).expect("remove stale fixture");
     }
     std::fs::create_dir(&root).expect("fresh fixture");
@@ -296,11 +318,28 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 }
 
 /// What:
+///  Take a directory this test thread made under the thread's own cleanup,
+/// so it is removed when the thread ends however the test ended.
+/// Why:
+///   A fixture root under the build directory is deep,
+/// and a socket name cannot be longer than a socket address holds,
+/// so a control of the wrapper's sockets keeps its runtime directory somewhere short and asks for this cleanup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// trackForThisThread(runtimeDirectory) // removed with the thread's fixtures
+/// ```
+pub(crate) fn track_for_this_thread(root: &Path) {
+    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(root.to_path_buf()); });
+}
+
+/// What:
 ///  Move a path's modification time two minutes into the past without following a symbolic link.
 /// Why:
 ///   An index entry whose file is as new as the index file proves nothing by its stat fields (Git hashes it again),
 /// so a
-///  control that needs a provably clean worktree ages its files before the index records them.
+///  control that needs a provably clean worktree ages its files before the index records them,
+/// and one that needs an entry the index cannot vouch for ages the index file instead.
 pub(crate) fn age(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
     let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
@@ -314,8 +353,10 @@ pub(crate) fn age(path: &Path) {
     assert_eq!(result, 0, "age {}", path.display());
 }
 
-/// Remove only the fixture directory a test created.
+/// Remove only the fixture directory a test created,
+/// giving this user back the permission on any directory of it that a test closed.
 pub(crate) fn remove(root: &Path) {
+    restore_owner_access(root);
     std::fs::remove_dir_all(root).expect("remove only the fixture");
 }
 
@@ -400,6 +441,13 @@ mod test_alive;
 
 #[cfg(unix)]
 pub(crate) use test_alive::{end_processes_working_in, while_test_lives};
+
+/// The bounds a control's wait and its timed step give up under,
+/// in a file of their own.
+#[path = "test_support_wait_bounds.rs"]
+mod test_support_wait_bounds;
+
+pub(crate) use test_support_wait_bounds::{STILL_WORKING_WINDOW, WAIT_LOOK_EVERY, WaitingFor, finished_within, finished_within_at, wait_until, wait_until_for};
 
 /// What:
 ///  Variables that isolate a Git child started through the production runners from the
@@ -501,95 +549,6 @@ pub(crate) fn strip_hint_fields(text: &str) -> String {
         rest = format!("{}{}", &rest[..start], &rest[end + 1..]);
     }
     return rest;
-}
-
-/// How long a control's wait lets the run show nothing before it counts the event it waits for as lost.
-/// Why:
-///   A wall clock cannot tell a service that lost its work from one whose push is slow on a contended disk.
-/// Measured on 2026-11-09 in the push-retry controls of this crate while the host ran at a load average of 100 and more:
-/// a local one-commit push took 9.6 s and 12.0 s (`push_ms=9605`,
-/// `push_ms=12009`) against 1.2 to 3 s alone,
-/// and controls whose wait allowed 11.8 s failed while the push went on to land just after it.
-/// The judgment is the watchdog's own (`run_progress`),
-/// whose window is 120 s on the same evidence
-/// (`QUIET_WINDOW` in `testing/test_support.rs`:
-/// the longest stretch a working run showed nothing was 8.0 s);
-/// this window is half of it,
-/// so a control's own report reaches the reader before the watchdog ends the run.
-pub(crate) const STILL_WORKING_WINDOW: std::time::Duration = std::time::Duration::from_secs(60);
-
-/// How often a control's wait looks for its event and at the run's own work.
-pub(crate) const WAIT_LOOK_EVERY: std::time::Duration = std::time::Duration::from_millis(50);
-
-/// What:
-///  One wait and how long it lets the run show nothing.
-/// Why:
-///   The controls wait for their events with `STILL_WORKING_WINDOW`,
-/// and their own controls wait with a window they can reach in a moment.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WaitingFor = { window: Duration; done: () => boolean };
-/// ```
-pub(crate) struct WaitingFor<'a> {
-    /// How long nothing may move before the event counts as lost.
-    pub(crate) window: std::time::Duration,
-    /// Whether the event the wait is for has happened.
-    pub(crate) done: &'a dyn Fn() -> bool,
-}
-
-/// What:
-///  Wait until `done` holds,
-/// for as long as the run keeps working,
-/// and give whether it held.
-/// Why:
-///   A control's event (a push that lands,
-/// a claim that is settled) takes as long as the disk takes,
-/// and a wait that gives up on a clock fails while the event is still coming.
-/// Only a run that shows no sign of work is over:
-/// the wait ends when the run has moved nothing for its window,
-/// which is the evidence the watchdog judges,
-/// so a slow push is waited for and a plan that was lost fails.
-/// A run that keeps working for ever is ended by the test runner's own per-test limit
-/// (`.config/nextest.toml`,
-/// `slow-timeout` 60 s times `terminate-after` 5),
-/// so nothing waits without a bound.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const waitUntil = (done) => waitUntilFor({ window: STILL_WORKING_WINDOW, done });
-/// ```
-pub(crate) fn wait_until(done: &dyn Fn() -> bool) -> bool {
-    return wait_until_for(WaitingFor { window: STILL_WORKING_WINDOW, done });
-}
-
-/// `wait_until` with the window given.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function waitUntilFor({ window, done }: WaitingFor): boolean {
-///     using reading = Reading.begin(); // this thread's own looks are not the run's work
-///     ...
-/// }
-/// ```
-pub(crate) fn wait_until_for(waiting: WaitingFor<'_>) -> bool {
-    let WaitingFor { window, done } = waiting;
-    // This thread reads the run at every look: registered for the whole wait, so no look taken meanwhile counts its readings,
-    //  while the work its predicate does on this thread is still counted (`run_progress::look`).
-    let _reading: Option<crate::run_progress::Reading> = crate::run_progress::Reading::begin();
-    let mut judge: crate::run_progress::Judge = crate::run_progress::Judge::new(window);
-    let began: std::time::Instant = std::time::Instant::now();
-    loop {
-        if done() {
-            return true;
-        }
-        std::thread::sleep(WAIT_LOOK_EVERY);
-        // The look is taken after the wait for the event, so a run that stopped working while the event was checked is still seen to have moved.
-        if let Some(ending) = judge.observe(began.elapsed(), crate::run_progress::look_now()) {
-            eprintln!("a control's wait gave up after {:.1} s because the run {ending}", began.elapsed().as_secs_f64());
-            return done();
-        }
-    }
 }
 
 /// What:
