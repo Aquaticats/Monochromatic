@@ -13,13 +13,19 @@
 /// Import the classification under test and shared fixtures.
 use super::{
     EffectiveTarget, ToolCacheDirectory, cargo_build_script_output_dir, classify_effective_target,
-    default_allowed_worktree_dirs, is_allowed_worktree_dir, matching_allowed_worktree_dir,
+    default_allowed_worktree_dirs, matching_allowed_worktree_dir,
     matching_allowed_worktree_dir_for_repository, mise_data_dir, uv_cache_dir,
 };
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+
+/// One path's whole-segment answer,
+///  the question each path of a repository is asked.
+fn allowed(candidate: &Path, allowed_dirs: &[ToolCacheDirectory]) -> bool {
+    return matching_allowed_worktree_dir(&[candidate], allowed_dirs).is_some();
+}
 
 /// One uv or mise directory as the variable named it.
 fn named(path: &str, named_by: &'static str) -> Option<ToolCacheDirectory> {
@@ -229,13 +235,13 @@ fn allowlist_matches_whole_segments_through_links() {
         (root.clone(), false),
     ] {
         assert_eq!(
-            is_allowed_worktree_dir(candidate.as_path(), through_link.as_slice()),
+            allowed(candidate.as_path(), through_link.as_slice()),
             expected,
             "{candidate:?}"
         );
     }
-    assert!(!is_allowed_worktree_dir(cache.as_path(), &[]));
-    assert!(!is_allowed_worktree_dir(
+    assert!(!allowed(cache.as_path(), &[]));
+    assert!(!allowed(
         cache.as_path(),
         &[ToolCacheDirectory {
             path: root.join("missing"),

@@ -271,19 +271,6 @@ pub fn default_allowed_worktree_dirs(
 }
 
 /// What:
-///  Report whether the canonical `candidate` lies inside any allowed directory.
-/// Why:
-///   A caller that asks about one path still gets the whole-segment answer the repository question uses.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function isAllowedWorktreeDir(candidate: string, allowedDirs: string[]): Promise<boolean>;
-/// ```
-pub fn is_allowed_worktree_dir(candidate: &Path, allowed_dirs: &[ToolCacheDirectory]) -> bool {
-    return matching_allowed_worktree_dir(&[candidate], allowed_dirs).is_some();
-}
-
-/// What:
 ///  The first allowed directory that holds every one of `candidates`,
 /// with the variable that named it.
 /// Why:

@@ -71,8 +71,8 @@ use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteWrite};
 use crate::rule_shared_remote_messages::shared_remote_settings_message;
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
-/// The Git directories of an identity,
-///  for naming the exempted directory and the file every worktree shares.
+/// The common Git directory,
+///  for naming the file every worktree shares.
 use crate::worktree_identity::common_directory;
 /// The tokens after the subcommand word.
 use crate::global_arguments::command_tokens;
