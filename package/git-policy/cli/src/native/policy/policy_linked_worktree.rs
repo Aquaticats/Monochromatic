@@ -29,9 +29,7 @@
 /// ```ts
 /// import { dirtyQuestion, targetTree } from '../command/rule_linked_worktree.ts';
 /// ```
-use crate::command_clean::{
-    clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions, paths_only_the_exclusions_add,
-};
+use crate::command_clean::{clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions, paths_only_the_exclusions_add};
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
 use crate::effective_target::{
@@ -70,6 +68,9 @@ use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteWrite};
 use crate::rule_shared_remote_messages::shared_remote_settings_message;
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
+/// The one place a form is let through,
+/// which keeps a clean's nested repositories first.
+use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
 /// The Git directories of an identity,
 ///  for naming the exempted directory and the file every worktree shares.
 use crate::worktree_identity::{common_directory, git_directory};
@@ -79,13 +80,6 @@ use crate::global_arguments::command_tokens;
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
 use std::path::{Path, PathBuf};
-
-/// The clock reading the conflict copies are named with,
-/// in milliseconds since the Unix epoch.
-fn now_milliseconds() -> i64 {
-    let elapsed: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-    return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
-}
 
 /// What:
 ///  The refusal of a command that would change the remote settings every worktree of the
@@ -302,8 +296,16 @@ pub(crate) fn check_linked_worktree(
     // A form that loses nothing this policy protects leaves its one line and runs: an ignored file is not a reason
     //  to refuse a clean in a linked worktree (the owner's answer of 2026-11-10, "Allow and log").
     let Some(question) = asked else {
-        record_audit(&location.identity, command, AuditOutcome::Allowed, seen, None);
-        return clean();
+        return allow_a_discarding_form(AllowedForm {
+            facts,
+            command,
+            location: &location,
+            region,
+            seen,
+            dirty: None,
+            discarded_limits,
+            notices,
+        });
     };
     let tree: Option<TargetTree> = target_tree(command, region);
     // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
@@ -349,8 +351,16 @@ pub(crate) fn check_linked_worktree(
                     );
                 }
             }
-            record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
-            return clean();
+            return allow_a_discarding_form(AllowedForm {
+                facts,
+                command,
+                location: &location,
+                region,
+                seen,
+                dirty: Some(false),
+                discarded_limits,
+                notices,
+            });
         }
         Err(message) => return fact_unavailable(message),
     }
