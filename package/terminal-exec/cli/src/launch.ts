@@ -20,6 +20,11 @@ export { buildCommand, } from './build-command.ts';
 export { parseConfigFiles, } from './config.ts';
 export { expandEscapes, } from './desktop-entry-types.ts';
 export { stripTrailingSlashes, } from './xdg-paths.ts';
+export {
+  EXECUTABLE_NOT_ON_PATH,
+  type ExecutableAccess,
+  which,
+} from './which.ts';
 
 /**
  Logger root for terminal-exec after removing the package log shim.

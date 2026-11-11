@@ -66,37 +66,37 @@ clamp count) while decoding no more than a quarter of the library's seconds
 
 ## Plan (task list mirrors this)
 
-1. Reproduce ledger baseline with bench + an offline simulator (parity check),
-   and compute the baseline average-quiet measure.
-2. Tail anatomy:
-    around each track's crest bin,
-    does loudness decay slowly enough
-   that heard neighbors betray the unheard crest?
-    Especially for the 43 clamp-tail
-   tracks.
-    Decides whether adaptive zoom can work.
-3. Simulate adaptive two-pass (uniform then zoom),
-    position priors,
-    full-budget
-   (25% vs shipped 21%) reallocation,
-    per-provenance margins.
-4. Album prior:
-    parent-dir grouping,
-    within-album crest spread,
-    album-max capping.
-5. Encoding bones:
-    parse Ogg packet sizes / m4a stsz / flac+mp3 frame sizes (no
-   decode;
-    free under the letter's law) into per-time byte-rate profiles;
-    test
-   whether they locate crests;
-    simulate profile-guided probes.
-6. Compose final policy,
-    verify budget,
-    wire committed evaluation into
-   truepeak-core.bench on the branch.
-7. Write the answer doc under `doc/audit/`,
-    same register as the letter.
+1.  Reproduce ledger baseline with bench + an offline simulator (parity check),
+    and compute the baseline average-quiet measure.
+2.  Tail anatomy:
+     around each track's crest bin,
+     does loudness decay slowly enough
+    that heard neighbors betray the unheard crest?
+     Especially for the 43 clamp-tail
+    tracks.
+     Decides whether adaptive zoom can work.
+3.  Simulate adaptive two-pass (uniform then zoom),
+     position priors,
+     full-budget
+    (25% vs shipped 21%) reallocation,
+     per-provenance margins.
+4.  Album prior:
+     parent-dir grouping,
+     within-album crest spread,
+     album-max capping.
+5.  Encoding bones:
+     parse Ogg packet sizes / m4a stsz / flac+mp3 frame sizes (no
+    decode;
+     free under the letter's law) into per-time byte-rate profiles;
+     test
+    whether they locate crests;
+     simulate profile-guided probes.
+6.  Compose final policy,
+     verify budget,
+     wire committed evaluation into
+    truepeak-core.bench on the branch.
+7.  Write the answer doc under `doc/audit/`,
+     same register as the letter.
 
 ## Status: reopened for the bucket round (user pushback), then re-close
 

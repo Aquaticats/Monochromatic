@@ -209,6 +209,18 @@ fn unsure_way_on(program: &UnsureProgram, own_units: &str, shared_units: &str, a
 /// const programSentences = (holding: Holding): string => holding.program ? `That program is process ...` : ''
 /// ```
 fn program_sentences(holding: &Holding) -> String {
+    return format!("{}{}", unsure_program_sentences(holding), unreadable_process_sentences(holding));
+}
+
+/// What:
+///  The sentences that name the program behind a hold whose folder this check could not resolve,
+/// or nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unsureProgramSentences = (holding: Holding): string => holding.program ? `That program is process ...` : ''
+/// ```
+fn unsure_program_sentences(holding: &Holding) -> String {
     let Some(program) = holding.program.as_ref() else {
         return String::new();
     };
@@ -218,6 +230,37 @@ fn program_sentences(holding: &Holding) -> String {
     return format!(
         " That program is process {pid}, running `{}` (its other arguments are not shown, because any of them can be a secret). This check looked up the folder its `--journal` option names, `{folder}`{relative}, and the system answered: {}. A folder that cannot be looked up cannot be compared with this worktree's earlier journals, so process {pid} cannot be ruled out as the earlier commit service of this worktree, and an unrelated program that takes a `--journal` option looks the same. It is the first such program this check found; another may be named once it is gone.",
         program.program, program.reason
+    );
+}
+
+/// What:
+///  The sentences that name the process whose command line this check could not read,
+/// its name as the kernel keeps it,
+/// what the kernel answered,
+/// and the two ways past it,
+/// or nothing when no such process stopped the look.
+/// Why:
+///   A process nobody may read cannot be ruled out as the earlier commit service,
+/// so the command refuses;
+/// its reason
+///  otherwise says only that a look ran out of time,
+/// which no one can clear.
+/// The name is the kernel's own (`/proc/<pid>/comm`),
+/// never a word of its command line,
+///  because any of those can be a secret.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unreadableProcessSentences = (holding: Holding): string => holding.unreadable ? `This check could not read ...` : ''
+/// ```
+fn unreadable_process_sentences(holding: &Holding) -> String {
+    let Some(unreadable) = holding.unreadable.as_ref() else {
+        return String::new();
+    };
+    let pid: u32 = unreadable.pid;
+    return format!(
+        " This check could not read the command line of process {pid}, which the kernel calls `{}`, and the system answered: {}. A process whose arguments cannot be read cannot be compared with this worktree's earlier journals, so process {pid} cannot be ruled out as the earlier commit service of this worktree. To go on, wait for process {pid} to end, or stop it yourself if it is yours to stop, and run `{COMMAND}` again. It is the first such process this check found; another may be named once it is gone.",
+        unreadable.program, unreadable.reason
     );
 }
 
@@ -278,6 +321,7 @@ fn line_of(batch: &SettledBatch) -> String {
         Handled::StillOpen => format!("left open batch {seq} in {journal}: the index lock is held or a record cannot be read; run the command again\n"),
         Handled::Left => format!("left on disk batch {seq} in {journal}: its branch does not show it as landed, and a landing in progress writes its intent first, so the earlier helper settles it at its own start\n"),
         Handled::Dropped => format!("dropped the intent of batch {seq} in {journal}\n"),
+        Handled::Held => format!("left batch {seq} in {journal} held behind a reference lock: its branch has not moved, and the next command that finds the lock gone moves it\n"),
     };
 }
 

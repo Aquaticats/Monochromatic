@@ -39,28 +39,84 @@ type CommandTokensResult = CommandTokens | typeof COMMAND_TOKENS_MISSING;
 //region Cursor scanners
 
 /**
- Finds wrapped command cursor for `env` arguments.
+ How one wrapper lays out its own arguments before the command it wraps.
+ */
+type WrapperArgumentGrammar = Readonly<{
+  /**
+   Options of this wrapper that consume the token after them.
+   */
+  optionsWithArgument: ReadonlySet<string>;
+
+  /**
+   Whether a `NAME=value` assignment may stand before the command.
+   */
+  skipsAssignments?: boolean;
+
+  /**
+   Whether one bare value, such as a duration, stands before the command.
+   */
+  skipsValue?: boolean;
+}>;
+
+/**
+ The wrapper commands whose own arguments this module walks past, and how.
+ */
+const WRAPPER_ARGUMENT_GRAMMARS: ReadonlyMap<string, WrapperArgumentGrammar> = new Map([
+  [
+    'env',
+    {
+      optionsWithArgument: ENV_OPTIONS_WITH_ARGUMENT,
+      skipsAssignments: true,
+    },
+  ],
+  [
+    'nice',
+    {
+      optionsWithArgument: NICE_OPTIONS_WITH_ARGUMENT,
+    },
+  ],
+  [
+    'timeout',
+    {
+      optionsWithArgument: TIMEOUT_OPTIONS_WITH_ARGUMENT,
+      skipsValue: true,
+    },
+  ],
+],);
+
+/**
+ Finds the cursor of the command a wrapper runs.
  
- @param args - because env accepts options and assignments before command
+ @param args - because a wrapper's own options, assignments and values precede its command
+ 
+ @param grammar - because each wrapper declares which arguments are its own
  
  @returns cursor for wrapped command or sentinel when absent
  */
-function envWrappedCursor(args: readonly string[],): number | typeof COMMAND_TOKENS_MISSING {
+function wrappedCursor(
+  {
+    args,
+    grammar,
+  }: Readonly<{
+    args: readonly string[];
+    grammar: WrapperArgumentGrammar;
+  }>,
+): number | typeof COMMAND_TOKENS_MISSING {
   {
     /**
-     Cursor over env arguments before wrapped command.
+     Cursor over the wrapper's own arguments before the wrapped command.
      */
     let cursor = 0;
     while (cursor
       < args.length)
       {
       /**
-       Current env argument token.
+       Current wrapper argument token.
        */
       const token = args[cursor];
       if (token === undefined)
         return COMMAND_TOKENS_MISSING;
-      if (isAssignmentToken(token,)) {
+      if ((grammar.skipsAssignments === true) && isAssignmentToken(token,)) {
         cursor += 1;
         continue;
       }
@@ -68,83 +124,14 @@ function envWrappedCursor(args: readonly string[],): number | typeof COMMAND_TOK
         cursor = skipWrapperOption({
           args,
           cursor,
-          optionsWithArgument: ENV_OPTIONS_WITH_ARGUMENT,
+          optionsWithArgument: grammar.optionsWithArgument,
         },);
         continue;
       }
+      if (grammar.skipsValue
+        === true)
+        return cursor + 1;
       return cursor;
-    }
-  }
-  return COMMAND_TOKENS_MISSING;
-}
-
-/**
- Finds wrapped command cursor for `nice` arguments.
- 
- @param args - because nice accepts options before command
- 
- @returns cursor for wrapped command or sentinel when absent
- */
-function niceWrappedCursor(args: readonly string[],): number | typeof COMMAND_TOKENS_MISSING {
-  {
-    /**
-     Cursor over nice arguments before wrapped command.
-     */
-    let cursor = 0;
-    while (cursor
-      < args.length)
-      {
-      /**
-       Current nice argument token.
-       */
-      const token = args[cursor];
-      if (token === undefined)
-        return COMMAND_TOKENS_MISSING;
-      if (token.startsWith('-',)) {
-        cursor = skipWrapperOption({
-          args,
-          cursor,
-          optionsWithArgument: NICE_OPTIONS_WITH_ARGUMENT,
-        },);
-        continue;
-      }
-      return cursor;
-    }
-  }
-  return COMMAND_TOKENS_MISSING;
-}
-
-/**
- Finds wrapped command cursor for `timeout` arguments.
- 
- @param args - because timeout accepts options and one duration before command
- 
- @returns cursor for wrapped command or sentinel when absent
- */
-function timeoutWrappedCursor(args: readonly string[],): number | typeof COMMAND_TOKENS_MISSING {
-  {
-    /**
-     Cursor over timeout options and duration.
-     */
-    let cursor = 0;
-    while (cursor
-      < args.length)
-      {
-      /**
-       Current timeout argument token.
-       */
-      const token = args[cursor];
-      if (token === undefined)
-        return COMMAND_TOKENS_MISSING;
-      if (token.startsWith('-',)) {
-        cursor = skipWrapperOption({
-          args,
-          cursor,
-          optionsWithArgument: TIMEOUT_OPTIONS_WITH_ARGUMENT,
-        },);
-        continue;
-      }
-      return cursor + 1;
     }
   }
   return COMMAND_TOKENS_MISSING;
@@ -188,25 +175,24 @@ function tokensFromCursor(
  @returns wrapped command tokens or sentinel when tokens are not a wrapper
  */
 function unwrapWrapper(tokens: CommandTokens,): CommandTokensResult {
-  if (tokens.name === 'env') {
+  /**
+   Grammar of this wrapper's own arguments, when this module walks past them.
+   */
+  const grammar = WRAPPER_ARGUMENT_GRAMMARS.get(tokens.name,);
+  if (grammar !== undefined) {
     return tokensFromCursor({
       args: tokens.args,
-      cursor: envWrappedCursor(tokens.args,),
-    },);
-  }
-  if (tokens.name === 'nice') {
-    return tokensFromCursor({
-      args: tokens.args,
-      cursor: niceWrappedCursor(tokens.args,),
-    },);
-  }
-  if (tokens.name === 'timeout') {
-    return tokensFromCursor({
-      args: tokens.args,
-      cursor: timeoutWrappedCursor(tokens.args,),
+      cursor: wrappedCursor({
+        args: tokens.args,
+        grammar,
+      },),
     },);
   }
   if (tokens.name === 'nohup') {
+    /**
+     `nohup` takes only `--help` and `--version`,
+     so the command it runs starts at the first token whatever that token is.
+     */
     return wrappedTokensFromArgs({
       args: tokens.args,
       cursor: 0,

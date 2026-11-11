@@ -46,11 +46,21 @@ pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>)
     for report in &reports {
         log_entry(
             Priority::Warning,
-            format!("settled the batch an earlier service left open batch={} decision={}", report.seq, if report.decision == Recovery::Finish { "finish" } else { "drop" }).as_str(),
+            format!("settled the batch an earlier service left open batch={} decision={}", report.seq, decision_word(report.decision)).as_str(),
             &[("CLI_GIT_BATCH", report.seq.to_string())],
         );
     }
     return reports;
+}
+
+/// The word a settled batch is logged with,
+/// so the record says which decision was made and not only that one was.
+fn decision_word(decision: Recovery) -> &'static str {
+    return match decision {
+        Recovery::Finish => "finish",
+        Recovery::Drop => "drop",
+        Recovery::Hold => "hold",
+    };
 }
 
 /// What:
@@ -207,6 +217,11 @@ pub(crate) fn land_group(
         requests.push((**request).clone());
     }
     let announce: AnnounceToStreams<'_> = AnnounceToStreams { fresh: fresh.as_slice() };
+    // The next commit in this worktree takes a finished private repository instead of making one. The fill runs beside this
+    //  landing, on the service's own workers, so the commit that waits for the answer below pays nothing for it.
+    if let Some(first) = requests.first() {
+        crate::service_shadow_pool_fill::start(&context.git, first);
+    }
     let mut landing: LandTiming = LandTiming::default();
     let landing_began: Instant = Instant::now();
     let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
@@ -257,6 +272,12 @@ pub(crate) fn land_group(
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false, landing: Some(landing_figures_of(&times)) });
                         "landed"
+                    }
+                    Outcome::Held { commit, words } => {
+                        // The commit is written and kept, and its branch has not moved: the client exits 0 and says what the
+                        //  record says, and no push is held for a commit no branch names yet.
+                        stream.send(&ServiceMessage::Held { id: request.id.clone(), commit, words });
+                        "held"
                     }
                     Outcome::RetryPrepare { base } => {
                         let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());

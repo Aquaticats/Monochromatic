@@ -70,57 +70,24 @@ pub const START_CEILING: Duration = Duration::from_secs(60);
 /// 0.64 s in all
 ///  (the look itself starts no process,
 /// so it is faster).
-/// Ten seconds is 15 times that and well below `START_CEILING`.
+/// Read again on 2026-11-10 as the look itself makes it,
+/// with the host's load average at 56 of 8 threads:
+/// 40 samples of the socket table,
+/// the process table and one read of every command line of the user's 617 to 625 processes
+/// (1,336 processes of all users were listed),
+/// 23.0 ms at the median,
+/// 43.0 ms at the 90th percentile and 54.1 ms at the slowest;
+/// the command-line reads took 16.9 ms at the median and 35.7 ms at the slowest,
+/// and the socket table 3.5 to 6.2 ms.
+/// The slowest read of one process took 6.4 ms.
+/// Ten seconds is 185 times the slowest whole look read here:
+/// it is the bound a read that waits for a process stuck in the kernel needs,
+/// never what an ordinary look costs.
+/// What does not end at this bound is a command line the look cannot prove:
+/// `landing/earlier_service_process_look.rs` reads up to the kernel's own ceiling on a command line,
+/// and a process it may not read at all holds the look back until that process ends
+/// (`doc/troubleshooting/cli-git-settle-look-could-not-prove-a-process.md`).
 pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
-
-/// The ten minutes the foreign-owner patience of another PID namespace is derived from (`process/pid_namespace.rs`:
-///  `FOREIGN_OWNER_PATIENCE`,
-/// twice this).
-/// No wait takes it any more:
-/// the landing,
-/// the merge,
-/// the settling of earlier batches and the
-///  index reconciliation each take their own measured ceiling above.
-///  Measured on 2026-11-08 from this repository's commit timing log (`monochromatic-git-policy-cli-commit-timing.jsonl`
-/// and its one rotated generation,
-/// 1,332 records,
-/// 2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z,
-/// releases 0.5.34 to 0.6.1-alpha.4,
-/// 102
-///  worktrees):
-/// six records hold a waiting notice for another program's hold on the index.
-/// Two of them landed after 3,636
-///  and 23,783 ms of answer time;
-/// the other four are the commits that met the lock that never went on 2026-11-07,
-/// each
-///  with 62 notices and no holder proven alive,
-/// and they stopped after 644,710,
-/// 756,215,
-/// 1,087,175 and 1,200,776 ms.
-/// No wait that a holder released came near the ten minutes,
-/// and the longest of the four stopped ones is 776 ms past the client's
-///  twenty-minute `ANSWER_CEILING`,
-/// which is what bounds the whole wait rather than any one step of it.
-/// The value stays where it is because another change owns the patience it feeds,
-/// and that patience's stated basis (twice the longest a
-///  merge waits) no longer holds now that the merge waits `MERGE_LOCK_CEILING`
-/// (`doc/planning/cli-git-shipped-limits-audit.md`,
-/// "The lock ceiling and the three waits it fed").
-/// Read again on 2026-11-08T18:43-05:00 with the service journal beside the log
-/// (both generations of the timing log,
-/// 1,608 records to 2026-11-08T23:49:56Z,
-/// and the journal's 4,386 `answered` lines,
-/// 2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00):
-/// 609 of those landings waited on the index at all (95th percentile 6 ms,
-/// 99th percentile 158 ms),
-/// 71 waited on the holder's place at all,
-/// and the longest wait on a lock is 11,490 ms counted with the wrapper's own staging
-/// and 8,000 ms at the place.
-/// So the ten minutes is 52 times the longest of them,
-/// and no wait takes it.
-/// The table is in `doc/planning/cli-git-shipped-limits-audit.md`,
-/// "The lock ceilings' waits read again from the service journal".
-pub const LOCK_CEILING: Duration = Duration::from_secs(10 * 60);
 
 /// The longest wait for a foreign program's `index.lock` that ended because the program let go,
 /// in the commit service's journal.
@@ -172,8 +139,8 @@ const fn whole_minutes_at_least(wait: Duration) -> Duration {
 ///  self-released wait with a margin of five,
 /// in whole minutes (40 s,
 /// so one minute).
-/// It replaces the ten minutes of `LOCK_CEILING`,
-///  which was unmeasured and let four queued commits wait 678 to 1,229 s each on 2026-11-07.
+/// It replaces an unmeasured ten minutes,
+///  which let four queued commits wait 678 to 1,229 s each on 2026-11-07.
 /// After a wait this long the commit is
 ///  withdrawn,
 /// kept on a side ref,
@@ -185,7 +152,7 @@ const fn whole_minutes_at_least(wait: Duration) -> Duration {
 /// ten waits on one host,
 /// and a person's own
 ///  `git commit` with an editor open longer than this makes the wrapper's commit stop where native Git would have stopped at once.
-/// Read again on 2026-11-08T18:43-05:00 (see `LOCK_CEILING`):
+/// Read again on 2026-11-08T18:43-05:00 (see `LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`):
 /// of the journal's 4,386 landings,
 /// 20 waited more than a second on the index.
 /// Fourteen of them landed
@@ -381,7 +348,7 @@ pub const SERVICE_HOLD_CEILING: Duration = Duration::from_secs(10 * 60);
 /// The longest a client waits for the service to answer a withdrawal of its request.
 /// The service answers it as soon as the landing
 ///  it is in the middle of ends,
-/// which `LOCK_CEILING` and the step bounds limit;
+/// which the landing's ceiling and the step bounds limit;
 /// the number is the longest observed landing
 ///  (journal `landing_ms` 119,836 ms) with the same margin of five.
 pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
@@ -452,6 +419,33 @@ pub const OBJECT_STEP_CEILING: Duration = Duration::from_secs(10 * 60);
 ///  to 2026-11-04T09:11:09-05:00) took 3,438 ms (99th percentile 47 ms);
 /// one minute is 17 times the longest.
 pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
+
+/// The longest the after-commit work waits for one step that reads or writes state which is not a Git command:
+/// the plan of the pushes waiting for a new try,
+/// the applied changes of a round,
+/// the note of a repository to look at when the service starts again,
+/// and the common directory that names a round's lane.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a step can wait in the kernel with no end on a filesystem that stopped answering,
+/// so the wait is bounded and the work is planned again by the next round.
+/// No measurement fixes the value:
+/// it is the wait a client's own start is granted (`START_CEILING`),
+/// because a state step that outlasts it is one the round after it serves better.
+pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
+
+/// The longest a landing's own state step waits:
+/// the read of a worktree's `HEAD` file and of the `commondir` that proves the directory is that
+///  worktree's,
+/// which `landing/service_head.rs` reads as a job of the blocking pool.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a read waits in the kernel on a mount that stopped answering,
+/// so the wait is bounded and a read that gives no answer is reported through Git's own answer.
+/// No measurement fixes the value:
+/// it is `START_CEILING`,
+/// the wait a state step of the after-commit work is granted (`AFTER_COMMIT_STATE_CEILING`),
+/// because both are the same kind of read and a step that outlasts either is one the answer Git
+///  gives serves better.
+pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
 /// `cargo metadata`,

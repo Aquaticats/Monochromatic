@@ -36,7 +36,7 @@ pub const DONE_EXTENSION: &str = "done";
 
 /// Extension of a file being written;
 /// never read as an intent.
-const TEMPORARY_EXTENSION: &str = "tmp";
+pub const TEMPORARY_EXTENSION: &str = "tmp";
 
 /// Extension of the empty file that holds a batch number for the service landing it,
 /// from the moment the number is taken until
@@ -72,6 +72,11 @@ pub enum Recovery {
     /// The batch never landed;
     /// forget the intent.
     Drop,
+    /// A reference lock keeps the batch off its branch,
+    /// and its record says so:
+    /// nothing is decided about it until the lock goes
+    /// (`held_commit_settle.rs`).
+    Hold,
     /// The batch landed;
     /// make sure the index shows it,
     /// then remember the identities.

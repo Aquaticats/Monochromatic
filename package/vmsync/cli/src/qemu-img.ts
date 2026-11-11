@@ -15,6 +15,8 @@ import type {
   QemuMapRegion,
 } from './types.ts';
 
+//region Logger root
+
 /**
  Logger root for vmsync after removing the package log shim.
  
@@ -24,6 +26,10 @@ import type {
  ```
  */
 const l = tagged({ tag: 'vmsync', },);
+
+//endregion Logger root
+
+//region Image inspection
 
 /**
  Retrieves format and geometry information for a disk image.
@@ -65,6 +71,10 @@ export async function imageInfo(imagePath: string,): Promise<QemuImgInfo> {
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- trusted qemu-img JSON output
   return JSON.parse(raw,) as QemuImgInfo;
 }
+
+//endregion Image inspection
+
+//region Format conversion
 
 /**
  Converts a disk image between formats.
@@ -127,6 +137,10 @@ export async function convert(
 
   rl.info('conversion complete',);
 }
+
+//endregion Format conversion
+
+//region Overlay chain
 
 /**
  Creates a qcow2 overlay backed by an existing base image.
@@ -280,6 +294,10 @@ export async function commitOverlay(overlayPath: string,): Promise<void> {
   rl.info('overlay committed',);
 }
 
+//endregion Overlay chain
+
+//region Leading whitespace scan
+
 /**
  Locates the exclusive end of the leading non-whitespace run in `text`.
  
@@ -314,6 +332,10 @@ export function firstWhitespaceIndex(text: string,): number {
   }
   return cursor;
 }
+
+//endregion Leading whitespace scan
+
+//region Checksums
 
 /**
  Computes the SHA-256 checksum of a disk image file.
@@ -378,3 +400,5 @@ export async function checksum(imagePath: string,): Promise<string> {
   );
   return `sha256:${hash}`;
 }
+
+//endregion Checksums

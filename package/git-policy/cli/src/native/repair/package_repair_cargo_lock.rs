@@ -4,8 +4,12 @@
 //!  A clean may rewrite the lock file,
 //! and a new worktree must stay as checked out;
 //! the two steps need nothing from
-//!  the repair itself,
-//! so they live in a file of their own that `package_repair_cargo.rs` imports.
+//!  either clean,
+//! so they live in a file of their own that both import:
+//! `package_repair_cargo.rs`,
+//! which cleans what the worktree already has,
+//! and `package_repair_prewarm_job.rs`,
+//! which cleans the copy the commit service fills a build directory from after the add returns.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

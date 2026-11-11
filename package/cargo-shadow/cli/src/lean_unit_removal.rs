@@ -33,7 +33,7 @@ use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
 /// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::{Deadline, Identity};
 /// Imports the names this file uses from `crate::lean_removal`.
-use crate::lean_removal::{Item, TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of};
+use crate::lean_removal::{Item, Refusal, TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of, modes_named};
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::add_tree_bytes;
 /// Imports the names this file uses from `crate::lean_unit_reader`.
@@ -125,19 +125,35 @@ fn bytes_of_removals(removals: &Removals, deadline: &Deadline) -> u64 {
     return bytes;
 }
 
+/// One path of a unit that was claimed into the trash,
+/// and what the run says about it.
+struct Claimed {
+    /// Where it now is.
+    target: PathBuf,
+    /// What it was when it was judged.
+    identity: Identity,
+    /// What the removal line says before the deletion adds the mode clause,
+    /// held by the first path of a unit;
+    /// the other paths of the same unit are covered by that one line.
+    line: Option<String>,
+}
+
 /// What:
-/// `fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut ProfileOutcome, log: &mut Vec<String>) -> Vec<(PathBuf, Identity)>`
+/// `fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut ProfileOutcome, log: &mut Vec<String>) -> Vec<Claimed>`
 /// moves every unit and incremental directory of the decision into the trash while the locks are held.
 /// Why:
 /// A unit with a path a process is using is kept whole.
 /// A path that changed identity ends that unit and is reported.
+/// The removal's proof line is written once the entry is deleted,
+/// so it can say that a mode was changed,
+/// as it says which locks were taken.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function claimAll(guarded: Guarded, removals: Removals, trash: string, outcome: ProfileOutcome, log: string[]): Claimed[]
 /// ```
-fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut ProfileOutcome, log: &mut Vec<String>) -> Vec<(PathBuf, Identity)> {
-    let mut claimed: Vec<(PathBuf, Identity)> = Vec::new();
+fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut ProfileOutcome, log: &mut Vec<String>) -> Vec<Claimed> {
+    let mut claimed: Vec<Claimed> = Vec::new();
     let mut serial: u64 = 0;
     for unit in &removals.units {
         let items: Vec<Item> = items_of_unit(unit);
@@ -167,17 +183,28 @@ fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut
         }
         if !failed {
             outcome.units += 1;
-            emit(log, format!(
-                "removing unit {} ({} paths, compiler {}, last invoked {}): {}; proof: {}",
+            let description: String = format!(
+                "removed unit {} ({} paths, compiler {}, last invoked {}): {}; proof: {}",
                 unit.label,
                 moved.len(),
                 unit.compiler,
                 unit.invoked,
                 removals.reason,
                 guarded.proof
-            ));
+            );
+            match moved.split_first() {
+                Some((first, rest)) => {
+                    claimed.push(Claimed { target: first.0.clone(), identity: first.1, line: Some(description) });
+                    for (target, identity) in rest {
+                        claimed.push(Claimed { target: target.clone(), identity: *identity, line: None });
+                    }
+                }
+                // A unit whose paths are all gone already holds nothing to delete, so its line has no deletion to add to.
+                None => emit(log, description),
+            }
         }
-        claimed.extend(moved);
+        // A unit that failed half way leaves what moved in the trash for the next run's sweep to finish,
+        // and the refusal above already named it.
     }
     for directory in &removals.incremental {
         if let Some(used) = guarded.scan.blocks(&directory.path) {
@@ -190,8 +217,11 @@ fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut
             Ok(item) => match claim_into_trash(&item, trash, serial) {
                 Ok(target) => {
                     outcome.incremental += 1;
-                    emit(log, format!("removing incremental directory {} (modified {}): {}; proof: {}", directory.path.display(), directory.modified, removals.reason, guarded.proof));
-                    claimed.push((target, item.identity));
+                    claimed.push(Claimed {
+                        target,
+                        identity: item.identity,
+                        line: Some(format!("removed incremental directory {} (modified {}): {}; proof: {}", directory.path.display(), directory.modified, removals.reason, guarded.proof)),
+                    });
                 }
                 Err(refusal) => outcome.refusals.push(format!("incremental {}: {refusal}", directory.path.display())),
             },
@@ -254,13 +284,38 @@ pub fn apply_removals(
         }
     };
     let trash: PathBuf = profile.join(TRASH_DIRECTORY_NAME);
-    outcome.refusals.extend(empty_trash(&trash));
-    let claimed: Vec<(PathBuf, Identity)> = claim_all(&guarded, &second, &trash, &mut outcome, log);
+    let sweep = empty_trash(&trash);
+    if !sweep.modes_added.is_empty() {
+        emit(log, format!("finished an earlier run's deletion in {} ({} disk bytes){};", trash.display(), sweep.bytes, modes_named(&sweep.modes_added)));
+    }
+    outcome.refusals.extend(sweep.failures);
+    let claimed: Vec<Claimed> = claim_all(&guarded, &second, &trash, &mut outcome, log);
     drop(guarded);
-    for (target, identity) in claimed {
-        match delete_claimed(&target, identity) {
-            Ok(bytes) => outcome.bytes += bytes,
-            Err(refusal) => outcome.refusals.push(format!("{refusal}")),
+    for entry in claimed {
+        match delete_claimed(&entry.target, entry.identity) {
+            Ok(deleted) => {
+                outcome.bytes += deleted.bytes;
+                if let Some(line) = entry.line {
+                    emit(log, format!("{line}{}", modes_named(&deleted.modes_added)));
+                }
+            }
+            Err(Refusal::PartlyRemoved { deleted, .. }) => {
+                // The unit is half gone: say so, and let the summary name what stayed and why.
+                outcome.bytes += deleted.bytes;
+                let modes: String = modes_named(&deleted.modes_added);
+                match entry.line {
+                    Some(line) => emit(log, format!("{line}{modes}")),
+                    None => emit(log, format!("partly removed {}{modes}", entry.target.display())),
+                }
+                outcome.refusals.push(format!(
+                    "{} was only partly removed: {} disk bytes are gone and {} part(s) stay, each because: {}",
+                    entry.target.display(),
+                    deleted.bytes,
+                    deleted.remaining.len(),
+                    deleted.remaining.join("; ")
+                ));
+            }
+            Err(refusal) => outcome.refusals.push(refusal.to_string()),
         }
     }
     let _ = std::fs::remove_dir(&trash);

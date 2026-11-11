@@ -352,25 +352,25 @@ Separate links;
 a fix at an earlier link can make later ones moot,
 but each link also fails for causes other than #570.
 
-1. Install drift:
-   `node_modules` falls behind manifests.
-   pnpm leaves `--lockfile-only` drift silent and has no status command outside `pnpm run`/`pnpm exec`;
-   mise ships `mise deps` but the repo does not enable it;
-   nothing in the repo gates tasks on install state.
-2. Silent bundling:
-   rolldown warns and externalizes (deliberate,
-   Rollup-compatible),
-   and an `onLog` escalation fires only after output is written;
-   only a `resolveId` guard fails before writing.
-3. Stale persisted artifact:
-   in-repo lint consumes gitignored `dist` sidecars;
-   the repo's hand-rolled `ensureOxlintConfig` mtime check
-   ignores install state and transitive workspace sources,
-   and mise native `sources`/`outputs` would repeat that flaw.
-4. Ambiguous failure signal:
-   oxlint exits 1 for both config-load failure and findings;
-   the wrapper passes that through;
-   a caller filtering output read it as clean.
+1.  Install drift:
+    `node_modules` falls behind manifests.
+    pnpm leaves `--lockfile-only` drift silent and has no status command outside `pnpm run`/`pnpm exec`;
+    mise ships `mise deps` but the repo does not enable it;
+    nothing in the repo gates tasks on install state.
+2.  Silent bundling:
+    rolldown warns and externalizes (deliberate,
+    Rollup-compatible),
+    and an `onLog` escalation fires only after output is written;
+    only a `resolveId` guard fails before writing.
+3.  Stale persisted artifact:
+    in-repo lint consumes gitignored `dist` sidecars;
+    the repo's hand-rolled `ensureOxlintConfig` mtime check
+    ignores install state and transitive workspace sources,
+    and mise native `sources`/`outputs` would repeat that flaw.
+4.  Ambiguous failure signal:
+    oxlint exits 1 for both config-load failure and findings;
+    the wrapper passes that through;
+    a caller filtering output read it as clean.
 
 ## Open questions
 

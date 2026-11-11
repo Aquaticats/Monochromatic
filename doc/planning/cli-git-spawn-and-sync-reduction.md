@@ -1906,6 +1906,50 @@ the reasoning and what is still to do are in
 `doc/handover/cli-git-rust-implementation.md`,
 "The refresh of a stale index asks for Git and the real index's lock only when it is stale".
 
+Added and then removed on 2026-11-10:
+`check-ignore`,
+one start in every scenario,
+was never in the constants,
+so six controls failed the release gate at `483bbc6587`
+(`a_commit_with_no_hooks_stays_within_its_budget`,
+`a_commit_with_a_configured_hook_stays_within_its_budget`,
+`a_commit_with_a_worktree_config_costs_what_one_without_costs`,
+`a_commit_with_core_fsmonitor_true_costs_what_one_without_costs`,
+`a_warm_commit_stays_within_its_budget` and
+`an_amending_commit_stays_within_its_budget`,
+all reading "starts of git check-ignore:
+observed 1,
+budget 0 (not in the budget)").
+The question behind that start,
+which a commit of a named ignored path asks before its private staging,
+costs nothing now for a commit that cannot hit it:
+`git add` refuses a named path as ignored only while the real index holds no entry at it,
+so `src/native/commit/commit_named_ignored_files.rs` reads the real index in process
+(`read_layout_in`,
+then `read_regular_file` and `parse_index`)
+and asks `git check-ignore -z --stdin` only about the names no entry holds,
+starting nothing when there are none.
+Every scenario here commits a tracked `a.txt`,
+so the four constants carry `check-ignore` 0,
+and a start of one is named by the failure.
+A named path no entry holds still asks exactly one question,
+which is what the refusal controls see;
+`commit_named_ignored_files_tests.rs` proves both halves with a recording Git child,
+and the reader that declines an index leaves every name to Git,
+as before.
+The reader declines one more case since 2026-11-10:
+a command line that selects a repository (`--git-dir`,
+`--work-tree`,
+`--bare`)
+names an index whose paths are spelled from that repository's own worktree,
+while the layout reader answers only for the directory the command runs in,
+so a prefix from the wrong worktree could match an unrelated entry and hide a name a person named.
+There the reader leaves every name to Git,
+as `capture_invocation_layout` already does for the prefix it reads.
+The four constants name no repository,
+so their `check-ignore` stays 0,
+and a commit whose command line names one repository asks one question about its named paths.
+
 ## Filesystem identity without `findmnt` (slice S2)
 
 Scope:

@@ -3185,3 +3185,745 @@ If the owner wants this reproducible from the repository,
 the sampler belongs beside `bin/native-perf.ts`,
 with a control of its own,
 which is a change this record does not make.
+
+## What each part of a commit's private repository is for, and how many commits need it (2026-11-10T05:42:20-05:00)
+
+What this answers:
+for each part the creation of a commit's shadow repository makes,
+what reads it,
+whether a given commit needs it,
+and how many real commits needed it;
+and,
+because the owner chose the pool ahead of the alternatives
+("Pool made ahead (Recommended),
+We don't need to build a shadow for every commit.
+Be smarter.",
+`doc/handover/questions-for-the-owner.md`,
+"May a commit take its private repository from a pool made ahead?"),
+which route the numbers pick:
+one that makes no shadow for a commit that needs none,
+or one that reuses a finished one.
+
+### Where the numbers come from
+
+The two records the wrapper writes for every wrapped commit,
+copied aside before they were read because the machine keeps committing:
+`.git/monochromatic-git-policy-cli-commit-timing.jsonl` and its one generation `.1`
+of the main checkout,
+271 records of the releases `0.6.1-alpha.6` and `0.6.1-alpha.7`
+between 2026-11-10T06:33:22Z and 2026-11-10T10:31:01Z,
+about twenty agents committing.
+The figures of this repository's own shape,
+which are what a creation costs here rather than in a fixture:
+
+- 1,968 refs (`git for-each-ref | wc -l`),
+  of them 878 branches and one symbolic ref;
+- 78 entries in the common Git directory,
+  of which 25 are the entries a creation links
+  (`is_private_shadow_entry` excludes the other 53);
+- 296 worktrees (`git worktree list | wc -l`),
+  each with its own commit service.
+
+### Which commits need a shadow at all
+
+A commit builds in a shadow only when Git must build it:
+the preparation forces that route for
+`config_native || unborn || detached || state_present || changes.is_none()`
+(`service_prepare.rs`,
+`ready.needs_native = forced`),
+and `build_with_git` is the only caller of the creation on the commit path
+(`service_native.rs`).
+The other route,
+a commit the service builds itself,
+runs no `git commit` and makes no shadow (`service_commit_request_of.rs`).
+
+Counted:
+
+- 248 of the 271 records reached the build phase,
+  and every one of those 248 made a shadow
+  (`buildParts["shadow skeleton"].calls == 1`).
+  None took the service-built route.
+- 23 stopped or ended before the build (`buildMs` 0,
+  no `buildParts`).
+- The last 300 first-parent commits of `main` all carry a `gpgsig` header
+  (`git log --first-parent --format='%H %p' -n 300 HEAD`,
+  then `git cat-file --batch`),
+  so this repository signs every commit,
+  and a signing request is exactly what `config_needs_native` refuses to build without Git.
+  Every commit this repository makes therefore needs a shadow:
+  a route that makes no shadow for a commit that needs none removes nothing here.
+- 242 of those 300 commits are merges,
+  and the merge path builds its commit with `git commit-tree` and no shadow at all
+  (`merge_isolation_apply.rs`,
+  `commit_merge`).
+  The "needs no shadow" population of this repository is its merges,
+  and that route already exists.
+
+So the route that reuses a finished shadow is the one that removes the most,
+and the sections below size what a commit can stop doing:
+the parts a commit cannot read at all go first,
+the rest come from a pool.
+
+### The parts, one by one
+
+Every part below is made by `create_shadow_repository_carrying`
+(`shadow_create.rs`),
+for every commit that reaches the build.
+
+The parent and skeleton directories,
+the placeholder `HEAD` and the private mode:
+ten `mkdir` calls,
+one `write` and one `chmod`.
+Every commit needs them:
+they are the repository Git's `commit` is pointed at
+(`native_commit_arguments`,
+`--git-dir=<shadow>`).
+
+`config`,
+and `objects/info/alternates`:
+two `write` calls and two `chmod` calls.
+Every commit needs them:
+the config carries the format facts,
+the include of the real config,
+the worktree root and every hook event switched off (`shadow_config.rs`),
+and the alternates are how the shadow's Git reads real objects
+while its own store receives the commit (`shadow_create.rs`).
+
+The links,
+25 directory-entry creations in this repository:
+every non-private entry of the common Git directory,
+one symbolic link each (`shadow_links.rs`,
+`link_shadow_entries`).
+`doc/decision/cli-git-concurrent-commits.md` requires them
+("every real Git-dir entry that is not transaction-private
+(such as `info`,
+`rr-cache`,
+`lfs`,
+and `modules`) is symlinked into the shadow by default").
+What a commit can actually read through them is narrower than the set:
+every shadow command points `core.hooksPath` at an absent directory
+(`shadow_git.rs`,
+`shadow_request`;
+`native_commit_arguments` for `git commit`),
+so no hook resolves anything,
+and the Git children a shadow runs
+(`commit`,
+`rev-parse`,
+`cat-file`,
+`mktree`,
+`hash-object`,
+`read-tree`,
+`write-tree`,
+`update-index`,
+`update-ref`,
+`symbolic-ref`)
+read `info` for attributes and a sparse checkout and `lfs` for the filter's store.
+They are kept,
+because the decision record requires the set,
+and a pool amortizes them over many commits.
+
+The conclusion copies:
+one `mkdir` of the transaction's `conclusion` directory,
+one `stat` per name in `CONCLUSION_STATE_FILES`,
+and a synced write per entry that exists (`conclusion_copy.rs`).
+Only a commit that concludes a merge,
+a cherry-pick or a revert has anything to copy:
+copies exist so the landing removes exactly the entries native Git removed
+(`conclusion_cleanup.rs`,
+`reproduce_conclusion_cleanup`,
+which answers "no conclusion state was copied" when the directory is absent).
+The records name no conclusion state,
+so how many of the 248 had any cannot be read from them;
+the `mkdir` happens for all 248.
+
+The ref snapshot:
+one `git for-each-ref` over the real repository,
+one `packed-refs` write of every real direct ref (1,968 of them here),
+one loose file per real symbolic ref (one here),
+the private target ref and `HEAD` (`shadow_refs.rs`,
+`write_shadow_refs`).
+Every commit makes it,
+and `doc/decision/cli-git-concurrent-commits.md` requires the snapshot.
+What a commit reads from it is `refs/stash`
+(`autostash_carry.rs`,
+`conflicted_autostash`) and the symbolic chain a target branch can be
+(`end_of_symbolic_chain`).
+
+Reading the commit back,
+`git rev-parse HEAD^{commit}` and `git cat-file commit`
+(`commit_preparation.rs`,
+`read_prepared_commit`):
+every commit needs both.
+
+### Where the seconds were, in these 248 records
+
+The whole command:
+median 469 ms,
+p95 13,611 ms,
+the largest 65,948 ms,
+and 35 of the 248 over 5,000 ms.
+
+`buildMs`,
+which holds the creation and Git's build:
+236,572 ms in all,
+median 57 ms,
+p95 721 ms,
+the largest 65,365 ms,
+and only six of the 248 over 5,000 ms there.
+So most of the commits over the bar wait somewhere else,
+and this record speaks to the six.
+
+By the name each stretch has in `buildParts`,
+with the records that spent any time in it,
+their total,
+and the largest:
+
+- `shadow conclusion`:
+  44 records,
+  196,670 ms,
+  64,126 ms.
+  This is 83.1 percent of every `buildMs` in the window,
+  and five records spent more than 5,000 ms in this stretch alone,
+  one of them 64,126 ms of its 65,365 ms build
+  (2026-11-10T06:53:52.459Z on `refs/heads/main`,
+  whose every other stretch was under 510 ms).
+- `shadow skeleton`:
+  22 records,
+  14,721 ms,
+  9,757 ms.
+- `shadow links`:
+  22 records,
+  1,929 ms,
+  1,401 ms.
+- `shadow refs`:
+  all 248,
+  1,169 ms,
+  427 ms (median 1 ms).
+- `shadow config`:
+  10 records,
+  72 ms,
+  30 ms.
+- `client build` and `commit read back`:
+  35 ms and 7 ms in all.
+
+The only call inside the `shadow conclusion` stretch that creates anything
+is `create_private_directory(<scratch>/conclusion)`,
+the first call of `copy_conclusion_state`;
+everything after it is a `stat` or a read of a file that a commit without conclusion state does not hold.
+A `mkdir` is one of the calls this volume holds longest
+(`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+"What waits,
+sampled from the host without adding load":
+`mkdir` in `wait_current_trans` at 2,411 ms and in `handle_reserve_ticket` at 1,200 ms),
+and reads do not wait there.
+So the largest single stretch of these builds is one `mkdir`
+that a commit with nothing to conclude does not need.
+
+### What a commit can stop doing
+
+- The conclusion copies directory:
+  nothing,
+  when the worktree holds no `MERGE_HEAD`,
+  `MERGE_AUTOSTASH`,
+  `MERGE_MSG`,
+  `MERGE_MODE`,
+  `SQUASH_MSG`,
+  `AUTO_MERGE`,
+  `CHERRY_PICK_HEAD`,
+  `REVERT_HEAD`,
+  `MERGE_RR` or `sequencer` state,
+  which is what a commit that concludes nothing holds.
+  The landing already treats an absent directory as "no state was copied".
+  This removes the largest stretch above from those commits.
+- Everything else the creation makes is needed by every commit that builds in a shadow,
+  or is required by `doc/decision/cli-git-concurrent-commits.md`,
+  and cannot be dropped per commit.
+
+That is the reuse route this record's findings pick,
+and the parts are built as:
+a creation that makes only what the commit can read (the conclusion copies wait for state),
+and a pool of finished shadows for the parts every commit needs,
+whose member a commit claims with one `rename`
+and refuses when it is not what a creation would have made.
+
+## What the pool removes from a commit, counted in calls (2026-11-10T08:01:06-05:00)
+
+What this answers:
+what was built for the owner's answer,
+what a commit stops doing,
+and what the latency harness could and could not resolve about it on this host.
+
+### What was built
+
+- `take_or_create_shadow` (`shadow_create.rs`) takes a finished shadow from the pool when one is waiting,
+  and makes the creation it made before when none is.
+- `shadow_pool.rs` fills,
+  claims and sweeps members,
+  and `shadow_pool_member.rs` decides whether a claimed member is what a creation would have made.
+- `service_shadow_pool_fill.rs` fills one member beside the landing loop,
+  on a thread of its own,
+  so no commit waits for it.
+- `copy_conclusion_state` makes the copies directory only when the worktree holds conclusion state
+  (the section above).
+- `is_private_shadow_entry` no longer links the file a command stages a lock in,
+  which the pool's own refusal found:
+  every command of a repository stages one,
+  so no member could be taken twice in the same repository (the commit that fixed it).
+
+### What a commit stops doing, counted
+
+Wall time on this volume cannot say it:
+the calls the creation makes are the ones the volume stalls for seconds at a time,
+so the same work costs 2 ms or 64 s depending on when it runs.
+Their number does not change with the host's pressure,
+so that is what was counted.
+
+One disposable repository (twelve shared entries in its common Git directory,
+fifteen links a creation makes),
+one service the probe starts under its own runtime directory,
+three wrapped commits with `commit.cleanup = strip` so every one is built by Git in a shadow,
+each traced with
+`strace --follow-forks --decode-fds=path --syscall-times -e trace=mkdir,mkdirat,symlink,symlinkat,link,linkat,rename,renameat,renameat2,chmod,fchmodat,write`,
+counting the calls whose path is inside the commit's own shadow:
+
+- a commit that made its creation:
+  47 calls,
+  of them 10 `mkdir`,
+  16 `write`,
+  3 `chmod`,
+  15 `symlink`,
+  1 `renameat2` and 2 `rename`.
+- a commit that took a member:
+  20 calls,
+  of them 3 `mkdir`,
+  13 `write`,
+  1 `chmod`,
+  1 `renameat2` and 2 `rename`.
+
+The 20 are the work both routes do:
+`git commit` inside the shadow writes the index,
+the message file and its objects,
+and the ref store is written after a claim as after a creation.
+The 27 calls the claim removes are the creation's own:
+7 `mkdir`,
+3 `write`,
+2 `chmod` and 15 `symlink`.
+This repository's own common directory holds 25 shared entries rather than the fixture's 15,
+so a commit here stops making about 37 calls
+(the count of links in `.git/monochromatic-git-policy-cli-commit-timing.jsonl`'s window:
+`is_private_shadow_entry` leaves 25 of its 78 entries,
+plus the ten `mkdir`,
+four `write` and two `chmod` of the skeleton and the config).
+
+### What the harness's arms could and could not resolve
+
+The method is the one the sections above used:
+`mise run //package/git-policy/cli:native:perf` with
+`--only commit-signed-service --samples 8`,
+its fixtures copied from a prepared repository shaped like this repository's own
+(thirteen tracked files,
+a common Git directory holding the forty private index copies and a dozen shared entries),
+one binary per arm built from the same base
+(`b73a61f9f0` for the base,
+this branch for the change),
+and the arms alternated:
+base,
+this change,
+base.
+The documents are
+`perf/commit-pool-2026-11-10-before-a.json`,
+`...-after-a.json` and `...-before-b.json` beside this record.
+
+The whole wrapped command,
+the median of its samples,
+its p95,
+the paired deltas against native Git of the same round,
+and the samples that failed,
+in whole milliseconds:
+
+- base,
+  run A:
+  median 62,709,
+  p95 81,215,
+  deltas 72,407,
+  31,124,
+  50,943,
+  80,708,
+  63,970,
+  74,470,
+  48,036,
+  61,085,
+  no failed sample.
+- this change:
+  median 93,536,
+  p95 179,051,
+  deltas 93,202,
+  45,086,
+  73,210,
+  90,414,
+  175,694,
+  three failed samples.
+- base,
+  run B:
+  median 47,431,
+  p95 180,880,
+  deltas 41,193,
+  180,592,
+  66,456,
+  34,079,
+  34,507,
+  37,100,
+  two failed samples.
+
+Two runs of one binary differ by 1.3 times at the median and 2.2 times at p95,
+and native Git's own commits reached a median of 7,187 ms in the change's run against 97 ms in the base's first run:
+the host's commits were waiting tens of seconds whatever the wrapper did,
+which is the volume stall this record names elsewhere,
+not the creation.
+So the arms overlap completely,
+and the whole-command times of this host cannot resolve a change of 27 calls
+under this load,
+as the record's own 18.6-times spread warned.
+
+What the runs do say,
+because it does not depend on the host:
+
+- Every commit in the change's run that reached the build named `shadow pool`,
+  and the ones that took a member named no `shadow skeleton`,
+  `shadow config` or `shadow links` stretch
+  (`buildParts`,
+  `README.md`,
+  `SPEC.md` "A shadow taken from the pool").
+  A reading of the next records of this repository says how many commits took the pool there;
+  the records of the main checkout cannot yet,
+  because the wrapper installed there is the release before this change.
+
+### The probe's own records, and what they named
+
+The three commits of the count above left records in their repository:
+
+- the creation:
+  `buildMs` 43,
+  with every creation stretch named:
+  `shadow skeleton`,
+  `shadow config`,
+  `shadow links`,
+  `shadow conclusion` and `shadow refs`.
+- the two claims:
+  `buildMs` 91 and 33,
+  with `shadow pool`,
+  `shadow conclusion` and `shadow refs`,
+  and none of the three creation stretches.
+
+The first claim of a fresh repository is refused once,
+which the probe shows as a warning naming the entry:
+a member made before the commit's own timing record appeared in the common Git directory lacks that entry,
+and a creation would have linked it.
+The next fill holds it,
+so the refusal costs one member and one warning,
+never a commit,
+and the commit makes its creation as it did before.
+
+### What this leaves
+
+- The fill reads a repository's facts a second way,
+  from a landing request rather than from an invocation's capture;
+  `the_facts_a_fill_reads_are_the_facts_a_capture_reads` holds the two equal field by field,
+  and a fact it gets wrong can only cost a refused member,
+  because the claim compares the member with what this invocation's creation would write.
+- A common directory whose entry set changes
+  (the first timing record,
+  a rotation that creates `.1`,
+  a tool's own directory)
+  refuses the member that was made before the change,
+  once per change.
+  Measured:
+  one refusal in the probe's first commit of a fresh repository.
+- The pool is per worktree,
+  and a reftable repository and a linked worktree that keeps its own `info` are never pooled.
+- The fill costs one creation and two Git starts per landing the service takes,
+  beside the landing and never inside it,
+  which no commit waits for.
+
+## Where the pool lives, and the leak check that found it (2026-11-10T15:57:02-05:00)
+
+What this answers:
+where the pool of finished shadows sits now,
+why it moved out of the repository scratch directory,
+and what the two controls that failed on `main` prove about it.
+
+### The two controls that failed
+
+The pool was built inside the repository scratch directory,
+at `<common-dir>/monochromatic-git-policy-cli-scratch/shadow-pool/<worktree>`,
+and two controls of the release gate on `main` at `483bbc6587` said what that costs.
+Both are the check that catches leaked scratch:
+
+- `markdown::a_commit_keeps_its_git_input_in_the_repository_scratch_directory`
+  (`src/native/binary/binary_markdown_tests.rs`) failed with
+  `nothing is left in .../repo/.git/monochromatic-git-policy-cli-scratch after 30s: ["shadow-pool"]`;
+- `service_scratch::a_commit_leaves_no_scratch_directory_once_its_landing_is_over`
+  (`src/native/binary/binary_service_scratch_tests.rs`) failed with
+  `the repository scratch directory holds nothing`.
+
+Neither control is wrong.
+A member of the pool is standing state the owner asked for
+("Pool made ahead (Recommended),
+We don't need to build a shadow for every commit.
+Be smarter.",
+`doc/handover/questions-for-the-owner.md`,
+"The private repository every commit builds"),
+and the owner did not say where it lives.
+A directory whose emptiness is the wrapper's own proof that nothing leaked
+cannot also hold the one thing the wrapper keeps on purpose.
+
+### What moved
+
+The pool is now its own folder inside the Git common directory and beside the scratch directory:
+`<common-dir>/monochromatic-git-policy-cli-shadow-pool/<worktree>`
+(`SHADOW_POOL_FOLDER` in `wrapper_names_old_and_new.rs`,
+`pool_root_for` in `shadow_pool.rs`).
+The name is a fresh one this release is the first to write,
+so it has no earlier spelling.
+
+Every pass that removes scratch was read for what it would do with it,
+and each one leaves a member alone by construction rather than by a list:
+
+- the sweep a command that takes scratch runs
+  (`scratch_location.rs`,
+  `prepare_repository_scratch`)
+  reaches entries of the scratch directory only,
+  and of the earlier directory an earlier release made
+  (`sweep_earlier_repository_scratch`);
+- the release of a commit's scratch tree after its landing
+  (`service_scratch_release_removal.rs`)
+  refuses a name that is not under the scratch directory or the worktree's Git directory,
+  and that does not carry the wrapper's commit-tree prefix
+  (`is_scratch_path`);
+- the age decision both of them share
+  (`service_scratch_abandonment.rs`,
+  `may_go`)
+  is asked about an entry of a scratch place and about nothing else;
+- `doctor` and the reclamation of a removed worktree's state read no scratch entry at all
+  (searched:
+  no read of the scratch directory or of the pool in `invocation/management*.rs`,
+  `health/`,
+  or `service_units_of_removed_worktrees.rs`).
+
+One thing moving the pool out of scratch did need:
+the folder is a private shadow entry now,
+like the scratch root beside it
+(`shadow_links.rs`,
+`is_private_shadow_entry`).
+Without that,
+a creation would link the pool into every shadow,
+so one shadow could reach every other member,
+and whether the folder existed would decide what a claimed member has to hold:
+the first fill of a repository would refuse the member it had just made.
+
+### What says it works
+
+- The two controls above pass,
+  and `service_scratch::a_landed_commit_leaves_the_pool_of_finished_shadows_alone`
+  is the same check from the other side:
+  after a landed commit the scratch directory holds nothing,
+  and a mark left in the pool's folder still holds its bytes,
+  so the release and the sweep leave standing state alone.
+- `shadow::shadow_pool::tests::the_pool_is_its_own_folder_beside_the_scratch_directory`
+  pins the place,
+  and `a_pooled_shadow_survives_a_sweep_of_the_scratch_directory`
+  shows a stale tree of the scratch directory removed while a member older still stays.
+- `shadow::shadow_links::tests::the_pool_of_finished_shadows_never_reaches_the_shadow`
+  pins the link rule.
+
+## What a commit waited for under fifty agents, and the two waits that were silence (2026-11-10T19:20:00Z)
+
+What this answers:
+where the time of a wrapped commit went on the installed `0.6.1-alpha.8` with about fifty agents working,
+why the commit of 2026-11-10T17:50:19Z ended with exit 1 although the service landed it,
+and what of that wait is left after the pool of private repositories made ahead (`373e8adfe2`).
+
+### The records, split by the steps they name
+
+The two commit timing records of the main checkout (`.git/monochromatic-git-policy-cli-commit-timing.jsonl`
+and its `.1`,
+read only),
+272 records of the releases `0.6.1-alpha.7` and `0.6.1-alpha.8`,
+2,436,718 ms in all,
+in whole milliseconds:
+
+- `build` 1,250,649,
+  `prepare` 527,191,
+  `submit` 502,195,
+  `handoff` 42,377,
+  `provision` 38,627,
+  `gate` 33,452,
+  `other` 41,105.
+- within `submit`:
+  425,180 waiting for the answer and 47,603 waiting for a service to start.
+- of the 45 records over 10 s (1,795,649 ms in all),
+  `build` 1,137,857 and `submit` 326,044.
+- `buildParts` of those 45:
+  `shadow conclusion` 959,581 (the `mkdir` of the conclusion copies directory,
+  which the pool's release no longer makes when a commit concludes nothing),
+  `shadow skeleton` 76,064,
+  `shadow refs` 10,561,
+  `shadow config` 3,022,
+  `shadow links` 723,
+  and everything else under 70.
+No step name is to blame for the rest:
+`git commit` 2,648 ms and `git update-index` 225 ms in the record of 17:50:19Z are the two largest steps of it.
+
+### The commit that ended exit 1
+
+Its record:
+`sends=6`,
+`connectTries=6`,
+`answerWaitMs=31,084`,
+`positions` empty,
+`waitingNotices` 0,
+`landing` null,
+`outcome "stopped"`,
+`exitCode 1`.
+Six sends of about 5.18 s each is six expiries of `HEARTBEAT_SILENCE` (5 s) and of `RECONNECTS` (5 reconnects),
+which ends `submit_loop` with `ClientFailure::ServiceSilent`.
+
+The service's own journal for that request (`requestId c2b378d0-1772-44f9-ab44-ba570a27db09`,
+instance `f30a114aaabc977cf77309db0f77f1ee`) says where the silence was:
+
+- the batch answered `outcome=landed ... read_ms=32019 ... lock_hold_ms=3118 index_update_ms=3101 landing_ms=3194`.
+  `read_ms` is the time from a connection being accepted to its request reaching the queue:
+  thirty-two seconds in which the connection wrote nothing at all.
+- the six sends were answered `outcome=already` with `queued_ms=3196`,
+  so the commit was on the branch and every later send was told so,
+  after the client had given up.
+
+Between those two instants the connection task awaits `is_foreign`
+(`service_server_connection_handling.rs`),
+which resolves the Git directory's real path on the blocking pool,
+and no beat is written until `queue_a_commit` starts after it.
+So a live service that is waiting for storage looked exactly like a dead one,
+which is the one thing the client's silence bound must not be.
+
+### The two changes
+
+- `da2ebbd589`:
+  the beats begin with the connection,
+  and the check's answer goes through the same single writer,
+  so a request for another worktree still never lands here.
+- `1b995c2aaa`:
+  a request that names this worktree's own Git directory exactly is this instance's without the
+  resolution at all,
+  because the same text names the same directory;
+  only a request spelling it another way waits for the filesystem.
+
+Measured with `native:test:host`,
+one control each:
+
+- `a_commit_whose_directory_check_waits_is_beaten_while_it_waits`:
+  before,
+  FAILED with "the beat comes while the check waits:
+  Elapsed(())" after six beat intervals;
+  after,
+  PASS in 1.02 s.
+- `where_no_thread_can_start_a_commit_naming_this_worktree_still_reaches_the_landing`:
+  before,
+  FAILED with "the instance of a Git directory could not be looked at:
+  the system refused a thread for a
+  blocking step";
+  after,
+  PASS in 0.075 s.
+
+### Many commits at once, against native Git
+
+Method:
+one disposable repository of 2,000 tracked files,
+24 linked worktrees of it on 24 branches,
+one service per worktree started at a socket of its own under a private runtime directory,
+and 24 commits started in the same tick,
+twice per arm,
+native Git first and then the wrapper.
+The host was not idle:
+its load average was 162,
+142 and 141 over the run,
+with about fifty agents working.
+The harness is scaffolding in `${HOME}/temp/agent/pi-commit-wait` and is not in the tree.
+
+Wall time of one commit,
+in whole milliseconds:
+
+- native Git:
+  48 commits,
+  minimum 14,
+  median 27,
+  p95 235,
+  largest 237.
+- the wrapper:
+  48 commits,
+  minimum 16,
+  median 1,197,
+  p95 8,161,
+  largest 8,243.
+- native Git's own two rounds:
+  median 24 and 24,
+  p95 40 and 235,
+  which is the spread of the unchanged control.
+- the wrapper's two rounds:
+  median 869 and 8,086,
+  p95 909 and 8,167.
+
+The phases of the 46 wrapped records of that run:
+
+- the 23 commits of the first round:
+  `build` 99 ms in all,
+  `prepare` 1,130,
+  `submit` 17,654 (answer wait 17,651).
+- the 23 of the second round:
+  `build` 115 ms in all,
+  `prepare` 1,386,
+  `submit` 184,092 (answer wait 184,089).
+
+So the pool did what it was made for:
+the creation of a private repository is gone from `build`,
+which costs four to five milliseconds a commit here,
+and every second over the bar is now the wait for the service's answer.
+
+### What that answer wait is, traced
+
+The landing's own figures of those slow records:
+`lockHoldMs` 26 to 47,
+`readsMs` 6 to 16,
+`queuedBehind` 0,
+so neither the landing nor a queue of other commits was the eight seconds.
+The service's `answered` line for three commits in a row in one worktree names it:
+
+- 3,066 ms in `lock_hold_ms`,
+  `lock_stage_kind=cold`;
+- `lock_wait_ms=9369 lock_stage_ms=9333 lock_stage_kind=pre`,
+  and no `lock_looks` field,
+  which means the index lock was free at the first placement;
+- `lock_wait_ms=12867 lock_stage_ms=12825 lock_stage_kind=pre`,
+  the same.
+
+`lock_stage_ms` with `kind=pre` is the whole of `take` in `service_index_prestage.rs`,
+which waits for the marker made ahead of the next landing to finish being flushed
+("A marker still being flushed is waited for.").
+That flush is a synced write on this volume,
+and it is seconds long under this load:
+the commit waits for the durability of the lock's own marker before it can even place the lock.
+
+That wait is kept,
+and its cost is now named:
+removing it means placing a marker that a kill can lose,
+which is the record a stale lock is judged by.
+What can still be made cheaper is when it starts:
+today it is started after a landing and waited for by the next commit,
+never finished before it.
+
+### What is still missing from the record
+
+The stop reason.
+A record says `outcome` and `exitCode`,
+and nothing names which `ClientFailure` ended it nor its words,
+so the six-send silence above had to be read from the counts and from the service's journal rather than
+stated by the record.

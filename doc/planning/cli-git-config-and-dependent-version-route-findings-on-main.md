@@ -640,6 +640,18 @@ amend both decision records and have the commit report the stale dependent
 as a finding,
 so the silence ends even when the bump is left to the release task.
 
+Resolved (2026-11-10):
+the owner answered the question with
+"Build what the decision says (Recommended)",
+whose option read
+"A commit adds the dependents' manifests and updates them in the worktree when that copy still matches `HEAD`".
+The commit path now plans and applies the ripple,
+`SPEC.md` states the exception and quotes that answer,
+and every dependent the commit may not touch is named in a note instead of being
+silently left behind.
+Branch `feat/git-policy-cli-commit-adds-the-dependents-it-bumps`
+(commits `947920acf0` and `f638a19a7e`).
+
 ## What I checked and found sound
 
 - **An unusable settings file fails closed and stops only index writers.**

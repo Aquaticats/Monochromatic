@@ -5,6 +5,10 @@
  the structural-message scanner, and the rule modules can all share these
  helpers without forming an import cycle through `tsdoc-comments.ts`.
  
+ The character predicates and `tokenEnd` are re-exported from
+ `@monochromatic-dev/oxlint-plugin-shared`, which owns them for every plugin
+ package, so the scanners keep one import for the primitives they share.
+ 
  @module
  */
 
@@ -18,6 +22,7 @@ import type { ReadonlyDeep, } from 'type-fest';
 export {
   isWhitespaceChar,
   isWordChar,
+  tokenEnd,
 } from '@monochromatic-dev/oxlint-plugin-shared/ts';
 
 //region Delimiters, escapes, and line shape
@@ -87,7 +92,7 @@ export function isFenceLine(line: string,): boolean {
  
  Returns the input verbatim when the line does not begin with `*`.
  
- @param s - line text after `trimStart`
+ @param line - line text after `trimStart`
  
  @returns line text with leading `*` removed when present
  
@@ -97,8 +102,8 @@ export function isFenceLine(line: string,): boolean {
  stripCommentLineMarker('@param x foo'); // '@param x foo'
  ```
  */
-export function stripCommentLineMarker(s: string,): string {
-  return s.startsWith('*',) ? s.slice(1,) : s;
+export function stripCommentLineMarker(line: string,): string {
+  return line.startsWith('*',) ? line.slice(1,) : line;
 }
 
 /**
@@ -132,45 +137,45 @@ export function getCommentLines(comment: ReadonlyDeep<Comment>,): readonly strin
  cursor resumes past the closing delimiter, so each character is visited a
  bounded number of times and the stack stays flat.
  
- @param s - line content
+ @param line - line content
  
- @returns `s` with every backtick-delimited span removed
+ @returns `line` with every backtick-delimited span removed
  
  @example
  ```ts
  stripInlineCodeSpans('a `code` b'); // 'a  b'
  ```
  */
-export function stripInlineCodeSpans(s: string,): string {
+export function stripInlineCodeSpans(line: string,): string {
   /**
    Plain-text segments collected between code spans; joined into the result.
    */
   const parts: string[] = [];
-  for (let from = 0; from <= s
+  for (let from = 0; from <= line
     .length;) {
     /**
      Position of the next opening backtick; -1 means the rest is plain text.
      */
-    const open = s.indexOf(
+    const open = line.indexOf(
       INLINE_CODE_DELIMITER,
       from,
     );
     if (open === (-1)) {
-      parts.push(s.slice(from,),);
+      parts.push(line.slice(from,),);
       break;
     }
     /**
      Position of the closing backtick; -1 means the line ends inside inline code.
      */
-    const close = s.indexOf(
+    const close = line.indexOf(
       INLINE_CODE_DELIMITER,
       open + 1,
     );
     if (close === (-1)) {
-      parts.push(s.slice(from,),);
+      parts.push(line.slice(from,),);
       break;
     }
-    parts.push(s.slice(
+    parts.push(line.slice(
       from,
       open,
     ),);
@@ -239,42 +244,6 @@ export function wordRunEnd({
   for (let cursor = start; cursor < text
     .length; cursor += 1) {
     if (!sharedIsWordChar(text.charAt(cursor,),))
-      return cursor;
-  }
-  return text.length;
-}
-
-/**
- Returns the exclusive end index of the first non-whitespace token starting
- at `start`.
- 
- @param text - string scanned for the token
- 
- @param start - index where the token is expected to begin
- 
- @returns first index at or after `start` that is whitespace, or the length
- 
- @example
- ```ts
- tokenEnd({ text: 'name - desc', start: 0 }); // 4
- ```
- */
-export function tokenEnd({
-  text,
-  start,
-}: {
-  /**
-   String scanned for the token.
-   */
-  readonly text: string;
-  /**
-   Index where the token is expected to begin.
-   */
-  readonly start: number;
-},): number {
-  for (let cursor = start; cursor < text
-    .length; cursor += 1) {
-    if (sharedIsWhitespaceChar(text.charAt(cursor,),))
       return cursor;
   }
   return text.length;

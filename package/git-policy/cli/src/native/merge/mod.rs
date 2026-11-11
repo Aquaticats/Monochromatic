@@ -14,10 +14,23 @@
 /// The three-way merge by line and by word that resolves a conflict Git's line merge reports.
 pub mod word_merge;
 
+/// The text a word merge of one region may not write,
+/// which keeps that region in conflict.
+pub mod word_merge_invented_text;
+
 /// The conflicted files a merge left,
 /// which of them the word pass may re-merge,
 /// and the lines that list each merged part.
 pub mod merge_second_pass;
+
+/// The line merge Git makes for a conflicted file,
+/// cut into the text it settled and the regions it
+/// left.
+pub mod merge_second_pass_line_regions;
+
+/// The line merge Git makes for one candidate file,
+/// and the word pass over the regions it leaves.
+pub mod merge_second_pass_git_lines;
 
 /// The words that list a merged part and the journal entry for a merged file.
 pub mod merge_second_pass_report;
@@ -109,6 +122,10 @@ pub mod merge_isolation_recovery_notice;
 /// The index read the way a merge's recovery needs it.
 pub mod merge_isolation_index_reading;
 
+/// The private name a take gives a file it moves aside,
+/// and the merge record that name is tied to.
+pub mod merge_isolation_take_aside_names;
+
 /// The take of a worktree file a merge must replace or delete,
 /// and the private names it leaves behind.
 pub mod merge_isolation_take_asides;
@@ -147,6 +164,10 @@ pub mod merge_isolation_carry_apply;
 /// and the raw changes between two commits.
 pub mod merge_isolation_carry_reads;
 
+/// What Git's own update left at each path of a merge,
+/// which tells its own file from a save that accepts it.
+pub mod merge_isolation_carry_landed;
+
 /// What a carry writes:
 /// the index records of a batch,
 /// one file through a private name and a rename,
@@ -164,9 +185,28 @@ pub mod merge_isolation_carry_layers;
 /// merged or left alone.
 pub mod merge_isolation_carry_notice;
 
+/// One path a carry kept whole:
+/// what stands at it of the person's work,
+/// what the merge made of it,
+/// and the line that says both and names the command that reaches the merge's version.
+pub mod merge_isolation_carry_kept_path;
+
+/// A directory standing where the merge puts a file,
+/// which no layer of the carry can hold,
+/// and the sentence that stops the merge before anything is written.
+pub mod merge_isolation_a_directory_the_merge_replaces;
+
+/// Putting one planned worktree write in place,
+/// or leaving a path alone because what stands there is not the entry that was judged.
+pub mod merge_isolation_carry_place;
+
 /// The writing half of an isolated merge:
 /// the commit and the two-way update.
 pub mod merge_isolation_apply;
+
+/// What a step of an isolated merge that stopped means for the command's ending,
+/// and what a clear that met newer bytes does about them.
+pub mod merge_isolation_apply_stops;
 
 /// The words an isolated merge prints when it could not be finished now.
 pub mod merge_isolation_apply_findings;
@@ -178,6 +218,16 @@ pub mod merge_isolation_merge_tree;
 
 /// The questions an isolated merge asks Git and the terminal.
 pub mod merge_isolation_git_reads;
+
+/// The editor a merge opens for its message when the checkout holds the person's own work:
+/// the file it reads,
+/// the program Git resolves,
+/// and the message that comes back.
+pub mod merge_isolation_editor;
+
+/// The words of the editor command,
+/// which no shell makes.
+pub mod merge_isolation_editor_words;
 
 /// The values an isolated merge passes between its steps.
 pub mod merge_isolation_run_types;

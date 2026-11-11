@@ -3,7 +3,9 @@
 //!  the native planner over the lifecycle's
 //!       prepared candidate state,
 //!  its findings,
-//!  and the corrections a direct fix applies.
+//!  the corrections a direct fix applies,
+//!  and the ones a
+//!       commit adds to itself.
 //! Why:
 //!  The check keeps what the ported policy reported
 //!  (`package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts`,
@@ -12,13 +14,26 @@
 //!      finding per publishable dependent of a raised manifest,
 //!  each with a full-content
 //!      patch,
-//!  on `direct-check` and `direct-fix`;
-//!  on `pre-forward` it plans only for a
-//!      forwarded `commit`.
-//!  A real `git commit` runs through the commit transaction instead of being forwarded,
-//!  so `pre-forward` reaches this check only
-//!      for `git add`,
-//!  where the policy finds nothing.
+//!  on `direct-check`,
+//!  `direct-fix` and a wrapped `git commit`
+//!  (`doc/decision/private-npm-registry.md:158-177`,
+//!  the owner's 2026-09-15 decision:
+//!  a hand bump and its
+//!      dependents' patch bumps land in one commit,
+//!  and the worktree copies take the committed
+//!      bytes while they still match `HEAD`).
+//!  Every other forwarded command,
+//!  `git add`
+//!      above all,
+//!  applies no correction and so is not planned.
+//!  A dependent whose copies hold
+//!      something else is named and left exactly as it is:
+//!  the commit lands without it rather
+//!      than failing or overwriting somebody's work.
+//!  A real index that could not be listed proves
+//!      none of them,
+//!  so each dependent it would have proved is named with that reason
+//!      instead of being taken for an index that holds nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -53,14 +68,21 @@ use crate::event_path::EventPath;
 use crate::diagnostics::EngineFailureCode;
 /// The pathname conversion every worktree read uses.
 use crate::git_metadata::path_from_git_bytes;
-/// The precondition for a file the fix did not select.
+/// The precondition for a file a direct fix did not select,
+///  its reasons and its message.
 use crate::policy_added_path::{
     ADDED_PATH_STAGED_REASON, added_path_message, head_mode, worktree_refusal,
 };
+/// The commit path's notes,
+///  real-index listing and per-bump correction.
+use crate::policy_dependent_version_commit::{
+    RealIndexListing, added_entries, committed_correction, left_behind, note_of, noted,
+};
 /// The lifecycle's candidates and the correction a fix applies.
 use crate::policy_content::{ContentState, Correction, LifecycleContent};
-/// The finding and outcome types of a check.
-use crate::policy_engine::{PolicyFinding, PolicyOutcome};
+/// The finding,
+///  note and outcome types of a check.
+use crate::policy_engine::{PolicyFinding, PolicyNote, PolicyOutcome};
 /// The lifecycle points.
 use crate::policy_trigger::Trigger;
 /// The facts interface that prepares candidates and locates the worktree.
@@ -286,30 +308,83 @@ fn correction_of(
 }
 
 /// What:
-///  Check the lifecycle's candidate state.
-///  `<F: RepositoryFacts>` accepts any facts
-///       provider;
-///  `&mut ContentState` lends the shared candidates and takes corrections.
+///  Everything one dependent-version check reads and returns.
+///  `'a` names how long the borrows of the
+///       candidate state,
+///  the lifecycle and the provider last;
+///  `'index` is the real index's own.
 /// Why:
-///   See the module comment.
-///  Corrections are proposed only on `direct-fix`,
-///  the one
-///       lifecycle that applies them;
-///  every proposal of the pass is checked before any
-///       is recorded,
-///  so a refused one leaves the pass without partial corrections.
+///   One record keeps the six facts of a check together,
+///  so no caller can pair a
+///       trigger with the wrong lifecycle.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function checkDependentVersion(content, lifecycle, facts, trigger): Promise<PolicyOutcome>;
+/// type DependentCheck = { content; lifecycle; facts; trigger; forwardsCommit; realIndex };
 /// ```
-pub fn check_dependent_version<F: RepositoryFacts>(
-    content: &mut ContentState,
-    lifecycle: &LifecycleContent,
-    facts: &mut F,
-    trigger: Trigger,
-) -> PolicyOutcome {
-    if trigger == Trigger::PreForward {
+pub struct DependentCheck<'a, 'index, F: RepositoryFacts> {
+    /// The shared candidate state.
+    pub content: &'a mut ContentState,
+    /// What the lifecycle asks the candidate layer for.
+    pub lifecycle: &'a LifecycleContent,
+    /// The repository facts this invocation reads.
+    pub facts: &'a mut F,
+    /// The lifecycle point.
+    pub trigger: Trigger,
+    /// Whether the forwarded command is `git commit`,
+    ///  which adds the dependents' manifests to
+    ///       itself.
+    pub forwards_commit: bool,
+    /// The real index a landing writes,
+    ///  when this lifecycle may add a path to what it
+    ///       lands.
+    pub real_index: Option<&'index Path>,
+}
+
+/// What:
+///  Check the lifecycle's candidate state.
+///  `<F: RepositoryFacts>` accepts any facts
+///       provider;
+///  `&mut ContentState` lends the shared candidates and takes corrections;
+///  `forwards_commit`
+///       says the forwarded command is `git commit`,
+///  which adds the dependents' manifests to
+///       itself;
+///  `real_index` is the real index the landing writes,
+/// or nothing for a lifecycle
+///       that adds no path.
+/// Why:
+///   See the module comment.
+///  Corrections are proposed on `direct-fix` and on the commit path,
+///  the two
+///       lifecycles that apply them;
+///  every proposal of the pass is checked before any
+///       is recorded,
+///  so a refused one leaves the pass without partial corrections.
+///  A commit
+///       reports a dependent it may not add and lands without it,
+///  because a commit never fails
+///       over a copy somebody is holding;
+///  a listing that could not run leaves every dependent it would
+///       have proved out of the commit the same way,
+///  each named with Git's own reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function checkDependentVersion(check: DependentCheck): Promise<PolicyOutcome>;
+/// ```
+pub fn check_dependent_version<F: RepositoryFacts>(check: DependentCheck<'_, '_, F>) -> PolicyOutcome {
+    let DependentCheck {
+        content,
+        lifecycle,
+        facts,
+        trigger,
+        forwards_commit,
+        real_index,
+    } = check;
+    // A commit applies the ripple itself; every other forwarded command can only report one.
+    let plans_commit: bool = trigger == Trigger::PreForward && forwards_commit;
+    if trigger == Trigger::PreForward && !plans_commit {
         return clean();
     }
     let version: Rc<CandidateVersion> = match content.version(lifecycle, facts) {
@@ -320,13 +395,13 @@ pub fn check_dependent_version<F: RepositoryFacts>(
     let candidates: Vec<Candidate> = version.candidates().iter().map(planner_candidate).collect();
     let request: DependentRequest<'_> = DependentRequest {
         trigger,
-        forwards_commit: false,
+        forwards_commit,
         candidates: candidates.as_slice(),
     };
     if !should_plan(&request) {
         return clean();
     }
-    let root: Option<PathBuf> = if trigger == Trigger::DirectFix {
+    let root: Option<PathBuf> = if trigger == Trigger::DirectFix || plans_commit {
         match facts.location() {
             Ok(location) => worktree_root(&location.identity).map(Path::to_path_buf),
             Err(message) => return failed(EngineFailureCode::ContentUnavailable, message),
@@ -351,22 +426,65 @@ pub fn check_dependent_version<F: RepositoryFacts>(
         lifecycle_workspace(store, corrected, listed.as_slice());
     let findings: Vec<DependentFinding> = match find_dependent_bumps(&request, &mut workspace) {
         Ok(found) => found,
+        // A commit never fails over the ripple: what the planner could not read or decide is reported, and it lands without it.
+        Err(error) if plans_commit => return noted(&plan_error_message(&error)),
         Err(error) => return plan_failure(&error),
     };
+    let real: RealIndexListing = added_entries(
+        plans_commit,
+        &findings,
+        version.as_ref(),
+        facts,
+        root.as_deref(),
+        real_index,
+    );
+    let mut kept: Vec<DependentFinding> = Vec::new();
     let mut proposals: Vec<Correction> = Vec::new();
-    for finding in &findings {
-        if let (Trigger::DirectFix, Some(bump)) = (trigger, finding.patch.as_ref()) {
-            let selected: bool = version.candidate_at_path(&bump.path).is_some();
-            match correction_of(bump, selected, &mut workspace, root.as_deref()) {
-                Ok(correction) => proposals.push(correction),
-                Err(outcome) => return outcome,
+    let mut notes: Vec<PolicyNote> = Vec::new();
+    for finding in findings {
+        // A dependent nobody can bump automatically is named by a direct command and reported by a commit, which still lands.
+        let Some(bump) = finding.patch.clone() else {
+            if plans_commit {
+                notes.push(note_of(
+                    finding.message.as_str(),
+                    finding.path.as_deref(),
+                    Some(crate::policy_events::LEFT_ALONE_HINT),
+                ));
+            } else {
+                kept.push(finding);
             }
+            continue;
+        };
+        let selected: bool = version.candidate_at_path(&bump.path).is_some();
+        if !plans_commit {
+            if trigger == Trigger::DirectFix {
+                match correction_of(&bump, selected, &mut workspace, root.as_deref()) {
+                    Ok(correction) => proposals.push(correction),
+                    Err(outcome) => return outcome,
+                }
+            }
+            kept.push(finding);
+            continue;
+        }
+        match committed_correction(&bump, selected, &mut workspace, root.as_deref(), &real) {
+            Ok(correction) => {
+                proposals.push(correction);
+                kept.push(finding);
+            }
+            Err(left) => notes.push(left_behind(&bump, &left)),
         }
     }
     for correction in proposals {
         content.propose(correction);
     }
-    return PolicyOutcome::Findings(findings.iter().map(policy_finding).collect());
+    let reported: Vec<PolicyFinding> = kept.iter().map(policy_finding).collect();
+    if notes.is_empty() {
+        return PolicyOutcome::Findings(reported);
+    }
+    return PolicyOutcome::FindingsWithNotes {
+        findings: reported,
+        notes,
+    };
 }
 
 /// Check controls over fixture repositories stay out of the release executable.

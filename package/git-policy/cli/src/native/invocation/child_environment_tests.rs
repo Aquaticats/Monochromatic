@@ -12,9 +12,11 @@
 
 /// Import the functions under test and native string types.
 use super::{
-    ASKPASS_VARIABLE, COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, TERMINAL_PROMPT_VARIABLE, child_environment_overlay,
-    environment_with_overlay, lockfile_pid_overlay, never_prompt_overlay, service_child_overlay,
+    ASKPASS_VARIABLE, CHILD_SET_PREFIX, COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, TERMINAL_PROMPT_VARIABLE, child_environment_overlay,
+    environment_with_overlay, invocation_overlay, lockfile_pid_overlay, never_prompt_overlay, service_child_overlay,
 };
+/// The answer about the process's controlling terminal the invocation overlay is built from.
+use crate::control_terminal::Terminal;
 use std::ffi::OsString;
 use std::path::Path;
 use std::process::Command;
@@ -333,4 +335,36 @@ fn the_service_overlay_replaces_inherited_prompt_settings_and_keeps_ssh_askpass(
     assert_eq!(value("GIT_ASKPASS"), vec![OsString::new()]);
     assert_eq!(value("GIT_TERMINAL_PROMPT"), vec![OsString::from("0")]);
     assert_eq!(value("SSH_ASKPASS"), vec![OsString::from("/usr/bin/ksshaskpass")]);
+}
+
+/// What:
+///  The overlay of a command whose process has no controlling terminal carries the never-prompt pair,
+/// and the one of a command at a terminal does not.
+/// Why:
+///  This is the whole difference between a push a daemon started and a push a person typed;
+/// the pair is what
+///  keeps the desktop password dialog from opening on a machine whose `SSH_ASKPASS` names one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(invocationOverlay(env, git, 'absent')).toContainEqual(['GIT_ASKPASS', '']);
+/// expect(invocationOverlay(env, git, 'present')).not.toContainEqual(['GIT_ASKPASS', '']);
+/// ```
+#[test]
+fn the_invocation_overlay_never_prompts_only_without_a_controlling_terminal() {
+    let inherited = environment(&[("HOME", "/home/someone")]);
+    let mut expected = child_environment_overlay(inherited.as_slice(), Path::new("/usr/bin/git"));
+    assert_eq!(invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Present), expected);
+    expected.extend(never_prompt_overlay());
+    assert_eq!(invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Absent), expected);
+}
+
+/// A variable a caller set for its own Git children cannot reopen the prompt of an unattended command:
+/// the never-prompt pair comes after it.
+#[test]
+fn the_never_prompt_pair_wins_over_a_caller_set_child_variable() {
+    let inherited = environment(&[(format!("{CHILD_SET_PREFIX}{ASKPASS_VARIABLE}").as_str(), "/usr/bin/ksshaskpass")]);
+    let overlay = invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Absent);
+    let askpass: Vec<&OsString> = overlay.iter().filter(|(name, _value)| { return name == ASKPASS_VARIABLE; }).map(|(_name, value)| { return value; }).collect();
+    assert_eq!(askpass.last(), Some(&&OsString::new()), "the last entry wins, as an environment block reads it: {askpass:?}");
 }

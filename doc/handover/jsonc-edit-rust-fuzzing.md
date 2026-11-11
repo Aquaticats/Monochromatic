@@ -139,50 +139,50 @@ These are inferences from panic locations and backtraces.
 Each needs a minimized reproducer and a decision about whether the defect is in the crate,
 the harness or the generator.
 
-1. The empty-input edit crash is most likely a **harness** defect:
-   with zero bytes,
-   `GeneratedDocument::arbitrary` or `replacement_value` returns `Err(NotEnoughData)` and my
-   `.expect(...)` turns that into a panic.
-   Harnesses must skip inputs they cannot interpret rather than fail on them.
-   Line 89 and the `replacement_value` expect are both candidates.
-2. The reject-target crash is the one that matters most if it survives triage:
-   `assert_canonical_stability` is only called after `parse_jsonc` succeeded,
-   and closure #1 is the "emission must reparse" panic,
-   so the crate would have emitted text it then refused to parse.
-   That would be a product defect in `emit_jsonc_value`,
-   not a harness problem.
-   It must be reproduced with the mutated source printed,
-   then minimized.
-3. The roundtrip crash at `src/invariants.rs:88` needs the assertion message,
-   which the replay filtered out.
-   Line 88 is inside the comment-collection or preservation region of that file,
-   so it is either a dropped comment during emission (product defect) or an over-strong
-   expectation about merged or re-rendered comment bodies (harness defect).
-   Rerun the replay without filtering to read the message.
+1.  The empty-input edit crash is most likely a **harness** defect:
+    with zero bytes,
+    `GeneratedDocument::arbitrary` or `replacement_value` returns `Err(NotEnoughData)` and my
+    `.expect(...)` turns that into a panic.
+    Harnesses must skip inputs they cannot interpret rather than fail on them.
+    Line 89 and the `replacement_value` expect are both candidates.
+2.  The reject-target crash is the one that matters most if it survives triage:
+    `assert_canonical_stability` is only called after `parse_jsonc` succeeded,
+    and closure #1 is the "emission must reparse" panic,
+    so the crate would have emitted text it then refused to parse.
+    That would be a product defect in `emit_jsonc_value`,
+    not a harness problem.
+    It must be reproduced with the mutated source printed,
+    then minimized.
+3.  The roundtrip crash at `src/invariants.rs:88` needs the assertion message,
+    which the replay filtered out.
+    Line 88 is inside the comment-collection or preservation region of that file,
+    so it is either a dropped comment during emission (product defect) or an over-strong
+    expectation about merged or re-rendered comment bodies (harness defect).
+    Rerun the replay without filtering to read the message.
 
 ## Next steps
 
-1. Replay each artifact unfiltered and record the full panic message and the offending source text.
-2. Minimize each:
-   `cargo fuzz cmin` or `cargo fuzz tmin` per target,
-   then reduce the JSONC source by hand to the smallest document that still fails.
-3. Classify each as crate,
-   generator or harness,
-   and for crate defects write a unit test in `package/rust-module/jsonc-edit` that fails first.
-4. Fix the harness so an uninterpretable input is skipped:
-   no `.expect` on `Arbitrary` results inside a target.
-5. Re-run the campaign until all four targets are clean for a full bounded round,
-   then record the run counts here.
-6. Task #23 is still open:
-   mutation testing with `cargo-mutants`,
-   which is not installed.
-   A local image `localhost/mutation-test-runtime:ff8da957d5b0` exists and
-   `package/rust-module/forbidden-regex/.cargo/mutants.toml` is the precedent to copy.
-7. Task #19 is still open:
-   no `AGENTS.md` rule states that sidecars live beside their package as `<pkgname>.<kind>`.
-   Commit `b9c0e6e48` already moved `package/fuzz/forbidden-strings` to
-   `package/cli/forbidden-strings.fuzz`,
-   so task #20 is done and only the rule remains.
+1.  Replay each artifact unfiltered and record the full panic message and the offending source text.
+2.  Minimize each:
+    `cargo fuzz cmin` or `cargo fuzz tmin` per target,
+    then reduce the JSONC source by hand to the smallest document that still fails.
+3.  Classify each as crate,
+    generator or harness,
+    and for crate defects write a unit test in `package/rust-module/jsonc-edit` that fails first.
+4.  Fix the harness so an uninterpretable input is skipped:
+    no `.expect` on `Arbitrary` results inside a target.
+5.  Re-run the campaign until all four targets are clean for a full bounded round,
+    then record the run counts here.
+6.  Task #23 is still open:
+    mutation testing with `cargo-mutants`,
+    which is not installed.
+    A local image `localhost/mutation-test-runtime:ff8da957d5b0` exists and
+    `package/rust-module/forbidden-regex/.cargo/mutants.toml` is the precedent to copy.
+7.  Task #19 is still open:
+    no `AGENTS.md` rule states that sidecars live beside their package as `<pkgname>.<kind>`.
+    Commit `b9c0e6e48` already moved `package/fuzz/forbidden-strings` to
+    `package/cli/forbidden-strings.fuzz`,
+    so task #20 is done and only the rule remains.
 
 ## Triage result, 2026-09-26
 
@@ -190,50 +190,50 @@ All three campaign crashes are triaged.
 Two were product defects present in **both** maintained implementations,
 one was an over-strict harness expectation.
 
-1. **Product defect,
-   fixed in both implementations.**
-   A `//` comment ends at CR,
-   LF or CRLF,
-   but both emitters decided trailing form from LF alone (`isSingleLineComment` in
-   `package/module/jsonc-edit/src/emit-comment.ts`,
-   `single_line` in `package/rust-module/jsonc-edit/src/comment_merge.rs`) and split leading bodies
-   on LF alone.
-   A block comment body containing a bare CR was therefore emitted as a line comment that
-   terminated early,
-   leaving the rest of the body as code:
-   the Rust port reported `unterminated block comment (at offset 242)` on its own emission,
-   and the TypeScript package reproduced it as
-   `unexpected character "b" (at offset 12)`.
-   Fixed by counting every terminator for trailing form,
-   preferring a block in leading form when the body carries CR and can be one,
-   and splitting the block-unsafe fallback on every terminator.
-   Guard tests:
-   `block_comment_body_with_cr_survives_round_trip` and
-   `merged_comment_body_with_cr_survives_round_trip` in
-   `package/rust-module/jsonc-edit/src/parse_tests.rs`,
-   and two round-trip cases in
-   `package/module/jsonc-edit/src/stringify.unit.test.ts`.
-   Both were shown failing before the fix.
-2. **Product defect,
-   fixed in both implementations.**
-   Setting the document root to a scalar was accepted,
-   producing a state whose canonical emission (`null`) its own parser rejects.
-   The empty-input edit crash was this,
-   not a harness budget problem:
-   the fuzzer drew an empty address plus a scalar replacement.
-   `jsonc_set` in `package/rust-module/jsonc-edit/src/edit_apply.rs` and `jsoncSet` in
-   `package/module/jsonc-edit/src/edit-set.ts` now refuse a non-container root replacement.
-   Guard test `root_set_to_a_scalar_is_refused` was shown failing with the guard removed and
-   passing with it restored.
-3. **Harness defect,
-   fixed twice over.**
-   `assert_comments_preserved` compared a whole merged body against the emission,
-   and `fuzz_parse_emit_roundtrip` repeated that comparison for generator-recorded bodies.
-   Canonical emission renders a merged multi-line body as one indented `//` line per body line,
-   so the joined body is deliberately not a substring.
-   Both now compare body lines,
-   which still catches a dropped one;
-   the negative control in `src/invariants_tests.rs` still fails when a comment is stripped.
+1.  **Product defect,
+    fixed in both implementations.**
+    A `//` comment ends at CR,
+    LF or CRLF,
+    but both emitters decided trailing form from LF alone (`isSingleLineComment` in
+    `package/module/jsonc-edit/src/emit-comment.ts`,
+    `single_line` in `package/rust-module/jsonc-edit/src/comment_merge.rs`) and split leading bodies
+    on LF alone.
+    A block comment body containing a bare CR was therefore emitted as a line comment that
+    terminated early,
+    leaving the rest of the body as code:
+    the Rust port reported `unterminated block comment (at offset 242)` on its own emission,
+    and the TypeScript package reproduced it as
+    `unexpected character "b" (at offset 12)`.
+    Fixed by counting every terminator for trailing form,
+    preferring a block in leading form when the body carries CR and can be one,
+    and splitting the block-unsafe fallback on every terminator.
+    Guard tests:
+    `block_comment_body_with_cr_survives_round_trip` and
+    `merged_comment_body_with_cr_survives_round_trip` in
+    `package/rust-module/jsonc-edit/src/parse_tests.rs`,
+    and two round-trip cases in
+    `package/module/jsonc-edit/src/stringify.unit.test.ts`.
+    Both were shown failing before the fix.
+2.  **Product defect,
+    fixed in both implementations.**
+    Setting the document root to a scalar was accepted,
+    producing a state whose canonical emission (`null`) its own parser rejects.
+    The empty-input edit crash was this,
+    not a harness budget problem:
+    the fuzzer drew an empty address plus a scalar replacement.
+    `jsonc_set` in `package/rust-module/jsonc-edit/src/edit_apply.rs` and `jsoncSet` in
+    `package/module/jsonc-edit/src/edit-set.ts` now refuse a non-container root replacement.
+    Guard test `root_set_to_a_scalar_is_refused` was shown failing with the guard removed and
+    passing with it restored.
+3.  **Harness defect,
+    fixed twice over.**
+    `assert_comments_preserved` compared a whole merged body against the emission,
+    and `fuzz_parse_emit_roundtrip` repeated that comparison for generator-recorded bodies.
+    Canonical emission renders a merged multi-line body as one indented `//` line per body line,
+    so the joined body is deliberately not a substring.
+    Both now compare body lines,
+    which still catches a dropped one;
+    the negative control in `src/invariants_tests.rs` still fails when a comment is stripped.
 
 After the fixes,
 `fuzz_reject_and_recover` ran 880092 executions in 123 seconds with no crashes,

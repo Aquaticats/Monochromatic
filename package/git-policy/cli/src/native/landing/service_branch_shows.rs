@@ -53,7 +53,7 @@ pub fn what_the_branch_shows(context: &GitContext, cwd: &Path, reference: &str, 
     // Whether the branch holds the commit, which the tip itself does and so does every commit under it:
     // `merge-base --is-ancestor` answers 0 for both, 1 for a commit the branch does not hold, and anything else is a read
     // that failed (finding 5 of the third review).
-    let asked = run_git(context, &indexed_request(cwd, &["merge-base", "--is-ancestor", prepared, reference], None, None));
+    let asked = run_git(context, &indexed_request(context, cwd, &["merge-base", "--is-ancestor", prepared, reference], None, None));
     let Ok(output) = asked else {
         return WhatTheBranchShows::Unread;
     };

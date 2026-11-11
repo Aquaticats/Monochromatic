@@ -65,9 +65,15 @@ fn words(list: &[&str]) -> Option<Vec<Vec<u8>>> {
     return Some(list.iter().map(word_bytes).collect());
 }
 
-/// Whitespace separates words;
+/// Whichever whitespace class Git's split reads separates words;
 ///  quotes group;
 ///  backslashes escape outside single quotes.
+/// Git's `isspace` here is `GIT_SPACE`,
+///  which is space,
+///  TAB,
+///  LF and CR only (`ctype.c`,
+///  `sane_ctype`),
+///  so a vertical tab or a form feed is an ordinary byte inside one word.
 #[test]
 fn alias_values_split_as_git_splits_them() {
     assert_eq!(split_alias_command(b"commit -a"), words(&["commit", "-a"]));
@@ -80,6 +86,35 @@ fn alias_values_split_as_git_splits_them() {
     assert_eq!(split_alias_command(b"'a\\b'"), words(&["a\\b"]));
     assert_eq!(split_alias_command(b"\"a\\\"b\""), words(&["a\"b"]));
     assert_eq!(split_alias_command(b"''"), words(&[""]));
+    // A vertical tab and a form feed are inside the word, not between words.
+    assert_eq!(split_alias_command(b"rev-parse\x0b--git-dir"), words(&["rev-parse\x0b--git-dir"]));
+    assert_eq!(split_alias_command(b"rev-parse\x0c--git-dir"), words(&["rev-parse\x0c--git-dir"]));
+}
+
+/// What:
+///  A value that ends with whitespace splits into one more,
+///  empty word,
+///  exactly as Git's `split_cmdline` leaves it.
+/// Why:
+///  Git points its next word at the byte after the NUL it wrote over the whitespace
+///  (`alias.c`,
+///  `split_cmdline`),
+///  so `'alias.x=status '` runs `git status ''` and fails with `empty string is not a valid pathspec`;
+///  a split that dropped the empty word ran `git status` and lost no work but ran a command Git refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// splitAliasCommand('status ') === ['status', '']
+/// ```
+#[test]
+fn a_value_that_ends_with_whitespace_keeps_gits_empty_last_word() {
+    assert_eq!(split_alias_command(b"status "), words(&["status", ""]));
+    assert_eq!(split_alias_command(b"rev-parse --git-dir\t"), words(&["rev-parse", "--git-dir", ""]));
+    assert_eq!(split_alias_command(b"rev-parse --git-dir\n"), words(&["rev-parse", "--git-dir", ""]));
+    assert_eq!(split_alias_command(b"rev-parse --git-dir\r"), words(&["rev-parse", "--git-dir", ""]));
+    // Two spaces between words are still one separator, and whitespace at the end is one empty word, not two.
+    assert_eq!(split_alias_command(b"a  b"), words(&["a", "b"]));
+    assert_eq!(split_alias_command(b"a  "), words(&["a", ""]));
 }
 
 /// An empty value is one empty word,
@@ -89,7 +124,9 @@ fn alias_values_split_as_git_splits_them() {
 #[test]
 fn empty_and_unfinished_values_split_to_one_empty_word_or_fail() {
     assert_eq!(split_alias_command(b""), words(&[""]));
-    assert_eq!(split_alias_command(b"   "), words(&[""]));
+    // Git starts with one word before it reads any byte, and each whitespace run starts another, so three
+    //  spaces are an empty first word and a second empty word.
+    assert_eq!(split_alias_command(b"   "), words(&["", ""]));
     assert_eq!(split_alias_command(b"'a"), None);
     assert_eq!(split_alias_command(b"\"a"), None);
     assert_eq!(split_alias_command(b"a\\"), None);
@@ -116,6 +153,34 @@ fn a_value_with_a_leading_space_is_unresolved_and_not_trimmed_into_a_command() {
     let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixturetrim"]));
     assert_eq!(resolved.route, Route::Unresolved);
     assert!(!resolved.is_builtin());
+}
+
+/// What:
+///  Both spellings of one alias are read,
+///  and the last one in config order wins,
+///  as Git's `config_alias_cb` overwrites on every match.
+/// Why:
+///  A lookup that read `alias.<name>` first and `alias.<name>.command` only when the first was unset
+///  ran the command Git does not select (`forwarded_command.rs`,
+///  `lookup_alias`),
+///  and the caller saw a command Git itself would never run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // alias.x = 'status --short' then alias.x.command = 'diff --stat' => the alias runs diff
+/// ```
+#[test]
+fn the_last_of_the_two_spellings_in_config_order_is_the_alias() {
+    for (pairs, expected) in [
+        (vec![("fixturetwo", "status --short"), ("fixturetwo.command", "diff --stat")], "diff"),
+        (vec![("fixturetwo.command", "diff --stat"), ("fixturetwo", "status --short")], "status"),
+        (vec![("fixturetwo", "status --short"), ("fixturetwo", "diff --stat")], "diff"),
+    ] {
+        let context: GitContext = context_with_aliases(pairs.as_slice());
+        let resolved: ResolvedCommand = resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixturetwo"]));
+        assert_eq!(resolved.route, Route::Alias, "{pairs:?}");
+        assert_eq!(String::from_utf8_lossy(resolved.word()), expected, "{pairs:?}");
+    }
 }
 
 /// Git refuses an alias whose expansion moves the directory or sets an environment variable,

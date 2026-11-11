@@ -71,6 +71,107 @@ fn a_skipped_check_is_reported_and_does_not_block_the_command() {
 }
 
 /// What:
+///  A check that leaves work alone reports it in a note and the pass goes on.
+///  The note is written where a reader of the events finds it,
+///  with its own hint,
+///  and the
+///       exit code stays 0,
+///  so the command that asked lands,
+///  while the findings beside the note are
+///       reported as any finding is.
+/// Why:
+///   A commit must never fail over a file a policy chose not to change,
+///  and the person must
+///       still be told which file that was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // stage({ findingsWithNotes: { findings: [], notes: [{ path: 'b/package.json', message: 'left it' }] } })
+/// ```
+#[test]
+fn a_note_is_reported_and_does_not_block_the_command() {
+    let path: EventPath = EventPath::from_git_bytes(b"b/package.json");
+    let config: PolicyConfig = all_listed();
+    let (result, _called) = run(
+        Trigger::PreForward,
+        &config,
+        &no_controls(),
+        &[],
+        vec![(
+            PolicyId::DependentVersionBump,
+            PolicyOutcome::FindingsWithNotes {
+                findings: Vec::new(),
+                notes: vec![PolicyNote {
+                    message: String::from("it was left as it is"),
+                    path: Some(path.clone()),
+                    hint: Some(crate::policy_events::LEFT_ALONE_HINT),
+                }],
+            },
+        )],
+    );
+    assert_eq!(result.end, StageEnd::Completed);
+    assert_eq!(
+        result.events,
+        [PolicyEvent::EngineFailure {
+            code: EngineFailureCode::PolicyIncomplete,
+            hint: crate::policy_events::EngineFailureHint::Chosen(Some(
+                crate::policy_events::LEFT_ALONE_HINT
+            )),
+            message: String::from("it was left as it is"),
+            trigger: Some(Trigger::PreForward),
+            policy: Some(PolicyId::DependentVersionBump),
+            path: Some(path),
+        }]
+    );
+    assert_eq!(pass_exit_code(result.events.as_slice(), result.end), 0);
+}
+
+/// What:
+///  A note beside an error finding does not change what the finding does:
+///  the pass still stops
+///       and the exit code still blocks.
+/// Why:
+///   Notes are additive;
+///  a policy that found something blocking keeps blocking.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // stage({ findingsWithNotes: { findings: [finding('stale')], notes: [...] } }) // exit 1
+/// ```
+#[test]
+fn a_note_beside_an_error_finding_still_blocks() {
+    let config: PolicyConfig = all_listed();
+    let (result, _called) = run(
+        Trigger::PreForward,
+        &config,
+        &no_controls(),
+        &[],
+        vec![(
+            PolicyId::DependentVersionBump,
+            PolicyOutcome::FindingsWithNotes {
+                findings: vec![PolicyFinding {
+                    code: "dependent-version-stale",
+                    message: String::from("message of dependent-version-stale"),
+                    path: None,
+                    location: None,
+                    fix_available: false,
+                }],
+                notes: vec![PolicyNote {
+                    message: String::from("it was left as it is"),
+                    path: None,
+                    hint: Some(crate::policy_events::LEFT_ALONE_HINT),
+                }],
+            },
+        )],
+    );
+    assert_eq!(result.end, StageEnd::Stopped);
+    assert_eq!(
+        pass_exit_code(result.events.as_slice(), result.end),
+        BLOCKED_EXIT_CODE
+    );
+}
+
+/// What:
 ///  A read the wrapper ended is reported with its own hint,
 ///  not with the one that speaks of a shallow
 ///       history.
@@ -122,8 +223,8 @@ fn a_read_that_was_ended_carries_its_own_hint() {
 
 /// The stage under test and the types it reads and produces.
 use super::{
-    BLOCKED_EXIT_CODE, PolicyChecks, PolicyFinding, PolicyOutcome, StageEnd, StageRequest,
-    StageResult, Unavailable, any_policy_applies, pass_exit_code, run_policy_stage,
+    BLOCKED_EXIT_CODE, PolicyChecks, PolicyFinding, PolicyNote, PolicyOutcome, StageEnd,
+    StageRequest, StageResult, Unavailable, any_policy_applies, pass_exit_code, run_policy_stage,
 };
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
 use crate::config_schema::PolicyConfig;

@@ -63,9 +63,7 @@ Name the unit so it can be found,
 and cap its memory,
 its CPU (`--property=CPUQuota=<threads>00%`),
 its process count (`--property=TasksMax=<count>`)
-and its disk weight (`--property=IOWeight=<1-10>`,
-never above 10,
-lower for disk-heavy work),
+and its disk weight (`--property=IOWeight=1`),
 each sized to that command,
 because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to Bash commands.
 Rationale:
@@ -286,6 +284,13 @@ commands,
 or cross-vendor reviewer;
 never same-session self-review (`doc/agent/self-review.md`).
 
+WDQ:
+ Wondering whether something we control is a defect?
+ It is:
+ fix it.
+Intended behavior that could confuse gets documented where its users meet it,
+ so they are not confused.
+
 IRW:
  Independent review means a reviewer from another model vendor than the author,
  or the user.
@@ -294,7 +299,7 @@ A same-vendor subagent is a second pass:
  never as independent.
 
 XVW:
- GPT reviews and audits,
+ GPT audits,
  `timeout` sized in seconds:
  `timeout 3600 codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-6.1-sol --config model_reasoning_effort=xhigh "<question>"`.
 
@@ -308,16 +313,23 @@ XVS:
  one narrow question each:
  GPT models cannot be trusted on long-horizon work.
 
+KRV:
+ Reviews of a change go to Kimi K3.1 Pro alone:
+ Pi with `--provider synthetic --model hf:moonshotai/Kimi-K3.1-Pro`,
+ in a worktree of its own,
+ outside the Neuralwatt slots.
+
 LHZ:
- Long-horizon reviews and audits,
+ Long-horizon audits,
  in every harness:
- use Claude Sonnet,
- by whatever route that harness offers.
+ run Claude Sonnet,
+ by whatever route that harness offers,
+ and Kimi K3.1 Pro side by side.
 
 PFW:
  Alongside advisor,
  never instead:
- a `gpt-6.1-sol` review reads the paths its prompt names,
+ a Kimi review reads the paths its prompt names,
  whole files and the diff,
  never prose.
 Background it;
@@ -642,6 +654,14 @@ FBN:
  never a stop:
  keep improving it unless the user drops the goal.
 
+NHX:
+ Never rush an agent or give it a due date,
+ not even by hint ("asap",
+ "urgent",
+ a release waiting on it);
+ any sense of hurry lowers its work.
+Briefs ask for the best result.
+
 ## Before running a command
 
 ### Command execution conventions
@@ -731,11 +751,11 @@ CLN:
  unless commit history matters.
 
 APQ:
- Auto-push fires in third-party clones too:
+ Auto-push fires in third-party clones:
  before committing in one,
  run `git remote set-url --push origin DISABLED`;
- never in this repo's linked worktrees,
- which share its `.git/config`.
+ never in any `git worktree add` folder of this repo,
+ which shares its `.git/config`.
 
 BOP:
  `~` in shell output is a display-only home-dir substitution by the `bash-output-filter` hook;
@@ -796,8 +816,7 @@ RXS:
  `systemd-run --user --scope` with `CPUQuota`,
  `MemoryMax`,
  `TasksMax`,
- `IOWeight`;
- never set `IOWeight` above 10.
+ `IOWeight=1`.
 
 HXR:
  Commands that risk exhausting the host:
@@ -1669,8 +1688,9 @@ MD1:
 
 MD2:
  `-` for unordered lists;
- pad numbered markers to 4 chars (`1.`,
- `10.`).
+ pad numbered markers so digits,
+ dot and spaces fill four columns,
+ as `1.` then two spaces and `10.` then one.
 
 MD3:
  Fenced code blocks with language tags and file-path comments.
@@ -1717,6 +1737,10 @@ DPL:
  `LICENSE`,
  `LICENSES/`.
 Package docs stay beside code.
+
+PLK:
+ A rule or fact about one package goes in that package's docs,
+ never `AGENTS.md` or a repo-wide doc.
 
 DL1:
  Repo-wide doc paths:
@@ -1820,9 +1844,10 @@ CPN:
 
 XSG:
  Tracked files:
- commit with `git commit -- <paths>` alone;
+ commit with `git commit --message <text> -- <paths>` alone,
+ options before `--`;
  a separate `git add` stays staged if the commit fails,
- and another session's commit in the shared checkout then takes it.
+ and another session's commit then takes it.
 
 XCM:
  External messages report results,

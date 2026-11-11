@@ -42,16 +42,22 @@
 //! the entry's own text ends with
 //!  one line feed,
 //! so two entries are separated by exactly one blank line.
+//!  A full log moves aside to the next free generation,
+//! and a receipt is looked for in the log and in every generation of it,
+//! because the
+//!  history is one log to a reader:
+//! a commit whose entry rotated away is still reviewed once.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const line = receiptLine(sha) + '\n'; const held = (await readLog(log)).splitAfter('\n').includes(line);
-//! if (!held) await appendFile(log, '\n' + text); // one write on an 'a' handle
+//! const line = receiptLine(sha) + '\n'; const held = (await readLogWithGenerations(log)).splitAfter('\n').includes(line);
+//! if (!held) await appendEntry(log, '\n' + text, UNPINNED_LOG); // one write of the whole entry
 //! ```
 
-use crate::private_storage::create_private_directory_all;
+use crate::earlier_log_lines_added_to_current_log::numbered_copies;
+use crate::log_generations_kept_to_a_bound::UNPINNED_LOG;
+use crate::log_lines_appended_without_a_lock::append_entry;
 use crate::standards_review_entry::receipt_line;
-use std::io::Write;
 use std::path::Path;
 
 /// What a delivery did.
@@ -114,54 +120,83 @@ fn bytes_name_commit(log: &[u8], sha: &str) -> bool {
 /// Whether the log carries the commit's receipt already;
 /// a log that cannot be read names nothing.
 pub fn names_commit(log: &Path, sha: &str) -> bool {
-    return match std::fs::read(log) {
-        Ok(bytes) => bytes_name_commit(bytes.as_slice(), sha),
-        Err(_) => false,
-    };
+    return history_names_commit(log, sha).unwrap_or(false);
 }
 
 /// What:
-///  Append `text` to the log in one write on an append-mode descriptor,
-/// beginning with a line feed of its own,
-/// creating the log and its directory when missing.
+///  Whether the log at `log`,
+/// or any older generation of it,
+///  carries the commit's receipt line.
 /// Why:
-///   The kernel positions an `O_APPEND` write at the end of the file and writes it whole,
-/// so concurrent appenders never
-///   interleave;
-/// `write_all` continues a cut-short write with the rest of the same entry.
-/// A final link is refused,
-/// and a
-///   created file is private because entries carry commit subjects.
-/// The line feed is part of the write and is never decided from what the log holds:
-/// a reader can see
-///  another appender's entry while its write is still arriving,
-/// so a separator that depended on the last byte
-///  observed would land inside that entry,
-/// while an unconditional one keeps every entry on a line of its own and
-///  an entry joined to nothing.
+///   A rotation keeps every entry,
+/// so the generations are the same log to a reader;
+/// a receipt the live file no longer holds still
+///  names the commit,
+/// and a commit whose entry rotated away must not be reviewed a second time.
+/// A generation that cannot be read is one
+///  this answer does not know about;
+/// the live log's own failure is returned,
+/// because appending after it could repeat an entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await mkdir(dirname(log), { recursive: true, mode: 0o700 }); await appendFile(log, '\n' + text, { mode: 0o600 });
+/// const files = [log, ...numberedCopies(log)]; files.some((f) => splitAfter(read(f), '\n').includes(wanted));
+/// ```
+///
+/// # Errors
+/// The system's error when the live log exists and cannot be read.
+fn history_names_commit(log: &Path, sha: &str) -> std::io::Result<bool> {
+    let current: Vec<u8> = match std::fs::read(log) {
+        Ok(found) => found,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(error),
+    };
+    if bytes_name_commit(current.as_slice(), sha) {
+        return Ok(true);
+    }
+    let (Some(parent), Some(name)) = (log.parent(), log.file_name()) else {
+        return Ok(false);
+    };
+    let current_name: String = name.to_string_lossy().into_owned();
+    for copy in numbered_copies(parent, current_name.as_str()) {
+        if let Ok(bytes) = std::fs::read(copy)
+            && bytes_name_commit(bytes.as_slice(), sha)
+        {
+            return Ok(true);
+        }
+    }
+    return Ok(false);
+}
+
+/// What:
+///  Append `text` to the log as one whole entry,
+/// beginning with a line feed of its own,
+/// through the appender every log of the
+///  wrapper shares.
+/// Why:
+///   The kernel positions an `O_APPEND` write at the end of the file and writes it whole,
+/// so concurrent appenders never
+///   interleave,
+/// and a write the system cut short is continued with the rest of the same entry.
+/// The entry's line feed is part of the write
+///   and is never decided from what the log holds:
+/// a reader can see another appender's entry while its write is still arriving,
+/// so a separator that depended on the last byte observed would land
+///   inside that entry,
+/// while an unconditional one keeps every entry on a line of its own.
+/// The appender creates the folder private and refuses a
+///   final link,
+/// because entries carry commit subjects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await mkdir(dirname(log), { recursive: true, mode: 0o700 }); await appendEntry(log, '\n' + text, retention, { mode: 0o600, noFollow: true });
 /// ```
 fn append_whole(log: &Path, text: &str) -> std::io::Result<()> {
-    if let Some(directory) = log.parent() {
-        create_private_directory_all(directory)?;
-    }
-    // `mut` allows the builder to be configured step by step.
-    let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
-    options.append(true).create(true);
-    #[cfg(unix)]
-    {
-        // The trait adds `.mode` and `.custom_flags` to open options on Unix.
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(crate::private_storage::PRIVATE_FILE_MODE).custom_flags(libc::O_NOFOLLOW);
-    }
-    let mut file: std::fs::File = options.open(log)?;
     let mut entry: Vec<u8> = Vec::with_capacity(text.len() + 1);
     entry.push(b'\n');
     entry.extend_from_slice(text.as_bytes());
-    return file.write_all(entry.as_slice());
+    return append_entry(log, entry.as_slice(), &UNPINNED_LOG);
 }
 
 /// What:
@@ -188,12 +223,11 @@ fn append_whole(log: &Path, text: &str) -> std::io::Result<()> {
 /// await deliver({ log, sha, text })
 /// ```
 pub fn deliver(log: &Path, sha: &str, text: &str) -> Result<Delivery, String> {
-    let current: Vec<u8> = match std::fs::read(log) {
+    let already_there: bool = match history_names_commit(log, sha) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(format!("reading {} failed: {error}", log.display())),
     };
-    if bytes_name_commit(current.as_slice(), sha) {
+    if already_there {
         return Ok(Delivery::AlreadyThere);
     }
     if let Err(error) = append_whole(log, text) {

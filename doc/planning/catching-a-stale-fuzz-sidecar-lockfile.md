@@ -2,9 +2,15 @@
 
 Status:
 proposed 2026-11-09;
-not built.
-Where the check runs is the owner's call,
-so this document recommends a trigger and changes nothing else.
+option A built 2026-11-10 on `ci/git-policy-cli-fuzz-sidecar-compile-workflow`,
+after the owner chose "Workflow only" in the question tool.
+Options G,
+B,
+C,
+D and E stay unbuilt.
+The owner did not answer whether `lint:sidecar-locks` should go,
+so it stays where it is,
+and `toml-edit-fuzz.yml` and `logger-fuzz.yml` gained no lock check of their own.
 
 ## Purpose
 
@@ -229,7 +235,7 @@ using the filter and steps under `## Path filter for option A`.
 It is not part of this recommendation,
 because G reports before the merge and costs no CI minutes.
 
-## Path filter for option A
+## What option A built (2026-11-10T06:22:10-05:00)
 
 One workflow,
 `.github/workflows/git-policy-cli-fuzz.yml`,
@@ -253,11 +259,12 @@ the sidecar and every crate the sidecar links by path;
 Its steps:
 
 - checkout,
-  then the repository's task CLI setup;
-- `task-run fetch:rust-dependencies -- package/git-policy/cli package/git-policy/cli.fuzz`,
-  because both checks run offline;
-- `task-run //package/git-policy/cli:lint:sidecar-locks`,
-  which is seconds and whose message already names the repair task;
+  then the repository's task CLI setup with no workspace install,
+  because the task CLI and its task files load node builtins and relative files only;
+- the pinned Rust toolchain from `toolchain.lock.json`,
+  because both cargo calls compile the wrapper and its sidecar;
+- `cargo fetch --locked` for both manifests,
+  because the type check runs `--offline`;
 - `task-run //package/git-policy/cli.fuzz:lint:types`,
   which is the compile that would have failed on 2026-11-09.
 
@@ -266,11 +273,65 @@ the planted controls,
 the mutation campaign,
 or any other package's lint.
 
+Three departures from the step list drafted under option A:
+
+- The task runs through `task-run`,
+  never `mise run`:
+  no workflow invokes mise (`doc/decision/mise-free-ci.md`).
+  The task is therefore also defined mise-free,
+  in `package/git-policy/cli.fuzz/task.ts`,
+  which mirrors the sidecar's `mise.toml` `lint:types` body.
+  The package had no task file before,
+  so the CI task CLI could not reach this sidecar's tasks at all.
+- Only `lint:types` runs.
+  `lint:sidecar-locks` stays in the wrapper's own `lint`,
+  where it fails in seconds and names the repair task;
+  the owner has not decided whether it goes.
+- The merge-group scope step reuses
+  `package/toml-edit/core.fuzz/src/ci-scope.ts`
+  with `SCOPE_PACKAGE_PREFIXES`,
+  `SCOPE_CONTRACT_PATHS` and `SCOPE_SUBJECT`,
+  the reuse that program was written for
+  (`doc/decision/toml-edit-ci-scope.md`),
+  rather than a second copy of the decision.
+  A shell scope step is not available here:
+  a new workflow's shell steps allow two lines and no pipe,
+  no `;`,
+  no `$(` and no `||`
+  (`.github/workflows/monochromatic-lint.config.jsonc`).
+
+Measured on 2026-11-10 in a worktree of
+`ci/git-policy-cli-fuzz-sidecar-compile-workflow`,
+at 400 percent CPU quota on eight host CPUs:
+
+- The check passes at that branch's `main`:
+  `cargo check --all-targets --locked --offline` finished in 5 m 58 s from an empty target directory,
+  and `cargo clippy --all-targets --locked --offline -- -D warnings` then took 5.09 s;
+  a warm rerun took 1.07 s and 0.37 s.
+  The CPU-time cost of the CI job is the same order,
+  so budget minutes rather than seconds for it.
+- The check fails on a sidecar that does not compile:
+  one appended probe naming a wrapper function that does not exist made it stop with
+  `error[E0425]: cannot find function `symbol_moved_by_a_later_wrapper_change` in crate `git_policy_cli``,
+  `error: could not compile `git-policy-cli-fuzz` (lib test) due to 1 previous error`,
+  and exit 1 from the task CLI.
+  Removing the probe restored the passing run.
+- The check fails on a stale lockfile:
+  the sidecar's original `Cargo.lock` from `789eb07b47` in the same tree made cargo stop with
+  `error: cannot update the lock file .../cli.fuzz/Cargo.lock because --locked was passed to prevent this`,
+  and the task exited 1.
+- The job's exact shape runs without a workspace install:
+  a `git archive HEAD` copy with no `node_modules`,
+  run by the pinned `nightly-2026-11-10` toolchain and its Clippy,
+  passed the task in 2 m 12 s for the check and 1.25 s for Clippy,
+  so the task CLI's loader needs no installed dependencies.
+
 ## Open questions for the owner
 
-- If option A is built,
-  whether the workflow should be required on the merge queue,
+- Whether the workflow should be required on the merge queue,
   or advisory.
+- Whether `lint:sidecar-locks` should go,
+  now that the CI compile fails on a stale lock too.
 - Whether option B should follow in the same change or later,
   so the other sidecars gain the same check.
 - Whether `toml-edit-fuzz.yml` and `logger-fuzz.yml` should gain the lock check for their own sidecars,

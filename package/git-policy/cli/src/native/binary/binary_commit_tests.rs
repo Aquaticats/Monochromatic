@@ -825,8 +825,12 @@ fn an_intent_to_add_entry_equal_to_the_base_stays_in_a_commit_native_git_builds(
     remove_settled(&fixture);
 }
 
-/// An ignored path nothing stages is refused with the way forward,
-/// not with Git's force-add hint alone.
+/// An ignored path nothing stages is an input refusal,
+/// not an engine failure:
+/// exit `1`,
+/// a finding that names the path and both ways forward,
+/// nothing landed and nothing staged,
+/// and the same command lands once the file is force-added (issue 6278).
 #[test]
 fn an_explicit_path_commit_of_an_unstaged_ignored_path_names_the_way_forward() {
     let fixture: Fixture = fixture("commit-unstaged-ignored");
@@ -835,15 +839,29 @@ fn an_explicit_path_commit_of_an_unstaged_ignored_path_names_the_way_forward() {
     git(&fixture, repo.as_path(), &["add", "--", ".gitignore"]);
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ignore", "--", ".gitignore"]);
     std::fs::write(repo.join("c.js"), b"c\n").expect("c");
-    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=c", "--", "c.js"]);
-    assert_ne!(refused.code, Some(0), "{}", stderr_of(&refused));
-    assert!(stderr_of(&refused).contains("git add --force -- <path>"), "{}", stderr_of(&refused));
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let staged_before: String = git_text(&fixture, repo.as_path(), &["diff", "--cached", "--name-status"]);
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=c", "--", "a.txt", "c.js"]);
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("\"type\":\"core-finding\""), "{text}");
+    assert!(text.contains("explicit-path-commit/named-path-ignored"), "{text}");
+    assert!(text.contains("[\\\"c.js\\\"]"), "{text}");
+    assert!(text.contains("this commit was not made and nothing was staged by it"), "{text}");
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert!(!text.contains("transaction-failed"), "{text}");
+    assert!(!text.contains("git log --oneline -3"), "the transaction-failure hint: {text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "the named tracked path did not land without the ignored one");
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["diff", "--cached", "--name-status"]),
+        staged_before,
+        "the refusal staged nothing"
+    );
     assert_nothing_left(&fixture, repo.as_path());
-    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]);
     git(&fixture, repo.as_path(), &["add", "--force", "--", "c.js"]);
-    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=c", "--", "c.js"]);
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=c", "--", "a.txt", "c.js"]);
     assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
-    assert_ne!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]), head_before);
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "--name-only", "--format=", "HEAD"]), "a.txt\nc.js\n");
     remove_settled(&fixture);
 }
 

@@ -44,30 +44,30 @@ its worktrees or the commit service was touched.
   preflight and plan only.
 - `--apply` runs these journaled steps (journal:
   `<parent>/.migrate-<name>.journal.json`):
-  1. `btrfs subvolume create <root>.subvol-new`.
-  2. Each linked worktree under `<root>/` (from `.git/worktrees/*/gitdir`) is created as a nested subvolume inside the
-     new tree,
-     so a later snapshot of the root holds an empty stub for it (disable with `--no-nested-worktrees`).
-  3. `cp --archive --reflink=always --remove-destination <root>/. <root>.subvol-new/`:
-     data blocks are shared,
-     only metadata is copied.
-  4. `rsync --archive --delete` of whatever changed during the copy.
-  5. Hold `<root>/.git/index.lock`,
-     run `rsync` once more,
-     `mv --exchange --no-target-directory <root> <root>.subvol-new`
-     (renameat2 `RENAME_EXCHANGE`,
-     one atomic step),
-     rename the old tree to `<root>.before-subvolume`,
-     drop the lock
-     that is now inside the old tree.
-  6. One `rsync --archive --update` (no `--delete`) from the old tree to the new root for writes that landed in the old
-     tree after the exchange.
-  7. Rewrite the stat fields of every copied Git index (main and the linked worktrees inside the root).
-  8. Verify:
-     root inode 256,
-     `btrfs filesystem du`,
-     `git status`,
-     `git worktree list`.
+  1.  `btrfs subvolume create <root>.subvol-new`.
+  2.  Each linked worktree under `<root>/` (from `.git/worktrees/*/gitdir`) is created as a nested subvolume inside the
+      new tree,
+      so a later snapshot of the root holds an empty stub for it (disable with `--no-nested-worktrees`).
+  3.  `cp --archive --reflink=always --remove-destination <root>/. <root>.subvol-new/`:
+      data blocks are shared,
+      only metadata is copied.
+  4.  `rsync --archive --delete` of whatever changed during the copy.
+  5.  Hold `<root>/.git/index.lock`,
+      run `rsync` once more,
+      `mv --exchange --no-target-directory <root> <root>.subvol-new`
+      (renameat2 `RENAME_EXCHANGE`,
+      one atomic step),
+      rename the old tree to `<root>.before-subvolume`,
+      drop the lock
+      that is now inside the old tree.
+  6.  One `rsync --archive --update` (no `--delete`) from the old tree to the new root for writes that landed in the old
+      tree after the exchange.
+  7.  Rewrite the stat fields of every copied Git index (main and the linked worktrees inside the root).
+  8.  Verify:
+      root inode 256,
+      `btrfs filesystem du`,
+      `git status`,
+      `git worktree list`.
 - The old tree is never deleted unless `--remove-old` is given.
 
 ### Refusals (preflight)

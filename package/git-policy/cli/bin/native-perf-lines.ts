@@ -1,12 +1,8 @@
 /**
- The lines `native-perf.ts` prints: one line of figures for each scenario, and the failure it ends with when a sample or
- a requirement was not met.
+ The lines `native-perf.ts` prints: one line of figures for each scenario, and one line for each requirement it broke.
  */
 import type { BoundViolation } from './native-perf-judge.ts';
-import type {
-  SampleFailure,
-  ScenarioReport,
-} from './native-perf-measure.ts';
+import type { ScenarioReport } from './native-perf-measure.ts';
 
 /**
  Width of the scenario column in the printed lines, so the figures align.
@@ -76,41 +72,4 @@ export function reportLine(entry: ScenarioReport): string {
 export function violationLine(violation: BoundViolation): string {
   return `OVER BOUND: ${violation.scenario} ${violation.statistic} ${formatted(violation.value)} `
     + `>= ${formatted(violation.limit)}`;
-}
-
-/**
- Fails a run whose samples or requirements were not all met: one line naming how many samples answered with a failure
- status, then one for each requirement a scenario broke. `native-perf.ts` ends by calling it, so the failure reaches the
- error channel and the exit status instead of being printed beside an assigned standard exit code.
-
- @param failures - samples whose command answered with a failure status
-
- @param violations - requirements a scenario broke
-
- @throws Error when any sample failed or any requirement was broken, with every reason in the message
-
- @example
- ```ts
- assertSamplesSucceededAndBoundsHeld({ failures, violations });
- ```
- */
-export function assertSamplesSucceededAndBoundsHeld({
-  failures,
-  violations,
-}: {
-  readonly failures: readonly SampleFailure[];
-  readonly violations: readonly BoundViolation[];
-}): void {
-  if ((failures.length === 0) && (violations.length === 0)) return;
-  /**
-   Every reason the run failed, in the order the report states them.
-   */
-  const reasons: string[] = [];
-  if (failures.length > 0) {
-    reasons.push(`FAILED samples: ${String(failures.length)}; first: ${JSON.stringify(failures[0])}`);
-  }
-  for (const violation of violations) {
-    reasons.push(violationLine(violation));
-  }
-  throw new Error(reasons.join('\n'));
 }

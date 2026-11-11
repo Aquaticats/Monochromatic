@@ -215,6 +215,20 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
         typed
     };
     let name: String = String::from_utf8_lossy(forward.command.word()).into_owned();
+    // What: The branch as the merge found it, read before Git moves it.
+    // Why:  The worktrees whose branches the merge lands are those new to the landed branch, and only this reading says
+    //       which commits the landed branch did not hold before (`worktree_landed_after_a_merge.rs`).
+    let merge_window: Option<(GitContext, String)> = if forward.command.word() == b"merge" {
+        let sweep_context: GitContext = GitContext {
+            real_git: forward.real_git.clone(),
+            overlay: forward.overlay.clone(),
+            global_prefix: Vec::new(),
+            common_dir: None,
+        };
+        crate::worktree_landed_after_a_merge::window(sweep_context, &forward.identity)
+    } else {
+        None
+    };
     // The commit service holds the index while it lands a commit, which ends by itself: the command waits for it, naming
     //  it, before Git starts. A lock that is not the service's is a foreign program's and keeps the behavior of native Git.
     wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
@@ -242,6 +256,7 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
             IsolatedMerge::Finished { code, stdout, stderr } => {
                 let _ = std::io::stdout().write_all(stdout.as_bytes());
                 let _ = std::io::stderr().write_all(stderr.as_bytes());
+                swept_after_a_merge(merge_window.as_ref(), &forward.identity, code);
                 return CoordinatedRun::Ran(code);
             }
         }
@@ -274,10 +289,33 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
         let passed_on: Option<i32> = resolve_after(second_pass_watch.as_ref(), forward, *code, &mut std::io::stderr());
         // Every conflicted file resolved and the operation was ended like a clean run: that run's status is the command's.
         if let Some(ended) = passed_on {
+            swept_after_a_merge(merge_window.as_ref(), &forward.identity, ended);
             return CoordinatedRun::Ran(ended);
         }
     }
+    if let CoordinatedRun::Ran(code) = &finished {
+        swept_after_a_merge(merge_window.as_ref(), &forward.identity, *code);
+    }
     return finished;
+}
+
+/// What:
+///  Sweep the worktrees whose branches the merge landed,
+///  when this command was one.
+/// Why:
+///  A merge that landed a branch is the event that ends those worktrees' use,
+///  and the sweep must never turn a made merge into a failed command,
+///  so every answer of it is only printed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sweptAfterAMerge(window, identity, code); // nothing when this command was no merge
+/// ```
+fn swept_after_a_merge(window: Option<&(GitContext, String)>, identity: &WorktreeIdentity, code: i32) {
+    let Some((context, before)) = window else {
+        return;
+    };
+    let _swept = crate::worktree_landed_after_a_merge::after_a_merge(context, identity, before.as_str(), code);
 }
 
 /// What:

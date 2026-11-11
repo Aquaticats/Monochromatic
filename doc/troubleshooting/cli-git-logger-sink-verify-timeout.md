@@ -308,7 +308,16 @@ Candidate endpoints:
   Its only change from its parent is the decision document,
   so its executable source matches its parent's.
 
-`git diff d322d083e HEAD -- package/logger/core package/async-time/core` is empty.
+`git diff d322d083e ed69a5ed50 -- package/logger/core package/async-time/core` is empty.
+The investigation ran it as `git diff d322d083e HEAD`,
+with `HEAD` then at the commit that wrote the claim,
+`ed69a5ed50`,
+and named the two packages by their paths of that date,
+`package/module/logger` and `package/module/async-time`;
+both spellings give an empty diff there.
+Run on 2026-11-10 against the current `HEAD`,
+the same comparison reports 109 changed files,
+so the pin to `ed69a5ed50` is what keeps the result reproducible.
 The logger and timeout source did not change between that reported revision and this investigation.
 Commit `ee58222bc` introduced the verification deadline on 2026-09-06,
 before the issue's reported onset window.

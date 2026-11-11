@@ -35,6 +35,9 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_carry_plans::{Note, plan_index_awaiting, plan_worktree_awaiting};
 /// What one carried path adds to the report.
 use crate::merge_isolation_carry_notice::Report;
+/// The kept path's line,
+/// and what stands at it.
+use crate::merge_isolation_carry_kept_path::kept_path;
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture};
 /// The Git reads of one path,
@@ -42,10 +45,19 @@ use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPa
 use crate::merge_isolation_carry_reads::{file_form_awaiting, index_entry_awaiting, raw_bytes_awaiting};
 /// The write plan of one path,
 /// and the one step that lands it.
-use crate::merge_isolation_carry_writes::{FileWrite, IndexWrite, Step, write_steps_awaiting};
+use crate::merge_isolation_carry_writes::{Batch, FileWrite, IndexWrite, Step, StepResult, write_steps_awaiting};
+/// The line that says a path written after the capture was left as it is.
+use crate::merge_isolation_carry_notice::note_left_alone;
+/// What stood at a path when it was judged,
+/// and the entries an index check accepts.
+use crate::merge_isolation_carry_place::{explained_entries, judged_of};
 /// The paths the merge changes,
-/// and the state a path holds now.
-use crate::merge_isolation_changes::{Change, WorktreeState, worktree_state, worktree_state_awaiting};
+/// the state a path holds now,
+/// and the identity the write step checks before it replaces anything.
+use crate::merge_isolation_changes::{Change, FileIdentity, WorktreeState, file_identity, worktree_path, worktree_state, worktree_state_awaiting};
+/// The entries a killed step left under a private name,
+/// which go back before a path is judged.
+use crate::merge_isolation_take_asides::put_back_stranded_takes;
 /// The runner the word-level pass is given,
 /// and the Git context every read and write names.
 use crate::merge_second_pass::ContextRunner;
@@ -59,6 +71,9 @@ use std::path::Path;
 pub use crate::merge_isolation_carry_reads::{changes_between, changes_between_awaiting};
 /// Why a carry stopped.
 pub use crate::merge_isolation_carry_writes::{CarryFailure, LockWait};
+/// What Git's own update left at each path,
+/// which tells the merge's own file from a save that accepts it.
+pub use crate::merge_isolation_carry_landed::{LandedFile, landed_file_at, the_file_git_landed};
 
 /// What:
 ///  Whether a worktree state is one the capture or the change explains.
@@ -178,7 +193,7 @@ fn rooted(context: &GitContext) -> GitContext {
 /// const runner = { run: (args, input, index) => startGit(rooted(context), root, args, input, index) };
 /// ```
 fn runner_of<'a>(context: &'a GitContext, root: &'a Path) -> ContextRunner<'a> {
-    return ContextRunner { context, cwd: root, without_prefix: true, object_directory: None, environment: Vec::new() };
+    return ContextRunner { context, cwd: root, without_prefix: true, repository: Vec::new(), object_directory: None, environment: Vec::new() };
 }
 
 /// What:
@@ -202,10 +217,11 @@ pub fn clear(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
+    transaction_id: &str,
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<(), CarryFailure> {
-    return match run_on_runtime(clear_awaiting(context, root, git_dir, changes, capture, wait, out)) {
+    return match run_on_runtime(clear_awaiting(context, root, git_dir, changes, capture, transaction_id, wait, out)) {
         Ok(found) => found,
         Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
     };
@@ -228,12 +244,18 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
+    transaction_id: &str,
     wait: LockWait,
     out: &mut W,
 ) -> Result<(), CarryFailure> {
+    put_back_stranded_takes(root, git_dir, changes, out);
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let Some(change) = change_for(changes, entry) else { continue };
+        let location: std::path::PathBuf = worktree_path(root, entry.path.as_slice());
+        // The identity is read before the content, so a file written in between does not match the judgement and is never
+        //  replaced, and the write step reads it again before it writes anything.
+        let identity: Option<FileIdentity> = file_identity(location.as_path());
         let state: WorktreeState = worktree_state_awaiting(&rooted(context), root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
         let old_object: Option<&str> = old_oid_of(change);
@@ -254,9 +276,15 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
             Some(oid) => FileWrite::Bytes(file_form_awaiting(context, root, entry.path.as_slice(), oid).await.map_err(CarryFailure::Failed)?, change.old_mode.clone()),
             None => FileWrite::Remove,
         };
-        steps.push(Step { path: entry.path.clone(), index, worktree });
+        steps.push(Step { path: entry.path.clone(), index, worktree, judged: judged_of(&state, identity) });
     }
-    return write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, out).await;
+    let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), transaction_id, wait, Batch::Clear, out).await?;
+    // A path the write step found newer than its judgement stops the clear: the merge must not run over a checkout this step
+    //  only half cleared, and the round is made again on the bytes the person has now.
+    return match written.changed.first() {
+        Some(path) => Err(CarryFailure::Changed(path.clone())),
+        None => Ok(()),
+    };
 }
 
 /// What:
@@ -281,10 +309,12 @@ pub fn carry(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
+    landed: &[LandedFile],
+    transaction_id: &str,
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<Report, CarryFailure> {
-    return match run_on_runtime(carry_awaiting(context, root, git_dir, changes, capture, wait, out)) {
+    return match run_on_runtime(carry_awaiting(context, root, git_dir, changes, capture, landed, transaction_id, wait, out)) {
         Ok(found) => found,
         Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
     };
@@ -309,45 +339,80 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
+    landed: &[LandedFile],
+    transaction_id: &str,
     wait: LockWait,
     out: &mut W,
 ) -> Result<Report, CarryFailure> {
     // The merge of one layer runs from the top of the worktree, where a relative global option of the invocation does not reach.
     let rooted_context: GitContext = rooted(context);
     let runner: ContextRunner<'_> = runner_of(&rooted_context, root);
+    put_back_stranded_takes(root, git_dir, changes, out);
     let mut report: Report = Report::default();
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
         let Some(change) = change_for(changes, entry) else { continue };
+        let location: std::path::PathBuf = worktree_path(root, entry.path.as_slice());
+        // The identity is read before the content, so a file written in between does not match the judgement and is never
+        //  replaced, and the write step reads it again before it writes anything.
+        let standing: LandedFile = landed_file_at(location.as_path(), entry.path.as_slice());
+        let identity: Option<FileIdentity> = standing.identity;
         let state: WorktreeState = worktree_state_awaiting(&rooted(context), root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
         let merged_object: Option<&str> = new_oid_of(change);
         let (worktree, note, target) = plan_worktree_awaiting((&runner, context, root), change, entry).await?;
-        // What stands there is the capture, the merge's own, or the bytes this carry writes:
-        // a carry that was killed after writing a path finds its
-        //  own bytes and writes the same ones again. Anything else was written by someone else since the capture.
-        if !explained(&state, &[captured_object, merged_object, target.as_deref()]) {
-            report.changed.push(entry.path.clone());
-            continue;
-        }
+        let index: IndexWrite = plan_index_awaiting(&runner, change, entry).await?;
+        // What stands at the path is the capture, the merge's own, or the bytes this carry writes:
+        // a carry that was killed after writing one layer finds its
+        //  own bytes there and writes the same ones again. Anything else was written by someone else since the capture, and
+        //  a layer somebody else wrote keeps their bytes while the other layer is still carried. Where the identity of what
+        //  Git's own update left is known, the file must still be that one: a save whose bytes accept the whole merge is the
+        //  person's newer decision, not this carry's own write.
+        let worktree_is_ours: bool =
+            explained(&state, &[captured_object, merged_object, target.as_deref()]) && the_file_git_landed(landed, &standing);
         let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let merged_entry: Option<(&str, &str)> = new_entry_of(change);
         let old_entry: Option<(&str, &str)> = old_entry_of(change);
-        if !entry_explained(&current, &[captured_entry, merged_entry, old_entry]) {
+        // The entry this carry writes is its own, so a kill between the index records and the files finds it and writes the
+        //  same layers again rather than reading its own work as someone else's.
+        let index_is_ours: bool = entry_explained(&current, &explained_entries(&[captured_entry, merged_entry, old_entry], &index));
+        if !worktree_is_ours && !index_is_ours {
             report.changed.push(entry.path.clone());
             continue;
         }
-        let index: IndexWrite = plan_index_awaiting(&runner, change, entry).await?;
-        match note {
-            Note::Merged => report.merged.push(entry.path.clone()),
-            Note::Conflict => report.conflicts.push(entry.path.clone()),
-            Note::Kept(why) => report.kept.push((entry.path.clone(), why)),
-            Note::None => {}
+        // What the index holds once this step's records are written, which the line about a path the merge deletes names:
+        //  `git rm` needs an entry and `rm` must not be given one.
+        let in_the_index: bool = match (&index, index_is_ours) {
+            (IndexWrite::Entry(_, _), true) => true,
+            (IndexWrite::Remove, true) => false,
+            _ => current.is_some(),
+        };
+        if worktree_is_ours {
+            match note {
+                Note::Merged => report.merged.push(entry.path.clone()),
+                Note::Conflict => report.conflicts.push(entry.path.clone()),
+                Note::Kept(why) => report.kept.push(kept_path(entry, change, why, in_the_index)),
+                Note::None => {}
+            }
+        } else {
+            // This layer is someone else's, and the other one is still carried.
+            report.changed.push(entry.path.clone());
         }
-        steps.push(Step { path: entry.path.clone(), index, worktree });
+        let written: Step = Step {
+            path: entry.path.clone(),
+            index: if index_is_ours { index } else { IndexWrite::Leave },
+            worktree: if worktree_is_ours { worktree } else { FileWrite::Leave },
+            judged: judged_of(&state, identity),
+        };
+        steps.push(written);
     }
-    write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, out).await?;
+    let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), transaction_id, wait, Batch::Carry, out).await?;
+    // A path another program wrote while this carry ran keeps its bytes, and the line says so rather than claiming the file
+    //  changed under a step that had in fact written it.
+    for path in written.changed {
+        report.changed.push(path);
+    }
     return Ok(report);
 }
 
@@ -371,10 +436,11 @@ pub fn restore(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
+    transaction_id: &str,
     wait: LockWait,
     out: &mut dyn std::io::Write,
 ) -> Result<(), CarryFailure> {
-    return match run_on_runtime(restore_awaiting(context, root, git_dir, changes, capture, wait, out)) {
+    return match run_on_runtime(restore_awaiting(context, root, git_dir, changes, capture, transaction_id, wait, out)) {
         Ok(found) => found,
         Err(refusal) => Err(CarryFailure::Failed(format!("{refusal}"))),
     };
@@ -398,26 +464,36 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
     git_dir: &Path,
     changes: &[Change],
     capture: &Capture,
+    transaction_id: &str,
     wait: LockWait,
     out: &mut W,
 ) -> Result<(), CarryFailure> {
+    put_back_stranded_takes(root, git_dir, changes, out);
     let mut steps: Vec<Step> = Vec::with_capacity(capture.paths.len());
     for entry in &capture.paths {
+        let location: std::path::PathBuf = worktree_path(root, entry.path.as_slice());
+        // The identity is read before the content, so a file written in between does not match the judgement and is never
+        //  replaced, and the write step reads it again before it writes anything.
+        let identity: Option<FileIdentity> = file_identity(location.as_path());
         let state: WorktreeState = worktree_state_awaiting(&rooted(context), root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_object: Option<&str> = entry.worktree.as_ref().map(blob_of);
         // The branch's own content is what a clear leaves, so it is what a restore may replace.
         let change: Option<&Change> = change_for(changes, entry);
         let old_object: Option<&str> = change.and_then(old_oid_of);
         let merged_object: Option<&str> = change.and_then(new_oid_of);
-        if !explained(&state, &[captured_object, old_object, merged_object]) {
-            return Err(CarryFailure::Foreign(entry.path.clone()));
-        }
+        // A path written after the capture holds the person's own newer bytes: it is left as it is and named, because
+        //  replacing it is what loses a save, and the merge it belongs to did not land.
+        let worktree_is_ours: bool = explained(&state, &[captured_object, old_object, merged_object]);
         let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let old_entry: Option<(&str, &str)> = change.and_then(old_entry_of);
         let merged_entry: Option<(&str, &str)> = change.and_then(new_entry_of);
-        if !entry_explained(&current, &[captured_entry, old_entry, merged_entry]) {
-            return Err(CarryFailure::Foreign(entry.path.clone()));
+        let index_is_ours: bool = entry_explained(&current, &[captured_entry, old_entry, merged_entry]);
+        if !worktree_is_ours {
+            note_left_alone(out, entry.path.as_slice());
+        }
+        if !worktree_is_ours && !index_is_ours {
+            continue;
         }
         let index: IndexWrite = match entry.index.as_ref() {
             Some(staged) => IndexWrite::Entry(staged.mode.clone(), staged.oid.clone()),
@@ -427,9 +503,16 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
             Some(file) => FileWrite::Bytes(raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?, file.mode.clone()),
             None => FileWrite::Remove,
         };
-        steps.push(Step { path: entry.path.clone(), index, worktree });
+        let put_back: Step = Step {
+            path: entry.path.clone(),
+            index: if index_is_ours { index } else { IndexWrite::Leave },
+            worktree: if worktree_is_ours { worktree } else { FileWrite::Leave },
+            judged: judged_of(&state, identity),
+        };
+        steps.push(put_back);
     }
-    return write_steps_awaiting(context, root, git_dir, steps.as_slice(), wait, out).await;
+    let _written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), transaction_id, wait, Batch::Restore, out).await?;
+    return Ok(());
 }
 
 /// Whether nothing but the branch's own content is at a captured path,

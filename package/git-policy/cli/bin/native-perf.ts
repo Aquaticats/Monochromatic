@@ -42,11 +42,9 @@ import {
   FORWARDED_BOUND_MILLISECONDS,
   judge,
 } from './native-perf-judge.ts';
-import {
-  assertSamplesSucceededAndBoundsHeld,
-  reportLine,
-} from './native-perf-lines.ts';
+import { reportLine } from './native-perf-lines.ts';
 import { collectEvidence } from './native-perf-evidence.ts';
+import { assertPerfVerdict } from './native-perf-verdict.ts';
 import { removeScratchRoot } from './native-perf-scratch.ts';
 import { forwarded } from './native-perf-scenarios.ts';
 import {
@@ -460,8 +458,9 @@ if (values.output !== undefined) {
 for (const entry of report) {
   console.log(reportLine(entry));
 }
-// A standard exit status is the throw's, so nothing assigns one here (PP6).
-assertSamplesSucceededAndBoundsHeld({
+// The printed lines are the evidence, and the throw is both the status and the reason: a sample this run could not
+// measure, or a figure past its bound, reaches the error channel with the lines it printed before.
+assertPerfVerdict({
   failures,
   violations,
-});
+},);

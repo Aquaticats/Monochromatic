@@ -20,11 +20,14 @@
 //! const post = await runPostCommitLifecycle({ ... }); await handOverPush({ ... });
 //! ```
 use crate::commit_timing::CommitTiming;
+/// Why the commit did not land,
+/// by the route that stopped it.
+use crate::commit_stop_reason::{CommitStopReason, reason_of_events, reason_of_stop};
 use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
 use crate::service_messages::render;
-use crate::commit_transaction::{CommitInvocation, TransactionStop};
+use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop};
 use crate::config_schema::CliGitConfig;
 use crate::command_commit::CommitRegion;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure};
@@ -33,9 +36,10 @@ use crate::policy_checks::ShippedChecks;
 use crate::policy_engine::StageRequest;
 use crate::policy_events::{PolicyEvent, render_policy_events};
 use crate::policy_trigger::Trigger;
-use crate::post_commit::{POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitRequest, run_post_commit_gate};
+use crate::post_commit::{NO_BLOCKING_CAUSE, POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitRequest, blocked_reason, run_post_commit_gate};
 use crate::repository_facts::RepositoryFacts;
 use crate::transaction_git::GitContext;
+use crate::global_arguments::without_directory_changes;
 use crate::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::io::Write;
@@ -85,6 +89,26 @@ pub struct CommitEnding {
 }
 
 /// What:
+///  Why a commit that reported events did not land,
+/// or nothing when the command did not fail.
+/// Why:
+///   A command that ended without landing and without a non-zero status was not stopped by anything:
+/// nothing needed doing,
+/// and a reason there would be one nobody can check,
+/// which is the signal the record keeps for a real gap (`commit_stop_reason.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stopOfAnEnding = (result) => result.exitCode === 0 ? null : reasonOfEvents(result.events);
+/// ```
+fn stop_of_an_ending(result: &TransactionResult) -> Option<CommitStopReason> {
+    if result.exit_code == 0 {
+        return None;
+    }
+    return Some(reason_of_events(result.events.as_slice()));
+}
+
+/// What:
 ///  Write text to standard error,
 /// ignoring a closed stream,
 ///  and counting the wait for its reader.
@@ -116,7 +140,10 @@ fn write_stderr(text: &str) {
 /// ```ts
 /// catch (error) { ... process.exitCode = ... }
 /// ```
-fn report_stop(stop: TransactionStop) -> CommitEnding {
+fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding {
+    // Why the command stopped is written down here, before the process is told how it ended, so a record of a commit that
+    //  did not land names the route that stopped it and not only the status it returned (`commit_stop_reason.rs`).
+    timing.stop = Some(reason_of_stop(&stop, crate::git_step_failure::drain_failed_step()));
     match stop {
         TransactionStop::NativeExit(code) => return CommitEnding { code },
         TransactionStop::Message(message) => {
@@ -198,8 +225,15 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         Err(_) => PathBuf::from("."),
     };
     let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
+    // Every Git of this commit runs in `cwd`, the directory the caller's `-C` chain already reached, so the options it forwards
+    //  keep everything the caller wrote but that `-C`: forwarding it moved Git a second time and read the repository beside the
+    //  one the command was in.
+    let context: GitContext = GitContext {
+        global_prefix: without_directory_changes(command.context.global_prefix.as_slice()),
+        ..command.context.clone()
+    };
     let invocation: CommitInvocation<'_> = CommitInvocation {
-        context: command.context,
+        context: &context,
         environment: command.environment,
         cwd: cwd.as_path(),
         arguments: command.arguments,
@@ -221,7 +255,7 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         Err(stop) => {
             // A stop inside the build phase leaves it before its figure is taken, and the record must still state what the build spent.
             timing.close_an_open_build();
-            return report_stop(stop);
+            return report_stop(stop, timing);
         }
     };
     // A test kills the wrapper here: the commit is on the branch and answered, and everything the command still owes (the
@@ -230,8 +264,11 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
     //  nothing.
     crate::service_fault::reach("after-answer");
     write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
+    // Why nothing landed, read before the result is taken apart for the work after a landing.
+    let ended: Option<CommitStopReason> = stop_of_an_ending(&served.result);
     let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
         timing.outcome = "ended";
+        timing.stop = ended;
         return CommitEnding { code: served.result.exit_code };
     };
     timing.outcome = "landed";
@@ -273,7 +310,10 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     timing.gate += gating.elapsed();
     write_stderr(render_policy_events(0, gate.events.as_slice()).as_str());
     if gate.blocked {
-        forget_the_push(handoff, landed);
+        // The verdict keeps the gate's own words: the next push of this branch stops before this commit, and every command says
+        //  why until the commit is off the branch's way out.
+        let said: String = blocked_reason(gate.events.as_slice());
+        forget_the_push(handoff, landed, if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() });
         return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
     }
     // The gate approved the backup: the push the service held for this commit becomes runnable, and the hand-off below wakes it.

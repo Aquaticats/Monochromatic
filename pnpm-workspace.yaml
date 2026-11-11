@@ -14,9 +14,9 @@ modulesCacheMaxAge: 0
 
 # TODO: Ideally we want all deps here to be TypeScript (little to no JS) and fuzzed.
 catalog:
-  '@anthropic-ai/sdk': '>=1.6.0'
+  '@anthropic-ai/sdk': '>=1.7.0'
   '@changesets/cli': '>=3.0.3'
-  '@clack/prompts': '>=1.8.1'
+  '@clack/prompts': '>=1.9.0'
   '@csstools/css-tokenizer': '>=4.0.2'
   '@deck.gl/core': '>=9.4.1'
   '@deck.gl/layers': '>=9.4.1'
@@ -50,9 +50,9 @@ catalog:
   '@deepseek-ai/schemastery': '3.18.5'
   '@deepseek-ai/dsh-llm-pi-ai': '0.2.2-rc.1'
   '@deepseek-ai/dsh-settings': '0.2.2-rc.1'
-  '@earendil-works/pi-ai': '>=1.5.1'
-  '@earendil-works/pi-coding-agent': '>=1.5.1'
-  '@earendil-works/pi-tui': '>=1.5.1'
+  '@earendil-works/pi-ai': '>=1.5.2'
+  '@earendil-works/pi-coding-agent': '>=1.5.2'
+  '@earendil-works/pi-tui': '>=1.5.2'
   '@electron/packager': '>=20.3.0'
   '@homebridge/dbus-native': '>=0.7.9'
   '@inquirer/checkbox': '>=5.2.8'
@@ -78,7 +78,7 @@ catalog:
   '@optique/core': '>=1.3.6'
   # TODO: deprecate Optique
   '@optique/run': '>=1.3.6'
-  '@oxlint/plugins': '>=1.92.0'
+  '@oxlint/plugins': '>=1.93.0'
   '@playwright/test': '>=1.65.0'
   '@total-typescript/ts-reset': '>=0.6.1'
   '@tursodatabase/database': '>=0.8.3'
@@ -141,7 +141,7 @@ catalog:
   'neovim': '>=5.4.0'
   'openai': '>=6.22.0'
   'opentype.js': '>=2.0.0'
-  'oxlint': '>=1.92.0'
+  'oxlint': '>=1.93.0'
   'oxlint-tsgolint': '>=7.0.2006'
   'p-limit': '>=7.3.3'
   # p-memoize-fork.fuzz differential subject; not a runtime dependency anywhere.
@@ -172,7 +172,7 @@ catalog:
   'remark-mdx': '>=3.1.1'
   'remark-parse': '>=11.0.0'
   'remark-sectionize': '>=2.1.0'
-  'rolldown': '>=1.3.0'
+  'rolldown': '>=1.3.1'
   'rolldown-plugin-dts': '>=0.30.0'
   'safe-stringify': '>=1.3.0'
   'semver': '>=7.8.6'

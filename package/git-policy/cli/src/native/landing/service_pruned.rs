@@ -385,9 +385,13 @@ pub fn reach_service_phase(phase: Phase) -> Result<(), PhaseMarkerError> {
         Phase::ServiceStaged => &STAGED_REACHED,
         Phase::ServiceSentBack => &SENT_BACK_REACHED,
         Phase::MergeCarried
+        | Phase::MergeClearIndex
+        | Phase::MergeClearFile
         | Phase::MergeCleared
         | Phase::MergeIntent
         | Phase::MergeApplied
+        | Phase::MergeCarryIndex
+        | Phase::MergeCarryFile
         | Phase::MergeCarriedBack
         | Phase::ServicePrepared => &PREPARED_REACHED,
     };

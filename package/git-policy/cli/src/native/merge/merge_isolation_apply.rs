@@ -16,8 +16,6 @@
 use crate::diagnostic_log::debug;
 /// Where Git's words about the wrapper's own fast-forward go now that the run carries no `--quiet`.
 use crate::inner_git_words::record_streams;
-/// The failure rendering for state that cannot be read.
-use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The files the word pass merged,
 /// and the lines that list them.
 use crate::merge_second_pass::Merged;
@@ -26,27 +24,27 @@ use crate::merge_second_pass_tree::announce;
 /// The intent record.
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
 /// Recovery of records.
-use crate::merge_isolation_recovery::{
-    MergeRecoveryAction, settle_failed_merge,
-};
+use crate::merge_isolation_recovery::RecoveryPlace;
 /// The refusal findings.
-use crate::merge_isolation_report::not_applied_finding;
+use crate::merge_isolation_apply_findings::failure_text;
 /// The person's own work in the paths the merge changes:
 /// the clear before Git's update,
 /// the carry after it,
 /// and the ref that keeps their bytes.
 use crate::merge_isolation_carry::drop_capture_ref;
 use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry, changes_between, clear};
+/// What Git's own update left at each path,
+/// and the read of it.
+use crate::merge_isolation_carry_landed::{LandedFile, landed_of};
 use crate::merge_isolation_carry_notice::report_lines;
 /// The words a merge that could not be finished now prints,
 /// which its own file holds so this one stays inside the code-line limit.
-use crate::merge_isolation_apply_findings::{a_carry_that_stopped, a_deferred_save_finding, a_merge_that_could_not_be_saved, failure_text};
+use crate::merge_isolation_apply_findings::{a_carry_that_stopped, a_deferred_save_finding, a_merge_that_could_not_be_saved};
+use crate::merge_isolation_apply_stops::{a_clear_that_met_newer_bytes, settle_a_failed_step};
 /// The raw differences between the two commits of the merge.
 use crate::merge_isolation_changes::Change;
 /// The command-line reading.
 use crate::merge_options::{MergeShape, Signing};
-/// The place recovery runs in.
-use crate::merge_isolation_recovery::RecoveryPlace;
 /// Marker phases for the crash controls.
 use crate::transaction_phase::{Phase, reach_transaction_phase};
 /// Real Git.
@@ -244,8 +242,13 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     //  the branch before it runs. Their bytes are the objects the record names, so nothing of theirs is lost by it; a path written
     //  after the capture stops the clear with nothing written, and the round is made again on the newer bytes.
     if let Some(capture) = plan.carried
-        && let Err(failure) = clear(&session.context, root, git_dir, changes.as_slice(), capture, LockWait::BeforeTheApply, &mut std::io::stderr())
+        && let Err(failure) = clear(&session.context, root, git_dir, changes.as_slice(), capture, transaction_id.as_str(), LockWait::BeforeTheApply, &mut std::io::stderr())
     {
+        // A path holding bytes newer than the capture is the person's, so the clear wrote nothing to it, the capture goes back
+        //  where it can, and the merge is made again on what the file holds now instead of being refused for a save.
+        if matches!(failure, CarryFailure::Foreign(_) | CarryFailure::Changed(_)) {
+            return Err(a_clear_that_met_newer_bytes(&place, record.as_path(), &intent, reference.as_str(), &failure));
+        }
         let detail: String = failure_text(&failure);
         let lock_taken: bool = matches!(failure, CarryFailure::IndexHeld(_));
         return Err(settle_a_failed_step(&place, record.as_path(), &intent, reference.as_str(), detail.as_str(), lock_taken, 2, b""));
@@ -277,6 +280,14 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
             moved.stderr.as_slice(),
         ));
     }
+    // The file the file system hands out at every path Git just wrote, read before the marker a control pauses at: a save that
+    //  arrives afterwards is a different entry, so the carry after the merge never replaces it with the person's older layer.
+    let mut written_paths: Vec<Vec<u8>> = Vec::with_capacity(changes.len());
+    for change in &changes {
+        written_paths.push(change.path.clone());
+    }
+    let landed_paths: Vec<LandedFile> = landed_of(root, written_paths.as_slice());
+    let landed: &[LandedFile] = landed_paths.as_slice();
     reach_phase(Phase::MergeApplied)?;
     // The merge's own paths hold the merge now, and the person's two layers are merged with it: an edit away from the merge's
     //  lines comes back where it was, a staged edit stays staged, and an edit of the merge's own lines keeps both sides between
@@ -284,7 +295,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     let mut report_stderr: String = String::new();
     let mut carry_finished: bool = true;
     if let Some(capture) = plan.carried {
-        match carry(&session.context, root, git_dir, changes.as_slice(), capture, LockWait::WhileFinishing, &mut std::io::stderr()) {
+        match carry(&session.context, root, git_dir, changes.as_slice(), capture, landed, transaction_id.as_str(), LockWait::WhileFinishing, &mut std::io::stderr()) {
             Ok(report) => {
                 for line in report_lines(reference.as_str(), &report) {
                     report_stderr.push_str(line.as_str());
@@ -436,45 +447,6 @@ fn save_for_a_later_finish(
 }
 
 
-
-
-/// What:
-///  What a failed step's detail means for the command's ending.
-/// Why:
-///   A step that failed on a branch that moved is made again on the moved head,
-/// one that failed on the index lock is
-///  made again once the lock is gone,
-/// and one that failed after the merge began is settled from the record.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function settleAFailedStep({ place, record, intent, reference, detail, lockTaken, code, gitStderr }): Bail;
-/// ```
-fn settle_a_failed_step(
-    place: &RecoveryPlace,
-    record: &Path,
-    intent: &MergeIntent,
-    reference: &str,
-    detail: &str,
-    lock_taken: bool,
-    code: i32,
-    git_stderr: &[u8],
-) -> Bail {
-    return match settle_failed_merge(place, record, intent, &mut std::io::stderr()) {
-        Ok(MergeRecoveryAction::BranchMoved) => Bail::Again(format!("{reference} was merged on a branch that moved meanwhile")),
-        Ok(MergeRecoveryAction::Discarded) if lock_taken => Bail::Again(String::from("another program took the index lock first")),
-        Ok(MergeRecoveryAction::Completed) => Bail::Done(IsolatedMerge::Finished {
-            code: 0,
-            stdout: String::new(),
-            stderr: format!(
-                "monochromatic-git-policy-cli: git merge {reference}: Git reported an error ({detail}) after it had started, and the \
-                 wrapper completed the merge.\n"
-            ),
-        }),
-        Ok(_) => refused(code, format!("{}{}", String::from_utf8_lossy(git_stderr), not_applied_finding(reference, detail))),
-        Err(error) => refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None)),
-    };
-}
 
 
 /// What:

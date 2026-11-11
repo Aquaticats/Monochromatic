@@ -2,10 +2,23 @@
 
 FOUND 2026-11-09 while reviewing the scratch `git commit` ceiling of
 `package/git-policy/cli` (`commit/native_commit_waiting_notice.rs`).
-NOT FIXED:
-the honest answers need an owner decision,
-and each is listed
-under "Verified workarounds" with what it does to a person's commit.
+BUILT 2026-11-10:
+the owner chose to keep waiting and say so
+("Keep waiting and say so"),
+so the command now says,
+once and again for as long as the wait lasts,
+that the stop was sent
+and the kernel has not released the process it is holding,
+and keeps waiting.
+AMENDED 2026-11-10 after the review of `62994776ec`
+(`/var/home/user/temp/agent/kimi-reviews/stuck-step-kernel-notice-1/review.md`):
+the wait that lasts says the line and not the notice's thread,
+which a process at its thread limit never starts,
+a look that could not be made is made again,
+a line the writer could not take is said again,
+and the line names the process the kernel is actually holding.
+The other answers below stay unbuilt,
+as the record of what he chose over.
 
 ## Symptom
 
@@ -23,6 +36,15 @@ The person-visible shape is the one `AGENTS.md` names in `NHP`
 ("a process killed at any instruction") followed by silence,
 and it is the one state in which this wrapper's own ceiling cannot bound its
 own wait.
+
+Since 2026-11-10 the notice's lines stop with a line that names the commit and the
+process the kernel is holding,
+says the stop was sent and the kernel has not released it,
+and says nothing of the person's is at risk;
+the wait that keeps waiting says it again at every notice interval,
+and the command still returns only when the kernel lets the step go
+(the owner's choice under "Verified workarounds").
+The silence above is what a person saw before that change.
 
 ## Root cause
 
@@ -67,15 +89,21 @@ and the call chain that joins them.
     not for the signal.
     `commit/native_commit_waiting_notice.rs` sends the `SIGKILL` from its own
     thread and returns its facts,
-    and the commit's thread is inside
-    `SignalGuard::run_child`
-    (`process/signal_relay.rs`,
-    which ends in `child.wait()`),
+    and the commit's thread then waits for the child on its pidfd
+    (`process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`),
     reached from
-    `commit/commit_preparation.rs` (`run_guarded_child`).
-    `wait(2)` returns when the child terminates,
+    `commit/commit_preparation.rs` (`run_guarded_child`,
+    through
+    `SignalGuard::run_child_telling_its_number`).
+    A reap returns when the child terminates,
     so the commit's thread waits
     for the kernel operation even though the step was signalled long before.
+    Until 2026-11-10 that thread was inside
+    `SignalGuard::run_child`
+    (`process/signal_relay.rs`,
+    which ends in `child.wait()`);
+    the pidfd wait replaced it,
+    and the wait is now the owner's choice rather than an oversight.
 
 The wrong reading this replaces,
 from the review that found it:
@@ -123,25 +151,60 @@ not on a reproduction here.
 
 Each is a change to the wrapper,
 not to the kernel.
-None is built:
-the first two change what a person's commit does,
-so they are
-the owner's call.
+The first is what the wrapper does since 2026-11-10:
+the owner chose it
+("Keep waiting and say so")
+over the second,
+and the third was rejected.
 
 1.  **Say what is happening,
     keep waiting.**
+    BUILT 2026-11-10,
+    and amended after the review of `62994776ec`.
     After the ceiling's signal,
-    the notice's line states that the step was
-    stopped and that the kernel has not released it yet,
-    naming the process and its state letter (`D`,
+    the wait that owns the step says a line that names the commit it stopped and the
+    process the kernel is holding,
+    says the stop was sent and the kernel has not released it,
+    names the state the kernel reports (`D`,
     which the notice already
-    reads as `blockedLooks`).
+    counts as `blockedLooks`),
+    says nothing was committed and that the person's index and files are as they were,
+    and says the terminal stays until the kernel lets go
+    (`commit/scratch_step_held_by_the_kernel.rs`).
+    The wait says it and not the notice's thread
+    (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`),
+    because a process at its thread limit starts no notice thread and such a commit
+    then waited in silence;
+    it says the line again at every notice interval until the step is reaped,
+    because a person who reads it once and then sees nothing reads a hang;
+    a look that `/proc` refused is made again and never read as the kernel having
+    let go;
+    a line the writer could not take is handed over again as soon as it can take one;
+    and the process the line names is the one the look found in uninterruptible sleep,
+    which is a program the step started when that program is the one held.
+    The line is said only of a process that a second look,
+    one look interval after the signal,
+    still reports in uninterruptible sleep,
+    so one that acts on its stop in that interval is never said to be held.
     - Tradeoff:
       the person's wait is unchanged;
       only the words change.
       The record gains nothing it does not already count.
     - This is the smallest honest change and breaks nothing,
-      and it does not satisfy "nothing should ever wait forever".
+      and it does not satisfy "nothing should ever wait forever";
+      the owner made it an exception to that rule.
+    - No control on this host can produce a process in uninterruptible sleep
+      (it takes a stalled disk,
+      a dead network file system or a stopped file-system server,
+      and the gate's runs mount nothing),
+      so the line is proven with a process a control states the kernel holds,
+      and a step a control states has not been reaped
+      (`process/wait_after_the_stop_saying_the_kernel_holds_it_tests.rs`:
+      `a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step`,
+      `the_line_is_said_again_for_as_long_as_the_wait_lasts`,
+      `a_look_that_could_not_be_made_is_made_again`,
+      `a_line_the_writer_could_not_take_is_said_again_when_it_can`,
+      `a_helper_held_below_the_step_is_the_process_the_line_names`).
 2.  **Leave after a bound,
     with the child unreaped.**
     The commit's thread stops waiting at the ceiling plus a grace,
@@ -162,6 +225,7 @@ the owner's call.
       and it changes the exit
       path of a failed commit:
       it needs the owner's decision.
+      He chose the first over it (2026-11-10).
 3.  **No ceiling at all for this step.**
     - Tradeoff:
       rejected.

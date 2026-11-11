@@ -127,6 +127,9 @@ fn a_commit_whose_message_came_with_the_command_is_stopped_at_its_ceiling() {
     assert!(stopped.is_some_and(|after| { return after >= Duration::from_millis(300); }), "{stopped:?}");
     assert!(seen.armed, "a message on the command line arms the ceiling");
     assert!(seen.looks >= 1 && seen.looks_found >= 1, "the notice looked and found the step: {seen:?}");
+    // A `sleep` acts on the signal at once, so no look of this stop finds it held, and the notice says nothing of a kernel holding it.
+    let said: String = text_of(&sink);
+    assert!(!said.contains("has not released"), "a step that acted on its stop is said to be held by the kernel: {said}");
 }
 
 /// A commit that may open the person's editor has no ceiling:

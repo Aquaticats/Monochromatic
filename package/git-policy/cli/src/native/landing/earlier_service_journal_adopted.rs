@@ -388,6 +388,7 @@ fn log_adopted_batches(reports: &[RecoveryReport], journal: &Path) {
             Handled::StillOpen => "left open the batch the earlier service left open, which could not be finished now (the index lock is held or a record cannot be read); the next start tries again",
             Handled::Left => "left on disk the intent of a batch the earlier service wrote: the branch shows it as not landed, and a landing in progress writes its intent first, so the earlier service's own start settles it",
             Handled::Dropped => "dropped the intent of a batch the earlier service wrote",
+            Handled::Held => "left the batch the earlier service wrote held behind a reference lock: its branch has not moved and the next command that finds the lock gone moves it",
         };
         log_entry(
             Priority::Warning,

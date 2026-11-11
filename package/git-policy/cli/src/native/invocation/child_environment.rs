@@ -24,6 +24,19 @@
 use std::ffi::{OsStr, OsString};
 /// `Path` is a borrowed filesystem path made of the same raw OS bytes.
 use std::path::{Path, PathBuf};
+/// What:
+///  Whether the invoking process has a controlling terminal,
+/// so a login question may reach a person.
+/// Why:
+///   The overlay of a command the caller typed differs by this one fact,
+/// and carrying it as a value keeps this module free of the
+///  process probe a control cannot arrange.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Terminal = 'present' | 'absent';
+/// ```
+use crate::control_terminal::Terminal;
 
 /// Git's count variable for environment-supplied configuration.
 pub const COUNT_VARIABLE: &str = "GIT_CONFIG_COUNT";
@@ -428,6 +441,10 @@ pub const TERMINAL_PROMPT_VARIABLE: &str = "GIT_TERMINAL_PROMPT";
 ///  The owner's pick of 2026-11-07 is "Never prompt" for background Git and git-lfs
 ///  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`,
 /// "What this repository does about it").
+/// It covers the service's children (`service_child_overlay`) and,
+/// through `invocation_overlay`,
+/// the children of any command
+///  whose process has no controlling terminal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -461,6 +478,42 @@ pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
 pub fn service_child_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
     let mut overlay: Vec<(OsString, OsString)> = lockfile_pid_overlay(environment);
     overlay.extend(never_prompt_overlay());
+    return overlay;
+}
+
+/// What:
+///  Every variable the wrapper adds for a command the caller typed and every Git or git-lfs child of it:
+///  the lock PID injection and the forward-target marker,
+/// plus the never-prompt pair when the command has no controlling
+///  terminal.
+/// Why:
+///   A command whose process has no controlling terminal was not typed at one,
+/// so no login question can reach a person,
+/// and Git's and git-lfs's prompt programs would open a desktop window for nobody.
+/// The push of
+///  2026-11-10 did that for seven minutes while its errors sat in a private file
+/// (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
+/// A command at a terminal keeps Git's own prompting,
+/// which the owner asked for on 2026-11-07.
+///  The answer comes from the process's controlling terminal and never from whether standard input is a terminal:
+/// the incident's
+///  wrapper had its input at `/dev/null` and still inherited `DISPLAY`,
+/// which is all a dialog needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [...childEnvironmentOverlay(environment, realGit), ...(terminal === 'absent' ? neverPrompt() : [])]
+/// ```
+pub fn invocation_overlay(
+    environment: &[(OsString, OsString)],
+    real_git: &Path,
+    terminal: Terminal,
+) -> Vec<(OsString, OsString)> {
+    let mut overlay: Vec<(OsString, OsString)> = child_environment_overlay(environment, real_git);
+    if terminal == Terminal::Absent {
+        // The pair goes last, so a variable the caller set for its own children (`CLI_GIT_CHILD_SET_*`) cannot reopen the prompt.
+        overlay.extend(never_prompt_overlay());
+    }
     return overlay;
 }
 
