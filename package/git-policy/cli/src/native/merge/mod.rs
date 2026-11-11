@@ -137,6 +137,10 @@ pub mod merge_isolation_kept_copies;
 /// The one decision every command makes about a copy a merge kept.
 pub mod merge_isolation_kept_copies_decisions;
 
+/// The lines a kept copy earns,
+/// and the reason it stays when the file at its path holds its bytes.
+pub mod merge_isolation_kept_copies_words;
+
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 

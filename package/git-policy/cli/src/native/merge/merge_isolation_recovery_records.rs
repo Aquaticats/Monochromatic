@@ -21,6 +21,7 @@ use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_journal::{MergeIntent, list_merge_intents, parse_merge_intent};
 use crate::merge_isolation_kept_copies_decisions::sweep_kept_copies_awaiting;
+use crate::merge_isolation_take_aside_names::merge_key_of_a_record;
 use crate::merge_isolation_recovery::settle_failed_merge_awaiting;
 use crate::merge_isolation_recovery_notice::recovery_notice;
 use crate::merge_isolation_recovery_steps::{MergeRecoveryAction, RecoveryPlace};
@@ -121,9 +122,6 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
     out: &mut W,
 ) -> Result<Vec<MergeRecoveryOutcome>, RecoveryError> {
     let mut outcomes: Vec<MergeRecoveryOutcome> = Vec::new();
-    // A copy a merge kept beside a path is decided before the records are: a copy the person's file holds again, or one an
-    //  unfinished merge names, must be in its place before the paths of any merge are judged (`merge_isolation_kept_copies.rs`).
-    sweep_kept_copies_awaiting(place, out).await;
     // Every record is read and its owner judged before any is settled, so a record of another namespace older than the patience
     //  stops the command with nothing changed (owner, 2026-11-04, "Refuse and name it (Recommended)"; sol-1 round 3, P1 C).
     let mut planned: Vec<(PathBuf, MergeIntent, OwnerLiveness)> = Vec::new();
@@ -143,6 +141,18 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
         let liveness: OwnerLiveness = owner_liveness(&intent, record.as_path())?;
         planned.push((record, intent, liveness));
     }
+    // A copy a merge kept beside a path is decided before any merge's paths are judged: a copy the person's file holds again, or
+    //  one an unfinished merge names, must be in its place before those paths are read (`merge_isolation_kept_copies.rs`).
+    // The owners are judged first because a copy names its merge: one that merge still runs is that merge's to finish, and a
+    //  command beside it that put the copy back would make Git refuse the checkout the merge is in the middle of making.
+    let mut running: Vec<String> = Vec::new();
+    for (record, _, liveness) in &planned {
+        if *liveness != OwnerLiveness::Alive {
+            continue;
+        }
+        running.push(merge_key_of_a_record(record.as_path()));
+    }
+    sweep_kept_copies_awaiting(place, running.as_slice(), out).await;
     for (record, intent, liveness) in planned {
         let action: MergeRecoveryAction = if liveness == OwnerLiveness::Alive {
             debug("recoverInterruptedMerges", format!("the owner of {} still runs", record.display()).as_str());
