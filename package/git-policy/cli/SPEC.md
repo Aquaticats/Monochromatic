@@ -3868,7 +3868,8 @@ of which the two that rewrite link layouts in place are the service's work whene
   because the service runs in the directory of the session it was started in,
   and an add whose environment held no path at all records that it held none,
   so the service searches nowhere instead of searching its own:
-  with no path, the add selects the worktree's own `.cache/toolchain-bin/mpm-shadow`.
+  with no path,
+  the add selects the worktree's own `.cache/toolchain-bin/mpm-shadow`.
   The record's object name is a digest of the worktree's path and the moment the add asked,
   so a worktree removed and added again at the same path never takes an earlier record's answer,
   whether that record settled or failed there.
