@@ -10405,6 +10405,12 @@ and each names its own branch and its own reference.
 A push runs beside every slow kind,
 which is what the two claim lists are for;
 the round that answers a wake claims `PUSH_KINDS` alone (`landing/service_work_slow_lane.rs`).
+The push's own steps never queue behind slow work either:
+one place of the process's bound on blocking jobs stays free of every slow kind
+(`SLOW_WORK_RESERVE`,
+`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`),
+so a queue of trashes cannot hold the read of a push's child,
+which is the shape of the wait measured on the installed `0.6.1-alpha.10` at 2026-11-11T10:38:00-05:00.
 
 ##### Upkeep (`maintenance`)
 
