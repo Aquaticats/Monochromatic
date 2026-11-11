@@ -500,6 +500,66 @@ mirroring the NeuralWatt gate list.
   (sameJsonShape skip, merge write),
   then the live route check that the served model list is the full set.
 
+## Live DSH mount writes: three root causes and their fixes
+
+The live web profile re-trigger is the acceptance gate,
+and it exposed three separate causes of a stale route.
+Each is fixed in
+`package/dsh-plugin/qwen-token-plan-individual`
+and measured against the live web profile.
+
+1. **Boot writer-lock race**
+   (`DEFAULT_LOCK_WAIT_MS` 2 s versus a measured 11 s boot hold of
+   `package.json.lock`).
+   Fixed with the mount-race retry budget
+   (`QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_ATTEMPTS`,
+   `QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_DELAY_MS`),
+   documented in the package README under "Mount-race writes".
+   Commit `5eaa6f875d`.
+
+1. **Capture-once credentials**
+   (the credentials service was read at `apply`, before the loader
+   registered it).
+   Fixed with the lazy `getCredentials` thunk plus
+   `lookupQwenTokenPlanIndividualCredentials`
+   bounded poll.
+   Commit `5eaa6f875d`.
+
+1. **Nested reload transactions**
+   (`HMR transactions cannot be nested`,
+   `@deepseek-ai/dsh-hmr` `runExclusive`, `lib/index.js:749`).
+   The plugin-manager composes this plugin inside its reload transaction
+   on every `set_plugin`, `install_bundle`, and `set_bundle`
+   (`dsh-plugin-manager` `configure` → `hmr.runExclusive`),
+   where every settings write is refused as nested
+   and the refusing chain keeps that transaction's context for good
+   (measured 2026-11-11: forks made inside stay refused long after the
+   transaction settles),
+   so an in-chain retry can never land.
+   Fixed with the deferral seam
+   (`QWEN_TOKEN_PLAN_INDIVIDUAL_SETTINGS_WRITE_DEFERRAL_MARKERS`,
+   `isQwenTokenPlanIndividualSettingsWriteDeferral`,
+   `onWriteDeferral` on `refreshQwenTokenPlanIndividualRoute`):
+   a nested refusal hands a whole-mount retry to the caller instead of
+   failing, and `apply` re-runs it from `plugin-manager/changed`
+   (`dsh-plugin-manager` `lib/index.js:3185`,
+   typed at `lib/types/types.d.ts:392`),
+   which is emitted outside the reload transaction and whose listener body
+   runs in the emit's own context.
+   Commit `a41f9c0767`.
+
+Measured outcome,
+live web profile (`~/.dsh/profiles/web/cordis.patch.yml`):
+before the deferral fix, a `set_plugin` re-trigger left the route at 2
+models with two `HMR transactions cannot be nested` warnings
+(2026-11-11T15:54:00Z);
+after it, the same re-trigger lands the full 14-id
+`MEASURED_SERVICEABLE_IDS` set with no warnings
+(2026-11-11T13:25:24-05:00),
+and `dsh --profile web --dump-config`
+shows the served `llm-pi-ai` route carrying the same 14 ids,
+media ids absent.
+
 ## Accepted risks and limits
 
 - The facts table is curated;
@@ -533,6 +593,12 @@ mirroring the NeuralWatt gate list.
 
 ## Next action
 
-The shared core lands first,
-since both projections depend on its export surface;
-the pi and DSH plugins follow in parallel.
+The DSH live route gate has passed
+(the full 14-id set lands and serves on the live web profile,
+as recorded under "Live DSH mount writes").
+Remaining gates from "Verification":
+the pi-side override probe (`pi --list-models`),
+the live smoke on `qwen-token-plan-individual/qwen3.8-max`
+with its effort-level wire-spelling dispatch check,
+the never-persist guard hashes,
+and the offline gate with its positive control.
