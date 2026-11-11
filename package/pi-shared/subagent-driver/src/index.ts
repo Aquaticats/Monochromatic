@@ -182,6 +182,7 @@ export {
   parseRunningPiUnits,
   PiUnitsUnreadableError,
   type RunningPiUnit,
+  runNameOfUnit,
   startRunningPiUnits,
   unitNameOfGiven,
 } from './running-pi-units.ts';
@@ -194,6 +195,44 @@ export {
   type OverdueWatchRequest,
   watchForOverdueRuns,
 } from './watch-for-overdue-runs.ts';
+
+/**
+ The commands that read what is going on: the processes whose command line holds a text, the running units whose worktree a
+ removal or a merge took away, and the final report of each agent's newest finished run.
+ */
+export {
+  COMMAND_LINE_CHARACTERS,
+  type CommandLineMatch,
+  commandHolds,
+  matchLineOf,
+  processesWhoseCommandLineHolds,
+} from './processes-whose-command-line-holds-text.ts';
+export {
+  type UnitWithoutItsWorktree,
+  countLineOf,
+  goneLineOf,
+  serviceUnitsIn,
+  unitsWhoseWorktreeIsGone,
+} from './units-whose-worktree-is-gone.ts';
+export {
+  NO_FINISHED_RUN_OF_THAT_NAME,
+  SUMMARY_FILE_NAME,
+  type AttemptOfARun,
+  attemptsOfARun,
+  entriesOrNothingIn,
+  isThere,
+  newestFinishedRunOf,
+} from './newest-finished-run-of-a-name.ts';
+export {
+  REPORT_LINES,
+  REPORT_MORE_LINES_SUFFIX,
+  REPORT_WIDTH,
+  type SummaryOfARun,
+  noFinishedRunLineOf,
+  reportLinesIn,
+  reportLinesOf,
+  summaryIn,
+} from './report-of-a-run.ts';
 
 /**
  A runs folder a test writes its own runs into, so no test reads the real one.

@@ -22,7 +22,10 @@
     "start-pi-run-in-a-worktree": "dist/final/node/start-pi-run-in-a-worktree.mjs",
     "retry-pi-run-start-until-a-pool-has-room": "dist/final/node/retry-pi-run-start-until-a-pool-has-room.mjs",
     "start-pi-runs-from-a-batch-list": "dist/final/node/start-pi-runs-from-a-batch-list.mjs",
-    "save-the-final-message-of-a-review-that-wrote-no-review-file": "dist/final/node/save-the-final-message-of-a-review-that-wrote-no-review-file.mjs"
+    "save-the-final-message-of-a-review-that-wrote-no-review-file": "dist/final/node/save-the-final-message-of-a-review-that-wrote-no-review-file.mjs",
+    "list-processes-whose-command-line-holds-text": "dist/final/node/list-processes-whose-command-line-holds-text.mjs",
+    "list-running-units-whose-worktree-is-gone": "dist/final/node/list-running-units-whose-worktree-is-gone.mjs",
+    "print-the-final-report-of-the-newest-run-of-each-agent": "dist/final/node/print-the-final-report-of-the-newest-run-of-each-agent.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

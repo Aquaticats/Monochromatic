@@ -223,6 +223,76 @@ Entries start twenty seconds apart,
 and the command prints one line per entry once every run it started has ended,
 keeping the end of both streams so a failure says why.
 
+## Reading what is going on
+
+Three commands read a machine rather than start anything,
+and each is safe to run while runs are going.
+
+### `list-processes-whose-command-line-holds-text`
+
+`--text`,
+which every matching command line must hold,
+and `--command-characters`,
+how much of each command line to print (200 by default).
+
+```text
+# --text=start-pi-run-in-a-worktree
+4300 parent 4242 age 12m node /runs/start-pi-run-in-a-worktree.ts --name=copy-route --branch=feat/copy-route
+```
+
+It prints the process number,
+the parent's number,
+the age in minutes,
+and the head of the command line,
+one line per process,
+and `no process whose command line holds <text>` when nothing matches.
+It reads command lines and never an environment,
+and it never names its own process.
+
+### `list-running-units-whose-worktree-is-gone`
+
+`--checkout-folder`,
+the checkout whose worktrees the launcher makes (this folder by default),
+and `--unit-pattern`,
+the units to look at (`pi-*` by default).
+
+```text
+# --checkout-folder=/repo
+GONE /repo/.claude/worktrees/pi-gone
+3 running units, 1 without their worktree
+```
+
+A unit without its worktree cannot commit where a reader looks for its work,
+and it holds its pool slot until its own bound ends it,
+so this is the line a coordinator acts on.
+The worktree's name comes from `worktreeFolderOf`,
+the one place that names worktrees.
+
+### `print-the-final-report-of-the-newest-run-of-each-agent`
+
+`--agent`,
+repeatable, one block per agent;
+`--runs-folder`;
+`--lines`,
+how many lines of each final message (30 by default);
+and `--width`,
+how much of each line (420 by default).
+
+```text
+# --agent=copy-route --agent=never-run
+=== copy-route-1: idle, 40 turns
+the work is done
+and pushed
+=== never-run: no finished run
+```
+
+The newest attempt of an agent's name that wrote a summary is the run it reads,
+so an attempt still going is not mistaken for one that finished,
+and the report is the head of the last message the summary kept.
+The summary cuts that message to 900 characters,
+which is enough for a head;
+a whole report a run wrote to its own file is read from that file.
+
 ## Command line
 
 `drive-pi-subagent` takes these options,

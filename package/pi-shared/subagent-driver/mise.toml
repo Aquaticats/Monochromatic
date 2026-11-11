@@ -100,3 +100,33 @@ run = """
 {{vars.run_pi_command}}
 runPiCommand('save-the-final-message-of-a-review-that-wrote-no-review-file')
 """
+
+[tasks."list-processes-whose-command-line-holds-text"]
+description = "List every process whose command line holds a text, with its number, its parent, its age and the head of its command line"
+usage = 'arg "[args]" var=#true help="--text=<text> [--command-characters=<n>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('list-processes-whose-command-line-holds-text')
+"""
+
+[tasks."list-running-units-whose-worktree-is-gone"]
+description = "Name every running unit whose worktree folder is gone, and count the units listed"
+usage = 'arg "[args]" var=#true help="[--checkout-folder=<folder>] [--unit-pattern=<pattern>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('list-running-units-whose-worktree-is-gone')
+"""
+
+[tasks."print-the-final-report-of-the-newest-run-of-each-agent"]
+description = "Print the newest finished run of each agent named, why it ended, and the head of the report it ended with"
+usage = 'arg "[args]" var=#true help="--agent=<name> [--agent=<name>]... [--runs-folder=<folder>] [--lines=<n>] [--width=<n>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('print-the-final-report-of-the-newest-run-of-each-agent')
+"""
