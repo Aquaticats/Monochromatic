@@ -28,9 +28,18 @@ import type {
 //region Constants
 
 /**
- The command word the wrapper answers with the policy namespace help, and the word this preflight looks for in that help.
+ The command word the wrapper answers with the policy namespace help.
  */
 export const WRAPPER_COMMAND = 'monochromatic-git-policy-cli';
+
+/**
+ The line the wrapper's help starts with, which is the whole identity signal this preflight reads.
+
+ Measured on 2026-11-11 in this checkout. The command word alone is not enough: a repository's own git may alias that word, and
+ the system git's help for an alias prints something else. A release that rewords this line refuses every launch, which is loud and
+ one constant to update, while a weaker signal would start sessions without the wrapper in silence.
+ */
+const WRAPPER_HELP_LINE = `Usage: git ${WRAPPER_COMMAND} <command> [options]`;
 
 /**
  Milliseconds the wrapper may take to print that help before the session is refused.
@@ -162,9 +171,9 @@ export async function refuseUnlessTheWrapperAnswersGit({
   readonly workingFolder: string;
   readonly timeoutMilliseconds?: number;
 },): Promise<string> {
-  if ((sessionPath === undefined) || (sessionPath.trim() === '')) {
+  if (sessionPath === undefined) {
     throw new GitWrapperPreflightError(
-      `The session was not started: it would get no PATH at all, so which git it would run cannot even be named. ${WRAPPER_FIX}`,
+      `The session was not started: it would get no PATH at all, so its git would come from whichever folders the system falls back to, and those hold no wrapper of this repository's. ${WRAPPER_FIX}`,
     );
   }
   /**
@@ -200,8 +209,14 @@ export async function refuseUnlessTheWrapperAnswersGit({
     folder: workingFolder,
   },);
   if ((typeof resolvedPath) === 'symbol') {
+    /**
+     The PATH a reader should look at, which an empty one searches only the folder the session works in.
+     */
+    const searched = (sessionPath === '')
+      ? 'empty, so it searches only the folder the session works in'
+      : sessionPath;
     throw new GitWrapperPreflightError(
-      `The session was not started: no folder of the PATH it would get holds a git this user may run. That PATH was: ${sessionPath}. Only this repository's Git policy wrapper answers for git here: ${WHAT_A_SESSION_LOSES}. ${WRAPPER_FIX}`,
+      `The session was not started: no folder of the PATH it would get holds a git this user may run. That PATH was ${searched}. Only this repository's Git policy wrapper answers for git here: ${WHAT_A_SESSION_LOSES}. ${WRAPPER_FIX}`,
     );
   }
   /**
@@ -222,7 +237,7 @@ export async function refuseUnlessTheWrapperAnswersGit({
    */
   const answeredTheWrapper = (answer.status === 0)
     && answer.stdout
-      .includes(WRAPPER_COMMAND,);
+      .includes(WRAPPER_HELP_LINE,);
   if (!answeredTheWrapper) {
     /**
      What that question answered, which the refusal names so a reader can tell a silent program from a wrong one.

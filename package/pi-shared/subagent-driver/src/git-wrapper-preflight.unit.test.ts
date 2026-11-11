@@ -15,6 +15,7 @@ import {
   readFile,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import {
@@ -319,6 +320,77 @@ await describe({
             },),).rejects.toThrow('ENAMETOOLONG',);
           },
         },),
+        it({
+          name: 'stops at the program a session would run, so a later folder it never reaches cannot refuse the session',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The folder holding the program the session would run.
+             */
+            const bin = join(
+              folder.path,
+              'bin',
+            );
+            /**
+             The program the search must answer with, even though a later folder cannot be looked at.
+             */
+            const program = await writeProgram({
+              folder: bin,
+              name: 'git',
+              body: 'exit 0\n',
+            },);
+            expect(await programOnAPath({
+              name: 'git',
+              path: [
+                bin,
+                'a'.repeat(300,),
+              ].join(delimiter,),
+              folder: folder.path,
+            },),).toBe(program,);
+          },
+        },),
+        it({
+          name: 'reads a folder holding a link and .. the way the kernel does, not the way tidying the string would',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The folder the link points into, which is where the program is.
+             */
+            const deep = join(
+              folder.path,
+              'deep',
+            );
+            await writeProgram({
+              folder: join(
+                deep,
+                'bin',
+              ),
+              name: 'git',
+              body: 'exit 0\n',
+            },);
+            await mkdir(join(
+              deep,
+              'a',
+            ), { recursive: true, },);
+            // A link named a, pointing at deep/a: `a/..` is deep when the kernel reads it, and the folder holding that link when
+            // the string is tidied first, which holds no bin.
+            await symlink(
+              join(
+                deep,
+                'a',
+              ),
+              join(
+                folder.path,
+                'a',
+              ),
+            );
+            expect(await programOnAPath({
+              name: 'git',
+              path: `${folder.path}/a/../bin`,
+              folder: folder.path,
+            },),).toBe(`${folder.path}/a/../bin/git`,);
+          },
+        },),
       ],
     },),
     describe({
@@ -409,7 +481,7 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a program that answers with status zero and something other than the policy namespace help',
+          name: 'refuses a program that answers with status zero, the wrapper\'s own command word and something other than its help',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -425,7 +497,7 @@ await describe({
             const git = await writeProgram({
               folder: bin,
               name: 'git',
-              body: `printf '%s\\n' 'git version 2.56.0'\nexit 0\n`,
+              body: `printf '%s\\n' "'monochromatic-git-policy-cli' is aliased to 'commit --message'"\nexit 0\n`,
             },);
             /**
              What the check refused with.
@@ -519,11 +591,42 @@ await describe({
               run: runCommandWithChildProcess,
               workingFolder: folder.path,
             },),)).message,).toContain('no PATH at all',);
-            expect((await refusalOf(async () => await refuseUnlessTheWrapperAnswersGit({
+          },
+        },),
+        it({
+          name: 'searches an empty PATH as the folder the session works in, and refuses by that folder when it holds no git',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             What the check refused with.
+             */
+            const refusal = await refusalOf(async () => await refuseUnlessTheWrapperAnswersGit({
               run: runCommandWithChildProcess,
               sessionPath: '',
               workingFolder: folder.path,
-            },),)).message,).toContain('no PATH at all',);
+            },),);
+            expect(refusal,).toBeInstanceOf(GitWrapperPreflightError,);
+            expect(refusal.message,).toContain('no folder of the PATH it would get holds a git',);
+            expect(refusal.message,).toContain('empty, so it searches only the folder the session works in',);
+          },
+        },),
+        it({
+          name: 'answers with a wrapper an empty PATH finds in the folder the session works in',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The wrapper standing in the folder the session works in, which an empty PATH searches alone.
+             */
+            const git = await writeProgram({
+              folder: folder.path,
+              name: 'git',
+              body: `printf '%s\\n' 'Usage: git monochromatic-git-policy-cli <command> [options]'\nexit 0\n`,
+            },);
+            expect(await refuseUnlessTheWrapperAnswersGit({
+              run: runCommandWithChildProcess,
+              sessionPath: '',
+              workingFolder: folder.path,
+            },),).toBe(git,);
           },
         },),
         it({
