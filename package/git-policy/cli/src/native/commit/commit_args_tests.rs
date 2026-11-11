@@ -123,8 +123,7 @@ fn an_abbreviated_value_option_takes_the_next_token() {
 /// The pathspec-file controls,
 /// the separator and `--only` never reach the real commit.
 #[test]
-fn explicit_removal_drops_pathspec_file_controls_and_only() {
-    assert_eq!(
+fn explicit_removal_drops_pathspec_file_controls_and_only() {    assert_eq!(
         private_explicit_commit_args(
             &args(&["--pathspec-from-file=f", "--pathspec-file-nul", "-m", "x"]),
             &[],
@@ -138,6 +137,21 @@ fn explicit_removal_drops_pathspec_file_controls_and_only() {
     assert_eq!(
         private_explicit_commit_args(&args(&["-m", "x", "--only", "--", "a"]), &args(&["a"])),
         args(&["-m", "x"])
+    );
+}
+
+/// A message that spells a pathspec-file control stays:
+/// the value of an option is the person's text,
+/// never the control it spells.
+#[test]
+fn a_message_that_spells_a_pathspec_file_control_stays() {
+    assert_eq!(
+        private_explicit_commit_args(&args(&["-m", "--pathspec-from-file=x"]), &[]),
+        args(&["-m", "--pathspec-from-file=x"])
+    );
+    assert_eq!(
+        private_explicit_commit_args(&args(&["-m", "--pathspec-file-nul"]), &[]),
+        args(&["-m", "--pathspec-file-nul"])
     );
 }
 
@@ -181,6 +195,7 @@ fn resolve_chooses_the_arguments_by_mode() {
 fn the_separator_is_read_in_option_position_only() {
     assert_eq!(separator_index(&args(&["-m", "--", "--", "a.txt"])), Some(2));
     assert_eq!(separator_index(&args(&["--message", "--", "--", "a.txt"])), Some(2));
+    assert_eq!(separator_index(&args(&["--mess", "--", "--", "a.txt"])), Some(2));
     assert_eq!(separator_index(&args(&["-qm", "--", "--"])), Some(2));
     assert_eq!(separator_index(&args(&["-m", "--"])), None);
     assert_eq!(separator_index(&args(&["-m--", "--", "a.txt"])), Some(1));

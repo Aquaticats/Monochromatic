@@ -337,7 +337,8 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 /// so the real commit names none of them.
 ///  Only a token in option position is removed:
 /// the value of an option is the person's text,
-///  so a message that spells a path never leaves as that path.
+///  so a message that spells a path,
+/// a path command or a flag never leaves as that token.
 ///  The pathspec removal takes the last path of each pathspec,
 ///  as `lastIndexOf` found it in the incumbent.
 ///
@@ -346,10 +347,17 @@ pub fn without_all_flag(commit_args: &[String]) -> Vec<String> {
 /// privateExplicitCommitArgs({ args, pathspecs });
 /// ```
 pub fn private_explicit_commit_args(args: &[String], pathspecs: &[String]) -> Vec<String> {
+    let person_values: Vec<usize> = value_positions(args);
     let mut without_file: Vec<String> = Vec::new();
     let mut index: usize = 0;
     while index < args.len() {
         let token: &str = args[index].as_str();
+        // A value is the person's text, never the control it spells.
+        if person_values.contains(&index) {
+            without_file.push(String::from(token));
+            index += 1;
+            continue;
+        }
         if token == "--pathspec-from-file" {
             index += 2;
             continue;
