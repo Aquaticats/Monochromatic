@@ -13000,6 +13000,35 @@ null when the command made none),
 (`landed`,
 `ended` or `stopped`),
 `exitCode`,
+`stop`
+(why the commit did not land;
+`null` for one that did,
+because `outcome` and `exitCode` say that nothing landed and what the process returned and never whether a policy correctly refused content or a machine failed:
+`kind` is `policy` for an error finding,
+with `policy` naming the registry entry that reported,
+`core-finding` for a fixed transform's rejection,
+with `core` and `code` naming it,
+`git-step` for a Git step that failed,
+with `step` the program and the subcommand and `status` the status it exited with (absent when the step never exited by itself,
+which is a start that was refused or a step ended at its ceiling),
+`native-exit` for real Git declining the command,
+with `step` and `status` as before,
+`engine-failure` for the wrapper's own engine failing where no step explains the stop,
+with `code` the engine failure's stable code,
+and `unidentified` where no step,
+policy,
+transform or engine failure explains the stop,
+which is where a route that stops a commit with words of its own (the branch kept moving,
+the content was pruned,
+the service was not there) lands,
+and which is the signal the owner's rules call a defect that should log more;
+`stop` is null for a command that ended without landing and without failing,
+because nothing stopped it;
+the failing step is the note the Git runner keeps (`src/native/commit/git_step_failure.rs`),
+dropped as soon as another step starts,
+and every field is a name the wrapper compiled in or a number,
+never a message,
+a path or a candidate's content),
 `totalMs`,
 the disjoint phases
 `routeMs`
