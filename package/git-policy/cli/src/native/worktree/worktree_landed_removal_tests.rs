@@ -958,10 +958,6 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
     let table: PathBuf = an_empty_process_table(&landed);
     let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
     let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
-    assert!(
-        matches!(examined, Examined::Kept(_)),
-        "a worktree that holds another worktree stays, whatever list was read before it arrived"
-    );
     assert_eq!(
         std::fs::read(changed.as_path()).expect("the changed file is still there"),
         b"# the fixture, edited in the nested worktree\n",
@@ -971,6 +967,10 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
         std::fs::read(notes.as_path()).expect("the untracked file is still there"),
         b"work the person has not committed\n",
         "the untracked file the person wrote in the nested worktree is still there"
+    );
+    assert!(
+        matches!(examined, Examined::Kept(_)),
+        "a worktree that holds another worktree stays, whatever list was read before it arrived"
     );
 }
 
