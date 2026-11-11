@@ -14,8 +14,11 @@ the installed wrapper,
 `0.6.1-alpha.8`,
 which wrote every record quoted here,
 and then `0.6.1-alpha.9`,
-which the coordinator installed at 2026-11-11T01:08:50Z and which wrote 11 of the
-records recounted below.
+which the coordinator installed at 2026-11-11T01:08:50Z:
+the second read below counted 11 of its records,
+all landed,
+and the third counted 72,
+of which 71 landed.
 Paths below are relative to `package/git-policy/cli/src/native/` unless they start with `doc/`.
 
 Purpose:
