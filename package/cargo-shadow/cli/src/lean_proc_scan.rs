@@ -7,7 +7,12 @@
 //! The second proof of "not in use" beside the build lock:
 //! a removal's log line records how many processes were scanned and that none used the entry.
 //! A process in another mount namespace (a container) sees the same files under other names,
-//! so for those the scan compares device and inode of what they hold with the identities it was given.
+//! so for those the scan compares device and inode of what they hold with the identities it was given,
+//! and it compares the paths that namespace spells the way the root is spelled here,
+//! which covers a bind mount of the root at the root's own path.
+//! A root is compared both as it is spelled and with its symbolic links resolved,
+//! because `/proc` names a held file the way the kernel holds it: no link is left in that name,
+//! so a build base reached through a linked home directory would match none of them.
 //! A process whose entries cannot be read is classified instead of skipped:
 //! a kernel thread and an ended process hold no file,
 //! and a process of another user cannot hold one that the path denies that user,
@@ -28,6 +33,12 @@ use crate::lean_identity::{Identity, identity_of};
 
 /// The suffix `/proc` appends to the link of a file that was unlinked while open.
 const DELETED_SUFFIX: &str = " (deleted)";
+
+/// How a use found in another mount namespace by device and inode is named.
+/// Why:
+/// Such a use holds one of the identities the scan was given, which are this root's build locks,
+/// so it is a use of the whole root and not of one path under it.
+const FOREIGN_IDENTITY_HOW: &str = "identity";
 
 /// One process using one path.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -74,13 +85,28 @@ pub struct ScanReport {
 /// Reading a scan report.
 impl ScanReport {
     /// The first use at or below `candidate`,
-    /// which blocks its removal.
+    /// which blocks its removal,
+    /// and any use found by identity in another mount namespace,
+    /// which blocks every entry of the root it was matched against.
+    /// Why the path is compared as it is spelled and, when that matches nothing,
+    /// with its symbolic links resolved:
+    /// `/proc` names a held file the way the kernel holds it (`with_symlinks_resolved`),
+    /// so a root reached through a link matches only the resolved spelling.
     /// Why only the uses it saw:
     /// a process whose entries could not be read is named by `describe` and is not judged here;
     /// `doc/handover/cargo-shadow-lean-build-folders.md` records that limit and the measurement under it.
     pub fn blocks(&self, candidate: &Path) -> Option<&ProcessUse> {
         for used in &self.uses {
-            if used.path.starts_with(candidate) {
+            if used.how == FOREIGN_IDENTITY_HOW || used.path.starts_with(candidate) {
+                return Some(used);
+            }
+        }
+        let resolved: PathBuf = with_symlinks_resolved(candidate);
+        if resolved == candidate {
+            return None;
+        }
+        for used in &self.uses {
+            if used.path.starts_with(&resolved) {
                 return Some(used);
             }
         }
@@ -100,6 +126,25 @@ impl ScanReport {
             self.uses.len()
         );
     }
+}
+
+/// What:
+/// `fn with_symlinks_resolved(path: &Path) -> PathBuf` is the path with every symbolic link in it resolved,
+/// and the path unchanged when it cannot be resolved.
+/// Why:
+/// `/proc` names the file a process holds the way the kernel holds it,
+/// and that name has no symbolic link left in it,
+/// so a root spelled through one (a build base under a linked home directory, say)
+/// would match none of the uses and the proof would say "no use" about a file a process is running.
+/// A path that cannot be resolved is compared as it is spelled,
+/// which is the answer for an entry that is gone already.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const withSymlinksResolved = (p: string): string => { try { return realpathSync(p); } catch { return p; } };
+/// ```
+fn with_symlinks_resolved(path: &Path) -> PathBuf {
+    return fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
 }
 
 /// What:
@@ -154,7 +199,7 @@ fn map_path(line: &str) -> Option<PathBuf> {
 /// ```ts
 /// function noteIfUnder(report: ScanReport, pid: number, how: string, path: string, roots: string[]): void
 /// ```
-fn note_if_under(report: &mut ScanReport, pid: i32, how: &'static str, path: PathBuf, roots: &[&Path]) {
+fn note_if_under(report: &mut ScanReport, pid: i32, how: &'static str, path: PathBuf, roots: &[PathBuf]) {
     let clean: PathBuf = without_deleted(path);
     for root in roots {
         if clean.starts_with(root) {
@@ -165,28 +210,44 @@ fn note_if_under(report: &mut ScanReport, pid: i32, how: &'static str, path: Pat
 }
 
 /// What:
-/// `fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[Identity])` compares what a process in
-/// another mount namespace holds with the given identities.
+/// `fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[Identity], roots: &[PathBuf])` compares what
+/// a process in another mount namespace holds with the given identities and with the roots' spellings.
 /// Why:
 /// Its paths are spelled in its own namespace (`/work/target`),
-/// so only device and inode can match.
+/// so device and inode are what can match;
+/// the program it runs and the files it has mapped are held files like any other,
+/// so they are read too,
+/// and a bind mount of a root at that root's own path spells them the way the root is spelled here,
+/// which the path comparison catches.
+/// A mount of the root at another path stays a named limit of this scan:
+/// nothing here can translate one namespace's spelling into another's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function scanForeign(report: ScanReport, pid: number, entry: string, identities: Identity[]): void
+/// function scanForeign(report: ScanReport, pid: number, entry: string, identities: Identity[], roots: string[]): void
 /// ```
-fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[Identity]) {
-    let mut held: Vec<PathBuf> = vec![entry.join("cwd")];
+fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[Identity], roots: &[PathBuf]) {
+    let mut held: Vec<(&'static str, PathBuf)> = vec![("cwd", entry.join("cwd")), ("exe", entry.join("exe"))];
     if let Ok(descriptors) = fs::read_dir(entry.join("fd")) {
         for descriptor in descriptors.flatten() {
-            held.push(descriptor.path());
+            held.push(("fd", descriptor.path()));
         }
     }
-    for link in held {
+    for (how, link) in held {
         let Ok(metadata) = fs::metadata(&link) else { continue };
         let found: Identity = Identity { device: metadata.dev(), inode: metadata.ino() };
         if identities.contains(&found) {
-            report.uses.push(ProcessUse { pid, how: "identity", path: link });
+            report.uses.push(ProcessUse { pid, how: FOREIGN_IDENTITY_HOW, path: link.clone() });
+        }
+        if let Ok(target) = fs::read_link(&link) {
+            note_if_under(report, pid, how, target, roots);
+        }
+    }
+    if let Ok(maps) = fs::read_to_string(entry.join("maps")) {
+        for line in maps.lines() {
+            if let Some(mapped) = map_path(line) {
+                note_if_under(report, pid, "map", mapped, roots);
+            }
         }
     }
 }
@@ -292,7 +353,7 @@ pub fn other_uids_can_reach(root: &Path) -> bool {
 /// ```ts
 /// function noteWithoutEntries(report: ScanReport, procRoot: string, pid: number, roots: string[]): void
 /// ```
-fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roots: &[&Path]) {
+fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roots: &[PathBuf]) {
     let Ok(status) = fs::read_to_string(proc_root.join(pid.to_string()).join("status")) else {
         // The process ended between the listing and this read, so it holds nothing.
         report.inert += 1;
@@ -326,7 +387,9 @@ fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roo
 /// It finds the processes whose working directory,
 /// program,
 /// open files or mapped files are under any root,
-/// and the container processes that hold an entry with one of the identities.
+/// and the container processes that hold an entry with one of the identities or hold a file a root spells.
+/// Each root is compared as it is spelled and with its symbolic links resolved,
+/// because `/proc` names a held file without a link in it.
 /// A process whose entries cannot be read is classified rather than counted as another user's:
 /// see `note_without_entries`.
 ///
@@ -337,6 +400,15 @@ fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roo
 pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity], skip_pid: i32) -> ScanReport {
     let mut report: ScanReport = ScanReport::default();
     let own_namespace: Option<PathBuf> = fs::read_link(proc_root.join("self/ns/mnt")).ok();
+    // Both spellings of every root: the one a caller spelled, and the one the kernel holds.
+    let mut compared: Vec<PathBuf> = Vec::with_capacity(roots.len() * 2);
+    for root in roots {
+        compared.push(root.to_path_buf());
+        let resolved: PathBuf = with_symlinks_resolved(root);
+        if resolved != *root {
+            compared.push(resolved);
+        }
+    }
     let Ok(entries) = fs::read_dir(proc_root) else { return report };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().to_string();
@@ -348,33 +420,33 @@ pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity]
         // A process that cannot show its working directory is classified: it either cannot hold a file or it is
         // the uncertainty the removal's proof line names.
         if fs::read_link(path.join("cwd")).is_err() {
-            note_without_entries(&mut report, proc_root, pid, roots);
+            note_without_entries(&mut report, proc_root, pid, &compared);
             continue;
         }
         report.scanned += 1;
         let namespace: Option<PathBuf> = fs::read_link(path.join("ns/mnt")).ok();
         if own_namespace.is_some() && namespace.is_some() && namespace != own_namespace {
             report.foreign_namespace += 1;
-            scan_foreign(&mut report, pid, &path, identities);
+            scan_foreign(&mut report, pid, &path, identities, &compared);
             continue;
         }
         if let Ok(target) = fs::read_link(path.join("cwd")) {
-            note_if_under(&mut report, pid, "cwd", target, roots);
+            note_if_under(&mut report, pid, "cwd", target, &compared);
         }
         if let Ok(target) = fs::read_link(path.join("exe")) {
-            note_if_under(&mut report, pid, "exe", target, roots);
+            note_if_under(&mut report, pid, "exe", target, &compared);
         }
         if let Ok(descriptors) = fs::read_dir(path.join("fd")) {
             for descriptor in descriptors.flatten() {
                 if let Ok(target) = fs::read_link(descriptor.path()) {
-                    note_if_under(&mut report, pid, "fd", target, roots);
+                    note_if_under(&mut report, pid, "fd", target, &compared);
                 }
             }
         }
         if let Ok(maps) = fs::read_to_string(path.join("maps")) {
             for line in maps.lines() {
                 if let Some(mapped) = map_path(line) {
-                    note_if_under(&mut report, pid, "map", mapped, roots);
+                    note_if_under(&mut report, pid, "map", mapped, &compared);
                 }
             }
         }
