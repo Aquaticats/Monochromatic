@@ -358,6 +358,9 @@ pub mod service_work_handlers_replanning_and_acceptance;
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
+/// How a drain settles a claim once its step has given a verdict.
+pub mod service_work_drain_settles_a_claim;
+
 /// The storage steps of one drain of work,
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;
@@ -367,7 +370,8 @@ pub mod service_work_storage_awaited;
 pub mod service_work_drains_awaiting;
 
 /// The service's work that can take minutes:
-/// a lane of its own, beside the round that serves the person's pushes.
+/// a lane of its own,
+/// beside the round that serves the person's pushes.
 pub mod service_work_slow_lane;
 
 /// Runs one round of the service's work over several directories.
