@@ -26,7 +26,7 @@
 
 use crate::service_client_settings_and_watches::RECONNECTS;
 pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_retire};
-use crate::service_client_listen_and_ask_to_retire::{Heard, listen, read_message};
+use crate::service_client_listen_and_ask_to_retire::{Heard, a_message_is_already_here, listen, read_message};
 pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::diagnostic_log::debug;
@@ -280,10 +280,17 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         renew_scratch(config, &mut last_renewed);
         let written_at: Instant = Instant::now();
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
-            // Where the commit stands is said here, before each wait, so a service that sends nothing at all is answered
+            // What:
+            //  Where the commit stands is said here, before each wait, so a service that sends nothing at all is answered
             //  in the same words as one that only beats: neither has started on this commit.
-            say_where_it_stands(notices, config, parked, last_place, &mut told_place);
-            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
+            // Why:
+            //  A notice is said to a wait that is still on,
+            // and a message the service has already sent may be the answer:
+            //  a client the machine held up spoke of a write over the landing it had not read yet.
+            if !a_message_is_already_here(&mut reader) {
+                say_where_it_stands(notices, config, parked, last_place, &mut told_place);
+                say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
+            }
             let heard: Heard = listen(&mut reader);
             if matches!(heard, Heard::Message(_)) {
                 renew_scratch(config, &mut last_renewed);
@@ -367,8 +374,11 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 }
             }
             // Words about the write that came with this message are said at once when they differ from the ones already said,
-            // so a write that has stayed stuck a new minute is not held until the beat after it.
-            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
+            // so a write that has stayed stuck a new minute is not held until the beat after it; a message already here is read
+            // first, because it may be the landing.
+            if !a_message_is_already_here(&mut reader) {
+                say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
+            }
         };
         trace.answer_wait += written_at.elapsed();
         if let Some(done) = answered {

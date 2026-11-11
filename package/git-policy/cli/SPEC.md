@@ -6275,6 +6275,15 @@ on the commit path:
   so a write that has stayed stuck a new minute is told at once.
   The words name no moment of the write,
   because the moment they are read is the client's and not the write's.
+  No line the client says about a long wait is said while the service's next message is already here:
+  the client reads what has arrived first,
+  because a message it has not read yet can be the landing,
+  and a commit the service had landed then prints nothing of its write or of its place
+  (`a_message_is_already_here`,
+  `src/native/service/service_client_listen_and_ask_to_retire.rs`,
+  said of the loop in `src/native/service/service_client.rs`).
+  A line the service sends itself, such as one naming a lock's holder, is said when it arrives.
+  The asking is one `MSG_DONTWAIT` peek on the connection the client already holds, which waits for nothing.
   A client that is never told takes the older path and waits
   `WITHDRAW_CEILING`.
   The record holds no lock (the owner:

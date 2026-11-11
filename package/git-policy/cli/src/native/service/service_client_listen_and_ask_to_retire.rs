@@ -19,6 +19,7 @@ use crate::service_protocol::{
 };
 use crate::service_server::Bind;
 use std::io::{BufRead, BufReader, Write};
+use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
 /// How long the client waits for a service to start or to retire when it cannot ask the service manager how the start is going.
@@ -87,6 +88,41 @@ pub(crate) fn listen(reader: &mut BufReader<UnixStream>) -> Heard {
         Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => Heard::Silent,
         _ => Heard::Closed,
     };
+}
+
+/// What:
+///  Whether a line from the service has already arrived:
+/// a line the reader still holds,
+/// bytes the connection has,
+/// or the service's close.
+/// Why:
+///   A waiting notice tells a person about a wait that is still on,
+/// and a client that speaks before reading what has already arrived tells of a wait that is over:
+/// a client the machine held up said its commit
+///  was inside a write after the service had landed it.
+/// The asking is `MSG_DONTWAIT` on the connection the client already holds,
+/// so it waits for nothing and
+///  leaves what arrived to the read that follows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aMessageIsAlreadyHere(reader) // false only when a read would wait
+/// ```
+pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> bool {
+    if !reader.buffer().is_empty() {
+        return true;
+    }
+    let mut first: [u8; 1] = [0; 1];
+    // SAFETY: `first` is a buffer the call writes at most one byte into, and the descriptor is the live connection the
+    //  reader holds its own reference to.
+    let peeked: isize = unsafe { libc::recv(reader.get_ref().as_raw_fd(), first.as_mut_ptr().cast(), first.len(), libc::MSG_PEEK | libc::MSG_DONTWAIT) };
+    if peeked >= 0 {
+        // A closed connection is answered at once as well: the read that follows returns with the close rather than waiting
+        //  for a line the closed service will never send.
+        return true;
+    }
+    // Only a connection with nothing to read leaves the read that follows waiting, and a notice is for that wait alone.
+    return !matches!(std::io::Error::last_os_error().kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut);
 }
 
 /// What:
