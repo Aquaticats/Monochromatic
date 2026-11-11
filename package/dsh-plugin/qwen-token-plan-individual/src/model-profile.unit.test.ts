@@ -76,20 +76,6 @@ const NO_EFFORTS_MODEL_FACTS: QwenTokenPlanResolvedModelFacts = {
   compat: COMPAT_PINS,
 };
 
-/**
- Resolved facts with the capacities the sources left undecided: the
- projection must omit them instead of guessing.
- */
-const UNCAPACITATED_MODEL_FACTS: QwenTokenPlanResolvedModelFacts = {
-  id: 'probe-unsized',
-  name: 'Probe Unsized',
-  kind: 'chat',
-  input: ['text'],
-  reasoning: true,
-  efforts: OFFERED_EFFORTS,
-  compat: COMPAT_PINS,
-};
-
 //endregion Test fixtures
 
 await describe({
@@ -138,20 +124,6 @@ await describe({
           reasoningEfforts: OFFERED_EFFORTS,
           compat: COMPAT_PINS,
         });
-      },
-    },),
-    it({
-      name: 'omits the capacities the facts left undecided instead of guessing them',
-      fn: async () => {
-        const model = factsToPiAiModelProfile({ facts: UNCAPACITATED_MODEL_FACTS, });
-        expect(Object.hasOwn(
-          model,
-          'contextWindow'
-        ),).toBe(false);
-        expect(Object.hasOwn(
-          model,
-          'maxTokens'
-        ),).toBe(false);
       },
     },),
 

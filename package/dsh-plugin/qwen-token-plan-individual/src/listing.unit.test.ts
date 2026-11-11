@@ -70,7 +70,7 @@ const NON_REASONING_FACTS: QwenTokenPlanModelFacts = {
 
  @param id - listing id to look up
 
- @returns the served model profile for that id
+ @returns served model profile for that id
 
  @example
  ```ts
@@ -113,7 +113,7 @@ function servedIdsOf(listing: readonly QwenTokenPlanListingEntry[]): readonly st
 
  @param id - model id to look up
 
- @returns the carried facts row
+ @returns carried facts row
 
  @example
  ```ts

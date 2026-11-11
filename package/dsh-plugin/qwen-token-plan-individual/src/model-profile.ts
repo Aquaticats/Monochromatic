@@ -53,12 +53,8 @@ export function factsToPiAiModelProfile({
   return {
     id: facts.id,
     name: facts.name,
-    ...(facts.contextWindow === undefined
-      ? {}
-      : { contextWindow: facts.contextWindow, }),
-    ...(facts.maxTokens === undefined
-      ? {}
-      : { maxTokens: facts.maxTokens, }),
+    contextWindow: facts.contextWindow,
+    maxTokens: facts.maxTokens,
     input: [
       ...facts.input,
     ],

@@ -7,11 +7,6 @@
  */
 
 import {
-  credentialRef,
-  type CredentialRef,
-  type ResolvedCredential,
-} from '@deepseek-ai/dsh-credentials';
-import {
   caughtValueText,
 } from '@monochromatic-dev/caught-value-core/ts';
 import {
@@ -33,11 +28,18 @@ export {
 
 /**
  Credentials service shape the key resolution reads: the one `resolve` call the
- installed llm-pi-ai adapter makes per operation. Structurally typed, so the
- real `CredentialProvider` and test fakes both satisfy it.
+ installed llm-pi-ai adapter makes per operation. Structurally typed around the
+ reference-name string, so the real `CredentialProvider` and test fakes both
+ satisfy it without this package importing the branding module: a reference is
+ a POSIX environment-variable name at runtime, and the `credentialRef` brand
+ the service's own call sites add is a compile-time cast that returns its input
+ unchanged.
  */
 export type QwenTokenPlanIndividualCredentialsTarget = {
-  resolve: (ref: CredentialRef) => Promise<ResolvedCredential | undefined>;
+  resolve(ref: string): Promise<{
+    readonly value: string;
+    readonly source: string;
+  } | undefined>;
 };
 
 //endregion Types
@@ -53,7 +55,7 @@ export type QwenTokenPlanIndividualCredentialsTarget = {
 
  @param credentials - credentials service to resolve the reference through
 
- @returns the resolved secret, or undefined when no service or no value answers
+ @returns resolved secret, or undefined when no service or no value answers
 
  @example
  ```ts
@@ -83,7 +85,7 @@ export async function resolveQwenTokenPlanIndividualApiKey({
      the reference is unconfigured.
      */
     const hit = await credentials
-      .resolve(credentialRef(QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME));
+      .resolve(QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME);
     if (hit === undefined) {
       logger
         .debug(`the ${QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME} reference resolves no value`);

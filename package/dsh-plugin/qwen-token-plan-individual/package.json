@@ -51,13 +51,11 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "catalog:",
-    "@deepseek-ai/dsh-credentials": "catalog:",
     "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
     "@deepseek-ai/dsh-settings": "catalog:"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "catalog:",
-    "@deepseek-ai/dsh-credentials": "catalog:",
     "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
     "@deepseek-ai/dsh-settings": "catalog:",
     "@monochromatic-dev/config-rolldown": "workspace:*",
