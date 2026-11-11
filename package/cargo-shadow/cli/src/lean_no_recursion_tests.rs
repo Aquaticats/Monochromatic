@@ -52,7 +52,7 @@ fn the_shadow_only_adds_the_build_folder_variable_for_the_lean_tools() {
     let shim: String = fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join("shim.rs")).expect("read the shim");
     let uses: usize = shim.matches("lean_").count();
     assert_eq!(uses, shim.matches("lean_keyed_folder").count(), "the shim may reach the lean tools only through the keyed folder");
-    for forbidden in ["lean_run", "lean_command", "lean_timer", "lean_idle", "lean_sweep"] {
+    for forbidden in ["lean_run", "lean_command", "lean_service", "lean_idle", "lean_sweep"] {
         assert!(!shim.contains(forbidden), "the shim must not start {forbidden}");
     }
 }
