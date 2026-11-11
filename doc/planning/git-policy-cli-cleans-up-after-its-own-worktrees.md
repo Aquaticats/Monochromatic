@@ -651,3 +651,112 @@ Every one of them is in a file whose diff against `main` is empty,
 The `lint:oxlint` and `lint:types` children of the same task also fail;
  this change holds no TypeScript and no generated file,
  so neither failure can be this branch's.
+
+## The continuation run: the review's reproductions and the whole suite
+
+An earlier run of this work was stopped while it rewrote the removal line,
+ and the rewrite it left behind put the ignored-files module in
+ `worktree_landed_sweep_notice.rs`,
+ so the crate did not compile.
+That file was taken back from `HEAD`,
+ and the move the rewrite was for was made with a control first:
+ the removal line promised nothing about a directory Git ignores,
+ though `worktree_landed_ignored_files.rs` never reads one and its own doc says the line says so.
+`a_removed_worktree_says_an_ignored_directory_went_unread` fails on the line as it stood,
+ and passes on the line that now says a directory Git ignores went with the worktree unread.
+
+Each of the review's four findings was reproduced again through the wrapper this worktree built,
+ in a throwaway repository with its own `HOME` and `XDG_RUNTIME_DIR` under the run folder,
+ and read on the base first and on this branch after:
+
+- Finding 1,
+ an ignored `.env` written after the add:
+  on `ee545033ad` the merge exited 0 with the worktree and the file gone;
+  now the merge exits 0,
+  the worktree stays,
+  the file is still there,
+  and the line names `.env`.
+  Its positive control,
+  the same file with no ignore rule,
+  keeps the worktree on this branch as it does on the base:
+  `worktree_remove.rs` `check_clean` leaves a dirty tree to Git,
+  and the base's `RemovePlan` already carried `force: false`,
+  so Git refuses in its own words.
+- Finding 2,
+ a commit a reference lock holds:
+  on `ee545033ad` the merge exited 0 and both `refs/cli-git/kept/7` and the object after
+  `git gc --prune=now` were absent (`status 1`);
+  now both are present (`status 0`),
+  and the held-commit line comes before the removal line.
+- Finding 3,
+ a worktree added while the sweep looks:
+  the run before this one tried to add it from a `post-merge` hook and the hook never ran,
+  because the wrapper forwards Git with `-c core.hooksPath=/dev/null/cli-git-no-hooks` and every
+  `hook.<name>.enabled=false`,
+  so a repository's own hooks are off.
+  The reproduction now stops the sweep's own Git child
+  (`for-each-ref --merged <commit>`) with `SIGSTOP`,
+  adds the worktree through the wrapper while it is stopped,
+  and lets it continue.
+  On this branch the merge exits 0,
+  the add exits 0,
+  and the worktree is still there,
+  with no removal line for it.
+  With the registration window planted out
+  (`if false` in place of `place.registered_before.holds`),
+  the same run ends with the sweep's removal line naming that worktree and the worktree gone,
+  which is the defect.
+  The positive control in the same script adds the worktree before the merge and the sweep removes it,
+  so a kept worktree is not a sweep that never ran.
+- Finding 4,
+ a process whose working folder cannot be read:
+  on `ee545033ad` the merge exited 0 and removed the worktree under the live child;
+  now the worktree stays and the reason names the process,
+  that it belongs to this account,
+  that it hides its working folder,
+  and that nothing shows it started before the worktree was made.
+
+The whole suite was run once on the finished branch
+ (`native:test:host -- --no-fail-fast`):
+ `6564 tests run: 6556 passed (24 slow), 8 failed, 19 skipped` in 2442 seconds.
+Where each red test belongs,
+ measured against the wrapper handover's own record of the integration's red tests,
+ in its section at 2026-11-10T20:56:59-05:00
+ (`doc/handover/cli-git-rust-implementation.md`):
+
+- Four stage-container tests
+  (`worktree::worktree_convert::tests::a_stage_container_left_in_the_old_tree_does_not_keep_it`,
+  `worktree::worktree_convert::tests::btrfs_a_stage_container_is_left_out_of_the_new_subvolume`,
+  `worktree::worktree_convert_compare::tests::a_stage_container_of_another_command_is_not_a_difference` and
+  `subvolume::subvolume_sync::tests::another_commands_stage_container_is_left_out_of_a_pass`):
+  the handover records this class red on the integration tree before this branch,
+  in the same words,
+  and `297baefe42` on the integration fixes it after this branch's base
+  with `worktree_copy_prune.rs` `names_a_private_stage`.
+- `landing::service_land::tests::a_withdrawal_forces_the_records_it_wrote` and
+  `service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`:
+  both are named red on the integration tree in the same handover section.
+- `commit::commit_index::stat_tests::a_private_refresh_the_ceiling_ends_leaves_the_private_index_as_the_copy_made_it`
+  and `lock::git_stop_lock_tests::a_watched_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove`:
+  neither file differs from `ee545033ad`,
+  and each passes alone
+  (`1 test run: 1 passed` for each),
+  so it fails only under the whole suite's own concurrency.
+  The run before this one failed a different member of that family
+  (`worktree_added_again_at_the_same_path_gets_its_own_filling`)
+  and not these two,
+  which is the spread between one full run and the next.
+
+The modules this branch touches,
+ run again on the finished branch:
+ `worktree_landed` `27 tests run: 27 passed`,
+ `worktree_process_inside` `10 tests run: 10 passed` and
+ `index_writer_forward` `10 tests run: 10 passed`;
+ `native:clippy` clean;
+ and both test targets build,
+ the binary one with `965 tests` known to it.
+This document held seven `markdown/semantic-line-breaks` findings in prose an earlier run of this change wrote,
+ in the process list after `(measured 2026-11-11:`,
+ in `by kind, mode and bytes`,
+ and in the four suite bullets of the merge section;
+ `monochromatic-lint --fix` plus one leading space on a continuation line leaves the file clean.
