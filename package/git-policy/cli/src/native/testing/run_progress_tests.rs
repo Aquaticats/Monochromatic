@@ -7,6 +7,7 @@
 //! that the ending
 //!  names what it read,
 //! that the look sees the processes the run started,
+//! that no reader's own readings are judged as the run's work,
 //! and that a stuck run ends its process.
 
 use super::*;
@@ -362,6 +363,12 @@ fn readers_running(expected: usize, within: Duration) -> usize {
 /// Child of the control below:
 /// a run under the fixture's watcher and one of its own that shows nothing at all,
 /// so neither watcher may count the other's readings as the run's work.
+///
+/// It never returns:
+/// a child that ended on its own after a sleep would race the watchers,
+/// and under load the race, not the judgment, would decide the control.
+/// Only a watcher can end this process, and the parent's deadline turns a watcher that does not
+///  into the control's failure.
 #[test]
 #[ignore = "started by two_watchers_do_not_keep_each_other_alive in a process of its own"]
 fn child_that_sleeps_under_two_watchers() {
@@ -370,14 +377,19 @@ fn child_that_sleeps_under_two_watchers() {
     let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
     // The parent reads this count: one watcher ends this child either way, so only the count tells two apart from one.
     println!("watchers: {}", readers_running(WATCHERS_UNDER_TEST, Duration::from_secs(5)));
-    std::thread::sleep(Duration::from_secs(5));
+    let (_sender, receiver) = std::sync::mpsc::channel::<()>();
+    receiver.recv().expect("unreachable: nothing is ever sent");
 }
 
 /// Two watchers of a run that shows nothing end it,
 /// so a reading is never taken for the work of the run it reads.
+///
+/// The child waits for ever, so nothing but a watcher can end it:
+/// its own end is never what answers here.
 #[test]
 fn two_watchers_do_not_keep_each_other_alive() {
-    let output: std::process::Output = run_child("child_that_sleeps_under_two_watchers");
+    let ended: Option<std::process::Output> = run_child_with_stderr_until("child_that_sleeps_under_two_watchers", std::process::Stdio::piped());
+    let output: std::process::Output = ended.expect("a watcher ended the child waiting under two of them");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     assert!(ran.contains(child_path("child_that_sleeps_under_two_watchers").as_str()), "the child ran the test named, not nothing:\n{ran}");
@@ -385,6 +397,65 @@ fn two_watchers_do_not_keep_each_other_alive() {
     assert!(ran.contains(format!("watchers: {WATCHERS_UNDER_TEST}").as_str()), "both watchers ran, so neither could count the other's readings as the run's work:\n{ran}");
     assert_eq!(output.status.signal(), Some(libc::SIGABRT), "a watcher ended the process:\n{said}");
     assert!(said.contains("a test is stuck"), "{said}");
+}
+
+/// What:
+///  Rename the calling thread's record,
+///  which is the `comm` field of its `/proc` stat line,
+///  and give back whether the kernel took the name.
+/// Why:
+///   A shorter name in that field is a known shorter stat file and no work at all:
+/// nothing is read and nothing is written,
+/// so the reader's own `/proc` reading changes length while the run shows nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// setThreadName('g') // prctl(PR_SET_NAME), 15 bytes at most
+/// ```
+fn rename_this_thread(name: &[u8]) -> bool {
+    // SAFETY: `prctl` copies at most the 16 bytes of the NUL-terminated name it is given into this thread's own
+    //  record, and touches no memory of ours besides reading that name.
+    let renamed: libc::c_int = unsafe { libc::prctl(libc::PR_SET_NAME, name.as_ptr(), 0, 0, 0) };
+    return renamed == 0;
+}
+
+/// A reader's own stat file is not the run's work.
+///
+/// The figures a look judges are the run's work,
+/// so a change in the length of the
+///  reader's own `/proc` stat line, which grows and shrinks as its own counters gain digits,
+/// must not move them:
+/// otherwise a watcher's own record of its work keeps the run it reads alive,
+/// and two of them keep each other alive.
+///
+/// The name change is the measurement's own hand on that length:
+/// it shrinks the stat line by a known amount and does no work,
+/// so the counter that moves here is known to be the reading's, not the run's.
+#[test]
+fn a_readers_own_stat_line_is_not_the_runs_work() {
+    let Some(reader): Option<i32> = current_thread_id() else {
+        eprintln!("skipped: this system numbers no thread, so nothing is measured");
+        return;
+    };
+    // This thread is a reader, as a watcher or a control's wait is: its own readings are left out of the figures.
+    let _reading: Option<Reading> = Reading::begin();
+    let stat_path: String = format!("/proc/self/task/{reader}/stat");
+    // Read before the first look, so what that read costs is in the baseline both looks share; the read after the
+    //  second look is taken off the look after it, and never judged here.
+    let before_length: usize = std::fs::read_to_string(stat_path.as_str()).expect("this system has a stat line").len();
+    let before: Look = look(reader).expect("this system counts work");
+    let renamed: bool = rename_this_thread(b"g\0");
+    let after: Look = look(reader).expect("still readable");
+    let after_length: usize = std::fs::read_to_string(stat_path.as_str()).expect("this system has a stat line").len();
+    assert!(
+        renamed && after_length < before_length,
+        "the name change shrinks this thread's stat line, so the length moved: {before_length} bytes became {after_length} (renamed: {renamed})"
+    );
+    assert_eq!(
+        after.bytes, before.bytes,
+        "the reader's own stat line shrank from {before_length} to {after_length} bytes between the two looks and the run showed nothing, so the figures judged must not move"
+    );
+    assert_eq!(after.members, before.members, "no task of the run started or ended");
 }
 
 /// A run that keeps moving past its window is not ended,

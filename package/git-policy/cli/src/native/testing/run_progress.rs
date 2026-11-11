@@ -301,7 +301,7 @@ struct Tally {
 
 impl Tally {
     /// What:
-    ///  Add the counters a reader had before this look,
+    ///  Add the counters a reader had before this look began,
     ///  so the readings the look itself makes are not the run's work.
     /// Why:
     ///   A reader's own work is the run's work:
@@ -309,26 +309,23 @@ impl Tally {
     /// and its
     ///  `D` state is the evidence `run_progress` treats as work.
     /// Its readings of `/proc` are not.
-    /// Reading its counters before the walk
-    ///  separates the two,
-    /// so the walk may count that thread's work and still leave out the bytes the walk adds to it.
+    /// `io` is the caller's own counters as they were before this look read anything,
+    /// which is
+    ///  the only moment they hold the reader's work and none of its readings,
+    /// so the look may count that thread's work and still leave out the bytes the look adds to it.
     /// Only the disk wait counts as its work here,
     ///  never state `R`:
     /// the reader is running because it is taking this very look.
-    fn add_a_readers_own_work(&mut self, task: &std::path::Path, own_reads: u64) -> u64 {
-        let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return 0 };
-        self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
-        let Some((state, _ticks)) = parse_activity(stat.as_str()) else { return 0 };
-        self.readable = true;
-        // The reader runs because it is taking this very look, so only its disk wait is its work.
-        self.working = self.working || state == 'D';
-        let io: String = std::fs::read_to_string(task.join("io")).unwrap_or_default();
-        self.read_bytes = self.read_bytes.saturating_add(io.len() as u64);
+    fn add_the_callers_own_work(&mut self, task: &std::path::Path, io: &str, own_reads: u64) {
         // Its processor time is this look's too, so the run is judged on the bytes the reader moved, its own readings
         //  taken off.
-        let work: u64 = bytes_in(io.as_str()).saturating_sub(own_reads);
+        let work: u64 = bytes_in(io).saturating_sub(own_reads);
         self.bytes = self.bytes.saturating_add(work);
-        return work;
+        let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return };
+        self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
+        let Some((state, _ticks)) = parse_activity(stat.as_str()) else { return };
+        self.readable = true;
+        self.working = self.working || state == 'D';
     }
 
     /// What:
@@ -484,34 +481,49 @@ fn children_of(parent: i32, read: &mut u64) -> Vec<i32> {
 /// so a run that had stopped
 ///  would never be judged quiet,
 /// and one reader would keep another alive.
+///   The caller's own `io` is read before anything else this look reads.
+/// Every file a look reads is taken off the next look,
+///  so only the counters as they were before this look read
+///  anything hold the reader's work with none of its readings:
+/// reading its `stat` first would leave that file's
+///  length in the figures judged,
+/// and a reader's stat file changes length as its own counters gain digits,
+/// which made a
+///  sleeping run look like it kept moving under load.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const tally = { bytes: 0, ticks: 0, working: false, members: 0, readable: false };
 /// const watched = [...readingThreads(), reader];
-/// addProcess(process.pid, watched); for (const child of processesBelow()) addProcess(child, []);
+/// addOwnWork(readersOwnIoFirst()); addProcess(process.pid, watched); for (const child of processesBelow()) addProcess(child, []);
 /// return tally.readable ? tally : undefined;
 /// ```
 fn look(reader: i32) -> Option<Look> {
     let mut tally: Tally = Tally::default();
     let own: i32 = i32::try_from(std::process::id()).unwrap_or(i32::MAX);
+    let own_task: String = format!("/proc/{own}/task/{reader}");
     let readers: Vec<Reader> = the_readers();
     let mut leaving_out: Vec<i32> = readers.iter().map(|each: &Reader| { return each.thread; }).collect();
     if !leaving_out.contains(&reader) {
         leaving_out.push(reader);
     }
-    // Every thread whose readings are not the run's work is read first, with its own readings taken off: its own work
-    //  still counts, and the bytes this walk adds to its counters do not.
-    for each in &readers {
-        let task: String = format!("/proc/{own}/task/{}", each.thread);
-        if each.thread == reader {
-            tally.add_a_readers_own_work(std::path::Path::new(task.as_str()), each.own_reads);
-        } else {
-            tally.add_a_readers_disk_wait(std::path::Path::new(task.as_str()));
+    // What the caller had done before this look began, with what its own earlier looks read taken off. Its counters
+    //  are read before this look reads anything, because every file a look reads is taken off the next look, so only
+    //  these figures hold the reader's work with none of its readings.
+    let own_reads: u64 = readers.iter().find(|each: &&Reader| { return each.thread == reader; }).map_or(0, |each: &Reader| { return each.own_reads; });
+    match std::fs::read_to_string(format!("{own_task}/io")) {
+        Ok(io) => {
+            tally.read_bytes = tally.read_bytes.saturating_add(io.len() as u64);
+            tally.add_the_callers_own_work(std::path::Path::new(own_task.as_str()), io.as_str(), own_reads);
         }
+        // A kernel without task I/O accounting has no `io` file, so the caller's work is not counted and its state still is.
+        Err(_) => tally.add_a_readers_disk_wait(std::path::Path::new(own_task.as_str())),
     }
-    if !readers.iter().any(|each: &Reader| { return each.thread == reader; }) {
-        tally.add_a_readers_own_work(std::path::Path::new(format!("/proc/{own}/task/{reader}").as_str()), 0);
+    for each in &readers {
+        if each.thread == reader {
+            continue;
+        }
+        tally.add_a_readers_disk_wait(std::path::Path::new(format!("/proc/{own}/task/{}", each.thread).as_str()));
     }
     tally.add_process(own, leaving_out.as_slice());
     let mut read_by_the_walk: u64 = 0;
