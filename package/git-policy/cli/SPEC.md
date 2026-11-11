@@ -4181,6 +4181,9 @@ because Git resolves the branch itself,
 and a branch that moved sends nothing and is tried again.
 A commit that lands while Git resolves the branch to match is published by it,
 which no refspec of this push can prevent.
+A first push that gives a branch its upstream names the branch for the same reason,
+so a commit that lands between the question above and Git's own resolution of the branch is published by it;
+Git sets an upstream from no refspec that names a commit.
 The upstream tracking ref can lag the remote,
 so a verdict already on the remote but not yet fetched still holds the branch back;
 that costs a push that could have run and publishes nothing it should not.
