@@ -4,7 +4,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { runGateChecks, } from './native-gate-checks.ts';
+import {
+  gateCheckDeadlineMilliseconds,
+  runGateChecks,
+} from './native-gate-checks.ts';
 import { NativeVerificationError, } from './native-verification-process.ts';
 
 /**
@@ -25,6 +28,29 @@ const warnedClippy = {
   stderr: 'error: unused variable: `unused`\n',
 };
 
+/**
+ Milliseconds a check that ends by itself is given, far more than a settled promise needs.
+ */
+const testDeadlineMilliseconds = 10_000;
+
+/**
+ Milliseconds a check that never ends is given before the gate stops waiting for it, far below the time a test would
+ wait out.
+ */
+const shortDeadlineMilliseconds = 300;
+
+/**
+ Milliseconds the gate waits past that bound before it answers for a check which never settles, kept short for the same
+ reason.
+ */
+const shortStopGraceMilliseconds = 200;
+
+/**
+ Milliseconds a check that stops itself takes, which is past its own bound and inside the grace the gate waits after it.
+ */
+const selfStoppedMilliseconds = shortDeadlineMilliseconds
+  + Math.floor(shortStopGraceMilliseconds / 2);
+
 await describe({
   name: runGateChecks.name,
   children: [
@@ -36,6 +62,7 @@ await describe({
          */
         const reached: string[] = [];
         await runGateChecks({
+          deadlineMilliseconds: testDeadlineMilliseconds,
           // The test run yields once before it finishes, so a gate that awaited it before starting Clippy reaches its
           // own end first and the order below says so.
           testRun: async function runTests() {
@@ -69,6 +96,7 @@ await describe({
          */
         let clippyFinished = false;
         await expect(runGateChecks({
+          deadlineMilliseconds: testDeadlineMilliseconds,
           testRun: async function runTests() {
             testRunFailed.resolve(undefined);
             throw new Error('the suite named one failing test');
@@ -90,6 +118,7 @@ await describe({
          The failure of a gate whose suite passed and whose Clippy warned.
          */
         const failing = runGateChecks({
+          deadlineMilliseconds: testDeadlineMilliseconds,
           testRun: async function runTests() {
             return undefined;
           },
@@ -110,6 +139,7 @@ await describe({
          The failure of a gate where both checks failed.
          */
         const failing = runGateChecks({
+          deadlineMilliseconds: testDeadlineMilliseconds,
           testRun: async function runTests() {
             throw new Error('the suite failed');
           },
@@ -126,6 +156,7 @@ await describe({
       name: 'answers when both checks passed',
       fn: async () => {
         await expect(runGateChecks({
+          deadlineMilliseconds: testDeadlineMilliseconds,
           testRun: async function runTests() {
             return undefined;
           },
@@ -133,6 +164,126 @@ await describe({
             return greenClippy;
           },
         })).resolves.toBeUndefined();
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'reports the suite failure when Clippy never settles, so a silent check cannot hide the verdict',
+      fn: async () => {
+        /**
+         When the gate was started, which the bound is measured from.
+         */
+        const started = Date.now();
+        /**
+         Whether Clippy was started at all, which the pair starting together needs.
+         */
+        let clippyStarted = false;
+        /**
+         The gate's answer to a suite that failed beside a Clippy that never ends.
+         */
+        let caught: unknown;
+        try {
+          await runGateChecks({
+            deadlineMilliseconds: shortDeadlineMilliseconds,
+            stopGraceMilliseconds: shortStopGraceMilliseconds,
+            testRun: async function runTests() {
+              throw new Error('the suite named one failing test');
+            },
+            clippyRun: function runClippy() {
+              clippyStarted = true;
+              return new Promise(() => {});
+            },
+          },);
+        }
+        catch (error) {
+          caught = error;
+        }
+        expect(clippyStarted,).toBe(true,);
+        expect(caught,).toBeInstanceOf(NativeVerificationError,);
+        expect((caught as Error).message,).toContain('the test run failed: the suite named one failing test',);
+        expect((caught as Error).message,).toContain('Clippy failed',);
+        expect((caught as Error).message,).toContain('had still not answered 200 ms after the 300 ms bound',);
+        expect(Date.now() - started,).toBeLessThan(5_000,);
+      },
+      timeout: 15_000,
+    }),
+    it({
+      name: 'quotes a check that stopped itself past its bound, so the gate answers only for a check which ignores it',
+      fn: async () => {
+        /**
+         The gate's answer to a Clippy that stopped itself after its bound and before the gate gave up.
+         */
+        let caught: unknown;
+        try {
+          await runGateChecks({
+            deadlineMilliseconds: shortDeadlineMilliseconds,
+            stopGraceMilliseconds: shortStopGraceMilliseconds,
+            testRun: async function runTests() {
+              return undefined;
+            },
+            clippyRun: async function runClippy() {
+              await new Promise<void>((resolve,) => {
+                setTimeout(resolve, selfStoppedMilliseconds,);
+              },);
+              throw new Error('Clippy stopped itself past its bound');
+            },
+          },);
+        }
+        catch (error) {
+          caught = error;
+        }
+        expect(caught,).toBeInstanceOf(NativeVerificationError,);
+        expect((caught as Error).message,).toContain('Clippy stopped itself past its bound',);
+        expect((caught as Error).message,).not.toContain('had still not answered',);
+      },
+      timeout: 15_000,
+    }),
+    it({
+      name: 'gives each check the bound it waits under, so a check can stop what it started',
+      fn: async () => {
+        /**
+         The bound each check was given.
+         */
+        const bounds: number[] = [];
+        await runGateChecks({
+          deadlineMilliseconds: testDeadlineMilliseconds,
+          testRun: async function runTests(deadlineMilliseconds) {
+            bounds.push(deadlineMilliseconds);
+            return undefined;
+          },
+          clippyRun: async function runClippy(deadlineMilliseconds) {
+            bounds.push(deadlineMilliseconds);
+            return greenClippy;
+          },
+        },);
+        expect(bounds,).toEqual([
+          testDeadlineMilliseconds,
+          testDeadlineMilliseconds,
+        ],);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'gives a check the gate is not told a bound for the gate-wide bound, so no check waits forever',
+      fn: async () => {
+        /**
+         The bounds two checks were given by a gate that named none.
+         */
+        const bounds: number[] = [];
+        await runGateChecks({
+          testRun: async function runTests(deadlineMilliseconds) {
+            bounds.push(deadlineMilliseconds);
+            return undefined;
+          },
+          clippyRun: async function runClippy(deadlineMilliseconds) {
+            bounds.push(deadlineMilliseconds);
+            return greenClippy;
+          },
+        },);
+        expect(bounds,).toEqual([
+          gateCheckDeadlineMilliseconds,
+          gateCheckDeadlineMilliseconds,
+        ],);
       },
       timeout: 10_000,
     }),

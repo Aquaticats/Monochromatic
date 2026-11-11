@@ -699,6 +699,36 @@ failed with "no descriptor limit let the commit land" in gates `prewarm-control-
 CPUs,
 so it is not this change either.
 
+### The bound on each check
+
+Starting the two checks together added a wait the gate did not have:
+on 2026-11-11 a review of that change found that a failed test run could be known while Clippy's client never answered,
+and the gate waited for both forever,
+so the failure a person needs was never reported.
+
+Each check is now given one hour (`gateCheckDeadlineMilliseconds` in `bin/native-gate-checks.ts`).
+Three times the slowest measured phase of the gate,
+1,104 s of test run at two threads on 2026-11-10,
+is 3,312 s,
+so the bound is one hour,
+which is the same arithmetic the btrfs host controls' three hours use against their 3,286-second run
+(`bin/native-release-host-control-requirements.ts`).
+A check that reaches the bound stops its client and everything that client started,
+removes its container by the ID file the client wrote while it ran
+(`bin/native-gate-container.ts`),
+and reports the bound it missed.
+The gate waits three minutes past that bound before it answers for a check which ignores its own bound,
+which is longer than a removal may take,
+so a stopped check always removes its container before the gate's refusal lets the run exit.
+
+Measured that day against a stand-in `podman` whose `run` client never exits,
+with both checks on a 1,500 ms bound:
+both clients started with `--cidfile`,
+both were stopped at the bound,
+both containers were removed by their ID files,
+and the refusal quoted the bound each client missed,
+after 1,681 ms.
+
 ### What is left
 
 - The host controls are the bigger wait (3,286 s against a 1,000 s suite),
