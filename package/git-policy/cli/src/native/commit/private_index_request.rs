@@ -68,7 +68,9 @@ pub fn indexed_request<S: AsRef<OsStr>>(
 
 /// What:
 ///  A private-index request whose pathspecs are the caller's own,
-/// so every pathspec-mode option of the invocation reaches Git with them.
+/// so every pathspec-mode option of the invocation reaches Git with them,
+///  and whose messages are English,
+/// so the wrapper can read the one sentence it decides from.
 /// Why:
 ///   `indexed_request` ignores the global prefix,
 /// which is right for a pathspec the wrapper wrote and wrong for one the caller wrote:
@@ -78,10 +80,19 @@ pub fn indexed_request<S: AsRef<OsStr>>(
 ///  The modes the caller set as variables are already inherited;
 /// this adds the ones written as options,
 /// before the subcommand where Git reads them.
+///  Git words its refusal of a pathspec in the language the person's locale asks for,
+/// and `commit_pathspec_matching_nothing.rs` knows the English ones,
+///  so every start of this kind runs under the C locale:
+/// the reading then holds whatever language the person's shell asks for,
+///  where inheriting the locale turned a German misspelling into an engine failure (issue 6283).
+///  Only the message language is pinned,
+/// and only for these starts:
+/// the interactive selection keeps the person's own language,
+/// because the terminal is the person's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const callerPathspecRequest = (cwd, modes, arguments, index, objects) => ({ ...indexedRequest(cwd, [...modes, ...arguments], index, objects) });
+/// const callerPathspecRequest = (cwd, modes, arguments, index, objects) => ({ ...indexedRequest(cwd, [...modes, ...arguments], index, objects), environment: [['LC_ALL', 'C']] });
 /// ```
 pub fn caller_pathspec_request(
     context: &GitContext,
@@ -92,7 +103,10 @@ pub fn caller_pathspec_request(
 ) -> GitRequest {
     let mut words: Vec<std::ffi::OsString> = crate::global_arguments_pathspec_modes::pathspec_mode_options(context.global_prefix.as_slice());
     words.extend(arguments.iter().cloned());
-    return indexed_request(context, cwd, words.as_slice(), index, object_directory);
+    let mut request: GitRequest = indexed_request(context, cwd, words.as_slice(), index, object_directory);
+    // `LC_ALL` wins over `LANG`, `LC_MESSAGES` and `LANGUAGE` in the C library's own lookup, so the one variable is enough.
+    request.environment.push((std::ffi::OsString::from("LC_ALL"), std::ffi::OsString::from("C")));
+    return request;
 }
 
 /// Request controls stay out of the release executable.
