@@ -38,6 +38,9 @@ The owner changed the Neuralwatt limits on 2026-11-11 at about 17:05:
 "Change flex concurrency to 22-2=20 per model and normal concurrency to 20-2=18 per model. Neuralwatt said to keep 1 to 2 below the limit because \"a slot frees up a moment after your client sees the response finish, so a request sent straight away can land as the 23rd\"."
 So the pools are Neuralwatt DeepSeek 18, Neuralwatt DeepSeek flex 20, Neuralwatt Kimi flex 20 (each per model), opencode-go 20, and the qwen plan 4 (comparison runs only);
 the Kimi flex 429 of 21:4xZ ("max 22 in flight at once") was that race.
+Minutes later: "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
+So the opencode-go pool's limit is 0 (no new run goes there) until the owner says the week has reset;
+the one run already on it continues, and if the cap ends it, it resumes on Neuralwatt.
 So a release that carries a jam fix goes out on its own as soon as its gate passes,
 other wrapper branches wait for the release after it,
 and free slots take jam work first.
