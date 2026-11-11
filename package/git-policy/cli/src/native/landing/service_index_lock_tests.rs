@@ -1682,25 +1682,31 @@ fn a_check_is_repeated_only_while_it_cannot_be_made() {
 
 /// The flush the service makes of its marker is the operating system's:
 /// a file that cannot be flushed (a pipe has no data to
-/// make durable) is an error from `sync_file`,
+/// make durable) is the device's error from that flush,
 /// and a file that can be flushed is not.
 /// Durability itself is not observable without a crash;
-/// what is observable is that the call is made and its answer returned.
+/// what is observable is that the call is made and what it answers.
+/// The marker's own call (`sync_file`) hands the flush to the service's background task and returns,
+/// so the answer this checks is the one the same flush gives where it is made now (`flush_file`),
+/// and `sync_file` answering is all the commit's path sees of it
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
 #[test]
 fn the_flush_of_the_marker_is_the_operating_systems() {
-    use crate::service_index_placement::sync_file;
+    use crate::service_durable::flush_file;
+    use crate::service_index_placement::{LOCK_MARKER_SYNC, sync_file};
     use std::os::fd::FromRawFd;
     let mut ends: [libc::c_int; 2] = [0; 2];
     // SAFETY: `pipe` fills the two integers of the array it is given.
     assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
     // SAFETY: each descriptor is a fresh end of the pipe, owned by exactly one `File`.
     let (reader, writer) = unsafe { (std::fs::File::from_raw_fd(ends[0]), std::fs::File::from_raw_fd(ends[1])) };
-    let refused = sync_file(&writer).expect_err("a pipe cannot be flushed");
+    let refused = flush_file(&writer, LOCK_MARKER_SYNC).expect_err("a pipe cannot be flushed");
     assert_eq!(refused.raw_os_error(), Some(libc::EINVAL));
     drop((reader, writer));
     let (root, index) = index_in("index-lock-sync-file");
     let file = std::fs::File::create(index.with_file_name("a-file")).expect("a file");
-    assert!(sync_file(&file).is_ok());
+    assert!(flush_file(&file, LOCK_MARKER_SYNC).is_ok(), "a file the device can flush is flushed");
+    assert!(sync_file(&file).is_ok(), "the marker's own call answers at once, and the background task makes its flush");
     remove(root.as_path());
 }
 

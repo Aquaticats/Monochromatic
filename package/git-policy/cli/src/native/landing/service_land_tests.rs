@@ -1905,7 +1905,7 @@ fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
         // Positive control: the records are synced, only elsewhere, so a landing that stopped reporting its syncs fails here.
         assert!(!queued.is_empty(), "the landing queues its syncs: {events:?}");
         assert_eq!(waited, Vec::<String>::new(), "the person waited for a sync: {events:?}");
-        let expected: Vec<&str> = vec!["intent-file", "intent-dir", "lock-marker", "index-dir", "indexed-file", "indexed-dir", "journal-dir"];
+        let expected: Vec<&str> = vec!["intent-file", "intent-dir", crate::service_index_placement::LOCK_MARKER_SYNC, "index-dir", "indexed-file", "indexed-dir", "journal-dir"];
         assert_eq!(queued, expected, "the records one landing queues: {events:?}");
         crate::service_durable::drain();
         let made: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
@@ -1945,6 +1945,10 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
 /// on the
 /// wait,
 /// because the command reports what it kept and that promise must survive a power cut.
+/// The lock marker's flush is not one of them:
+/// `sync_file` hands it to the service's background task
+///  (`service_index_placement.rs`),
+/// so no landing's queue ever holds it.
 #[test]
 fn a_withdrawal_forces_the_records_it_wrote() {
     let world: World = world("service-land-withdrawal-syncs");
@@ -1958,7 +1962,8 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     let (waited, queued) = syncs_of(events.as_slice());
     assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
     let mut forced: Vec<String> = waited.clone();
-    let mut asked: Vec<String> = queued.clone();
+    // The marker's flush is asked for and made by the background task, so what this landing forces is every other sync it asked for.
+    let mut asked: Vec<String> = queued.iter().filter(|what| { return what.as_str() != crate::service_index_placement::LOCK_MARKER_SYNC; }).cloned().collect();
     forced.sort();
     asked.sort();
     assert_eq!(forced, asked, "every sync the landing queued was made before it returned: {events:?}");
