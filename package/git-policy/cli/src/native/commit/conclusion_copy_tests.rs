@@ -51,6 +51,50 @@ fn present_entries_are_copied_and_absent_ones_skipped() {
 }
 
 /// What:
+///  A merge conclusion's entries are copied into the shadow and for comparison without a flush of the disk.
+/// Why:
+///   The shadow's copy is read by this process's own `git commit` immediately after it is written,
+///  and the comparison copy by the landing that this same command asks for;
+///  the service copies both into the batch's journal before the branch moves
+///  (`conclusion_state_copy.rs`),
+///  so nothing recovers them from this directory.
+///  A copy a power cut never gave back keeps the worktree's own entry instead of removing it: no content is lost.
+///  Measured on this host: eight client fsyncs of these throwaway files,
+///  2 to 53 s over native Git in ten rounds, five of ten over native plus five seconds
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+///  "A conclusion commit's copies wait for no flush").
+#[test]
+fn a_merge_conclusion_copies_its_entries_without_flushing_the_disk() {
+    let root: PathBuf = fixture("conclusion-copy-no-flush");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    std::fs::write(git_dir.join("MERGE_HEAD"), "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n").expect("merge head");
+    std::fs::write(git_dir.join("MERGE_MSG"), "Merge branch 'side'\n").expect("merge message");
+    std::fs::write(git_dir.join("MERGE_MODE"), "\n").expect("merge mode");
+    let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "files");
+    let transaction: PathBuf = root.join("transaction");
+    std::fs::create_dir(&transaction).expect("transaction");
+    let _earlier = crate::private_storage::take_file_syncs();
+    copy_conclusion_state(
+        &git_context(),
+        repo.as_path(),
+        git_dir.as_path(),
+        shadow.as_path(),
+        transaction.as_path(),
+        RefFormat::Files,
+    )
+    .expect("copy");
+    let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+    assert!(synced.is_empty(), "nothing of a merge conclusion's copy is flushed: {synced:?}");
+    assert_eq!(std::fs::read_to_string(shadow.join("MERGE_HEAD")).expect("shadow"), "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n");
+    assert_eq!(
+        std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join("MERGE_HEAD")).expect("copy"),
+        "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n"
+    );
+    remove(root.as_path());
+}
+
+/// What:
 ///  A files-backend copy of a worktree with no conclusion state names nothing in the store,
 ///  so no record is written and no file of the copy is synced.
 /// Why:
