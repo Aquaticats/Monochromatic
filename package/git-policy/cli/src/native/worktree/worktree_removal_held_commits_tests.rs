@@ -263,7 +263,21 @@ fn a_removal_stops_when_no_reference_can_hold_the_held_commit() {
     assert!(kept.refused[0].contains(rescue_name.as_str()), "the paragraph names the reference tried beside it: {}", kept.refused[0]);
     assert!(kept.refused[0].contains("could not be kept"), "the paragraph says nothing holds the commit: {}", kept.refused[0]);
     assert!(kept.refused[1].contains("nothing was removed"), "the closing paragraph says nothing changed: {}", kept.refused[1]);
-    assert!(kept.refused[1].contains("run the same command again"), "the closing paragraph says what to do: {}", kept.refused[1]);
+    assert!(
+        kept.refused[1].contains("git worktree remove"),
+        "the closing paragraph names the removal of the worktree that holds the commit: {}",
+        kept.refused[1]
+    );
+    assert!(
+        kept.refused[1].contains(linked.to_str().expect("a UTF-8 fixture path")),
+        "the removal it names is that worktree's: {}",
+        kept.refused[1]
+    );
+    assert!(
+        !kept.refused[1].contains("same command again"),
+        "the closing paragraph prescribes nothing that a repeated command would skip: {}",
+        kept.refused[1]
+    );
     assert!(kept.refused[1].contains(format!("{kept_name}.lock").as_str()), "the closing paragraph names the lock that stands there: {}", kept.refused[1]);
     assert!(kept.refused[1].contains("rm -- "), "the closing paragraph gives the command that removes a lock nothing holds: {}", kept.refused[1]);
     assert!(!git_dir.join(kept_name.as_str()).exists() && !git_dir.join(rescue_name.as_str()).exists(), "neither name was written");

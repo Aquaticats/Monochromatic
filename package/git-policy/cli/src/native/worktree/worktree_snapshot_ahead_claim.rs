@@ -35,6 +35,7 @@
 //! ```
 
 use crate::wait_ceilings::waiting_notice_after;
+use crate::work_item::{FAILED, state_directory};
 use crate::worktree_snapshot_ahead::{AHEAD_KEPT, AheadLook, AheadService, POLL, ahead_key, candidates, kept_in, over_kept, pool_folder};
 use crate::add_timing::{begin_step, end_step, note as note_timing};
 use crate::diagnostic_log::debug;
@@ -219,6 +220,53 @@ fn in_words(ceiling: Duration) -> String {
 }
 
 /// What:
+///  What one add's wait for a snapshot ahead came to.
+/// Why:
+///   The three answers decide three different things:
+/// a claimed copy travels on to the index step,
+///  a request the service gave up ends the rung for a copy that can never come,
+/// and a ceiling ends it with
+///  the reason the person reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Waited = { kind: 'claimed'; made: ObjectId; proof: Proof } | { kind: 'givenUp' } | { kind: 'ceiling' };
+/// ```
+enum Waited {
+    /// A copy proved equal to the source's index,
+    /// and the object now at the stage name.
+    Claimed(ObjectId, Proof),
+    /// The service gave this add's own request up for good.
+    GivenUp,
+    /// Nothing came within the ceiling.
+    Ceiling,
+}
+
+/// What:
+///  Whether the service gave this add's own request for a copy up for good:
+/// its record stands in `failed`,
+///  which is the state nothing scans.
+/// Why:
+///   A request the service refused for a condition nothing can change is answered once,
+/// and
+///  nothing later makes the copy it asked for;
+/// a wait that could only end at its ceiling would cost the add that
+///  ceiling for work that cannot come,
+/// where taking its own snapshot serves it.
+/// The id is the one the ask
+///  answered,
+/// so another add's refused request ends no wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const givenUp = (workDir, asked) => asked !== undefined && existsSync(join(workDir, 'failed', asked));
+/// ```
+fn given_up(work_dir: &Path, asked: Option<&str>) -> bool {
+    let Some(id) = asked else { return false };
+    return state_directory(work_dir, FAILED).join(id).exists();
+}
+
+/// What:
 ///  Wait,
 /// bounded,
 /// for a snapshot ahead this add can claim.
@@ -234,20 +282,31 @@ fn in_words(ceiling: Duration) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// while (Date.now() < deadline) { const claim = claimNow(); if (claim) return claim; await sleep(POLL); } return undefined;
+/// while (Date.now() < deadline) { const claim = claimNow(); if (claim) return claimed(claim); if (givenUp()) return givenUp; await sleep(POLL); } return ceiling;
 /// ```
-fn wait_for_one(source: &SnapshotSource, stage: &Path, environment: &ConversionEnvironment, stale: &mut Vec<OsString>, ceiling: Duration) -> Option<(ObjectId, Proof)> {
+fn wait_for_one(
+    source: &SnapshotSource,
+    stage: &Path,
+    environment: &ConversionEnvironment,
+    stale: &mut Vec<OsString>,
+    asked: Option<&str>,
+    ceiling: Duration,
+) -> Waited {
     let began: Instant = Instant::now();
     let notice_after: Duration = waiting_notice_after();
+    let work: PathBuf = crate::service_work::work_directory(source.git_dir.as_path());
     let mut noticed: bool = false;
     loop {
-        if let Some(claimed) = claim_now(source, stage, environment, stale) {
-            return Some(claimed);
+        if let Some((made, proof)) = claim_now(source, stage, environment, stale) {
+            return Waited::Claimed(made, proof);
+        }
+        if given_up(work.as_path(), asked) {
+            return Waited::GivenUp;
         }
         let spent: Duration = began.elapsed();
         let left: Duration = ceiling.saturating_sub(spent);
         if left.is_zero() {
-            return None;
+            return Waited::Ceiling;
         }
         if !noticed && spent >= notice_after {
             noticed = true;
@@ -264,6 +323,34 @@ fn wait_for_one(source: &SnapshotSource, stage: &Path, environment: &ConversionE
 }
 
 /// What:
+///  Hand the service everything this add proved stale and everything it keeps no longer,
+/// and forget the names it handed it.
+/// Why:
+///   The sweep is what keeps a repository whose adds stopped from pinning the source's blocks,
+/// and an
+///  add that claims a copy returns before the waiting path,
+/// so a sweep that ran only after a wait would never run in a
+///  repository whose pool answers every add.
+/// It travels with the names the proof refused,
+/// so one wake says everything this
+///  add wants gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handOverWhatLeaves = (pool, source, service, stale, handed) => { for (const name of overKept(keptIn(pool, source.root), now)) if (!stale.includes(name)) stale.push(name); handOver(service, stale, handed); };
+/// ```
+fn hand_over_what_leaves(pool: &Path, source: &SnapshotSource, service: &AheadService<'_>, stale: &mut Vec<OsString>, handed: &mut Vec<OsString>) {
+    let now: u128 = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis();
+    for name in over_kept(kept_in(pool, source.root.as_path()).as_slice(), now) {
+        // A name the proof already refused is handed over once.
+        if !stale.contains(&name) {
+            stale.push(name);
+        }
+    }
+    hand_over(service, stale, handed);
+}
+
+/// What:
 ///  Look for a snapshot the wrapper made ahead of this add,
 /// ask the service for one when there is none,
 /// wait for it no longer than the ceiling,
@@ -275,14 +362,13 @@ fn wait_for_one(source: &SnapshotSource, stage: &Path, environment: &ConversionE
 ///  ceiling that passed ends the snapshot rung with the reason,
 /// and the caller makes the worktree the way Git does and tells
 ///  the person why.
-/// The request goes out before the wait,
-/// so the wait is for work this add asked for,
-/// and never
-///  for whatever a busy service happened to be doing.
+/// The request goes out after the names this add wants deleted,
+/// and the wait is for work this add asked
+///  for and never for whatever a busy service happened to be doing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const look = ({ source, stage, environment, service }) => { if (source.dirty) return none; const warm = claimNow(); if (warm) { handOver(stale); return claimed(warm); } if (handOver(stale) is err) return none; const waited = waitForOne(); handOver(stale + overKept(keptIn(pool, source.root))); return waited ? claimed(waited) : timedOut; };
+/// const look = ({ source, stage, environment, service }) => { if (source.dirty) return none; const warm = claimNow(); handOverWhatLeaves(); if (warm) { ask(); return claimed(warm); } if (ask() is err) return none; const waited = waitForOne(); handOverWhatLeaves(); return waited ? claimed(waited) : timedOut; };
 /// ```
 pub fn look_for_a_snapshot_ahead(source: &SnapshotSource, plan: &AddPlan, stage: &Path, environment: &ConversionEnvironment, service: &AheadService<'_>) -> AheadLook {
     // A source with uncommitted changes carries its own index, which is one instant with its files, so its snapshot has to be
@@ -294,43 +380,52 @@ pub fn look_for_a_snapshot_ahead(source: &SnapshotSource, plan: &AddPlan, stage:
     let pool: PathBuf = pool_folder(source.git_dir.as_path());
     let mut stale: Vec<OsString> = Vec::new();
     let mut handed: Vec<OsString> = Vec::new();
-    if let Some((made, proof)) = claim_now(source, stage, environment, &mut stale) {
+    let warm: Option<(ObjectId, Proof)> = claim_now(source, stage, environment, &mut stale);
+    // Whatever this add proved stale, and whatever it keeps no longer, goes to the service before it asks for a copy of
+    //  its own: a request the service takes while the copies that should leave are still unqueued is a request it can only
+    //  answer with a pool that is full of them.
+    hand_over_what_leaves(pool.as_path(), source, service, &mut stale, &mut handed);
+    if let Some((made, proof)) = warm {
         note_timing("snapshotAhead", "claimed");
-        // The add after this one needs one, and whatever this look proved stale goes with the same wake.
-        hand_over(service, &mut stale, &mut handed);
+        // The add after this one needs one, and the wake that carries that request is the one that says what goes.
         let _asked = (service.ask)();
         return AheadLook::Claimed { made, proof };
     }
-    if let Err(reason) = (service.ask)() {
-        debug(TAG, format!("{}: no snapshot ahead was asked for ({reason}), so this add takes its own", plan.destination.display()).as_str());
-        note_timing("snapshotAhead", "no-service");
-        hand_over(service, &mut stale, &mut handed);
-        return AheadLook::None;
-    }
-    hand_over(service, &mut stale, &mut handed);
+    let asked: Option<String> = match (service.ask)() {
+        Ok(answered) => answered,
+        Err(reason) => {
+            debug(TAG, format!("{}: no snapshot ahead was asked for ({reason}), so this add takes its own", plan.destination.display()).as_str());
+            note_timing("snapshotAhead", "no-service");
+            return AheadLook::None;
+        }
+    };
     let waiting: bool = begin_step("snapshotAheadWait");
-    let claimed: Option<(ObjectId, Proof)> = wait_for_one(source, stage, environment, &mut stale, service.ceiling);
+    let waited: Waited = wait_for_one(source, stage, environment, &mut stale, asked.as_deref(), service.ceiling);
     end_step(waiting);
     // What this add proved stale while it waited, and what it keeps no longer, goes to the service in its own time.
-    let now: u128 = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis();
-    for name in over_kept(kept_in(pool.as_path(), source.root.as_path()).as_slice(), now) {
-        // A name the wait already proved stale is handed over once.
-        if !stale.contains(&name) {
-            stale.push(name);
-        }
+    hand_over_what_leaves(pool.as_path(), source, service, &mut stale, &mut handed);
+    if matches!(waited, Waited::GivenUp) {
+        // Nothing more is asked for: the service answered this source once, with a condition nothing of the add's changes.
+        note_timing("snapshotAhead", "given-up");
+        debug(TAG, format!("{}: the commit service gave this add's request for a snapshot ahead up, so this add takes its own", plan.destination.display()).as_str());
+        return AheadLook::None;
     }
-    hand_over(service, &mut stale, &mut handed);
     // The add after this one needs a copy of its own, so one is asked for while the pool holds fewer than an add keeps.
     //  This is what makes a repository's pool stand ahead of its adds rather than answer them one at a time.
     if kept_in(pool.as_path(), source.root.as_path()).len() < AHEAD_KEPT {
         let _asked = (service.ask)();
     }
-    return match claimed {
-        Some((made, proof)) => {
+    return match waited {
+        Waited::Claimed(made, proof) => {
             note_timing("snapshotAhead", "waited");
             AheadLook::Claimed { made, proof }
         }
-        None => {
+        // A request the service gave up on answered above,
+        // with its own timing note;
+        // the compiler cannot see that,
+        // so this
+        //  arm carries the ceiling's answer for both.
+        Waited::GivenUp | Waited::Ceiling => {
             note_timing("snapshotAhead", "timed-out");
             AheadLook::TimedOut(format!(
                 "no snapshot the wrapper makes ahead of an add came within {}, and nothing here waits on one indefinitely",

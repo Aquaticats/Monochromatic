@@ -48,6 +48,10 @@ pub mod work_item_recovery;
 /// The steps of a work item that waits for its producer's approval.
 pub mod work_item_holding;
 
+/// The ids the queue still owes work for,
+/// asked by a producer that writes a record and by a consumer that takes a name away.
+pub mod work_item_queued_ids;
+
 /// The clocks a claim's lease is judged by.
 pub mod claim_time;
 
@@ -63,6 +67,10 @@ pub mod service_messages;
 /// The words for a start that cannot come at all,
 /// because the address cannot exist or the manager made the service listen elsewhere.
 pub mod service_messages_of_a_start_that_cannot_come;
+
+/// What a commit says while it waits for the service,
+/// and that the service is restarted or the commit built again.
+pub mod service_messages_of_a_wait_for_the_service;
 
 /// The commit service's serialized step.
 pub mod service_land;

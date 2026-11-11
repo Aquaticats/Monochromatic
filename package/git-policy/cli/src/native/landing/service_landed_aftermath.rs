@@ -50,6 +50,7 @@ use crate::transaction_git::GitContext;
 use crate::service_handoff::ServiceHandoff;
 /// How to reach the service.
 use crate::service_client::ClientConfig;
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 /// The events the result carries.
 /// A diagnostics line.
 use crate::diagnostic_log::warn;
@@ -126,7 +127,13 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
         ),
     );
     let handoff: ServiceHandoff = ServiceHandoff {
-        config: input.config,
+        // What: The work after a landing is woken with the hand-over's own greeting bound, never with the wait the commit's own
+        //       request is granted.
+        // Why:  The push and upkeep records are written before the wake, and the service that answered this commit is running, so
+        //       a greeting that does not come within that bound is a service that stopped after answering: the commit landed, and
+        //       its command must not hold the person for a start it does not need (`wait_ceilings.rs`,
+        //       `HAND_OVER_GREETING_WAIT`).
+        config: ClientConfig { start_wait: HAND_OVER_GREETING_WAIT, start_ceiling: HAND_OVER_GREETING_WAIT, ..input.config },
         repository: input.ready.repository.clone(),
         git_dir: input.native_inputs.capture.layout.git_dir.clone(),
         reference: input.ready.reference.clone(),

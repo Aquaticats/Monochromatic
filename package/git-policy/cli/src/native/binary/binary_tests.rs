@@ -297,6 +297,12 @@ mod pull_isolation;
 #[path = "binary_merge_never_fails_tests.rs"]
 mod merge_never_fails;
 
+/// The lines a merge prints about a path it kept whole,
+/// and the commands in them,
+/// run as the person's shell reads them.
+#[path = "binary_merge_notice_tests.rs"]
+mod merge_notice;
+
 /// Real commits through the transaction:
 /// landing,
 /// policies,
@@ -444,6 +450,13 @@ mod push_scope;
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
+
+/// The configuration of a push,
+/// given on its command line,
+/// reaches the real `git-lfs` upload,
+/// so an object reaches the remote the ref is published to.
+#[path = "binary_lfs_command_scope_tests.rs"]
+mod lfs_command_scope;
 
 /// Traditional hooks never run through the wrapper,
 /// and `git monochromatic-git-policy-cli doctor` explains the Git LFS shims.
@@ -674,6 +687,12 @@ mod service_lane;
 /// removed by the service when the client's connection closes.
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
+
+/// A pooled shadow member the commit refuses:
+/// nothing on the terminal,
+/// and the refusal named in the commit's own timing record.
+#[path = "binary_shadow_pool_refusal_tests.rs"]
+mod shadow_pool_refusal;
 
 /// The ends of the waits on the commit path:
 /// a commit withdrawn at its bound never lands,

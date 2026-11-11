@@ -51,6 +51,9 @@ pub(crate) async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
 ) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
+    // What the command that moved the checkout read, which is the one thing that tells the file Git wrote from a save whose
+    //  bytes accept the whole merge: a reading that names no path leaves the bytes as all the evidence, as before
+    //  (`merge_isolation_carry_landed.rs`).
     match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, landed, intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
             for line in report_lines("", &report) {
@@ -94,12 +97,17 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &Reco
             changes.push(change.clone());
         }
     }
-    // What Git's update left when the merge landed is the only thing that proves a file standing at a captured path is that
-    //  update's own write rather than a save made after a kill, so the carry onto the moved head reads it too: a path it names
-    //  and the file still matches is written, and one nothing proves is left as it is with the carried bytes beside it.
-    let landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
-        crate::merge_isolation_carry_landed::read_landed_record(place.git_dir.as_path(), intent.owner.transaction_id.as_str());
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, landed.as_slice(), intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
+    // The reading this carry judges against is the one taken now,
+    //  never the one the merge published: the settling before it wrote the moved head's entries into these files itself, so the
+    //  published entries stand no longer and every captured path would be read as someone else's write. A path written again
+    //  between this read and the carry's own read of it is caught by `the_file_git_landed` and kept as it is
+    //  (`merge_isolation_carry_landed.rs`).
+    let mut written_paths: Vec<Vec<u8>> = Vec::with_capacity(capture.paths.len());
+    for entry in &capture.paths {
+        written_paths.push(entry.path.clone());
+    }
+    let written: Vec<LandedFile> = crate::merge_isolation_carry_landed::landed_of(root, written_paths.as_slice());
+    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, written.as_slice(), intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
             for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());

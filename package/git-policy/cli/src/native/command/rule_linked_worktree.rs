@@ -52,7 +52,7 @@ use crate::command_reset::{ResetMode, ResetRegion, RESET_TABLE, parse_reset_regi
 use crate::command_stash::{StashSubcommand, parse_stash_region, stash_changes_state};
 use crate::effective_target::EffectiveTarget;
 use crate::global_arguments::command_tokens;
-use crate::rule_shared_remote::{SharedRemoteWrite, shared_remote_write};
+use crate::rule_shared_remote::{SharedRemoteChange, shared_remote_write};
 use crate::rule_worktree_dirty::DirtyScope;
 pub use crate::rule_linked_worktree_messages::{
     dirty_worktree_message, exemption_notice, ignored_file_message, main_worktree_message,
@@ -230,7 +230,7 @@ pub enum AuditedCommand {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type LinkedWorktreeDecision = { kind: 'pass' } | { kind: 'needs-effective-target'; command: GuardedCommand }
-///   | { kind: 'when-dirty'; command: GuardedCommand } | { kind: 'shared-remote'; write: SharedRemoteWrite };
+///   | { kind: 'when-dirty'; command: GuardedCommand } | { kind: 'shared-remote'; change: SharedRemoteChange };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LinkedWorktreeDecision {
@@ -253,8 +253,10 @@ pub enum LinkedWorktreeDecision {
     Audited(AuditedCommand),
     /// The form changes remote settings every worktree of the repository shares,
     ///  which only a linked
-    ///  worktree is refused for.
-    SharedRemote(SharedRemoteWrite),
+    ///  worktree is refused for;
+    ///  the change names the file the command named for it,
+    ///  when it named one.
+    SharedRemote(SharedRemoteChange),
 }
 
 /// What:

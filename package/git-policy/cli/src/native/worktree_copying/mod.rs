@@ -104,6 +104,11 @@ pub mod worktree_copy_stage_claim;
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_reaping;
 
+/// The stage containers a live command is filling that stand below a tree,
+/// read from the claims beside the journals.
+#[cfg(unix)]
+pub mod worktree_copy_stages_being_filled;
+
 /// The durable record of the object one stage's creation made:
 /// its identity,
 /// and the instant the wrapper last wrote into it.

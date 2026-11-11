@@ -80,7 +80,7 @@ fn a_directory_that_is_no_worktree_gets_no_record() {
     let plain: PathBuf = root.join("plain");
     std::fs::create_dir(plain.as_path()).expect("a plain directory");
     let failure: String = record(root.as_path(), plain.as_path()).expect_err("a plain directory is no linked worktree");
-    assert!(failure.contains("cannot be read as a file"), "{failure}");
+    assert!(failure.contains("the worktree's pointer"), "{failure}");
     assert!(!plain.join(ADDED_RECORD_NAME).exists(), "nothing is written");
 }
 
@@ -92,4 +92,49 @@ fn the_registration_is_read_from_the_worktree_pointer() {
     let pointer: String = git_text(added.worktree.as_path(), &["rev-parse", "--absolute-git-dir"]);
     let admin: PathBuf = std::fs::canonicalize(pointer).expect("the administrative directory");
     assert!(admin.join(ADDED_RECORD_NAME).exists(), "the record sits in the directory the worktree names: {}", admin.display());
+}
+
+/// What:
+///  A worktree whose own path ends in a space answers the record the wrapper wrote for it.
+/// Why:
+///   Every ASCII whitespace byte was taken from the record,
+///  so the space that belongs to the path went with the terminator
+/// and the only proof that lets a later command remove this worktree by itself was never true.
+#[test]
+fn a_worktree_whose_path_ends_in_a_space_answers_its_record() {
+    let root: PathBuf = fixture("added-trailing-space");
+    let main: PathBuf = repository(root.as_path(), "main");
+    let worktree: PathBuf = root.join("spaced ");
+    git(
+        main.as_path(),
+        &["worktree", "add", "--quiet", "-b", "feature", worktree.to_str().expect("a UTF-8 fixture path")],
+    );
+    let common: PathBuf = main.join(".git");
+    record(common.as_path(), worktree.as_path()).expect("the record is written");
+    let admin: PathBuf = only_registration(common.as_path());
+    assert!(
+        added_by_the_wrapper(admin.as_path(), worktree.as_path()),
+        "the record answers for a worktree whose path ends in a space"
+    );
+}
+
+/// What:
+///  A registration whose administrative directory name ends in a space is still read from the worktree's pointer.
+/// Why:
+///   Every ASCII whitespace byte was taken from the pointer,
+///  so the space that belongs to the directory name went with the terminator,
+/// the registration resolved to a directory that is not there,
+///  and the worktree was never recorded as one the wrapper made.
+#[test]
+fn the_registration_is_read_from_a_pointer_that_ends_in_a_space() {
+    let added: Added = a_repository_with_one_worktree("added-pointer-space");
+    let administration: PathBuf = only_registration(added.common.as_path());
+    let spaced: PathBuf = administration.with_file_name("spaced ");
+    std::fs::rename(administration.as_path(), spaced.as_path()).expect("the administrative directory is renamed");
+    let mut pointer: Vec<u8> = Vec::from(b"gitdir: ".as_slice());
+    pointer.extend_from_slice(crate::path_bytes::path_bytes_of(spaced.as_path()));
+    pointer.push(b'\n');
+    std::fs::write(added.worktree.join(".git"), pointer).expect("pointer file");
+    record(added.common.as_path(), added.worktree.as_path()).expect("the record is written beside the registration the pointer names");
+    assert!(spaced.join(ADDED_RECORD_NAME).exists(), "the record sits in the renamed registration");
 }

@@ -439,11 +439,6 @@ async fn settle_moving_the_record_aside_awaiting<W: std::io::Write + ?Sized>(
     return settle_moved_branch_awaiting(place, record, intent, moved_to, true, out).await;
 }
 
-
-
-
-
-
 /// Recovery of records whose owner is dead,
 /// alive or unreadable.
 #[cfg(test)]

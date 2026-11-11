@@ -27,6 +27,11 @@
 //! ```ts
 //! const landed = landedOf(root, paths); const still = theFileGitLanded(landed, landedFileAt(location, path));
 //! ```
+//!
+//! The reading travels beside the merge's record,
+//! so the recovery of a killed command judges a path by the same entry the
+//!  apply read before its carry,
+//! and the file that carries it is written and read here beside it.
 
 use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
 
@@ -409,8 +414,11 @@ pub fn the_reading_names_the_path(landed: &[LandedFile], path: &[u8]) -> bool {
 ///  line the merge brought.
 /// A path the landed reading does not name was read by nothing,
 /// so its bytes are all the evidence
-///  there is,
-/// which is what a recovery of a killed merge has.
+///  there is:
+/// a reading the command that moved the checkout never wrote,
+/// one a power loss took before its bytes reached the disk,
+/// and a
+///  recovery of an earlier release's record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

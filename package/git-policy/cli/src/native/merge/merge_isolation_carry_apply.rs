@@ -37,8 +37,9 @@ use crate::merge_isolation_carry_plans::{plan_index_awaiting, plan_worktree_awai
 use crate::merge_isolation_carry_notice::Report;
 /// Putting one written path into the report the lines are made from.
 use crate::merge_isolation_carry_notice::add_to_the_report;
-/// The kept path's line,
-/// and what stands at it.
+/// What the index holds once a step's records are written,
+/// and the entries a command that writes the index would replace.
+use crate::merge_isolation_carry_kept_path::{Staged, index_after, staged_of};
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath, Capture};
 /// The Git reads of one path,
@@ -391,14 +392,11 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
             report.changed.push(entry.path.clone());
             continue;
         }
-        // What the index holds once this step's records are written, which the line about a path the merge deletes names:
-        //  `git rm` needs an entry and `rm` must not be given one.
-        let in_the_index: bool = match (&index, index_is_ours) {
-            (IndexWrite::Entry(_, _), true) => true,
-            (IndexWrite::Remove, true) => false,
-            _ => current.is_some(),
-        };
-        add_to_the_report(&mut report, entry, change, note, in_the_index, worktree_is_ours && !keep_the_planned_bytes);
+        // What the index holds once this step's records are written, told apart by the bytes a command that writes the index
+        //  would replace: the line about a path the merge deletes names `git rm` only with an entry, and `git add` only where
+        //  the index holds no version of the person's.
+        let staged: Staged = staged_of(index_after(&index, index_is_ours, current.as_ref()), target.as_deref(), merged_object);
+        add_to_the_report(&mut report, entry, change, note, staged, worktree_is_ours && !keep_the_planned_bytes);
         let written: Step = Step {
             path: entry.path.clone(),
             index: if index_is_ours { index } else { IndexWrite::Leave },
@@ -410,10 +408,9 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
     }
     let written: StepResult = write_steps_awaiting(context, root, git_dir, steps.as_slice(), transaction_id, wait, Batch::Carry, out).await?;
     // A path another program wrote while this carry ran keeps its bytes, and the line says so rather than claiming the file
-    //  changed under a step that had in fact written it.
-    for path in written.changed {
-        report.changed.push(path);
-    }
+    //  changed under a step that had in fact written it; the line the path's own step built goes, because the checkout holds
+    //  the newer bytes and two lines about one path would disagree.
+    report.a_path_written_again(written.changed);
     return Ok(report);
 }
 

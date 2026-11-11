@@ -33,9 +33,14 @@ pub mod stacked_merge_push;
 
 /// The service's own retry of a push it stopped or that failed:
 /// the pauses,
-/// the waiting branches,
-/// the final failure.
+/// and the waiting branches.
 pub mod push_retry;
+
+/// What a failed push's own words mean for that retry:
+/// whether the failure is final,
+/// how many tries the one counted cause gets,
+/// and the words the person reads.
+pub mod push_retry_failure;
 
 /// The first of Git's own lines that gives a reason for a push's failure.
 pub mod push_retry_cause_line;
