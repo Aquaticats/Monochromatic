@@ -220,7 +220,11 @@ pub fn install_service(repository: &Path, binary: &Path, unit_directory: &Path, 
         systemctl(&["enable", "--now", SERVICE_NAME])?;
         lines.push(format!("enabled {SERVICE_NAME}: a pass runs now, each pass ends on its own deadline, and the next starts {PAUSE_BETWEEN_PASSES_SECONDS} s after it"));
         if let Ok(state) = systemctl(&["is-active", SERVICE_NAME]) {
-            lines.push(format!("{SERVICE_NAME} is {}", state.trim()));
+            let answer: &str = state.trim();
+            lines.push(format!("{SERVICE_NAME} is {answer}"));
+            if answer == "active" {
+                lines.push(String::from("a pass that is running now ends first; the next pass starts under this file"));
+            }
         }
     } else {
         lines.push(format!("{SERVICE_NAME} was written and not enabled (--no-enable); if {TIMER_NAME} is still enabled in the user manager, `systemctl --user disable --now {TIMER_NAME}` removes the link it left"));
