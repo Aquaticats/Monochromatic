@@ -2623,9 +2623,15 @@ with the same force:
 - Git resolves the operand first by the last path components of every registered worktree path,
   and by the real path only
   when that gives no unique match (`find_worktree` in Git's `worktree.c`).
+  That suffix comparison is byte for byte unless `core.ignorecase` folds the case (`fspathcmp` in Git's `dir.c`),
+  and the wrapper picks the worktree the operand names only by those bytes:
+  a name that differs from every registered path only by case names no worktree here,
+  so it is Git's,
+  which applies its own setting.
   The wrapper serves the removal only when no
   registered path other than the target ends in the operand at a directory boundary,
-  ignoring ASCII case.
+  ignoring ASCII case,
+  which is at least every match Git's comparison can make under either setting.
   An empty operand names no worktree (Git:
   "'' is not a working tree"),
   so it is Git's too.

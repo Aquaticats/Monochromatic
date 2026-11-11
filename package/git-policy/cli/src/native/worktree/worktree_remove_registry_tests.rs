@@ -7,23 +7,61 @@
 use super::*;
 use crate::test_support::{fixture, git, remove, repository};
 
-/// Git's suffix match starts at a directory boundary,
-/// ignores nothing but ASCII case,
+/// The match that picks the worktree to remove starts at a directory boundary,
+/// compares the bytes,
 /// and needs a non-empty name.
+/// Why:
+///  Git's own comparison (`fspathcmp` in `dir.c`) folds case only when `core.ignorecase` is set,
+/// so a byte comparison is the widest match that cannot pick a worktree Git would refuse.
 #[test]
-fn the_last_components_match_at_a_directory_boundary() {
+fn the_last_components_match_at_a_directory_boundary_byte_for_byte() {
     for (candidate, operand, expected) in [
         ("/a/b/topic", "topic", true),
         ("/a/b/topic", "b/topic", true),
         ("/a/b/topic", "/a/b/topic", true),
         ("/a/b/mytopic", "topic", false),
-        ("/a/b/topic", "Topic", true),
+        ("/a/b/topic", "Topic", false),
+        ("/a/b/TOPIC", "topic", false),
         ("/a/b/topic", "", false),
         ("/b/topic", "/a/b/topic", false),
         ("/a/b/topic", "topic/", false),
     ] {
         assert_eq!(ends_with_name(candidate.as_bytes(), operand.as_bytes()), expected, "{candidate} against {operand}");
     }
+}
+
+/// The guard that declines a removal matches ignoring ASCII case,
+/// which is at least every name Git's own comparison can match under any `core.ignorecase` setting;
+/// a match here only sends the removal to Git.
+#[test]
+fn the_guard_match_ignores_ascii_case() {
+    for (candidate, operand, expected) in [
+        ("/a/b/topic", "topic", true),
+        ("/a/b/topic", "Topic", true),
+        ("/a/b/TOPIC", "topic", true),
+        ("/a/b/mytopic", "Topic", false),
+        ("/a/b/topic", "", false),
+        ("/a/b/topic", "topic/", false),
+    ] {
+        assert_eq!(ends_with_name_ignoring_case(candidate.as_bytes(), operand.as_bytes()), expected, "{candidate} against {operand}");
+    }
+}
+
+/// The worktree an operand picks is the one Git's byte comparison picks:
+/// a name that differs from the registered path only by case picks none,
+/// because Git folds the case only when its own settings say so.
+#[test]
+fn a_name_that_differs_only_by_case_picks_no_worktree() {
+    let root: PathBuf = fixture("registry-suffix-case");
+    let common: PathBuf = root.join("repo/.git");
+    let topic: PathBuf = root.join("topic");
+    std::fs::create_dir_all(common.join("worktrees/topic")).expect("registration");
+    std::fs::create_dir_all(topic.as_path()).expect("worktree");
+    std::fs::write(common.join("worktrees/topic/gitdir"), format!("{}/.git\n", topic.display())).expect("gitdir");
+    assert_eq!(path_git_picks_for_operand(common.as_path(), OsStr::new("TOPIC")), None, "a name that differs only by case");
+    let canonical: PathBuf = std::fs::canonicalize(topic.as_path()).expect("canonical");
+    assert_eq!(path_git_picks_for_operand(common.as_path(), OsStr::new("topic")), Some(canonical), "the registered bytes");
+    remove(root.as_path());
 }
 
 /// A linked worktree is found in the repository that registered it and in no other;
