@@ -125,7 +125,8 @@ pub mod side_by_side_threads;
 /// under the process's bound on blocking jobs.
 pub mod side_by_side_on_the_runtime;
 
-/// Futures the caller lends, run beside each other on the task that awaits them,
+/// Futures the caller lends,
+/// run beside each other on the task that awaits them,
 /// for the items a drain knows only when it runs and whose work is awaited rather than run as a job.
 pub mod side_by_side_on_the_current_task;
 

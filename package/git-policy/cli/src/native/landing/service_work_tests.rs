@@ -796,8 +796,9 @@ impl WorkHandlers for TakenOver<'_> {
 /// and the first push settles nothing of it.
 /// The renewal that finds the claims gone is driven by the control,
 /// so no wait decides the result.
-/// What the drain does not fix is the order two branches are pushed in: the pushes of different branches of one work
-/// directory run beside each other (`service_work_items_side_by_side.rs`),
+/// What the drain does not fix is the order two branches are pushed in:
+/// the pushes of different branches of one work directory run beside each other
+/// (`service_work_items_side_by_side.rs`),
 /// so this control counts the pushes each branch got rather than the order they came in.
 #[test]
 fn a_claim_taken_over_before_its_push_is_not_run_from_the_old_claim() {
