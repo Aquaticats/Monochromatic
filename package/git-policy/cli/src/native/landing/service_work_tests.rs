@@ -1700,6 +1700,15 @@ fn a_repository_that_is_back_keeps_the_file_of_its_plan() {
 ///  record in `failed` is never queued again under its id,
 /// so a copy that proved stale then stays on the disk for ever,
 ///  pinning the source's blocks.
+///  The recovery is asked twice,
+/// because the rule has two sides and only the pair states it:
+/// a claim whose lease has not run out is nobody's to take back,
+/// and the same claim one lease later is.
+/// Both readings are explicit,
+/// never "now" with a lease of nothing:
+/// a claim's age is measured in whole milliseconds,
+/// so a reading taken a moment after the claim and a lease of nothing are one instant,
+/// and that pair says nothing about either side of the rule.
 #[test]
 fn a_retryable_answer_keeps_the_record_for_a_later_round() {
     for kind in [WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead] {
@@ -1714,14 +1723,23 @@ fn a_retryable_answer_keeps_the_record_for_a_later_round() {
         assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: the record keeps its claim", kind.name());
         assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "{}: a retryable answer is no failure", kind.name());
         assert!(wait.is_some(), "{}: the round asks to be woken when that claim runs out", kind.name());
-        // The lease runs out, which is what the wait above asked for: the record is queued again with one more try. The reading is
-        //  one millisecond past the claim's own, because a lease of zero is over only once the clock has moved past the millisecond
-        //  the claim was stamped in (`landing/claim_time.rs`, `elapsed_since`), and a reading taken at once can be the same
-        //  millisecond: this control then saw the claim keep the record, on one run of the suite and not on the next.
+        // A reading taken now is a lease short of the claim, so the claim is still the round's and nothing takes it back.
         crate::work_item_recovery::requeue_expired(
             work_directory(repo.common.as_path()).as_path(),
-            &ClaimTime::read().advanced(Duration::from_millis(1)),
-            Duration::ZERO,
+            &ClaimTime::read(),
+            crate::service_work::CLAIM_LEASE,
+            crate::service_work_handlers_replanning_and_acceptance::MAX_TRIES,
+        );
+        assert_eq!(claimed_ids(&repo), vec![wanted.id()], "{}: a claim whose lease has not run out is left alone", kind.name());
+        // The lease has run out, which is what the wait above asked for: the record is queued again with one more try.
+        // The reading is two leases after the claim, not one, because a claim at exactly its lease still holds its record
+        //  (`work_item_tests.rs`, "a lease at its limit still holds"), and a claim's age is measured in whole milliseconds:
+        //  one lease after the claim is the same instant when nothing measurable has passed, which is how a reading and a
+        //  lease of nothing made this control pass or fail with the host's speed (release gate on `fc9f7f5f4b`, 2026-11-11).
+        crate::work_item_recovery::requeue_expired(
+            work_directory(repo.common.as_path()).as_path(),
+            &ClaimTime::read().advanced(crate::service_work::CLAIM_LEASE.saturating_mul(2)),
+            crate::service_work::CLAIM_LEASE,
             crate::service_work_handlers_replanning_and_acceptance::MAX_TRIES,
         );
         assert_eq!(names(&repo, PENDING), vec![wanted.id()], "{}: the record waits for the next round", kind.name());
