@@ -5,6 +5,7 @@ use crate::work_item_recovery::requeue_expired;
 use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
 use crate::work_item_state_directories_and_claim_names::take_listings;
 use crate::push_retry::PushRetries;
+use crate::service_work_common_directory::is_bare_common_directory;
 use crate::service_work_run_round::run_round;
 use super::*;
 use crate::push_failure_notice::{PushOutcome, push_failure_text, push_failures};

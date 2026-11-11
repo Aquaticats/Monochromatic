@@ -26,8 +26,9 @@
 //! ```
 
 use crate::service_claim_renewal_running::Renewal;
+use crate::service_work_common_directory::{common_directory_of, is_bare_common_directory};
 use crate::service_work_handlers_replanning_and_acceptance::{
-    Drained, PlannedRetry, Replanning, Verdict, WorkHandlers, common_directory_of, end_the_plans_of_a_gone_repository_awaiting, is_acceptable, is_bare_common_directory,
+    Drained, PlannedRetry, Replanning, Verdict, WorkHandlers, end_the_plans_of_a_gone_repository_awaiting, is_acceptable,
     keep_plans_while_unreachable, planned_retry, work_directory,
 };
 use crate::service_work_storage_awaited::{

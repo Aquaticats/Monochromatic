@@ -361,6 +361,10 @@ pub mod service_work;
 /// The notice for a push whose branch the person deleted.
 pub mod service_work_branch_is_gone;
 
+/// The common Git directory a linked worktree's Git directory names,
+/// and whether it belongs to a repository with no main worktree.
+pub mod service_work_common_directory;
+
 /// The kinds,
 /// handlers,
 /// acceptance rules,

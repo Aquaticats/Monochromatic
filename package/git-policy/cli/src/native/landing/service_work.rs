@@ -32,6 +32,7 @@
 //! ```
 
 pub use crate::service_work_handlers_replanning_and_acceptance::*;
+pub(crate) use crate::service_work_common_directory::common_directory_of;
 pub(crate) use crate::service_work_branch_is_gone::branch_is_gone_words_awaiting;
 pub use crate::service_work_drains_awaiting::{drain_common_records_planned_awaiting, drain_planned_awaiting, drain_planned_with_awaiting};
 use crate::auto_push::push_once_awaiting;
