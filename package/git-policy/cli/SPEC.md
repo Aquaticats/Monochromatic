@@ -3430,7 +3430,8 @@ journaling and installation a creating command makes.
 A destination that holds the object the record of the stage's creation made holds the add's own snapshot,
 which carries the source's ignored state with the files:
 nothing is owed there and nothing is missing,
-so the claim and its records settle with no notice,
+so the claim and its records settle with no notice in the sweep that follows this pass,
+which also removes the directory Git made at the stage name,
 and no command stages the source again.
 That copy is the worktree's own work:
 only a command run in that worktree makes it,
