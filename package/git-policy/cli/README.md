@@ -4757,8 +4757,10 @@ A control that compares a forwarded command's environment builds the pair from t
 `control_terminal()`
 (`forward` in `src/native/invocation/entry_tests.rs`).
 A control that froze the environment without the pair passed at a person's terminal and failed under a test runner,
-an agent's shell or any container:
-on 2026-11-10 the `invocation::entry` group ran 36 tests and 10 of them failed on a clean tree.
+an agent's shell or a container started without `--tty`,
+which is how the campaigns start theirs:
+`podman run --network=none <campaign image> sh -c tty` printed `not a tty`,
+and the `invocation::entry` group ran 36 tests with 10 of them failed on a clean tree (2026-11-10).
 
 ### Controls that depend on timing
 

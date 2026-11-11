@@ -81,8 +81,8 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
 ///  expectation has to be built from the same reading (`control_terminal`) the wrapper takes.
 /// A control that froze the
 ///  overlay without the pair passed at a person's terminal and failed under a test runner,
-/// an agent's shell and any
-///  container,
+/// an agent's shell and a
+///  container started without `--tty`,
 /// where no controlling terminal exists:
 /// both arrangements must pass.
 ///  The pair's own order and contents are controlled in `child_environment_tests.rs`;
