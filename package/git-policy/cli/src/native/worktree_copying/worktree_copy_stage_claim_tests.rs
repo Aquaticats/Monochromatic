@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::json_record::quote;
+use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use crate::worktree_copy_stage_claim_reaping::*;
 use crate::private_storage::{create_private_directory, take_directory_syncs, take_file_syncs};
 use crate::test_support::{dead_copy_owner, fixture, git_context, remove, repository};
@@ -638,7 +639,7 @@ fn an_interrupted_add_that_is_removed_stops_being_reported() {
 /// and the report names it with the one
 ///  step that makes the rest work.
 /// Why:
-///   `git -C <destination> reset --hard` cannot start while that lock stands (Git answers
+///   `git -C <destination> reset --no-enforce-worktree --hard` cannot start while that lock stands (Git answers
 /// `fatal: Unable to create '.../index.lock': File exists`),
 /// so a report that offers only that command offers a
 ///  remedy that cannot run;
@@ -995,7 +996,7 @@ fn a_report_names_its_path_as_the_shell_reads_it_back() {
         let text: String = finish_instructions(destination.as_path(), admin.as_path());
         // The finish command names the path before its own flags, so that word ends where the rest of the command begins;
         //  the flags are the ones `worktree_finish_commands.rs` prints.
-        let finish_tail: String = format!(" reset {} --hard", crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH);
+        let finish_tail: String = format!(" reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard");
         // A word that ends the command ends at the closing backtick and the first word the sentence after it writes: a
         //  backtick alone cannot end a word, because one of the names below holds a backtick of its own.
         let expected: Vec<(&str, &str, PathBuf)> = vec![

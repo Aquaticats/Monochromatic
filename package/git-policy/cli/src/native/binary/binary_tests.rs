@@ -175,6 +175,13 @@ mod conflict_side;
 #[path = "binary_discard_tests.rs"]
 mod discard;
 
+/// The remote settings every worktree of a repository shares:
+/// refused from a linked worktree,
+/// unchanged in the main checkout,
+/// and readable everywhere.
+#[path = "binary_shared_remote_tests.rs"]
+mod shared_remote;
+
 /// A clone made with `--no-checkout` has no index file,
 /// and the guard of uncommitted work lets its first checkout run.
 #[path = "binary_no_checkout_clone_tests.rs"]
@@ -459,6 +466,12 @@ mod fault;
 /// for controls that signal or limit it.
 #[path = "binary_fault_run.rs"]
 mod fault_run;
+
+/// The hang guard of those runs:
+/// a command that keeps moving is left alone,
+/// and one that stops moving is ended with the words that name the silence.
+#[path = "binary_fault_run_tests.rs"]
+mod fault_run_guard;
 
 /// Signals sent to the wrapper alone and to its process group.
 #[path = "binary_fault_signal_tests.rs"]

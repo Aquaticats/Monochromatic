@@ -115,6 +115,12 @@ pub mod command_config_table;
 /// The form and file scope of a `git config` region.
 pub mod command_config;
 
+/// The one option `git remote` reads before a subcommand.
+pub mod command_remote_table;
+
+/// The subcommand of a `git remote` region and where it starts.
+pub mod command_remote;
+
 /// Pure decision of the require-root policy.
 pub mod rule_require_root;
 
@@ -133,6 +139,13 @@ pub mod rule_linked_worktree;
 
 /// The rejection texts of the linked-worktree-only policy.
 pub mod rule_linked_worktree_messages;
+
+/// Pure decision of the shared-remote-settings refusal:
+///  which `git remote` and `git config` commands write the remote settings every worktree shares.
+pub mod rule_shared_remote;
+
+/// The rejection texts of the shared-remote-settings refusal.
+pub mod rule_shared_remote_messages;
 
 /// The transform that stops a `checkout` or `switch` replacing an ignored file.
 pub mod rule_keep_ignored_files;

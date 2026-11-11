@@ -30,8 +30,8 @@ use crate::worktree_copy_journal::create_journal;
 use crate::worktree_copy_journal_encoding_and_validation::PendingJournal;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_source_still_being_filled::{source_is_still_being_filled, source_still_being_filled_notice};
-use crate::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot};
-use crate::worktree_copy_stage_binding::{record_stage_binding, verify_stage_binding};
+use crate::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot_for};
+use crate::worktree_copy_stage_binding::verify_stage_binding;
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
 use crate::worktree_copy::{Invocation, summary_line};
 use crate::worktree_copy_registry::{CreatedWorktrees, WorktreeCopyObservation, command_token, find_created_worktree};
@@ -39,32 +39,6 @@ use crate::worktree_copy_transaction::{Outcome, SnapshotSource, complete_journal
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-
-/// What:
-///  Ends a copy that failed after its stage was made and before any journal named it:
-/// the staged bytes are removed,
-/// and the
-///  claim with its record stays.
-/// Why:
-///   The destination received none of the staged ignored files,
-/// so the record that names it must outlive this
-///  command:
-/// it holds every other command back from taking this worktree as a source,
-/// and the next command's
-///  recovery reports the unfilled worktree to the person once this owner is gone.
-/// Settling the claim here would
-///  remove the only sign that the destination is unfilled.
-/// The stage container is named by the claim this
-///  command made,
-/// so it is this command's to remove.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await abandonTheStage({ container }); // the claim stays
-/// ```
-fn abandon_the_stage(container: &Path) -> Result<(), WorktreeCopyError> {
-    return std::fs::remove_dir_all(container).map_err(raw_failure_of);
-}
 
 /// What:
 ///  The claim this copy runs under:
@@ -168,12 +142,13 @@ pub fn synchronize_created_worktree_noting(
         return Err(registration_changed(destination_root, reason.as_str()));
     }
     // `match` on staging: a failure has already removed its container, so only the claim is left to settle.
-    let snapshot: StagedSnapshot = match stage_ignored_snapshot(
+    let snapshot: StagedSnapshot = match stage_ignored_snapshot_for(
         context,
         source_root,
         claim.container(),
         registered_roots,
         selection,
+        binding,
     ) {
         Ok(snapshot) => snapshot,
         Err(error) => {
@@ -181,15 +156,9 @@ pub fn synchronize_created_worktree_noting(
             return Err(error);
         }
     };
-    // The registration travels beside the payload, so a recovery checks the pair the copy was made for and not the path
-    // alone. Without it the copy cannot be resumed against the right registration, so the stage goes and the copy ends,
-    // rather than leaving a staged payload and a live claim that only a later dead-owner sweep could clear.
-    if let Some(bound) = binding
-        && let Err(error) = record_stage_binding(claim.container(), bound)
-    {
-        abandon_the_stage(snapshot.stage_container.as_path())?;
-        return Err(error);
-    }
+    // The registration went into the container before the payload did (`stage_ignored_snapshot_for`), so a recovery
+    // checks the pair the copy was made for and not the path alone, and a container killed while staging is provably this
+    // copy's own.
     let staged_done: std::time::Duration = started.elapsed();
     let journaling: std::time::Instant = std::time::Instant::now();
     let pending: PendingJournal = match create_journal(common_dir, destination_root, &snapshot) {

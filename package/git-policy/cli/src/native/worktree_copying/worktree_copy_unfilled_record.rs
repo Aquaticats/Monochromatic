@@ -275,11 +275,37 @@ pub fn remember_unfilled(
     source: &Path,
     owner: Option<&str>,
 ) -> Result<(), WorktreeCopyError> {
+    return remember_unfilled_with(journal, destination, identity, source, owner, "the copy did not finish");
+}
+
+/// What:
+///  Name the worktree a copy gave up on,
+/// with what ended the copy in the record itself.
+/// Why:
+///   A reason that lived only in the output of the command that saw the failure is gone with it;
+/// the record repeats the words
+///  on every later command,
+/// so the person reads which entry differs or which worktree cannot be reached,
+/// not only that something
+///  is missing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rememberUnfilledWith({ journal, destination, identity, source, owner, reason });
+/// ```
+pub fn remember_unfilled_with(
+    journal: &Path,
+    destination: &Path,
+    identity: crate::fs_beneath::ObjectId,
+    source: &Path,
+    owner: Option<&str>,
+    reason: &str,
+) -> Result<(), WorktreeCopyError> {
     let copy: UnfilledCopy = UnfilledCopy {
         destination: destination.to_path_buf(),
         destination_identity: identity,
         source: source.to_path_buf(),
-        reason: String::from("the copy did not finish"),
+        reason: reason.to_string(),
         owner: owner.map(str::to_string),
     };
     let path: PathBuf = unfilled_path_of(journal);
@@ -481,9 +507,12 @@ fn standing_records(common_dir: &Path) -> Result<Vec<StandingRecord>, WorktreeCo
         let Some(copy) = read_unfilled(path.as_path())? else { continue };
         // Only the worktree the record was written about is one it still describes: the object at the path now is the
         // object the record recorded, so a worktree that was removed or replaced settles the record instead.
-        let describes_the_worktree: bool = crate::worktree_add_binding::path_identity(copy.destination.as_path()).is_some_and(|identity| {
-            return identity == copy.destination_identity;
-        });
+        // `matches!` rather than a closure, so the record's own identity is compared the way the settlement below compares it
+        // (`rust/avoidable-closure` rejects a closure here, and clippy's `implicit_return` rejects one without `return`).
+        let describes_the_worktree: bool = matches!(
+            crate::worktree_add_binding::path_identity(copy.destination.as_path()),
+            Some(identity) if identity == copy.destination_identity
+        );
         if describes_the_worktree {
             standing.push(StandingRecord {
                 path,

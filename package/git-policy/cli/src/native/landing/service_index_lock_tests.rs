@@ -1682,10 +1682,12 @@ fn a_check_is_repeated_only_while_it_cannot_be_made() {
 
 /// The flush the service makes of its marker is the operating system's:
 /// a file that cannot be flushed (a pipe has no data to
-/// make durable) is an error from `sync_file`,
+/// make durable) is refused by a flush a caller makes where it asks,
 /// and a file that can be flushed is not.
 /// Durability itself is not observable without a crash;
-/// what is observable is that the call is made and its answer returned.
+/// what is observable is that the call is made,
+/// that the marker's own flush is queued for the service's background task,
+/// and that the task is the one that makes it.
 #[test]
 fn the_flush_of_the_marker_is_the_operating_systems() {
     use crate::service_index_placement::sync_file;
@@ -1695,12 +1697,20 @@ fn the_flush_of_the_marker_is_the_operating_systems() {
     assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
     // SAFETY: each descriptor is a fresh end of the pipe, owned by exactly one `File`.
     let (reader, writer) = unsafe { (std::fs::File::from_raw_fd(ends[0]), std::fs::File::from_raw_fd(ends[1])) };
-    let refused = sync_file(&writer).expect_err("a pipe cannot be flushed");
+    // The call is the operating system's, and its answer is the caller's when the caller makes it: the marker's own flush is
+    //  queued instead, so the commit never hears this answer (`sync_file`, `service_durable::defer_file`).
+    let refused = crate::service_durable::flush_file(&writer, "lock-marker").expect_err("a pipe cannot be flushed");
     assert_eq!(refused.raw_os_error(), Some(libc::EINVAL));
     drop((reader, writer));
     let (root, index) = index_in("index-lock-sync-file");
     let file = std::fs::File::create(index.with_file_name("a-file")).expect("a file");
-    assert!(sync_file(&file).is_ok());
+    let flushed_before: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    assert!(sync_file(&file).is_ok(), "the marker's flush is queued and answers the commit nothing");
+    crate::service_durable::drain();
+    assert!(
+        crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > flushed_before,
+        "the background task made the flush of the marker"
+    );
     remove(root.as_path());
 }
 

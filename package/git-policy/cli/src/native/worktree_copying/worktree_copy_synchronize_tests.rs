@@ -191,27 +191,6 @@ fn a_copy_into_a_replaced_registration_stops_before_the_first_entry() {
     remove(root.as_path());
 }
 
-/// A copy that fails after its stage exists and before any journal names it removes the staged bytes and keeps its
-/// claim,
-/// so the destination is known to be unfilled instead of looking ready.
-#[cfg(unix)]
-#[test]
-fn abandoning_a_staged_copy_keeps_the_record_of_its_destination() {
-    let root: PathBuf = fixture("synchronize-abandon-stage");
-    let (source, destination) = ignored_source(root.as_path());
-    let common: PathBuf = common_of(source.as_path());
-    let claim: StageClaim = crate::worktree_copy_stage_claim::claim_stage_for_add(common.as_path(), destination.as_path()).expect("claim");
-    let container: PathBuf = claim.container().to_path_buf();
-    crate::private_storage::create_private_directory(container.as_path()).expect("container");
-    std::fs::write(container.join("payload"), b"staged").expect("payload");
-    abandon_the_stage(container.as_path()).expect("abandoned");
-    assert!(!container.exists(), "the staged bytes are removed");
-    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the record of the unfilled destination stays");
-    claim.release().expect("released");
-    remove(root.as_path());
-}
-
-
 /// A copy whose creating command could not record its destination before real Git still records it when it claims,
 /// so a command that wants this worktree as a source is held back instead of copying a half-filled set.
 #[cfg(unix)]
