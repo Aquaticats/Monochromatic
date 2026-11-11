@@ -36,6 +36,7 @@
 
 use crate::fs_beneath::{ObjectId, device_of, handle_path, identity_at, identity_of, open_directory_at, remove_at};
 use crate::subvolume_remove_walk::verify_below;
+use crate::worktree_path_failure_message::path_failure;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -237,7 +238,7 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
     //  refuses the removal before one entry is unlinked, so the person still has every file the removal was not allowed
     //  to destroy. The walk below checks the same boundary again at each directory, which catches one that appeared in
     //  between.
-    verify_below(&first.dir, top.as_path()).map_err(|refused| format!("{} cannot be removed ({refused})", top.display()))?;
+    path_failure(verify_below(&first.dir, top.as_path()), top.as_path(), "cannot be removed")?;
     let mut stack: Vec<Frame> = vec![first];
     // The names from the top directory down to the frame being worked on, for messages.
     let mut shown: Vec<OsString> = Vec::new();

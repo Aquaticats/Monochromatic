@@ -1696,7 +1696,8 @@ a record still pending after one claim lease is one no service ever looked at,
 and a directory nothing recorded cannot be proven to be one the leave-out moved;
 nothing there is deleted,
 and a worktree with no trash parent costs the command one lookup.
-A trash that says what it is, because the snapshot wrote its manifest inside it before the swap published it,
+A trash that says what it is,
+because the snapshot wrote its manifest inside it before the swap published it,
 is offered to the queue again when no record the service still works on accounts for it,
 and only a record that command wrote is reported as recorded now:
 a record the queue already holds under the trash's name is reported as already there,

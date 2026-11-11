@@ -311,7 +311,8 @@ fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String]
 /// the record of it cannot be written,
 /// and
 ///  the service gave up on its record;
-/// the person reads the same instruction for all three, so the sentence has one shape and
+/// the person reads the same instruction for all three,
+/// so the sentence has one shape and
 ///  only the reason changes.
 ///
 /// In TS you'd write (pseudocode):

@@ -222,6 +222,11 @@ pub mod worktree_slow_route;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
 
+/// The record of the trash a snapshot's leave-out made,
+/// written before the rung that published the worktree returns.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_trash_record;
+
 /// The restore of a snapshot of a main checkout with uncommitted changes,
 /// and its proof.
 #[cfg(target_os = "linux")]

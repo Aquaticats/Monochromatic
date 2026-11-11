@@ -188,9 +188,11 @@ fn trash_item(trash: &PendingTrash) -> WorkItem {
 pub enum Recorded {
     /// A new pending record was written now.
     Written,
-    /// The queue already holds the record of this trash, and the service empties it when it next runs.
+    /// The queue already holds the record of this trash,
+    /// and the service empties it when it next runs.
     There,
-    /// The service gave up on the record of this trash, and never claims it again.
+    /// The service gave up on the record of this trash,
+    /// and never claims it again.
     GivenUp,
 }
 
@@ -360,7 +362,8 @@ fn handed_words(trash: &PendingTrash) -> String {
 enum Next<'a> {
     /// No record names the trash.
     Nobody,
-    /// A pending record names it, and the service empties it when it next runs.
+    /// A pending record names it,
+    /// and the service empties it when it next runs.
     TheService(&'a Path),
     /// The service gave up on its record and never claims it again.
     GivenUp(&'a Path),
@@ -383,13 +386,13 @@ enum Next<'a> {
 fn stays_words(trash: &PendingTrash, why: &str, next: Next<'_>) -> String {
     let trash_shown: PathBuf = trash.destination.join(TRASH_PARENT).join(&trash.manifest.name);
     let quoted: String = crate::shell_quote::shell_quote(trash_shown.as_os_str().as_bytes());
-    let next: String = match next {
+    let empties: String = match next {
         Next::Nobody => String::from("no record names them, so only you will remove them"),
         Next::TheService(path) => format!("the record {} names them, so the commit service empties them when it next runs for this repository", path.display()),
         Next::GivenUp(path) => format!("the record {} holds its failure, and the commit service never claims it again, so only you will remove them", path.display()),
     };
     return format!(
-        "the directories left out of the new worktree {} were not handed to the commit service ({why}); the trash {quoted} stays inside the worktree, {next}, and every later command in this worktree names it and deletes nothing from it.",
+        "the directories left out of the new worktree {} were not handed to the commit service ({why}); the trash {quoted} stays inside the worktree, {empties}, and every later command in this worktree names it and deletes nothing from it.",
         trash.destination.display()
     );
 }
