@@ -24,7 +24,9 @@
 //! ```
 
 use crate::held_push_holder_and_verdict::{Holding, Verdict, this_command, with_holding};
-use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced, write_private_file_unsynced};
+use crate::private_storage::{
+    create_private_directory_all, replace_private_file, replace_private_file_unsynced, sync_directory, write_private_file, write_private_file_unsynced,
+};
 use crate::work_item::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, WorkItem, state_directory};
 use std::path::{Path, PathBuf};
 
@@ -87,32 +89,53 @@ pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String
 /// The holder written with the verdict is the command that decided,
 /// which is the retry's own
 ///  command when a retry is the one that finishes the commit.
-///   The record is published whole by one rename and flushed by nothing,
+///   A pass is published whole by one rename and flushed by nothing,
 /// because a commit's answer waits on no sync of the wrapper's own
 /// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`):
 /// a kill keeps the verdict,
 /// and a machine crash keeps the record the gate found,
-/// which the settlement reads as no verdict.
-///   Flushing the verdict alone would protect nothing worth its wait,
+/// which the settlement reads as no verdict,
+/// so the commit stays local with the push a person can make named.
+///   Flushing a pass alone would protect nothing worth its wait,
 /// because `hold` writes the obligation itself into the same record unflushed
 ///  (`write_private_file_unsynced`):
-/// a crash loses the promise to push with the verdict that approved it,
-/// and the commit stays local with every command naming the push a person can make.
+/// a crash loses the promise to push with the verdict that approved it.
+///   A refusal is the one verdict a crash must not lose,
+/// because no verdict reads as a commit the branch may publish,
+/// so it goes through the flushing writer and `block` keeps the verdict it settles into durably before the record is given up
+/// (`held_push_holder_and_verdict.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// recordVerdict(held/<id>, holder, verdict, reason) // replace the record whole, unflushed; false when there is none
+/// recordVerdict(held/<id>, holder, verdict, reason, durable) // replace the record whole; false when there is none
 /// ```
 pub fn record_verdict(work_dir: &Path, id: &str, holder: &str, verdict: Verdict, reason: &str) -> bool {
+    return write_verdict(work_dir, id, &Holding { holder: holder.to_string(), verdict, reason: reason.to_string() }, false);
+}
+
+/// What:
+///  `record_verdict` with the record's durability given.
+/// Why:
+///   Only the refusal waits for the disk: a pass may be lost, because the record it was found in then says the checks never
+///  decided and the commit stays local,
+/// while a lost refusal is a commit a later push publishes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeVerdict(workDir, id, holding, durable) // false when there is no record
+/// ```
+fn write_verdict(work_dir: &Path, id: &str, holding: &Holding, durable: bool) -> bool {
     let path: PathBuf = state_directory(work_dir, HELD).join(id);
     let Ok(text) = std::fs::read_to_string(path.as_path()) else {
         return false;
     };
-    let holding: Holding = Holding { holder: holder.to_string(), verdict, reason: reason.to_string() };
-    let Some(record) = with_holding(text.as_str(), &holding) else {
+    let Some(record) = with_holding(text.as_str(), holding) else {
         return false;
     };
-    return replace_private_file_unsynced(path.as_path(), record.as_bytes()).is_ok();
+    return match durable {
+        true => replace_private_file(path.as_path(), record.as_bytes()).is_ok(),
+        false => replace_private_file_unsynced(path.as_path(), record.as_bytes()).is_ok(),
+    };
 }
 
 /// What:
@@ -134,18 +157,24 @@ pub fn record_pass(work_dir: &Path, id: &str) -> bool {
 
 /// What:
 ///  Writes a refusal beside the record this command is about to settle,
-/// with the gate's own words.
+/// with the gate's own words,
+/// flushing the record and its directory before it returns.
 /// Why:
 ///   A refusal recorded before the record is forgotten survives a kill in that gap,
 /// and the words it keeps are the ones
 ///  the next push of the branch must show.
+/// A machine crash loses an unflushed rename,
+/// and the record it leaves says the checks never decided,
+///  which no push reads as a stop:
+/// the refused commit would then be published by the next push of its branch,
+/// so this one verdict waits for the disk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const refused = recordVerdict(workDir, id, thisCommand(), 'blocked', reason);
+/// const refused = recordVerdict(workDir, id, thisCommand(), 'blocked', reason) // durable
 /// ```
 pub fn record_refusal(work_dir: &Path, id: &str, reason: &str) -> bool {
-    return record_verdict(work_dir, id, this_command().as_str(), Verdict::Blocked, reason);
+    return write_verdict(work_dir, id, &Holding { holder: this_command(), verdict: Verdict::Blocked, reason: reason.to_string() }, true);
 }
 
 /// What:
@@ -208,7 +237,8 @@ pub struct BlockedVerdict {
 /// What:
 ///  Says durably that the gate of this commit kept it local,
 /// with the words of the verdict,
-/// and gives the held record up.
+/// and gives the held record up,
+/// answering whether the verdict is kept.
 /// Why:
 ///   `forget_the_push` alone leaves no trace of the verdict,
 /// so a later recovery of the same batch would hold the push again
@@ -217,20 +247,38 @@ pub struct BlockedVerdict {
 /// because the automatic push must stop before this commit and every
 ///  command must say why,
 /// and a digest of the branch is not the branch.
+///   The verdict is flushed with its directory before the held record goes,
+/// because the record is the only other copy of the refusal:
+/// a machine crash that lost an unflushed verdict would leave a refused commit
+///  with nothing that holds its branch back,
+/// and the next push of the branch would publish it
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
+///   A verdict that cannot be kept leaves the record where it is and answers `false`,
+/// so no caller gives up the only copy of the gate's words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// block(workDir, item, reason) // write `blocked/<id>` with the branch and the words, hold nothing
+/// block(workDir, item, reason) // write `blocked/<id>` durably with the branch and the words, then forget the held record; false when it could not be kept
 /// ```
-pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) {
+pub fn block(work_dir: &Path, item: &WorkItem, reason: &str) -> bool {
     let id: String = item.id();
-    if create_private_directory_all(state_directory(work_dir, BLOCKED).as_path()).is_err() {
-        crate::service_error!("the blocked verdict of the push record {id} cannot be kept");
-        return;
+    let blocked: PathBuf = state_directory(work_dir, BLOCKED);
+    if let Err(error) = create_private_directory_all(blocked.as_path()) {
+        crate::service_error!("the blocked verdict of the push record {id} cannot be kept: {error}");
+        return false;
     }
+    let path: PathBuf = blocked.join(id.as_str());
     let record: String = blocked_record(item.branch_ref.as_str(), item.oid.as_str(), reason);
-    let _written: std::io::Result<()> = write_private_file_unsynced(state_directory(work_dir, BLOCKED).join(id.as_str()).as_path(), record.as_bytes());
-    forget_held(work_dir, id.as_str());
+    match write_private_file(path.as_path(), record.as_bytes()).and_then(|()| sync_directory(blocked.as_path())) {
+        // A verdict on this commit is already kept: it is the same stop, and the record that named it can go.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => forget_held(work_dir, id.as_str()),
+        Ok(()) => forget_held(work_dir, id.as_str()),
+        Err(error) => {
+            crate::service_error!("the blocked verdict of the push record {id} cannot be kept: {error}");
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:
