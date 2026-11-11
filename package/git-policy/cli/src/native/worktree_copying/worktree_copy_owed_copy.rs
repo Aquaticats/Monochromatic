@@ -8,7 +8,8 @@
 //! the stage is still being filled,
 //! the stage is whole and no journal names it,
 //! or the installation never ran.
-//! Left alone, the worktree stays unfilled and the person must remove it and add it again,
+//! Left alone,
+//! the worktree stays unfilled and the person must remove it and add it again,
 //! losing their own work in it;
 //! so the next command stages from the recorded source and installs under the journal,
 //! when the destination is still the registration the add made and its checkout is whole.
@@ -346,7 +347,8 @@ fn source_is_registered(roots: &[PathBuf], source: &Path) -> bool {
 ///   A stage killed while it was being filled holds part of the source's ignored state,
 /// and the copy cannot fill that name again without removing it first;
 /// only a container that records the registration this copy was made for proves the stage is the
-///  copy's own, so a directory another process put at that name is never removed.
+///  copy's own,
+/// so a directory another process put at that name is never removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

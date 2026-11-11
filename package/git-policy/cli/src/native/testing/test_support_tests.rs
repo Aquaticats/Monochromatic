@@ -272,7 +272,9 @@ fn a_wait_whose_predicate_works_is_not_abandoned() {
 ///  whether the test returns or panics.
 /// Why:
 ///   Issue 6282:
-/// the fixtures of `rollback-read-only`, `remove-old-read-only`, `migrate-unreadable-dir` and `sync-unreadable-dir`
+/// the fixtures of `rollback-read-only`,
+/// `remove-old-read-only`,
+/// `migrate-unreadable-dir` and `sync-unreadable-dir`
 /// stayed in the build tree of this package,
 /// and a build-tree sweeper could not delete the trees they sat in.
 /// A teardown that gives the permission back before it removes the tree is what the fix is,

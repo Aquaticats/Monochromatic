@@ -17,7 +17,8 @@ use crate::work_item::WorkKind;
 ///  A subvolume inside a fresh disposable root,
 /// made with the kernel call the wrapper uses.
 /// Why:
-///   The rename, the record and the delete are about the object the kernel makes,
+///   The rename,
+/// the record and the delete are about the object the kernel makes,
 /// and nothing else stands for it.
 ///
 /// In TS you'd write (pseudocode):
