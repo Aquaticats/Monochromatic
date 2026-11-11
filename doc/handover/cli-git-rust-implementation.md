@@ -779,6 +779,55 @@ Next action:
 review and merge this branch,
 then run the whole binary suite once,
 which this work ran only for the merge modules.
+### 0.6.1-alpha.9 installed; the next integration is being built (2026-11-10T20:18:00-05:00)
+
+Release `0.6.1-alpha.9` (bump `64989e5e89`) shipped:
+the `crate-release` run `42935168319` passed its release and publish jobs,
+and the `cargo-publish` run `42935721432` built the archives and created the GitHub release
+`monochromatic-git-policy-cli-v0.6.1-alpha.9` at 2026-11-11T01:07:58Z.
+It is installed through `toolchain:update`;
+the repository lock commit `68937a8e22` took 5,331 ms,
+the service upgrade included.
+
+Two defects showed on the way, both open:
+
+- `native:release:wait` printed "RELEASE RUN FAILED: no publish was started" for run `42935168319`,
+  which had succeeded;
+  the archives come from the separate `cargo-publish` workflow.
+  The waiter is `package/crate-release/cli/bin/await-release.ts`.
+- The machine-global lock still names `0.6.1-alpha.8`,
+  so every `git` call prints `mpm-shadow`'s older-lock warning.
+  Its printed remedy,
+  `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
+  did not run,
+  because no `mpm-shadow` was on `PATH`;
+  branch `fix/mpm-shadow-printed-global-lock-remedy-runs-as-printed`
+  makes the scope's install put it in the exposure farm and proves the command runs as printed.
+  The lock itself is still the coordinator's to move.
+
+Every finished wrapper branch `main` lacked is going into `integrate/git-policy-cli-jam-fixes-after-alpha-9`,
+built from `main` by the coordinator's script,
+which tries each branch with `git merge-tree --write-tree` first and merges only the clean ones:
+36 of 53 merged,
+17 conflicted.
+The 17 went back to their own agents to merge the integration branch and resolve.
+Five compile errors where merged branches met were fixed in `5686c7bb29`
+(three tests lacked the new `holder` field of `CommitRequest`,
+one closure lacked its explicit `return`,
+one test bound a value it never used);
+Clippy is clean on it,
+and both test suites run on it in unit `integrate-jam-fixes-suites`.
+Four branches whose runs ended before finishing are left out until resumed agents finish them:
+`commits-that-stop-after-their-add-steps`,
+`pushes-of-main-that-stalled-today`,
+`wrapper-suite-failures-on-main-tip`
+and `gate-flakes-scratch-sweep-and-descriptor-limit`.
+Kimi reviews each merged branch's own change on the integration branch's code (rule `KRV`).
+Next:
+merge the resolved branches,
+gate,
+land on `main`,
+release `0.6.1-alpha.10`.
 
 ### The carry keeps every layer through a kill and a save (2026-11-10T08:04:48-05:00)
 
@@ -2751,12 +2800,55 @@ and `tests/printed_remedy.rs` runs the warning's own command in a disposable hom
 
 Still open,
 because it is the owner's file under the config directory:
-the machine-global plan declares no `mpm-shadow` entry,
-so `mpm-shadow` is not on the machine `PATH` either.
-Adding the entry the repository plan carries (`route: archive`,
-`bins: ["mpm-shadow"]`,
-`tagPrefix: monochromatic-mpm-shadow-v`,
-then `mpm-shadow install -g`) exposes it in the global exposure directory.
+the machine-global plan declares no `mpm-shadow` entry.
+The branch `fix/mpm-shadow-printed-global-lock-remedy-runs-as-printed`
+no longer needs that entry:
+the scope's install links the running `mpm-shadow` in its exposure farm (`expose_running_shadow`,
+`src/toolchain/exposure.rs`) when no tool of the lock declares that bin,
+never for a program that belongs to no install,
+and points it through the tool's `current` link.
+Two defects in that path were fixed with it,
+both measured on this machine:
+`install_below_root` compared a program's own path with a root as text,
+so `/proc/self/exe`'s resolved `/var/home/...` never matched the `/home/...` a scope spells,
+and found no install at all;
+`place_binary` hard-linked a symbolic link,
+which a release archive's install leaves beside the program's folder,
+so the launcher became a link whose relative target resolved in the launcher's own directory.
+Evidence,
+2026-11-11,
+in a disposable home holding the global plan and lock and both installs:
+`mpm-shadow install --global` put `mpm-shadow` in the farm,
+the launcher's own sentence `mpm-shadow update -g cargo:monochromatic-demo-tool` ran as printed and exited 0,
+the lock then named the version that runs and the warning was gone.
+`tests/printed_remedy.rs` holds both checks and each one failed before its fix.
+Still the coordinator's to do after the release:
+run `mpm-shadow install -g` on this machine so the farm carries the link here.
+
+Still open,
+a second class of printed remedy that does not run as printed,
+found while proving the first:
+a sentence printed by a `-g` run names its verb without `-g`,
+so it runs but refuses.
+Measured 2026-11-11 in the same disposable home:
+`mpm-shadow install --global --lockfile-only --offline` printed
+"run `mpm-shadow update` to resolve the plan's tools and write it",
+and that command as printed exited 2 with
+"no toolchain.plan.jsonc in <dir> or any parent directory;
+run mpm-shadow inside the repository,
+set MONOCHROMATIC_WORKTREE_ROOT,
+or use --global".
+The sites:
+`sync.rs` (the frozen-lockfile advice,
+the failed-lookup advice and the missing-lock advice),
+`agree.rs` (both refusals),
+`binstall_no_archive.rs` (the no-archive advice),
+and `old_copy_remove.rs` (the cargo-uninstall advice),
+which is the same shape `launcher_current_link.rs` already solves with `ScopeKind`
+(`mpm-shadow install -g`).
+It needs its own wording decision and its own branch:
+the message text is quoted in `package/mpm-shadow/cli/README.md`,
+and the tests assert the exact sentences.
 
 Ordered behind other work rather than waiting for a slot:
 

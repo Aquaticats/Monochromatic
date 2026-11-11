@@ -37,6 +37,8 @@ use super::error::ToolchainError;
 use super::install_support::atomic_symlink;
 /// Imports `ensure_launcher` from `super::launcher`.
 use super::launcher::ensure_launcher;
+/// Imports what this module uses from `super::launcher_source`.
+use super::launcher_source::{newest_installed_shadow, program_name, running_program};
 /// Imports `find_tool_bin` from `super::layout`.
 use super::layout::find_tool_bin;
 /// Imports what this module uses from `super::model`.
@@ -84,7 +86,8 @@ fn exposed_target(scope: &Scope, tool: &LockedTool, name: &str, found: &Path) ->
 /// Links every declared bin of `tools` in the exposure directory:
 /// the program is searched under its route's
 ///           directories,
-/// aliases link their primary's program.
+/// aliases link their primary's program,
+/// and the running `mpm-shadow` is linked under its own name when no tool declares it.
 /// Why:
 /// Called after the installers ran,
 /// so freshly installed programs are found;
@@ -121,7 +124,62 @@ pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<Exposure
             }
         }
     }
+    if let Some(name) = expose_running_shadow(ctx, &running_program()?)? {
+        report.linked.push(name);
+    }
     return Ok(report);
+}
+
+/// What:
+/// The farm link that makes the running `mpm-shadow` reachable under its own name,
+/// or `None` when there is nothing to link.
+/// Why:
+/// The sentences `mpm-shadow` prints name it as the program a person runs:
+/// the machine-global older-lock sentence (`mpm-shadow update -g <tool id>`),
+/// the launcher's advice when a program under `current` is missing (`mpm-shadow install -g`),
+/// and `mpm-shadow --help` in the shim's help.
+/// A shell outside a checkout reaches only this scope's farm,
+/// so a machine whose global plan declares no `mpm-shadow` entry left every one of those commands unrunnable
+/// (measured 2026-11-11 in a home laid out like this machine's:
+/// `/bin/sh: line 1: mpm-shadow: command not found`,
+/// exit status 127).
+/// The link names the installed program,
+/// never the running file,
+/// so a run from a build folder puts no build on the machine's `PATH`,
+/// and it goes through `current`,
+/// so a later install that removes the version it names never leaves it dangling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function exposeRunningShadow(ctx: Context, running: string): string | undefined
+/// ```
+pub fn expose_running_shadow(ctx: &Context, running: &Path) -> Result<Option<String>, ToolchainError> {
+    let Some(installed) = newest_installed_shadow(ctx.scope, running) else {
+        return Ok(None);
+    };
+    let Some(program) = program_name(&installed) else {
+        return Ok(None);
+    };
+    let name: String = program.to_string_lossy().to_string();
+    // A plan row that declares this bin owns the farm link and the launcher record behind it,
+    // which names that tool's id; a second link here would take the name over with a record no lock row knows.
+    if declares_bin(ctx.tools, &name) {
+        return Ok(None);
+    }
+    atomic_symlink(&ctx.scope.exposure_dir.join(&name), &installed)?;
+    return Ok(Some(name));
+}
+
+/// Whether a tool of the scope's lock declares `name` as one of its bins.
+fn declares_bin(tools: &[LockedTool], name: &str) -> bool {
+    for tool in tools {
+        for bin in &tool.declaration.bins {
+            if bin == name {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /// The directory a postinstall link goes in:
@@ -249,7 +307,15 @@ pub(crate) fn postinstall_path(
     if let Some(existing) = inherited {
         directories.extend(std::env::split_paths(existing));
     }
-    return std::env::join_paths(&directories).map(|path| return path.to_string_lossy().to_string());
+    return std::env::join_paths(&directories).map(path_text);
+}
+
+/// One joined `PATH` entry as text.
+/// A named function and not a closure:
+/// nothing is captured,
+/// and a reader sees where the text comes from.
+fn path_text(path: std::ffi::OsString) -> String {
+    return path.to_string_lossy().to_string();
 }
 
 /// What:
