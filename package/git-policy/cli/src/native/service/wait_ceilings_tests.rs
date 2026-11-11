@@ -61,16 +61,22 @@ fn every_foreign_lock_wait_is_the_measured_whole_minute() {
 
 /// A commit that moved under its own build is built again until the answer ceiling,
 /// not for a count of builds,
-/// and the commit path names the ceiling.
+/// and the commit path's answer to a moved branch names the ceiling.
+/// The answer to a moved branch lives in its own file
+/// (`landing/service_commit_after_a_moved_branch.rs`),
+/// so that the loop in `landing/service_commit.rs` stays under the line limit;
+/// that move is d5af173797,
+/// which kept every condition and every message as it was.
 #[test]
 fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     assert_eq!(MOVED_BRANCH_REBUILD_CEILING, ANSWER_CEILING);
     let decision: &str = include_str!("../landing/service_commit_rebuild_ceiling.rs");
     assert!(decision.contains("MOVED_BRANCH_REBUILD_CEILING"), "the rebuilding decision takes this ceiling");
-    let rebuilding: &str = include_str!("../landing/service_commit_rebuild_ceiling.rs");
-    assert!(rebuilding.contains("may_rebuild") && rebuilding.contains("MOVED_BRANCH_REBUILD_CEILING"), "the rebuilding decision reads this ceiling");
+    assert!(decision.contains("may_rebuild"), "the rebuilding decision reads this ceiling");
+    let answered: &str = include_str!("../landing/service_commit_after_a_moved_branch.rs");
     let commit: &str = include_str!("../landing/service_commit.rs");
-    assert!(!commit.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
+    assert!(answered.contains("may_rebuild"), "the answer to a moved branch takes this ceiling");
+    assert!(!answered.contains("REBUILD_ATTEMPTS") && !commit.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
 }
 
 /// The scratch repository's `git commit` is stopped at three times the slowest `git commit` step record:

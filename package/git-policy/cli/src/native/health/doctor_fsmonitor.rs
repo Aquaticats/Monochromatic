@@ -11,9 +11,9 @@
 //! disable git's fsmonitor globally entirely and make doctor say so."
 //! It is off in the person's global
 //!  configuration,
-//! and the wrapper never passes `-c core.fsmonitor=...` to its children,
-//! so doctor is where the state is
-//!  visible:
+//! and the Git the wrapper starts for its own work passes `-c core.fsmonitor=false`
+//! (`hooks_off.rs`),
+//! so what doctor reports is about the person's own Git:
 //! one line when it is off,
 //! and a finding with the exact command when some scope turns it on.
 //!  Doctor reports and never writes configuration.

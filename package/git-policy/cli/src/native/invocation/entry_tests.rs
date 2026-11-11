@@ -18,8 +18,11 @@
 /// Import the decision under test and shared fixtures.
 use super::{MANAGEMENT_COMMAND, plan_invocation};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
-use crate::child_environment::FORWARD_TARGET_VARIABLE;
+use crate::child_environment::{FORWARD_TARGET_VARIABLE, never_prompt_overlay};
 use crate::config_file::CONFIG_FILE_NAME;
+/// The kernel's answer about this process's controlling terminal,
+/// which decides whether the never-prompt pair is in the overlay.
+use crate::control_terminal::{Terminal, control_terminal};
 use crate::management_arguments::MANAGEMENT_HELP;
 use crate::real_git::{Platform, ResolutionInputs};
 use crate::test_support::{REAL_GIT, executable, fixture, remove, repository};
@@ -68,15 +71,18 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
     return result;
 }
 
-/// The forward action for these fixtures:
-///  real Git,
-///  the lock-PID overlay,
-///  the never-prompt pair this process earns when it has no controlling terminal,
-///  and no warning.
-///  The pair comes from the invocation's own answer because a test process with a terminal and one without forward the
-///  same routing;
-///  the pair's variables and order are proven in `child_environment_tests.rs`.
-pub(super) fn forward(arguments: Vec<OsString>) -> Action {
+/// The overlay every typed command's real-Git start carries,
+/// for the terminal this process has:
+/// the lock-PID injection and the forward-target marker,
+/// plus the never-prompt pair when no controlling terminal answered.
+/// Why:
+///  The plan asks the kernel for this process's controlling terminal,
+/// so a suite run at a terminal and one run in a session without one
+///  each expect the overlay its own answer produces;
+/// the answer never comes from whether standard input is a terminal
+/// (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`),
+/// and the pair's variables and order are proven in `child_environment_tests.rs`.
+fn expected_overlay() -> Vec<(OsString, OsString)> {
     let mut overlay: Vec<(OsString, OsString)> = vec![
         (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
         (
@@ -89,13 +95,21 @@ pub(super) fn forward(arguments: Vec<OsString>) -> Action {
             OsString::from(REAL_GIT),
         ),
     ];
-    if crate::control_terminal::control_terminal() == crate::control_terminal::Terminal::Absent {
-        overlay.extend(crate::child_environment::never_prompt_overlay());
+    if control_terminal() == Terminal::Absent {
+        // The pair goes last, as it does in the invocation's own overlay.
+        overlay.extend(never_prompt_overlay());
     }
+    return overlay;
+}
+
+/// The forward action for these fixtures:
+///  real Git,
+///  the overlay of `expected_overlay` and no warning.
+pub(super) fn forward(arguments: Vec<OsString>) -> Action {
     return Action::Forward {
         real_git: PathBuf::from(REAL_GIT),
         arguments,
-        overlay,
+        overlay: expected_overlay(),
         stderr: String::new(),
     };
 }

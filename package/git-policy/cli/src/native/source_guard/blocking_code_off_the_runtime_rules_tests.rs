@@ -393,6 +393,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         rule: "blocking-sleep",
         why: "the pause between looks at a phase's release, on the synchronous face",
     },
+    Allowed {
+        file: "worktree/worktree_snapshot_ahead_claim.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks at the copy the commit service is making, on the add's own synchronous face; the ceiling ends the wait and no worker of the runtime is held by it",
+    },
     // One call on a known small file inside a task, which the plan allows once and the merge's own step batches.
     Allowed {
         file: "merge/merge_isolation_carry_place.rs",
@@ -403,6 +408,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         file: "merge/merge_isolation_changes.rs",
         rule: "storage-read-on-a-task",
         why: "one metadata look and one link read of a known path; the merge's own step owns batching them on the blocking pool",
+    },
+    Allowed {
+        file: "merge/merge_isolation_kept_copies_decisions.rs",
+        rule: "storage-read-on-a-task",
+        why: "a metadata look at the copy and one at the path it belongs to, once per kept copy; the merge's own step owns batching them on the blocking pool",
     },
     Allowed {
         file: "merge/merge_isolation_recovery_records.rs",

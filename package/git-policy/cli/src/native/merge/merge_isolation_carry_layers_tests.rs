@@ -47,7 +47,7 @@ fn agreeing_sides_need_no_object_read() {
         ("theirs is the base", Layer { base: base.clone(), ours: theirs.clone(), theirs: base.clone() }, Outcome::Ours, Some("100644")),
         ("both agree", Layer { base: base.clone(), ours: theirs.clone(), theirs: theirs.clone() }, Outcome::Ours, Some("100644")),
         ("the merge deletes it", Layer { base: base.clone(), ours: side(&"c".repeat(40)), theirs: None }, Outcome::Kept(MODIFY_DELETE), Some("100644")),
-        ("the person deleted it", Layer { base: base.clone(), ours: None, theirs: theirs.clone() }, Outcome::Gone(DELETE_MODIFY), None),
+        ("the path held nothing of the person's", Layer { base: base.clone(), ours: None, theirs: theirs.clone() }, Outcome::Gone(DELETE_MODIFY), None),
     ];
     for (label, layer, expected, mode) in layers {
         let Some(decided): Option<Decision> = decide_without_the_pass(&layer) else { panic!("{label} is decided without Git") };

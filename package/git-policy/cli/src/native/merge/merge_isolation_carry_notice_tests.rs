@@ -91,3 +91,29 @@ fn the_line_about_a_path_a_restore_left_alone_names_no_file() {
 fn nothing_to_say_is_no_line() {
     assert_eq!(report_lines("feature", &Report::default()), Vec::<String>::new());
 }
+
+/// What:
+///  A command that finishes a merge an earlier one began says so,
+///  and never names a repository ref as the merge the person ran.
+/// Why:
+///  The recovery of a killed merge has the merge's record and not the command the person typed,
+/// so a line built from the
+///  branch a merge lands on reads
+/// `git merge refs/heads/main`,
+/// which is not a command anybody ran
+///  (`merge-carry-review-round-2-findings-1`,
+/// its second finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(reportLines('', { merged: [b'a.txt'] })[0]).toContain('the merge an earlier command began');
+/// ```
+#[test]
+fn a_recovered_merges_line_names_the_merge_and_not_a_repository_ref() {
+    let report: Report = Report { merged: vec![b"a.txt".to_vec()], ..Report::default() };
+    let lines: Vec<String> = report_lines("", &report);
+    let line: &str = lines.first().map(String::as_str).unwrap_or_default();
+    assert!(line.contains("the merge an earlier command began and this one finished"), "{line}");
+    assert!(line.contains("a.txt"), "{line}");
+    assert!(!line.contains("refs/heads/"), "a repository ref is no command: {line}");
+}

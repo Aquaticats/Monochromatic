@@ -474,6 +474,9 @@ fn a_commit_with_a_worktree_config_costs_what_one_without_costs() {
 /// `config`,
 /// `diff` and
 ///  `diff-tree` starts) answered the questions it would have answered from the files.
+/// The wrapper's own Git passes `-c core.fsmonitor=false` (`hooks_off.rs`),
+/// so the commit starts no daemon either;
+/// the setting reaches only the person's own commands.
 #[test]
 fn a_commit_with_core_fsmonitor_true_costs_what_one_without_costs() {
     require_budget("monitor-on", Scenario::MonitorOn, &WARM);

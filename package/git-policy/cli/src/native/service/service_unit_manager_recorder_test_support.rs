@@ -76,4 +76,11 @@ impl Manager for Recorder {
         self.calls.borrow_mut().push(format!("state {unit}"));
         return Ok(None);
     }
+
+    fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {
+        // This manager holds no unit, so it can say nothing about an address it made. The question is kept apart from
+        //  `calls`, which controls compare exactly, so a question that changes nothing in them stays out of them.
+        let _asked: &str = unit;
+        return Ok(None);
+    }
 }
