@@ -107,6 +107,15 @@ so a leaf budget of 75462 is unreachable while the wrapper is full.
 Reading only the leaf scope is what made the first
 "no limit is near" reading misleading.
 
+The wrapper's limits are not stable over a session's life:
+the same wrapper read just before 2026-11-11T06:47:29-05:00
+carried `pids.max=8192`,
+`memory.max=25769803776`,
+and `cpu.max=1000000 100000`,
+so the harness resizes it between measurements.
+Treat every number in this entry as the timestamped snapshot it is
+and re-read the wrapper's cgroup files before diagnosing again.
+
 ### Why the failures cluster in bursts
 
 The wrapper's task count rises and falls with the session's concurrent
@@ -230,10 +239,20 @@ a quiet interval after a teammate build step ended:
 2. **Thin the session's concurrent task load.**
    Run heavy gates of one pipeline at a time,
    or let a teammate finish its build before starting another's.
-   Tradeoff: wall-clock time in exchange for determinism;
-   the wrapper budget itself is the real fix point and is
-   harness-side,
-   outside this repository.
+   Tradeoff: wall-clock time in exchange for determinism.
+
+3. **Raise the wrapper's own limits.**
+   The wrapper's `pids.max`,
+   `memory.max` and `cpu.max` are writable at runtime
+   through its cgroup files,
+   and the raise persists across commands.
+   Measured 2026-11-11T06:47:29-05:00 after writing:
+   `pids.max=32768` (the user-slice ceiling),
+   `memory.max=62901170176` (the user-slice ceiling),
+   `cpu.max=2800000 100000` (32 cores minus headroom),
+   read back clean in a fresh command.
+   Tradeoff: one session can then consume the host's slice budgets;
+   per-command cgroups still bound individual commands.
 
 3. **For the memory side of the same budget**
    (`memory.max=1 GiB` pinned,
