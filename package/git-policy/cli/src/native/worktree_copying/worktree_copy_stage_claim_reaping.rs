@@ -451,6 +451,15 @@ pub fn reap_judged_stages(
             // A record that cannot be looked up counts as one: when in doubt the stage is kept.
             let of_an_add: bool = !matches!(std::fs::symlink_metadata(record.as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
             let mut stage_stays: bool = false;
+            // The exchange a kill interrupted left the directory Git made at the stage name, which the proof below
+            // cannot account for; settling it is one empty folder and a few identity checks, never a copy, so every
+            // command may do it wherever it runs. A stage name that is already clear is settled here too.
+            if of_an_add
+                && !journaled.contains(&container)
+                && crate::worktree_copy_swapped_add_settlement::settle_before_the_stage_proof(claim.as_path(), container.as_path(), &mut notices)?
+            {
+                continue;
+            }
             if present && !journaled.contains(&container) {
                 if of_an_add {
                     // Both proofs, or nothing is removed: the record of the object the creation made names the object
