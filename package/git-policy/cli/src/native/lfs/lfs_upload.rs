@@ -34,7 +34,7 @@ use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// the wait a stalled child is ended by,
 /// and the line that says how a longer one is allowed.
 use crate::bounded_push::{
-    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, push_patience, wait_until_done_noting, run_bounded_push,
+    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, connected_window, push_patience, wait_until_done_noting, run_bounded_push,
 };
 /// The invocation's environment values,
 /// and whether its overlay turns prompting off for the children.
@@ -302,10 +302,17 @@ async fn await_upload(
     // The upload leaves no reference lock, so the ledger the stop sweeps is empty.
     let locks: LockLedger = LockLedger::none();
     let patience = push_patience(environment);
-    // A typed upload's own terminal carries the program's lines, so the stop and the wait name no server here.
-    let mut naming: crate::bounded_push::ServerNaming<'_> = crate::bounded_push::ServerNaming::none(environment);
-    let ended: Result<ExitStatus, StopCause> =
-        match wait_until_done_noting(&mut child, &[captured], patience, label.as_str(), &mut waits, None, &mut naming).await {
+    let ended: Result<ExitStatus, StopCause> = match wait_until_done_noting(
+        &mut child,
+        &[captured],
+        patience,
+        label.as_str(),
+        &mut waits,
+        None,
+        connected_window(environment),
+    )
+    .await
+    {
         // A wait that could not be made at all is this process's own defect, and its words say which.
         Err(wait) => return Err(RunError::Wait(wait.to_string())),
         Ok(finished) => finished,

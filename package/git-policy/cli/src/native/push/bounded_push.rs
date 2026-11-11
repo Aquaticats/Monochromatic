@@ -77,8 +77,9 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 /// Time spans and the monotonic clock.
 use std::time::Duration;
 pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, Patience, positive_seconds, push_deadline, push_patience, strip_one_line_break};
-/// The window a run whose connection is open may stay silent for.
-use crate::push_deadline_and_patience_settings::connected_window;
+/// The window a run whose connection is open may stay silent for,
+/// which `lfs_upload` reads for the upload it waits on itself.
+pub use crate::push_deadline_and_patience_settings::connected_window;
 /// The server a wait and a stop name,
 /// and the word a command gave as its destination.
 pub use crate::push_server_naming::{ServerNaming, first_word};
@@ -250,8 +251,7 @@ pub async fn wait_until_done_up_to(
     stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
-    let mut naming: ServerNaming<'_> = ServerNaming::none(&[]);
-    return wait_with_clock(child, outputs, clock, cap, "git", &mut waits, quiet, stop, &mut naming).await;
+    return wait_with_clock(child, outputs, clock, cap, "git", &mut waits, quiet, stop).await;
 }
 
 /// What:
@@ -275,11 +275,11 @@ pub async fn wait_until_done_noting(
     label: &str,
     waits: &mut Vec<WaitReport>,
     stop: Option<&StopArm>,
-    naming: &mut ServerNaming<'_>,
+    window: Duration,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    let clock: Clock = Clock::start(child.id(), patience).with_connected_window(connected_window(naming.environment));
+    let clock: Clock = Clock::start(child.id(), patience).with_connected_window(window);
     let mut unused: Option<Duration> = None;
-    return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop, naming).await;
+    return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
 }
 
 /// The loop of both waits,
@@ -293,7 +293,6 @@ async fn wait_with_clock(
     waits: &mut Vec<WaitReport>,
     quiet: &mut Option<Duration>,
     stop: Option<&StopArm>,
-    naming: &mut ServerNaming<'_>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     // Nothing is kept where the clock reads nothing: its figure would be the elapsed time, not a quiet gap.
     loop {
@@ -318,8 +317,7 @@ async fn wait_with_clock(
         }
         if let Some(report) = clock.take_wait_note() {
             // Said as the wait begins, so a long wait is read while it lasts (the service's log, or the person's terminal).
-            let server: Option<&str> = naming.server();
-            warn(TAG, &wait_line(label, &report, server));
+            warn(TAG, &wait_line(label, &report));
             waits.push(report);
         }
     }
@@ -385,15 +383,10 @@ fn shortened_output_line() -> String {
 /// ```ts
 /// `monochromatic-git-policy-cli: ${label} ${WAIT_NOTE_PHRASE}: the connection to the remote is open (silent ${silent} seconds)`
 /// ```
-fn wait_line(label: &str, report: &WaitReport, named: Option<&str>) -> String {
-    // What the line calls the other end: the server it named, or the remote a destination names nothing about.
-    let other_end: String = match named {
-        Some(host) => format!("the server `{host}`"),
-        None => String::from("the remote"),
-    };
+fn wait_line(label: &str, report: &WaitReport) -> String {
     return format!(
-        "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to {other_end} is open, and nothing has moved for {} seconds \
-         (elapsed_seconds={}); it may be checking the push or preparing its answer. It is waited for until it answers or \
+        "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing has moved for {} seconds \
+         (elapsed_seconds={}); the remote may be checking the push or preparing its answer. It is waited for until it answers or \
          the connection closes, and a connection that stays open with nothing moving for {} seconds is stopped as a stall.",
         report.silent.as_secs(),
         report.elapsed.as_secs(),
@@ -488,10 +481,9 @@ pub async fn run_bounded_push_awaiting(
         .stdout(Stdio::from(for_stdout))
         .stderr(Stdio::from(for_stderr));
     let label: String = command_label(&command);
-    // How the lines a wait and a stop print name the server, read from the command before it is given to the child, and asked
-    //  before the locks are noted so that nothing this query does is taken for the push's own.
+    // How a stop names the server, read from the command before it is given to the child; asked for only if a stop needs it,
+    //  so a push that lands pays nothing for it.
     let mut naming: ServerNaming<'_> = ServerNaming::of(&command, environment);
-    naming.ask().await;
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
     let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
@@ -499,7 +491,8 @@ pub async fn run_bounded_push_awaiting(
     let mut child: OwnedChild = adopt(started);
     let mut waits: Vec<WaitReport> = Vec::new();
     let ended: Result<ExitStatus, StopCause> =
-        wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref(), &mut naming).await?;
+        wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref(), connected_window(environment))
+            .await?;
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }
@@ -516,9 +509,8 @@ pub async fn run_bounded_push_awaiting(
         shown_text.push_str(shortened_output_line().as_str());
     }
     // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
-    let server: Option<String> = naming.server().map(str::to_owned);
     for report in &waits {
-        let line: String = wait_line(label.as_str(), report, server.as_deref());
+        let line: String = wait_line(label.as_str(), report);
         if !shown_text.is_empty() {
             shown_text.push('\n');
         }
@@ -542,7 +534,11 @@ pub async fn run_bounded_push_awaiting(
                     },
                     extend_clause()
                 ),
-                StopCause::Stalled(report) => stalled_reason(&report, server.as_deref()),
+                StopCause::Stalled(report) => {
+                    // The server is asked for here, once, because a run that was not stopped never needed it.
+                    naming.ask().await;
+                    stalled_reason(&report, naming.server())
+                }
                 StopCause::ServiceStopped => format!(
                     "monochromatic-git-policy-cli: git push was ended because the service was stopped (limit=service-stop); \
                      {PUSH_QUEUED_LINE}"

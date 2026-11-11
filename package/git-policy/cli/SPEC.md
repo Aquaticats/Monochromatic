@@ -7132,13 +7132,15 @@ in-process reader can) gives every value of the multi-valued keys.
   A stop reports the limit that was hit:
   `limit=stall` with `made no progress for <window> seconds`,
   or `limit=connected` when the connection to the remote was what was held open,
-  and a connected stop names the server it waited for,
-  as its host and port with any userinfo left out,
-  which the run reads from its destination before the push starts:
-  a destination written as a URL answers with its own host,
-  and a remote name with one bounded `git remote get-url --push` query.
   and `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output,
   which the service journals.
+  A connected stop names the server it waited for,
+  as its host and port with any userinfo left out,
+  which the run reads from its destination only when a stop needs it:
+  a destination written as a URL answers with its own host,
+  and a remote name with one bounded `git remote get-url --push` query.
+  A push that lands reads nothing for the name,
+  and the wait line a live run prints says "the remote".
   The stall setting is named only where the stall window ended the run:
   the connected window is fixed,
   so a connected stop says that the variable does not change it and names the retry that settles it.

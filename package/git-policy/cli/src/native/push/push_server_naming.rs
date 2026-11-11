@@ -50,7 +50,7 @@ use std::process::{Command, CommandArgs};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class ServerNaming { static of(command, env); static none(env); async ask(); server() }
+/// class ServerNaming { static of(command, env); async ask(); server() }
 /// ```
 pub struct ServerNaming<'a> {
     /// The word the run gave as its destination,
@@ -72,12 +72,6 @@ pub struct ServerNaming<'a> {
 }
 
 impl<'a> ServerNaming<'a> {
-    /// A run that names no server,
-    /// and never asks.
-    pub fn none(environment: &'a [(OsString, OsString)]) -> ServerNaming<'a> {
-        return ServerNaming { destination: None, program: PathBuf::new(), directory: None, environment, asked: true, known: None };
-    }
-
     /// What:
     ///  How a run of `command` names the server it waits for,
     /// taken from the command before it starts.
@@ -148,6 +142,11 @@ impl<'a> ServerNaming<'a> {
         query.args(["remote", "get-url", "--push", destination]);
         if let Some(directory) = &self.directory {
             query.current_dir(directory);
+        }
+        // The environment is the run's own, so the query reads the repository the push will read and no other.
+        query.env_clear();
+        for (name, value) in self.environment {
+            query.env(name, value);
         }
         // The answer is bounded as every Git query of the wrapper's own is, by the same window and the same stop.
         let text: String = format!("remote get-url --push {destination}");

@@ -91,13 +91,16 @@ A socket carries no progress on the look that first sees it,
 because its counters then stand for
 this side's handshake and request.
 
-The stop and the wait name the server as well,
+A stop names the server as well,
 as host and port:
-the push's destination word is
-read from the command,
+the push's destination word is read
+from the command,
 a URL answers with its own host,
 and a remote name with one bounded
-`git remote get-url --push` query taken before the push starts.
+`git remote get-url --push` query,
+asked only when a stop needs it.
+A push that lands therefore pays nothing for the name,
+and the wait line a live run prints still says "the remote".
 
 A control that cannot wait 150 seconds shortens the window with
 `CLI_GIT_TEST_ONLY_CONNECTED_WINDOW_SECONDS`,

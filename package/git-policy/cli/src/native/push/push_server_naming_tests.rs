@@ -3,7 +3,8 @@
 
 use super::*;
 
-/// The password of the fixture's URL, made up for this control.
+/// The password of the fixture's URL,
+/// made up for this control.
 const CANARY_PASS: &str = "CANARYPASS9137";
 
 /// The label and the destination of a command's words are read by one rule,
@@ -36,8 +37,7 @@ fn the_destination_is_the_word_after_the_subcommand() {
 
 /// What:
 ///  A destination written as a URL answers with its host and port,
-/// with no userinfo in it,
-/// and a run that names no server answers nothing and asks nothing.
+/// with no userinfo in it.
 /// Why the question runs on the process's own runtime:
 ///   `ServerNaming::ask` is awaited by a push that itself runs as a task of that runtime.
 #[test]
@@ -51,8 +51,4 @@ fn a_url_destination_names_its_host_without_asking_git() {
     assert_eq!(naming.server(), None, "nothing is known before the question is asked");
     assert!(crate::lazy_runtime::run_on_runtime(naming.ask()).is_ok(), "the question is asked");
     assert_eq!(naming.server(), Some("127.0.0.1:36437"));
-    let unnamed: Vec<(OsString, OsString)> = Vec::new();
-    let mut silent: ServerNaming<'_> = ServerNaming::none(unnamed.as_slice());
-    assert!(crate::lazy_runtime::run_on_runtime(silent.ask()).is_ok());
-    assert_eq!(silent.server(), None, "a run that names no server says nothing");
 }

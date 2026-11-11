@@ -3924,10 +3924,14 @@ fractional or non-numeric value is ignored.
   The wrapper says so once,
   in a line that starts with `monochromatic-git-policy-cli: git push is waiting for the server`
    (`git fetch` or `git-lfs push` for those runs),
-  names the server the connection is to as its host and port when the run knows it,
   and waits until the remote answers or the connection closes,
    or until the connection stays open with nothing moving for that window,
-  when the run is stopped as a stall that names the same server.
+  when the run is stopped as a stall.
+  A stop names the server as its host and port,
+  which the run reads from its destination only when a stop needs it:
+  a destination written as a URL answers with its own host,
+  and a remote name with one bounded `git remote get-url --push` query,
+  so a push that lands pays nothing for the name.
   "Connected" means that a process of the run holds a TCP socket in state `ESTABLISHED`,
   read from the kernel.
   A connection that dies without a reset is noticed only when TCP gives up;

@@ -455,17 +455,14 @@ fn the_wait_line_names_the_connected_window_that_ends_the_wait() {
         elapsed: CONNECTED_PUSH_QUIET_WINDOW * 2,
         window: CONNECTED_PUSH_QUIET_WINDOW,
     };
-    let line: String = wait_line("git push", &report, None);
+    let line: String = wait_line("git push", &report);
     assert!(line.contains(WAIT_NOTE_PHRASE), "the line names the wait: {line}");
     assert!(!line.contains("no time limit"), "no promise of an unbounded wait: {line}");
     assert!(
         line.contains(&format!("{} seconds is stopped as a stall", CONNECTED_PUSH_QUIET_WINDOW.as_secs())),
         "the connected window that ends it is named: {line}"
     );
-    // A run that knew its destination names the server the connection is to, and one that did not says "the remote".
-    let named: String = wait_line("git push", &report, Some("127.0.0.1:8080"));
-    assert!(named.contains("the connection to the server `127.0.0.1:8080` is open"), "the line names the server: {named}");
-    assert!(line.contains("the connection to the remote is open"), "a run that named no server says the remote: {line}");
+    assert!(line.contains("the connection to the remote is open"), "the line says what the connection is to: {line}");
 }
 
 /// What:
