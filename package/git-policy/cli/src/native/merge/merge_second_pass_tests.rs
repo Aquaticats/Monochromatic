@@ -611,3 +611,52 @@ fn the_journal_entry_names_the_file_the_operation_and_the_parts() {
     );
     assert!(fields.iter().all(|(name, _)| { return crate::journald_native::valid_field_name(name); }));
 }
+
+/// What:
+///  A merge of many one-line regions is word-merged and every part is numbered in the line of the file a person opens.
+/// Why:
+///  The report moved every part into its file by counting the lines from the top of the stage,
+///  so a file of many parts cost its stage once per part:
+///  a merge of a hundred and three thousand parts against stages of 7.6 MB took about thirteen minutes
+///  (measured 2026-11-11 on this host with the release build).
+/// The count is now carried from region to region (`lines_between`),
+/// and these numbers are what tells a count carried wrongly from one that is not.
+#[test]
+fn a_merge_of_many_regions_numbers_every_part_in_its_file() {
+    const REGIONS: usize = 2_000;
+    let padding: String = "b".repeat(30);
+    let (mut base, mut ours, mut theirs) = (String::new(), String::new(), String::new());
+    for index in 0..REGIONS {
+        if index > 0 {
+            let separator: String = format!("s{index}\n");
+            base.push_str(separator.as_str());
+            ours.push_str(separator.as_str());
+            theirs.push_str(separator.as_str());
+        }
+        base.push_str(format!("alpha one {index} {padding}\n").as_str());
+        ours.push_str(format!("alpha uno {index} {padding}\n").as_str());
+        theirs.push_str(format!("ALPHA one {index} {padding}\n").as_str());
+    }
+    let root = fixture("second-pass-many-regions");
+    let repo = repository(root.as_path(), "repo");
+    for (name, text) in [("base", base.as_str()), ("ours", ours.as_str()), ("theirs", theirs.as_str())] {
+        std::fs::write(repo.join(name), text).expect("a stage");
+    }
+    let hashed = git(&repo, &["hash-object", "-w", "base", "ours", "theirs"]);
+    let oids: Vec<String> = String::from_utf8_lossy(&hashed.stdout).trim().split('\n').map(str::to_owned).collect();
+    let stage = |oid: &String| { return Some(Stage { mode: 0o100_644, oid: oid.clone() }); };
+    let conflict = Conflict { path: b"many.txt".to_vec(), base: stage(&oids[0]), ours: stage(&oids[1]), theirs: stage(&oids[2]) };
+    let context = git_context();
+    let runner = runner(&context, repo.as_path());
+    let sides = [base.as_bytes(), ours.as_bytes(), theirs.as_bytes()];
+    let outcome = await_it(crate::merge::merge_second_pass_git_lines::merge_with_git_lines(&runner, &conflict, sides));
+    let WordMerge::Resolved { parts, .. } = outcome.expect("the pass runs") else { panic!("every region is the word merge of two edits") };
+    assert_eq!(parts.len(), REGIONS, "one part for each region");
+    // Each region is one line on each side, and a shared line sits between two of them, so the parts' lines are the odd
+    // ones of every stage: the first from line 1.
+    for (index, part) in parts.iter().enumerate() {
+        let expected: usize = 2 * index + 1;
+        assert_eq!((part.base.first, part.ours.first, part.theirs.first), (expected, expected, expected), "the lines of part {}", index + 1);
+    }
+    remove(root.as_path());
+}

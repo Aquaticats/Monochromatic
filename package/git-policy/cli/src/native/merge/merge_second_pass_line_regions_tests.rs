@@ -241,7 +241,9 @@ fn a_region_sits_at_a_line_start_of_its_stage() {
     assert_eq!(offset_from_line(text, b"four\n", 0), None);
 }
 
-/// The lines before a place are the line ends before it.
+/// The lines before a place are the line ends before it,
+/// and the lines between two places add up to the lines before the later one,
+/// so a report can count each stage once.
 #[test]
 fn the_lines_before_a_place_count_from_the_top_of_the_stage() {
     let text: &[u8] = b"one\ntwo\nthree\n";
@@ -250,4 +252,15 @@ fn the_lines_before_a_place_count_from_the_top_of_the_stage() {
     assert_eq!(lines_before(text, 8), 2);
     // A place past the end counts every line, as a region after the last one does.
     assert_eq!(lines_before(text, 99), 3);
+    // The places a report meets, in the order it meets them, add up to the same count.
+    let places: [usize; 4] = [0, 4, 8, 13];
+    let mut counted: usize = 0;
+    for pair in places.windows(2) {
+        counted += lines_between(text, pair[0], pair[1]);
+    }
+    assert_eq!(counted, lines_before(text, places[3]), "the steps add up to the whole");
+    // A place that does not move backwards costs nothing, and one past the end counts the rest.
+    assert_eq!(lines_between(text, 4, 4), 0);
+    assert_eq!(lines_between(text, 8, 99), 1);
+    assert_eq!(lines_between(text, 99, 99), 0);
 }

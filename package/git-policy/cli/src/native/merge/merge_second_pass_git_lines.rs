@@ -35,7 +35,7 @@
 //! ```
 
 use crate::merge_second_pass::{Conflict, GitReply, GitRunner};
-use crate::merge_second_pass_line_regions::{Cut, MarkerLabels, Region, cut, lines_before};
+use crate::merge_second_pass_line_regions::{Cut, MarkerLabels, Region, cut, lines_between};
 use crate::word_merge::{LineSpan, MergedPart, WordMerge, merge_by_word};
 
 /// How many conflicts Git counts in its exit status at most:
@@ -134,23 +134,50 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
     };
     let mut merged: Vec<u8> = Vec::new();
     let mut parts: Vec<MergedPart> = Vec::new();
+    // What: each side's line count up to the place it reached, carried from region to region.
+    // Why: a region's place never moves backwards, so counting the lines from the last place to this one costs the stage's
+    // lines once for the whole file; counting them from the top of the stage for every part cost the stage per part, and a
+    // merge of a hundred and three thousand one-line regions against stages of 7.6 MB took about thirteen minutes
+    // (measured 2026-11-11 on this host with the release build).
+    let mut counted_to: [usize; 3] = [0, 0, 0];
+    let mut counted_lines: [usize; 3] = [0, 0, 0];
     for (at, region) in regions.iter().enumerate() {
         merged.extend_from_slice(cut.settled[at].as_slice());
         let WordMerge::Resolved { merged: text, parts: inner } = merge_by_word(region.base.as_slice(), region.ours.as_slice(), region.theirs.as_slice()) else {
             return Ok(WordMerge::Conflict { unresolved: cut.regions.len() });
         };
         merged.extend_from_slice(text.as_slice());
+        let base_above: usize = count_lines_to(&mut counted_to[0], &mut counted_lines[0], sides[0], region.starts[0]);
+        let ours_above: usize = count_lines_to(&mut counted_to[1], &mut counted_lines[1], sides[1], region.starts[1]);
+        let theirs_above: usize = count_lines_to(&mut counted_to[2], &mut counted_lines[2], sides[2], region.starts[2]);
         for part in inner {
             parts.push(MergedPart {
-                base: span_in_the_file(part.base, sides[0], region.starts[0]),
-                ours: span_in_the_file(part.ours, sides[1], region.starts[1]),
-                theirs: span_in_the_file(part.theirs, sides[2], region.starts[2]),
+                base: span_in_the_file(part.base, base_above),
+                ours: span_in_the_file(part.ours, ours_above),
+                theirs: span_in_the_file(part.theirs, theirs_above),
                 merged: part.merged,
             });
         }
     }
     merged.extend_from_slice(cut.settled.last().expect("a piece after the last region").as_slice());
     return Ok(WordMerge::Resolved { merged, parts });
+}
+
+/// What:
+///  How many lines of `text` come before `place`,
+/// counted from the place this side last reached.
+/// Why:
+///   A region's place never moves backwards,
+/// so each stage's lines are counted once for the whole file instead of once per part.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const countLinesTo = (reached, counted, text, place) => { counted.value += linesBetween(text, reached.at, place); reached.at = place; return counted.value; };
+/// ```
+fn count_lines_to(reached: &mut usize, counted: &mut usize, text: &[u8], place: usize) -> usize {
+    *counted += lines_between(text, *reached, place);
+    *reached = place;
+    return *counted;
 }
 
 /// What:
@@ -162,8 +189,8 @@ pub(super) async fn merge_with_git_lines(runner: &dyn GitRunner, conflict: &Conf
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const spanInTheFile = (span, stage, regionStart) => ({ first: span.first + linesBefore(stage, regionStart), count: span.count });
+/// const spanInTheFile = (span, linesAbove) => ({ first: span.first + linesAbove, count: span.count });
 /// ```
-fn span_in_the_file(span: LineSpan, stage: &[u8], region_start: usize) -> LineSpan {
-    return LineSpan { first: span.first + lines_before(stage, region_start), count: span.count };
+fn span_in_the_file(span: LineSpan, lines_above: usize) -> LineSpan {
+    return LineSpan { first: span.first + lines_above, count: span.count };
 }

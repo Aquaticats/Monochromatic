@@ -12912,6 +12912,12 @@ see the refusal below.
 A `--zdiff3` answer is cut into the text Git settled and the regions it left,
 and a region's line numbers for the report and the journal are found by searching its text forward from the end
 of the region before it.
+The lines above each region are counted from the place the region before it reached,
+never from the top of its stage:
+a merge of a hundred and three thousand one-line regions against stages of 7.6 MB took about thirteen minutes
+while every part counted its stage from the top
+(measured 2026-11-11 on this host with the release build),
+and the count carried from region to region costs each stage's lines once.
 The markers of that answer carry labels made unguessable for every merge
 (`-L ours-<random> -L base-<random> -L theirs-<random>`):
 Git does not escape the markers it writes,
