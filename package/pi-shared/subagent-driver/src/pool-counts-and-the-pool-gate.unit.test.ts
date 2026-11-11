@@ -1,7 +1,7 @@
 /**
- What the runs going now hold of each provider pool, and which pool a run may take: the counts, the summary line, and the answer
- the pool gate gives. Everything here is read from the runs and the pools a test hands over, so no unit, no process and no
- systemd is involved.
+ What the runs going now hold of each provider pool, which pool a run may take, and the room the build volume has: the counts,
+ the summary line, and the answer the pool gate gives. Everything here is read from the runs, the pools and the room a test
+ hands over, so no unit, no process, no systemd and no disk of this machine is involved.
 
  @module
  */
@@ -13,9 +13,13 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   ALREADY_RUNNING_EXIT_STATUS,
+  BYTES_IN_A_GIBIBYTE,
+  type FreeSpace,
+  FREE_SPACE_FLOOR_BYTES,
   type GateOutcome,
   type GoingRun,
   type LauncherArguments,
+  MODEL_OF_A_RUN_NAMING_NONE,
   MODEL_OPTION,
   NEURALWATT_DEEPSEEK_FLEX,
   NEURALWATT_KIMI_FLEX,
@@ -24,21 +28,34 @@ import {
   NO_SLOT_EXIT_STATUS,
   OPENCODE_GO,
   POOL_OF_A_RUN_NAMING_NO_POOL,
-  PoolGateOptionsError,
+  PROVIDER_OF_A_RUN_NAMING_NONE,
   PROVIDER_OPTION,
+  PROVIDER_POOLS,
+  PoolGateOptionsError,
   type PoolGateOptions,
   type PoolMembership,
+  type ProviderPool,
+  QWEN_PLAN_DEEPSEEK,
+  QWEN_PLAN_QWEN4_MAX_PREVIEW,
   firstDefaultPoolWithRoom,
+  freeSpaceFloorTextOf,
+  freeSpaceTextOf,
   gateOutcomeOf,
   launcherArgumentsOf,
   membershipOf,
-  parsePoolGateOptions,
   poolChoiceFor,
   poolHasRoom,
   poolNamed,
+  poolTakesNoNewRun,
   summaryTextOf,
   talliesOf,
 } from '../dist/final/node/index.mjs';
+
+/**
+ The volume every room in this file is on, which is no volume of this machine.
+
+ */
+const TEST_VOLUME = '/a-build-volume-of-the-test';
 
 /**
  One run going now, in the pool a test names.
@@ -70,10 +87,10 @@ function aRun(name: string, pool?: PoolMembership,): GoingRun {
 
  @example
  ```ts
- const inStandard = inPool(NEURALWATT_STANDARD);
+ const inTheFlexPool = inPool(NEURALWATT_DEEPSEEK_FLEX);
  ```
  */
-function inPool(pool: typeof NEURALWATT_STANDARD,): PoolMembership {
+function inPool(pool: ProviderPool,): PoolMembership {
   return {
     inAPool: true,
     pool,
@@ -91,10 +108,10 @@ function inPool(pool: typeof NEURALWATT_STANDARD,): PoolMembership {
 
  @example
  ```ts
- const runs = runsIn(NEURALWATT_STANDARD, 20);
+ const runs = runsIn(QWEN_PLAN_DEEPSEEK, QWEN_PLAN_DEEPSEEK.limit);
  ```
  */
-function runsIn(pool: typeof NEURALWATT_STANDARD, count: number,): readonly GoingRun[] {
+function runsIn(pool: ProviderPool, count: number,): readonly GoingRun[] {
   return Array.from(
     { length: count, },
     function named(_unused, index,) {
@@ -104,6 +121,160 @@ function runsIn(pool: typeof NEURALWATT_STANDARD, count: number,): readonly Goin
       );
     },
   );
+}
+
+/**
+ Every pool a run that names no model of its own may take, which is every pool that takes default runs and is open.
+
+ @returns the pools, in the order such a run takes them
+
+ @example
+ ```ts
+ const pools = openDefaultPools();
+ ```
+ */
+function openDefaultPools(): readonly ProviderPool[] {
+  return PROVIDER_POOLS.filter(function takesDefaultRunsAndIsOpen(pool,) {
+    return pool.takesDefaultRuns && (!poolTakesNoNewRun({ pool, },));
+  },);
+}
+
+/**
+ One run in every slot of every pool the test hands over.
+
+ @param pools - the pools to fill
+
+ @returns the runs
+
+ @example
+ ```ts
+ const runs = runsFilling(openDefaultPools());
+ ```
+ */
+function runsFilling(pools: readonly ProviderPool[],): readonly GoingRun[] {
+  return pools.flatMap(function everySlot(pool,) {
+    return runsIn(
+      pool,
+      pool.limit,
+    );
+  },);
+}
+
+/**
+ The pool a run that names no model of its own takes while every pool is empty, read from the pool table rather than written
+ down here.
+
+ @returns the pool
+
+ @throws Error when the table takes no default run at all, so expectations built from it could not hold
+
+ @example
+ ```ts
+ const pool = theFirstDefaultPool();
+ ```
+ */
+function theFirstDefaultPool(): ProviderPool {
+  /**
+   What the pool table answers about a machine on which nothing is going.
+   */
+  const pool = firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },);
+  if (pool === NO_POOL_HAS_ROOM) {
+    throw new Error('no pool takes a default run, so this test cannot expect a pool to take one',);
+  }
+  return pool;
+}
+
+/**
+ How many of the runs hold a slot in one pool.
+
+ @param runs - the runs going now
+
+ @param pool - the pool to count
+
+ @returns how many runs of those are in the pool
+
+ @example
+ ```ts
+ const count = countOf({ runs, pool: QWEN_PLAN_DEEPSEEK });
+ ```
+ */
+function countOf({
+  runs,
+  pool,
+}: {
+  readonly runs: readonly GoingRun[];
+  readonly pool: ProviderPool;
+},): number {
+  return runs.filter(function isInThisPool(run,) {
+    return run.membership.inAPool && (run.membership.pool.name === pool.name);
+  },).length;
+}
+
+/**
+ Says the counts line names every pool the table ships, in the table's order, each with the count these runs give it and its own
+ limit.
+
+ @param line - the counts line, without the room the volume has
+
+ @param runs - the runs the count is read from
+
+ @example
+ ```ts
+ expectCountsLineNamesEachPool({ line: summaryTextOf(tallies), runs });
+ ```
+ */
+function expectCountsLineNamesEachPool({
+  line,
+  runs,
+}: {
+  readonly line: string;
+  readonly runs: readonly GoingRun[];
+},): void {
+  /**
+   One entry per pool, in the order the line prints them.
+   */
+  const entries = line.split(', ',);
+  expect(entries.length,).toBe(PROVIDER_POOLS.length,);
+  for (const [index, pool,] of PROVIDER_POOLS.entries()) {
+    expect(entries[index],).toBe(`${pool.name} ${String(countOf({
+      runs,
+      pool,
+    },),)}/${String(pool.limit,)}`,);
+  }
+}
+
+/**
+ Room on the build volume well above the floor, so a run can start in a test.
+
+ @returns the room, and the volume it is on
+
+ @example
+ ```ts
+ const room = roomToSpare();
+ ```
+ */
+function roomToSpare(): FreeSpace {
+  return {
+    volume: TEST_VOLUME,
+    freeBytes: FREE_SPACE_FLOOR_BYTES + BYTES_IN_A_GIBIBYTE,
+  };
+}
+
+/**
+ Room on the build volume under the floor, which is the fill of 2026-11-11 that this floor came from.
+
+ @returns the room, and the volume it is on
+
+ @example
+ ```ts
+ const room = roomUnderTheFloor();
+ ```
+ */
+function roomUnderTheFloor(): FreeSpace {
+  return {
+    volume: TEST_VOLUME,
+    freeBytes: FREE_SPACE_FLOOR_BYTES - 1,
+  };
 }
 
 /**
@@ -146,7 +317,7 @@ function gateOptions(options: {
 
  @example
  ```ts
- const outcome = await gateOutcomeOf({ options, runs: [], tallies, sessionFileOf: aSessionFile, });
+ const outcome = await gateOutcomeOf({ options, runs: [], tallies, sessionFileOf: aSessionFile, freeSpace: roomToSpare(), });
  ```
  */
 async function aSessionFile(): Promise<string> {
@@ -163,17 +334,92 @@ await describe({
           name: 'reads the pool a provider and model share, and answers that they share none when they do not',
           fn: async () => {
             expect(poolNamed({
-              provider: 'neuralwatt',
-              model: 'deepseek-v4.1-flash',
-            },),).toEqual(inPool(NEURALWATT_STANDARD,),);
+              provider: QWEN_PLAN_DEEPSEEK.provider,
+              model: QWEN_PLAN_DEEPSEEK.model,
+            },),).toEqual(inPool(QWEN_PLAN_DEEPSEEK,),);
             expect(poolNamed({
-              provider: 'neuralwatt',
-              model: 'kimi-k3.1-pro-flex',
+              provider: NEURALWATT_KIMI_FLEX.provider,
+              model: NEURALWATT_KIMI_FLEX.model,
             },),).toEqual(inPool(NEURALWATT_KIMI_FLEX,),);
+            expect(poolNamed({
+              provider: QWEN_PLAN_QWEN4_MAX_PREVIEW.provider,
+              model: QWEN_PLAN_QWEN4_MAX_PREVIEW.model,
+            },),).toEqual(inPool(QWEN_PLAN_QWEN4_MAX_PREVIEW,),);
             expect(poolNamed({
               provider: 'synthetic',
               model: 'moonshotai/Kimi-K3.1-Pro',
             },),).toEqual({ inAPool: false, },);
+          },
+        },),
+        it({
+          name: 'reads the provider and model a unit of each pool carries on its own command line as that pool, which is the accounts\' own wording rather than a copy of the table',
+          fn: async () => {
+            /**
+             The `--provider` and `--model` words each pool's units and launchers carry, as the provider accounts name them, so
+             a typo in one changes both this list and the pool it names.
+             */
+            const wordsOfAUnit: readonly (readonly [string, string, ProviderPool])[] = [
+              ['qwen-token-plan-individual', 'deepseek-v4.1-flash-1017', QWEN_PLAN_DEEPSEEK],
+              ['neuralwatt', 'deepseek-v4.1-flash', NEURALWATT_STANDARD],
+              ['neuralwatt', 'deepseek-v4.1-flash-flex', NEURALWATT_DEEPSEEK_FLEX],
+              ['opencode-go', 'deepseek-v4.1-flash', OPENCODE_GO],
+              ['neuralwatt', 'kimi-k3.1-pro-flex', NEURALWATT_KIMI_FLEX],
+              ['qwen-token-plan-individual', 'qwen4-max-preview', QWEN_PLAN_QWEN4_MAX_PREVIEW],
+            ];
+            expect(wordsOfAUnit.length,).toBe(PROVIDER_POOLS.length,);
+            for (const [provider, model, pool,] of wordsOfAUnit) {
+              expect(poolNamed({
+                provider,
+                model,
+              },),).toEqual(inPool(pool,),);
+            }
+          },
+        },),
+        it({
+          name: 'reads the provider and model a run names nothing of as standard Neuralwatt, the pool the qwen plan replaced, so the run is placed on the first pool with room',
+          fn: async () => {
+            expect(poolNamed({
+              provider: PROVIDER_OF_A_RUN_NAMING_NONE,
+              model: MODEL_OF_A_RUN_NAMING_NONE,
+            },),).toEqual(inPool(NEURALWATT_STANDARD,),);
+            expect(poolTakesNoNewRun({ pool: NEURALWATT_STANDARD, },),).toBe(true,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: poolTakesNoNewRun.name,
+      children: [
+        it({
+          name: 'says a pool is closed exactly when a run of its own cannot take it, and the table holds both a closed pool and an open one',
+          fn: async () => {
+            /**
+             What the table holds of no pool at all.
+             */
+            const empty = talliesOf({ runs: [], },);
+            for (const pool of PROVIDER_POOLS) {
+              expect(poolTakesNoNewRun({ pool, },),).toBe(!poolHasRoom({
+                tallies: empty,
+                pool,
+              },),);
+            }
+            expect(PROVIDER_POOLS.some(function isClosed(pool,) {
+              return poolTakesNoNewRun({ pool, },);
+            },),).toBe(true,);
+            expect(PROVIDER_POOLS.some(function isOpen(pool,) {
+              return !poolTakesNoNewRun({ pool, },);
+            },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'says the pool the qwen plan replaced and the pool whose week is used up take no new run, and the pools that were given room do',
+          fn: async () => {
+            expect(poolTakesNoNewRun({ pool: NEURALWATT_STANDARD, },),).toBe(true,);
+            expect(poolTakesNoNewRun({ pool: OPENCODE_GO, },),).toBe(true,);
+            expect(poolTakesNoNewRun({ pool: QWEN_PLAN_DEEPSEEK, },),).toBe(false,);
+            expect(poolTakesNoNewRun({ pool: NEURALWATT_DEEPSEEK_FLEX, },),).toBe(false,);
+            expect(poolTakesNoNewRun({ pool: NEURALWATT_KIMI_FLEX, },),).toBe(false,);
+            expect(poolTakesNoNewRun({ pool: QWEN_PLAN_QWEN4_MAX_PREVIEW, },),).toBe(false,);
           },
         },),
       ],
@@ -219,17 +465,36 @@ await describe({
           name: 'counts every pool, at nothing when no run holds it, and leaves a run in no pool out',
           fn: async () => {
             /**
-             Two runs on the standard pool and one outside every pool.
+             Two runs on the qwen plan's pool and one outside every pool.
              */
-            const tallies = talliesOf({
-              runs: [
-                ...runsIn(NEURALWATT_STANDARD, 2,),
-                aRun('sol-audit-1',),
-              ],
+            const runs = [
+              ...runsIn(QWEN_PLAN_DEEPSEEK, 2,),
+              aRun('sol-audit-1',),
+            ];
+            /**
+             What the runs hold of each pool.
+             */
+            const tallies = talliesOf({ runs, },);
+            expect(tallies.counts.get(QWEN_PLAN_DEEPSEEK.name,),).toBe(2,);
+            expect(tallies.counts.get(NEURALWATT_DEEPSEEK_FLEX.name,),).toBe(0,);
+            expectCountsLineNamesEachPool({
+              line: summaryTextOf(tallies,),
+              runs,
             },);
-            expect(tallies.counts.get('neuralwatt',),).toBe(2,);
-            expect(tallies.counts.get('opencode-go',),).toBe(0,);
-            expect(summaryTextOf(tallies,),).toBe('neuralwatt 2/20, neuralwatt-flex 0/22, opencode-go 0/20, neuralwatt-kimi-flex 0/22',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: summaryTextOf.name,
+      children: [
+        it({
+          name: 'names every pool the table ships, in the order a run that names no model of its own takes them, each with its own limit',
+          fn: async () => {
+            expectCountsLineNamesEachPool({
+              line: summaryTextOf(talliesOf({ runs: [], },),),
+              runs: [],
+            },);
           },
         },),
       ],
@@ -238,24 +503,28 @@ await describe({
       name: poolHasRoom.name,
       children: [
         it({
-          name: 'says a pool has room while it is one below its limit, and none once it is at it',
+          name: 'says a pool with a slot left has room, one at its limit has none, and a closed pool never has any',
           fn: async () => {
             /**
-             The standard pool one run short of its limit.
+             A pool an ordinary run goes on, which is open and takes default runs.
              */
-            const nearlyFull = talliesOf({ runs: runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit - 1,), },);
+            const pool = theFirstDefaultPool();
             expect(poolHasRoom({
-              tallies: nearlyFull,
-              pool: NEURALWATT_STANDARD,
+              tallies: talliesOf({ runs: runsIn(pool, pool.limit - 1,), },),
+              pool,
             },),).toBe(true,);
-            /**
-             The standard pool at its limit.
-             */
-            const full = talliesOf({ runs: runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,), },);
             expect(poolHasRoom({
-              tallies: full,
-              pool: NEURALWATT_STANDARD,
+              tallies: talliesOf({ runs: runsIn(pool, pool.limit,), },),
+              pool,
             },),).toBe(false,);
+            for (const closed of PROVIDER_POOLS.filter(function isClosed(candidate,) {
+              return poolTakesNoNewRun({ pool: candidate, },);
+            },)) {
+              expect(poolHasRoom({
+                tallies: talliesOf({ runs: [], },),
+                pool: closed,
+              },),).toBe(false,);
+            }
           },
         },),
       ],
@@ -264,34 +533,23 @@ await describe({
       name: firstDefaultPoolWithRoom.name,
       children: [
         it({
-          name: 'takes the owner order: standard Neuralwatt, then its flex pool, then opencode-go, and never the Kimi pool',
+          name: 'takes the owner order, which starts with the qwen plan pool and then Neuralwatt flex, and skips a closed pool and a pool that takes only its own model',
           fn: async () => {
-            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(NEURALWATT_STANDARD,);
+            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: [], },), },),).toEqual(QWEN_PLAN_DEEPSEEK,);
             expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({ runs: runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,), },),
+              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, QWEN_PLAN_DEEPSEEK.limit,), },),
             },),).toEqual(NEURALWATT_DEEPSEEK_FLEX,);
-            expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({
-                runs: [
-                  ...runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,),
-                  ...runsIn(NEURALWATT_DEEPSEEK_FLEX, NEURALWATT_DEEPSEEK_FLEX.limit,),
-                ],
-              },),
-            },),).toEqual(OPENCODE_GO,);
           },
         },),
         it({
-          name: 'answers that no pool has room once every pool that takes a default run is full',
+          name: 'answers that no pool has room once every open pool that takes a default run is full, because the closed ones take no new run',
           fn: async () => {
-            expect(firstDefaultPoolWithRoom({
-              tallies: talliesOf({
-                runs: [
-                  ...runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,),
-                  ...runsIn(NEURALWATT_DEEPSEEK_FLEX, NEURALWATT_DEEPSEEK_FLEX.limit,),
-                  ...runsIn(OPENCODE_GO, OPENCODE_GO.limit,),
-                ],
-              },),
-            },),).toBe(NO_POOL_HAS_ROOM,);
+            /**
+             The pools a run that names no model of its own may take.
+             */
+            const open = openDefaultPools();
+            expect(open.length,).toBeGreaterThan(0,);
+            expect(firstDefaultPoolWithRoom({ tallies: talliesOf({ runs: runsFilling(open,), },), },),).toBe(NO_POOL_HAS_ROOM,);
           },
         },),
       ],
@@ -300,7 +558,7 @@ await describe({
       name: poolChoiceFor.name,
       children: [
         it({
-          name: 'moves a run that names a default model to the first pool with room, and says it was moved',
+          name: 'moves a run that names a default model, here the closed pool the launcher defaults name, to the first pool with room, and says it was moved',
           fn: async () => {
             expect(poolChoiceFor({
               requested: inPool(NEURALWATT_STANDARD,),
@@ -308,13 +566,13 @@ await describe({
               resumes: false,
             },),).toEqual({
               destination: 'a-pool',
-              pool: NEURALWATT_STANDARD,
+              pool: theFirstDefaultPool(),
               movesTheRun: true,
             },);
           },
         },),
         it({
-          name: 'keeps a run that resumes a session on the pool it named, with no wall factor',
+          name: 'keeps a run that resumes a session on the pool it named while that pool takes new runs, with no wall factor',
           fn: async () => {
             expect(poolChoiceFor({
               requested: inPool(NEURALWATT_DEEPSEEK_FLEX,),
@@ -325,6 +583,29 @@ await describe({
               pool: NEURALWATT_DEEPSEEK_FLEX,
               movesTheRun: false,
             },);
+          },
+        },),
+        it({
+          name: 'moves a resume whose own pool is closed to the first pool with room, because staying on it would refuse the run for ever',
+          fn: async () => {
+            /**
+             Every pool the owner closed, which a resumed run may name.
+             */
+            const closed = PROVIDER_POOLS.filter(function isClosed(pool,) {
+              return pool.takesDefaultRuns && poolTakesNoNewRun({ pool, },);
+            },);
+            expect(closed.length,).toBeGreaterThan(0,);
+            for (const pool of closed) {
+              expect(poolChoiceFor({
+                requested: inPool(pool,),
+                tallies: talliesOf({ runs: [], },),
+                resumes: true,
+              },),).toEqual({
+                destination: 'a-pool',
+                pool: theFirstDefaultPool(),
+                movesTheRun: true,
+              },);
+            }
           },
         },),
         it({
@@ -357,13 +638,7 @@ await describe({
             /**
              Every pool a default run can take, filled.
              */
-            const filled = talliesOf({
-              runs: [
-                ...runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,),
-                ...runsIn(NEURALWATT_DEEPSEEK_FLEX, NEURALWATT_DEEPSEEK_FLEX.limit,),
-                ...runsIn(OPENCODE_GO, OPENCODE_GO.limit,),
-              ],
-            },);
+            const filled = talliesOf({ runs: runsFilling(openDefaultPools(),), },);
             expect(poolChoiceFor({
               requested: inPool(NEURALWATT_STANDARD,),
               tallies: filled,
@@ -396,25 +671,25 @@ await describe({
             },);
             expect(given.words,).toEqual([
               '--name=copy-route',
-              '--wall=1200',
-              `${PROVIDER_OPTION}neuralwatt`,
-              `${MODEL_OPTION}deepseek-v4.1-flash-flex`,
+              `--wall=${String(600 * NEURALWATT_DEEPSEEK_FLEX.wallFactor,)}`,
+              `${PROVIDER_OPTION}${NEURALWATT_DEEPSEEK_FLEX.provider}`,
+              `${MODEL_OPTION}${NEURALWATT_DEEPSEEK_FLEX.model}`,
               '--runs-folder=/runs',
             ],);
-            expect(given.addedOptions,).toContain(`${PROVIDER_OPTION}neuralwatt`,);
+            expect(given.addedOptions,).toContain(`${PROVIDER_OPTION}${NEURALWATT_DEEPSEEK_FLEX.provider}`,);
           },
         },),
         it({
           name: 'rewrites the provider and model the caller named when the run takes the first free pool',
           fn: async () => {
             expect(launcherArgumentsOf({
-              commandLine: [`${PROVIDER_OPTION}neuralwatt`, `${MODEL_OPTION}deepseek-v4.1-flash`, '--name=a',],
+              commandLine: [`${PROVIDER_OPTION}${NEURALWATT_STANDARD.provider}`, `${MODEL_OPTION}${NEURALWATT_STANDARD.model}`, '--name=a',],
               pool: OPENCODE_GO,
               movesTheRun: true,
               runsFolder: '/runs',
             },).words,).toEqual([
-              `${PROVIDER_OPTION}opencode-go`,
-              `${MODEL_OPTION}deepseek-v4.1-flash`,
+              `${PROVIDER_OPTION}${OPENCODE_GO.provider}`,
+              `${MODEL_OPTION}${OPENCODE_GO.model}`,
               '--name=a',
               '--runs-folder=/runs',
             ],);
@@ -424,13 +699,13 @@ await describe({
           name: 'leaves every word alone when the run keeps the pool it named',
           fn: async () => {
             expect(launcherArgumentsOf({
-              commandLine: [`${PROVIDER_OPTION}neuralwatt`, '--name=a', '--wall=60',],
+              commandLine: [`${PROVIDER_OPTION}${NEURALWATT_KIMI_FLEX.provider}`, '--name=a', '--wall=60',],
               pool: NEURALWATT_KIMI_FLEX,
               movesTheRun: false,
               wallSeconds: 60,
               runsFolder: '/runs',
             },).words,).toEqual([
-              `${PROVIDER_OPTION}neuralwatt`,
+              `${PROVIDER_OPTION}${NEURALWATT_KIMI_FLEX.provider}`,
               '--name=a',
               '--wall=60',
               '--runs-folder=/runs',
@@ -461,34 +736,69 @@ await describe({
           name: 'answers the counts when asked for them alone, and needs no name for that',
           fn: async () => {
             /**
+             What the runs going now hold of each pool, which is nothing.
+             */
+            const runs: readonly GoingRun[] = [];
+            /**
              What the gate answered a caller that named no run.
              */
             const outcome: GateOutcome = await gateOutcomeOf({
               options: gateOptions({ countsOnly: true, }),
-              runs: [],
-              tallies: talliesOf({ runs: [], },),
+              runs,
+              tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
             },);
             expect(outcome.action,).toBe('counts',);
-            expect(outcome.lines,).toEqual(['neuralwatt 0/20, neuralwatt-flex 0/22, opencode-go 0/20, neuralwatt-kimi-flex 0/22',],);
+            expect(outcome.lines,).toEqual([`${summaryTextOf(talliesOf({ runs, },),)}; ${freeSpaceTextOf(roomToSpare(),)}`,],);
+            expectCountsLineNamesEachPool({
+              line: (outcome.lines[0] ?? '').split('; ',)[0] ?? '',
+              runs,
+            },);
           },
         },),
         it({
           name: 'answers the counts even when a run of that name is going, because a count names no run',
           fn: async () => {
             /**
-             What the gate answered while a run called copy-route was going.
+             A run of the name the gate was asked about.
+             */
+            const runs = [aRun('copy-route', inPool(QWEN_PLAN_DEEPSEEK,),),];
+            /**
+             What the gate answered while that run was going.
              */
             const outcome = await gateOutcomeOf({
               options: gateOptions({
                 countsOnly: true,
                 name: 'copy-route',
               },),
-              runs: [aRun('copy-route', inPool(NEURALWATT_STANDARD,),),],
-              tallies: talliesOf({ runs: [aRun('copy-route', inPool(NEURALWATT_STANDARD,),),], },),
+              runs,
+              tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
             },);
             expect(outcome.action,).toBe('counts',);
+          },
+        },),
+        it({
+          name: 'answers the counts with the room the build volume has, even while that room is under the floor, because reading the counts starts nothing',
+          fn: async () => {
+            /**
+             What the volume holds while it is under the floor.
+             */
+            const room = roomUnderTheFloor();
+            /**
+             What the gate answered while the volume was that full.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ countsOnly: true, }),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              freeSpace: room,
+            },);
+            expect(outcome.action,).toBe('counts',);
+            expect(outcome.lines,).toEqual([`${summaryTextOf(talliesOf({ runs: [], },),)}; ${freeSpaceTextOf(room,)}`,],);
           },
         },),
         it({
@@ -500,6 +810,7 @@ await describe({
                 runs: [],
                 tallies: talliesOf({ runs: [], },),
                 sessionFileOf: aSessionFile,
+                freeSpace: roomToSpare(),
               },);
             }
             catch (error) {
@@ -514,13 +825,18 @@ await describe({
           name: 'answers that the run is already going, with the status the retrying start reads as no retry',
           fn: async () => {
             /**
-             What the gate answered about a name that is going.
+             A run of the name the gate was asked about.
+             */
+            const runs = [aRun('copy-route', inPool(QWEN_PLAN_DEEPSEEK,),),];
+            /**
+             What the gate answered about that name.
              */
             const outcome = await gateOutcomeOf({
               options: gateOptions({ name: 'copy-route', }),
-              runs: [aRun('copy-route', inPool(NEURALWATT_STANDARD,),),],
-              tallies: talliesOf({ runs: [aRun('copy-route', inPool(NEURALWATT_STANDARD,),),], },),
+              runs,
+              tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
             },);
             expect(outcome.action,).toBe('already-running',);
             expect((outcome.action === 'already-running') ? outcome.status : 0,).toBe(ALREADY_RUNNING_EXIT_STATUS,);
@@ -528,16 +844,66 @@ await describe({
           },
         },),
         it({
+          name: 'answers that the run is already going even while the volume is under the floor, because that answer needs no room',
+          fn: async () => {
+            /**
+             A run of the name the gate was asked about.
+             */
+            const runs = [aRun('copy-route', inPool(QWEN_PLAN_DEEPSEEK,),),];
+            /**
+             What the gate answered about that name while the volume was under the floor.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs,
+              tallies: talliesOf({ runs, },),
+              sessionFileOf: aSessionFile,
+              freeSpace: roomUnderTheFloor(),
+            },);
+            expect(outcome.action,).toBe('already-running',);
+            expect(outcome.lines,).toEqual(['ALREADY RUNNING: copy-route',],);
+          },
+        },),
+        it({
+          name: 'refuses to start a run while the volume that holds the repository is under the floor, saying how much room there is and how much a run needs',
+          fn: async () => {
+            /**
+             What the volume holds while it is under the floor.
+             */
+            const room = roomUnderTheFloor();
+            /**
+             What the gate answered while the volume was that full.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({ name: 'copy-route', }),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              freeSpace: room,
+            },);
+            expect(outcome.action,).toBe('no-room',);
+            expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
+            expect(outcome.lines,).toEqual([
+              `NO SLOT: ${freeSpaceTextOf(room,)}, under the floor of ${freeSpaceFloorTextOf()}; not started: copy-route`,
+            ],);
+          },
+        },),
+        it({
           name: 'starts a second run of an audit name, because an audit holds no slot to conflict with',
           fn: async () => {
             /**
-             What the gate answered about an audit name that is going.
+             An audit of the name the gate was asked about.
+             */
+            const runs = [aRun('sol-audit-1',),];
+            /**
+             What the gate answered about that audit name.
              */
             const outcome = await gateOutcomeOf({
               options: gateOptions({ name: 'sol-audit-1', }),
-              runs: [aRun('sol-audit-1',),],
-              tallies: talliesOf({ runs: [aRun('sol-audit-1',),], },),
+              runs,
+              tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
             },);
             expect(outcome.action,).toBe('start',);
           },
@@ -548,11 +914,7 @@ await describe({
             /**
              Every pool a run that names a default model could take, filled.
              */
-            const filled = [
-              ...runsIn(NEURALWATT_STANDARD, NEURALWATT_STANDARD.limit,),
-              ...runsIn(NEURALWATT_DEEPSEEK_FLEX, NEURALWATT_DEEPSEEK_FLEX.limit,),
-              ...runsIn(OPENCODE_GO, OPENCODE_GO.limit,),
-            ];
+            const filled = runsFilling(openDefaultPools(),);
             /**
              What the gate answered while every one of them was full.
              */
@@ -561,10 +923,11 @@ await describe({
               runs: filled,
               tallies: talliesOf({ runs: filled, },),
               sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
             },);
             expect(outcome.action,).toBe('no-room',);
             expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
-            expect(outcome.lines[0],).toContain('NO SLOT:',);
+            expect(outcome.lines[0],).toContain(`NO SLOT: ${summaryTextOf(talliesOf({ runs: filled, },),)}`,);
             expect(outcome.lines[0],).toContain('not started: copy-route',);
           },
         },),
@@ -583,6 +946,7 @@ await describe({
               runs: [],
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
             },);
             expect(outcome.action,).toBe('start',);
             expect(outcome.lines[0],).toContain('goes on its own provider',);
@@ -603,9 +967,44 @@ await describe({
               runs: [],
               tallies: talliesOf({ runs: [], },),
               sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
             },);
             expect(outcome.action,).toBe('start',);
             expect(outcome.action === 'start' ? outcome.arguments.words : [],).toContain('--session=/sessions/a.jsonl',);
+          },
+        },),
+        it({
+          name: 'starts a resume on the first pool with room when the pool the run resumes on is closed, naming that pool in the launcher words',
+          fn: async () => {
+            expect(poolTakesNoNewRun({ pool: NEURALWATT_STANDARD, },),).toBe(true,);
+            /**
+             What the gate answered for a run that resumes a run on the closed pool.
+             */
+            const outcome = await gateOutcomeOf({
+              options: gateOptions({
+                name: 'copy-route-2',
+                provider: NEURALWATT_STANDARD.provider,
+                model: NEURALWATT_STANDARD.model,
+                sessionOfRunFolder: 'copy-route-1',
+                commandLine: [
+                  '--name=copy-route-2',
+                  `${PROVIDER_OPTION}${NEURALWATT_STANDARD.provider}`,
+                  `${MODEL_OPTION}${NEURALWATT_STANDARD.model}`,
+                  '--session-of=copy-route-1',
+                ],
+              },),
+              runs: [],
+              tallies: talliesOf({ runs: [], },),
+              sessionFileOf: aSessionFile,
+              freeSpace: roomToSpare(),
+            },);
+            expect(outcome.action,).toBe('start',);
+            expect(outcome.action === 'start' ? outcome.arguments.words : [],).toContain(
+              `${PROVIDER_OPTION}${theFirstDefaultPool().provider}`,
+            );
+            expect(outcome.action === 'start' ? outcome.arguments.words : [],).toContain(
+              `${MODEL_OPTION}${theFirstDefaultPool().model}`,
+            );
           },
         },),
       ],

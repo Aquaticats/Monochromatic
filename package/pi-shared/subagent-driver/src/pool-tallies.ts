@@ -112,8 +112,8 @@ export function poolHasRoom({
 }
 
 /**
- Reads the first pool with room for a run that named no model of its own: the owner's order is standard Neuralwatt, then its
- flex pool, then `opencode-go`.
+ Reads the first pool with room for a run that named no model of its own, in the owner's order of {@link PROVIDER_POOLS}: the
+ qwen plan's DeepSeek pool, then Neuralwatt's flex pool, since the pools before it are closed or take only their own model.
 
  @param tallies - how many runs each pool holds
 
