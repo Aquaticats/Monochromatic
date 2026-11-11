@@ -123,6 +123,10 @@ and the kernel lines that decide what it waits for.
   so a kill keeps the verdict,
   and a machine crash keeps the record the gate found,
   which `held_push_holder_and_verdict.rs` settles as a record with no verdict.
+  Flushing the verdict alone protected nothing the same record does not,
+  because `hold` writes the push obligation itself into it unflushed,
+  and the audit recorded in this document traced six concurrent flushes at 8 to 12.5 s each,
+  which is the wait the owner's "commits vs native git should not take 5s longer" rules out.
   Controls:
   `landing::service_handoff::tests::the_verdict_a_commit_records_flushes_nothing`,
   `held_push_settled_by_the_verdict::a_commit_whose_command_died_before_its_checks_names_what_sends_it`,

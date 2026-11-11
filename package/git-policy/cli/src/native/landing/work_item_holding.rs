@@ -93,6 +93,11 @@ pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String
 /// a kill keeps the verdict,
 /// and a machine crash keeps the record the gate found,
 /// which the settlement reads as no verdict.
+///   Flushing the verdict alone would protect nothing worth its wait,
+/// because `hold` writes the obligation itself into the same record unflushed
+///  (`write_private_file_unsynced`):
+/// a crash loses the promise to push with the verdict that approved it,
+/// and the commit stays local with every command naming the push a person can make.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
