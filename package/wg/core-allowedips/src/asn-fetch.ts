@@ -196,8 +196,9 @@ function collectLines(
  The archive is hundreds of megabytes across the tunnel;
  a working link finishes it in seconds,
  and a link that stopped moving is worth giving up on rather than waiting for.
+ Ten minutes is a bound for a stalled transfer and not a target.
  */
-const ASN_FETCH_DEADLINE_MILLISECONDS = 10 * 60 * 1000;
+const ASN_FETCH_DEADLINE_MILLISECONDS = 600_000;
 
 /**
  Reads the next chunk of the database,
@@ -216,10 +217,17 @@ const ASN_FETCH_DEADLINE_MILLISECONDS = 10 * 60 * 1000;
  @throws {@link AsnDatabaseError} when the deadline passed.
  */
 async function readOrStop(
-  reader: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>,
-  signal: AbortSignal,
-  deadline: number,
-  targetAsn: string,
+  {
+    reader,
+    signal,
+    deadline,
+    targetAsn,
+  }: {
+    readonly reader: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>;
+    readonly signal: AbortSignal;
+    readonly deadline: number;
+    readonly targetAsn: string;
+  },
 ): Promise<ReadableStreamReadResult<Uint8Array<ArrayBuffer>>> {
   if (signal.aborted) {
     throw new AsnDatabaseError(
@@ -288,7 +296,10 @@ export async function fetchAsnNetworks(
   /**
    HTTP response carrying gzip-encoded NDJSON.
    */
-  const response = await fetch(databaseUrl(token,), { signal, },);
+  const response = await fetch(
+    databaseUrl(token,),
+    { signal, },
+  );
   if (!response.ok) {
     throw new AsnDatabaseError(
       `IPinfo Lite database request failed with HTTP ${String(response.status,)}.`,
@@ -343,7 +354,12 @@ export async function fetchAsnNetworks(
       networks,
     },);
     // oxlint-disable-next-line eslint/no-await-in-loop -- ReadableStream readers are sequential pull sources.
-    readState.current = await readOrStop(reader, signal, deadline, targetAsn,);
+    readState.current = await readOrStop({
+      reader,
+      signal,
+      deadline,
+      targetAsn,
+    },);
   }
   /**
    Final decoder flush and unterminated trailing line.
