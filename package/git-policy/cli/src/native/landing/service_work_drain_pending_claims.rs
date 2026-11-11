@@ -83,12 +83,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     'round: loop {
         // One listing of `pending` for the whole round: each claim of it carries the reading of the moment it is taken, not of
         //  the start of the round, which a long round makes most of a lease old.
-        //  A drain of the slow kinds takes one item of each kind: a step of these kinds can take minutes
-        //  (`worktree_trash_dispose.rs`), and every record behind it in the same round would be claimed and renewed for that whole
-        //  time while it waited, unable to end and saying nothing about what it waited for
-        //  (`2026-11-11T10:24:46-05:00`: two reviews claimed and renewed for a quarter of an hour while the trashes ahead of them
-        //  were emptied).
-        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path(), kinds, a_round_claims_at_most(kinds)).await {
+        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path(), kinds).await {
             Ok(taken) => taken,
             Err(reason) => {
                 crate::service_error!("{reason}");
@@ -257,9 +252,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => break 'round,
             }
         }
-        // The review of a commit runs before every step that can take minutes: it is bounded by its own ceiling
-        //  (`REVIEW_CEILING`), it decides nothing about any push, and on 2026-11-11 two reviews stayed claimed for a quarter of
-        //  an hour while the round emptied trashes of removed worktrees ahead of them.
+        // The review of a commit runs before the steps that free space: it is bounded by its own ceiling (`REVIEW_CEILING`), it
+        //  decides nothing about any push, and on 2026-11-11 two reviews stayed claimed for a quarter of an hour while the round
+        //  emptied the trashes of removed worktrees ahead of them, one of which can run for many minutes
+        //  (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
         let reviewed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), reviews).await {
             Some((back, mine)) => {
                 held = back;

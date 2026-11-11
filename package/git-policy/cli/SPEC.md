@@ -13932,26 +13932,20 @@ with the path quoted for the shell.
 
 ### Leases of claimed work
 
-A round claims one item of each kind it drains before it runs any of them,
-and a round that drains the pushes alone claims every push it finds
-(`a_round_claims_at_most`,
-`src/native/landing/service_work_handlers_replanning_and_acceptance.rs`).
+A drain claims every pending record of the kinds it serves in one listing,
+and renews those claims while it runs them (`service_claim_renewal.rs`).
+The order of the kinds within one round is therefore the order in which a claimed record ends,
+and the kind that runs last waits claimed for as long as the kinds before it run.
 A step of the slow kinds can take minutes:
 emptying one trash of a removed worktree took 18 minutes on 2026-11-10
 (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
-A round that claimed every queued slow item would hold the claims of all of them,
-and renew them,
-for as long as its first step ran,
-so a record behind that step would be claimed and unable to end while it said nothing about what it waited for
-(measured in the main checkout on 2026-11-11:
-two reviews and four trashes claimed at `10:24:46-05:00` and renewed together until `10:39`,
-while newer commits' work stayed `pending`).
-Everything a round does not claim stays `pending`,
-which is the state that says the record is queued and that no command is working on it.
-Within one round of the slow kinds the review of a landed commit runs first:
-it is bounded by its own time limit,
+The review of a landed commit therefore runs before the steps that free space,
+because it is bounded by its own time limit (`REVIEW_CEILING`),
 it decides nothing about any push,
-and its entry in the review log is the whole of what it produces.
+and its entry in the review log is the whole of what it produces;
+measured in the main checkout on 2026-11-11,
+two reviews claimed at `10:24:46-05:00` were renewed with the trashes of one round until `10:39`,
+while the trashes ahead of them were emptied.
 
 The service takes a queued item by renaming its file into `claimed`,
 and the file name carries the clock reading of the holder's last renewal

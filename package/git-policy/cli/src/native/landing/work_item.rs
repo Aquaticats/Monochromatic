@@ -444,26 +444,11 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const claimed = []; for (const name of entriesOldestFirst(workDir, 'pending')) { if (atMostEach !== undefined && count(kindOf(name)) >= atMostEach) continue; const item = await take(name, now()); if (item) claimed.push(item) }; return claimed
+/// const claimed = []; for (const name of entriesOldestFirst(workDir, 'pending')) { const item = await take(name, now()); if (item) claimed.push(item) }; return claimed
 /// ```
-pub fn claim_all_of(work_dir: &Path, kinds: &[WorkKind], at_most_each: Option<usize>) -> Result<Vec<Claimed>, String> {
+pub fn claim_all_of(work_dir: &Path, kinds: &[WorkKind]) -> Result<Vec<Claimed>, String> {
     let mut claimed: Vec<Claimed> = Vec::new();
     for (id, queued) in entries_oldest_first(work_dir, PENDING) {
-        // A round that takes one of a kind leaves the rest where they are, so a step that takes minutes does not hold the
-        //  claims of the work behind it (`service_work_drain_pending_claims.rs`).
-        if let Some(limit) = at_most_each
-            && let Some(kind) = kind_of(id.as_str(), kinds)
-        {
-            let mut of_this_kind: usize = 0;
-            for taken in &claimed {
-                if taken.item.kind == kind {
-                    of_this_kind += 1;
-                }
-            }
-            if of_this_kind >= limit {
-                continue;
-            }
-        }
         // Each claim carries the reading of the moment it is taken, not of the start of the round, which a long round makes
         //  most of a lease old.
         if let Some(taken) = take_entry(work_dir, id.as_str(), queued, kinds, &ClaimTime::read(), &stamp_modification_time)? {
@@ -471,26 +456,6 @@ pub fn claim_all_of(work_dir: &Path, kinds: &[WorkKind], at_most_each: Option<us
         }
     }
     return Ok(claimed);
-}
-
-/// What:
-///  The kind a pending entry's file name names,
-///  or nothing when it names none of these kinds.
-/// Why:
-///   The kind is the first part of the name,
-///  and the limit of a round counts what it took by kind before it opens the entry.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const kindOf = (id, kinds) => kinds.find((kind) => id.startsWith(kind.name() + '-'));
-/// ```
-fn kind_of(id: &str, kinds: &[WorkKind]) -> Option<WorkKind> {
-    for candidate in kinds {
-        if id.starts_with(format!("{}-", candidate.name()).as_str()) {
-            return Some(*candidate);
-        }
-    }
-    return None;
 }
 
 /// What:

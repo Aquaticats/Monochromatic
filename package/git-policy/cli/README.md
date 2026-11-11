@@ -6392,8 +6392,8 @@ Guard tests keep it so:
   a commit is pushed as soon as its post-commit gate allows the push,
   whatever the review later says,
   and a review item that waits behind other work of the service holds no push back.
-  A review is claimed one at a time and runs before every step of the slow lane that can take minutes,
-  so a commit's review ends within the review's own time limit rather than behind a trash of a removed worktree.
+  A commit's review runs before the steps that free space, which can take many minutes,
+  so it ends within the review's own time limit rather than behind a trash of a removed worktree.
   That log is untracked and inside the Git directory,
   so no
   checkout shows it as a change;

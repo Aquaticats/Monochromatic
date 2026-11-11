@@ -80,11 +80,11 @@ fn refused(step: &str, reason: &BlockingJobError) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const claimed = await claimAllAwaiting(workDir, kinds, atMostEach)
+/// const claimed = await claimAllAwaiting(workDir, kinds)
 /// ```
-pub(crate) async fn claim_all_awaiting(work_dir: &Path, kinds: &'static [WorkKind], at_most_each: Option<usize>) -> Result<Vec<Claimed>, String> {
+pub(crate) async fn claim_all_awaiting(work_dir: &Path, kinds: &'static [WorkKind]) -> Result<Vec<Claimed>, String> {
     let directory: PathBuf = work_dir.to_path_buf();
-    return match run_blocking_job_within_the_budget(move || { return claim_all_of(directory.as_path(), kinds, at_most_each); }).await {
+    return match run_blocking_job_within_the_budget(move || { return claim_all_of(directory.as_path(), kinds); }).await {
         Ok(taken) => taken,
         Err(reason) => Err(format!("the look for this directory's pending records did not run, so none was claimed: {reason}")),
     };
