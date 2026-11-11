@@ -3,7 +3,8 @@
 //! the pause before each new try,
 //! the list of branches waiting
 //!  for one,
-//! and the test for the one failure no retry can mend.
+//! and the test for the one failure no retry can mend,
+//! and the line of Git's own words that a record names as the cause.
 //! Why:
 //!  The owner's rule is that auto-push must land (`SPEC.md`,
 //! "Merges and commits never fail").
@@ -332,7 +333,7 @@ impl Retrying {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef } };
+/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; onlyWhileUnreachable } };
 /// ```
 #[derive(Clone, Debug)]
 pub enum RetryChange {
@@ -357,6 +358,10 @@ pub enum RetryChange {
         git_dir: PathBuf,
         /// The branch reference.
         branch_ref: String,
+        /// Whether this forget rests on a reading that can go stale:
+        /// the proof that the repository is gone,
+        /// whose plans are dropped only while it still is.
+        only_while_unreachable: bool,
     },
 }
 
@@ -631,10 +636,18 @@ impl PushRetries {
     /// cannot take away a plan a later round wrote,
     /// and a change that never reached a thread here
     ///  leaves the journal holding what the worker itself wrote.
+    ///  A forget that rests on a reading of the filesystem,
+    /// the proof that a repository is gone,
+    /// is applied only while that directory is still missing:
+    ///  a repository renamed back by now is reachable,
+    /// and its plan is the only scheduled backup of its commits.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// for (const change of changes) change.forget ? forget(change) : plan(change);
+    /// for (const change of changes) {
+    ///   if (change.forget && change.onlyWhileUnreachable && isDirectory(change.gitDir)) continue;
+    ///   change.forget ? forget(change) : plan(change);
+    /// }
     /// ```
     pub fn apply(&mut self, changes: Vec<RetryChange>) {
         // How many of the changes this call has applied, for the control that kills a service inside it; nothing outside one.
@@ -651,7 +664,14 @@ impl PushRetries {
             }
             match change {
                 RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), &item, attempt, due),
-                RetryChange::Forget { git_dir, branch_ref } => self.forget(git_dir.as_path(), branch_ref.as_str()),
+                RetryChange::Forget { git_dir, branch_ref, only_while_unreachable } => {
+                    // The plan a proof of a missing repository ends was read before this change was applied, and a repository
+                    //  renamed back is there again: a plan that may still run is not dropped on a stale reading.
+                    if only_while_unreachable && git_dir.is_dir() {
+                        continue;
+                    }
+                    self.forget(git_dir.as_path(), branch_ref.as_str());
+                }
             }
         }
     }

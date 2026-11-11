@@ -232,3 +232,39 @@ fn a_pointer_to_a_directory_that_is_not_text_names_it() {
     assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
     remove(root.as_path());
 }
+
+/// What:
+///  Real Git:
+///  a worktree whose administrative directory name ends in a space still names its `HEAD`.
+/// Why:
+///   Every ASCII whitespace byte was taken from the pointer,
+///  so the space that belongs to the directory name went with the terminator,
+/// no `HEAD` sat at the name left,
+///  and the record of that removal said nothing about the branch the worktree was on.
+#[test]
+fn real_git_keeps_the_head_of_a_worktree_whose_administration_ends_in_a_space() {
+    let root: PathBuf = fixture("worktree-audit-admin-space");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(repo.as_path(), &["add", "--", "tracked.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let linked: PathBuf = root.join("linked");
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", linked.to_str().expect("a UTF-8 fixture path")],
+    );
+    // Git registers the worktree under the repository's own Git directory.
+    let administration: PathBuf = repo.join(".git").join("worktrees").join("linked");
+    let spaced: PathBuf = administration.with_file_name("linked ");
+    std::fs::rename(administration.as_path(), spaced.as_path()).expect("the administrative directory is renamed");
+    let mut pointer: Vec<u8> = Vec::from(b"gitdir: ".as_slice());
+    pointer.extend_from_slice(path_bytes_of(spaced.as_path()));
+    pointer.push(b'\n');
+    std::fs::write(linked.join(".git"), pointer).expect("pointer file");
+    // Real Git keeps the space and reads that worktree, so a removal meets exactly this pointer.
+    let read: std::process::Output = git_status(linked.as_path(), &["symbolic-ref", "HEAD"]);
+    assert!(read.status.success(), "{}", String::from_utf8_lossy(read.stderr.as_slice()));
+    assert_eq!(String::from_utf8_lossy(read.stdout.as_slice()).trim_end(), "refs/heads/topic");
+    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
+    remove(root.as_path());
+}

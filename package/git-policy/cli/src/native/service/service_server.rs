@@ -26,7 +26,7 @@
 
 pub use crate::service_server_work_loop::work_loop;
 pub use crate::service_server_work_loop_awaiting::work_loop_awaiting;
-pub use crate::service_server_socket_binding::{Bind, INHERITED_DESCRIPTOR, bind, socket_passed_in};
+pub use crate::service_server_socket_binding::{Bind, INHERITED_DESCRIPTOR, address_text, bind, socket_passed_in};
 #[cfg(test)]
 use crate::service_server_socket_binding::ensure_socket_passed_in;
 use crate::service_server_queue_types_and_send::{GroupKey, Job, Queued, id_of_queued, index_of_queued, place_in_groups};

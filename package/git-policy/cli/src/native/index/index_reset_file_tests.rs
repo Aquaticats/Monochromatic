@@ -581,6 +581,27 @@ fn a_repository_with_feature_manyfiles_equals_git() {
 }
 
 /// What:
+///  `core.untrackedCache=keep` beside `feature.manyFiles` with the cache already in the index:
+///  Git keeps the cache,
+///  and this update runs and writes the file Git writes.
+/// Why:
+///   `keep` leaves the untracked-cache default `feature.manyFiles` set (`repo-settings.c` of Git 2.56.0),
+///  which is to add a cache,
+///  so the steady state of such a repository still belongs to the in-process update;
+///  a control that declined every `keep` beside the feature would lose it and pass the decline control alone.
+#[test]
+fn a_repository_with_manyfiles_and_a_kept_untracked_cache_equals_git() {
+    let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }, Edit::Delete("b")];
+    let config: Vec<(&str, &str)> = vec![("feature.manyFiles", "true"), ("core.untrackedCache", "keep")];
+    let scene: Scene = scene("index-reset-manyfiles-keep", &Plan { files: &BASE, edits: edits.as_slice(), config: config.as_slice(), untracked_cache: true, ..Plan::default() });
+    let before: Vec<u8> = index_bytes(scene.repo.as_path());
+    assert!(crate::index_reset_support_probe::extension_of(before.as_slice(), b"UNTR", 20).is_some(), "the scene starts with the cache, or a decline would prove nothing");
+    same_as_git(&scene, &named(&["a", "b"]), "feature.manyFiles with core.untrackedCache=keep");
+    assert!(crate::index_reset_support_probe::extension_of(index_bytes(scene.repo.as_path()).as_slice(), b"UNTR", 20).is_some(), "the update keeps the cache Git keeps");
+    finish(scene);
+}
+
+/// What:
 ///  `index.skipHash` on its own,
 ///  without the untracked cache `feature.manyFiles` brings.
 /// Why:

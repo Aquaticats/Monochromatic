@@ -700,6 +700,54 @@ The watchdog controls after both fixes:
 - The claim publishes' flushes are still real for these controls,
   and the real-platform controls keep every flush by design.
 
+## Two watchers under a starved processor
+
+Measured on this host on 2026-11-11.
+The two-watchers control fails again when the run gets one processor,
+with the signature this record already gives for the judgement before every
+reader's own reads were taken off.
+
+### Symptom
+
+In one run of the whole library suite on this host,
+the only failure of `6612 tests run: 6611 passed, 1 failed, 19 skipped` was
+`testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive`,
+and that control passed alone:
+`1 test run: 1 passed`.
+
+### What was measured
+
+- The control failed with
+  `assertion left == right failed: a watcher ended the process:`,
+  `left: None`,
+  `right: Some(6)`,
+  so the child ran its whole five seconds and no watcher ended it.
+- The control's own module passed in `30 tests run: 30 passed` when the run had
+  the whole host.
+- The same module failed the control with the same three lines in
+  `30 tests run: 29 passed, 1 failed`
+  when it ran inside
+  `systemd-run --user --scope -p CPUQuota=100% -p MemoryMax=6G -p TasksMax=512 -p IOWeight=1`
+  around
+  `mise run //package/git-policy/cli:native:test:host -- testing:: --no-fail-fast`,
+  and passed in `30 tests run: 30 passed` with `CPUQuota=700%`.
+  So the control's answer follows how much processor the run gets.
+
+### What is not claimed
+
+The cause is not measured to a line.
+`look` takes the bytes each reader recorded for its own readings off the counters
+(`Reader::own_reads`,
+`note_a_reader_s_own_reads`),
+so a reading by another reader that lands between the two counter readings of one look
+is not taken off,
+and two readers can then look like work at every window.
+That reading of `package/git-policy/cli/src/native/testing/run_progress.rs` is a hypothesis
+this record leaves to a measurement.
+What is measured is the failure,
+its signature,
+and its dependence on the processor the run is given.
+
 ## Records this changes
 
 - `doc/troubleshooting/git-policy-cli-landing-controls-wait-on-order-not-time.md` names the old `RUN_LIMIT` in its

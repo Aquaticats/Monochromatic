@@ -21,6 +21,7 @@ use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
 use crate::push_retry::{RetryChange, Retrying, pause_before};
+use crate::push_retry_cause_line::cause_line;
 use crate::service_instance::GitDirUnreachable;
 use crate::unreachable_git_dir_proven_gone::Gone;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
@@ -30,8 +31,51 @@ use crate::service_timing::log_entry;
 use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-/// The kinds of work the service runs itself.
+/// The kinds of work the service runs itself:
+/// the push and every slow kind.
 pub const SERVICE_KINDS: [WorkKind; 8] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead];
+
+/// The kinds the round that answers a wake claims:
+/// the push,
+/// which is the person's backup.
+/// Why:
+///   A round holds the service until it ends,
+/// so nothing else may be claimed beside a push:
+/// on `2026-11-10` six landings of `refs/heads/main` waited 18 minutes for one round that was
+/// emptying trashes of removed worktrees,
+/// and every round that held a push that day was measured the same way
+/// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
+/// The other kinds are the slow lane's (`landing/service_work_slow_lane.rs`).
+pub const PUSH_KINDS: [WorkKind; 1] = [WorkKind::Push];
+
+/// The kinds whose steps can take minutes:
+/// the upkeep,
+/// the prewarm of a new worktree's build directories,
+/// the relink of a new worktree's copied package state,
+/// the delete of a
+/// removed worktree's subvolume,
+/// the emptying of a trash,
+/// the snapshot made ahead of an add,
+/// and the shadow review.
+/// Why:
+///   No command waits for these steps to end:
+/// a person's add that wrote a snapshot ahead looks for one and makes its own when none is ready in time
+/// (`worktree/worktree_snapshot_ahead.rs`),
+/// and the whole of `2026-11-10` shows that a step of these kinds that ran for minutes held every push of
+/// `refs/heads/main` of the round it ran in
+/// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
+/// They are claimed by the slow lane (`landing/service_work_slow_lane.rs`),
+/// one at a time,
+/// and never by the round.
+pub const SLOW_KINDS: [WorkKind; 7] = [
+    WorkKind::Maintenance,
+    WorkKind::Prewarm,
+    WorkKind::Relink,
+    WorkKind::SubvolumeDelete,
+    WorkKind::Trash,
+    WorkKind::SnapshotAhead,
+    WorkKind::Review,
+];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
@@ -509,10 +553,49 @@ impl Replanning {
     /// forget(gitDir, branch): removePlans(this.plans, gitDir, branch); this.changes.push({ forget: { gitDir, branch } });
     /// ```
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.take_the_plan_file(git_dir, branch_ref);
+        self.push_forget(git_dir, branch_ref, false);
+    }
+
+    /// What:
+    ///  Ask the plan to drop a branch whose repository a reading of the filesystem proved gone,
+    /// and take its file out of the journal unless the repository is back.
+    /// Why:
+    ///   That reading is a point in time,
+    /// and this runs after it:
+    /// a repository renamed back by then is there again,
+    ///  so its plan must not be dropped on the stale proof.
+    /// The file goes where every forget's file goes,
+    /// on the thread that decided the branch needs no new try,
+    /// so this is the last place the filesystem can be asked before the file is gone;
+    /// the applier asks it once more before it drops the branch from the list
+    /// (`push_retry.rs`,
+    /// `PushRetries::apply`),
+    ///  which is what keeps a repository that came back during the round trying.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// forgetWhenUnreachable(gitDir, branchRef): if (!isDirectory(gitDir)) removePlans(this.plans, gitDir, branchRef); this.changes.push({ forget: { gitDir, branchRef, onlyWhileUnreachable: true } });
+    /// ```
+    pub(crate) fn forget_when_unreachable(&mut self, git_dir: &Path, branch_ref: &str) {
+        if !git_dir.is_dir() {
+            self.take_the_plan_file(git_dir, branch_ref);
+        }
+        self.push_forget(git_dir, branch_ref, true);
+    }
+
+    /// Removes the plan's file of a branch from the journal,
+    /// where a directory keeps one at all.
+    fn take_the_plan_file(&mut self, git_dir: &Path, branch_ref: &str) {
         if let Some(directory) = self.plans.as_deref() {
             crate::push_retry_store::remove(directory, git_dir, branch_ref);
         }
-        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
+    }
+
+    /// The one place a forget is added,
+    /// so both kinds name the directory and the branch the same way.
+    fn push_forget(&mut self, git_dir: &Path, branch_ref: &str, only_while_unreachable: bool) {
+        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable });
     }
 
     /// What:
@@ -526,7 +609,8 @@ impl Replanning {
     /// and a notice that says the service keeps trying would be the only statement left and it would be false.
     /// A worker writes only its own branch's plan,
     /// whose file name the branch key and the try number make,
-    /// and the loop writes the same file again when it applies the change.
+    /// and the loop writes no file:
+    /// what it applies is the list it reads.
     ///  A plan that cannot be written answers that it is not kept,
     /// so the caller promises nothing the next service cannot keep.
     ///
@@ -556,6 +640,8 @@ impl Replanning {
 ///  failure record carries.
 /// Why:
 ///   The journal line names the cause,
+/// which is the first of Git's own lines that gives a reason rather than
+///  the remote it pushed to (`cause_line`),
 /// the number of the try that is planned and the pause before it,
 /// so the service's quiet
 ///  between tries is explained;
@@ -610,7 +696,7 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
     ];
     log_entry(
         Priority::Warning,
-        format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), text.lines().next().unwrap_or_default()).as_str(),
+        format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), cause_line(text).unwrap_or_default()).as_str(),
         &fields,
     );
     // A plan that could not be kept is not promised: the service of this run still tries the push, and a service started in
@@ -652,10 +738,10 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
             continue;
         }
         named.push(format!("{} of {}", due.item.branch_ref, due.item.oid));
-        replanning.forget(git_dir, due.item.branch_ref.as_str());
+        replanning.forget_when_unreachable(git_dir, due.item.branch_ref.as_str());
     }
-    // Nothing of this drain ran, so the caller has nothing to wait for; the changes it applies drop the plans of the branch from the
-    //  store as well as from memory.
+    // Nothing of this drain ran, so the caller has nothing to wait for; the file of each ended plan goes here, and the change
+    //  drops the branch from the list the loop reads.
     if !named.is_empty() {
         crate::service_warn!("{} ({unreachable})", crate::unreachable_git_dir_proven_gone::gone_line(git_dir, gone, named.as_slice()));
     }
