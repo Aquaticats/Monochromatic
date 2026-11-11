@@ -197,7 +197,15 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
     if shared.own_git_dir.as_deref() == Some(git_dir.as_path()) {
         return Some(false);
     }
-    return match run_blocking_job(move || { return instance_of(git_dir.as_path()) != mine; }).await {
+    return match run_blocking_job(move || {
+        // A control holds the resolution still here, which is where a file system that answers a directory's real path late
+        //  makes the connection wait.
+        #[cfg(test)]
+        directory_check_hold::wait_while_held(git_dir.as_path());
+        return instance_of(git_dir.as_path()) != mine;
+    })
+    .await
+    {
         Ok(foreign) => Some(foreign),
         Err(error) => {
             crate::service_error!("the instance of a Git directory could not be looked at: {error}");
@@ -225,17 +233,14 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
     // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
     //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
     match decode_client(line.trim_end_matches('\n')) {
-        Ok(ClientMessage::Commit(request)) => match is_foreign(shared, request.git_dir.clone()).await {
-            Some(true) => {
-                crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
-                send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected }).await;
-            }
-            Some(false) => {
-                let deciding = is_foreign(shared, request.git_dir.clone());
-                queue_a_commit(request, write_half, shared, accepted, deciding).await;
-            }
-            None => send(write_half, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable }).await,
-        },
+        Ok(ClientMessage::Commit(request)) => {
+            // The check that says whether this request is this instance's runs inside the writer that beats, never before it:
+            //  it resolves a directory's real path through the file system, and a disk that answers late would otherwise leave
+            //  the client silent until it gives up and reports a commit failed that this service is about to land
+            //  (`queue_a_commit`).
+            let deciding = is_foreign(shared, request.git_dir.clone());
+            queue_a_commit(request, write_half, shared, accepted, deciding).await;
+        }
         Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => {
@@ -271,6 +276,9 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
 /// and the answer of the check that says whether this request is this instance's goes through the same
 /// writer,
 ///  so a check whose own read waits on storage never leaves the client silent.
+/// This is the connection's only such check for a commit:
+/// `answer_request` hands the decision here instead of
+///  awaiting it before the beats begin.
 /// A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`,
 ///  `service_client.rs`),
 /// sends the commit again and may report it failed although it landed;
@@ -300,6 +308,7 @@ where
         match decide.await {
             // A request for another worktree is not this instance's to land, so it never reaches the landing.
             Some(true) => {
+                crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());
                 let _answered = answering.send(ServiceMessage::Failed { id, code: FailureCode::Rejected });
             }
             // Nothing could say whose the request is: the client is told, and the landing never sees it.
@@ -356,3 +365,8 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
 #[cfg(test)]
 #[path = "service_server_connection_handling_tests.rs"]
 mod tests;
+
+/// A control's hold on the check that resolves a Git directory's real path.
+#[cfg(test)]
+#[path = "service_server_connection_handling_directory_check_hold_test_support.rs"]
+mod directory_check_hold;
