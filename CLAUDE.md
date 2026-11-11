@@ -284,6 +284,13 @@ commands,
 or cross-vendor reviewer;
 never same-session self-review (`doc/agent/self-review.md`).
 
+WDQ:
+ Wondering whether something we control is a defect?
+ It is:
+ fix it.
+Intended behavior that could confuse gets documented where its users meet it,
+ so they are not confused.
+
 IRW:
  Independent review means a reviewer from another model vendor than the author,
  or the user.
