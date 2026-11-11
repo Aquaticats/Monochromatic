@@ -50,7 +50,8 @@ fn remove_with(held: &Arc<File>, root: &Path, manifest: &Arc<TrashManifest>, hos
 ///  parallel work.
 #[test]
 fn the_entries_are_removed_side_by_side() {
-    let _room: usize = room_for("the_entries_are_removed_side_by_side", ENTRIES);
+    // One place of the process stays free of slow work, so entries that must be in flight together ask for one more.
+    let _room: usize = room_for("the_entries_are_removed_side_by_side", ENTRIES + crate::blocking_jobs_within_the_budget::SLOW_WORK_RESERVE);
     let (root, held, manifest) = trash_with_entries("trash-entries-overlap");
     let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ENTRIES));
     let met: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -106,7 +107,8 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     let allowed: usize = worker_budget(&BudgetRequest { items: ENTRIES, per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &host });
     assert!(allowed > 1 && allowed < ENTRIES, "the control needs a bound between one and the entries: {allowed}");
     // The removals reach that bound only when the process itself allows as many at once.
-    let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", allowed);
+    // One place of the process stays free of slow work, so the overlap the host's budget allows asks for one more.
+    let _room: usize = room_for("the_budget_of_the_host_bounds_the_overlap", allowed + crate::blocking_jobs_within_the_budget::SLOW_WORK_RESERVE);
     let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let busiest: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     // The patience bounds only how long a run that never reaches the bound waits before it fails.

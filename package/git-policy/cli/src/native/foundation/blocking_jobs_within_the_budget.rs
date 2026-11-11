@@ -239,7 +239,7 @@ static SLOW_PLACES: OnceLock<Arc<Semaphore>> = OnceLock::new();
 /// ```ts
 /// const SLOW_WORK_RESERVE = 1;
 /// ```
-const SLOW_WORK_RESERVE: usize = 1;
+pub(crate) const SLOW_WORK_RESERVE: usize = 1;
 
 /// What:
 ///  The places slow work may take at once:
