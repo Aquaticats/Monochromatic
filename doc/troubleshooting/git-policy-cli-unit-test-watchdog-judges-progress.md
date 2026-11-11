@@ -417,6 +417,41 @@ and 0.092 s and 0.095 s inside the whole library suite.
   answer,
   because the controls that open a log always open a whole one.
 
+### The whole library suite on this host
+
+`mise exec -- cargo nextest run --locked --offline --lib --no-fail-fast` in one 600% CPU,
+12 GiB cgroup took 1311 s and printed
+`6607 tests run: 6603 passed (10 slow), 3 failed, 1 timed out, 19 skipped`.
+
+Four problems came out of it.
+
+- `testing::run_progress::tests::a_stuck_run_ends_its_process` hit nextest's `300.010 s`
+  timeout,
+  because it waited for its child with `run_child`,
+  which had no bound at all.
+  Every control's child is now waited for inside `CHILD_DEADLINE`
+  (both `run_child` callers use `run_child_with_stderr_until`).
+  With that child arming no watcher the control fails after `45.123 s` with
+  `the watchdog ended the child that stopped moving`,
+  where the same runaway child held the test to the runner's limit before.
+- `a_stuck_run_ends_its_process_though_its_report_cannot_be_written` failed at 45.071 s
+  and `a_wait_does_not_keep_the_watchdog_alive` at 45.068 s:
+  both waited out `CHILD_DEADLINE`,
+  so no watcher ended those children in 45 s.
+  The same controls pass alone (1.61 s each),
+  in the `testing::` family (`31 tests run: 31 passed`),
+  and beside the `subvolume::` family at 2 CPUs and at 6 CPUs,
+  where six traced children all ended at 1.5 s with `working: false` and one unchanged figure.
+  What held them in that one run is not measured.
+  A look that is never taken cannot end anything,
+  so a child the host never schedules is one candidate;
+  the accounting change cannot be the cause,
+  because it removes one term from the figure judged and leaves every other read where it
+  was,
+  so a run can only be judged quiet sooner than before.
+- `repair::package_repair_prewarm::tests::a_worktree_added_again_at_the_same_path_gets_its_own_filling`
+  failed in 0.028 s and belongs to another family.
+
 ### What is not claimed
 
 - The switch is a control's process,
