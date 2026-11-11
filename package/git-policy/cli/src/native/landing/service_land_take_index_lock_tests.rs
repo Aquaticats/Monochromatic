@@ -64,12 +64,12 @@ fn context_of(git_dir: &Path) -> GitContext {
 
 /// The markers made ahead are written by jobs of the blocking pool,
 /// so the files appear a moment after the landing asks for them:
-/// waits for both while the landing still holds the lock.
+/// waits for all the service keeps while the landing still holds the lock.
 fn until_the_next_batchs_markers_are_being_made(index: &Path) -> Vec<String> {
     let began: Instant = Instant::now();
     loop {
         let staged: Vec<String> = leftovers(index);
-        if staged.len() >= 2 {
+        if staged.len() >= service_index_prestage::MARKERS_MADE_AHEAD {
             return staged;
         }
         assert!(began.elapsed() < Duration::from_secs(60), "the markers of the two batches after this one were not started while the landing held the lock: {staged:?}");
@@ -99,7 +99,7 @@ fn the_batch_after_this_one_begins_flushing_when_the_landing_takes_the_lock() {
         // The lock is the batch's own marker, and the next batch's marker is being made beside it while this one is held.
         assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock's text"), marker_text(7, &own_identity).expect("text"));
         let staged: Vec<String> = until_the_next_batchs_markers_are_being_made(index.as_path());
-        assert_eq!(staged.len(), 2, "the next batch's marker and the spare after it are being made: {staged:?}");
+        assert_eq!(staged.len(), service_index_prestage::MARKERS_MADE_AHEAD, "the next batch's marker and the spare after it are being made: {staged:?}");
         let mut texts: Vec<String> = staged.iter().map(|name| { return std::fs::read_to_string(git_dir.join(name)).expect("the staged marker's text"); }).collect();
         texts.sort();
         let mut expected: Vec<String> = vec![marker_text(8, &own_identity).expect("text"), marker_text(9, &own_identity).expect("text")];

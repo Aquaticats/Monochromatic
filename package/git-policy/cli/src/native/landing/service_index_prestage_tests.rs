@@ -2,7 +2,7 @@
 //! one is taken and placed without a flush on the commit's path,
 //! a commit that comes while one is still being made never waits for it and stages its own,
 //! a marker for another batch or index is removed and replaced by a cold one,
-//! two files at most exist,
+//! the files kept are bounded by `MARKERS_MADE_AHEAD` and the spare of the next batch survives a take,
 //! and nothing is left when the service ends.
 
 use super::*;
@@ -62,6 +62,24 @@ fn until_staged(index: &Path) {
         assert!(began.elapsed() < Duration::from_secs(10), "no marker was made ahead");
         std::thread::sleep(Duration::from_millis(5));
     }
+}
+
+/// Waits until `want` markers made ahead are made and flushed.
+fn until_finished(index: &Path, want: usize) {
+    let began: Instant = Instant::now();
+    while finished_markers() < want {
+        assert!(began.elapsed() < Duration::from_secs(60), "{} of {want} markers were never finished: {:?}", finished_markers(), leftovers(index));
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// The texts of the markers waiting in the index's directory,
+/// which name the batch each was made for.
+fn texts_of(index: &Path) -> Vec<String> {
+    let directory: &Path = index.parent().expect("directory");
+    let mut texts: Vec<String> = leftovers(index).iter().map(|name| { return std::fs::read_to_string(directory.join(name)).expect("the marker's text"); }).collect();
+    texts.sort();
+    return texts;
 }
 
 /// A marker made ahead and finished while the service was idle is placed without a flush on the commit's path:
@@ -235,6 +253,74 @@ fn starting_again_for_the_same_batch_makes_no_second_file() {
         discard();
         assert_eq!(FLUSHES.load(Ordering::SeqCst), 1);
         assert!(leftovers(&index).is_empty(), "discarded: {:?}", leftovers(&index));
+        remove(root.as_path());
+    });
+}
+
+/// What:
+///  One more marker is asked for than the service keeps,
+/// and the oldest goes:
+/// its file leaves the directory as well as the slots,
+/// so the files waiting are the newest ones.
+/// Why:
+///   `MARKERS_MADE_AHEAD` is the bound on the files the service leaves in the Git directory,
+/// and a marker dropped from the slots while its file stays would name a batch no commit takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// prestage.start(index, 17); prestage.start(index, 18); prestage.start(index, 19); /* the file of 17 is gone */
+/// ```
+#[test]
+fn the_oldest_marker_goes_when_more_are_asked_for_than_the_service_keeps() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let (root, index) = index_in("prestage-oldest-goes");
+        let kept: u64 = u64::try_from(MARKERS_MADE_AHEAD).expect("a count of files");
+        let oldest: u64 = 17;
+        for seq in oldest..=oldest + kept {
+            start_with(sync_file, &index, seq);
+        }
+        until_finished(&index, MARKERS_MADE_AHEAD);
+        let mut expected: Vec<String> = (oldest + 1..=oldest + kept).map(|seq| { return marker_text(seq, &own_identity).expect("text"); }).collect();
+        expected.sort();
+        assert_eq!(texts_of(&index), expected, "the oldest marker's file goes with it");
+        discard();
+        remove(root.as_path());
+    });
+}
+
+/// What:
+///  A commit takes the marker of its own batch,
+/// and the marker of the batch after it stays:
+/// it is the spare the next landing takes.
+/// Why:
+///   `take` removes only a marker of a passed batch or of another index,
+/// and a marker of a later batch is what keeps the next commit's lock path a rename.
+/// A marker still being made is no marker for a landing either (`take`),
+/// so the idle time's making is waited for here,
+/// which is never a commit's wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// prestage.start(index, 19); untilFinished(1); prestage.start(index, 20); untilFinished(2);
+/// const taken = await prestage.take(index, 19); /* the file of 20 stays */
+/// ```
+#[test]
+fn taking_this_batchs_marker_keeps_the_spare_of_the_next_one() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let (root, index) = index_in("prestage-spare-kept");
+        let mine: u64 = 19;
+        start_with(sync_file, &index, mine);
+        until_finished(&index, 1);
+        start_with(sync_file, &index, mine + 1);
+        until_finished(&index, MARKERS_MADE_AHEAD);
+        let taken: Prestaged = take(&index, mine).expect("this batch's marker is taken");
+        assert_eq!(taken.marker, marker_text(mine, &own_identity).expect("text"));
+        // The taken file is the commit's to place; here it goes, so what waits is the spare alone.
+        remove_if_ours(taken);
+        assert_eq!(texts_of(&index), vec![marker_text(mine + 1, &own_identity).expect("text")], "the spare of the next batch waits");
+        discard();
         remove(root.as_path());
     });
 }

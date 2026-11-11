@@ -72,6 +72,8 @@ fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     assert_eq!(MOVED_BRANCH_REBUILD_CEILING, ANSWER_CEILING);
     let decision: &str = include_str!("../landing/service_commit_rebuild_ceiling.rs");
     assert!(decision.contains("MOVED_BRANCH_REBUILD_CEILING"), "the rebuilding decision takes this ceiling");
+    // The decision moved to the moved-branch file, and `service_commit.rs` keeps only the loop that runs it;
+    // both are checked, because a count of builds must appear in neither.
     let answered: &str = include_str!("../landing/service_commit_after_a_moved_branch.rs");
     let commit: &str = include_str!("../landing/service_commit.rs");
     assert!(answered.contains("may_rebuild"), "the answer to a moved branch takes this ceiling");

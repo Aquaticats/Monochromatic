@@ -100,7 +100,9 @@ static MADE_AHEAD: std::sync::Mutex<Vec<MadeAhead>> = std::sync::Mutex::new(Vec:
 /// How many markers the service keeps made ahead:
 /// the one the next batch takes and the one after that,
 /// so every flush has a whole landing to finish in.
-/// Public so the artifact-level controls wait for this many files rather than repeat the number.
+/// It is also the bound on the files the service leaves in the Git directory,
+/// so a control counts them by it rather than repeat the number,
+/// and it is public for those controls.
 pub const MARKERS_MADE_AHEAD: usize = 2;
 
 /// One file made ahead and where it was written.
@@ -208,8 +210,9 @@ fn identity_error(error: ProcessIdentityError) -> std::io::Error {
 /// unless that is already made or being made.
 /// Why:
 ///   A marker for another index is waited for and removed first.
-/// A marker of another batch is kept:
+/// A marker of another batch of this index is kept:
 /// it is the spare a following landing takes,
+/// so the files waiting are the batches after this one,
 /// and at most `MARKERS_MADE_AHEAD` are made,
 /// the oldest going before another is.
 ///
@@ -405,13 +408,21 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
     return Some(made);
 }
 
+/// How many markers made ahead are finished,
+/// so a control waits for the idle time's making rather than for a clock:
+/// a file appears in the directory before its text is written.
+#[cfg(test)]
+pub fn finished_markers() -> usize {
+    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| {
+        return state.prestaged_markers.borrow().iter().filter(|held| { return held.work.is_finished(); }).count();
+    });
+}
+
 /// Whether any marker made ahead is finished,
 /// so that taking it waits for nothing.
 #[cfg(test)]
 pub fn is_made() -> bool {
-    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| {
-        return state.prestaged_markers.borrow().iter().any(|held| { return held.work.is_finished(); });
-    });
+    return finished_markers() > 0;
 }
 
 /// Removes every marker made ahead,

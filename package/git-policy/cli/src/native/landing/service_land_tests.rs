@@ -1905,7 +1905,7 @@ fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
         // Positive control: the records are synced, only elsewhere, so a landing that stopped reporting its syncs fails here.
         assert!(!queued.is_empty(), "the landing queues its syncs: {events:?}");
         assert_eq!(waited, Vec::<String>::new(), "the person waited for a sync: {events:?}");
-        let expected: Vec<&str> = vec!["intent-file", "intent-dir", "lock-marker", "index-dir", "indexed-file", "indexed-dir", "journal-dir"];
+        let expected: Vec<&str> = vec!["intent-file", "intent-dir", crate::service_index_placement::LOCK_MARKER_SYNC, "index-dir", "indexed-file", "indexed-dir", "journal-dir"];
         assert_eq!(queued, expected, "the records one landing queues: {events:?}");
         crate::service_durable::drain();
         let made: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
@@ -1947,7 +1947,9 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
 /// because the command reports what it kept and that promise must survive a power cut.
 /// The index lock's marker is not one of those records:
 /// it names the holder and nothing else,
-/// so 322079b2f0 handed its flush to the service's background task and no commit waits for it,
+/// so 322079b2f0 handed its flush to the service's background task,
+/// which `sync_file` in `service_index_placement.rs` does,
+/// and no commit waits for it,
 /// a withdrawal included
 /// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
 /// "What was changed").
@@ -1965,8 +1967,8 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     let (waited, queued) = syncs_of(events.as_slice());
     assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
     // Positive control: this withdrawal had the marker's flush to hand over, so a landing that stopped queueing it fails here.
-    let (markers, records): (Vec<String>, Vec<String>) = queued.into_iter().partition(|what| return what == "lock-marker");
-    assert_eq!(markers, vec![String::from("lock-marker")], "the marker's flush is handed to the background task: {events:?}");
+    let (markers, records): (Vec<String>, Vec<String>) = queued.into_iter().partition(|what| return what.as_str() == crate::service_index_placement::LOCK_MARKER_SYNC);
+    assert_eq!(markers, vec![String::from(crate::service_index_placement::LOCK_MARKER_SYNC)], "the marker's flush is handed to the background task: {events:?}");
     let mut forced: Vec<String> = waited.clone();
     let mut asked: Vec<String> = records;
     forced.sort();
