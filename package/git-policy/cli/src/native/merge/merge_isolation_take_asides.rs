@@ -31,11 +31,14 @@
 
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
 use crate::lazy_runtime::run_on_runtime;
+use crate::merge_isolation_carry_parts::Capture;
 use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, the_objects_a_link_hashes_to_awaiting, worktree_path};
 use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace};
-/// The private names a take leaves,
-/// and the merge records that claim them.
-use crate::merge_isolation_take_aside_names::{aside_name, asides_of, live_merge_keys};
+/// The private name a take leaves.
+use crate::merge_isolation_take_aside_names::aside_name;
+/// The copies a merge kept,
+/// and the one decision every command makes about each.
+use crate::merge_isolation_kept_copies_decisions::settle_the_asides_of_a_merge_awaiting;
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest};
@@ -43,88 +46,39 @@ use crate::transaction_git_awaiting::{run_git_awaiting, run_git_checked_awaiting
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// Whether a merge whose record is still there names this private name,
-/// which is the only claim that may put a file back.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const aLiveMergeNames = (merge: string | undefined, live: string[]) => merge !== undefined && live.includes(merge);
-/// ```
-fn a_live_merge_names(merge: Option<&String>, live: &[String]) -> bool {
-    let Some(named) = merge else { return false };
-    for key in live {
-        if key == named {
-            return true;
-        }
-    }
-    return false;
-}
-
 /// What:
 ///  Put back every file a killed or stopped take left under its private name,
-///  and say which ones stayed beside a path that holds something else.
+///  remove the copies whose bytes are somewhere the person can reach them,
+///  and say which ones stay beside a path that holds something else.
 /// Why:
 ///   Nothing of the person's may be lost,
 /// and a file a person cannot find is close to lost:
 /// the path is free,
 ///  so the file goes back and the command says so;
 /// the path holds something else,
-/// so both stay and the
-///  private name is said.
+/// so both stay,
+/// the
+///  private name is said,
+/// and the copy is recorded so a later command ends it
+///  (`merge_isolation_kept_copies.rs`).
 /// This runs before the paths are judged,
 /// because a path whose file waits beside it is empty
 ///  and would be read as someone else's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const location of locations) for (const aside of asidesOf(location)) if (free(location)) { renameNoReplace(aside, location); say(`put back ${location}`); } else say(`${aside} holds ...`);
+/// await settleTheAsidesOfAMerge({ context, root, gitDir, changes, capture, stderr });
 /// ```
-pub fn put_back_stranded_takes<W: Write + ?Sized>(root: &Path, git_dir: &Path, changes: &[Change], out: &mut W) {
-    let live: Vec<String> = live_merge_keys(git_dir);
-    for change in changes {
-        let location: PathBuf = worktree_path(root, change.path.as_slice());
-        for aside in asides_of(location.as_path()) {
-            // A private name no record names is what a merge that already ended left behind, and putting it back would
-            //  bring back a file the person deleted (a cross-vendor review of the second round, its third finding).
-            if !a_live_merge_names(aside.merge.as_ref(), live.as_slice()) {
-                let _noted = out.write_all(
-                    format!(
-                        "monochromatic-git-policy-cli: {} holds a file that a merge set aside for {}, and no unfinished merge names \
-                         it, so it stays where it is; move it back yourself if it is yours, and nothing was removed.\n",
-                        aside.path.display(),
-                        location.display()
-                    )
-                    .as_bytes(),
-                );
-                continue;
-            }
-            match rename_noreplace(aside.path.as_path(), location.as_path()) {
-                Ok(()) => {
-                    let _noted = out.write_all(
-                        format!(
-                            "monochromatic-git-policy-cli: put back {}, which a command that stopped while finishing a merge had set aside; \
-                             its bytes are the ones it had.\n",
-                            location.display()
-                        )
-                        .as_bytes(),
-                    );
-                }
-                Err(_) => {
-                    let _noted = out.write_all(
-                        format!(
-                            "monochromatic-git-policy-cli: {} holds a file that a command that stopped while finishing a merge had set aside \
-                             for {}, which now holds something else; nothing was removed.\n",
-                            aside.path.display(),
-                            location.display()
-                        )
-                        .as_bytes(),
-                    );
-                }
-            }
-        }
-    }
+pub async fn put_back_stranded_takes_awaiting<W: Write + ?Sized>(
+    context: &GitContext,
+    root: &Path,
+    git_dir: &Path,
+    changes: &[Change],
+    capture: Option<&Capture>,
+    out: &mut W,
+) {
+    settle_the_asides_of_a_merge_awaiting(context, root, git_dir, changes, capture, out).await;
 }
-
 
 /// What:
 ///  Why a take stopped,
@@ -174,7 +128,7 @@ pub struct TakeFailure {
 /// ```ts
 /// rawBytesOf(place, location): string | undefined; // link ? hash-object --stdin < readlink : hash-object --no-filters -- <location>
 /// ```
-async fn raw_bytes_of_awaiting(git: &GitContext, root: &Path, location: &Path) -> Option<String> {
+pub(crate) async fn raw_bytes_of_awaiting(git: &GitContext, root: &Path, location: &Path) -> Option<String> {
     if std::fs::symlink_metadata(location).ok()?.file_type().is_symlink() {
         return the_objects_a_link_hashes_to_awaiting(git, root, location).await.ok();
     }
@@ -203,7 +157,7 @@ async fn raw_bytes_of_awaiting(git: &GitContext, root: &Path, location: &Path) -
 /// ```ts
 /// theFileFormOf(place, root, path, expected): string | undefined; // cat-file --filters --path=<path> <expected> | hash-object --no-filters --stdin
 /// ```
-async fn the_file_form_of_awaiting(git: &GitContext, root: &Path, path: &[u8], expected: &str) -> Option<String> {
+pub(crate) async fn the_file_form_of_awaiting(git: &GitContext, root: &Path, path: &[u8], expected: &str) -> Option<String> {
     let mut named: std::ffi::OsString = std::ffi::OsString::from("--path=");
     named.push(worktree_path(Path::new(""), path).into_os_string());
     let mut cat: GitRequest = GitRequest::new(root, &["cat-file", "--filters"]);

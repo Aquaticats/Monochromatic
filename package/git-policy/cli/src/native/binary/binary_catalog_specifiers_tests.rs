@@ -78,6 +78,8 @@ fn an_error_policy_blocks_a_literal_version_and_lets_a_catalog_one_land() {
     assert_nothing_left(&fixture, repo.as_path());
     std::fs::write(repo.join("package.json"), CATALOG).expect("fixed manifest");
     let landed: Observed = commit_manifest(&fixture, repo.as_path());
+    // A loaded host stretches the service's branch write past a beat, and the client then reads the service's
+    //  notice about the write it is inside; this control means the policy's words, so it drops that notice.
     assert_eq!((landed.code, stderr_without_wait_notices(&landed)), (Some(0), String::new()));
     assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]), CATALOG);
     assert_nothing_left(&fixture, repo.as_path());

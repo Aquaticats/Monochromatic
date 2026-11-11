@@ -32,7 +32,8 @@ use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
-use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice, unplaced_notice};
+use crate::service_client_waiting_words::{place_number, say_the_write_it_is_inside, say_where_it_stands};
+use crate::service_messages::{ClientFailure, SILENT_NOTICE};
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
 };
@@ -180,59 +181,6 @@ fn renew_scratch(settings: &ClientConfig, last_renewed: &mut Option<Instant>) {
     }
 }
 
-/// What:
-///  The number of the place the service named,
-/// which is the part of it the person is told.
-/// Why:
-///   A place says which commit it is (`number`) and how many the batch holds (`of`),
-/// and every wording of it derives from the number alone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// placeNumber([3, 7]) // 3
-/// ```
-fn place_number(place: (usize, usize)) -> usize {
-    let (number, _of) = place;
-    return number;
-}
-
-/// What:
-///  Says where a waiting commit stands once it has waited long enough to matter:
-/// how many commits the service put before it,
-/// or that the service has not said where it stands.
-/// Why:
-///   Two commits waited 62 and 32 seconds and said nothing about themselves,
-/// and a person cannot tell a commit the service has not
-///  reached from one it has lost.
-/// The telling costs one clock read of the loop the client already runs and one line;
-/// it waits for nothing,
-///  takes no lock and writes no file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// sayWhereItStands(notices, config, parked, place, told)
-/// ```
-fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: Option<Instant>, place: Option<(usize, usize)>, told: &mut Option<Option<usize>>) {
-    let Some(since) = parked else {
-        return;
-    };
-    if since.elapsed() < config.waiting_notice_after {
-        return;
-    }
-    // What the person was last told: the place the service named, or nothing when it named none.
-    let named: Option<usize> = place.map(place_number);
-    if *told == Some(named) {
-        return;
-    }
-    *told = Some(named);
-    let words: String = match place {
-        Some((number, of)) => position_notice(number, of),
-        // What the client knows and no more: the service named no place, and how long the commit has waited.
-        None => unplaced_notice(since.elapsed()),
-    };
-    let _written = writeln!(notices, "{words}");
-}
-
 /// The sends and the waits of `submit_traced`.
 ///
 /// The wait for the answer lasts as long as the service keeps sending,
@@ -261,6 +209,8 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let mut last_blocker: Option<String> = None;
     // Whether the service said this request is inside its stuck branch write, and when the extra wait for that write ends.
     let mut inside_write: bool = false;
+    // The words of the write this command's own request is inside that the person was told last.
+    let mut inside_told: Option<String> = None;
     // The wait for the answer ends here, and the extra wait for a write the request is inside ends the extra wait after it: both
     // are measured from the start of the wait, not from the moment a loop first notices them.
     let answer_deadline: Instant = waiting_since + config.answer_ceiling;
@@ -278,6 +228,15 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         // and
         //  what the person was already told (`told_place`) is what outlives it.
         let mut last_place: Option<(usize, usize)> = None;
+        // What:
+        //  The words the service on this connection said about the write this command's own request is inside,
+        // held until the wait has mattered.
+        // Why:
+        //  They name that service's write,
+        // so they do not outlive the connection that said them,
+        // as the place of a batch does not;
+        // what the person was told (`inside_told`) is what outlives it.
+        let mut inside_words: Option<String> = None;
         // What:
         //  The connection that can answer this request,
         // or the end of the command when no service can.
@@ -324,6 +283,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             // Where the commit stands is said here, before each wait, so a service that sends nothing at all is answered
             //  in the same words as one that only beats: neither has started on this commit.
             say_where_it_stands(notices, config, parked, last_place, &mut told_place);
+            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
             let heard: Heard = listen(&mut reader);
             if matches!(heard, Heard::Message(_)) {
                 renew_scratch(config, &mut last_renewed);
@@ -392,7 +352,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 Heard::Message(ServiceMessage::InsideWrite { text }) => {
                     last_blocker = Some(text.trim().to_string());
                     trace.waiting_notices += 1;
-                    let _written = write!(notices, "{text}");
+                    inside_words = Some(text);
                 }
                 Heard::Message(ServiceMessage::Holder { who }) => holder = Some(who),
                 // Each message, this one too, restarts the silence bound; nothing else is needed.
@@ -406,6 +366,9 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     break None;
                 }
             }
+            // Words about the write that came with this message are said at once when they differ from the ones already said,
+            // so a write that has stayed stuck a new minute is not held until the beat after it.
+            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
         };
         trace.answer_wait += written_at.elapsed();
         if let Some(done) = answered {

@@ -201,6 +201,8 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 ///       repository exempts it and nothing measured or saved anything;
 ///  a person who is told that before Git runs can
 ///       stop the command or unset the variable.
+///  The sentence names both paths the exemption asks for,
+///  so a worktree added outside that directory reads as the person's own work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -208,7 +210,7 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 /// ```
 pub fn exemption_notice(variable: &str, directory: &Path) -> String {
     return format!(
-        "monochromatic-git-policy-cli: this repository is exempt from the worktree guard because {variable} names {}, which contains its Git directory. \
+        "monochromatic-git-policy-cli: this repository is exempt from the worktree guard because {variable} names {}, which contains both its Git directory and its worktree. \
          Nothing was measured and nothing was saved, so the command runs without that guard. \
          Hint: if {variable} does not describe a tool cache on this machine, unset it for this command (env --unset={variable} git ...) or run the command from a shell where it does not name this directory.\n",
         directory.display()

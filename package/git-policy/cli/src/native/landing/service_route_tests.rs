@@ -203,9 +203,11 @@ fn the_worktree_git_directory_keeps_a_path_that_is_not_text() {
 ///  The worktree's Git directory asked of Git keeps a trailing space or line feed that is part of the directory's name.
 /// Why:
 ///   An answer that is a pathname loses only Git's one terminator,
-///  so trimming whitespace after it removed a byte the name holds and named a directory that does not exist;
-///  the commit route then found no service for that path and stopped instead of reaching the service of the repository the
-///  person selected.
+///  so taking every ASCII whitespace byte after it read a directory named `metadata `,
+///  or one whose name ends in a line feed,
+///  as `metadata`,
+///  the route then named a directory that does not exist,
+/// and the commit had no instance to hand its work to.
 #[test]
 fn the_worktree_git_directory_keeps_a_trailing_space_or_line_feed() {
     let root: PathBuf = fixture("route-git-dir-trailing-whitespace");
@@ -230,9 +232,10 @@ fn the_worktree_git_directory_keeps_a_trailing_space_or_line_feed() {
             global_prefix: vec![std::ffi::OsString::from("--git-dir"), metadata.clone().into_os_string()],
             common_dir: None,
         };
+        // Git answers the real path of a directory that `--separate-git-dir` named.
         assert_eq!(
             worktree_git_dir(&context, root.as_path()),
-            Some(metadata),
+            Some(std::fs::canonicalize(metadata.as_path()).expect("the directory Git made")),
             "{label}: the Git directory keeps every byte of its name"
         );
     }

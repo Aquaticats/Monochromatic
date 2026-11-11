@@ -224,7 +224,8 @@ fn a_source_a_copy_ended_unfilled_is_not_staged_from() {
     remove(root.as_path());
 }
 
-/// A record that names a worktree a copy ended in, standing where that worktree is not,
+/// A record that names a worktree a copy ended in,
+/// standing where that worktree is not,
 /// says nothing about the worktree at that path now:
 /// the worktree it described is gone or was replaced,
 /// so it holds no copy back and its own command settles it.

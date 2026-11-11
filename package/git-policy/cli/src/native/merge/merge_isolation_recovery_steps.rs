@@ -31,7 +31,7 @@ pub use crate::merge_isolation_index_reading::{
     entries_by_path, index_entries, index_entries_awaiting, index_standings, index_standings_awaiting, standing_of_index,
 };
 pub use crate::merge_isolation_take_asides::{
-    Take, TakeFailure, TakenOnDisk, finish_asides, finish_asides_awaiting, put_back, put_back_stranded_takes,
+    Take, TakeFailure, TakenOnDisk, finish_asides, finish_asides_awaiting, put_back, put_back_stranded_takes_awaiting,
     restore_what_git_did_not_write_awaiting, take_aside_awaiting,
 };
 /// The write of a merge into the index and the worktree,

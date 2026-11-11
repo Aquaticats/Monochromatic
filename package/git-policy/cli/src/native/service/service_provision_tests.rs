@@ -40,6 +40,13 @@ pub(super) struct Recorder {
     budgets: Arc<Mutex<Vec<std::time::Duration>>>,
     /// What a control reads at the moment the manager is asked to start a unit.
     at_start: Arc<Mutex<Option<Box<dyn FnMut() + Send>>>>,
+    /// The addresses the manager answers when it is asked where a unit listens,
+    /// keyed by unit;
+    /// a unit without an entry is not held by this manager.
+    addresses: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
+    /// What the question about a unit's addresses is answered with instead,
+    /// when it is made to fail.
+    listen_failure: Arc<Mutex<Option<CallError>>>,
 }
 
 impl Manager for Recorder {
@@ -90,6 +97,14 @@ impl Manager for Recorder {
         let mut scripts = self.states.lock().expect("lock");
         let Some(script) = scripts.get_mut(unit) else { return Ok(None) };
         return Ok(Some(if script.len() > 1 { script.remove(0) } else { script[0].clone() }));
+    }
+
+    fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {
+        if let Some(failure) = self.listen_failure.lock().expect("lock").clone() {
+            return Err(failure);
+        }
+        // The addresses a control set, keyed by unit: a unit without one is not held by this manager.
+        return Ok(self.addresses.lock().expect("lock").get(unit).cloned());
     }
 }
 
@@ -142,10 +157,11 @@ pub(super) struct Machine {
 
 pub(super) fn machine(name: &str) -> Machine {
     let root: PathBuf = fixture(name);
+    let runtime: PathBuf = short_runtime_directory();
     let host: ProvisionHost = ProvisionHost {
-        runtime_dir: root.join("run"),
+        bus: runtime.join("bus"),
+        runtime_dir: runtime,
         user_unit_dir: Some(root.join("config/systemd/user")),
-        bus: root.join("run/bus"),
         service_binary: root.join("programs/monochromatic-git-policy-cli"),
         git: PathBuf::from("/usr/bin/git"),
         instance: String::from(INSTANCE),
@@ -153,6 +169,32 @@ pub(super) fn machine(name: &str) -> Machine {
         retirement_wait: std::time::Duration::from_millis(400),
     };
     return Machine { root, host };
+}
+
+/// How many runtime directories this process has made.
+static RUNTIME_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// What:
+///  A runtime directory short enough that a socket name fits inside one socket address.
+/// Why:
+///   The socket stands at `<runtime directory>/<folder>/<instance>.sock`,
+///   which takes 40 bytes of the runtime directory's room at most,
+///   and the fixture root under this checkout's build directory is far longer than that.
+/// It stands in the agent scratch directory,
+/// as a fixture of the built executable's controls does,
+/// and this test thread removes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const runtime = join(home, 'temp/agent', `pr-${process.pid}-${n}`); // removed with the thread's fixtures
+/// ```
+fn short_runtime_directory() -> PathBuf {
+    let scratch: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
+    let number: usize = RUNTIME_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let runtime: PathBuf = scratch.join(format!("pr-{}-{number}", std::process::id()));
+    std::fs::create_dir_all(&runtime).expect("the runtime directory");
+    crate::test_support::track_for_this_thread(runtime.as_path());
+    return runtime;
 }
 
 fn written(machine: &Machine, name: &str) -> String {
@@ -551,6 +593,30 @@ fn manager_failures_are_plain() {
     assert!(text.contains("permission denied") && !text.contains("org.freedesktop"), "{text}");
     *recorder.failure.lock().expect("lock") = Some(CallError::Connection(String::from("broken pipe")));
     assert_eq!(provision_with(&machine.host, &mut recorder), Err(ClientFailure::NoActivation(platform_without_manager())));
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A session bus that carries no user service manager is the plain remedy for an account without user services,
+/// not the bus's own words about a name.
+/// Why:
+///   A login session's bus answers every manager call with `ServiceUnknown` when no `systemd --user` owns the name,
+/// and the manager's text says a bus name was not provided by any unit,
+/// which tells a person nothing they can act on.
+/// The remedy that works is the one for an account without user services.
+#[test]
+fn a_bus_without_a_user_manager_gets_the_plain_remedy_for_an_account_without_user_services() {
+    let machine: Machine = machine("provision-bus-without-manager");
+    let mut recorder: Recorder = Recorder::default();
+    *recorder.failure.lock().expect("lock") = Some(CallError::Manager {
+        name: String::from("org.freedesktop.DBus.Error.ServiceUnknown"),
+        text: String::from("The name org.freedesktop.systemd1 was not provided by any .service files"),
+    });
+    let refused: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("no manager to start the service");
+    assert_eq!(refused, ClientFailure::NoActivation(platform_without_manager()));
+    let text: String = render(&refused);
+    assert!(text.contains(crate::service_messages::LINGER_COMMAND), "the remedy is the one for an account without user services: {text}");
+    assert!(!text.contains("org.freedesktop"), "the bus's own words do not reach the person: {text}");
     remove(machine.root.as_path());
 }
 

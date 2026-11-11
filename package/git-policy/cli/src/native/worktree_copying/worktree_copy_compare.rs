@@ -252,6 +252,7 @@ fn walk_source_pruned(
         excluded_source_roots.as_slice(),
         prune,
         &mut unreadable,
+        &crate::worktree_copy_ceiling::CopyCeiling::unbounded(),
     );
 }
 

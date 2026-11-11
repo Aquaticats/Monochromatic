@@ -21,6 +21,10 @@ pub mod checkout_workers;
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 
+/// The folder a taken worktree folder is kept in when the name it came from is taken,
+/// and the cleanup that must leave it alone.
+pub mod worktree_kept_folders;
+
 /// The record of where one wrapped `git worktree add` spent its time,
 /// step by step,
 /// appended beside the commit timing record.
@@ -155,6 +159,23 @@ pub mod worktree_snapshot;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_index_step;
 
+/// The snapshots the wrapper makes ahead of an add,
+/// and the add's claim of one instead of a snapshot of its own.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead;
+
+/// What one add does with the snapshots the service made ahead of it:
+/// the proof,
+/// the claim,
+/// the bounded wait and the sweep.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_claim;
+
+/// The commit service's own snapshot of a worktree,
+/// made for the add after the one that asked for it.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_job;
+
 /// The empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 /// found below the folders that
 ///  hold worktrees and removed as empty directories.
@@ -235,6 +256,10 @@ pub mod worktree_convert_inspection;
 /// The journaled phases of one worktree conversion.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_phases;
+
+/// What a conversion does about a stage container another command is filling below the tree it would swap or delete.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_filled_stages;
 
 /// The empty stage a conversion created and did not record,
 /// and whether the object at the converting name is it.
@@ -326,6 +351,10 @@ pub mod worktree_landed_after_a_merge;
 /// The linked worktrees a repository registers,
 /// with the branch each one has checked out.
 pub mod worktree_landed_registrations;
+
+/// The ignored entries of a landed worktree that nothing else in the repository holds,
+/// which keep it.
+pub mod worktree_landed_ignored_files;
 
 /// The removal of every wrapper-made worktree whose branch a merge landed.
 pub mod worktree_landed_removal;

@@ -199,10 +199,10 @@ pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
         return None;
     }
     // The answer is a pathname, so it is read as the bytes Git printed it as, with only Git's one terminating line
-    //  feed removed: a spelling of it named a directory that does not exist when the name was not UTF-8, and trimming
-    //  whitespace after the terminator removed a last byte that belongs to the name (a directory named `metadata `
-    //  or one whose name ends in a line feed became `metadata`), so the route resolved another path and the command
-    //  stopped instead of reaching the service of the repository it selected.
+    //  feed removed: a spelling of it named a directory that does not exist when the name was not UTF-8, and taking
+    //  every ASCII whitespace byte after that terminator read a directory named `metadata `, or one whose name ends in
+    //  a line feed, as `metadata`, so the route named a directory that does not exist and the commit found no instance
+    //  to hand its work to instead of reaching the service of the repository the person selected.
     let printed: &[u8] = without_the_terminator(output.stdout.as_slice());
     return if printed.is_empty() { None } else { Some(path_answer(printed)) };
 }
