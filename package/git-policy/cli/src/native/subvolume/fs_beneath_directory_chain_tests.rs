@@ -82,6 +82,41 @@ fn a_path_deeper_than_a_chain_may_keep_is_walked_one_descriptor_at_a_time() {
     remove(root.as_path());
 }
 
+/// A path past the bound is still answered when a path at the bound filled the chain first and the descriptor limit
+/// leaves room for the walk alone.
+///
+/// Why:
+/// the directories the chain keeps were opened for the path before;
+/// held through the walk of a deeper path they take the descriptors its root's clone and the directory it is opening
+/// need, and a directory that is there is refused as unreachable.
+#[test]
+fn a_path_past_the_bound_is_answered_after_a_path_at_the_bound_filled_the_chain() {
+    // The room the run gets beyond the descriptors the process holds before a path fills the chain: filling it takes
+    //  one descriptor per kept directory, and the walk past the bound then needs two, its root's clone and the
+    //  directory it is opening.
+    let room: u64 = u64::try_from(MOST_DIRECTORIES_HELD + 1).expect("a count of descriptors");
+    let root: PathBuf = fixture("chain-deep-after-filled");
+    // One directory past the bound, so the leading names are a path at the bound and all of them a path past it.
+    let component_names: Vec<OsString> = deeply_nested(root.as_path(), MOST_DIRECTORIES_HELD + 1);
+    let at_bound: &[OsString] = &component_names[..MOST_DIRECTORIES_HELD];
+    let held: File = open_directory(root.as_path()).expect("the root of the fixture");
+    let mut chain: DirectoryChain<'_> = DirectoryChain::new(&held).expect("a chain");
+    // The limit is set before the chain holds anything, as a service's limit is: the kept directories are what leaves
+    //  one descriptor free when the deeper path is asked for.
+    let before = set_soft_limit(u64::try_from(open_descriptors()).expect("a count of descriptors") + room);
+    let kept = chain.directory(at_bound).map(identity_text);
+    assert_eq!(chain.held_names().len(), MOST_DIRECTORIES_HELD, "the path at the bound is kept, which is what fills the chain");
+    // The walk under test: it answers the identity of the directory so the borrow of the chain ends here.
+    let walked = chain.directory(component_names.as_slice()).map(identity_text);
+    restore_limit(before);
+    let kept: String = kept.expect("a path at the bound is answered under its own descriptor room");
+    let from_the_chain: String = walked.expect("a path past the bound is answered after a path at the bound filled the chain");
+    let direct: File = open_directory_beneath(&held, component_names.as_slice()).expect("the same path, one directory at a time");
+    assert_eq!(from_the_chain, identity_text(&direct), "the chain answers the directory the names lead to");
+    assert_ne!(kept, from_the_chain, "the path past the bound ends in a directory of its own");
+    remove(root.as_path());
+}
+
 /// The chain keeps every directory of a path exactly as deep as its bound,
 /// and keeps nothing of a path one directory deeper.
 #[test]
