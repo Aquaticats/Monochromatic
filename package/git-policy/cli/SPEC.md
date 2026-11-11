@@ -6282,8 +6282,11 @@ on the commit path:
   (`a_message_is_already_here`,
   `src/native/service/service_client_listen_and_ask_to_retire.rs`,
   said of the loop in `src/native/service/service_client.rs`).
-  A line the service sends itself, such as one naming a lock's holder, is said when it arrives.
-  The asking is one `MSG_DONTWAIT` peek on the connection the client already holds, which waits for nothing.
+  A line the service sends itself,
+  such as one naming a lock's holder,
+  is said when it arrives.
+  The asking is one `MSG_DONTWAIT` peek on the connection the client already holds,
+  which waits for nothing.
   A client that is never told takes the older path and waits
   `WITHDRAW_CEILING`.
   The record holds no lock (the owner:

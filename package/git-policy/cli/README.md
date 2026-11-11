@@ -4341,12 +4341,15 @@ Each line names what the command waits for,
   A place belongs to the connection that named it:
   a request sent again after its service went away starts with no place,
   so a stale one is never printed as this wait's.
-  The lines this client says about a long wait, its place and the words of a write it is inside,
+  The lines this client says about a long wait,
+  its place and the words of a write it is inside,
   are said only while that wait is still on:
   the client reads what the service has already sent before it says one,
   because a message it has not read yet can be the landing,
   so a command whose answer is already here prints neither a place nor the words of a write.
-  A line the service sends itself, such as one naming a lock's holder, is said when it arrives.
+  A line the service sends itself,
+  such as one naming a lock's holder,
+  is said when it arrives.
   Every line is written by a thread of its own and dropped when the terminal stops taking lines,
   so a reader that stopped draining costs the commit no more than `WARNING_WRITE_CEILING` (250 ms) at its end
   and never its answer.
