@@ -15,6 +15,9 @@
 //! ```
 
 use crate::git_system_config::with_real_git;
+/// One pathname from the bytes Git printed for it,
+///  and one answer without its terminating line feed.
+use crate::hooks_path_values::{path_answer, without_the_terminator};
 use crate::repo_read_layout::read_layout_after_success_for;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
@@ -126,9 +129,12 @@ pub(crate) fn status_git_dir(global_arguments: &[OsString], environment: &[(OsSt
         Ok(found) => found,
         Err(error) => return Selection::Unresolved(format!("Git could not be started: {error}")),
     };
-    let said: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    // The answer is a pathname, so it is read as the bytes Git printed it as, trimmed of the whitespace Git
+    //  ends a report with; a spelling of it named a directory that does not exist when the name was not UTF-8.
+    let printed: &[u8] = without_the_terminator(output.stdout.as_slice());
+    let said: &[u8] = printed.trim_ascii();
     if output.status.success() && !said.is_empty() {
-        return Selection::Found(PathBuf::from(said));
+        return Selection::Found(path_answer(said));
     }
     let complaint: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
     if output.status.code() == Some(NOT_A_REPOSITORY_EXIT_CODE) && complaint.contains("not a git repository") {

@@ -77,7 +77,7 @@ TempDir=<repo>/.git/lfs/tmp
 The wrapper's shadow repository links its `lfs` entry to the real `.git/lfs`:
 
 ```rust
-// package/git-policy/cli/src/native/shadow/shadow_links.rs:288
+// package/git-policy/cli/src/native/shadow/shadow_links.rs:294
 fn link_directory_entries(
     source_directory: &Path,
     shadow_directory: &Path,

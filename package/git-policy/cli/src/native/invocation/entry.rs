@@ -24,8 +24,11 @@ use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_noti
 use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
 use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use crate::child_environment::{
-    FORWARD_TARGET_VARIABLE, child_environment_overlay, environment_value,
+    FORWARD_TARGET_VARIABLE, environment_value, invocation_overlay,
 };
+/// The process's own controlling terminal,
+/// which decides whether a login question can reach a person.
+use crate::control_terminal::control_terminal;
 use crate::effective_target::default_allowed_worktree_dirs;
 use crate::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
@@ -242,8 +245,12 @@ fn plan_with_real_git(
     global_clean: Vec<OsString>,
     layout: &GlobalLayout,
 ) -> Action {
+    // What: Every Git and git-lfs child of this invocation gets the overlay, and one whose process has no controlling terminal
+    //  is told never to prompt, so a missing login fails at once instead of opening a desktop dialog nobody can answer.
+    // Why:  The push itself, its LFS upload and the upload plan's questions all start from this one list, so no start added
+    //  later on this route can miss the pair.
     let overlay: Vec<(OsString, OsString)> =
-        child_environment_overlay(environment, real_git.as_path());
+        invocation_overlay(environment, real_git.as_path(), control_terminal());
     // What: Top-level `--version`, `-v`, `--help` and `-h` run Git as a child and add the announcement.
     // Why:  The layout is already known here, so every other invocation pays one enum comparison;
     //       the other queries keep the exact process replacement below.

@@ -39,6 +39,11 @@ use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 /// How long a connection may take to send its request line before it is dropped.
 pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// The point at which this file reads a Git directory's instance,
+/// for a control that holds that read (`service_fault_hooks_test_support.rs`).
+#[cfg(test)]
+const IN_THE_INSTANCE_READ: &str = "in-the-instance-read";
+
 /// What every connection of one service run shares:
 /// the queues to the landing and the work loop,
 /// the count of work in flight,
@@ -198,14 +203,11 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
         return Some(false);
     }
     return match run_blocking_job(move || {
-        // A control holds the resolution still here, which is where a file system that answers a directory's real path late
-        //  makes the connection wait.
+        // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
         #[cfg(test)]
-        directory_check_hold::wait_while_held(git_dir.as_path());
+        crate::service_fault::hooks::run_on_any_thread(IN_THE_INSTANCE_READ);
         return instance_of(git_dir.as_path()) != mine;
-    })
-    .await
-    {
+    }).await {
         Ok(foreign) => Some(foreign),
         Err(error) => {
             crate::service_error!("the instance of a Git directory could not be looked at: {error}");
@@ -234,10 +236,8 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
     //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
     match decode_client(line.trim_end_matches('\n')) {
         Ok(ClientMessage::Commit(request)) => {
-            // The check that says whether this request is this instance's runs inside the writer that beats, never before it:
-            //  it resolves a directory's real path through the file system, and a disk that answers late would otherwise leave
-            //  the client silent until it gives up and reports a commit failed that this service is about to land
-            //  (`queue_a_commit`).
+            // The question of whose this request is runs beside the beats of its connection, not before them, so a check
+            //  whose own read waits on storage never leaves the client silent (`queue_a_commit`).
             let deciding = is_foreign(shared, request.git_dir.clone());
             queue_a_commit(request, write_half, shared, accepted, deciding).await;
         }
@@ -272,13 +272,10 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
 /// with beats,
 /// until the landing has answered.
 /// Why:
-///   The beats begin with the connection,
-/// and the answer of the check that says whether this request is this instance's goes through the same
+///   The beats begin before the check that says whether this request is this instance's has answered,
+/// and that check's answer goes through the same
 /// writer,
 ///  so a check whose own read waits on storage never leaves the client silent.
-/// This is the connection's only such check for a commit:
-/// `answer_request` hands the decision here instead of
-///  awaiting it before the beats begin.
 /// A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`,
 ///  `service_client.rs`),
 /// sends the commit again and may report it failed although it landed;
@@ -365,8 +362,3 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
 #[cfg(test)]
 #[path = "service_server_connection_handling_tests.rs"]
 mod tests;
-
-/// A control's hold on the check that resolves a Git directory's real path.
-#[cfg(test)]
-#[path = "service_server_connection_handling_directory_check_hold_test_support.rs"]
-mod directory_check_hold;

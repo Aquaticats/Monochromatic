@@ -13,7 +13,7 @@
 use super::{JudgedFile, place_file_awaiting};
 use crate::merge_isolation_carry_writes::FileWrite;
 use crate::merge_isolation_changes::file_identity;
-use crate::merge_isolation_take_asides::ASIDE_PREFIX;
+use crate::merge_isolation_take_aside_names::ASIDE_PREFIX;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -26,6 +26,10 @@ const MERGED: &str = "the line the merge brings\n";
 
 /// The bytes a program that kept its descriptor writes into the entry the take renamed.
 const THE_EDIT: &str = "an edit written through a descriptor that was opened before the take\n";
+
+/// The identifier the merge these controls act for names itself by,
+/// which every private name a take makes here carries.
+const A_MERGES_ID: &str = "20202020-0000-4000-8000-000000000020";
 
 /// The file's mode.
 const MODE: &str = "100644";
@@ -71,7 +75,7 @@ fn asides_beside(location: &Path) -> Vec<PathBuf> {
 /// no process this command can read holds the file open,
 /// and its bytes are still the
 ///  ones the merge's capture holds (`merge_isolation_take_asides.rs`,
-/// `may_remove_awaiting`).
+/// `may_remove_the_aside_awaiting`).
 ///  The holder is a child of this process,
 ///  because the scan for open descriptors leaves this process out.
 ///
@@ -95,10 +99,21 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it() {
     let held_open: std::fs::File = std::fs::File::open(location.as_path()).expect("the descriptor to hand on");
     let mut holder: std::process::Command = std::process::Command::new("sleep");
     holder.arg("120").stdin(std::process::Stdio::from(held_open));
-    let mut holding: std::process::Child = holder.spawn().expect("a program holding the file open");
+    // The holder dies with this test thread, so a control that fails leaves no program behind holding the file.
+    let mut holding: std::process::Child = crate::test_support::spawn_owned(&mut holder).expect("a program holding the file open");
     drop(holder);
+    let mut held: Vec<PathBuf> = Vec::new();
     let placed = crate::lazy_runtime::run_on_runtime(async {
-        return place_file_awaiting(&git_context(), repo.as_path(), b"f.txt", &judged, &FileWrite::Bytes(MERGED.as_bytes().to_vec(), String::from(MODE))).await;
+        return place_file_awaiting(
+            &git_context(),
+            repo.as_path(),
+            b"f.txt",
+            &judged,
+            &FileWrite::Bytes(MERGED.as_bytes().to_vec(), String::from(MODE)),
+            A_MERGES_ID,
+            &mut held,
+        )
+        .await;
     })
     .expect("the runtime runs the placement")
     .expect("the placement goes through");
@@ -106,8 +121,9 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_replaces_it() {
     // The descriptor the writer kept writes now, into the inode the take renamed.
     writer.write_all(THE_EDIT.as_bytes()).expect("the write through the descriptor the writer kept");
     writer.flush().expect("the write reaches the file");
-    let said: String = format!("{placed:?}");
+    let said: String = format!("{placed:?} {held:?}");
     assert_eq!(kept.len(), 1, "the entry a process holds open is kept under its private name, not removed: {kept:?} ({said})");
+    assert_eq!(held, kept, "the placement hands the private name it kept to its caller, which says it: {said}");
     assert_eq!(std::fs::read(kept[0].as_path()).expect("the kept entry"), THE_EDIT.as_bytes(), "the bytes written through the descriptor are still readable");
     assert_eq!(std::fs::read(location.as_path()).expect("the merge's entry"), MERGED.as_bytes(), "the merge's entry is at the path");
     holding.kill().expect("the holder ends");
@@ -145,19 +161,22 @@ fn a_file_a_process_holds_open_is_kept_when_a_carry_deletes_it() {
     let held_open: std::fs::File = std::fs::File::open(location.as_path()).expect("the descriptor to hand on");
     let mut holder: std::process::Command = std::process::Command::new("sleep");
     holder.arg("120").stdin(std::process::Stdio::from(held_open));
-    let mut holding: std::process::Child = holder.spawn().expect("a program holding the file open");
+    // The holder dies with this test thread, so a control that fails leaves no program behind holding the file.
+    let mut holding: std::process::Child = crate::test_support::spawn_owned(&mut holder).expect("a program holding the file open");
     drop(holder);
+    let mut held: Vec<PathBuf> = Vec::new();
     let placed = crate::lazy_runtime::run_on_runtime(async {
-        return place_file_awaiting(&git_context(), repo.as_path(), b"f.txt", &judged, &FileWrite::Remove).await;
+        return place_file_awaiting(&git_context(), repo.as_path(), b"f.txt", &judged, &FileWrite::Remove, A_MERGES_ID, &mut held).await;
     })
     .expect("the runtime runs the removal")
     .expect("the removal goes through");
-    let said: String = format!("{placed:?}");
+    let said: String = format!("{placed:?} {held:?}");
     assert!(std::fs::symlink_metadata(location.as_path()).is_err(), "the path the merge deletes is free");
     let kept: Vec<PathBuf> = asides_beside(location.as_path());
     writer.write_all(THE_EDIT.as_bytes()).expect("the write through the descriptor the writer kept");
     writer.flush().expect("the write reaches the file");
     assert_eq!(kept.len(), 1, "the entry the removal took aside is kept when a program holds it open: {kept:?} ({said})");
+    assert_eq!(held, kept, "the removal hands the private name it kept to its caller, which says it: {said}");
     assert_eq!(std::fs::read(kept[0].as_path()).expect("the kept entry"), THE_EDIT.as_bytes(), "the bytes written through the descriptor are still readable");
     holding.kill().expect("the holder ends");
     holding.wait().expect("reaped");

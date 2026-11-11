@@ -34,7 +34,7 @@ use crate::lean_identity::{Deadline, Identity};
 /// Imports the names this file uses from `crate::lean_proc_scan`.
 use crate::lean_proc_scan::{ScanReport, scan_processes};
 /// Imports the names this file uses from `crate::lean_removal`.
-use crate::lean_removal::{TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of};
+use crate::lean_removal::{Refusal, TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of, modes_named};
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::add_tree_bytes;
 
@@ -262,7 +262,11 @@ pub fn sweep_run_records(
     let scan: ScanReport = if dry_run { ScanReport::default() } else { scan_processes(&environment.proc_root, &[directory], &[], environment.own_pid) };
     let trash: PathBuf = directory.join(TRASH_DIRECTORY_NAME);
     if !dry_run {
-        outcome.refusals.extend(empty_trash(&trash));
+        let sweep = empty_trash(&trash);
+        if !sweep.modes_added.is_empty() {
+            emit(log, format!("finished an earlier run's deletion in {} ({} disk bytes){};", trash.display(), sweep.bytes, modes_named(&sweep.modes_added)));
+        }
+        outcome.refusals.extend(sweep.failures);
     }
     for record in &records {
         let age: i64 = now - record.modified;
@@ -295,17 +299,36 @@ pub fn sweep_run_records(
             }
         };
         match claim_into_trash(&item, &trash, 0) {
-            Ok(claimed) => {
-                emit(log, format!("removing run record {} (device {} inode {}): {why}; proof: {}", record.path.display(), item.identity.device, item.identity.inode, scan.describe()));
-                match delete_claimed(&claimed, item.identity) {
-                    Ok(bytes) => {
-                        outcome.removed += 1;
-                        outcome.bytes += bytes;
-                        total = total.saturating_sub(record.bytes);
-                    }
-                    Err(refusal) => outcome.refusals.push(refusal.to_string()),
+            Ok(claimed) => match delete_claimed(&claimed, item.identity) {
+                Ok(deleted) => {
+                    emit(log, format!(
+                        "removed run record {} (device {} inode {}): {why}; proof: {}{}",
+                        record.path.display(),
+                        item.identity.device,
+                        item.identity.inode,
+                        scan.describe(),
+                        modes_named(&deleted.modes_added)
+                    ));
+                    outcome.removed += 1;
+                    outcome.bytes += deleted.bytes;
+                    total = total.saturating_sub(record.bytes);
                 }
-            }
+                Err(Refusal::PartlyRemoved { deleted, .. }) => {
+                    emit(log, format!(
+                        "partly removed run record {} (device {} inode {}): {why}; {} disk bytes are gone and {} part(s) stay{}; each stayed because: {}",
+                        record.path.display(),
+                        item.identity.device,
+                        item.identity.inode,
+                        deleted.bytes,
+                        deleted.remaining.len(),
+                        modes_named(&deleted.modes_added),
+                        deleted.remaining.join("; ")
+                    ));
+                    outcome.bytes += deleted.bytes;
+                    outcome.refusals.push(format!("{} was only partly removed: {}", record.path.display(), deleted.remaining.join("; ")));
+                }
+                Err(refusal) => outcome.refusals.push(refusal.to_string()),
+            },
             Err(refusal) => outcome.refusals.push(refusal.to_string()),
         }
     }

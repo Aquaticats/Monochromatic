@@ -378,6 +378,18 @@ Follow-up tracked in issue #400,
  JSONC,
  or rendered TypeScript)".
 
+Superseded by the unified linter:
+`package/linter/rust` was deleted in commit `5bc05682ec4e66df7feae1f8204c0a0fa400f865`
+of 2026-10-06
+(`chore(*): delete the five linter packages monochromatic-lint replaces`),
+so the TOML config this decision chose never shipped.
+The linter that replaced it reads `monochromatic-lint.config.jsonc`
+(`package/linter/monochromatic-lint/src/config_lookup.rs`),
+the JSONC alternative listed here,
+which the user chose on 2026-10-04 (`doc/planning/unified-linter.md`).
+Issue #400 was closed for that reason,
+not planned.
+
 Pkl was considered and set aside for this pass.
 Facts that shaped that:
 

@@ -149,7 +149,40 @@ fn an_adjacent_edit_and_insertion_are_merged_with_their_part() {
     let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {verdicts:?}") };
     assert!(file.bytes == corpus("md1b", "word.out"));
     assert_eq!((file.path.as_slice(), file.mode), (b"a.md".as_slice(), 0o100_644));
-    assert!(!file.parts.is_empty());
+    // The part names the line of the file it came from, not the line of Git's conflict region:
+    // the fixture edits line 4 and the other side inserts after it.
+    assert_eq!(
+        file.parts[0],
+        MergedPart {
+            base: LineSpan { first: 4, count: 1 },
+            ours: LineSpan { first: 4, count: 1 },
+            theirs: LineSpan { first: 4, count: 2 },
+            merged: b"Flags are optional, see below.\nExit code is zero on success.\n".to_vec(),
+        }
+    );
+    remove(world.root.as_path());
+}
+
+/// Two conflicts in one file,
+/// each an edit of a different word of its line,
+/// merge whole,
+/// with the text Git settled between them kept as Git wrote it,
+/// and both parts named by their line in the file.
+#[test]
+fn two_resolvable_regions_of_one_file_merge_with_the_text_between_them() {
+    let world: World = world(
+        "second-pass-two-regions",
+        &[("a.md", b"alpha one\nkeep\nbeta two\n")],
+        &[("a.md", Change::Write(b"alpha uno\nkeep\nBETA two\n"))],
+        &[("a.md", Change::Write(b"ALPHA one\nkeep\nbeta zwei\n"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let [Verdict::Merged(file)] = verdicts.as_slice() else { panic!("expected one merged file: {verdicts:?}") };
+    assert_eq!(String::from_utf8_lossy(file.bytes.as_slice()), "ALPHA uno\nkeep\nBETA zwei\n");
+    let spans: Vec<(LineSpan, LineSpan, LineSpan)> = file.parts.iter().map(|part| { return (part.base, part.ours, part.theirs); }).collect();
+    let one: LineSpan = LineSpan { first: 1, count: 1 };
+    let three: LineSpan = LineSpan { first: 3, count: 1 };
+    assert_eq!(spans, vec![(one, one, one), (three, three, three)]);
     remove(world.root.as_path());
 }
 

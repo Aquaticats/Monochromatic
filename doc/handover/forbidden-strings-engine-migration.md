@@ -447,8 +447,10 @@ Updated:
     0.2.0 (old escaping);
     making this live in CI needs a release
     (CI downloads the version-matched release binary),
-    bundled with the rule-identity decision below and the block-form
-    format (#396) so one release covers all pending scanner changes.
+    bundled with the rule-identity decision (the
+    "RULE-IDENTITY DECIDED and NAME MIGRATION UNDERWAY" entry of 2026-07-20)
+    and the block-form format (#396) so one release covers all pending scanner
+    changes.
   - ADOPTED 2026-07-20,
      tail-format sectioned rule files (#396):
     after a full choosing-technology vet
