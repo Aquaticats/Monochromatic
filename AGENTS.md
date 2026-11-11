@@ -1517,11 +1517,9 @@ VB7:
  lint misses CommonMark emphasis edge cases.
 
 SCF:
- Screenshot after scripted input:
- confirm intended rendered state,
- then capture;
- command completion isn't frame completion.
-Recapture stale or transitional frames.
+ Before accepting a screenshot,
+ verify the target application/window and intended rendered state;
+ recapture mismatches or transitional frames.
 
 ABR:
  End browser verification with `agent-browser close`:
