@@ -106,8 +106,14 @@ move its durable facts to their canonical doc and delete it from this page.
 Pass 12 took every branch `list-finished-branches-not-in-the-integration.ts` showed idle at 15:13 that no pass had listed,
 and skipped the branches whose agent still runs (the pass script now takes `--skip=<file>`).
 It merged 25 to `3b94069dbf`; `native:clippy` there is clean (all targets, warnings denied, 1m 41s),
-and the gate `gpc-gate-pass-12-on-3b94069dbf-20261111T153251-0500` runs on it.
-The three regressions of the `fc9f7f5f4b` gate are not in it: round 201's `pass-11-gate-failures` is still working (no commit yet at 15:32).
+and the gate `gpc-gate-pass-12-on-3b94069dbf-20261111T153251-0500` ran 7954 tests: 7952 passed, 2 failed.
+All six earlier failures passed there, the dropped snapshot-ahead record in 0.022 s (it had failed in 0.08 s every time, so a pass 12 merge likely fixed it)
+and both `service_stop_ends_its_gits` tests in 24.2 s against their bound of about 29 s;
+round 201's `pass-11-gate-failures` (no commit yet) has that in its inbox.
+The two failures are tests new in pass 12, and round 213 has an agent for each:
+`commit::an_exclusion_keeps_the_unselected_exact_path_out_of_the_commit` (from `alpha-10-audit-commit-pathspecs-as-git-reads-them`; after the commit the excluded path no longer shows as modified)
+and `package_repair::a_shared_target_a_link_carries_out_of_the_worktree_is_left_built` (from `pass-8-stale-cargo-lock-left-as-checked-out`; its fixture crate under the gate container's in-crate build folder sits inside the wrapper's Cargo workspace).
+alpha.11 waits on those two.
 Twelve branches conflicted, and round 211 runs a re-merge agent for each:
 service-lines, worktree-trash hand-over, package-repair findings, tokio-next-step findings, merge asides, the service of a gone worktree,
 removal with a nested subvolume, round 187's documented behaviors, a commit not made owes nothing, blocked commits,
