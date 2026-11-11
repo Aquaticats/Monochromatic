@@ -93,7 +93,9 @@ static MADE_AHEAD: std::sync::Mutex<Vec<MadeAhead>> = std::sync::Mutex::new(Vec:
 /// How many markers the service keeps made ahead:
 /// the one the next batch takes and the one after that,
 /// so every flush has a whole landing to finish in.
-const MARKERS_MADE_AHEAD: usize = 2;
+/// It is also the bound on the files the service leaves in the Git directory,
+/// and a control counts them by it.
+pub const MARKERS_MADE_AHEAD: usize = 2;
 
 /// One file made ahead and where it was written.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -199,9 +201,11 @@ fn identity_error(error: ProcessIdentityError) -> std::io::Error {
 ///  Starts making the marker of batch `seq` for the index `index`,
 /// unless that is already made or being made.
 /// Why:
-///   A marker for another batch or another index is replaced:
-/// it is waited for and removed first,
-/// so one file at most exists.
+///   A marker for another index is replaced:
+/// it is waited for and removed first.
+/// A marker for another batch of this index is kept,
+/// so the files waiting are the batches after this one,
+/// and the oldest goes when the service keeps more than `MARKERS_MADE_AHEAD`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

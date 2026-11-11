@@ -25,6 +25,7 @@ use super::strace::{strace_available, strace_program};
 use super::support::{Fixture, fixture, observe};
 use super::wait_notice::{Watched, watch_notices};
 use git_policy_cli::commit_timing::TIMING_FILE;
+use git_policy_cli::landing::service_index_prestage::MARKERS_MADE_AHEAD;
 use git_policy_cli::service_client::ask_to_retire;
 use git_policy_cli::service_instance::{instance_of, socket_for};
 use git_policy_cli::service_protocol::RELEASE;
@@ -974,9 +975,11 @@ fn marker_files(repo: &Path) -> Vec<String> {
     return names;
 }
 
-/// The first commit of a service stages its marker itself and the service then makes the next batch's while it is idle:
-/// the second commit's lock is placed from that file (`lock_stage_kind=pre`),
-/// one file at most waits in the Git directory between commits,
+/// The first commit of a service stages its marker itself and the landing that takes the lock starts the markers of the
+/// batches after it,
+/// as many as the service keeps made ahead:
+/// the second commit's lock is placed from its file (`lock_stage_kind=pre`),
+/// `MARKERS_MADE_AHEAD` files at most wait in the Git directory between commits,
 /// and none is left when the service retires.
 #[test]
 fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires() {
@@ -990,9 +993,10 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
     for round in 0..3 {
         let served = commit_a(&fixture, &repo, runtime.as_path());
         assert_eq!(served.code, Some(0), "round {round}: {}", String::from_utf8_lossy(&served.stderr));
-        // The marker of the next batch is made after the answer, while the service is idle.
+        // The markers of the batches after this one are started while its landing holds the lock, so they are there by its answer,
+        // and their number is the one the service keeps, not one more with every commit.
         let began: Instant = Instant::now();
-        while marker_files(&repo).len() != 1 {
+        while marker_files(&repo).len() != MARKERS_MADE_AHEAD {
             assert!(began.elapsed() < Duration::from_secs(10), "round {round}: {:?}", marker_files(&repo));
             std::thread::sleep(Duration::from_millis(10));
         }
@@ -1005,20 +1009,20 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
     ask_to_retire(places.socket.as_path());
     let status = exit_of(&mut service, PATIENCE);
     assert!(status.success(), "{status:?}");
-    assert!(marker_files(&repo).is_empty(), "the marker made ahead is removed when the service ends: {:?}", marker_files(&repo));
+    assert!(marker_files(&repo).is_empty(), "the markers made ahead are removed when the service ends: {:?}", marker_files(&repo));
     remove_settled(&fixture);
 }
 
 /// What:
-///  A service the manager stops with `SIGTERM` removes the lock marker it made ahead,
+///  A service the manager stops with `SIGTERM` removes every lock marker it made ahead,
 /// as a service that retires does,
-/// and the service's own shutdown is what removes it.
+/// and the service's own shutdown is what removes them.
 /// Why:
-///  `SPEC.md` "Removing the lock and what is made durable" says the marker "is removed when the service ends,
+///  `SPEC.md` "Removing the lock and what is made durable" says they "are removed when the service ends,
 ///  whichever way its loop ends",
 /// and the signal path ended the process from the runtime's shutdown,
 ///  where no destructor runs,
-/// so every stop left one file behind in the Git directory.
+/// so every stop left files behind in the Git directory.
 #[test]
 fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let fixture: Fixture = fixture("timing-signal-marker");
@@ -1030,9 +1034,9 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let runtime: PathBuf = runtime_for(name.as_str());
     let served: super::support::Observed = commit_a(&fixture, &repo, runtime.as_path());
     assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
-    // The marker of the next batch is made after the answer, while the service is idle.
+    // The markers of the batches after this one are started while its landing holds the lock, so they are there by its answer.
     let began: Instant = Instant::now();
-    while marker_files(&repo).len() != 1 {
+    while marker_files(&repo).len() != MARKERS_MADE_AHEAD {
         assert!(began.elapsed() < Duration::from_secs(10), "{:?}", marker_files(&repo));
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -1042,7 +1046,7 @@ fn a_service_stopped_by_a_signal_removes_the_marker_it_made_ahead() {
     let status = exit_of(&mut service, PATIENCE);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
     assert!(lines_of(&places.log, "exiting")[0].contains(format!("reason=signal-{}", libc::SIGTERM).as_str()));
-    assert!(marker_files(&repo).is_empty(), "the marker made ahead is removed when the service ends by the signal: {:?}", marker_files(&repo));
+    assert!(marker_files(&repo).is_empty(), "the markers made ahead are removed when the service ends by the signal: {:?}", marker_files(&repo));
     remove_settled(&fixture);
 }
 
