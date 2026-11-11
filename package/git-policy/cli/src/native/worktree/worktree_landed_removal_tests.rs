@@ -124,6 +124,11 @@ fn head_of(main: &Path) -> String {
     return git_text(main, &["rev-parse", "HEAD"]);
 }
 
+/// The commit as the notice text names it, with no abbreviation to resolve.
+fn plain(commit: &str) -> String {
+    return commit.to_string();
+}
+
 /// Whether real Git still has the commit `commit` in the fixture's repository.
 /// Why:
 ///  A removal that took every reference to a commit leaves it to Git's own maintenance,
@@ -371,6 +376,43 @@ fn a_landed_worktree_holding_another_registered_worktree_stays() {
     assert_eq!(std::fs::read(changed.as_path()).expect("the changed file is still there"), b"# the fixture, edited in the nested worktree\n");
     assert_eq!(std::fs::read(notes.as_path()).expect("the untracked file is still there"), b"work the person has not committed\n");
     assert!(inside.exists(), "the nested worktree is where it was");
+}
+
+/// What:
+///  The unshown push failure of a worktree the sweep removes reaches the person from the next command,
+///  as it does when a person removes that worktree.
+/// Why:
+///  A worktree keeps its records in its own Git directory, which the removal deletes;
+///  the sweep ran no removal snapshot, so a failed push nobody had seen vanished with no word
+///  (a cross-vendor audit of `574063773d`,
+///  finding F3).
+#[test]
+fn a_swept_worktrees_unshown_push_failure_is_shown_by_the_next_command() {
+    let landed: Landed = a_repository_with_a_worktree("landed-push-notice");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let admin: PathBuf = admin_of(landed.worktree.as_path());
+    let commit: String = head_of(landed.worktree.as_path());
+    crate::push_failure_notice::record_push_failure(
+        admin.as_path(),
+        "refs/heads/feature",
+        commit.as_str(),
+        crate::push_failure_notice::PushOutcome::Refused,
+        "refused by test policy",
+    )
+    .expect("a failed push nobody has seen yet");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed: {sweep:?}");
+    assert!(!admin.exists(), "the removal took the record that named the failure");
+    // What the next command does with the removal this one made.
+    crate::worktree_removal_rescue::settle_removals(landed.common.as_path());
+    let texts: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::orphaned_push_failures(
+        landed.common.as_path(),
+        &plain,
+    ));
+    assert!(
+        texts.iter().any(|text| { return text.contains("branch feature") && text.contains(commit.as_str()) && text.contains("refused by test policy"); }),
+        "the push failure the removal would have destroyed is shown: {texts:?}"
+    );
 }
 
 #[test]

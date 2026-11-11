@@ -67,6 +67,7 @@ use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
+use crate::worktree_removal_rescue::snapshot_linked_worktrees;
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
 use crate::worktree_remove_plan::RemovePlan;
 use std::collections::HashSet;
@@ -155,6 +156,13 @@ pub struct LandedSweep {
     /// The lines that say which commit a removal would have deleted,
     /// and the reference of this repository that now names it.
     pub kept_commits: Vec<String>,
+    /// What could not be saved before a removal the sweep was about to make,
+    /// which the person reads as it stands.
+    /// A removal deletes the worktree's own Git directory,
+    /// and with it the push failures nobody saw and the pushes the service had not run yet,
+    /// so they are copied into the removal snapshot first and shown by the next command
+    /// (`worktree_removal_rescue.rs`).
+    pub rescue_problems: Vec<String>,
     /// Whether a held commit no reference of this repository could hold stopped this sweep,
     /// which no later merge finishes.
     pub refused_commits: bool,
@@ -304,6 +312,11 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         sweep.failed = Some(kept.refused.join("\n"));
         return sweep;
     }
+    // The unshown push failures and unfinished pushes of every linked worktree live in its own Git directory, which the
+    // removal deletes, so they are copied into the removal snapshot first, exactly as the person's `git worktree remove`
+    // path does (`snapshot_before_worktree_removal`): the sweep runs no such command, and without this its removals
+    // destroyed those records with no word to anyone (a cross-vendor audit of `574063773d`, finding F3).
+    sweep.rescue_problems = snapshot_linked_worktrees(place.common_dir);
     let registered: Vec<Registration> = match registrations_of(place.common_dir) {
         Ok(found) => found,
         Err(reason) => {

@@ -68,6 +68,9 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
     for kept in &sweep.kept_commits {
         lines.push(format!("{PREFIX}{kept}"));
     }
+    for problem in &sweep.rescue_problems {
+        lines.push(format!("{PREFIX}{problem}"));
+    }
     for removed in &sweep.removed {
         lines.push(format!(
             "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}; the branch stays, and the ignored files there went with it because the worktree this merge ran in holds every one of them, which is what frees the space its snapshot held. A directory Git ignores went with it unread, so anything you kept inside one went with the worktree too; reading every file below such a directory would cost the whole tree on every merge.",
