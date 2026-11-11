@@ -10341,7 +10341,8 @@ whichever drain finishes first.
 The directories of one repository share a lane,
 so a main checkout and its linked worktrees have their work directories drained one after another there,
 because those directories share one upkeep and one object store.
-The items inside one work directory run beside each other, and which of them may is the next section
+The items inside one work directory run beside each other,
+and which of them may is the next section
 (`src/native/landing/service_work_drain_pending_claims.rs`,
 `src/native/landing/service_work_items_side_by_side.rs`).
 Nothing is shared mutably:
@@ -10362,7 +10363,8 @@ So every kind names the thing two items of it may stand in each other's way over
 and the drain runs at most one item of each such thing at a time,
 with different things side by side.
 The two keys are the worktree an item names (its `repository`) and the branch a push names.
-Nothing else is shared: the handlers are read-only values,
+Nothing else is shared:
+the handlers are read-only values,
 and each item's claim stays in the drain's own set and is settled by the task that took it.
 
 The width of a wave of slow work is the least of the items waiting,
@@ -10375,14 +10377,16 @@ the number of blocking places the service has (`SERVICE_WORKER_CAP`),
 because beyond them a wider wave only adds tasks that wait for a place.
 Measured on 2026-11-11 on this host under its own load
 (average 68 to 100),
-the same binary asked for each width, alternating,
+the same binary asked for each width,
+alternating,
 over eight worktrees' trashes of one entry of 8,000 files each:
 1,599 and 1,389 ms at one item at once,
 9,935 and 948 ms at two,
 1,129 and 1,090 ms at four,
 1,916 and 853 ms at eight,
 so the spread of one width covered the differences between widths and no width was faster than another;
-the removals run at I/O priority class `idle`, and the drive was the limit.
+the removals run at I/O priority class `idle`,
+and the drive was the limit.
 What the width buys is in the controls and not in that wall time:
 two worktrees' trashes are inside their handler at one moment after this change,
 which the release before it never did.
@@ -10395,7 +10399,8 @@ A push sends one branch and updates that branch's remote-tracking reference,
 so two pushes of one branch must not run beside each other:
 the same branch's records are one group and reach one push.
 Two branches of one repository do run beside each other:
-they share the object store, which only grows,
+they share the object store,
+which only grows,
 and each names its own branch and its own reference.
 A push runs beside every slow kind,
 which is what the two claim lists are for;
@@ -10405,7 +10410,8 @@ the round that answers a wake claims `PUSH_KINDS` alone (`landing/service_work_s
 
 `git maintenance run --auto` takes the repository's own packs and locks over the common object store,
 so one repository has one upkeep at a time;
-the drain already runs one upkeep per repository, keyed by the repository.
+the drain already runs one upkeep per repository,
+keyed by the repository.
 Upkeeps of different repositories run beside each other.
 
 ##### Prewarm
@@ -10432,7 +10438,8 @@ so two trashes of one worktree would race over that parent:
 one worktree empties one trash at a time.
 Two worktrees' trashes share nothing but the disk,
 each is proved to be the directory its own snapshot made,
-and each removes its own parent, so they run beside each other.
+and each removes its own parent,
+so they run beside each other.
 Every entry removal and both of the emptying's lookups ask through the gate that
 keeps a blocking place free of slow work (`run_a_slow_job_within_the_budget`),
 so a queue of trashes never stands in front of the work a person waits for,
@@ -10450,8 +10457,10 @@ A snapshot ahead copies one worktree's tree,
 which an add is waiting for,
 and it runs before the upkeep and before every kind that frees space in the same round.
 It holds its worktree alone:
-a trash emptied, a prewarm filling or a relink writing inside that tree would be captured halfway.
-Its record names the source worktree, so that is the key it takes.
+a trash emptied,
+a prewarm filling or a relink writing inside that tree would be captured halfway.
+Its record names the source worktree,
+so that is the key it takes.
 
 ##### Review
 
@@ -10467,10 +10476,13 @@ Between the kinds the order of a round is unchanged,
 because each step of it answers a priority and no conflict:
 the snapshot a person waits for,
 then the upkeep,
-then what a new worktree needs (relink, then prewarm),
-then what frees space (subvolume delete, then trash),
+then what a new worktree needs (relink,
+then prewarm),
+then what frees space (subvolume delete,
+then trash),
 then the reviews.
-Inside one kind, each worktree's records keep the order they were claimed in,
+Inside one kind,
+each worktree's records keep the order they were claimed in,
 and a worktree that has more records than the width waits for the next wave rather than for the whole queue:
 the turn moves by one key each wave.
 

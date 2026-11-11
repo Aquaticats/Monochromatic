@@ -17,7 +17,8 @@ const FUTURES: usize = 4;
 /// so a run that runs the futures one after another fails rather than hangs.
 const PATIENCE: Duration = Duration::from_secs(20);
 
-/// A runtime of this thread, which polls every future of a wave.
+/// A runtime of this thread,
+/// which polls every future of a wave.
 fn runtime() -> tokio::runtime::Runtime {
     return tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
 }

@@ -50,7 +50,8 @@ use std::pin::Pin;
 /// (`service/service_main.rs`,
 /// `SERVICE_WORKER_CAP`).
 /// Measured on `2026-11-11T16:45:00-05:00` on this host,
-/// under its own load (average 68 to 100, so other sessions were working it hard),
+/// under its own load (average 68 to 100,
+/// so other sessions were working it hard),
 /// with the service's caps in force and the same binary asked for each width,
 /// alternating,
 /// eight worktrees' trashes of one entry of 8,000 files each:
@@ -60,7 +61,10 @@ use std::pin::Pin;
 /// and eight at once in 1,916 ms and 853 ms.
 /// The spread of one width from round to round covers the differences between widths,
 /// so a wider wave bought nothing measurable on this host:
-/// the removals run at I/O priority class `idle`, and the drive, not the number of items, was the limit.
+/// the removals run at I/O priority class `idle`,
+/// and the drive,
+/// not the number of items,
+/// was the limit.
 /// What the width does buy is visible in the controls and not in a wall time:
 /// two worktrees' trashes are inside their handler at the same moment
 /// (`landing/service_work_items_side_by_side_tests.rs`),
@@ -98,7 +102,8 @@ const SLOW_ITEM_MEMORY: u64 = crate::service_round::REPOSITORY_MEMORY;
 /// and `SLOW_ITEMS_CEILING`,
 /// never fewer than one.
 /// Why:
-///   The least of them, so a small host or a full control group narrows the width and a large one does not widen it
+///   The least of them,
+/// so a small host or a full control group narrows the width and a large one does not widen it
 /// past what the disk was measured to take.
 ///
 /// In TS you'd write (pseudocode):
@@ -127,7 +132,8 @@ pub(crate) fn slow_items_side_by_side(items: usize, host: &HostResources) -> usi
 #[cfg(test)]
 static WIDTH_FOR_A_CONTROL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// State the width of the batches that follow, for a measurement of one binary against itself.
+/// State the width of the batches that follow,
+/// for a measurement of one binary against itself.
 #[cfg(test)]
 pub(crate) fn hold_the_width_to(width: usize) {
     WIDTH_FOR_A_CONTROL.store(width, std::sync::atomic::Ordering::SeqCst);
@@ -146,7 +152,8 @@ pub(crate) fn take_the_hosts_width() {
 /// and the number of branches due.
 /// Why:
 ///   A push is a child process of the service and a wait on the network,
-/// not a job of the blocking pool, so the disk's own ceiling does not bound it;
+/// not a job of the blocking pool,
+/// so the disk's own ceiling does not bound it;
 /// the memory figure is the one a repository's drain is bounded by,
 /// because the push is part of that drain.
 ///
@@ -164,11 +171,13 @@ pub(crate) fn pushes_side_by_side(branches: usize, host: &HostResources) -> usiz
 /// no two of them naming the same key,
 /// and an item of one key never before the item of that key that was claimed first.
 /// Why:
-///   The keys are what two items may stand in each other's way over: a worktree's path,
+///   The keys are what two items may stand in each other's way over:
+/// a worktree's path,
 /// or a branch of a repository.
 /// A wave is what the caller runs beside each other and settles before the next,
 /// so a key's items keep the order they were claimed in and no two of them meet.
-/// The turn moves by one key each wave, so a long queue of one worktree does not keep another worktree's single
+/// The turn moves by one key each wave,
+/// so a long queue of one worktree does not keep another worktree's single
 /// item waiting for the whole of it unless the width is one.
 ///
 /// In TS you'd write (pseudocode):
@@ -212,6 +221,12 @@ pub(crate) fn waves_of<K: Clone + Eq + Hash>(keys: &[K], width: usize) -> Vec<Ve
     }
 }
 
+/// The worktree an item names,
+/// which is what two items of one batch may stand in each other's way over.
+fn worktree_of(claimed: &Claimed) -> PathBuf {
+    return claimed.item.repository.clone();
+}
+
 /// What:
 ///  Run one batch of items of one kind beside each other,
 /// one item of each worktree per wave,
@@ -234,7 +249,7 @@ where
     H: WorkHandlers + Sync + ?Sized,
     F: for<'lent> Fn(&'lent H, &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
 {
-    let worktrees: Vec<PathBuf> = items.iter().map(|claimed| { return claimed.item.repository.clone(); }).collect();
+    let worktrees: Vec<PathBuf> = items.iter().map(worktree_of).collect();
     for wave in waves_of(worktrees.as_slice(), width) {
         let mut running: Vec<Pin<Box<dyn Future<Output = Verdict> + Send + '_>>> = Vec::with_capacity(wave.len());
         for index in &wave {

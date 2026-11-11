@@ -229,7 +229,8 @@ static SLOW_PLACES: OnceLock<Arc<Semaphore>> = OnceLock::new();
 /// so what held them was the pool and not the work:
 /// one place kept free of slow work is what makes the lane's own promise true
 /// (`landing/service_work_slow_lane.rs`).
-/// One is the owner's rule about waits, "nothing should ever wait forever or indefinitely",
+/// One is the owner's rule about waits,
+/// "nothing should ever wait forever or indefinitely",
 /// read as the smallest number that finishes the round's own steps while slow work runs;
 /// the coordinator's pick under the owner's delegation,
 /// open to the owner's veto.
@@ -255,7 +256,13 @@ const SLOW_WORK_RESERVE: usize = 1;
 /// const slowPlaces = () => slowPlacesOf(budget()); // a semaphore of allowed - 1
 /// ```
 fn slow_places() -> &'static Arc<Semaphore> {
-    return SLOW_PLACES.get_or_init(|| { return Arc::new(Semaphore::new(budget().allowed.saturating_sub(SLOW_WORK_RESERVE).max(1))); });
+    return SLOW_PLACES.get_or_init(the_places_slow_work_may_take);
+}
+
+/// The places slow work may take,
+/// made by the first slow job that asks for one.
+fn the_places_slow_work_may_take() -> Arc<Semaphore> {
+    return Arc::new(Semaphore::new(budget().allowed.saturating_sub(SLOW_WORK_RESERVE).max(1)));
 }
 
 /// What:
@@ -295,7 +302,8 @@ where
 /// Why:
 ///   The slow kinds' steps are the same two cases `run_a_job_or_in_turn` covers,
 /// and the reserve is what the places of both take.
-/// The work in turn is this frame's, so the place for slow work stays held for as long as it runs.
+/// The work in turn is this frame's,
+/// so the place for slow work stays held for as long as it runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

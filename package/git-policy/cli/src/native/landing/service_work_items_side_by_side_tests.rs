@@ -73,7 +73,8 @@ impl SideBySide {
     ///  Be inside the work of one item for `HANDOVER`,
     /// and record how many items were inside with it.
     /// Why:
-    ///   The pause is what an item of this kind really does: a trash is emptied and a push is sent,
+    ///   The pause is what an item of this kind really does:
+    /// a trash is emptied and a push is sent,
     /// and both take longer than the trip between two items of a batch.
     /// It is short enough that a batch run beside each other still ends at once.
     ///
@@ -191,9 +192,11 @@ fn settled(world: &World, state: &str) -> usize {
 ///  and not in as many as its records.
 /// Why:
 ///   The queue of 22 records of one work directory that held the push of `main` back on `2026-11-11`
-/// named prewarms, relinks and trashes of many worktrees of one repository
+/// named prewarms,
+/// relinks and trashes of many worktrees of one repository
 /// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
-/// Two of them share nothing: each trash is emptied below its own worktree's handle,
+/// Two of them share nothing:
+/// each trash is emptied below its own worktree's handle,
 /// each is proved to be the directory its own snapshot made,
 /// and each removes its own trash parent,
 /// so the one-at-a-time order was the drain's shape and not a limit of the work.
@@ -384,7 +387,8 @@ fn trash_name_of_round(round: usize, index: usize) -> String {
 }
 
 /// What:
-///  Measure what draining one repository's queue of slow work costs, and what a person's push pays for it,
+///  Measure what draining one repository's queue of slow work costs,
+/// and what a person's push pays for it,
 ///  asking both widths of the same binary on the same host.
 /// Why:
 ///   The owner asked "Shouldn't the service run anything that can be ran in parallel in parallel?"
@@ -392,16 +396,21 @@ fn trash_name_of_round(round: usize, index: usize) -> String {
 /// the queue is eight worktrees' trashes of one repository,
 /// each planted and proved the way a leave-out writes one,
 /// drained by the service's own lane under the service's own caps,
-/// once one item at a time and once four at a time, alternating,
+/// once one item at a time and once four at a time,
+/// alternating,
 /// so the spread of one width from round to round is what the difference is read against.
 /// A push is written behind a queue that is already claimed,
 /// which is the state the coordinator measured on the installed `0.6.1-alpha.10`
-/// (`2026-11-11T10:38:00-05:00`: two reviews and four trashes claimed, a push pending since 10:29),
+/// (`2026-11-11T10:38:00-05:00`:
+/// two reviews and four trashes claimed,
+/// a push pending since 10:29),
 /// and the service's own line reports how long the push itself took,
 /// so a wait that is the push's own cost is told from one behind the queue.
 /// This is a measurement for the record and not a control:
-/// it asserts only what every arm must give, that the queue drained and the push landed.
-/// Run it alone, as the service's own caps and its one process are what the figure is about:
+/// it asserts only what every arm must give,
+/// that the queue drained and the push landed.
+/// Run it alone,
+/// as the service's own caps and its one process are what the figure is about:
 /// `mise run //package/git-policy/cli:native:test:host -- --run-ignored side_by_side_measure --success-output=final`
 ///
 /// In TS you'd write (pseudocode):
@@ -458,7 +467,8 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
 /// The push is written only once half the queue is claimed,
 /// so an arm cannot land it before any slow work began,
 /// and the service's own line reports how much of that wait was the push itself.
-/// A measurement for the record, not a control.
+/// A measurement for the record,
+/// not a control.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -529,18 +539,22 @@ fn side_by_side_measure_the_push_behind_a_queue_that_is_already_running() {
 /// how many entries each holds,
 /// and how many of them are claimed before the push is written.
 /// Why:
-///  The queue is in flight when the push arrives, which is what makes the wait a wait behind slow work;
-/// the entries are few because what the push's step competes for is a place of the pool, not the entries' bytes.
+///  The queue is in flight when the push arrives,
+/// which is what makes the wait a wait behind slow work;
+/// the entries are few because what the push's step competes for is a place of the pool,
+/// not the entries' bytes.
 const MEASURED_PUSH_ENTRIES: usize = 500;
 
 const MEASURED_PUSH_CLAIMED: usize = 2;
 
-/// The widths a measurement asks its own binary for, alternating so the spread is visible.
+/// The widths a measurement asks its own binary for,
+/// alternating so the spread is visible.
 const MEASURED_WIDTHS: [usize; 8] = [1, 2, crate::service_work_items_side_by_side::SLOW_ITEMS_CEILING, 8, 8, crate::service_work_items_side_by_side::SLOW_ITEMS_CEILING, 2, 1];
 
 /// How long the whole queue may take before the measurement says it did not drain.
 /// Why:
-///  `wait_until` gives up only when the run stops moving, and the after-commit work keeps moving,
+///  `wait_until` gives up only when the run stops moving,
+/// and the after-commit work keeps moving,
 /// so an arm whose trashes are refused would spin until the harness kills it:
 /// this ceiling makes that a named failure instead.
 const MEASURED_DRAIN_CEILING: Duration = Duration::from_secs(120);
@@ -580,11 +594,17 @@ fn done_trashes(work: &Path, of_round: &str) -> usize {
 ///  Write one trash whose single entry holds `files` files below `worktree`,
 ///  and the record that has the service empty it.
 /// Why:
-///   One entry is one job of the removal, so a trash of one big entry is the case where an item's work is serial
+///   One entry is one job of the removal,
+/// so a trash of one big entry is the case where an item's work is serial
 /// and the wave's width is what a queue of items costs:
 /// with many small entries each item already runs its own entries side by side,
 /// and two widths drain such a queue in the same time
-/// (measured on 2026-11-11: 424, 483, 422 and 424 ms for eight trashes of a thousand one-file entries at the widths 1, 4, 4 and 1).
+/// (measured on 2026-11-11:
+/// 424,
+/// 483,
+/// 422 and 424 ms for eight trashes of a thousand one-file entries at the widths 1,
+/// 4,
+/// 4 and 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -659,7 +679,8 @@ const HOLD: Duration = Duration::from_secs(20);
 /// The longest a push may take while slow work of another worktree runs.
 /// Why:
 ///   A push to a bare remote in this fixture takes about 0.1 s,
-/// and the control asks for the order of magnitude, not for a latency budget:
+/// and the control asks for the order of magnitude,
+/// not for a latency budget:
 /// ten seconds is two orders of magnitude under the hold and far above what the push itself takes.
 const PUSH_BOUND: Duration = Duration::from_secs(10);
 
@@ -669,12 +690,14 @@ const PUSH_BOUND: Duration = Duration::from_secs(10);
 /// Why:
 ///   The service the coordinator measured held a push behind a review and a trash that had nothing to do with it,
 /// and no fault hook of this release can hold a review open
-/// (`worktree_trash_dispose_awaiting.rs` is the one that can, and it holds a trash).
+/// (`worktree_trash_dispose_awaiting.rs` is the one that can,
+/// and it holds a trash).
 /// The slow kinds answer the same four verdicts whatever runs them,
 /// so a stand-in that holds them open says what a slow review and a slow trash say about the push beside them,
 /// and the push itself is real Git against a real bare remote.
 struct StandIns {
-    /// The real handlers, which run the push.
+    /// The real handlers,
+    /// which run the push.
     real: GitHandlers,
     /// How many slow items are inside their hold now.
     inside: AtomicUsize,
@@ -740,7 +763,8 @@ impl WorkHandlers for StandIns {
     }
 }
 
-/// The record of `kind` for `staged`, naming the commit,
+/// The record of `kind` for `staged`,
+/// naming the commit,
 /// which the service accepts whatever runs it.
 fn stand_in_record(staged: &Stage, kind: WorkKind, branch: &str) -> WorkItem {
     return WorkItem {
@@ -761,10 +785,13 @@ fn stand_in_record(staged: &Stage, kind: WorkKind, branch: &str) -> WorkItem {
 /// Why:
 ///   This is the state the coordinator measured on the installed `0.6.1-alpha.10` at `2026-11-11T10:38:00-05:00`:
 /// six slow records were claimed and running while
-/// `push-a52a4adaa8…` sat pending from `10:29` with a maintenance, a review and eight prewarms beside it,
+/// `push-a52a4adaa8…` sat pending from `10:29` with a maintenance,
+/// a review and eight prewarms beside it,
 /// and `main` had to be pushed by hand.
-/// The two claim lists are what answers it: the round that answers the push's wake claims `PUSH_KINDS`
-/// alone, so what the lane holds is not in its way.
+/// The two claim lists are what answers it:
+/// the round that answers the push's wake claims `PUSH_KINDS`
+/// alone,
+/// so what the lane holds is not in its way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

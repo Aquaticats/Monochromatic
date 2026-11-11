@@ -500,7 +500,8 @@ fn a_fallback_that_runs_in_turn_holds_a_place_of_the_bound() {
 /// so the reserve leaves one of them to the work a person waits for.
 const TWO_PLACES: usize = 2;
 
-/// The work a person waits for, as one job of the blocking pool:
+/// The work a person waits for,
+/// as one job of the blocking pool:
 /// a push's own read of its child is one.
 fn fn_seven() -> u8 {
     return 7;
@@ -516,7 +517,8 @@ const SLOW_JOB_PATIENCE: Duration = Duration::from_secs(2);
 ///  so a push's own step runs beside a queue of slow jobs instead of behind it.
 /// Why:
 ///  On 2026-11-11 at 10:38 the installed `0.6.1-alpha.10` had two reviews and four trashes claimed and running while a
-/// fresh commit's push sat pending from 10:29, and `main` was pushed by hand.
+/// fresh commit's push sat pending from 10:29,
+/// and `main` was pushed by hand.
 /// The pushes were never claimed by the slow work;
 /// their steps waited for a place of the process's one bound on blocking jobs,
 /// which the slow work held.

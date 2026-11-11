@@ -50,6 +50,65 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::{Duration, Instant, SystemTime};
 
+/// The key two pushes may stand in each other's way over:
+/// the repository and the branch the group's newest record names.
+/// A group is never empty,
+/// so a group with no newest record is a state this module cannot make.
+fn branch_of(members: &[Claimed]) -> (PathBuf, String) {
+    return match members.last() {
+        Some(newest) => (newest.item.repository.clone(), newest.item.branch_ref.clone()),
+        None => (PathBuf::new(), String::new()),
+    };
+}
+
+/// What:
+///  Ask the relink of one item and say how long it took,
+///  as the wave of relinks asks it.
+/// Why:
+///  A named function rather than a closure,
+/// because what a wave's item is asked for is a body that outlives the poll
+/// that started it and captures nothing of the caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function askRelink(handlers, item) { const t0 = now(); const v = await handlers.relink(item); if (v.done) log(t0); return v }
+/// ```
+fn ask_relink<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
+    return Box::pin(async move {
+        let relinking: Instant = Instant::now();
+        let verdict: Verdict = handlers.relink_awaiting(item).await;
+        if matches!(verdict, Verdict::Done) {
+            crate::service_log!("the package state of {} was relinked relink_ms={}", item.repository.display(), relinking.elapsed().as_millis());
+        }
+        return verdict;
+    });
+}
+
+/// The prewarm of one item,
+/// as its wave asks it.
+fn ask_prewarm<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
+    return Box::pin(async move { return handlers.prewarm_awaiting(item).await; });
+}
+
+/// The emptying of one trash,
+/// as its wave asks it.
+fn ask_trash<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
+    return Box::pin(async move { return handlers.trash_awaiting(item).await; });
+}
+
+/// The review of one item and the line that says how long it took,
+/// as its wave asks it.
+fn ask_review<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
+    return Box::pin(async move {
+        let review_began: Instant = Instant::now();
+        let verdict: Verdict = handlers.review_awaiting(item).await;
+        if matches!(verdict, Verdict::Done) {
+            crate::service_log!("the review of {} is done review_ms={}", item.oid, review_began.elapsed().as_millis());
+        }
+        return verdict;
+    });
+}
+
 /// What:
 ///  Claims and runs every pending item of one work directory of the kinds `kinds` names,
 /// until none is left;
@@ -165,12 +224,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
         //  repository's store, and only the branch it updates and the reference it tracks are its own. The same branch's
         //  records are one group, so one branch is never pushed twice at once.
         let branches_wide: usize = pushes_side_by_side(branches.len(), &host);
-        let branch_keys: Vec<(PathBuf, String)> = branches.iter().map(|members| {
-            return match members.last() {
-                Some(newest) => (newest.item.repository.clone(), newest.item.branch_ref.clone()),
-                None => (PathBuf::new(), String::new()),
-            };
-        }).collect();
+        let branch_keys: Vec<(PathBuf, String)> = branches.iter().map(Vec::as_slice).map(branch_of).collect();
         for wave in waves_of(branch_keys.as_slice(), branches_wide) {
             let mut running: Vec<Pin<Box<dyn Future<Output = (Verdict, SystemTime, u128)> + Send + '_>>> = Vec::with_capacity(wave.len());
             for index in &wave {
@@ -259,16 +313,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             None => break 'round,
         };
         let relinks_wide: usize = slow_items_side_by_side(relinked.len(), &host);
-        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, relinked, relinks_wide, "relink", |asked, item| {
-            return Box::pin(async move {
-                let relinking: Instant = Instant::now();
-                let verdict: Verdict = asked.relink_awaiting(item).await;
-                if matches!(verdict, Verdict::Done) {
-                    crate::service_log!("the package state of {} was relinked relink_ms={}", item.repository.display(), relinking.elapsed().as_millis());
-                }
-                return verdict;
-            });
-        })
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, relinked, relinks_wide, "relink", ask_relink)
         .await
         {
             Some(back) => held = back,
@@ -284,9 +329,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             None => break 'round,
         };
         let prewarms_wide: usize = slow_items_side_by_side(prewarmed.len(), &host);
-        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, prewarmed, prewarms_wide, "prewarm", |asked, item| {
-            return Box::pin(async move { return asked.prewarm_awaiting(item).await; });
-        })
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, prewarmed, prewarms_wide, "prewarm", ask_prewarm)
         .await
         {
             Some(back) => held = back,
@@ -308,9 +351,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             None => break 'round,
         };
         let trashes_wide: usize = slow_items_side_by_side(trashed.len(), &host);
-        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, trashed, trashes_wide, "trash", |asked, item| {
-            return Box::pin(async move { return asked.trash_awaiting(item).await; });
-        })
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, trashed, trashes_wide, "trash", ask_trash)
         .await
         {
             Some(back) => held = back,
@@ -325,16 +366,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             None => break 'round,
         };
         let reviews_wide: usize = slow_items_side_by_side(reviewed.len(), &host);
-        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, reviewed, reviews_wide, "review", |asked, item| {
-            return Box::pin(async move {
-                let review_began: Instant = Instant::now();
-                let verdict: Verdict = asked.review_awaiting(item).await;
-                if matches!(verdict, Verdict::Done) {
-                    crate::service_log!("the review of {} is done review_ms={}", item.oid, review_began.elapsed().as_millis());
-                }
-                return verdict;
-            });
-        })
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, reviewed, reviews_wide, "review", ask_review)
         .await
         {
             Some(back) => held = back,
