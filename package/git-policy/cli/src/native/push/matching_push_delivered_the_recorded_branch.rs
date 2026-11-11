@@ -106,7 +106,12 @@ pub(crate) struct MatchingPush<'facts> {
     pub(crate) branch_ref: &'facts str,
     /// The status Git gave the whole push.
     pub(crate) exit_code: i64,
-    /// The commit that was pushed.
+    /// The commit the push was meant to deliver,
+    /// which is the commit the branch named before the push read the worktree's verdicts.
+    /// A matching push names no refspec,
+    /// so that reading is the only commit the wrapper fixes for it,
+    /// and a branch that moves while the push runs leaves a remote ref naming another commit,
+    /// which proves nothing and plans the retry that publishes the branch.
     pub(crate) landed_oid: &'facts str,
 }
 

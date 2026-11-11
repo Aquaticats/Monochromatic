@@ -7,7 +7,7 @@ use crate::test_support::{dead_copy_owner, fixture, git, git_context, remove, re
 use crate::worktree_add_binding::{OwedCopy, OwedSelection, bind_registration};
 use crate::worktree_copy_recovery::{RecoveryDestinations, recover_pending_worktree_copies};
 use crate::worktree_copy_stage_claim::claim_stage_for_add_as_owing;
-use crate::worktree_copy_stage_made_object::{made_record_beside_claim, read_made, record_made};
+use crate::worktree_copy_stage_made_object::{made_record_beside_claim, read_made, record_creating_at, record_made};
 
 /// One add whose exchange completed,
 /// as a command killed between the exchange and its settlement leaves it.
@@ -46,6 +46,61 @@ struct Exchanged {
 /// const scene = exchangedAdd('name'); // claim + .add + .made + exchange
 /// ```
 fn exchanged_add(name: &str) -> Exchanged {
+    return exchanged_add_recorded_as(name, SnapshotIdentity::Recorded);
+}
+
+/// What:
+///  The same add whose record of the stage's creation names no identity,
+/// which is the record a command writes before its stage exists.
+/// Why:
+///   The identity is the only thing that names the snapshot,
+/// so a settlement that meets such a record compares
+///  nothing,
+/// and the controls hold what that costs and what it must never cost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scene = exchangedAddWithoutTheSnapshotIdentity('name'); // .made names the container and the instant only
+/// ```
+fn exchanged_add_without_the_snapshot_identity(name: &str) -> Exchanged {
+    return exchanged_add_recorded_as(name, SnapshotIdentity::NotRecorded);
+}
+
+/// What:
+///  Whether the scene writes the record of the snapshot's identity,
+/// as the ladder does as soon as its
+///  stage exists,
+/// or only the record of the creation,
+/// as it does before the stage exists.
+/// Why:
+///   Both records are ones this release writes,
+/// and a kill can leave either beside a claim whose exchange ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SnapshotIdentity = 'recorded' | 'not-recorded';
+/// ```
+#[derive(Clone, Copy)]
+enum SnapshotIdentity {
+    /// The record names the object the stage's creation made.
+    Recorded,
+    /// The record names the container and the instant and no object.
+    NotRecorded,
+}
+
+/// What:
+///  One add killed right after its own snapshot was swapped into the destination,
+/// with the record of the
+///  stage's creation this control asks for.
+/// Why:
+///   Everything but that one write is the scene above,
+/// so the controls differ in the record alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scene = exchangedAddRecordedAs('name', identity);
+/// ```
+fn exchanged_add_recorded_as(name: &str, identity: SnapshotIdentity) -> Exchanged {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join("tracked.txt"), b"tracked content\n").expect("a tracked file");
@@ -69,7 +124,12 @@ fn exchanged_add(name: &str) -> Exchanged {
     std::fs::write(container.join("ignored.txt"), b"ignored content\n").expect("the source's ignored state");
     std::fs::write(container.join(".git"), bound.binding.pointer.as_slice()).expect("the new worktree's pointer");
     let snapshot: crate::fs_beneath::ObjectId = path_identity(container.as_path()).expect("the snapshot's identity");
-    record_made(common.as_path(), container.as_path(), snapshot).expect("the record of the stage's creation");
+    match identity {
+        SnapshotIdentity::Recorded => record_made(common.as_path(), container.as_path(), snapshot).expect("the record of the stage's creation"),
+        SnapshotIdentity::NotRecorded => {
+            record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now()).expect("the record of the creation")
+        }
+    }
     let parent = open_root(container.parent().expect("the stage's parent")).expect("the parent");
     crate::fs_beneath::exchange_at(&parent, container.file_name().expect("the stage's name"), destination.file_name().expect("the destination's name")).expect("the exchange");
     let claim_path: PathBuf = claim_file_beside(common.as_path());
@@ -297,6 +357,145 @@ fn a_folder_holding_more_than_the_pointer_is_kept_and_named() {
     remove(scene.root.as_path());
 }
 
+/// What:
+///  An exchange whose record of the stage's creation names no identity is still settled by a command in
+///  another worktree,
+/// and the words say what could not be compared.
+/// Why:
+///   The record a command writes before its stage exists names the container and the instant and no object,
+///   and a kill in the instant between the creation and the record of the identity leaves it beside a claim
+///   whose exchange ran.
+/// The object at the stage name is the directory Git made,
+/// which is the proof the
+///  exchange ran,
+/// so the stage name is cleared and the records are settled without a copy;
+/// claiming the
+///  snapshot stands at the destination would be a comparison no record made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scene = exchangedAddWithoutTheSnapshotIdentity('swap-unrecorded-identity'); const said = recoveryWords(scene, scene.observer);
+/// expect(said).toMatch(/names no identity/); expect(records(scene)).toEqual([]);
+/// ```
+#[test]
+fn an_exchange_whose_identity_was_never_recorded_is_settled_without_a_copy() {
+    let scene: Exchanged = exchanged_add_without_the_snapshot_identity("swap-unrecorded-identity");
+    let said: String = recovery_words(&scene, scene.observer.as_path());
+    assert!(!said.contains("still owed"), "no copy is owed by an add whose snapshot carried the state: {said}");
+    assert!(!said.contains("never finished"), "and none may be reported as unfinished: {said}");
+    assert!(said.contains("was interrupted after its snapshot was swapped into place"), "the settlement names what the kill left: {said}");
+    assert!(said.contains("names no identity"), "and says what no record let it compare: {said}");
+    assert!(!scene.container.exists(), "the directory Git made is removed from the stage name");
+    assert!(records(&scene).is_empty(), "the add's records are settled: {:?}", records(&scene));
+    assert_eq!(std::fs::read(scene.destination.join("ignored.txt")).ok(), Some(b"ignored content\n".to_vec()), "the snapshot's ignored state stays");
+    assert!(scene.destination.join("tracked.txt").exists(), "and the files the snapshot carried");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  The same record beside a claim whose stage name a killed command already cleared still settles the
+///  records.
+/// Why:
+///   The snapshot stands at the destination and the folder that proved the exchange is gone,
+/// so the
+///  identity is the only evidence the add ever had,
+/// and it names nothing.
+/// Its absence must not keep a copy owed
+///  for a worktree that holds the state or for one that no longer stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scene = exchangedAddWithoutTheSnapshotIdentity('swap-unrecorded-claim-only'); rmSync(scene.container, {recursive:true});
+/// const said = recoveryWords(scene, scene.observer); expect(records(scene)).toEqual([]);
+/// ```
+#[test]
+fn an_exchange_whose_identity_was_never_recorded_and_whose_stage_was_removed_still_settles() {
+    let scene: Exchanged = exchanged_add_without_the_snapshot_identity("swap-unrecorded-claim-only");
+    std::fs::remove_dir_all(scene.container.as_path()).expect("a command removed the directory Git made");
+    let said: String = recovery_words(&scene, scene.observer.as_path());
+    assert!(said.contains("was interrupted after its snapshot was swapped into place"), "the settlement names the exchange: {said}");
+    assert!(said.contains("names no identity"), "and says what no record let it compare: {said}");
+    assert!(!said.contains("still owed"), "nothing is owed: {said}");
+    assert!(records(&scene).is_empty(), "the claim the killed command left is settled: {:?}", records(&scene));
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  A folder at the stage name holding a person's entry,
+/// beside a record that names no identity and a
+///  destination that is another directory,
+/// is kept and named,
+/// and its entry is never moved into that directory.
+/// Why:
+///   The record names no snapshot,
+/// so nothing proves what stands at the destination,
+/// and an entry
+///  renamed there would land in whatever worktree or folder that path leads to.
+/// Keeping the folder is the
+///  conservative answer,
+/// and naming it tells the person how to clear it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scene = exchangedAddWithoutTheSnapshotIdentity('swap-unrecorded-kept');
+/// git(scene.repo, ['worktree','remove','--force', scene.destination]); mkdirSync(scene.destination);
+/// writeFileSync(join(scene.container,'mine.txt'),'mine'); const said = recoveryWords(scene, scene.observer);
+/// expect(said).toMatch(/was not changed/); expect(readFileSync(join(scene.container,'mine.txt'))).toBe('mine');
+/// expect(existsSync(join(scene.destination,'mine.txt'))).toBe(false);
+/// ```
+#[test]
+fn a_folder_whose_snapshot_no_record_names_is_kept_and_named() {
+    let scene: Exchanged = exchanged_add_without_the_snapshot_identity("swap-unrecorded-kept");
+    git(scene.repo.as_path(), &["worktree", "remove", "--force", scene.destination.to_str().expect("a text path")]);
+    std::fs::create_dir(scene.destination.as_path()).expect("another directory at the destination");
+    std::fs::write(scene.container.join("mine.txt"), b"mine\n").expect("a person's file in the folder");
+    let said: String = recovery_words(&scene, scene.observer.as_path());
+    assert!(said.contains("was not changed"), "the folder is named as kept: {said}");
+    assert!(said.contains("mine.txt"), "the entry that keeps it is named: {said}");
+    assert!(!said.contains("still owed"), "no copy is owed: {said}");
+    assert_eq!(std::fs::read(scene.container.join("mine.txt")).ok(), Some(b"mine\n".to_vec()), "the person's file stays where they put it");
+    assert!(!scene.destination.join("mine.txt").exists(), "and is never moved into a folder no record proves is the worktree it belongs to");
+    assert!(!records(&scene).is_empty(), "the claim stays with the folder it names: {:?}", records(&scene));
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  An add killed before its exchange settles nothing,
+/// even when the record of the stage's creation names no
+///  identity.
+/// Why:
+///   The destination still holds the directory Git made,
+/// which is the one proof that the add never swapped its
+///  snapshot,
+/// and the snapshot is still at the stage name.
+/// Settling here would drop the claim that names that folder and
+///  the record of the copy the add still owes,
+/// so the reaping's own answers stay its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scene = exchangedAddWithoutTheSnapshotIdentity('swap-before-the-exchange'); exchangeBack(scene);
+/// const said = recoveryWords(scene, scene.observer); expect(said).not.toMatch(/swapped into place/);
+/// expect(records(scene).length).toBeGreaterThan(0);
+/// ```
+#[test]
+fn an_add_killed_before_its_exchange_settles_nothing() {
+    let scene: Exchanged = exchanged_add_without_the_snapshot_identity("swap-before-the-exchange");
+    let parent = open_root(scene.container.parent().expect("the stage's parent")).expect("the parent");
+    crate::fs_beneath::exchange_at(
+        &parent,
+        scene.container.file_name().expect("the stage's name"),
+        scene.destination.file_name().expect("the destination's name"),
+    )
+    .expect("the exchange put back, as a kill before it leaves them");
+    let said: String = recovery_words(&scene, scene.observer.as_path());
+    assert!(!said.contains("was interrupted after its snapshot was swapped into place"), "no swap is claimed: {said}");
+    assert!(said.contains("still owed"), "the copy the add owes is still owed: {said}");
+    assert!(scene.container.exists(), "the folder at the stage name stays whole");
+    assert!(!records(&scene).is_empty(), "and so do the claim and the records that name it: {:?}", records(&scene));
+    remove(scene.root.as_path());
+}
+
 /// The record of the stage's creation is what proves the snapshot,
 /// so a control reads it back to be sure the scene wrote it.
 #[test]
@@ -305,6 +504,6 @@ fn the_scene_records_the_object_it_made() {
     let made = read_made(scene.claim.as_path()).expect("the record of the stage's creation");
     assert_eq!(made.container, scene.container, "the record names the stage container");
     assert!(made_record_beside_claim(scene.claim.as_path()).exists(), "the record stands beside the claim");
-    assert_eq!(path_identity(scene.destination.as_path()), Some(made.object), "the snapshot is at the destination after the exchange");
+    assert_eq!(path_identity(scene.destination.as_path()), made.object, "the snapshot is at the destination after the exchange");
     remove(scene.root.as_path());
 }

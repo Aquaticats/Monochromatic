@@ -1339,6 +1339,17 @@ no command then says a copy is still owed.
 A stage name whose recorded destination is gone or replaced is cleared only when the folder holds
 nothing but the pointer Git wrote for that add,
 and a folder holding anything else keeps its claim and its records and is named.
+The stage's record may name no identity,
+because a command writes it before its stage exists
+(`src/native/worktree_copying/worktree_copy_stage_made_object.rs`):
+the object at the stage name still proves the swap,
+since only the exchange puts it there,
+and the destination is compared with nothing.
+Such a folder is then cleared only when it holds nothing but the pointer Git wrote,
+a person's entry is never renamed into a folder no record proves is the worktree it belongs to,
+and the add's records are settled the same way,
+because no copy of the source's ignored state serves a worktree that either holds it or no longer stands;
+the line says that the two were not compared.
 
 The snapshot an add takes is usually one this repository's commit service made ahead of it
 (`src/native/worktree/worktree_snapshot_ahead.rs`):
@@ -7345,6 +7356,11 @@ in-process reader can) gives every value of the multi-valued keys.
   while the service journal names the refused sibling from Git's own line for it,
   since nothing else would.
   A refused sibling is then no failure of this branch and plans no retry.
+  A matching push names no refspec,
+  so the commit every URL is asked for is the one the branch named before the push read the worktree's verdicts;
+  a branch that moves while such a push runs leaves a URL naming another commit,
+  which proves nothing and leaves the push the failure it was,
+  so the retry that publishes the branch is still planned.
   Neither the remote-tracking ref nor the remote's fetch URL can answer this:
   the tracking ref lags the remote,
   so it still names a commit whose branch the remote deleted and reads a push to an unreachable

@@ -24,13 +24,24 @@
 //! The snapshot carries the source's whole ignored state,
 //! so an add settled here owes no copy and no
 //!  command may say that one never finished.
+//!  A record of the stage's creation that names no identity
+//!  (`worktree_copy_stage_made_object.rs`)
+//! leaves the snapshot unnamed,
+//! so the destination is never taken for the snapshot it holds:
+//! nothing is moved into a folder whose identity no record proves,
+//! and a folder holding anything else is named and
+//!  kept exactly as it is when the destination is gone.
+//! The add's records are still settled once the stage name is clear of Git's directory,
+//! because no copy of the source's ignored state
+//!  can be made for a worktree that holds that state or that no longer stands,
+//! and the words say which of the two nothing compared.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const settlement = settleSwappedAdd(claim, container);
 //! ```
 
-use crate::fs_beneath::{open_directory_at, open_root, remove_at};
+use crate::fs_beneath::{ObjectId, open_directory_at, open_root, remove_at};
 use crate::json_record::quote;
 use crate::plain_file::read_plain_file;
 use crate::shell_quote::shell_quote;
@@ -51,20 +62,25 @@ const POINTER: &str = ".git";
 ///  What one dead claim says about an exchange of its add's snapshot that completed.
 /// Why:
 ///   Both objects the exchange moves are recorded before it runs,
-///   so their two identities are the whole proof.
+///   so their two identities are the whole proof,
+///   and a record that names no identity proves the exchange by the object at the stage name alone.
 /// The destination's own state only chooses what to say and where a stray entry belongs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CompletedSwap = { binding: Binding; made: MadeObject; displacedStands: boolean };
+/// type CompletedSwap = { binding: Binding; made: MadeObject; atTheDestination: AtTheDestination; displacedStands: boolean };
 /// ```
 pub(crate) struct CompletedSwap {
     /// The binding the add recorded:
     /// the destination directory Git made and the pointer it wrote.
     binding: Binding,
     /// The record of the object the stage's creation made:
-    /// the snapshot.
+    /// the snapshot,
+    /// with no identity when the record was written before the stage existed.
     made: MadeObject,
+    /// What the records prove about the object at the destination,
+    /// read once so that the folder and the words cannot disagree about it.
+    at_the_destination: AtTheDestination,
     /// Whether the directory Git made still stands at the stage name,
     /// rather than having been removed by a command killed before it settled the claim.
     displaced_stands: bool,
@@ -189,10 +205,20 @@ pub(crate) fn settle_swapped_add(claim: &Path, container: &Path) -> Result<Swapp
 /// The object at the stage name after the exchange is the one the first record names,
 /// and a command killed
 ///   after the exchange may already have removed it,
-/// leaving the snapshot at the destination as the proof
+/// leaving the destination as the proof
 ///   that it was there.
 /// Any other pair of objects proves nothing,
 /// so the conservative answers of the reaping stand unchanged.
+///  The second record may name no object at all,
+/// because a command writes it before its stage exists and a kill in
+///  the instant between is what that record is for.
+/// That loses only the ability to name what stands at the destination:
+/// the exchange is
+///  still proven by the object at the stage name,
+/// and a stage name already clear tells the add's records
+///  nothing a later command could finish,
+/// because no copy of the source's ignored state serves a worktree
+///  that holds it or no longer stands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -207,22 +233,76 @@ fn completed_swap_of(claim: &Path, container: &Path) -> Result<Option<CompletedS
         return Ok(None);
     }
     let stands: bool = still_there(container)?;
-    let at_the_destination: Option<crate::fs_beneath::ObjectId> = path_identity(binding.destination.as_path());
+    let destination_identity: Option<ObjectId> = path_identity(binding.destination.as_path());
+    let at_the_destination: AtTheDestination = judge_the_destination(destination_identity, made.object);
     // The object at the stage name is the one the binding recorded for the destination, which the exchange
-    //  put there, or the stage name is clear and the snapshot it was exchanged with stands at the
-    //  destination.
+    //  put there.
     let displaced_stands: bool = stands && path_identity(container) == Some(binding.destination_id);
-    let settled_before: bool = !stands && at_the_destination == Some(made.object);
-    // A stage name a command already cleared, a snapshot that stands nowhere, and a directory at the
-    //  destination whose identity is neither the snapshot nor the directory Git made: the add's worktree
-    //  was removed and made again, so its records describe nothing that stands and no copy has a worktree
-    //  to fill. A destination still holding the directory Git made is excluded: that add never swapped its
-    //  snapshot and the reaping's own answers stay its own.
-    let destination_moved_on: bool = !stands && at_the_destination.is_some() && at_the_destination != Some(binding.destination_id) && at_the_destination != Some(made.object);
-    if !displaced_stands && !settled_before && !destination_moved_on {
+    // A stage name a command already cleared while something other than the directory Git made stands at the
+    //  destination: the snapshot the exchange moved there, a worktree that replaced it, or an object no record
+    //  names. Every one of those settles the add's records, and what stands there only chooses the words. A
+    //  destination still holding the directory Git made is excluded: that add never swapped its snapshot and the
+    //  reaping's own answers stay its own.
+    let destination_left_the_directory_git_made: bool = !stands
+        && destination_identity.is_some()
+        && destination_identity != Some(binding.destination_id);
+    if !displaced_stands && !destination_left_the_directory_git_made {
         return Ok(None);
     }
-    return Ok(Some(CompletedSwap { binding, made, displaced_stands }));
+    return Ok(Some(CompletedSwap { binding, made, at_the_destination, displaced_stands }));
+}
+
+/// What:
+///  What the add's records prove about the object at the destination.
+/// Why:
+///   The record of the stage's creation names the snapshot,
+///   so the object at the destination is the snapshot only while it has that identity.
+/// A record written before its stage exists names
+///  none,
+/// and then nothing is compared:
+/// an object no record names is never taken for the snapshot,
+/// a person's
+///  entry is never moved into a folder nothing proves is the worktree it belongs to,
+/// and the words say that
+///  the two were not compared rather than which one stands there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AtTheDestination = 'the-snapshot' | 'another-object' | 'not-compared';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AtTheDestination {
+    /// The snapshot the exchange put there,
+    /// with the identity the record of the stage's creation holds.
+    TheSnapshot,
+    /// An object that is not the snapshot,
+    /// or nothing at all:
+    /// the worktree there is not the one the add made.
+    AnotherObject,
+    /// Nothing,
+    /// because no record names the snapshot's identity to compare the object there with.
+    NotCompared,
+}
+
+/// What:
+///  The answer one comparison gives:
+/// the object at the destination against the snapshot the record of the stage's creation names.
+/// Why:
+///   The two identities the add recorded are what prove an exchange,
+/// and one of them may be absent from
+///  the record that holds it,
+/// so absence is answered as its own case and never as another object.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const judge = (identity, snapshot) => snapshot === undefined ? 'not-compared' : identity === snapshot ? 'the-snapshot' : 'another-object';
+/// ```
+fn judge_the_destination(identity: Option<ObjectId>, snapshot: Option<ObjectId>) -> AtTheDestination {
+    let Some(named) = snapshot else { return AtTheDestination::NotCompared };
+    return match identity {
+        Some(found) if found == named => AtTheDestination::TheSnapshot,
+        _ => AtTheDestination::AnotherObject,
+    };
 }
 
 /// What:
@@ -252,7 +332,10 @@ enum Displacement {
 ///   The destination is the worktree the folder's entries belong to when the snapshot is what stands
 ///   there,
 /// so they are settled exactly as the creating command settles them.
-/// When the destination is gone or is a different worktree,
+/// When the destination is gone,
+/// is a different worktree,
+/// or no record names the identity that would
+///   tell either,
 /// only the pointer Git wrote for this add is
 ///   provably the add's,
 /// so the folder goes only when it holds nothing else.
@@ -267,7 +350,7 @@ fn clear_the_displaced_directory(swapped: &CompletedSwap) -> Result<Displacement
     }
     let container: &Path = swapped.made.container.as_path();
     let destination: &Path = swapped.binding.destination.as_path();
-    if path_identity(destination) == Some(swapped.made.object) {
+    if swapped.at_the_destination == AtTheDestination::TheSnapshot {
         let notes: Vec<String> = crate::worktree_snapshot::settle_displaced(container, destination, swapped.binding.destination_id, swapped.binding.pointer.as_slice());
         let mut lines: Vec<String> = Vec::with_capacity(notes.len());
         for note in notes {
@@ -286,7 +369,9 @@ fn clear_the_displaced_directory(swapped: &CompletedSwap) -> Result<Displacement
 ///  recorded,
 /// or say what keeps it.
 /// Why:
-///   The destination is gone or is another worktree,
+///   The destination is gone,
+/// is another worktree,
+/// or is an object no record names,
 /// so the folder's entries belong to nobody this command
 ///   can name.
 /// Only the pointer bytes are proven to be Git's by the binding,
@@ -354,6 +439,11 @@ fn remove_the_directory_git_made(swapped: &CompletedSwap) -> Result<Displacement
 /// that its
 ///   ignored state is whole,
 /// so no later line promises a copy that this add never owed.
+/// Where the record of the stage's
+///  creation names no identity,
+/// the two were not compared,
+/// and the words say what that leaves open instead of
+///  claiming either answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -361,14 +451,17 @@ fn remove_the_directory_git_made(swapped: &CompletedSwap) -> Result<Displacement
 /// ```
 fn settled_words(swapped: &CompletedSwap) -> String {
     let destination: String = quote(swapped.binding.destination.to_string_lossy().as_ref());
-    if path_identity(swapped.binding.destination.as_path()) == Some(swapped.made.object) {
-        return format!(
+    return match swapped.at_the_destination {
+        AtTheDestination::TheSnapshot => format!(
             "monochromatic-git-policy-cli: the `git worktree add` of {destination} was interrupted after its snapshot was swapped into place; the snapshot carried the source's ignored state, so nothing in that worktree is missing, and the add's records are settled."
-        );
-    }
-    return format!(
-        "monochromatic-git-policy-cli: the `git worktree add` of {destination} was interrupted after its snapshot was swapped into place, and the worktree at that path is no longer the one the add made; the directory Git made for it is gone and the add's records are settled."
-    );
+        ),
+        AtTheDestination::AnotherObject => format!(
+            "monochromatic-git-policy-cli: the `git worktree add` of {destination} was interrupted after its snapshot was swapped into place, and the worktree at that path is no longer the one the add made; the directory Git made for it is gone and the add's records are settled."
+        ),
+        AtTheDestination::NotCompared => format!(
+            "monochromatic-git-policy-cli: the `git worktree add` of {destination} was interrupted after its snapshot was swapped into place, and the record of the object the stage's creation made names no identity, so whether that worktree still holds the snapshot was not compared; the snapshot carried the source's ignored state, so nothing in that worktree is missing while it is still the one the add made, and the add's records are settled."
+        ),
+    };
 }
 
 /// What:
