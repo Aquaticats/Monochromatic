@@ -20,7 +20,8 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
-use crate::push_retry::{PROTECTED_BRANCH_TRIES, RetryChange, Retrying, pause_before, protected_branch_refusal};
+use crate::push_retry::{RetryChange, Retrying, pause_before};
+use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, protected_branch_refusal};
 use crate::service_instance::GitDirUnreachable;
 use crate::unreachable_git_dir_proven_gone::Gone;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};

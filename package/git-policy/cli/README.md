@@ -3921,11 +3921,14 @@ fractional or non-numeric value is ignored.
   a stall,
   an HTTP 5xx answer of the LFS server and a held lock can pass.
   The server's own protected-branch refusal passes the same way,
-  for a fixed number of tries: GitHub answers one with
+  for a fixed number of tries:
+  GitHub answers one with
    `GH006: Protected branch update failed for <ref>`,
   and such a refusal cleared by itself three times in this repository,
-  so the service tries it five times in all,
-   after 10, 20, 40 and 80 seconds with the default first pause (two and a half minutes in all).
+  so the service tries it five times in all;
+  with the default first pause the tries come after 10 seconds and then 20,
+   40 and 80,
+  so the last one is two and a half minutes after the refusal.
   That is the owner's decision of 2026-11-11,
    "Make the wrapper auto retry on GH006";
   the code is what makes the refusal a protected-branch refusal,
@@ -3935,8 +3938,9 @@ fractional or non-numeric value is ignored.
    (an unsigned commit on a branch that requires signed commits is one)
   with a record that names what GitHub said,
   how many tries the service gave it and how long they covered,
-   and both ways out: change the commit or the rule and commit again,
-  or push by hand.
+  and both ways out.
+   One of them is to change the commit or the rule and commit again;
+  the other is to push by hand.
   Three failures stop the retry until the person's next commit
    (owner decision,
   2026-11-03:

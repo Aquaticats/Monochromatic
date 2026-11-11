@@ -20,7 +20,8 @@
 #![cfg(unix)]
 
 use crate::work_item::WorkKind;
-use crate::push_retry::{Due, PROTECTED_BRANCH_TRIES, PushRetries, RetryChange, pause_before};
+use crate::push_retry::{Due, PushRetries, RetryChange, pause_before};
+use crate::push_retry_failure::PROTECTED_BRANCH_TRIES;
 use crate::parallel_budget::HostResources;
 use crate::service_work_run_round::run_planned_round;
 use super::*;

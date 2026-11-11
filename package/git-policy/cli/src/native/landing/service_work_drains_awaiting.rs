@@ -36,7 +36,8 @@ use crate::service_work_storage_awaited::{
 };
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::PushOutcome;
-use crate::push_retry::{Due, PROTECTED_BRANCH_TRIES, Retrying, out_of_tries, out_of_tries_words};
+use crate::push_retry::{Due, Retrying};
+use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, out_of_tries, out_of_tries_words};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
