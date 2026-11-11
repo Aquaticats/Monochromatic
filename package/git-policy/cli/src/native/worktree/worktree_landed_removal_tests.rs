@@ -10,7 +10,7 @@
 //! const fixture = aRepositoryWithAWorktree(); const sweep = sweepLandedWorktrees(...); expect(sweep.removed).toHaveLength(1);
 //! ```
 
-use super::{LandedPlace, LandedSweep, sweep_landed_worktrees};
+use super::{LandedPlace, LandedSweep, holds_its_own_commits, sweep_landed_worktrees};
 use crate::held_commit_record::{Held, write};
 use crate::shadow_pool::pool_root_for;
 use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, repository};
@@ -124,7 +124,37 @@ fn head_of(main: &Path) -> String {
     return git_text(main, &["rev-parse", "HEAD"]);
 }
 
-/// The worktree's own Git directory, as Git's pointer names it.
+/// The commit as the notice text names it,
+/// with no abbreviation to resolve.
+fn plain(commit: &str) -> String {
+    return commit.to_string();
+}
+
+/// Whether real Git still has the commit `commit` in the fixture's repository.
+/// Why:
+///  A removal that took every reference to a commit leaves it to Git's own maintenance,
+///  and only a Git that answered is evidence that the commit really went.
+fn commit_is_there(repository: &Path, commit: &str) -> bool {
+    return std::process::Command::new(REAL_GIT)
+        .arg("-C")
+        .arg(repository)
+        .args(["cat-file", "-e", commit])
+        .output()
+        .expect("Git can be asked whether a commit is there")
+        .status
+        .success();
+}
+
+/// Plant the lock file a refused update leaves on the reference `name`,
+/// as a killed or a concurrent Git leaves it.
+fn plant_lock(common_dir: &Path, name: &str) {
+    let lock: PathBuf = common_dir.join(format!("{name}.lock"));
+    std::fs::create_dir_all(lock.parent().expect("the directory of the lock")).expect("the lock's directory");
+    std::fs::write(lock.as_path(), b"").expect("the lock file");
+}
+
+/// The worktree's own Git directory,
+/// as Git's pointer names it.
 fn admin_of(worktree: &Path) -> PathBuf {
     let pointer: String = std::fs::read_to_string(worktree.join(".git")).expect("the worktree's pointer");
     let path: &str = pointer.trim().strip_prefix("gitdir: ").expect("a pointer to its Git directory");
@@ -133,7 +163,8 @@ fn admin_of(worktree: &Path) -> PathBuf {
 
 /// What:
 ///  The state a commit that met a reference lock leaves in the worktree:
-///  a commit no branch names, held by the worktree's own reference and named by a held record.
+///  a commit no branch names,
+/// held by the worktree's own reference and named by a held record.
 /// Why:
 ///   Both of those go with the removal,
 ///  so a sweep that removes the worktree without keeping the commit loses it.
@@ -216,6 +247,226 @@ fn land_feature(landed: &Landed) -> LandedSweep {
     let table: PathBuf = an_empty_process_table(landed);
     let place: LandedPlace<'_> = place_of(landed, &context, &registered_before, table.as_path());
     return sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
+}
+
+/// A repository,
+/// a worktree on `feature` that a merge runs in,
+/// and one on `task-z` that a person has just added and not started in:
+/// its branch holds no commit of its own,
+/// and its tip is main's.
+/// Why:
+///  Every control of a fresh worktree needs the two worktrees and the commit main moved by,
+///  in one place,
+/// so none of them drifts from the state a person leaves.
+fn a_fresh_worktree_beside_the_one_a_merge_runs_in(name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let root: PathBuf = fixture(name);
+    let main: PathBuf = repository(root.as_path(), "main");
+    let tracked: PathBuf = main.join("README.md");
+    std::fs::write(tracked.as_path(), b"# fixture\n").expect("a tracked file");
+    age(tracked.as_path());
+    git(main.as_path(), &["add", "--", "README.md"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=a tracked file"]);
+    let common: PathBuf = main.join(".git");
+    let merged_in: PathBuf = root.join("x");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", merged_in.to_str().expect("a UTF-8 fixture path")]);
+    record(common.as_path(), merged_in.as_path()).expect("the record of a worktree this program made");
+    // main moves, as a person landing a commit in the main checkout makes it move.
+    let moved: PathBuf = main.join("more.txt");
+    std::fs::write(moved.as_path(), b"more\n").expect("a file main commits");
+    age(moved.as_path());
+    git(main.as_path(), &["add", "--", "more.txt"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=main moves"]);
+    // A new task starts at main's tip: its branch has no commit of its own.
+    let fresh: PathBuf = root.join("z");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "task-z", fresh.to_str().expect("a UTF-8 fixture path")]);
+    record(common.as_path(), fresh.as_path()).expect("the record of a worktree this program made");
+    return (root, main, merged_in, fresh);
+}
+
+/// What:
+///  A worktree added for a branch that holds no commit of its own is not removed by a merge of another branch.
+/// Why:
+///  The merge `git merge main` inside a feature worktree brought in main's commits,
+///  and the sweep counted every branch contained in the new head and not in the head before it,
+///  so a branch that merely pointed at main's tip looked landed:
+///  the worktree a person had just added went,
+///  though nothing of it was in any merge
+///  (a cross-vendor audit of `574063773d`,
+///  finding F4).
+///  What the removal deletes of a worktree it takes is a separate proof (`worktree_landed_ignored_files.rs`),
+///  so this control holds no ignored file:
+/// nothing may keep it but the rule about the branch's own commits.
+#[test]
+fn a_worktree_whose_branch_holds_no_commit_of_its_own_is_not_removed_by_another_branchs_merge() {
+    let (root, main, merged_in, fresh) = a_fresh_worktree_beside_the_one_a_merge_runs_in("landed-fresh-branch");
+    let common: PathBuf = main.join(".git");
+    let before: String = head_of(merged_in.as_path());
+    let registered_before: RegisteredBefore = registered_before(common.as_path()).expect("the registrations of the fixture");
+    git(merged_in.as_path(), &["merge", "--quiet", "--no-ff", "--message=update the branch from main", "main"]);
+    let now: String = head_of(merged_in.as_path());
+    let context: crate::transaction_git::GitContext = git_context();
+    let table: PathBuf = root.join("proc");
+    std::fs::create_dir_all(table.as_path()).expect("an empty process table");
+    let place: LandedPlace<'_> = LandedPlace {
+        context: &context,
+        cwd: merged_in.as_path(),
+        common_dir: common.as_path(),
+        current_root: Some(merged_in.as_path()),
+        proc_root: table.as_path(),
+        registered_before: &registered_before,
+    };
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), now.as_str(), "feature");
+    assert!(fresh.exists(), "the worktree a person added and has not started in is still there: {sweep:?}");
+    assert!(sweep.removed.is_empty(), "a branch with no commit of its own landed in no merge: {sweep:?}");
+}
+
+/// What:
+///  The rule that keeps a fresh worktree out of the sweep answers both ways:
+///  a branch that has moved since it was made holds a commit of its own,
+///  and one that has not does not.
+/// Why:
+///  A rule that answered "no commit of its own" to every branch would remove nothing at all,
+///  so the arm that keeps the worktree needs the arm that removes one beside it in the same control.
+#[test]
+fn a_branch_that_has_moved_since_it_was_made_holds_a_commit_of_its_own() {
+    let (root, main, _merged_in, fresh) = a_fresh_worktree_beside_the_one_a_merge_runs_in("landed-branch-own-commits");
+    let common: PathBuf = main.join(".git");
+    let task: &str = "refs/heads/task-z";
+    assert!(
+        !holds_its_own_commits(common.as_path(), task, head_of(fresh.as_path()).trim()),
+        "a branch a person added and committed nothing on holds no commit of its own"
+    );
+    git(fresh.as_path(), &["commit", "--quiet", "--allow-empty", "--message=the task's first work"]);
+    assert!(
+        holds_its_own_commits(common.as_path(), task, head_of(fresh.as_path()).trim()),
+        "a branch that has a commit of its own is no longer a branch that never moved"
+    );
+    // A repository that keeps no reflog for the branch proves nothing, so the branch stays a candidate.
+    let logs: PathBuf = common.join("logs/refs/heads/task-z");
+    std::fs::remove_file(logs.as_path()).expect("the branch's own reflog");
+    assert!(
+        holds_its_own_commits(common.as_path(), task, head_of(fresh.as_path()).trim()),
+        "without a reflog nothing proves the branch never moved, so it is examined as it was before"
+    );
+    drop(root);
+}
+
+/// What:
+///  A landed worktree that holds another registered worktree is kept,
+///  and the worktree inside it keeps its uncommitted work.
+/// Why:
+///  A worktree can be added from inside another one,
+///  and the nested checkout is a directory of the outer worktree under an ignored name,
+///  so the removal took its modified tracked file and its untracked file with it and left its registration naming a path
+///  that was gone
+///  (a cross-vendor audit of `574063773d`,
+///  finding F2).
+#[test]
+fn a_landed_worktree_holding_another_registered_worktree_stays() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-nested-worktree", ".claude/\n");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let inside: PathBuf = landed.worktree.join(".claude/worktrees/b");
+    git(
+        landed.worktree.as_path(),
+        &["worktree", "add", "--quiet", "-b", "sub", inside.to_str().expect("a UTF-8 fixture path")],
+    );
+    record(landed.common.as_path(), inside.as_path()).expect("the record of a worktree this program made");
+    let changed: PathBuf = inside.join("README.md");
+    std::fs::write(changed.as_path(), b"# the fixture, edited in the nested worktree\n").expect("a tracked file the person changed there");
+    let notes: PathBuf = inside.join("notes.txt");
+    std::fs::write(notes.as_path(), b"work the person has not committed\n").expect("an untracked file the person wrote there");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.removed.is_empty(), "nothing is removed while a registered worktree is inside the one that landed: {sweep:?}");
+    assert_eq!(sweep.kept.len(), 1, "the worktree that holds it is named as kept: {sweep:?}");
+    assert!(sweep.kept[0].why.contains("inside it"), "the reason says what is inside it: {}", sweep.kept[0].why);
+    assert!(sweep.kept[0].why.contains(inside.to_str().expect("a UTF-8 fixture path")), "the reason names the worktree inside: {}", sweep.kept[0].why);
+    assert_eq!(std::fs::read(changed.as_path()).expect("the changed file is still there"), b"# the fixture, edited in the nested worktree\n");
+    assert_eq!(std::fs::read(notes.as_path()).expect("the untracked file is still there"), b"work the person has not committed\n");
+    assert!(inside.exists(), "the nested worktree is where it was");
+}
+
+/// What:
+///  The unshown push failure of a worktree the sweep removes reaches the person from the next command,
+///  as it does when a person removes that worktree.
+/// Why:
+///  A worktree keeps its records in its own Git directory,
+/// which the removal deletes;
+///  the sweep ran no removal snapshot,
+/// so a failed push nobody had seen vanished with no word
+///  (a cross-vendor audit of `574063773d`,
+///  finding F3).
+#[test]
+fn a_swept_worktrees_unshown_push_failure_is_shown_by_the_next_command() {
+    let landed: Landed = a_repository_with_a_worktree("landed-push-notice");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let admin: PathBuf = admin_of(landed.worktree.as_path());
+    let commit: String = head_of(landed.worktree.as_path());
+    crate::push_failure_notice::record_push_failure(
+        admin.as_path(),
+        "refs/heads/feature",
+        commit.as_str(),
+        crate::push_failure_notice::PushOutcome::Refused,
+        "refused by test policy",
+    )
+    .expect("a failed push nobody has seen yet");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed: {sweep:?}");
+    assert!(!admin.exists(), "the removal took the record that named the failure");
+    // What the next command does with the removal this one made.
+    crate::worktree_removal_rescue::settle_removals(landed.common.as_path());
+    let texts: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::orphaned_push_failures(
+        landed.common.as_path(),
+        &plain,
+    ));
+    assert!(
+        texts.iter().any(|text| { return text.contains("branch feature") && text.contains(commit.as_str()) && text.contains("refused by test policy"); }),
+        "the push failure the removal would have destroyed is shown: {texts:?}"
+    );
+}
+
+/// What:
+///  A merge run again after a refused sweep looks at no landed worktree,
+///  and writes no kept reference,
+///  which is why the notice names the removal that finishes the work instead.
+/// Why:
+///  The refusal used to prescribe the same command again,
+///  and the command that reaches the sweep is a merge:
+///  its branch already landed,
+///  so the head does not move and the sweep is skipped,
+///  and the person following the advice got silence and no preserved commit
+///  (a cross-vendor review of the landed sweep,
+///  finding 2).
+///  This control pins that fact:
+/// if the sweep ever gains a retry,
+///  it fails,
+/// and the notice that says a merge again removes nothing is read again.
+#[test]
+fn a_merge_run_again_after_a_refusal_looks_at_no_landed_worktree() {
+    let landed: Landed = a_repository_with_a_worktree("landed-refusal-retry");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let _held: String = hold_a_commit_in_the_worktree(&landed, 7);
+    for name in ["refs/cli-git/kept/7", "refs/cli-git/kept/7-rescue"] {
+        plant_lock(landed.common.as_path(), name);
+    }
+    let identity: crate::worktree_identity::WorktreeIdentity = crate::worktree_identity::WorktreeIdentity::MainWorktree {
+        common_dir: landed.common.clone(),
+        git_dir: landed.common.clone(),
+        worktree_root: landed.main.clone(),
+    };
+    let (context, window) = crate::worktree_landed_after_a_merge::window(git_context(), &identity).expect("the branch as the merge finds it");
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let first: LandedSweep = crate::worktree_landed_after_a_merge::after_a_merge(&context, &identity, &window, 0).expect("the merge landed the branch");
+    assert!(first.failed.is_some(), "neither kept reference can be written: {first:?}");
+    assert!(landed.worktree.exists(), "the refusal leaves the worktree where it is");
+    for name in ["refs/cli-git/kept/7", "refs/cli-git/kept/7-rescue"] {
+        std::fs::remove_file(landed.common.join(format!("{name}.lock"))).expect("the lock nothing holds is removed");
+    }
+    let (retry_context, retry_window) = crate::worktree_landed_after_a_merge::window(git_context(), &identity).expect("the branch as the retry finds it");
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land the feature", "feature"]);
+    let retry: Option<LandedSweep> = crate::worktree_landed_after_a_merge::after_a_merge(&retry_context, &identity, &retry_window, 0);
+    assert!(retry.is_none(), "a merge whose branch already landed moves nothing and looks at no worktree: {retry:?}");
+    assert!(landed.worktree.exists(), "the worktree is where the refusal left it");
+    assert!(!landed.common.join("refs/cli-git/kept/7").exists(), "the retry wrote no kept reference");
 }
 
 #[test]
@@ -452,6 +703,90 @@ fn a_landed_worktree_holding_a_commit_keeps_it_on_a_side_reference() {
     assert_eq!(git_text(landed.main.as_path(), &["rev-parse", kept.as_str()]), held, "the kept reference names the held commit");
     git(landed.main.as_path(), &["gc", "--prune=now"]);
     assert_eq!(git_text(landed.main.as_path(), &["cat-file", "-t", held.as_str()]), "commit", "the commit is not lost with the worktree");
+}
+
+/// What:
+///  A landed worktree whose batch kept reference already names another commit keeps its held commit on the reference
+///  beside it,
+/// so that commit survives the removal and Git's own maintenance.
+/// Why:
+///  A kept reference another batch's commit is kept under is left where it is,
+///  and the sweep read the collision as a line the person reads rather than as a commit nothing holds:
+///  the worktree went,
+/// its per-worktree reference went with it,
+///  and `git gc --prune=now` then took a commit this program said it kept
+///  (a cross-vendor review of the landed sweep,
+///  finding 1).
+#[test]
+fn a_landed_worktree_whose_kept_reference_names_another_commit_keeps_its_commit_beside_it() {
+    let landed: Landed = a_repository_with_a_worktree("landed-held-commit-name-taken");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let held: String = hold_a_commit_in_the_worktree(&landed, 7);
+    let elsewhere: String = head_of(landed.main.as_path());
+    assert_ne!(elsewhere, held, "the control keeps two different commits");
+    let taken: String = String::from("refs/cli-git/kept/7");
+    let beside: String = String::from("refs/cli-git/kept/7-rescue");
+    git(landed.main.as_path(), &["update-ref", taken.as_str(), elsewhere.as_str()]);
+    let named_before: String = git_text(landed.main.as_path(), &["for-each-ref", "--contains", held.as_str(), "--format=%(refname)"]);
+    let sweep: LandedSweep = land_feature(&landed);
+    git(landed.main.as_path(), &["gc", "--prune=now"]);
+    let survived: bool = commit_is_there(landed.main.as_path(), held.as_str());
+    assert!(
+        survived,
+        "the commit {held} was held by the worktree alone ({named_before:?}), the sweep removed {} worktree(s), and a collection then deleted it: {sweep:?}",
+        sweep.removed.len()
+    );
+    let holders: String = git_text(landed.main.as_path(), &["for-each-ref", "--contains", held.as_str(), "--format=%(refname)"]);
+    assert_eq!(holders.trim(), beside, "the held commit is kept on the reference beside the taken one: {sweep:?}");
+    assert_eq!(git_text(landed.main.as_path(), &["rev-parse", taken.as_str()]), elsewhere, "the commit the taken name already held stays named");
+    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed once its commit is kept: {sweep:?}");
+}
+
+/// What:
+///  A landed sweep that could keep a held commit on no reference names the command that finishes the removal,
+///  and that command keeps the commit before Git removes the worktree.
+/// Why:
+///  The refusal told the person to run the same command again,
+///  and a merge whose branch already landed is up to date:
+/// the retry looked at no worktree,
+///  wrote no kept reference and said nothing at all,
+///  so the one remedy the notice named did nothing
+///  (a cross-vendor review of the landed sweep,
+///  finding 2).
+#[test]
+fn a_refused_landed_sweep_names_a_command_that_finishes_the_removal() {
+    let landed: Landed = a_repository_with_a_worktree("landed-held-commit-refusal-remedy");
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let held: String = hold_a_commit_in_the_worktree(&landed, 7);
+    let taken: String = String::from("refs/cli-git/kept/7");
+    let beside: String = String::from("refs/cli-git/kept/7-rescue");
+    for name in [taken.as_str(), beside.as_str()] {
+        plant_lock(landed.common.as_path(), name);
+    }
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.failed.is_some(), "neither kept reference can be written, so the sweep refuses: {sweep:?}");
+    assert!(landed.worktree.exists(), "the refusal leaves the worktree and its commit where they are");
+    let notice: String = crate::worktree_landed_sweep_notice::landed_sweep_lines(&sweep).join("\n");
+    println!("{notice}");
+    let quoted: String = crate::shell_quote::shell_quote(landed.worktree.as_os_str().as_encoded_bytes());
+    let finishes: String = format!("git worktree remove {quoted}");
+    assert!(notice.contains(finishes.as_str()), "the notice names the command that finishes the removal, `{finishes}`: {notice}");
+    assert!(notice.contains("up to date"), "the notice says a merge run again removes nothing: {notice}");
+    // The remedy the notice names, run as the removal route runs it: the locks go, the records are snapshotted, the commit is
+    //  kept, and real Git removes the worktree.
+    for name in [taken.as_str(), beside.as_str()] {
+        std::fs::remove_file(landed.common.join(format!("{name}.lock"))).expect("the lock nothing holds is removed");
+    }
+    let context: crate::transaction_git::GitContext = git_context();
+    crate::worktree_removal_rescue::snapshot_linked_worktrees(landed.common.as_path());
+    let kept: crate::worktree_removal_held_commits::KeptCommits = crate::worktree_removal_held_commits::keep_held_commits(landed.common.as_path(), &context);
+    assert!(kept.refused.is_empty(), "the reference can be written again: {:?}", kept.refused);
+    let linked: String = landed.worktree.display().to_string();
+    git(landed.main.as_path(), &["worktree", "remove", linked.as_str()]);
+    assert!(!landed.worktree.exists(), "the command the notice names removes the worktree");
+    git(landed.main.as_path(), &["gc", "--prune=now"]);
+    assert!(commit_is_there(landed.main.as_path(), held.as_str()), "the commit is kept before the worktree goes");
+    assert_eq!(git_text(landed.main.as_path(), &["rev-parse", taken.as_str()]), held, "the kept reference names the held commit");
 }
 
 /// What:

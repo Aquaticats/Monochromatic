@@ -22,6 +22,7 @@ use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
 use crate::push_retry::{RetryChange, Retrying, pause_before};
 use crate::push_retry_cause_line::cause_line;
+use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, protected_branch_refusal};
 use crate::service_instance::GitDirUnreachable;
 use crate::unreachable_git_dir_proven_gone::Gone;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
@@ -102,10 +103,13 @@ pub enum Verdict {
     /// the network,
     /// an LFS server error,
     /// a held lock,
-    /// a remote that advanced again);
+    /// a remote that advanced again,
+    /// the server's protected-branch refusal);
     /// the text is what the person should be told,
     /// and the service tries the push again on its own,
-    /// with growing pauses.
+    /// with growing pauses,
+    /// for a fixed number of tries when the cause is the
+    ///  server's protected-branch refusal.
     Retry(String),
 }
 
@@ -646,7 +650,9 @@ impl Replanning {
 /// so the service's quiet
 ///  between tries is explained;
 /// the person's record says the service keeps trying,
-/// so they do not push by hand for nothing.
+/// so they do not push by hand for nothing,
+/// and for a
+///  cause the service gives a fixed number of tries it says how many there are.
 ///  The plan is asked of the service loop (`Replanning`),
 /// which owns it,
 /// and it is written before those words exist:
@@ -684,11 +690,22 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
     // and its answer says whether the words may promise it.
     let kept: bool = replanning.keep_the_plan(git_dir, item, attempt);
     replanning.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause });
-    let plan: String = format!(
-        "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
-        pause.as_secs(),
-        attempt + 1
-    );
+    // A protected-branch refusal is retried a fixed number of times, so a record that promised tries until the push lands would be
+    //  untrue for the one cause that stops on its own; its words name the last try instead.
+    let plan: String = match protected_branch_refusal(text) {
+        Some(_) => format!(
+            "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {} of {}). The server's refusal of an update to a protected branch can clear by itself; if the server refuses try {} as well, the service stops trying this branch and tells you what the server said.",
+            pause.as_secs(),
+            attempt + 1,
+            PROTECTED_BRANCH_TRIES,
+            PROTECTED_BRANCH_TRIES
+        ),
+        None => format!(
+            "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
+            pause.as_secs(),
+            attempt + 1
+        ),
+    };
     let fields: [(&str, String); 3] = [
         ("CLI_GIT_BRANCH", item.branch_ref.clone()),
         ("CLI_GIT_OID", item.oid.clone()),

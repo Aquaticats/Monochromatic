@@ -20,7 +20,8 @@
 #![cfg(unix)]
 
 use crate::work_item::WorkKind;
-use crate::push_retry::{Due, PushRetries, RetryChange};
+use crate::push_retry::{Due, PushRetries, RetryChange, pause_before};
+use crate::push_retry_failure::PROTECTED_BRANCH_TRIES;
 use crate::parallel_budget::HostResources;
 use crate::service_work_run_round::run_planned_round;
 use super::*;
@@ -201,6 +202,16 @@ const SCRIPTED_PAUSE: Duration = Duration::from_millis(300);
 /// A directory standing for a repository,
 /// with a push item written for it.
 fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Arc<Scripted>, PushRetries) {
+    return scripted_world_paced(name, verdicts, SCRIPTED_PAUSE);
+}
+
+/// The same world,
+/// with a first pause the control chooses.
+/// Why:
+///   A control that counts tries reads the plan's pauses as waits,
+/// so a pause of a fraction of a second keeps it quick,
+///  while a control that measures the pauses asks for the world's own.
+fn scripted_world_paced(name: &str, verdicts: Vec<Verdict>, first: Duration) -> (PathBuf, PathBuf, Arc<Scripted>, PushRetries) {
     let root: PathBuf = fixture(name);
     let git_dir: PathBuf = root.join("common");
     let worktree: PathBuf = root.join("worktree");
@@ -218,7 +229,123 @@ fn scripted_world(name: &str, verdicts: Vec<Verdict>) -> (PathBuf, PathBuf, Arc<
     };
     enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("enqueue");
     let handlers: Arc<Scripted> = Arc::new(Scripted { verdicts: Mutex::new(verdicts), pushes: AtomicUsize::new(0) });
-    return (root, git_dir, handlers, PushRetries::with_first_pause(SCRIPTED_PAUSE));
+    return (root, git_dir, handlers, PushRetries::with_first_pause(first));
+}
+
+/// The first pause of the controls that count tries:
+/// short enough that the plan's doubling stays inside the control's patience,
+/// and in whole seconds,
+/// so the span the record names is a whole number of seconds.
+const COUNTED_PAUSE: Duration = Duration::from_secs(1);
+
+/// How many rounds a control lets a plan run before it fails the plan as one that never ends:
+/// one more than the tries the service gives a refusal,
+/// so a plan that outlives its bound stops the control instead of running on.
+/// The try count itself is asserted apart from this,
+/// so this figure never states the bound under test.
+const SAFETY_ROUNDS: u32 = PROTECTED_BRANCH_TRIES + 1;
+
+/// What:
+///  A protected-branch refusal that keeps coming back ends,
+///  and the person is told what the server said,
+///  how many tries the service gave it,
+///  and what to do.
+/// Why:
+///   The refusal can clear by itself,
+///  so it is not final,
+/// and a rule that refuses every push of the branch refuses every try as well:
+/// an unsigned commit on a branch that requires signed commits is one,
+/// and the service must
+///  stop trying it and ask the person rather than wait for ever (the owner's rules "nothing should ever wait forever or
+///  indefinitely" and "Commits should never fail.").
+///  The refusal below is GitHub's own shape,
+/// with its code,
+/// its words and the reason a server's protected-branch rule writes.
+#[test]
+fn a_protected_branch_refusal_that_keeps_coming_back_ends_and_tells_the_person() {
+    let refusal: String = format!(
+        "remote: {GITHUB_PROTECTED_BRANCH_LINE}\nremote: \nTo /srv/remote.git\n ! [remote rejected] main -> main (protected branch hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n"
+    );
+    let script: Vec<Verdict> = (0..SAFETY_ROUNDS).map(|_round| { return Verdict::Retry(refusal.clone()); }).collect();
+    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Arc<Scripted>, PushRetries) =
+        scripted_world_paced("push-retry-gh006-keeps-coming-back", script, COUNTED_PAUSE);
+    let mut rounds: u32 = 0;
+    let mut plan: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    loop {
+        let Some(wait) = plan else { break };
+        rounds += 1;
+        assert!(rounds < SAFETY_ROUNDS, "the service was still planning tries for a refusal that comes back every time: {rounds} rounds");
+        std::thread::sleep(wait);
+        plan = round_of(git_dir.as_path(), &handlers, &mut retries);
+    }
+    assert!(retries.directories().is_empty(), "no plan is left for a refusal that has used up its tries");
+    assert_eq!(
+        handlers.pushes.load(Ordering::SeqCst),
+        usize::try_from(PROTECTED_BRANCH_TRIES).expect("a count of tries"),
+        "the refusal was given every try the service gives it, and no more"
+    );
+    let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
+    assert!(record.contains("GH006"), "the stored record keeps what GitHub said: {record}");
+    // What the person reads at the next command, which is the record through the words the notice gives it.
+    let shown: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
+    assert_eq!(shown.len(), 1, "one record for the refusal: {shown:?}");
+    let shown_record: &str = shown[0].as_str();
+    assert!(shown_record.contains("GH006"), "the person is shown what GitHub said: {shown_record}");
+    assert!(shown_record.contains("stopped trying this branch"), "the person is told the service has stopped: {shown_record}");
+    assert!(
+        shown_record.contains(&format!("after {PROTECTED_BRANCH_TRIES} tries over")),
+        "the person is told how many tries the service gave it: {shown_record}"
+    );
+    let span: u64 = (1..PROTECTED_BRANCH_TRIES).map(|try_number| { return pause_before(try_number, COUNTED_PAUSE).as_secs(); }).sum();
+    assert!(shown_record.contains(&format!("{span} seconds")), "the person is told how long the tries covered: {shown_record}");
+    assert!(!shown_record.contains("tries this push again"), "the record promises no try that is not coming: {shown_record}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A push whose earlier tries failed for a cause that can pass,
+///  and whose last try the server refused as an update to a protected branch,
+///  ends at the same count,
+///  and the record says what is true of that sequence.
+/// Why:
+///   The plan names a try and no cause,
+/// so wait hours spent on a stall count against the push;
+/// a record that claimed the refusal was tried that many times would be false,
+/// and one that let an unbounded cause reset the count could wait for ever.
+#[test]
+fn a_stall_before_a_protected_branch_refusal_spends_the_same_tries() {
+    let refusal: String = format!(
+        "remote: {GITHUB_PROTECTED_BRANCH_LINE}\nremote: \nTo /srv/remote.git\n ! [remote rejected] main -> main (protected branch hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n"
+    );
+    // The script is read from the end: every try before the last one met a stall, and the last one the refusal.
+    let mut script: Vec<Verdict> = (1..PROTECTED_BRANCH_TRIES).map(|_try_number| { return Verdict::Retry(String::from("Could not resolve host")); }).collect();
+    script.insert(0, Verdict::Retry(refusal));
+    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Arc<Scripted>, PushRetries) =
+        scripted_world_paced("push-retry-refusal-after-stalls", script, COUNTED_PAUSE);
+    let mut rounds: u32 = 0;
+    let mut plan: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    loop {
+        let Some(wait) = plan else { break };
+        rounds += 1;
+        assert!(rounds < SAFETY_ROUNDS, "the service was still planning tries for a push it should have left to the person: {rounds} rounds");
+        std::thread::sleep(wait);
+        plan = round_of(git_dir.as_path(), &handlers, &mut retries);
+    }
+    assert_eq!(
+        handlers.pushes.load(Ordering::SeqCst),
+        usize::try_from(PROTECTED_BRANCH_TRIES).expect("a count of tries"),
+        "the push was given its tries and no more, though the earlier ones met a stall"
+    );
+    assert!(retries.directories().is_empty(), "no plan is left");
+    let shown: Vec<String> = crate::test_support::shown_notices(crate::push_failure_notice::push_failures(git_dir.as_path()));
+    assert_eq!(shown.len(), 1, "one record for the push: {shown:?}");
+    let record: &str = shown[0].as_str();
+    assert!(
+        record.contains("the server refused the last try of this push as an update to a protected branch"),
+        "the record says which try the server refused: {record}"
+    );
+    assert!(!record.contains("tried it"), "the record never says the refusal was tried as often as the push: {record}");
+    remove(root.as_path());
 }
 
 /// Every failure that can pass is tried again,
@@ -813,6 +940,67 @@ fn a_push_a_server_hook_declines_is_not_tried_again() {
     remove(stage.root.as_path());
 }
 
+/// The line GitHub's own server prints in a refused push when its protected-branch rule declines the update:
+/// the code it answers with,
+/// its words for it,
+/// and the reference it refused.
+const GITHUB_PROTECTED_BRANCH_LINE: &str = "error: GH006: Protected branch update failed for refs/heads/main.";
+
+/// What:
+///  A push a server refuses with GitHub's protected-branch code is landed by the commit service itself once the
+///  server takes it,
+/// with no new commit and with no push by hand.
+/// Why:
+///   At `2026-11-11T06:42-05:00` the auto-push of `main` was refused with `GH006` one minute after another session
+///  had pushed `main`,
+/// the wrapper stopped pushing the branch until the next commit,
+/// and a plain `git push origin main` of the same commit two minutes later landed it
+///  (`doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`).
+/// The hook below answers as GitHub did on the first push and as it did on the second:
+/// the refusal is the server's answer
+///  at that moment,
+/// and the retry is the service's own.
+#[test]
+fn a_push_a_server_refuses_with_gh006_is_tried_again_and_lands_without_a_new_commit() {
+    let stage: Stage = stage("push-retry-gh006-clears");
+    let refused_once: PathBuf = stage.root.join("refused-once");
+    let hook: PathBuf = stage.remote.join("hooks").join("pre-receive");
+    // A hook's standard error reaches the client as `remote:` lines, so the code arrives in the push's output as GitHub's does.
+    std::fs::write(
+        hook.as_path(),
+        format!("#!/bin/sh\nif [ ! -e '{marker}' ]; then\n  echo '{GITHUB_PROTECTED_BRANCH_LINE}' >&2\n  : > '{marker}'\n  exit 1\nfi\nexit 0\n", marker = refused_once.display()),
+    )
+    .expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let first: Option<Duration> = round_with_real_git(&stage, &mut retries);
+    assert_ne!(remote_tip(&stage), stage.landed, "the server refused the first push the service made");
+    assert_eq!(notices(&stage), 1, "the person is told the push was refused");
+    let record: String = notice_text(&stage);
+    assert!(
+        record.contains("tries this push again by itself") && record.contains("GH006"),
+        "the person is told GitHub's words and that the service tries again: {record}"
+    );
+    assert!(
+        record.contains(&format!("(try 2 of {PROTECTED_BRANCH_TRIES})")),
+        "the record names the try and the last one: {record}"
+    );
+    assert!(
+        !record.contains("keeps trying with longer pauses"),
+        "the record promises no tries until the push lands, because this cause stops after its last: {record}"
+    );
+    let wait: Duration = first.expect("the service says when to look at the repository again");
+    assert!(wait <= PAUSE + Duration::from_secs(5), "the wake is for the retry: {wait:?}");
+    std::thread::sleep(wait);
+    let second: Option<Duration> = round_with_real_git(&stage, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the service landed the commit on its own");
+    assert_eq!(notices(&stage), 0, "the record of the refusal is gone once the push landed");
+    assert_eq!(second, None, "nothing is left to try again");
+    let head: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    assert_eq!(head, stage.landed, "the push landed the commit that was already there, with no new one");
+    remove(stage.root.as_path());
+}
+
 /// A push that needs a login the service does not have is not tried again,
 /// and the person is told to log in.
 #[test]
@@ -846,9 +1034,27 @@ fn prompts_recorded(log: &Path) -> String {
     return std::fs::read_to_string(log).unwrap_or_default();
 }
 
-/// The controls that show the dialog need `GIT_ASKPASS` unset in the process whose environment the service's Git inherits.
-fn assert_askpass_is_unset_here() {
-    assert!(std::env::var_os("GIT_ASKPASS").is_none(), "this control shows what an unset GIT_ASKPASS does; run it without GIT_ASKPASS in the environment");
+/// What:
+///  The push environment that makes the recorder the program Git and git-lfs would run when neither was
+///  told not to ask:
+///  both names they try before `GIT_TERMINAL_PROMPT`,
+///  `GIT_ASKPASS` and `SSH_ASKPASS`.
+/// Why:
+///   The service's push environment inherits the whole process environment (`push_environment_of`),
+///  so a control that named only `SSH_ASKPASS` would depend on the host:
+///  on a host whose `GIT_ASKPASS` is set,
+///  that program is the one Git runs,
+///  the recorder's log stays empty,
+///  and the log would prove nothing
+///  even if the service stopped setting `GIT_ASKPASS` at all.
+/// Naming the recorder under both makes its empty log the proof on every
+///  host:
+/// the empty `GIT_ASKPASS` the service sets (`service_child_overlay`) kept every prompt program away,
+///  whichever of the two names
+///  the host itself carries.
+fn askpass_names(program: &Path) -> [(&str, &str); 2] {
+    let recorded: &str = program.to_str().expect("the recorder's path is text");
+    return [("GIT_ASKPASS", recorded), ("SSH_ASKPASS", recorded)];
 }
 
 /// A push to a server that answers 401 never starts the program the host names as its askpass helper:
@@ -861,13 +1067,13 @@ fn assert_askpass_is_unset_here() {
 /// reached without a wait.
 #[test]
 fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program() {
-    assert_askpass_is_unset_here();
     let stage: Stage = stage("push-never-prompts");
     let server: LoginServer = LoginServer::start();
     point_remote_at(&stage, format!("http://{}/r.git", server.address).as_str());
     let log: PathBuf = stage.root.join("askpass.log");
     let program: PathBuf = recorder(stage.root.as_path(), log.as_path());
-    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]));
+    let names: [(&str, &str); 2] = askpass_names(program.as_path());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&names));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let wake: Option<Duration> = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries);
     assert_eq!(prompts_recorded(log.as_path()), "", "nothing asked a person for a name or a password");
@@ -891,7 +1097,6 @@ fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program()
 ///  holds the run of the real one.
 #[test]
 fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
-    assert_askpass_is_unset_here();
     let stage: Stage = stage("lfs-never-prompts");
     let log: PathBuf = stage.root.join("askpass.log");
     let program: PathBuf = recorder(stage.root.as_path(), log.as_path());
@@ -903,7 +1108,8 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
         format!("#!/bin/sh\nprintf '%s' \"$GIT_TERMINAL_PROMPT\" > '{}'\nasker=\"${{GIT_ASKPASS-$SSH_ASKPASS}}\"\nif [ -n \"$asker\" ]; then \"$asker\" 'Username for \"http://127.0.0.1\"' > /dev/null; fi\nexit 2\n", seen.display()).as_bytes(),
     );
     let path: String = format!("{}:/usr/bin:/bin", bin.display());
-    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&[("SSH_ASKPASS", program.to_str().expect("utf-8"))]));
+    let names: [(&str, &str); 2] = askpass_names(program.as_path());
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&names));
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: stage.repo.to_path_buf(),
