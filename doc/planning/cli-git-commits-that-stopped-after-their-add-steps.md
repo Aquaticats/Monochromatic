@@ -571,6 +571,17 @@ None of the three adds a Git start:
 the question is still asked of the refusal already in hand,
 which is the ground the merged answer was chosen on above.
 
+One wording stays as issue 6283 left it:
+a refused token that begins with a hyphen gets the sentence about where an option
+belongs and no spelling remedy.
+That is right for the shape issue 6283 reported,
+an option written after `--`,
+and it is also what a missing path whose name begins with a hyphen gets,
+from the command line as from a pathspec file,
+because the message cannot tell an option-shaped path from an option.
+Changing it means deciding which of the two a hyphen-shaped token is,
+which is that finding's wording and not this one's.
+
 The controls are in `commit_pathspec_matching_nothing_tests.rs`,
 `private_index_request_tests.rs` and `binary_commit_tests.rs`
 (`a_pathspec_file_too_large_for_one_command_line_is_refused_as_a_pathspec_that_matches_nothing`,

@@ -110,6 +110,9 @@ pub fn pathspec_matching_nothing(stderr: &[u8], written: WrittenPathspecs<'_>) -
 ///  and the wording that closes the line is the one Git ended the sentence with.
 ///  Nothing the caller did not write can be reported,
 /// because no other sentence is searched for.
+///  Each element costs one pass of the message per wording,
+/// and the elements are those one command line carried,
+/// so a refusal pays a short search for each of them rather than a scan of the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
