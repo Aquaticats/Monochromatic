@@ -36,12 +36,16 @@ use crate::service_work_storage_awaited::{acceptable_awaiting, claim_all_awaitin
 use crate::journald_native::Priority;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
 use crate::service_work_drain_deletes_subvolumes::delete_subvolumes_awaiting;
-use crate::service_work_settling_with_words::settle_with_the_words;
+use crate::service_work_items_side_by_side::{pushes_side_by_side, run_and_settle_side_by_side, slow_items_side_by_side, waves_of};
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
+use crate::parallel_budget::HostResources;
+use crate::side_by_side_on_the_current_task::run_all_side_by_side_on_the_current_task;
 use crate::work_item::{Claimed, DONE, FAILED, WorkItem, WorkKind};
+use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::pin::Pin;
+use std::time::{Duration, Instant, SystemTime};
 
 /// What:
 ///  Claims and runs every pending item of one work directory of the kinds `kinds` names,
@@ -63,7 +67,7 @@ use std::time::{Duration, Instant};
 /// ```ts
 /// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning, kinds)
 /// ```
-pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
+pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     lease: Duration,
@@ -102,6 +106,8 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             Some(back) => held = back,
             None => break 'round,
         }
+        // The host's CPUs and memory, read once for every batch of this round, so a round's widths are one reading.
+        let host: HostResources = HostResources::read();
         let mut pushes: Vec<Claimed> = Vec::new();
         let mut trashes: Vec<Claimed> = Vec::new();
         let mut prewarms: Vec<Claimed> = Vec::new();
@@ -137,6 +143,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => groups.push((key, vec![item])),
             }
         }
+        // The claims of every branch are checked before any push starts, so one listing of the claim directory serves
+        //  them all, and a branch another instance took over is left to it.
+        let mut branches: Vec<Vec<Claimed>> = Vec::new();
         for (_, claimed_members) in groups {
             let members: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), claimed_members).await {
                 Some((back, mine)) => {
@@ -145,47 +154,68 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 }
                 None => break 'round,
             };
-            if members.is_empty() {
-                continue;
+            if !members.is_empty() {
+                branches.push(members);
             }
-            let mut items: Vec<WorkItem> = Vec::new();
-            for member in &members {
-                items.push(member.item.clone());
+        }
+        // The pushes of different branches run side by side: each names its own branch, its own objects are already in the
+        //  repository's store, and only the branch it updates and the reference it tracks are its own. The same branch's
+        //  records are one group, so one branch is never pushed twice at once.
+        let branches_wide: usize = pushes_side_by_side(branches.len(), &host);
+        let branch_keys: Vec<(PathBuf, String)> = branches.iter().map(|members| {
+            return match members.last() {
+                Some(newest) => (newest.item.repository.clone(), newest.item.branch_ref.clone()),
+                None => (PathBuf::new(), String::new()),
+            };
+        }).collect();
+        for wave in waves_of(branch_keys.as_slice(), branches_wide) {
+            let mut running: Vec<Pin<Box<dyn Future<Output = (Verdict, SystemTime, u128)> + Send + '_>>> = Vec::with_capacity(wave.len());
+            for index in &wave {
+                let mut items: Vec<WorkItem> = Vec::new();
+                for member in &branches[*index] {
+                    items.push(member.item.clone());
+                }
+                running.push(Box::pin(async move {
+                    // The push carries what existed when it began; a notice written after this moment is about something newer.
+                    let pushing_since: SystemTime = SystemTime::now();
+                    let pushing: Instant = Instant::now();
+                    let verdict: Verdict = handlers.push_awaiting(items.as_slice()).await;
+                    return (verdict, pushing_since, pushing.elapsed().as_millis());
+                }));
             }
-            // The push carries what existed when it began; a notice written after this moment is about something newer.
-            let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
-            let pushing: Instant = Instant::now();
-            let verdict: Verdict = handlers.push_awaiting(items.as_slice()).await;
-            if let Some(newest) = members.last() {
-                // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
-                let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
-                    Verdict::Done => (Priority::Info, "done", ""),
-                    Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
-                    Verdict::Retry(text) => (Priority::Warning, "retrying", text.as_str()),
-                    Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
-                };
-                let fields: [(&str, String); 3] = [
-                    ("CLI_GIT_BRANCH", newest.item.branch_ref.clone()),
-                    ("CLI_GIT_OID", newest.item.oid.clone()),
-                    ("CLI_GIT_OUTCOME", outcome.to_string()),
-                ];
-                log_entry(
-                    priority,
-                    format!(
-                        "pushed branch={:?} oid={} items={} outcome={outcome} push_ms={}{}{said}",
-                        newest.item.branch_ref,
-                        newest.item.oid,
-                        members.len(),
-                        pushing.elapsed().as_millis(),
-                        if said.is_empty() { "" } else { ": " }
-                    )
-                    .as_str(),
-                    &fields,
-                );
-            }
-            match settle_after_the_push(held, work_dir.as_path(), git_dir, &members, verdict, pushing_since, replanning).await {
-                Some(back) => held = back,
-                None => break 'round,
+            let pushed: Vec<(Verdict, SystemTime, u128)> = run_all_side_by_side_on_the_current_task(running).await;
+            for (index, (verdict, pushing_since, push_ms)) in wave.iter().zip(pushed) {
+                let members: &Vec<Claimed> = &branches[*index];
+                if let Some(newest) = members.last() {
+                    // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
+                    let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
+                        Verdict::Done => (Priority::Info, "done", ""),
+                        Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
+                        Verdict::Retry(text) => (Priority::Warning, "retrying", text.as_str()),
+                        Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
+                    };
+                    let fields: [(&str, String); 3] = [
+                        ("CLI_GIT_BRANCH", newest.item.branch_ref.clone()),
+                        ("CLI_GIT_OID", newest.item.oid.clone()),
+                        ("CLI_GIT_OUTCOME", outcome.to_string()),
+                    ];
+                    log_entry(
+                        priority,
+                        format!(
+                            "pushed branch={:?} oid={} items={} outcome={outcome} push_ms={push_ms}{}{said}",
+                            newest.item.branch_ref,
+                            newest.item.oid,
+                            members.len(),
+                            if said.is_empty() { "" } else { ": " }
+                        )
+                        .as_str(),
+                        &fields,
+                    );
+                }
+                match settle_after_the_push(held, work_dir.as_path(), git_dir, members, verdict, pushing_since, replanning).await {
+                    Some(back) => held = back,
+                    None => break 'round,
+                }
             }
         }
         // A snapshot ahead is the one kind of work a person's own command waits for, so it runs before the upkeep
@@ -225,16 +255,21 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
             None => break 'round,
         };
-        for item in relinked {
-            let relinking: Instant = Instant::now();
-            let verdict: Verdict = handlers.relink_awaiting(&item.item).await;
-            if matches!(verdict, Verdict::Done) {
-                crate::service_log!("the package state of {} was relinked relink_ms={}", item.item.repository.display(), relinking.elapsed().as_millis());
-            }
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "relink").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
+        let relinks_wide: usize = slow_items_side_by_side(relinked.len(), &host);
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, relinked, relinks_wide, "relink", |asked, item| {
+            return Box::pin(async move {
+                let relinking: Instant = Instant::now();
+                let verdict: Verdict = asked.relink_awaiting(item).await;
+                if matches!(verdict, Verdict::Done) {
+                    crate::service_log!("the package state of {} was relinked relink_ms={}", item.repository.display(), relinking.elapsed().as_millis());
+                }
+                return verdict;
+            });
+        })
+        .await
+        {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // A new worktree's Cargo build directory is filled before the left-out files are emptied: the filling is the work
         //  the add stopped doing, and the sooner it lands the more likely the first build in the worktree finds it.
@@ -245,12 +280,14 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
             None => break 'round,
         };
-        for item in prewarmed {
-            let verdict: Verdict = handlers.prewarm_awaiting(&item.item).await;
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "prewarm").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
+        let prewarms_wide: usize = slow_items_side_by_side(prewarmed.len(), &host);
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, prewarmed, prewarms_wide, "prewarm", |asked, item| {
+            return Box::pin(async move { return asked.prewarm_awaiting(item).await; });
+        })
+        .await
+        {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
         //  nothing else names, and it frees everything the worktree held.
@@ -267,12 +304,14 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
             None => break 'round,
         };
-        for item in trashed {
-            let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "trash").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
+        let trashes_wide: usize = slow_items_side_by_side(trashed.len(), &host);
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, trashed, trashes_wide, "trash", |asked, item| {
+            return Box::pin(async move { return asked.trash_awaiting(item).await; });
+        })
+        .await
+        {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
         let reviewed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), reviews).await {
@@ -282,16 +321,21 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
             None => break 'round,
         };
-        for item in reviewed {
-            let review_began: Instant = Instant::now();
-            let verdict: Verdict = handlers.review_awaiting(&item.item).await;
-            if matches!(verdict, Verdict::Done) {
-                crate::service_log!("the review of {} is done review_ms={}", item.item.oid, review_began.elapsed().as_millis());
-            }
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "review").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
+        let reviews_wide: usize = slow_items_side_by_side(reviewed.len(), &host);
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, reviewed, reviews_wide, "review", |asked, item| {
+            return Box::pin(async move {
+                let review_began: Instant = Instant::now();
+                let verdict: Verdict = asked.review_awaiting(item).await;
+                if matches!(verdict, Verdict::Done) {
+                    crate::service_log!("the review of {} is done review_ms={}", item.oid, review_began.elapsed().as_millis());
+                }
+                return verdict;
+            });
+        })
+        .await
+        {
+            Some(back) => held = back,
+            None => break 'round,
         }
     }
     // The renewal is stopped and waited for here, so a drain that returns leaves no task renaming a claim behind it.

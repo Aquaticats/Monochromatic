@@ -149,7 +149,7 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 /// ```ts
 /// await drainSlow(gitDir); if (bareCommon(gitDir)) await drainSlow(common)
 /// ```
-pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H) {
+pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H) {
     drain_the_slow_kinds_awaiting(git_dir, handlers).await;
     let Some(common) = common_directory_of(git_dir) else { return };
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
@@ -172,7 +172,7 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + ?Sized>(git_d
 /// ```ts
 /// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS)
 /// ```
-async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H) {
+async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H) {
     let mut nothing_to_plan: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
     drain_pending_awaiting(git_dir, handlers, CLAIM_LEASE, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS).await;
 }

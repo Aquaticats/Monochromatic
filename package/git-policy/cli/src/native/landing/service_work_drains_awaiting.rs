@@ -65,7 +65,7 @@ use std::time::{Duration, Instant};
 /// ```ts
 /// await drainPlannedAwaiting(dir, handlers, now, retrying, kinds)
 /// ```
-pub async fn drain_planned_awaiting<H: WorkHandlers + ?Sized>(
+pub async fn drain_planned_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     now: &ClaimTime,
@@ -86,7 +86,7 @@ pub async fn drain_planned_awaiting<H: WorkHandlers + ?Sized>(
 /// ```ts
 /// await drainPlannedWithAwaiting(dir, handlers, now, lease, renewal, retrying)
 /// ```
-pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
+pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     now: &ClaimTime,
@@ -157,7 +157,7 @@ fn worktree_named_by(retrying: &Retrying, git_dir: &Path) -> Option<PathBuf> {
 /// ```ts
 /// await drainCommonRecordsPlannedAwaiting(dir, handlers, now, lease, retrying)
 /// ```
-pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + ?Sized>(
+pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     now: &ClaimTime,
@@ -196,7 +196,7 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + ?Sized>(
 /// ```ts
 /// await runDuePushRetriesAwaiting(gitDir, handlers, candidates, replanning)
 /// ```
-pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H, candidates: &[Due], replanning: &mut Replanning) {
+pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, candidates: &[Due], replanning: &mut Replanning) {
     for due in candidates {
         if due.git_dir != git_dir {
             continue;

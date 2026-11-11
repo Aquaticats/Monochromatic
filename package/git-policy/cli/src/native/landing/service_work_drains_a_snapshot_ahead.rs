@@ -42,7 +42,7 @@ use std::path::Path;
 /// ```ts
 /// async function drainASnapshotAhead(held, workDir, claimed, handlers) { const mine = await stillHeld(held, workDir, claimed); for (const item of mine) { const verdict = await handlers.snapshotAheadAwaiting(item.item); held = await settleWithTheWords(held, workDir, item, verdict, 'snapshot ahead'); } return held; }
 /// ```
-pub(crate) async fn drain_a_snapshot_ahead<H: WorkHandlers + ?Sized>(held: HeldClaims, work_dir: &Path, claimed: Vec<Claimed>, handlers: &H) -> Option<HeldClaims> {
+pub(crate) async fn drain_a_snapshot_ahead<H: WorkHandlers + Sync + ?Sized>(held: HeldClaims, work_dir: &Path, claimed: Vec<Claimed>, handlers: &H) -> Option<HeldClaims> {
     let (mut back, mine): (HeldClaims, Vec<Claimed>) = match still_held_awaiting(held, work_dir, claimed).await {
         Some((back, mine)) => (back, mine),
         None => return None,
