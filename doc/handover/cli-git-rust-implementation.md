@@ -130,19 +130,22 @@ the service-lines branch's own agent (round 188) still runs and has the round 18
 The earlier watchdog control (`fix/git-policy-cli-watchdog-control-two-watchers-under-load`) conflicts with the round 184 fix in `run_progress.rs`;
 its re-merge agent reconciles the two.
 
-Seen live in the main checkout between 10:21 and 10:29, on 0.6.1-alpha.10:
-another session's commits `5eaa6f875d` and `510d969f8b` on `main` were pushed at 10:22 (the remote answers `510d969f8b`),
-but `refs/remotes/origin/main` stayed two behind,
-and every wrapped command in every worktree, read-only ones included, printed
+Seen live in the main checkout from 10:21 to 10:42, on 0.6.1-alpha.10:
+another session's commits `5eaa6f875d` and `510d969f8b` on `main` were pushed (the push record was done by 10:22:42, and the remote answered `510d969f8b`),
+`refs/remotes/origin/main` was still two behind at about 10:26 and had caught up by 10:36,
+and while it lagged every wrapped command in every worktree, read-only ones included, printed
 "the commit 5eaa6f875d… is held: no command has said whether its checks passed, so nothing here publishes it, and a push you make of refs/heads/main sends it".
-That line is false once the remote has the commit, and it asks the person to push.
-Their review items in `work/claimed/` were still being worked at 10:28.
-Agent `held-notice-names-a-published-commit-and-reviews-stay-claimed` (round 196) reproduces and fixes each part;
-the stale tracking ref is also the Kimi push audit's finding 2, in round 195.
+That line was false while the ref lagged, and it asks the person to push; it no longer printed at 10:36.
+The two commits' `review` items and four `trash` items stayed claimed from 10:24 to at least 10:38, touched every few minutes,
+and the push of a newer commit (`a52a4adaa8`) sat unclaimed in `work/pending/` behind them from 10:29;
+the coordinator pushed `main` by hand at 10:42 (`510d969f8b..a52a4adaa8`).
+Agent `held-notice-names-a-published-commit-and-reviews-stay-claimed` (round 196) owns the notice and the review items;
+round 185's `service-runs-independent-work-side-by-side` has the push that waited behind them;
+the lagging tracking ref is also the Kimi push audit's finding 2, in round 195.
 
 ### Audits of what 0.6.1-alpha.10 ships, and where each finding went (2026-11-11T09:15:00-05:00)
 
-Seven of the eight Kimi K3.1 Pro audits have finished (`${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-10-*/report.md`, 36 findings);
+Seven of the eight Kimi K3.1 Pro audits have finished (`${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-10-*/report.md`, 37 findings);
 the commit-service-landing audit still runs.
 Round 195 runs 16 fix agents on them,
 and `${HOME}/temp/agent/pi-runs/kimi-findings-groups-round-195.json` names the findings each one owns.
