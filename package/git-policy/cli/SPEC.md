@@ -4192,6 +4192,16 @@ A push the service stopped or that failed is tried again by the service on its o
 with doubling pauses from
 `CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds,
 until it lands or the person must act (`src/native/push/push_retry.rs`).
+One cause is tried a fixed number of times instead of until it passes:
+a refusal GitHub answers with `GH006: Protected branch update failed for <ref>`
+is the hosting service's own protected-branch rule,
+which cleared by itself three times in this repository and can also refuse every push,
+so the service tries it `PROTECTED_BRANCH_TRIES` times (five,
+which the default pause makes about two and a half minutes)
+and then reports it as failed (owner decision,
+2026-11-11:
+"Make the wrapper auto retry on GH006").
+A hook decline with no such code anywhere in the push's output stays final.
 Its plan is kept in a file whose name is a hash of the branch and of the bytes of the worktree's Git directory
 (`src/native/push/push_retry_store.rs`),
 so two directories whose paths differ only in a byte that is not text keep a plan each.
@@ -4221,15 +4231,20 @@ A search for the refs that hold the commit that fails is not an empty answer:
 the notice says that it could not be told and names the commit still.
 The person must act for a conflict,
 for a login the service does not have,
-and for a hook on the server that declined the push
-(owner decision,
-2026-11-03:
+for a hook on the server that declined the push without a protected-branch code,
+and for a protected-branch refusal whose five tries the server refused as well
+(owner decisions,
+2026-11-03 and 2026-11-11:
 "Offline is retried,
-but auth and server hook declines stop until your next commit."):
+but auth and server hook declines stop until your next commit.",
+"Make the wrapper auto retry on GH006"):
 these stop the retry until the person's next commit,
 and the failure record says in plain words which one it was,
 and for a decline that a push by hand may succeed if the cause has cleared,
-since a decline says what the server answered then and nothing about a later try.
+since a decline says what the server answered then and nothing about a later try;
+for a refusal that outlasted its tries the record also names how many tries the service gave it and how long they
+covered,
+and the two ways out of a rule that refuses every push.
 The service never asks anyone for a login (owner decision,
 2026-11-07:
 "Never prompt (Recommended)"):

@@ -2228,6 +2228,20 @@ The owner decision "Offline is retried,
   lock are tried again",
   `SPEC.md:1272`);
   a held lock is another program's and a slow remote is designed out.
+- Outcome (owner decision 2026-11-11,
+  "Make the wrapper auto retry on GH006"):
+  the pauses keep these values and stay uncounted for every cause but one.
+  A push GitHub refuses with `GH006: Protected branch update failed for <ref>` is now retried,
+  which the owner's decision of 2026-11-03 had kept out,
+  and it is tried `PROTECTED_BRANCH_TRIES` times (five) instead of until it passes,
+  because a branch rule that refuses every push refuses every try:
+  with the default first pause the tries come after 10, 20, 40 and 80 seconds,
+  so the last one is 150 seconds after the first refusal,
+  past the two minutes the refusal recorded at `2026-11-11T06:42-05:00` took to clear
+  (`doc/troubleshooting/github-protected-branch-refusal-that-cleared.md`).
+  A hook decline with no such code is still final.
+  The words of the fifth refusal name what the server said,
+  the count of tries and the span of their pauses.
 
 ### LFS server-error retry, 2 and 5 seconds
 

@@ -267,6 +267,71 @@ fn the_words_of_a_final_failure_say_what_is_known_and_promise_no_outcome() {
     }
 }
 
+/// What:
+///  A protected-branch refusal is given a fixed number of tries and no more,
+///  while a plain hook decline never reaches a count of its own.
+/// Why:
+///   The owner asked on 2026-11-11 that the wrapper retry GitHub's `GH006`,
+/// and "nothing should ever wait forever or indefinitely" means the retry ends;
+/// the count is at least two because the first failure of a push always plans its next try,
+/// so a bound of one would leave the service planning a try it must not make.
+#[test]
+fn a_protected_branch_refusal_is_given_a_fixed_number_of_tries() {
+    assert!(PROTECTED_BRANCH_TRIES >= 2, "the first failure plans the second try, so no bound can be below two");
+    for try_number in 1..PROTECTED_BRANCH_TRIES {
+        assert!(!out_of_tries(GITHUB_PROTECTED_BRANCH, try_number), "try {try_number} is not the last one");
+    }
+    for try_number in [PROTECTED_BRANCH_TRIES, PROTECTED_BRANCH_TRIES + 1, 1_000] {
+        assert!(out_of_tries(GITHUB_PROTECTED_BRANCH, try_number), "try {try_number} is past the bound");
+    }
+    for output in [PRE_RECEIVE_DECLINED, UPDATE_DECLINED, PROTECTED_BRANCH_DECLINED] {
+        assert!(!out_of_tries(output, 1_000), "a decline with no protected-branch code is final and never counted: {output}");
+    }
+    for output in [CONNECTION_REFUSED, UNRESOLVED] {
+        assert!(!out_of_tries(output, 1_000), "a cause that can pass is retried until it passes and has no count: {output}");
+    }
+}
+
+/// What:
+///  The words of a protected-branch refusal that outlasted its tries name what the server did,
+///  the number of tries,
+///  how long their pauses covered,
+///  and both ways out;
+///  and they promise no try that is not coming.
+/// Why:
+///   The person has to know that the service gave up and when,
+/// otherwise the quiet branch looks like a push that is still being tried.
+#[test]
+fn the_words_of_a_refusal_that_outlasted_its_tries_name_the_tries_and_the_time() {
+    let first: Duration = Duration::from_secs(10);
+    let span: Duration = (1..PROTECTED_BRANCH_TRIES).map(|try_number| { return pause_before(try_number, first); }).fold(Duration::ZERO, |sum, pause| { return sum + pause; });
+    let words: String = out_of_tries_words(first);
+    let tries_phrase: String = format!("tried it {PROTECTED_BRANCH_TRIES} times");
+    let span_phrase: String = format!("{} minutes and {} seconds", span.as_secs() / 60, span.as_secs() % 60);
+    for said in [
+        "the server refused this push as an update to a protected branch",
+        "stopped trying this branch",
+        "signed commits",
+        "commit again",
+        "`git push` by hand",
+        tries_phrase.as_str(),
+        span_phrase.as_str(),
+    ] {
+        assert!(words.contains(said), "{said} in {words}");
+    }
+    for absent in ["until the push lands", "keeps trying"] {
+        assert!(!words.contains(absent), "{absent} in {words}");
+    }
+    // A plan whose pauses add up to less than a minute says seconds, and one that adds up to none says so.
+    let short: Duration = Duration::from_secs(1);
+    let short_span: u64 = (1..PROTECTED_BRANCH_TRIES).map(|try_number| { return pause_before(try_number, short).as_secs(); }).sum();
+    let short_words: String = out_of_tries_words(short);
+    assert!(short_words.contains(&format!("{short_span} seconds")), "{short_words}");
+    assert!(!short_words.contains("minutes"), "a span under a minute names no minutes: {short_words}");
+    let tiny_words: String = out_of_tries_words(Duration::from_millis(1));
+    assert!(tiny_words.contains("less than a second"), "{tiny_words}");
+}
+
 /// A rejection by the server whose reason this release does not know stays retried,
 /// and is found so the journal can name it.
 #[test]

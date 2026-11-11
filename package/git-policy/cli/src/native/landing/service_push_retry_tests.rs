@@ -20,7 +20,7 @@
 #![cfg(unix)]
 
 use crate::work_item::WorkKind;
-use crate::push_retry::{Due, PushRetries, RetryChange};
+use crate::push_retry::{Due, PROTECTED_BRANCH_TRIES, PushRetries, RetryChange, pause_before};
 use crate::parallel_budget::HostResources;
 use crate::service_work_run_round::run_planned_round;
 use super::*;
@@ -232,16 +232,17 @@ fn scripted_world_paced(name: &str, verdicts: Vec<Verdict>, first: Duration) -> 
 }
 
 /// The first pause of the controls that count tries:
-/// short enough that the plan's doubling stays a few tens of milliseconds,
-/// long enough that a round's own work does not outlast it.
-const COUNTED_PAUSE: Duration = Duration::from_millis(1);
+/// short enough that the plan's doubling stays inside the control's patience,
+/// and in whole seconds,
+/// so the span the record names is a whole number of seconds.
+const COUNTED_PAUSE: Duration = Duration::from_secs(1);
 
 /// How many rounds a control lets a plan run before it fails the plan as one that never ends:
-/// above the tries the service gives a refusal,
-/// and small enough that the pauses of a plan that keeps going do not outlast the control's own patience.
+/// one more than the tries the service gives a refusal,
+/// so a plan that outlives its bound stops the control instead of running on.
 /// The try count itself is asserted apart from this,
 /// so this figure never states the bound under test.
-const SAFETY_ROUNDS: u32 = 12;
+const SAFETY_ROUNDS: u32 = PROTECTED_BRANCH_TRIES + 1;
 
 /// What:
 ///  A protected-branch refusal that keeps coming back ends,
@@ -277,9 +278,20 @@ fn a_protected_branch_refusal_that_keeps_coming_back_ends_and_tells_the_person()
         plan = round_of(git_dir.as_path(), &handlers, &mut retries);
     }
     assert!(retries.directories().is_empty(), "no plan is left for a refusal that has used up its tries");
+    assert_eq!(
+        handlers.pushes.load(Ordering::SeqCst),
+        usize::try_from(PROTECTED_BRANCH_TRIES).expect("a count of tries"),
+        "the refusal was given every try the service gives it, and no more"
+    );
     let record: String = std::fs::read_dir(notice_directory(git_dir.as_path())).expect("the notices").flatten().map(|entry| { return std::fs::read_to_string(entry.path()).expect("notice"); }).collect();
     assert!(record.contains("GH006"), "the person is shown what GitHub said: {record}");
     assert!(record.contains("stopped trying this branch"), "the person is told the service has stopped: {record}");
+    assert!(
+        record.contains(&format!("tried it {PROTECTED_BRANCH_TRIES} times")),
+        "the person is told how many tries the service gave it: {record}"
+    );
+    let span: u64 = (1..PROTECTED_BRANCH_TRIES).map(|try_number| { return pause_before(try_number, COUNTED_PAUSE).as_secs(); }).sum();
+    assert!(record.contains(&format!("{span} seconds")), "the person is told how long the tries covered: {record}");
     assert!(!record.contains("tries this push again"), "the record promises no try that is not coming: {record}");
     remove(root.as_path());
 }
