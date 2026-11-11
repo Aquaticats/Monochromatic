@@ -3311,7 +3311,8 @@ none is waited out or retried on the moved head yet:
   The decision comes from the paths the command names,
    before any private `git add` runs,
    so it no longer depends on the wording of a Git message (issue 6278).
-- A pathspec the command names that matches no path Git can stage.
+- A pathspec the command names that matches no path Git can stage,
+   or one Git read from the pathspec file the command names.
   Native Git keeps deciding which pathspecs are valid,
    so the wrapper reports Git's own refusal instead of predicting a match:
    a directory,
@@ -3322,6 +3323,9 @@ none is waited out or retried on the moved head yet:
    the finding `explicit-path-commit/pathspec-matches-nothing` names every refused token as Git named it,
    and a token that begins with a hyphen also says that options belong before `--`
    (`git commit --message <text> -- <paths>`).
+  The staging start whose words this reads runs under the C locale,
+   so the finding appears whatever language the person's shell asks for,
+   and a token that holds Git's closing wording is named whole.
   Every other failure of that staging start keeps its engine-failure report (`SPEC.md`,
   "Core finding event";
   issue 6283).

@@ -9374,7 +9374,9 @@ and cannot be disabled or assigned a severity through repository config.
   (`commit_named_ignored_files.rs`;
   issue 6278).
 - `explicit-path-commit/pathspec-matches-nothing`:
-  a pathspec the command line names matches no path Git can stage,
+  a pathspec the command line names,
+  or one Git read from the pathspec file the command line named,
+  matches no path Git can stage,
   so the private staging's own `git add` refused it.
   Native Git keeps deciding which pathspecs are valid,
   so this classification reports its refusal instead of predicting a match:
@@ -9386,9 +9388,13 @@ and cannot be disabled or assigned a severity through repository config.
   and the message names every refused token as Git named it;
   a token that begins with a hyphen also says that options belong before `--`
   (`git commit --message <text> -- <paths>`).
+  The staging start whose words this reads runs under the C locale,
+  so the finding appears whatever language the person's shell asks for,
+  and a token that itself holds Git's closing wording is named whole
+  (`commit_pathspec_matching_nothing.rs`,
+  `private_index_request.rs`).
   Every other failure of that staging start keeps its engine-failure report
-  (`commit_pathspec_matching_nothing.rs`;
-  issue 6283).
+  (issue 6283).
   The twenty commits that stopped inside that staging on 2026-11-10,
   before this finding existed,
   are measured in `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`.
@@ -12109,13 +12115,25 @@ For injected commit-only semantics:
     which names the token the caller wrote and,
     when that token begins with a hyphen,
     says that options belong before `--` (`git commit --message <text> -- <paths>`).
+    A token that itself holds Git's closing wording
+    (`x' did not match any files`) is named whole,
+    because only a wording that ends Git's line closes the refusal.
     Every other failure of that start stays an engine failure (`commit_pathspec_matching_nothing.rs`;
     issue 6283).
+    The start whose sentence this is runs under `LC_ALL=C`,
+    so the reading holds under any locale the person's shell asks for
+    (`private_index_request.rs`,
+    `caller_pathspec_request`).
     An empty pathspec file stages nothing,
     as native Git commits nothing for one.
     A pathspec file with more bytes than one command line may carry is passed as a file with
     `git add --update`,
-    so the commit still takes the tracked paths it matches and only a file nothing staged stays out;
+    so the commit takes only the tracked paths it matches and a file nothing staged stays out
+    (`commit_selection_staging.rs`,
+    `stage_the_callers_pathspec_file`).
+    Git refuses that whole start when one path in the file matches nothing,
+    and that refusal is the same finding,
+    naming the path Git named;
     a pathspec file this wrapper cannot read is left to Git alone.
 4.  Apply policy patches to the commit index.
 5.  Remove pathspecs and internal `--only` before invoking native Git

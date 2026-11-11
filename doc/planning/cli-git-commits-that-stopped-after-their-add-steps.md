@@ -482,6 +482,14 @@ and the counting above says the one `git add` is where a refusal's time goes.
   those starts carry the caller's file rather than the caller's own elements,
   so nothing asks the question,
   and Git's own refusal comes back as the engine failure it was.
+  Superseded for `Selected::File` at 2026-11-11T07:13:22-05:00:
+  that start now runs through the classifier with `WrittenPathspecs::FromTheCallersFile`,
+  because every pathspec in the caller's file is the caller's
+  (`commit_selection_staging.rs`,
+  `stage_the_callers_pathspec_file`;
+  see "The three shapes the first fix missed").
+  `Selected::Unreadable` keeps the old ending,
+  because a file this reader cannot take is Git's to refuse for its own reasons.
 - A `git add` refusal of a named file for a reason other than a missing path
   (a path outside the worktree,
   a path inside `.git`,
@@ -492,3 +500,88 @@ and the counting above says the one `git add` is where a refusal's time goes.
   `a_staging_failure_that_is_not_a_pathspec_matching_nothing_stays_an_engine_failure`
   is the control for the unreadable-content case.
 - The nine exit `1` records are a different class and are not diagnosed here.
+
+## The three shapes the first fix missed (2026-11-11T07:13:22-05:00)
+
+Branch
+`fix/git-policy-cli-kimi-findings-large-pathspec-files-get-the-input-refusal`,
+from `6df69b62f8` on the jam-fix integration.
+A cross-vendor review of the branches merged into that integration read the
+classifier above and found three shapes of the same refusal,
+issue 6283's class,
+still ending as `engine-failure` with exit `2`.
+Each was reproduced here on `6df69b62f8`
+in a disposable repository with its own `HOME` and `XDG_RUNTIME_DIR`,
+with a service started by the probe,
+and the wrapper built from that commit:
+
+- a pathspec file of 14,001 paths,
+  `a.txt` repeated and then `nope.txt`,
+  past the 65,536-byte bound on one command line,
+  run as `git commit --message=miss --pathspec-from-file=<file>`:
+  the wrapper exited `2` with
+  `git add --update --pathspec-from-file=<file> failed: fatal: pathspec 'nope.txt' did not match any files`,
+  where native Git exits `1`;
+- the same misspelling under `LANG=de_DE.utf8` and `LC_ALL=de_DE.utf8`:
+  the wrapper exited `2` with
+  `git add --update -- nope.txt failed: Schwerwiegend: Pfadspezifikation 'nope.txt' stimmt mit keinen Dateien überein`,
+  where native Git exits `1` with its own German refusal;
+- the pathspec `x' did not match any files`:
+  the wrapper exited `2` with
+  `git add --update -- x' did not match any files failed: fatal: pathspec 'x' did not match any files' did not match any files`,
+  where native Git exits `1`.
+
+HEAD and the real index were byte for byte what they were after all three,
+so none of them lost or published anything:
+what each got wrong is the class of the ending and its exit status.
+
+Causes,
+in the files the fix touched:
+
+- `commit_selection_staging.rs` sent `Selected::File` straight through
+  `explain_a_git_failure`,
+  and the classifier's only call site was the
+  `WrittenPathspecs::Elements` one,
+  so `FromTheCallersFile` had no caller at all;
+- `commit_pathspec_matching_nothing.rs` recognized only the English wordings,
+  and the staging start inherited the person's locale,
+  so under a translated Git the sentence was never recognized;
+- `refusal_end` took the nearest wording after the token's opening quote,
+  and a token may hold that wording itself,
+  so `x' did not match any files` was read as `x`,
+  matched no element,
+  and
+  left the failure an engine failure.
+
+The fix:
+
+- the `Selected::File` start is classified too,
+  through
+  `stage_the_callers_pathspec_file` with `WrittenPathspecs::FromTheCallersFile`;
+- `private_index_request.rs`'s `caller_pathspec_request` pins `LC_ALL=C`,
+  so every start whose words this wrapper reads prints English ones,
+  and the person's own language stays on the interactive selection,
+  which the terminal reads rather than the wrapper;
+- an element the caller wrote is found by searching for its whole sentence,
+  which no wording inside the token can cut short,
+  and the file Git read itself is read at the wording that ends Git's line,
+  because Git writes one refusal per line.
+
+None of the three adds a Git start:
+the question is still asked of the refusal already in hand,
+which is the ground the merged answer was chosen on above.
+
+The controls are in `commit_pathspec_matching_nothing_tests.rs`,
+`private_index_request_tests.rs` and `binary_commit_tests.rs`
+(`a_pathspec_file_too_large_for_one_command_line_is_refused_as_a_pathspec_that_matches_nothing`,
+`a_pathspec_refusal_is_understood_whatever_the_persons_locale`,
+`a_pathspec_that_holds_the_refusal_wording_is_refused_as_the_one_pathspec_it_is`),
+and each failed on `6df69b62f8` before the fix.
+The locale control needs a German catalogue for Git installed on the host that runs it;
+where the host has none,
+Git prints English under that locale anyway and the control
+asserts the same behavior without reproducing the miss.
+`the_request_whose_words_are_read_asks_for_english_ones` is the control that holds
+on any host:
+it asks the request builder those starts use,
+and on the commit before the fix it failed because nothing reached that request's environment.

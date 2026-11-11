@@ -1015,7 +1015,7 @@ fn one_path_that_matches_nothing_withholds_the_whole_commit() {
 /// exit `1`,
 /// the finding,
 /// and the token Git named,
-/// instead of an engine failure that names a step of the wrapper (issue 6300).
+/// instead of an engine failure that names a step of the wrapper (issue 6283).
 #[test]
 fn a_pathspec_file_too_large_for_one_command_line_is_refused_as_a_pathspec_that_matches_nothing() {
     let fixture: Fixture = fixture("commit-large-pathspec-file");
@@ -1073,7 +1073,7 @@ fn a_pathspec_refusal_is_understood_whatever_the_persons_locale() {
 /// so Git's refusal of it is the caller's input error naming that whole token:
 /// exit `1`,
 /// the finding,
-/// and no engine failure (issue 6301).
+/// and no engine failure (issue 6283).
 #[test]
 fn a_pathspec_that_holds_the_refusal_wording_is_refused_as_the_one_pathspec_it_is() {
     let fixture: Fixture = fixture("commit-pathspec-holds-judgement");
