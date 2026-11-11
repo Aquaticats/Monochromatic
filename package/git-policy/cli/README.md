@@ -296,6 +296,15 @@ Read-only commands,
   after your global options and before the subcommand,
   so no `-c` of yours brings a
    hook back.
+  One kind of start goes without them:
+  a `git config` that only reports or changes configuration,
+  because it must report what the repository configures,
+  and the wrapper reads the repository's `core.hooksPath` that way for the commit warning and for `doctor`
+   (`SPEC.md`,
+  "External hooks").
+  `git config --edit` starts an editor,
+  and the Git that editor starts inherits the switches,
+  so a Git edited in runs with hooks off too.
   The wrapper injects no hook of its own,
   so `pre-push` is switched off like every other event.
   A script that starts `/usr/bin/git` directly,
@@ -1914,6 +1923,7 @@ The rule is:
 The guard reads the command Git will run,
 not the word on the command line:
 an ordinary Git alias is expanded as Git expands it,
+up to 16 expansions,
 the decision is taken on the expansion,
 and the same expansion is what the fixed transforms rewrite and the wrapper forwards.
 `git config --null --list` decides which value Git keeps when both spellings of one alias are set,
@@ -1922,10 +1932,33 @@ and the value is split on space,
 TAB,
 LF and CR only,
 keeping the empty last word a trailing whitespace character leaves.
+Two ordinary aliases are left to Git as you typed them,
+because the expansion the wrapper read is not the command that runs:
+one whose value moves the directory or sets an environment variable,
+which Git refuses and runs nothing for,
+and one whose name an installed `git-<name>` program carries,
+which Git runs before it looks any alias up.
 A shell alias (`!...`) is a shell command,
 which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is real Git rather than this wrapper.
+One plain form of it is read,
+only so the guard can decide:
+a value written `!git <words>` whose bytes hold no quote,
+backslash,
+`$`,
+backtick,
+glob,
+brace or separator,
+and whose words name no global option of their own.
+Git appends your own words to that value,
+so `-c 'alias.wipe=!git' wipe reset --hard` is refused where `git reset --hard` is,
+and so is `-c 'alias.wipe=!git reset --hard' wipe`.
+Every other shell alias runs as Git runs it,
+with no guard:
+`!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
+An alias the guard reads is still forwarded as you wrote it,
+because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it.
 
 Two commands are never rejected and always leave one audit line (outcome `logged`,
 with `writtenBeforeGitRuns` `true`,
@@ -2856,7 +2889,9 @@ The former TypeScript wrapper read `cli-git.config.mjs` and `cli-git.config.ts`;
 With no JSONC file beside them,
  they are a configuration failure that asks for the translation.
 Beside a JSONC file,
- they are reported and ignored.
+ `git monochromatic-git-policy-cli check` reports a `legacy-config-ignored` configuration warning that names the file,
+ and every other command and `fix` stay silent about it;
+ either way those files are ignored.
 The keys `plugins` and `trust` are refused.
 
 ```jsonc
