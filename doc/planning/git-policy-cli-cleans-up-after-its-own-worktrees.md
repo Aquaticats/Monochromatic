@@ -890,9 +890,69 @@ A kernel has no reverse lookup from a directory to the processes holding it open
 The commit service of the **common Git directory** performs it,
  which is the instance a person's own `git worktree remove` records its subvolume delete for:
  the merge's instance then stays free for the push that follows the merge.
-Measured on this branch with the same stand-in:
- the merge ended in 7 008 ms while the removal took 25 s in the service,
- and the same fixture with no slowness in the stand-in is what the base's own removals cost.
+That was measured,
+ not assumed:
+ with the record naming the merge's own worktree's Git directory,
+ the merge ended in 7 008 ms and the merge's own push trigger waited out its
+ `SHORT_EXTRA_WAIT` for the service that was busy removing;
+ with the record naming the common directory,
+ the same fixture ended the merge in 1 617 ms while the removal took 25 s in that service.
+
+What the four runs of the same fixture measured,
+ all on this host under the load it had,
+ with the same stand-in real Git (a `sleep` in front of one `worktree remove`):
+
+- installed 0.6.1-alpha.10,
+  25 s stand-in:
+  the merge ended in 25 738 ms,
+  the wait notice appeared at 10 s and again at 20 s
+  (`still waiting for git worktree remove ..., a bulk step ..., it is a step that may not be run twice`),
+  and both worktrees went,
+  the fresh review worktree among them.
+- installed 0.6.1-alpha.10,
+  no slowness in the stand-in:
+  the merge ended in 15 555 ms,
+  the notice appeared once,
+  and both worktrees went;
+  the two inline removals cost about 7 s each on this host's disk.
+- this branch,
+  25 s stand-in:
+  the merge ended in 1 617 ms in one run and 11 343 ms in another,
+  with no wait notice at all;
+  the fresh review worktree stayed,
+  the finished one was removed 29 921 ms and 38 404 ms after the merge started,
+  and its record settled in `work/done`.
+- this branch,
+  no slowness in the stand-in:
+  the merge ended in 8 960 ms and the finished worktree was removed 15 ms later,
+  with its record settled in `work/done`.
+
+### The controls, and the build
+
+`native:test:host`:
+ `worktree_landed` `40 tests run: 40 passed`,
+ `worktree_process_inside` `15 tests run: 15 passed`,
+ and `worktree_remove` `53 tests run: 53 passed`.
+`native:clippy` clean,
+ and both test targets build
+ (`native:test:host -- --no-run` and `native:test:binary:host -- --no-run`).
+`monochromatic-lint --max-warnings 0` is clean on every file this branch touched;
+ its remaining findings are in files whose diff against `3b94069dbf` is empty
+ (`worktree_copying/`,
+ `worktree_landed_ignored_files.rs`,
+ `worktree_snapshot_ahead_job.rs`).
+
+Each rule was planted back,
+ then watched fail,
+ then restored:
+
+- the hand-over replaced by the inline `git worktree remove`:
+  `a_landed_worktree_is_handed_to_the_commit_service_instead_of_being_removed_by_the_merge`
+  failed with `removed: [RemovedWorktree { ... }], handed_over: []`.
+- the descriptor read switched off:
+  `a_landed_worktree_whose_file_is_held_open_from_elsewhere_stays` failed.
+And the release itself failed both ways:
+ the reproduction above removed the fresh worktree and waited 25 738 ms for a removal.
 
 ### What this does not do, and what it costs
 
