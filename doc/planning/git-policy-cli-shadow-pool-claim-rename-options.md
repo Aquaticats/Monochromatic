@@ -159,21 +159,23 @@ and the split inside it is the trace's.
 ### The calls, counted
 
 A claim in the wrapped fixture makes 41 calls:
-5 directory listings (the pool,
+8 `openat`,
+which is 5 directory listings (the pool,
 the member,
 `objects/pack`,
 `refs/heads`,
-`refs/tags`),
+`refs/tags`)
+and 3 files opened,
 1 `rename`,
 24 `statx`,
-6 file reads (the `config`,
+6 `read`
+(the `config`,
 the alternates and the `HEAD`,
 each read twice),
 and 2 `readlink`.
-The arm fixture,
-whose common directory shares four entries instead of two,
-makes 48,
-which is the same sequence with one more shared entry's four questions.
+The arm fixture's common directory shares four entries instead of two,
+so its version of the same sequence is 47 calls:
+the two more shared entries are 4 `statx` and 2 `readlink`.
 The creation the pool keeps a commit from making is a different order of magnitude:
 the reading over 86 commits in
 "What each part of a commit's private repository is for,
@@ -209,9 +211,9 @@ none fell back to a creation.
   largest 81.74 ms,
   and not one of them passed 100 ms in any of the 330 claims.
 
-The claim is the whole of what a commit waits for here,
+The claim is one stretch of a commit,
 and in the commit whose claim took 5,622.57 ms the record's whole time was 7,007 ms,
-so that claim alone is longer than the owner's five seconds.
+so that claim alone was four fifths of it and longer than the owner's five seconds.
 
 ### Where a stalled claim's time sat
 
@@ -301,9 +303,9 @@ is reasoning and not a measurement.
 ## What each option measured
 
 Every median here is one arm's 300 paired rounds against the control,
-which measured a median of 0.918 ms over its 2,100 runs,
+which measured a median of 1.256 ms over its 4,200 runs,
 and every count is from `strace`.
-The "commit's tail" column is what the wrapped commits say the option keeps:
+What the wrapped commits say an option keeps is said with each:
 a claim that keeps its `rename` keeps 17 of 330 claims over 100 ms and 3 of 330 over 2 s.
 
 ### A. The service hands a drawn tree out
@@ -311,13 +313,13 @@ a claim that keeps its `rename` keeps 17 of 330 claims over 100 ms and 3 of 330 
 The service renames a member into a drawn tree of its own before the commit asks,
 and the commit is handed that path.
 Two forms:
-it runs every check on the handed tree (the 46 calls of the reads,
+it runs every check on the handed tree (the 45 calls of the reads,
 no write),
 or it trusts the service's answer (no calls at all).
 
 - Measured:
-  0.800 ms median for the checked form (46 calls,
-  ninetieth percentile 1.764 ms),
+  1.142 ms median for the checked form (45 calls,
+  ninetieth percentile 2.453 ms),
   0.003 ms for the trusting form (0 calls),
   and one unix socket round trip for the answer,
   which a stand-in server answered in 0.043 ms at the median,
@@ -353,10 +355,10 @@ The commit then runs in `<pool>/member-<name>` instead of `<scratch>/shadow`,
 and every check runs on it.
 
 - Measured:
-  0.886 ms median (48 calls,
+  1.266 ms median (47 calls,
   the same count as today,
   with the one write's kind changed),
-  against the control's 0.870 ms in the same run.
+  against the control's 1.256 ms in the same run.
   In the one window that compared kinds,
   this write stalled in 2 of 120,000 calls
   where today's stalled in 8 of 120,000,
@@ -399,18 +401,18 @@ a pool listing and the rename,
 nothing else.
 
 - Measured:
-  0.135 ms median for the digest form (3 calls:
+  0.165 ms median for the digest form (3 calls:
   one listing of the common directory,
   one question about `config.worktree`,
   and the rename),
-  and 0.083 ms for the naming-free form (2 calls:
+  and 0.096 ms for the naming-free form (2 calls:
   the pool listing and the rename).
   The digest form's figure holds a JavaScript `SHA-256` of the template,
   which a Rust claim would pay in microseconds,
   so its real figure sits below the measured one.
 - Pros:
-  39 of the 41 calls go,
-  and the median drops from 0.903 ms to about a tenth of it.
+  38 or 39 of the 41 calls go,
+  and the median drops from 1.256 ms to about a thirteenth of it.
 - Cons:
   it keeps the `rename`,
   so it keeps every stalled claim this record measured:
@@ -443,10 +445,10 @@ their link targets and the digests of its files into a manifest beside the membe
 and the claim reads that one file instead of asking the member anything.
 
 - Measured:
-  0.112 ms median (5 calls:
+  0.201 ms median (6 calls:
   the pool listing,
   the rename,
-  and the manifest's one read).
+  and the manifest's two reads).
 - Pros:
   the member's entries are named in one place a diagnostic can print,
   and the claim is one read away from trusting nothing at all.
@@ -475,14 +477,14 @@ one link question per shared entry,
 belongs beside them and is not this record's.
 
 - Measured:
-  0.495 ms median (25 calls),
-  against 0.903 ms for today's sequence and 0.699 ms for the one-question change alone.
+  0.775 ms median (23 calls),
+  against 1.256 ms for today's sequence and 1.048 ms for the one-question change alone.
 - Pros:
   every question `SPEC.md` records is still asked,
   the claimed member is still the tree a creation makes
   (the creation's skeleton moves with the check,
   so the two agree),
-  and it is 16 calls fewer with no trust asked for.
+  and it is 24 calls fewer with no trust asked for.
 - Cons:
   it does not touch the rename,
   so it keeps the measured tail and moves nothing about the owner's bar.
@@ -522,16 +524,17 @@ belongs beside them and is not this record's.
   same cost,
   and it carries every consequence of B without B's one chance.
 - A claim run beside the commit's own preparation.
-  Measured with a stand-in for the stat pass (3,000 questions):
-  74.349 ms alone,
+  Two runs disagree about the same pair,
+  with a stand-in for the stat pass in each:
+  one measured 74.349 ms alone,
   77.127 ms one after the other with today's claim,
-  80.716 ms at the same time,
-  and at the ninetieth percentile 144.796,
-  153.347 and 119.860 ms.
-  The two stalls did not overlap anywhere the medians can see,
-  which is what one volume's metadata work predicts:
-  the claim waits for the volume,
-  and the preparation waits for the same volume.
+  and 80.716 ms at the same time;
+  the other measured 66.829,
+  68.738 and 67.738 ms,
+  so the claim's 1.9 ms was hidden there and cost 3.6 ms there.
+  Either way the claim is milliseconds at the median and the preparation is milliseconds,
+  so a claim that waits 5,623 ms cannot hide behind it,
+  and this is not a way off the wait.
 - A digest the claim verifies from the member's own bytes.
   It costs the member's listing and every question a check makes,
   which is today's sequence with a hash on the end,
@@ -555,7 +558,7 @@ belongs beside them and is not this record's.
 3.  **E,
     the smaller skeleton and one listing.**
     It is a free saving:
-    16 calls and 0.495 ms against 0.903 ms,
+    24 calls and 0.775 ms against 1.256 ms,
     with the guarantee unchanged.
     It ranks below B because its saving is bounded by the other 40 calls' largest,
     81.74 ms,
@@ -563,7 +566,8 @@ belongs beside them and is not this record's.
 4.  **F,
     nothing.**
     It keeps the guarantee and the pool's rules exactly as they are.
-    It ranks above C and D because neither of those moves the tail either,
+    It ranks below E because E takes 24 calls off the same path and asks nothing in return,
+    and above C and D because neither of those moves the tail either,
     and both trade a recorded check for a median saving
     that is a rounding error against the seconds the owner's bar is about.
 5.  **C,
