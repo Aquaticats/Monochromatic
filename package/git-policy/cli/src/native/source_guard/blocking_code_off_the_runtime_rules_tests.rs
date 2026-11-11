@@ -248,6 +248,16 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the guarded Markdown linter; its thread is also what the no-progress watcher reads",
     },
     Allowed {
+        file: "worktree/add_standing_notice.rs",
+        rule: "thread-start",
+        why: "the line a long `git worktree add` prints while it runs, on a thread of its own so a stream nobody drains never holds the add; the add's own task replaces it when the add path is a task",
+    },
+    Allowed {
+        file: "worktree/add_standing_notice.rs",
+        rule: "blocking-sleep",
+        why: "the cadence of that line, a pause of a thread that holds nothing else; `tokio::time::sleep` replaces it when the add path is a task",
+    },
+    Allowed {
         file: "process/open_file_of_a_descriptor_in_a_child.rs",
         rule: "thread-start",
         why: "the reaper of a child left running, which outlives the command that started it",
