@@ -121,7 +121,7 @@ fn preparation_fixture_with(context: &GitContext, root: &Path, repo: PathBuf) ->
         stage_tracked_changes: false,
         base_revision: base.as_str(),
     };
-    initialize_commit_index(context, repo.as_path(), capture.layout.real_index_path.as_path(), &indexes, &selection)
+    initialize_commit_index(context, repo.as_path(), capture.layout.repository_root.as_path(), capture.layout.real_index_path.as_path(), &indexes, &selection)
         .expect("private index");
     let intended_tree: String = write_private_tree(
         context,

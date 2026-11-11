@@ -7,7 +7,7 @@
 //! Every control runs the built executable on a disposable repository with the host's Git.
 
 use super::support::{
-    Fixture, Observed, bounded_for, fixture, git, observe, porcelain, remove, repository, run_direct,
+    Fixture, Observed, bounded_for, direct, fixture, git, observe, porcelain, remove, repository, run_direct,
     stderr_of, stderr_without_wait_notices, wrapper_first_path,
 };
 use std::ffi::OsStr;
@@ -975,6 +975,159 @@ fn a_commit_of_a_selected_worktree_names_a_file_the_invocation_directory_does_no
     let failure: String = stderr_of(&landed);
     assert_eq!(landed.code, Some(0), "the file nothing ignores is committed as an exact path: {failure}");
     assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:plain.txt"]), "plain\n");
+    assert_nothing_left(&fixture, second.as_path());
+    remove_settled(&fixture);
+}
+
+/// What:
+///  One repository holding a tracked file and a tracked `build/keep.txt`,
+///  with `build/keep.txt` edited,
+///  the untracked `build/scratch.txt` beside it,
+///  and the untracked `plain.txt` at its top.
+/// Why:
+///  A directory selection must leave the untracked file out and an exact path must take the file nothing staged,
+///  and both are read from the worktree the command selects.
+fn selected_shape(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::create_dir(repo.join("build")).expect("build");
+    std::fs::write(repo.join("keep.txt"), b"keep base\n").expect("keep");
+    std::fs::write(repo.join("build/keep.txt"), b"build base\n").expect("build keep");
+    git(fixture, repo.as_path(), &["add", "--", "keep.txt", "build/keep.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(repo.join("build/keep.txt"), b"build changed\n").expect("edit build keep");
+    std::fs::write(repo.join("build/scratch.txt"), b"must stay untracked\n").expect("untracked scratch");
+    std::fs::write(repo.join("plain.txt"), b"plain untracked\n").expect("untracked plain");
+    keep_maintenance_in_the_foreground(fixture, repo.as_path());
+    return repo;
+}
+
+/// What:
+///  A named file of a worktree the variables select with `GIT_DIR` and `GIT_WORK_TREE`,
+///  committed from a directory outside that worktree,
+///  where the invocation directory holds nothing at the name:
+///  the file nothing staged is committed as the exact path it is,
+///  and Git reads that name from the selected worktree's top.
+/// Why:
+///  "Commits should never fail":
+/// native Git stages the worktree the variables name,
+/// and it reads a relative pathspec from that worktree's top when the directory the command runs in is outside it
+///  (`rev-parse --show-prefix` answers nothing there),
+/// which `git add` of the same name from the same directory shows here.
+///  The wrapper commits an exact path nothing staged as its deliberate difference;
+/// native `git commit -- <untracked file>` refuses the pathspec,
+///  so the staging start is what the oracle answers.
+///  The worktree the variables name is not one a command line names,
+/// so a reader that derived the worktree from the command line's own `--work-tree` found none,
+///  asked the invocation directory,
+/// found no file at the name,
+///  took the element for a pattern,
+/// and ended the commit on `git add --update`'s pathspec failure,
+///  where the same shape named with the options commits the file.
+#[test]
+fn a_commit_of_a_worktree_the_variables_select_names_a_file_the_invocation_directory_does_not_hold() {
+    let fixture: Fixture = fixture("commit-variables-selected-worktree-plain-file");
+    let first: PathBuf = repository(&fixture, OsStr::new("first"));
+    let second: PathBuf = selected_shape(&fixture, "second");
+    let oracle_holder: PathBuf = repository(&fixture, OsStr::new("oracle-holder"));
+    let oracle: PathBuf = selected_shape(&fixture, "oracle");
+    let nested: PathBuf = first.join("nested");
+    std::fs::create_dir(&nested).expect("nested");
+    // An ignore rule of the selected worktree, so one arm refuses a file and the other commits one.
+    std::fs::write(second.join(".gitignore"), b"*.js\n").expect("ignore rule");
+    git(&fixture, second.as_path(), &["add", "--", ".gitignore"]);
+    git(&fixture, second.as_path(), &["commit", "--quiet", "--message=ignore"]);
+    std::fs::write(second.join("ignored.js"), b"ignored\n").expect("the ignored file of the selected worktree");
+    let oracle_nested: PathBuf = oracle_holder.join("nested");
+    std::fs::create_dir(&oracle_nested).expect("the oracle's own outside directory");
+    // Native Git, of the same start and the same variables, reads the name in the selected worktree.
+    let oracle_staged: Observed = observe(
+        direct(&fixture)
+            .current_dir(oracle_nested.as_path())
+            .env("GIT_DIR", oracle.join(".git"))
+            .env("GIT_WORK_TREE", oracle.as_path())
+            .args(["add", "--", "plain.txt"]),
+        b"",
+    );
+    assert_eq!(oracle_staged.code, Some(0), "native Git stages the named file of the selected worktree: {}", stderr_of(&oracle_staged));
+    assert_eq!(
+        git_text(&fixture, oracle.as_path(), &["diff", "--cached", "--name-only"]),
+        "plain.txt\n",
+        "the entry native Git staged is the selected worktree's top-level file"
+    );
+    let commits_before: String = git_text(&fixture, second.as_path(), &["rev-list", "--count", "HEAD"]);
+    // An ignored path of the selected worktree is refused as one, not failed as a pathspec that matches nothing.
+    let refused: Observed = observe(
+        wrapped_commit(&fixture, nested.as_path(), &["commit", "--message=ignored", "--", "ignored.js"])
+            .env("GIT_DIR", second.join(".git"))
+            .env("GIT_WORK_TREE", second.as_path()),
+        b"",
+    );
+    let refusal: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{refusal}");
+    assert!(refusal.contains("explicit-path-commit/named-path-ignored"), "the ignored file is named as ignored: {refusal}");
+    assert!(refusal.contains("ignored.js"), "{refusal}");
+    assert_eq!(git_text(&fixture, second.as_path(), &["rev-list", "--count", "HEAD"]).trim_end(), commits_before.trim_end(), "the refused commit landed nothing");
+    let served: Observed = observe(
+        wrapped_commit(&fixture, nested.as_path(), &["commit", "--message=plain", "--", "plain.txt"])
+            .env("GIT_DIR", second.join(".git"))
+            .env("GIT_WORK_TREE", second.as_path()),
+        b"",
+    );
+    let failure: String = stderr_of(&served);
+    assert_eq!(served.code, Some(0), "the file nothing staged is committed as an exact path: {failure}");
+    assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:plain.txt"]), "plain untracked\n");
+    assert_eq!(
+        git_text(&fixture, second.as_path(), &["ls-tree", "--name-only", "-r", "HEAD"]),
+        ".gitignore\nbuild/keep.txt\nkeep.txt\nplain.txt\n",
+        "the commit holds the file it named and the base it shares"
+    );
+    assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:build/keep.txt"]), "build base\n", "no unselected edit is recorded");
+    let moved: u32 = commits_before.trim_end().parse::<u32>().expect("a commit count") + 1;
+    assert_eq!(git_text(&fixture, second.as_path(), &["rev-list", "--count", "HEAD"]).trim_end(), moved.to_string(), "the branch moved once");
+    assert_eq!(
+        porcelain(&fixture, second.as_path()),
+        " M build/keep.txt\n?? build/scratch.txt\n",
+        "the worktree keeps the edit and the untracked files it had"
+    );
+    assert!(second.join("ignored.js").is_file(), "the ignored file the refused commit named is still there");
+    assert_nothing_left(&fixture, second.as_path());
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A directory of a worktree the variables select,
+///  committed from a directory outside that worktree that holds a regular file of the directory's own name:
+///  the untracked file below the directory stays out of the commit.
+/// Why:
+///   Native Git stages the tracked paths a directory selection matches and never a file nothing staged,
+///  and a relative pathspec is read from the selected worktree's top when the command runs outside it.
+///  A reader that asked the invocation directory found the unrelated file,
+/// took the directory for an exact path,
+///  and staged it whole,
+/// which recorded the untracked file nobody staged and made it tracked.
+#[test]
+fn a_commit_of_a_directory_the_variables_select_leaves_an_untracked_file_out() {
+    let fixture: Fixture = fixture("commit-variables-selected-worktree-directory");
+    let first: PathBuf = repository(&fixture, OsStr::new("first"));
+    let second: PathBuf = selected_shape(&fixture, "second");
+    let nested: PathBuf = first.join("nested");
+    std::fs::create_dir(&nested).expect("nested");
+    std::fs::write(nested.join("build"), b"an unrelated same-named file\n").expect("the file that misclassifies the selection");
+    let served: Observed = observe(
+        wrapped_commit(&fixture, nested.as_path(), &["commit", "--message=build", "--", "build"])
+            .env("GIT_DIR", second.join(".git"))
+            .env("GIT_WORK_TREE", second.as_path()),
+        b"",
+    );
+    let failure: String = stderr_of(&served);
+    assert_eq!(served.code, Some(0), "the directory selection lands: {failure}");
+    assert_eq!(
+        git_text(&fixture, second.as_path(), &["ls-tree", "--name-only", "-r", "HEAD"]),
+        "build/keep.txt\nkeep.txt\n",
+        "the commit holds the tracked file it changed and no untracked file"
+    );
+    assert_eq!(git_text(&fixture, second.as_path(), &["show", "HEAD:build/keep.txt"]), "build changed\n");
+    assert_eq!(porcelain(&fixture, second.as_path()), "?? build/scratch.txt\n?? plain.txt\n", "the untracked files stay untracked");
     assert_nothing_left(&fixture, second.as_path());
     remove_settled(&fixture);
 }

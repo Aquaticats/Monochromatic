@@ -256,6 +256,7 @@ fn the_commit_a_member_builds_is_the_commit_a_creation_builds() {
     initialize_commit_index(
         &context,
         repo.as_path(),
+        capture.layout.repository_root.as_path(),
         capture.layout.real_index_path.as_path(),
         &indexes,
         &selection,

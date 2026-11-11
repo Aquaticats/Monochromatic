@@ -13429,6 +13429,17 @@ For injected commit-only semantics:
     and the worktree's own top when it is outside it,
     which is where a command line that names another worktree with `--git-dir` and `--work-tree` is read
     (`rev-parse --show-prefix` answers nothing there).
+    Which worktree that is comes from Git's own answer for the invocation
+    (`rev-parse --show-toplevel`,
+    `InvocationLayout::repository_root`),
+    so every way of naming one reaches it:
+    the two options,
+    `GIT_DIR` with `GIT_WORK_TREE` in a command's environment,
+    `core.worktree`,
+    and a linked worktree's own `.git` file.
+    A reader that derived the worktree from the command line's own `--work-tree` again found none of the other shapes,
+    took the invocation directory for the base,
+    and left a commit from outside the named worktree with the staging of the wrong directory.
     It is staged with `git add -- <element>`,
     so `git commit -- <file>` records a file nothing staged,
     where native Git refuses the pathspec,

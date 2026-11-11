@@ -15,7 +15,9 @@
 //!  The directory an element is read from is the one Git reads a relative pathspec from (`pathspec_base`).
 //! It is the invocation directory when it is inside the worktree the command works on,
 //!  and that worktree's top otherwise,
-//! which is where a command line that names another worktree reads it.
+//! which is where a command line that names another worktree,
+//!  or a shell that names one with `GIT_DIR` and `GIT_WORK_TREE`,
+//! reads it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -60,6 +62,7 @@ pub const NAMED_IGNORED_CODE: &str = "named-path-ignored";
 pub fn named_ignored_files(
     context: &GitContext,
     cwd: &Path,
+    worktree_root: &Path,
     real_index: &Path,
     selection: &IndexSelection,
 ) -> Result<Vec<Vec<u8>>, GitFailure> {
@@ -70,7 +73,7 @@ pub fn named_ignored_files(
         return Ok(Vec::new());
     };
     let literal: bool = pattern_characters_are_literal(context);
-    let base: PathBuf = pathspec_base(context, cwd);
+    let base: PathBuf = pathspec_base(cwd, worktree_root);
     let mut named: Vec<&OsString> = Vec::new();
     for item in items.iter() {
         if names_one_file(base.as_path(), item.as_os_str(), literal) {
@@ -81,7 +84,7 @@ pub fn named_ignored_files(
         return Ok(Vec::new());
     }
     // The reader that declines the index leaves every name to Git, which is the answer that was right before this saving.
-    let untracked: Vec<&OsString> = match untracked_among(context, cwd, real_index, named.as_slice()) {
+    let untracked: Vec<&OsString> = match untracked_among(context, cwd, worktree_root, real_index, named.as_slice()) {
         Some(found) => found,
         None => named,
     };
@@ -110,15 +113,19 @@ const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 ///  Every reason to decline answers with `None`,
 /// because a name left to Git costs one start,
 ///  where a name wrongly believed tracked would let the refusal return as an engine failure.
-///  A command line that selects a repository (`--git-dir`,
+///  A command line that selects another repository than the one its directory belongs to (`--git-dir`,
 /// `--work-tree`,
-/// `--bare`) is one this reading cannot answer for:
+/// `--bare`)
+/// and a shell that names one as `GIT_DIR` and `GIT_WORK_TREE`
+/// are ones this reading cannot answer for:
 /// the layout reader answers for the directory it is given,
 ///  so the prefix it gives belongs to another worktree than the index does,
 /// and a name completed with it can match an entry the
 ///  selected index does not hold.
-///  `capture_invocation.rs`
-/// (`capture_invocation_layout`) declines the same prefix read for a named repository.
+///  The worktree top Git answered for the invocation is compared with the one this reading found,
+/// and any other answer leaves the names to Git
+/// (`capture_invocation.rs`,
+/// `capture_invocation_layout`).
 ///  The spellings are the selection's,
 /// so a token Git reads as a path relative to the top level (`/a.txt`)
 ///  is measured as the directory path it names and is then left to Git,
@@ -126,23 +133,24 @@ const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (repositorySelection(cwd, globalPrefix).length) return undefined;
-/// const layout = readLayoutIn(cwd, overlay); const entries = parseIndex(readRegularFile(realIndex), layout.objectFormat);
+/// const layout = readLayoutIn(cwd, overlay); if (!layout || layout.worktreeRoot !== worktreeRoot) return undefined;
+/// const entries = parseIndex(readRegularFile(realIndex), layout.objectFormat);
 /// return named.filter((path) => !entries.some((entry) => entry.path === layout.prefix + path));
 /// ```
 fn untracked_among<'named>(
     context: &GitContext,
     cwd: &Path,
+    worktree_root: &Path,
     real_index: &Path,
     named: &[&'named OsString],
 ) -> Option<Vec<&'named OsString>> {
-    // The readers answer for the directory they are given and cannot honour a repository the caller named, so a command line
-    //  that names one asks Git (`capture_invocation.rs`, `capture_invocation_layout`, decides the same way).
-    if !crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice()).is_empty() {
-        return None;
-    }
     let overlay: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
     let layout: crate::repo_read_layout::RepoLayout = crate::repo_read_layout::read_layout_in(cwd, overlay.as_slice())?;
+    // The prefix and the entries answer for one worktree, so the reading is used only where it found the worktree the
+    // staging and `git add` work on. A spelling that differs costs one `check-ignore` start and no wrong answer.
+    if layout.worktree_root != worktree_root {
+        return None;
+    }
     // A repository nothing was ever staged in has no index, so no entry tracks any name and every name may be refused.
     let entries: Vec<IndexEntry> = match read_regular_file(real_index, INDEX_LIMIT_BYTES) {
         Ok(bytes) => parse_index(bytes.as_slice(), layout.object_format)?,
