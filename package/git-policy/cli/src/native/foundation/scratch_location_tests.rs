@@ -29,7 +29,8 @@ fn names_in(directory: &Path) -> Vec<String> {
 ///  a removal the product itself would wait for finishes inside it,
 ///  so a device that delays a removal past a handful of looks is waited for,
 ///  and a sweep that never empties the place ends the wait here instead of holding the test forever
-///  (owner: "nothing should ever wait forever or indefinitely").
+///  (owner:
+/// "nothing should ever wait forever or indefinitely").
 const SWEEP_UNTIL_PATIENCE: Duration = SCRATCH_REMOVAL_CEILING;
 
 /// How often the helper looks at the directory again while a removal it started is still on its thread:
@@ -60,8 +61,8 @@ const SWEEP_UNTIL_LOOK: Duration = Duration::from_millis(20);
 ///  (`doc/planning/cli-git-scratch-locations.md`,
 ///  "Why the cut-short control waited a ceiling").
 fn sweep_until(directory: &Path, now: SystemTime, ceiling: Duration, wanted: &[&str]) -> usize {
-    return sweep_until_with(directory, now, wanted, &|directory: &Path, now: SystemTime| {
-        return sweep_stale(directory, now, SCRATCH_STALE_AFTER, ceiling);
+    return sweep_until_with(directory, now, wanted, &|swept: &Path, at: SystemTime| {
+        return sweep_stale(swept, at, SCRATCH_STALE_AFTER, ceiling);
     });
 }
 
@@ -571,10 +572,10 @@ fn the_sweep_helper_waits_for_a_removal_that_finishes_after_the_sweep_that_start
         if started.swap(true, Ordering::SeqCst) {
             return 0;
         }
-        let directory: PathBuf = directory.to_path_buf();
+        let trees: PathBuf = directory.to_path_buf();
         std::thread::spawn(move || {
             std::thread::sleep(SLOW_REMOVAL);
-            for entry in std::fs::read_dir(directory.as_path()).expect("list") {
+            for entry in std::fs::read_dir(trees.as_path()).expect("list") {
                 remove(entry.expect("entry").path().as_path());
             }
         });

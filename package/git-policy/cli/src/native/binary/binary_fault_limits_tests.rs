@@ -61,7 +61,8 @@ const MOST_MEBIBYTES: u64 = 1 << 16;
 /// so that a machine on which no commit lands at any limit the control examines is told apart from one whose flip is
 ///  below that ceiling,
 /// and a flip at the ceiling itself from both:
-/// a landing there is a landing the search proves, and a case per limit below it would outlast the control.
+/// a landing there is a landing the search proves,
+/// and a case per limit below it would outlast the control.
 const FURTHEST_DESCRIPTOR_LIMIT_SEARCHED: u64 = 1024;
 
 /// How many steps a memory sweep takes between its smallest and its largest limit.
@@ -163,7 +164,8 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
 ///  found by halving and proven by a probe of that value,
 ///  or nothing when `works` holds for none of them.
 /// Why:
-///  `works` is taken to hold from some value on, so the halving finds where it starts;
+///  `works` is taken to hold from some value on,
+/// so the halving finds where it starts;
 ///  the ceiling the halving starts from is only ever lowered by a probe that held,
 ///  so an answer that is still the ceiling proves nothing,
 ///  and a caller that read it as a landing said no commit landed while one did exactly there.
@@ -441,10 +443,9 @@ fn sweep_up_to_the_smallest_landing(label: &str, low: u64, lands_at: u64, limits
 ///  (`.config/nextest.toml`).
 ///  Measured on this host on 2026-11-11:
 ///  `a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository`
-///  ran its 23 cases in 72 s,
-///  about 3 s a case,
-///  so a case per descriptor up to 1024 would need about 3000 s,
-///  ten times that bound.
+///  ran its 23 cases in 72 s alone and in 26.8 s beside the module's own tests,
+///  so a case per descriptor up to 1024 would need between about 1 200 s and 3 000 s,
+///  four to ten times that bound.
 ///  A landing at the ceiling is a fact of the machine and not a defect of the product,
 ///  so the control says it did not run instead of failing or claiming no commit landed
 ///  (`FURTHEST_DESCRIPTOR_LIMIT_SEARCHED`).
