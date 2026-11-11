@@ -155,6 +155,10 @@ impl LoweredIoPriority {
     /// Why:
     ///   See the type's own description;
     /// nothing here is an error of the emptying.
+    /// A thread whose priority the kernel will not read is not lowered at all,
+    /// because that reading is the one the drop
+    ///  puts back,
+    /// and a write without it would leave the idle class behind for good.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -162,7 +166,8 @@ impl LoweredIoPriority {
     /// ```
     pub fn lower() -> LoweredIoPriority {
         let before: Option<libc::c_int> = priority_here();
-        let lowered: bool = set_priority_here(IDLE);
+        // The read is what the drop restores, so a thread the kernel will not answer for is never lowered.
+        let lowered: bool = before.is_some() && set_priority_here(IDLE);
         return LoweredIoPriority { before, lowered, stays_on_its_thread: PhantomData };
     }
 }
