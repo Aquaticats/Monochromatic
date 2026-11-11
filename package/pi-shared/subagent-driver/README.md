@@ -220,7 +220,7 @@ A resumed run of 905 483 tokens on a model with a 524 288-token window reported 
 and a driver that gave every prompt thirty seconds recorded `prompt-rejected` with `no answer in 30000 ms`
 while Pi was still compacting.
 
-So the thirty seconds measure Pi's silence,
+So the bound measures Pi's silence,
 not the clock.
 `compaction_start` stops the count and `compaction_end` starts it again,
 which means a compaction Pi is running never spends the silence a prompt is allowed.
@@ -233,6 +233,21 @@ so silence after one ends the run as `compaction-failed`.
 
 A Pi that reports no compaction and answers nothing is unchanged:
 the wait ends after its silence bound and the run ends as `prompt-rejected`.
+
+## The three answers a run waits for while Pi starts
+
+A run's first three commands are `get_state`, `get_commands` and the prompt,
+and Pi is loading its session and its extensions while they wait,
+so they are bounded by a measured figure of their own rather than by the bound an answer owes mid-run.
+The bound is `START_UP_ANSWER_MILLISECONDS`,
+two minutes,
+and `src/driver-constants.ts` states it with the measurement it came from:
+over 1,214 runs in a runs folder,
+the longest answer Pi gave took 76 322 ms,
+and four runs were still waiting 90 to 91 seconds after Pi started when the old thirty-second bound cut them off as
+`prompt-rejected`.
+Each of the three still stops counting silence while Pi reports a compaction,
+and the run's wall clock still ends them.
 
 ## What the driver retries, and what it leaves alone
 
@@ -529,7 +544,8 @@ and needs neither a running unit nor a process table.
 
 Every wait for Pi is bounded:
 Pi's start-up,
-each command,
+its state and its commands,
+each command after the prompt,
 the watch,
 and putting the run away.
 Each command keeps its own limit as well,
