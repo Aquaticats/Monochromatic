@@ -656,6 +656,12 @@ mod service_lane;
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
 
+/// The pool of finished shadow repositories of a worktree Git no longer lists:
+/// a wrapped command removes it,
+/// and one of a worktree Git lists never.
+#[path = "binary_shadow_pool_tests.rs"]
+mod shadow_pool;
+
 /// The ends of the waits on the commit path:
 /// a commit withdrawn at its bound never lands,
 /// not even after a restart of the service.

@@ -358,3 +358,142 @@ fn a_pooled_shadow_survives_a_sweep_of_the_scratch_directory() {
     assert_eq!(members(pool_root(&template).as_path()), vec![member.clone()], "and left the pooled shadow alone");
     remove(root.as_path());
 }
+
+/// A pool folder for one worktree's key,
+/// holding one member.
+fn a_pool_folder(common: &Path, key: &str) -> PathBuf {
+    let folder: PathBuf = common.join(SHADOW_POOL_FOLDER).join(key);
+    let member: PathBuf = folder.join("member-a-finished-shadow");
+    std::fs::create_dir_all(member.as_path()).expect("a member");
+    std::fs::write(member.join("config").as_path(), b"[core]\n\trepositoryformatversion = 0\n").expect("the member's config");
+    return folder;
+}
+
+/// What:
+///  The pool folder of a worktree Git no longer lists is removed,
+///  and the folders of the worktrees it lists stay.
+/// Why:
+///   `git worktree prune` and a registration deleted by hand both leave the members of the pool for a worktree
+///  that is gone:
+///  they are private repositories with their links into this one,
+///  and no commit can ever claim them.
+///  The main checkout's own folder is named by a key of its own and never leaves while the repository does.
+#[test]
+fn a_pool_of_a_worktree_git_no_longer_lists_is_removed() {
+    let root: PathBuf = fixture("shadow-pool-gone-pruned");
+    let common: PathBuf = root.join("repo/.git");
+    let topic: PathBuf = a_pool_folder(common.as_path(), "worktree-topic");
+    let pruned: PathBuf = a_pool_folder(common.as_path(), "worktree-pruned");
+    let main: PathBuf = a_pool_folder(common.as_path(), "main");
+    std::fs::create_dir_all(common.join("worktrees/topic").as_path()).expect("the registration of a worktree Git lists");
+    let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
+    assert_eq!(removed, vec![pruned.clone()], "the pool of the worktree Git no longer lists, and nothing else");
+    assert!(std::fs::symlink_metadata(pruned.as_path()).is_err(), "its folder is gone");
+    assert!(topic.is_dir(), "the pool of a worktree Git lists stays");
+    assert!(main.is_dir(), "the main checkout's pool stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  The pools of every linked worktree go when Git removed their registrations with the last one.
+/// Why:
+///   Git removes the `worktrees` folder itself when its last registration goes,
+///  so a hand deletion of a worktree and its registration leaves no folder that could name a worktree at all.
+///  Nothing is left that a member could be claimed for,
+///  and the main checkout's own pool is untouched.
+#[test]
+fn every_linked_worktrees_pool_goes_when_git_removed_its_registrations() {
+    let root: PathBuf = fixture("shadow-pool-gone-by-hand");
+    let common: PathBuf = root.join("repo/.git");
+    let topic: PathBuf = a_pool_folder(common.as_path(), "worktree-topic");
+    let main: PathBuf = a_pool_folder(common.as_path(), "main");
+    assert!(!common.join("worktrees").exists(), "no registration is there at all");
+    let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
+    assert_eq!(removed, vec![topic.clone()], "the one linked worktree's pool");
+    assert!(std::fs::symlink_metadata(topic.as_path()).is_err(), "its folder is gone");
+    assert!(main.is_dir(), "the main checkout's pool stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  The pool of a worktree Git is adding stays.
+/// Why:
+///   Git makes a worktree's registration before its checkout,
+///  so a command that sweeps while another process adds a worktree must read the registration as the worktree's
+///  presence,
+///  never as a folder of a worktree that is gone.
+///  The worktree the add is making is the one a member of that pool names.
+#[test]
+fn a_pool_of_a_worktree_git_is_adding_stays() {
+    let root: PathBuf = fixture("shadow-pool-being-added");
+    let common: PathBuf = root.join("repo/.git");
+    let adding: PathBuf = a_pool_folder(common.as_path(), "worktree-adding");
+    let registration: PathBuf = common.join("worktrees/adding");
+    std::fs::create_dir_all(registration.as_path()).expect("the registration Git makes before the checkout");
+    // What an unfinished registration holds: the back-pointer to the checkout being filled, and no HEAD yet.
+    std::fs::write(registration.join("gitdir").as_path(), root.join("repo/.git/worktrees/adding").display().to_string()).expect("the back-pointer");
+    let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
+    assert!(removed.is_empty(), "nothing is removed: {removed:?}");
+    assert!(adding.is_dir(), "the pool of the worktree being added stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  The pool of a worktree whose checkout is gone stays while Git still lists it.
+/// Why:
+///   A checkout deleted by hand leaves its registration,
+///  so Git's own list still names that worktree and its repair (`git worktree prune`) has not run.
+///  The wrapper removes the folder on the list it reads,
+///  and the next command after the prune is what collects it.
+#[test]
+fn a_pool_of_a_worktree_git_still_lists_stays() {
+    let root: PathBuf = fixture("shadow-pool-still-listed");
+    let common: PathBuf = root.join("repo/.git");
+    let registered: PathBuf = a_pool_folder(common.as_path(), "worktree-registered");
+    std::fs::create_dir_all(common.join("worktrees/registered").as_path()).expect("the registration of a worktree whose checkout is gone");
+    let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
+    assert!(removed.is_empty(), "nothing is removed: {removed:?}");
+    assert!(registered.is_dir(), "the pool of a worktree Git still lists stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  A folder in the pool the wrapper did not name is left alone.
+/// Why:
+///   The pool's folder is the repository's own state,
+///  and a person may keep something there.
+///  Only a folder named for a worktree can be proven to belong to one,
+///  so anything else stays and nothing is removed on a guess.
+#[test]
+fn a_folder_the_wrapper_did_not_name_stays() {
+    let root: PathBuf = fixture("shadow-pool-stranger");
+    let common: PathBuf = root.join("repo/.git");
+    let stranger: PathBuf = a_pool_folder(common.as_path(), "notes-before-the-upgrade");
+    let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
+    assert!(removed.is_empty(), "nothing is removed: {removed:?}");
+    assert!(stranger.join("member-a-finished-shadow").is_dir(), "the stranger's folder is untouched");
+    remove(root.as_path());
+}
+
+/// What:
+///  Removing the pool of a gone worktree never follows a member's links.
+/// Why:
+///   A member links to this repository's own entries (`shadow_links.rs`),
+///  so a removal that followed one would delete the repository's objects or its configuration.
+///  The link and what it points at are both still there afterwards,
+///  with the member's own folder gone.
+#[test]
+fn removing_the_pool_of_a_gone_worktree_leaves_what_a_member_links_to() {
+    let root: PathBuf = fixture("shadow-pool-gone-links");
+    let common: PathBuf = root.join("repo/.git");
+    let gone: PathBuf = a_pool_folder(common.as_path(), "worktree-gone");
+    let kept: PathBuf = root.join("repo/.git/objects-kept");
+    std::fs::create_dir_all(kept.as_path()).expect("what the member links to");
+    std::fs::write(kept.join("a-pack").as_path(), b"the repository's own bytes\n").expect("its bytes");
+    std::os::unix::fs::symlink(kept.as_path(), gone.join("member-a-finished-shadow/objects").as_path()).expect("the member's link");
+    let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
+    assert_eq!(removed, vec![gone.clone()], "the gone worktree's pool");
+    assert!(std::fs::symlink_metadata(gone.as_path()).is_err(), "the member's folder is gone");
+    assert_eq!(std::fs::read(kept.join("a-pack").as_path()).expect("what the link pointed at"), b"the repository's own bytes\n", "the removal followed no link");
+    remove(root.as_path());
+}

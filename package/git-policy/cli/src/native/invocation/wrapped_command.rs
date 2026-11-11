@@ -34,7 +34,7 @@
 /// ```ts
 /// import { runPolicyPass } from './policy_pass.ts';
 /// ```
-use crate::wrapped_command_notices_snapshots_and_manual_push::{prepare_manual_push, record_escape_use, show_held_commits, show_push_failures, snapshot_before_worktree_removal};
+use crate::wrapped_command_notices_snapshots_and_manual_push::{prepare_manual_push, record_escape_use, show_held_commits, show_push_failures, snapshot_before_worktree_removal, sweep_shadow_pools_of_gone_worktrees};
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
 use crate::repository_link_answer::EXIT_GIT_FATAL;
 /// `git add` asks for what it would stage.
@@ -459,6 +459,9 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     show_push_failures(stripped, checks);
     show_held_commits(stripped, checks);
     snapshot_before_worktree_removal(stripped, checks);
+    // A worktree a person removed by a route this program does not see keeps its pool of finished shadows, and the pool is
+    //  named after that worktree's own Git directory: the command is what collects it, once and for good.
+    sweep_shadow_pools_of_gone_worktrees(checks);
     if let Some(config) = &loaded
         && let Some(ending) = run_commit_if_real(stripped, environment, checks, config)
     {

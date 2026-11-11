@@ -3,7 +3,8 @@
 //! where it lives,
 //!  one `rename` to claim a member,
 //! the fill the resident service runs ahead,
-//! and the sweep of a fill that was killed.
+//! the fill the resident service runs ahead,
+//! and the sweeps of a fill that was killed and of a worktree Git no longer lists.
 //! Why:
 //!  The creation makes about 40 directory-entry creations per commit on a volume where those calls wait seconds,
 //!  and `shadow links` alone held 11,383 ms of 22,657 ms of `buildMs` in one measured window
@@ -75,6 +76,14 @@ pub const FILLING_STALE_AFTER: Duration = Duration::from_secs(900);
 /// The prefix of a finished member's name.
 const MEMBER_PREFIX: &str = "member-";
 
+/// The pool folder of the main checkout,
+/// whose own Git directory is the common directory the pool lives in.
+const MAIN_KEY: &str = "main";
+
+/// The prefix of a linked worktree's pool folder,
+/// followed by the name of its own Git directory.
+const WORKTREE_KEY_PREFIX: &str = "worktree-";
+
 /// The prefix of a member that is still being made.
 const FILLING_PREFIX: &str = "filling-";
 
@@ -119,11 +128,26 @@ pub fn pool_root(template: &ShadowTemplate) -> PathBuf {
 /// poolRootFor(commonDir, gitDir)
 /// ```
 pub fn pool_root_for(common_dir: &Path, git_dir: &Path) -> PathBuf {
-    let key: String = match git_dir == common_dir {
-        true => String::from("main"),
-        false => format!("worktree-{}", git_dir.file_name().unwrap_or_default().to_string_lossy()),
+    return common_dir.join(SHADOW_POOL_FOLDER).join(pool_key(common_dir, git_dir));
+}
+
+/// What:
+///  The folder name one worktree's pool has.
+/// Why:
+///  The sweep of a gone worktree's pool and the name a fill and a claim use must be one rule,
+///  or a sweep would look at a folder nothing fills and leave the one a commit takes from.
+///  The name is lossy text of the Git directory's own name,
+///  so both sides compare the same text whatever the path's bytes are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// poolKey(commonDir, gitDir) // 'main' or 'worktree-<name>'
+/// ```
+fn pool_key(common_dir: &Path, git_dir: &Path) -> String {
+    return match git_dir == common_dir {
+        true => String::from(MAIN_KEY),
+        false => format!("{WORKTREE_KEY_PREFIX}{}", git_dir.file_name().unwrap_or_default().to_string_lossy()),
     };
-    return common_dir.join(SHADOW_POOL_FOLDER).join(key);
 }
 
 /// What:
@@ -227,6 +251,62 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
     }
     crate::diagnostic_log::debug("shadowPool", format!("filled the shadow pool with {}", member.display()).as_str());
     return Ok(Some(member));
+}
+
+/// What:
+///  Removes the pool folder of every worktree Git no longer lists,
+///  and answers which folders it removed.
+/// Why:
+///  A worktree's pool is named after that worktree's own Git directory,
+///  and the members of a folder whose Git directory is gone are private repositories with their links into this one:
+///  no commit can ever claim them.
+///  A `git worktree prune`,
+///  a registration deleted by hand and a worktree destroyed without Git all leave that folder,
+///  and the sweep is what collects it,
+///  so a pool left unused does not keep a copy of the repository's shape for ever.
+///  The question is asked of the repository's own `worktrees` folder and never of Git,
+///  so a command pays one `read_dir` that usually finds no pool folder at all.
+///  A worktree Git is adding keeps its folder:
+///  Git makes the registration before the checkout,
+///  so a registration is the worktree's presence and not a leftover.
+///  A folder the wrapper did not name stays:
+///  only a folder named for a worktree can be proven to belong to one,
+///  and the pool holds state of the person's own otherwise.
+///  Nothing here can fail a command:
+///  a folder that cannot be removed is named in the diagnostic log and left for the next command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removed = sweepGoneWorktrees(commonDir); // the pool folders of worktrees Git no longer lists
+/// ```
+pub fn sweep_gone_worktrees(common_dir: &Path) -> Vec<PathBuf> {
+    let root: PathBuf = common_dir.join(SHADOW_POOL_FOLDER);
+    let Ok(entries) = std::fs::read_dir(root.as_path()) else { return Vec::new() };
+    // The keys of the worktrees Git lists, made with the same rule the folders were named by.
+    let mut listed: Vec<String> = Vec::new();
+    if let Ok(worktrees) = std::fs::read_dir(common_dir.join("worktrees")) {
+        for entry in worktrees.flatten() {
+            listed.push(pool_key(common_dir, &common_dir.join("worktrees").join(entry.file_name())));
+        }
+    }
+    let mut removed: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if !name.starts_with(WORKTREE_KEY_PREFIX) || listed.contains(&name) {
+            continue;
+        }
+        let folder: PathBuf = entry.path();
+        match remove_tree(folder.as_path()) {
+            Ok(()) => {
+                crate::diagnostic_log::debug("shadowPool", format!("removed the pool of the worktree Git no longer lists: {name}").as_str());
+                removed.push(folder);
+            }
+            Err(error) => {
+                crate::diagnostic_log::warn("shadowPool", format!("the pool of the worktree Git no longer lists, {}, was not removed: {error}", folder.display()).as_str());
+            }
+        }
+    }
+    return removed;
 }
 
 /// What:
