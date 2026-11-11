@@ -58,7 +58,7 @@ const ABSENT_PATH_MARKER = 'package/git-policy/cli/dist/final/node/absent.mjs';
  
  @example
  ```ts
- await markersWithoutOwner({ markers: ['@monochromatic-dev/git-policy-cli'], declaredNames });
+ await markersWithoutOwner({ markers: [...SELF_SHIM_MARKERS], declaredNames });
  // => []
  ```
  */

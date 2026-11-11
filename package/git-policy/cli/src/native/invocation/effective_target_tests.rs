@@ -12,8 +12,9 @@
 
 /// Import the classification under test and shared fixtures.
 use super::{
-    EffectiveTarget, ToolCacheDirectory, classify_effective_target, default_allowed_worktree_dirs,
-    is_allowed_worktree_dir, matching_allowed_worktree_dir, mise_data_dir, uv_cache_dir,
+    EffectiveTarget, ToolCacheDirectory, cargo_build_script_output_dir, classify_effective_target,
+    default_allowed_worktree_dirs, is_allowed_worktree_dir, matching_allowed_worktree_dir, mise_data_dir,
+    uv_cache_dir,
 };
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
@@ -157,6 +158,47 @@ fn mise_data_directory_follows_mise_precedence() {
                 named_by: "MISE_DATA_DIR",
             },
         ]
+    );
+}
+
+/// Cargo's build-script output directory is exempt as the third tool directory:
+///  it is where a crate that vendors another project clones it
+///  (`libghostty-vt-sys` cloned Ghostty there),
+/// and an empty value or an absent variable exempts nothing.
+#[test]
+fn cargo_build_script_directory_is_named_by_out_dir() {
+    assert_eq!(cargo_build_script_output_dir(&[]), None);
+    assert_eq!(cargo_build_script_output_dir(environment(&[("OUT_DIR", "")]).as_slice()), None);
+    assert_eq!(
+        cargo_build_script_output_dir(environment(&[("OUT_DIR", "/build/out")]).as_slice()),
+        named("/build/out", "OUT_DIR")
+    );
+    // The three tool directories stand together, each from its own variable.
+    let home: Option<&Path> = Some(Path::new("/home/fixture"));
+    assert_eq!(
+        default_allowed_worktree_dirs(environment(&[("OUT_DIR", "/build/out")]).as_slice(), home),
+        vec![
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.cache/uv"),
+                named_by: "HOME",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.local/share/mise"),
+                named_by: "HOME",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/build/out"),
+                named_by: "OUT_DIR",
+            },
+        ]
+    );
+    // Cargo's directory needs no home directory, unlike the other two.
+    assert_eq!(
+        default_allowed_worktree_dirs(environment(&[("OUT_DIR", "/build/out")]).as_slice(), None),
+        vec![ToolCacheDirectory {
+            path: PathBuf::from("/build/out"),
+            named_by: "OUT_DIR",
+        }]
     );
 }
 

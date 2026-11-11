@@ -79,6 +79,11 @@ A rule can therefore exist where corpus work happens and nowhere else.
 `package/git-policy/forbidden-strings/src/index.ts` takes lifecycle-selected candidates,
 and its comment records that "every lifecycle now supplies only the operation's own delta,
 so no post-commit narrowing happens here".
+That path was deleted 2026-10-13 in `a2b56c548c`;
+the adapter is now `package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`,
+moved there 2026-11-03 in `4a7706221a`
+from `package/git-policy/cli/src/native/policy_forbidden_strings.rs`,
+added 2026-10-06 in `b7bed7111a`.
 An untouched file is not re-litigated.
 The standalone scanner walks the working tree,
 but the policy adapter does not.

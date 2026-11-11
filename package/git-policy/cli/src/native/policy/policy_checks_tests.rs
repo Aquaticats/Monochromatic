@@ -23,15 +23,14 @@ use crate::diagnostics::EngineFailureCode;
 use crate::policy_content::LifecycleContent;
 use crate::policy_engine::{PolicyChecks, PolicyFinding, PolicyOutcome};
 use crate::policy_registry::PolicyId;
-/// The tool-cache exemption entry these checks are built with.
-use crate::effective_target::ToolCacheDirectory;
+use crate::effective_target::{ToolCacheDirectory, default_allowed_worktree_dirs};
 use crate::policy_test_support::{
     ScriptedFacts, linked_worktree, main_worktree, outside_worktree, scripted_facts,
 };
 use crate::policy_trigger::Trigger;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_linked_worktree::{
-    GuardedCommand, dirty_worktree_message, main_worktree_message, outside_worktree_message,
+    GuardedCommand, dirty_worktree_message, exemption_notice, main_worktree_message, outside_worktree_message,
     repository_stash_message,
 };
 /// Whether a command writes the remote settings every worktree shares,
@@ -40,6 +39,7 @@ use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteWrite};
 use crate::rule_shared_remote_messages::shared_remote_settings_message;
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// The shipped checks over a command,
@@ -320,6 +320,54 @@ fn linked_worktree_exempts_an_allowed_tool_cache() {
         one(
             "linked-worktree-required",
             &main_worktree_message(GuardedCommand::ResetHard)
+        )
+    );
+    remove(root.as_path());
+}
+
+/// linked-worktree-only:
+///  a checkout in a clone a build script made in its own output directory runs,
+/// and the same clone anywhere else keeps its guard.
+/// Why:
+///  Cargo sets `OUT_DIR` for every build script and passes it to what it starts,
+/// and a crate that vendors another project clones it there,
+///  so the clone is the build step's work and the exemption names that one directory.
+#[test]
+fn linked_worktree_exempts_a_cargo_build_script_output_directory() {
+    let root: PathBuf = fixture("checks-cargo-out-dir");
+    let out_dir: PathBuf = root.join("cargo-build/aa/0123456789abcd/debug/build/libghostty-vt-sys-1/out");
+    let clone: PathBuf = out_dir.join("ghostty-src");
+    std::fs::create_dir_all(clone.join(".git")).expect("vendored clone");
+    let worktree: &str = clone.to_str().expect("fixture paths are UTF-8");
+    let facts: ScriptedFacts = dirty_in(main_worktree(worktree, ""), true);
+    let allowed: Vec<ToolCacheDirectory> = default_allowed_worktree_dirs(
+        &[(OsString::from("OUT_DIR"), out_dir.as_os_str().to_owned())],
+        None,
+    );
+    let mut exempt: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts.clone(),
+        os_arguments(&["checkout", "bebca846"]),
+        LifecycleContent::None,
+        allowed.clone(),
+    );
+    assert_eq!(exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward), clean());
+    assert_eq!(exempt.facts.asked, location_only(), "an exempt repository needs no status");
+    // A form that also writes files reaches the exemption's own branch, which names the variable that chose it.
+    let mut writing: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts.clone(),
+        os_arguments(&["reset", "--hard"]),
+        LifecycleContent::None,
+        allowed,
+    );
+    assert_eq!(writing.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward), clean());
+    assert_eq!(writing.notices, vec![exemption_notice("OUT_DIR", out_dir.as_path())]);
+    // The same clone outside the build script's directory is still refused while it holds changes.
+    let mut guarded: ShippedChecks<ScriptedFacts> = checks(&["checkout", "bebca846"], facts);
+    assert_eq!(
+        guarded.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
+        one(
+            "linked-worktree-required",
+            &dirty_worktree_message(GuardedCommand::CheckoutMove)
         )
     );
     remove(root.as_path());

@@ -22,6 +22,7 @@ use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
 use crate::push_retry::{RetryChange, Retrying, pause_before};
 use crate::service_instance::GitDirUnreachable;
+use crate::unreachable_git_dir_proven_gone::Gone;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_review_key::ReviewKey;
@@ -30,7 +31,7 @@ use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 /// The kinds of work the service runs itself.
-pub const SERVICE_KINDS: [WorkKind; 4] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash];
+pub const SERVICE_KINDS: [WorkKind; 6] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
@@ -137,6 +138,42 @@ pub trait WorkHandlers {
     /// ```
     fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.trash(item)));
+    }
+    /// Fill a new worktree's Cargo build directory from the build state of the checkout it was copied from;
+    /// a handler that does not know it skips.
+    fn prewarm(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler does not fill Cargo build directories"));
+    }
+    /// The same filling,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The drain of a round is a task,
+    /// and the filling starts Cargo children and copies a tree,
+    /// which the synchronous face would refuse from inside the runtime;
+    /// a handler that knows nothing of the runtime keeps the synchronous one as its answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// prewarmAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.prewarm(item)));
+    }
+    /// Delete the subvolume of a removed worktree that the removal handed over;
+    /// a handler that does not know it skips.
+    fn subvolume_delete(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler does not delete subvolumes"));
+    }
+    /// The same delete,
+    /// awaited by a caller that is itself a task of the runtime,
+    /// which is how the round asks every kind.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// subvolumeDeleteAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn subvolume_delete_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.subvolume_delete(item)));
     }
 }
 
@@ -519,6 +556,49 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
     //  its place would not know it, so the person is left with Git's own words and pushing by hand.
     let words: String = if kept { format!("{plan}\n{text}") } else { text.to_string() };
     return PlannedRetry { words, kept };
+}
+
+/// What:
+///  What a drain does for a Git directory the filesystem proves is gone:
+/// its push plans end,
+/// and one journal line says which path
+///  lost them and what the proof looked at.
+/// Why:
+///   A repository that was deleted cannot be pushed again,
+/// and its work records went with it,
+/// so a plan kept for it
+///  is a try that can never run:
+/// on 2026-11-10 two deleted throwaway repositories were retried every 600 s for hours,
+/// at
+///  try 48 and climbing
+/// (`doc/planning/cli-git-unreachable-repository-ends-its-plans.md`).
+/// The person's own notice lives inside the Git
+///  directory,
+/// which is gone,
+/// so the journal is the only place that can say what became of the backup,
+/// and the line names the
+///  branch and the commit with the path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gone = prove(gitDir, mounts); if (gone) { log(goneLine(gitDir, gone, branches)); for (const due of dueOf(gitDir)) forget(due); }
+/// ```
+pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, retrying: &Retrying, unreachable: &GitDirUnreachable, gone: &Gone) -> Drained {
+    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
+    let mut named: Vec<String> = Vec::new();
+    for due in &retrying.due {
+        if due.git_dir != git_dir {
+            continue;
+        }
+        named.push(format!("{} of {}", due.item.branch_ref, due.item.oid));
+        replanning.forget(git_dir, due.item.branch_ref.as_str());
+    }
+    // Nothing of this drain ran, so the caller has nothing to wait for; the changes it applies drop the plans of the branch from the
+    //  store as well as from memory.
+    if !named.is_empty() {
+        crate::service_warn!("{} ({unreachable})", crate::unreachable_git_dir_proven_gone::gone_line(git_dir, gone, named.as_slice()));
+    }
+    return Drained { wait: None, changes: replanning.changes };
 }
 
 /// What:

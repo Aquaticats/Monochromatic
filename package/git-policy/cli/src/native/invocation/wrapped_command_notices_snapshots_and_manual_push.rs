@@ -177,7 +177,7 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     //  (`held_push_commit_on_the_remote.rs`).
     let context: GitContext = checks.facts.transaction_context();
     let record: GitRemoteRecord<'_> = GitRemoteRecord { context: &context, cwd: cwd.as_path() };
-    for line in crate::service_handoff::held_push_notices(git_dir.as_path(), &record) {
+    for line in crate::service_handoff::held_push_notices(git_dir.as_path(), &record, &crate::held_push_release_wakes_the_service::AskTheService { context: &context }) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }
@@ -357,6 +357,13 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
         for problem in snapshot_linked_worktrees(common_dir.as_path()) {
             // A closed terminal is not a reason to stop the command the person asked for.
             let _written = writeln!(std::io::stderr(), "{problem}");
+        }
+        // A commit a reference lock holds in a linked worktree is held by that worktree's own Git directory and by a
+        //  per-worktree reference, both of which the removal deletes; it is kept where a removal cannot reach it, and the person
+        //  is told, before Git runs (`worktree_removal_held_commits.rs`).
+        let context: GitContext = checks.facts.transaction_context();
+        for said in crate::worktree_removal_held_commits::keep_held_commits(common_dir.as_path(), &context) {
+            let _written = writeln!(std::io::stderr(), "{}: {said}", crate::wrapper_names_old_and_new::PROGRAM.current);
         }
     }
 }

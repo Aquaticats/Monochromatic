@@ -35,6 +35,9 @@ pub mod worktree_completion_file_inspection;
 /// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 pub mod worktree_removal_rescue;
 
+/// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
+pub mod worktree_removal_held_commits;
+
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves:
 /// its destination and insertion point.
 #[cfg(unix)]
@@ -91,6 +94,7 @@ pub mod worktree_remove_plan;
 /// and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
+pub mod worktree_remove_hand_over;
 
 pub mod worktree_remove_registry;
 
@@ -112,6 +116,10 @@ pub mod worktree_removal_interrupted_destroy;
 /// The stop of a removed worktree's commit service units,
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;
+
+/// The removal of the shadow pool a removed worktree's commits were served from,
+/// taken after the removal proved the worktree is gone.
+pub mod worktree_removal_clears_the_pool;
 
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
@@ -210,6 +218,10 @@ pub mod worktree_ladder;
 #[cfg(target_os = "linux")]
 pub mod shell_quote;
 
+/// The commands a message prints to finish or remove a worktree an interrupted `git worktree add` left.
+#[cfg(target_os = "linux")]
+pub mod worktree_finish_commands;
+
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
 /// resumably.
 #[cfg(target_os = "linux")]
@@ -292,7 +304,35 @@ pub mod worktree_trash_entries;
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_manifest;
 
+/// The manifest a trash carries inside itself,
+/// written before the swap publishes it,
+/// so a later pass can prove what the trash is without a record.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_own_manifest;
+
 /// Removal of a directory tree beneath a held parent handle,
 /// never following a link.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_remove;
+
+/// The record that says the wrapper made one linked worktree,
+/// which every automatic removal asks for first.
+pub mod worktree_added_by_the_wrapper;
+
+/// The commit and the branch one merge stood between,
+/// and the sweep of the worktrees whose branches it landed.
+pub mod worktree_landed_after_a_merge;
+
+/// The linked worktrees a repository registers,
+/// with the branch each one has checked out.
+pub mod worktree_landed_registrations;
+
+/// The removal of every wrapper-made worktree whose branch a merge landed.
+pub mod worktree_landed_removal;
+
+/// The words one landed sweep prints.
+pub mod worktree_landed_sweep_notice;
+
+/// Whether any process is working inside a folder,
+/// which keeps a landed worktree.
+pub mod worktree_process_inside;

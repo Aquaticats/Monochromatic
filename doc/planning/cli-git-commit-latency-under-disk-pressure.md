@@ -1764,7 +1764,11 @@ on this fixture,
 where no directory on the changed path is wide.
 
 Next:
-run the gate on the tip (`node /var/home/user/temp/agent/gate/launch-gate.ts <worktree> <label>`,
+run the gate on the tip
+(`node /var/home/user/temp/agent/gate/launch-gate.ts <worktree> <label>`,
+since renamed to `mise run //package/git-policy/cli:native:gate -- <worktree> <label>` on 2026-11-10,
+with its verdict read by `native:gate:verdict`,
+which replaces `wait-unit-gate.ts`);
 then
 `wait-unit-gate.ts`);
 the one failure seen on the host,

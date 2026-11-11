@@ -162,7 +162,9 @@ fn a_held_commit_a_later_push_carried_is_no_longer_said_to_be_held() {
     // The held line is true here, and it is the state the next assertion is about.
     let before: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
     assert!(stderr_of(&before).contains(held.as_str()), "the held commit is named: {}", stderr_of(&before));
-    assert!(stderr_of(&before).contains("has not been released yet"), "{}", stderr_of(&before));
+    assert!(stderr_of(&before).contains("the command that landed it"), "the line names what holds it: {}", stderr_of(&before));
+    assert!(stderr_of(&before).contains("ended before its checks ran"), "{}", stderr_of(&before));
+    assert!(stderr_of(&before).contains("a push you make of refs/heads/main sends it"), "the remedy is named: {}", stderr_of(&before));
     // A later commit of the branch pushes the branch, and the queue pushes the branch: the held commit goes with it.
     let later: String = commit_through(&setup, "two\n");
     wait_until("the remote branch is the later commit", &|| {
@@ -183,7 +185,7 @@ fn a_held_commit_a_later_push_carried_is_no_longer_said_to_be_held() {
     // Every later command agrees with Git from here on.
     let after: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
     assert!(!stderr_of(&after).contains(held.as_str()), "the commit the remote holds is not said to be held: {}", stderr_of(&after));
-    assert!(!stderr_of(&after).contains("has not been released yet"), "{}", stderr_of(&after));
+    assert!(!stderr_of(&after).contains("ended before its checks ran"), "{}", stderr_of(&after));
     assert!(records_in(&setup, HELD).is_empty(), "the record left the held state: {:?}", records_in(&setup, HELD));
     assert!(records_in(&setup, DONE).contains(&id), "and is known to the queue as a push that was made: {:?}", records_in(&setup, DONE));
     // Settled once: the command after it says nothing either.
@@ -208,7 +210,7 @@ fn a_held_commit_the_remote_does_not_hold_keeps_its_line() {
     for _ in 0..2 {
         let said: Observed = run_wrapped(&setup.fixture, setup.repo.as_path(), &["status", "--short"]);
         assert!(stderr_of(&said).contains(held.as_str()), "the held commit is still named: {}", stderr_of(&said));
-        assert!(stderr_of(&said).contains("has not been released yet"), "{}", stderr_of(&said));
+        assert!(stderr_of(&said).contains("ended before its checks ran"), "{}", stderr_of(&said));
     }
     assert_eq!(records_in(&setup, HELD), vec![push_id(held.as_str())], "the record stays held");
     remove_settled(&setup.fixture);

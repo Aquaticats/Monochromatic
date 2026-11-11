@@ -18,6 +18,7 @@ import {
 import {
   RealGitNotFoundError,
   resolveRealGit,
+  SELF_SHIM_MARKERS,
 } from '../dist/final/node/index.mjs';
 import {
   captureResolutionError,
@@ -29,8 +30,10 @@ import {
 
 /**
  Marker-like payload proving native executables bypass text self-shim inspection.
+ Every marker the resolver recognises is carried in the payload,
+ so no fixture spells a marker of its own.
  */
-const MARKER_PAYLOAD = Buffer.from('@monochromatic-dev/git-policy-cli',);
+const MARKER_PAYLOAD = Buffer.from([...SELF_SHIM_MARKERS,].join(' ',),);
 
 /**
  Supported native executable signatures.

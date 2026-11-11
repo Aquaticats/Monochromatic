@@ -12,6 +12,7 @@
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, fixture, git, repository};
+use git_policy_cli::wrapper_names_old_and_new::SHADOW_POOL_FOLDER;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -92,4 +93,43 @@ fn a_scratch_directory_that_holds_an_entry_the_prefixes_do_not_name_is_not_empty
 fn scratch_directory(repo: &Path) -> Option<PathBuf> {
     let directory: PathBuf = repo.join(".git/monochromatic-git-policy-cli-scratch");
     return directory.is_dir().then_some(directory);
+}
+
+/// What:
+///  A landed commit leaves the pool of finished shadows beside the scratch directory exactly as it found it.
+/// Why:
+///  A member is standing state the owner asked for,
+///  not scratch
+///  ("Pool made ahead (Recommended),
+///  We don't need to build a shadow for every commit.
+///  Be smarter.",
+///  `doc/handover/questions-for-the-owner.md`),
+///  so the release of a commit's scratch tree,
+///  the sweep the next command runs and the emptiness check above must all leave one alone.
+///  This is that check at the user boundary:
+///  the scratch directory holds nothing,
+///  and the pool's own folder still holds what it held.
+#[test]
+fn a_landed_commit_leaves_the_pool_of_finished_shadows_alone() {
+    let fixture: Fixture = fixture("service-scratch-pool-beside");
+    let repo: PathBuf = edited_repository(&fixture);
+    let pool: PathBuf = repo.join(".git").join(SHADOW_POOL_FOLDER).join("main");
+    std::fs::create_dir_all(pool.as_path()).expect("the pool's folder");
+    let standing: PathBuf = pool.join("a-mark-of-standing-state");
+    std::fs::write(standing.as_path(), b"a member nobody has claimed yet\n").expect("standing state");
+    std::fs::write(repo.join("a.txt"), b"one\ntwo\n").expect("edit");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    let output: std::process::Output = wrapped_commit(&fixture, &repo, &["commit", "--quiet", "--message=edit", "--", "a.txt"]).output().expect("the commit runs");
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    let began: Instant = Instant::now();
+    while !the_scratch_directory_holds_nothing(repo.as_path()) {
+        assert!(began.elapsed() < PATIENCE, "the scratch directory of a landed commit still holds something");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(
+        std::fs::read(standing.as_path()).expect("the pool's standing state"),
+        b"a member nobody has claimed yet\n",
+        "the pool beside the scratch directory is untouched"
+    );
+    remove_settled(&fixture);
 }

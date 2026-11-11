@@ -10,7 +10,7 @@ use crate::merge_isolation_recovery_index_lock::may_install;
 
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
-use crate::merge_isolation_recovery_steps::{install_entries, standing};
+use crate::merge_isolation_recovery_steps::{install_entries, put_back_stranded_takes, standing};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::{Path, PathBuf};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
@@ -1018,6 +1018,10 @@ fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
     return (changes, judgements);
 }
 
+/// The identifier a control's own take names itself by,
+/// which no record of a control's fixture claims unless the control writes one.
+const A_CONTROLS_MERGE: &str = "17171717-0000-4000-8000-000000000017";
+
 /// The names in `repository` that are the private names a take leaves.
 fn aside_names(repository: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
@@ -1057,7 +1061,7 @@ fn a_file_saved_after_the_judgement_is_not_replaced() {
     // The person's editor saves one of the merge's paths after the judgement.
     std::fs::write(world.repo.join("f.txt"), b"an edit saved after the judgement\n").expect("the edit");
     let mut said: Vec<u8> = Vec::new();
-    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said)
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said)
         .expect_err("a file that changed after the judgement is not the merge's to replace");
     assert!(refused.error.0.contains("f.txt"), "the path is named: {}", refused.error.0);
     assert!(refused.error.0.contains("changed after this command judged them"), "the reason is stated: {}", refused.error.0);
@@ -1091,7 +1095,7 @@ fn a_file_created_after_the_judgement_is_not_replaced() {
     let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
     std::fs::write(world.repo.join("dir/new.txt"), b"a file of my own\n").expect("the person's file");
     let mut said: Vec<u8> = Vec::new();
-    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said)
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said)
         .expect_err("a file that appeared where the merge adds one is not the merge's to replace");
     assert!(refused.error.0.contains("dir/new.txt"), "the path is named: {}", refused.error.0);
     assert_eq!(std::fs::read(world.repo.join("dir/new.txt")).expect("the person's file"), b"a file of my own\n", "the file is put back");
@@ -1111,8 +1115,8 @@ fn a_file_created_after_the_judgement_is_not_replaced() {
 /// ```ts
 /// const stranded = `${dirname}/.cli-git-recovery-${basename}-${process.pid}-0-1`;
 /// ```
-fn stranded_name(location: &Path) -> PathBuf {
-    return crate::merge_isolation_take_asides::aside_name(location);
+fn stranded_name(location: &Path, transaction_id: &str) -> PathBuf {
+    return crate::merge_isolation_take_aside_names::aside_name(location, transaction_id);
 }
 
 /// What:
@@ -1138,7 +1142,7 @@ fn a_file_a_killed_take_set_aside_is_put_back_and_reported() {
     let world: World = world("merge-recovery-stranded-take");
     git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
     let location: PathBuf = world.repo.join("f.txt");
-    let stranded: PathBuf = stranded_name(location.as_path());
+    let stranded: PathBuf = stranded_name(location.as_path(), "15151515-0000-4000-8000-000000000015");
     let content: Vec<u8> = std::fs::read(location.as_path()).expect("the file Git wrote");
     std::fs::rename(location.as_path(), stranded.as_path()).expect("a killed take");
     let record: PathBuf = record_of(&world, dead_owner("15151515-0000-4000-8000-000000000015"), Some("refs/heads/main"));
@@ -1170,7 +1174,7 @@ fn a_file_a_killed_take_set_aside_is_kept_beside_a_path_that_holds_something_els
     let world: World = world("merge-recovery-stranded-take-both");
     git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
     let location: PathBuf = world.repo.join("f.txt");
-    let stranded: PathBuf = stranded_name(location.as_path());
+    let stranded: PathBuf = stranded_name(location.as_path(), "16161616-0000-4000-8000-000000000016");
     std::fs::rename(location.as_path(), stranded.as_path()).expect("a killed take");
     std::fs::write(location.as_path(), b"my own file\n").expect("the person's file");
     let _record: PathBuf = record_of(&world, dead_owner("16161616-0000-4000-8000-000000000016"), Some("refs/heads/main"));
@@ -1181,6 +1185,50 @@ fn a_file_a_killed_take_set_aside_is_kept_beside_a_path_that_holds_something_els
     assert!(refused.0.contains("f.txt"), "{}", refused.0);
     assert_eq!(std::fs::read(location.as_path()).expect("the person's file"), b"my own file\n", "nothing was removed");
     assert!(stranded.exists(), "the file that was set aside is kept");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A private name no record claims is left where it is and named,
+///  while one a record claims is put back.
+/// Why:
+///  A merge that ended keeps no record,
+/// so a file it left beside a path belongs to no checkout state at all;
+/// putting it back when a later
+///  merge found the path free brought back a file the person had deleted,
+/// and the later merge carried that older version
+///  forward
+///  (a cross-vendor review of the second round,
+/// its third finding).
+/// The claimed file is the control:
+/// the same step still puts back what a live record names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// record(deadOwner('2020...')); rename('f.txt', asideOf('f.txt', '2020...')); rename('gone.txt', asideOf('gone.txt', '2121...')); putBackStrandedTakes(root, gitDir, changes, sink); expect(exists(asideOf('gone.txt'))).toBe(true); expect(sink).toContain(asideOf('gone.txt'));
+/// ```
+#[test]
+fn a_private_name_no_record_claims_is_left_and_named() {
+    let world: World = world("merge-recovery-aside-without-record");
+    let (changes, _judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    // One merge is still unfinished, and its own take waits beside `f.txt`.
+    let record: PathBuf = record_of(&world, dead_owner("20202020-0000-4000-8000-000000000020"), Some("refs/heads/main"));
+    let claimed_location: PathBuf = world.repo.join("f.txt");
+    let claimed: PathBuf = stranded_name(claimed_location.as_path(), "20202020-0000-4000-8000-000000000020");
+    std::fs::rename(claimed_location.as_path(), claimed.as_path()).expect("a take of the record's merge");
+    // A merge that ended left this one, and no record names it any more.
+    let ended_location: PathBuf = world.repo.join("gone.txt");
+    let ended: PathBuf = stranded_name(ended_location.as_path(), "21212121-0000-4000-8000-000000000021");
+    std::fs::rename(ended_location.as_path(), ended.as_path()).expect("a take of a merge that ended");
+    let mut said: Vec<u8> = Vec::new();
+    put_back_stranded_takes(world.repo.as_path(), world.git_dir.as_path(), changes.as_slice(), &mut said);
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(!claimed.exists(), "a file a record claims loses its private name");
+    assert!(claimed_location.exists(), "the claimed path holds its file again");
+    assert!(ended.exists(), "a file no record claims stays where it is");
+    assert!(!ended_location.exists(), "the path a person emptied stays empty");
+    assert!(text.contains(ended.to_string_lossy().as_ref()), "the private name that stayed is said: {text}");
+    assert!(record.exists(), "the record is not the putting back's to remove");
     remove(world.parent.as_path());
 }
 
@@ -1207,7 +1255,7 @@ fn a_file_that_appears_where_the_merge_deletes_is_not_deleted() {
     let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
     std::fs::write(world.repo.join("gone.txt"), b"a file made after the judgement\n").expect("the person's file");
     let mut said: Vec<u8> = Vec::new();
-    let installed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said);
+    let installed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said);
     assert!(installed.is_ok(), "{installed:?}");
     assert_eq!(std::fs::read(world.repo.join("gone.txt")).expect("the person's file"), b"a file made after the judgement\n", "a file that appeared is never deleted");
     remove(world.parent.as_path());
@@ -1231,7 +1279,7 @@ fn a_file_that_appears_where_the_merge_deletes_is_not_deleted() {
 fn a_file_written_after_it_was_taken_is_kept_and_named() {
     let world: World = world("merge-recovery-written-after-take");
     let location: PathBuf = world.repo.join("f.txt");
-    let aside: PathBuf = stranded_name(location.as_path());
+    let aside: PathBuf = stranded_name(location.as_path(), A_CONTROLS_MERGE);
     let expected: String = git_text(world.repo.as_path(), &["hash-object", "--", "f.txt"]).trim().to_owned();
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
@@ -1312,7 +1360,7 @@ fn a_take_that_fails_puts_the_files_it_already_took_back() {
     judgements.push(Judged { standing: Standing::Old, identity, content: Some(old_oid.clone()) });
     std::fs::set_permissions(world.repo.join("sealed"), std::fs::Permissions::from_mode(0o555)).expect("a directory that refuses writes");
     let mut said: Vec<u8> = Vec::new();
-    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said)
+    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said)
         .expect_err("the take of a path in a read-only directory fails");
     let _writable = std::fs::set_permissions(world.repo.join("sealed"), std::fs::Permissions::from_mode(0o755));
     assert!(!failed.error.0.is_empty(), "the failure is named");
@@ -1350,7 +1398,7 @@ fn a_write_that_fails_puts_the_files_it_already_took_back() {
     changes.insert(0, extra_change("zeta.txt", "100644", "100644", old_oid.as_str(), absent.as_str()));
     judgements.insert(0, Judged { standing: Standing::Old, identity, content: Some(old_oid.clone()) });
     let mut said: Vec<u8> = Vec::new();
-    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said)
+    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said)
         .expect_err("an object the repository does not hold stops the write");
     assert!(!failed.error.0.is_empty(), "the failure is named");
     // The path whose write Git refused holds its old content again; the files Git did write hold the merge's.
@@ -1384,7 +1432,7 @@ fn a_file_whose_mode_changed_after_the_judgement_is_not_replaced() {
     let location: PathBuf = world.repo.join("f.txt");
     std::fs::set_permissions(location.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the person's executable bit");
     let mut said: Vec<u8> = Vec::new();
-    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said)
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said)
         .expect_err("a path whose mode changed after the judgement is not the merge's to replace");
     assert!(refused.error.0.contains("f.txt"), "{}", refused.error.0);
     let mode: u32 = std::fs::metadata(location.as_path()).expect("the file").permissions().mode() & 0o777;
@@ -1528,7 +1576,7 @@ fn a_file_whose_name_is_at_the_file_systems_limit_is_taken_and_finished() {
     changes.push(extra_change(long.as_str(), "100644", "100644", old_oid.as_str(), next_oid.as_str()));
     judgements.push(Judged { standing: Standing::Old, identity, content: Some(old_oid.clone()) });
     let mut said: Vec<u8> = Vec::new();
-    let installed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said);
+    let installed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said);
     assert!(installed.is_ok(), "a valid file name is taken and finished: {installed:?} {}", String::from_utf8_lossy(&said));
     assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
     remove(world.parent.as_path());
@@ -1618,7 +1666,7 @@ fn a_begun_merge_whose_finish_is_refused_still_stops_the_command() {
 fn a_file_a_process_holds_open_is_kept_and_a_file_nothing_holds_is_removed() {
     let world: World = world("merge-recovery-held-open-aside");
     let location: PathBuf = world.repo.join("f.txt");
-    let aside: PathBuf = stranded_name(location.as_path());
+    let aside: PathBuf = stranded_name(location.as_path(), A_CONTROLS_MERGE);
     let expected: String = git_text(world.repo.as_path(), &["hash-object", "--", "f.txt"]).trim().to_owned();
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
@@ -1854,7 +1902,7 @@ fn a_file_whose_bytes_changed_with_its_length_and_time_kept_is_not_replaced() {
     std::fs::File::options().write(true).open(location.as_path()).expect("open").set_modified(modified).expect("the time put back");
     assert_eq!(file_identity(location.as_path()), Some(kept_time), "the identity is the one that was judged");
     let mut said: Vec<u8> = Vec::new();
-    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said)
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said)
         .expect_err("bytes that changed are not the bytes that were judged");
     assert!(refused.error.0.contains("f.txt"), "the path is named: {}", refused.error.0);
     assert_eq!(std::fs::read(location.as_path()).expect("the file"), b"f.txt EDIT\n", "the person's bytes are kept");
@@ -1886,7 +1934,7 @@ fn a_taken_file_whose_bytes_changed_is_kept_and_named() {
     let world: World = world("merge-recovery-same-length-aside");
     let location: PathBuf = world.repo.join("f.txt");
     let expected: String = git_text(world.repo.as_path(), &["hash-object", "--", "f.txt"]).trim().to_owned();
-    let aside: PathBuf = stranded_name(location.as_path());
+    let aside: PathBuf = stranded_name(location.as_path(), A_CONTROLS_MERGE);
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
     // A write through the descriptor a program kept: the same length, and the time put back.
@@ -1998,7 +2046,7 @@ fn a_take_whose_read_fails_after_the_rename_puts_the_file_back() {
     git(world.repo.as_path(), &["config", "filter.broken.clean", "false"]);
     git(world.repo.as_path(), &["config", "filter.broken.required", "true"]);
     let mut said: Vec<u8> = Vec::new();
-    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said)
+    let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said)
         .expect_err("a read that fails after the rename stops the merge");
     assert!(!failed.began, "nothing of the merge was installed");
     assert!(!failed.error.0.is_empty(), "the failure is named");
@@ -2030,7 +2078,7 @@ fn a_taken_file_whose_appended_bytes_a_filter_drops_is_kept_and_named() {
     let judged: &Judged = &judgements[changes.iter().position(|change| { return change.path == b"f.txt"; }).expect("the path")];
     let expected: String = judged.content.clone().expect("the object the judgement read");
     let location: PathBuf = world.repo.join("f.txt");
-    let aside: PathBuf = stranded_name(location.as_path());
+    let aside: PathBuf = stranded_name(location.as_path(), A_CONTROLS_MERGE);
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
     // A writer that kept its descriptor appends a line the clean filter drops.
@@ -2080,7 +2128,7 @@ fn a_write_that_arrives_after_the_holder_scan_is_seen_by_the_last_look() {
     let judged: &Judged = &judgements[changes.iter().position(|change| { return change.path == b"f.txt"; }).expect("the path")];
     let expected: String = judged.content.clone().expect("the object the judgement read");
     let location: PathBuf = world.repo.join("f.txt");
-    let aside: PathBuf = stranded_name(location.as_path());
+    let aside: PathBuf = stranded_name(location.as_path(), A_CONTROLS_MERGE);
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
     let entries: Vec<TakenOnDisk> = vec![TakenOnDisk {
@@ -2306,7 +2354,11 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
         "it does not claim the checkout is clean: {}",
         refused.0
     );
-    assert!(refused.0.contains("git restore --staged"), "it names the way to undo the staged content: {}", refused.0);
+    assert!(
+        refused.0.contains("git restore --no-enforce-worktree --staged --worktree"),
+        "it names the way to undo the staged content, as the wrapper runs it: {}",
+        refused.0
+    );
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
     assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree is where the other command put it");
@@ -2445,7 +2497,7 @@ fn a_note_a_filter_hides_is_not_replaced_and_stays_where_it_is() {
     let judged: &Judged = &judgements[changes.iter().position(|change| { return change.path == b"f.txt"; }).expect("the path")];
     assert_eq!(judged.standing, Standing::Old, "the filtered content is the branch's, which is why the note is invisible to it");
     let mut said: Vec<u8> = Vec::new();
-    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said)
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, A_CONTROLS_MERGE, &mut said)
         .expect_err("a file whose raw bytes are not the branch's is not the merge's to replace");
     assert!(refused.error.0.contains("f.txt"), "the path is named: {}", refused.error.0);
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the file"), note, "the note stays where it is");

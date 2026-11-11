@@ -1821,6 +1821,28 @@ and the refusal is `linked-worktree-only`'s when the worktree is a linked one.
 The README section "The remote settings every worktree shares" and `SPEC.md` state the rule,
 and `src/native/binary/binary_shared_remote_tests.rs` runs every refused and allowed form through the built executable.
 
+### Two tokio choices made by an agent (coordinator's pick, veto open)
+
+Agent `tokio-next-step-on-the-runtime`,
+building the owner's "Full on tokio. Multi-thread.",
+made two choices on branch `refactor/git-policy-cli-tokio-next-step-on-the-runtime`
+and recorded both in `doc/planning/git-policy-cli-full-tokio.md`:
+
+- At the service loop's three state steps,
+  a job the system refuses a thread for no longer runs in turn on the awaiting task;
+  the loop keeps its state and lets the pool or the next wake write it,
+  so no storage call ever runs on a runtime worker.
+- The stronger fix for a job that starts after its caller gave up
+  (the job hands its value back through a store the caller awaits)
+  was not built,
+  because it changes the helper every command's blocking work goes through;
+  the plan records it as the alternative.
+
+Under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session.",
+the coordinator keeps both as built,
+and the next tokio agent builds on them.
+Say "undo" for either one.
+
 ## Answered in the question tool, recorded 2026-11-10T09:54:58-05:00
 
 ### The btrfs host run before a release

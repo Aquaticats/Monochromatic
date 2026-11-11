@@ -5,7 +5,7 @@
 
 /// Files,
 /// processes and locks.
-use std::{fs, fs::File, path::{Path, PathBuf}, process::{Child, Command}};
+use std::{fs, fs::File, os::unix::fs::PermissionsExt, path::{Path, PathBuf}, process::{Child, Command}};
 
 /// The lock a build takes.
 use rustix::fs::{FlockOperation, flock};
@@ -210,7 +210,7 @@ fn each_removal_logs_the_lock_and_process_proof() {
     let (profile, _stale, _current) = stale_and_current(root.path());
     let mut log: Vec<String> = Vec::new();
     apply_removals(&profile, &OlderCompilerSweep { grace_seconds: GRACE }, &real_environment(), NOW, false, &Deadline::after(std::time::Duration::from_secs(60)), &mut log);
-    let line: &String = log.iter().find(|line| { return line.starts_with("removing unit alpha"); }).expect("a removal line for the stale unit");
+    let line: &String = log.iter().find(|line| { return line.starts_with("removed unit alpha"); }).expect("a removal line for the stale unit");
     assert!(line.contains("exclusive flock on"), "{line}");
     assert!(line.contains("/proc scan:"), "{line}");
 }
@@ -224,4 +224,26 @@ fn what_an_earlier_stopped_run_left_in_the_trash_is_deleted_by_the_next_sweep() 
     fs::write(leftover.join("file"), b"claimed earlier").expect("file");
     sweep(&profile);
     assert!(!leftover.exists());
+}
+
+#[test]
+fn a_leftover_with_a_directory_this_user_may_not_write_is_removed_by_the_next_sweep() {
+    let root = scratch();
+    let (profile, _stale, _current) = stale_and_current(root.path());
+    let leftover: PathBuf = profile.join(".cargo-shadow-trash").join("123-456-1-unit");
+    let closed: PathBuf = leftover.join("build").join("closed");
+    fs::create_dir_all(closed.join("inner")).expect("a claimed unit that was never deleted");
+    fs::write(closed.join("inner").join("file"), b"claimed earlier").expect("file");
+    fs::write(closed.join("file"), b"claimed earlier").expect("file");
+    fs::set_permissions(&closed, fs::Permissions::from_mode(0o555)).expect("mode");
+    fs::set_permissions(closed.join("inner"), fs::Permissions::from_mode(0o500)).expect("mode");
+    let mut log: Vec<String> = Vec::new();
+    let outcome: ProfileOutcome = apply_removals(&profile, &OlderCompilerSweep { grace_seconds: GRACE }, &real_environment(), NOW, false, &Deadline::after(std::time::Duration::from_secs(60)), &mut log);
+    assert!(outcome.refusals.is_empty(), "{outcome:?}");
+    assert!(!leftover.exists(), "the sweep finished what the stopped run could not");
+    let line: &String = log
+        .iter()
+        .find(|line| { return line.starts_with("finished an earlier run's deletion in ") && line.contains("mode changed on 2 directories"); })
+        .unwrap_or_else(|| panic!("no line names the changed modes: {log:#?}"));
+    assert!(line.contains(&leftover.display().to_string()), "{line}");
 }
