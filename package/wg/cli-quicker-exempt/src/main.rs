@@ -109,6 +109,9 @@ mod pin;
 mod keeper;
 /// Exact Linux process identity validation for descriptor keeper.
 mod keeper_process;
+/// Unit tests for the process group a stop must end.
+#[cfg(test)]
+mod keeper_process_tests;
 /// Crash-recoverable descriptor-keeper state.
 mod keeper_state;
 /// Unit tests for application target discovery.

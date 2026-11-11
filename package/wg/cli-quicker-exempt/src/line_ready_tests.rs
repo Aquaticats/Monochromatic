@@ -5,8 +5,8 @@
 //! so the handshake of `watch-start` never waits for a watcher that stopped speaking
 //! while it holds the lifecycle lock.
 
-/// The wait under test.
-use crate::line_ready::line_is_ready;
+/// The waits under test.
+use crate::line_ready::{line_is_ready, read_message_within, wait_within};
 /// Reading the fixture's line.
 use std::io::{BufRead, BufReader};
 /// Starting the fixture.
@@ -52,4 +52,60 @@ fn a_closed_channel_is_ready() {
     let _status = child.wait();
     assert!(matches!(line_is_ready(descriptor, Duration::from_secs(1)), Ok(true)));
     drop(stdout);
+}
+
+/// A handshake that never comes ends at the limit,
+/// so the watcher and the keeper cannot hold the lifecycle lock for ever.
+#[test]
+fn a_child_that_says_nothing_ends_its_handshake_wait_at_the_limit() {
+    let mut child = Command::new("/bin/sh").arg("-c").arg("exec /usr/bin/sleep 30").stdout(Stdio::piped()).spawn().expect("start the fixture");
+    let stdout = child.stdout.take().expect("the fixture keeps its stream open");
+    let mut reader = BufReader::new(stdout);
+    let started = std::time::Instant::now();
+    let refusal = read_message_within(&mut reader, Duration::from_millis(100), "readiness").expect_err("the handshake is refused");
+    assert_eq!(refusal.kind(), std::io::ErrorKind::TimedOut);
+    assert!(started.elapsed() < Duration::from_secs(2), "the wait returned at its limit");
+    let _killed = child.kill();
+    let _reaped = child.wait();
+}
+
+/// A child that never ends is ended by the bounded wait,
+/// and the wait answers its status instead of holding the caller.
+#[test]
+fn a_child_that_never_ends_is_ended_by_the_bounded_wait() {
+    let mut child = Command::new("/usr/bin/sleep").arg("30").stdout(Stdio::null()).spawn().expect("start the fixture");
+    let started = std::time::Instant::now();
+    let status = wait_within(&mut child, Duration::from_millis(100)).expect("the wait answers");
+    assert!(!status.success());
+    assert!(started.elapsed() < Duration::from_secs(2), "the wait returned at its limit");
+    assert!(child.try_wait().expect("the child is reaped").is_some(), "the child was reaped");
+}
+
+/// The two handshakes read and wait through the bounded helpers,
+/// and neither keeps a blocking read or an unbounded child wait of its own.
+/// The guard reads the sources because the wait it forbids is invisible in a passing run:
+/// a child that speaks in time proves nothing about the one that never speaks.
+#[test]
+fn both_handshakes_use_the_bounded_read_and_wait() {
+    for (name, source) in [
+        ("keeper.rs", include_str!("keeper.rs")),
+        ("application_watch_service.rs", include_str!("application_watch_service.rs")),
+    ] {
+        assert!(
+            source.contains("read_message_within("),
+            "{name} reads its handshake through the bounded reader"
+        );
+        assert!(
+            source.contains("wait_within("),
+            "{name} waits for its candidate through the bounded wait"
+        );
+        assert!(
+            !source.contains("output.read_line("),
+            "{name} keeps no blocking handshake read"
+        );
+        assert!(
+            !source.contains("child.wait()?"),
+            "{name} keeps no unbounded child wait"
+        );
+    }
 }

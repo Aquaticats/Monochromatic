@@ -965,13 +965,33 @@ A failed attach removes partial new pins and leaves the prior complete set activ
 Attach and detach hold `/run/wg-quicker-exempt.lock` through the full lifecycle mutation.
 The loader verifies that `/sys/fs/bpf` is a distinct bpffs mount before creating pins.
 
-The descriptor-keeper fallback uses a two-phase handshake.
+The descriptor-keeper fallback uses a two-phase handshake,
+and both handshakes end at a limit:
+the watcher's `READY` and `COMMITTED` and the holder's `READY` and `COMMITTED` are read through one bounded reader
+(`src/line_ready.rs`),
+a candidate that has not spoken within sixty seconds is refused and ended,
+and a candidate that never ends is ended by the same bounded wait.
+Without the bound a child that neither spoke nor exited held the lifecycle lock of `watch-start`,
+and every later lifecycle command waited for ever for it.
+`line_ready_tests.rs` reads both handshakes' sources to keep the blocking read and the unbounded child wait out of them,
+because a child that speaks in time proves nothing about the one that never speaks.
 A candidate creates all links before the parent writes transition state and sends `COMMIT`.
 The child records a commit marker,
  the parent validates and stops the prior holder,
  then finalizes active state.
 Recovery retains the prior holder if an uncommitted candidate died
 and adopts a live committed candidate after interruption.
+
+A stop of the watcher or of a holder signals the process group it leads,
+not only its process:
+each one starts its `ip` calls, its `setpriv` and `busctl` clients and the leftover sweep's `systemctl`
+as children of a session it leads,
+and a signal to the leader alone left an in-flight manager client running,
+able to change the user's manager after `watch-stop` returned.
+The group is signalled only when the validated process leads it (its `pgrp` is its pid),
+and the bounded wait that follows covers the group as well.
+`keeper_process_tests.rs` runs a session leader with a child of its own and proves the group is empty afterwards,
+which fails when only the leader is signalled.
 Detach checks PID,
  process start time,
  full command,

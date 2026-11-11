@@ -46,8 +46,6 @@ use crate::update_report::{policy_failure, policy_notice, refused_root_failures}
 use crate::user_account::UserAccount;
 /// Handshake and file errors.
 use std::io::{self, BufRead, BufReader, Write};
-/// The descriptor of the handshake channel.
-use std::os::fd::AsRawFd;
 /// Unix log creation mode.
 use std::os::unix::fs::OpenOptionsExt;
 /// Child process session setup hook.
@@ -95,37 +93,19 @@ fn expected_watch_command(
     ]);
 }
 
-/// Reads one newline-delimited watcher handshake message.
-fn read_message(output: &mut BufReader<ChildStdout>) -> io::Result<String> {
-    let mut line = String::new();
-    let count = output.read_line(&mut line)?;
-    if count == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::UnexpectedEof,
-            "watcher closed handshake channel",
-        ));
-    }
-    return Ok(line.trim_end().to_owned());
-}
-
-/// Waits until `reader` can be read or `limit` passes,
-/// and reports whether a line is there.
-fn line_is_ready(reader: &BufReader<ChildStdout>, limit: std::time::Duration) -> io::Result<bool> {
-    return crate::line_ready::line_is_ready(reader.get_ref().as_raw_fd(), limit);
-}
-
 /// Reads one handshake message,
 /// but not for longer than `limit`:
 /// the caller holds the lifecycle lock while it waits,
 /// so a watcher that never speaks must not keep it.
 fn read_message_within(output: &mut BufReader<ChildStdout>, limit: std::time::Duration, what: &str) -> io::Result<String> {
-    if !line_is_ready(output, limit)? {
-        return Err(io::Error::new(
-            io::ErrorKind::TimedOut,
-            format!("the watcher did not report {what} within {limit:?}"),
-        ));
-    }
-    return read_message(output);
+    return crate::line_ready::read_message_within(output, limit, what);
+}
+
+/// Waits for the candidate to end,
+/// and ends it when it does not,
+/// because a watcher whose parent is gone waits on a commit that never comes.
+fn wait_within(child: &mut Child, limit: std::time::Duration) -> io::Result<std::process::ExitStatus> {
+    return crate::line_ready::wait_within(child, limit);
 }
 
 /// Stops persisted watcher only when complete command identity matches.
@@ -226,7 +206,7 @@ fn spawn_watch_candidate(
         Ok(message) => message,
         Err(error) => {
             drop(input);
-            let status = child.wait()?;
+            let status = wait_within(&mut child, HANDSHAKE_LIMIT)?;
             let log_text = read_watch_log(key)?;
             return Err(io::Error::new(
                 error.kind(),
@@ -236,7 +216,7 @@ fn spawn_watch_candidate(
     };
     if ready_message != READY {
         drop(input);
-        let status = child.wait()?;
+        let status = wait_within(&mut child, HANDSHAKE_LIMIT)?;
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!("unexpected application watcher readiness ({status}): {ready_message}"),
@@ -269,7 +249,7 @@ pub fn start_application_watch(
     let mut candidate = spawn_watch_candidate(key, mark, uid)?;
     if let Err(error) = write_watch_state(key, candidate.process) {
         drop(candidate.input);
-        let _wait_result = candidate.child.wait();
+        let _wait_result = wait_within(&mut candidate.child, HANDSHAKE_LIMIT);
         return Err(error);
     }
     writeln!(candidate.input, "{COMMIT}")?;

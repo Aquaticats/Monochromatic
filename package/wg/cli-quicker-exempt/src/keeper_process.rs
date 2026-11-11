@@ -162,7 +162,86 @@ fn wait_for_disappearance(
     return Ok(false);
 }
 
+/// The process group a process belongs to,
+/// read from the `pgrp` field of its `/proc` stat file.
+pub fn process_group_of(pid: i32) -> io::Result<i32> {
+    let text = std::fs::read_to_string(format!("/proc/{pid}/stat"))?;
+    let Some(command_end) = text.rfind(')') else {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat lacks command terminator"));
+    };
+    let Some(tail) = text.get(command_end + 1..) else {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat tail is absent"));
+    };
+    // The fields after the command name start with `state`, so `pgrp` is the third of them.
+    let Some(group) = tail.split_whitespace().nth(2).and_then(|field| return field.parse::<i32>().ok()) else {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat has no process group"));
+    };
+    return Ok(group);
+}
+
+/// Whether a process group still has a member.
+fn group_has_members(group: i32) -> bool {
+    // SAFETY: signal zero to a negative pid only asks the kernel whether the group exists.
+    let result = unsafe { libc::kill(-group, 0) };
+    if result == 0 {
+        return true;
+    }
+    return io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH);
+}
+
+/// Signals a validated process,
+/// and the process group it leads when it leads one,
+/// because the watcher and the keeper each start their clients and their `ip` calls as children of a session they lead.
+/// A signal to the leader alone leaves those children running,
+/// and an orphaned manager client can still change the user's manager after the stop returned.
+fn signal_validated(pid: i32, group: Option<i32>, signal: libc::c_int) -> io::Result<()> {
+    let target = match group {
+        Some(leader) => -leader,
+        None => pid,
+    };
+    // SAFETY: the caller validated the identity immediately before this call.
+    let result = unsafe { libc::kill(target, signal) };
+    if result < 0 {
+        let error = io::Error::last_os_error();
+        // A group whose leader already went has nothing left to signal.
+        if (group.is_some()) && (error.raw_os_error() == Some(libc::ESRCH)) {
+            return Ok(());
+        }
+        return Err(error);
+    }
+    return Ok(());
+}
+
+/// Waits bounded interval for the process to disappear and,
+/// when it leads a group,
+/// for that group to hold no member either.
+fn wait_for_stop(
+    pid: i32,
+    start_time: u64,
+    group: Option<i32>,
+    duration: Duration,
+) -> io::Result<bool> {
+    let gone = wait_for_disappearance(pid, start_time, duration)?;
+    if !gone {
+        return Ok(false);
+    }
+    let Some(leader) = group else {
+        return Ok(true);
+    };
+    let deadline = Instant::now() + duration;
+    while group_has_members(leader) {
+        if Instant::now() >= deadline {
+            return Ok(false);
+        }
+        std::thread::sleep(STOP_POLL);
+    }
+    return Ok(true);
+}
+
 /// Stops exact command after typed validation and bounded signal escalation.
+/// When the process leads its own process group,
+/// which is how the watcher and the keeper are started,
+/// the signal goes to the group so the children it started end with it.
 pub fn stop_command_process(
     pid: i32,
     start_time: u64,
@@ -170,21 +249,21 @@ pub fn stop_command_process(
     role: &str,
 ) -> io::Result<()> {
     validate_command_identity(pid, start_time, expected, role)?;
-    // SAFETY: validated positive PID names exact owned process.
-    let terminate_result = unsafe { libc::kill(pid, libc::SIGTERM) };
-    if terminate_result < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    if wait_for_disappearance(pid, start_time, STOP_WAIT)? {
+    let group = match process_group_of(pid)? {
+        own if own == pid => Some(pid),
+        _other => None,
+    };
+    signal_validated(pid, group, libc::SIGTERM)?;
+    if wait_for_stop(pid, start_time, group, STOP_WAIT)? {
         return Ok(());
     }
-    validate_command_identity(pid, start_time, expected, role)?;
-    // SAFETY: identity was revalidated immediately before forced termination.
-    let kill_result = unsafe { libc::kill(pid, libc::SIGKILL) };
-    if kill_result < 0 {
-        return Err(io::Error::last_os_error());
+    if command_process_is_live(pid, start_time, expected, role)? {
+        validate_command_identity(pid, start_time, expected, role)?;
     }
-    if wait_for_disappearance(pid, start_time, KILL_WAIT)? {
+    // SAFETY: identity was revalidated immediately before forced termination,
+    // and a group whose leader is gone is the group that leader left.
+    signal_validated(pid, group, libc::SIGKILL)?;
+    if wait_for_stop(pid, start_time, group, KILL_WAIT)? {
         return Ok(());
     }
     return Err(io::Error::new(
