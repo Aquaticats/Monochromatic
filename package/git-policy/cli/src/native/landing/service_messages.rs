@@ -10,6 +10,9 @@
 //! every remedy given,
 //! and no implementation term (`doc/planning/cli-git-resident-service.md`,
 //!  "Failures the client can meet").
+//! The notices it prints while it waits are declared in
+//! `service_messages_of_a_wait_for_the_service.rs`
+//! and read from here.
 //! The texts live here as constants so a test can check each against a list of terms
 //!  that must never reach a user,
 //! and so the text a client prints cannot drift from the text the tests read.
@@ -21,6 +24,14 @@
 
 use std::path::Path;
 use std::time::Duration;
+
+/// The notices a wait prints are declared beside this file
+/// (`service_messages_of_a_wait_for_the_service.rs`),
+/// because the rendering of every failure is at its line bound,
+/// and the call sites read them from here.
+pub use crate::service_messages_of_a_wait_for_the_service::{
+    SILENT_NOTICE, STARTING_NOTICE, UPDATING_NOTICE, position_notice, rebuild_notice, restarting_notice, starting_notice, unplaced_notice,
+};
 
 /// The command that shows why the service did not start (Linux with systemd).
 pub const LOG_COMMAND: &str = "journalctl --user --unit 'monochromatic-git-policy-cli@*.service'";
@@ -44,59 +55,7 @@ pub const STOP_COMMAND: &str = "systemctl --user stop 'monochromatic-git-policy-
 /// The commands that show whether the commit was made.
 pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
 
-/// Printed once when the service takes longer than the grace to answer.
-pub const STARTING_NOTICE: &str = "Waiting for the commit service of this worktree...";
 
-/// What:
-///  The line that says what a wait for the service is waiting for,
-/// on whom,
-/// and how long it has waited.
-/// Why:
-///  A wait that says nothing is a wait a person cannot tell from a hang:
-/// a commit with a service that never answered printed
-///  nothing for ten seconds and then named a cause that was not true,
-/// and an add printed nothing for 613 s.
-/// The line names the address the service is asked at and the state the service manager reports,
-/// which is
-///  the one fact that tells a service that is starting from one that is stopped inside its own process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// startingNotice('/run/user/1000/monochromatic-git-policy-cli/abc.sock', 'the service manager says monochromatic-git-policy-cli@abc.service is active');
-/// ```
-pub fn starting_notice(address: &str, who: &str) -> String {
-    return format!("monochromatic-git-policy-cli: {STARTING_NOTICE} nothing has answered at {address} yet ({who}); this wait ends as soon as it answers.");
-}
-
-/// What:
-///  The line that says a running service did not answer and is being restarted,
-/// and why that is the repair.
-/// Why:
-///   The command ends the service,
-/// which is not a thing to do without saying so:
-/// a unit the service manager reports as running that
-///  answers nothing is one whose program stopped inside its own process,
-/// and the manager starts a unit it already
-///  believes runs for no connection.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// restartingNotice('monochromatic-git-policy-cli@abc.service', 3)
-/// ```
-pub fn restarting_notice(unit: &str, waited: Duration) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: the commit service of this worktree has answered nothing for {} seconds, so it is stopped inside its own process; \
-         it is asked to restart ({unit}), and this commit goes on once it answers.",
-        waited.as_secs()
-    );
-}
-
-/// Printed each time the service goes silent while a commit waits,
-/// before the same request is sent to it again.
-pub const SILENT_NOTICE: &str = "The commit service stopped answering; asking it again with the same commit, which cannot land twice.";
-
-/// Printed once when the service is being replaced by a newer one.
-pub const UPDATING_NOTICE: &str = "Updating the commit service...";
 
 /// What:
 ///  Where the client cannot get a service from the operating system.
@@ -506,49 +465,7 @@ pub fn platform_remedy(platform: Platform) -> String {
     };
 }
 
-/// What:
-///  The notice for a commit that waits behind others.
-/// Why:
-///   The position is the one fact the person needs:
-/// how many commits go first.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// positionNotice(number, of)
-/// ```
-pub fn position_notice(number: usize, of: usize) -> String {
-    let ahead: usize = number.saturating_sub(1);
-    let _ = of;
-    return match ahead {
-        0 => String::from("This commit is next."),
-        1 => String::from("Waiting for 1 earlier commit."),
-        many => format!("Waiting for {many} earlier commits."),
-    };
-}
 
-/// What:
-///  The notice for a commit the service has named no place for,
-/// given how long it has waited.
-/// Why:
-///   The client knows only that no answer has come and that the service named no place:
-/// the landing may not have read the
-///  request yet,
-/// or it may be waiting behind another program's `index.lock`,
-/// so the words may say nothing about whether the landing has
-///  begun.
-///  The wait so far is the one figure it does know,
-/// and every other waiting line gives it too.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// unplacedNotice(elapsed) // 'The commit service has not said where this commit stands yet; it has waited 12 seconds.'
-/// ```
-pub fn unplaced_notice(waited: Duration) -> String {
-    // A part second of waiting is a second waited, and a long wait counts in whole seconds.
-    let seconds: u64 = waited.as_secs().max(1);
-    let unit: &str = if seconds == 1 { "second" } else { "seconds" };
-    return format!("The commit service has not said where this commit stands yet; it has waited {seconds} {unit}.");
-}
 
 /// The texts that must never reach a user:
 /// implementation terms the system should have resolved itself.
@@ -565,28 +482,6 @@ pub fn path_text(path: &Path) -> String {
     return path.display().to_string();
 }
 
-/// What:
-///  The line that says a commit is built again because its branch moved:
-/// the branch,
-/// how many builds were made,
-/// how long it has been since the first,
-/// and the time at which the rebuilding stops.
-/// Why:
-///   A rebuild is a wait the person would otherwise not see,
-/// and the owner's rule is that every wait says what it is for and when it ends.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: the branch ${branch} moved ...`
-/// ```
-pub fn rebuild_notice(branch: &str, builds: usize, waited: std::time::Duration, ceiling: std::time::Duration) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: the branch {branch} moved while this commit was being built ({builds} builds so far, {} seconds), so it is built again on the new tip; \
-         nothing conflicted, and the building stops after {} seconds in all.\n",
-        waited.as_secs(),
-        ceiling.as_secs()
-    );
-}
 
 /// Message controls stay out of the release executable.
 #[cfg(test)]

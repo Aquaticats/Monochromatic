@@ -81,9 +81,13 @@ pub const HAND_OVER_GREETING_WAIT: Duration = Duration::from_secs(2);
 /// How long a commit lets a service the manager reports as running stay silent before it asks the manager to restart
 /// it.
 ///  Why:
-///  A service greets a connection before it restores anything (`service_server_greets_before_the_journal_is_restored_tests.rs`),
+///  A service greets a connection before it restores anything
+/// (`service_server_greets_before_the_journal_is_restored_tests.rs`),
 /// so a unit the manager calls `active` that has greeted nothing is not starting:
-/// it is stopped inside its own process (a frozen control group, a debugger, a suspended machine, a kernel wait
+/// it is stopped inside its own process (a frozen control group,
+/// a debugger,
+/// a suspended machine,
+/// a kernel wait
 /// nothing ends),
 /// and no start brings it back while the manager believes it runs.
 /// Restarting is the one repair of that state,

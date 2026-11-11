@@ -131,7 +131,8 @@ fn the_standing_notice_variable_is_the_one_the_client_reads() {
 ///  already durable in both cases and 0.13 s and 0.5 s with a service that answered;
 /// a wake that keeps the commit's
 ///  start wait pays it for an answer it does not need
-/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`, finding 4 of the after-alpha.9 audit).
+/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`,
+/// finding 4 of the after-alpha.9 audit).
 /// The control reads the sources,
 /// because the bound is chosen where the config is made,
 /// and a later change back to the commit's wait

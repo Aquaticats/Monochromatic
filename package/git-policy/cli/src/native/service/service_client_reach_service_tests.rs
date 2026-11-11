@@ -534,9 +534,11 @@ fn serve_silent_until_restarted(listener: UnixListener) -> std::thread::JoinHand
 /// a debugger,
 /// a suspended machine,
 /// a wait in the kernel nothing ends.
-/// The client waited `START_WAIT` (ten seconds) and then reported "The commit service did not start", which is not what happened and
+/// The client waited `START_WAIT` (ten seconds) and then reported "The commit service did not start",
+/// which is not what happened and
 ///  sends the person to a log that holds nothing about it
-/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`, finding 3 of the after-alpha.9 audit).
+/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`,
+/// finding 3 of the after-alpha.9 audit).
 /// A restart is the one repair,
 /// and the service survives being ended by design.
 ///
@@ -619,7 +621,8 @@ fn take_connections_and_greet_nothing(listener: UnixListener) -> (std::sync::Arc
 /// where the service had started and then stopped inside its own process,
 /// and it sent the
 ///  person to a log that holds nothing about it
-/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`, finding 3 of the after-alpha.9 audit).
+/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`,
+/// finding 3 of the after-alpha.9 audit).
 /// The wait says what it waits for and where within a second,
 /// so a commit held here is never a commit held in
 ///  silence.
@@ -769,4 +772,106 @@ fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_re
     // The socket unit is required by the service unit, so its failed state is forgotten in the same repair.
     let socket_reset: String = format!("reset-failed {socket_unit}");
     assert!(asked_of_the_manager.iter().any(|call| { return *call == socket_reset; }), "the socket unit's failed state is forgotten too: {asked_of_the_manager:?}");
+}
+
+/// What:
+///  A sink of the notice lines that keeps the line and the moment it was written,
+/// so a control reads when the person saw it and not only what it said.
+/// Why:
+///   The audit's finding was the silence of the wait and not only its words:
+/// a line the person reads when the
+///  command is already over says nothing about the ten seconds before it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const times = timesOfLines(); reach(config, times, ...); expect(times.lines()[0][0]).toBeLessThan(1500);
+/// ```
+struct TimesOfLines {
+    /// When the wait began.
+    began: std::time::Instant,
+    /// Every line,
+    /// with the moment it was written.
+    lines: std::sync::Arc<std::sync::Mutex<Vec<(Duration, String)>>>,
+}
+
+impl TimesOfLines {
+    /// A sink that records every line from now on.
+    fn start() -> Self {
+        return Self { began: std::time::Instant::now(), lines: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())) };
+    }
+
+    /// The lines written so far,
+    /// each with the moment of its writing.
+    fn lines(&self) -> Vec<(Duration, String)> {
+        return self.lines.lock().expect("lines").clone();
+    }
+}
+
+impl std::io::Write for TimesOfLines {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.lines.lock().expect("lines").push((self.began.elapsed(), String::from_utf8_lossy(bytes).into_owned()));
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A wait with no service manager to ask says what it waits for while it is still waiting,
+/// never only when it ends.
+/// Why:
+///   The ten seconds of silence the audit measured were one socket read:
+/// the attempt waited the whole start wait,
+///  so the loop that says the line only reached it at the bound that ended the wait.
+/// The wait still says the same thing within the grace,
+/// and still
+///  ends at the bound it was granted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(times.lines()).toHaveLength(1); expect(times.lines()[0][0]).toBeLessThan(startWait / 2);
+/// ```
+#[test]
+fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends() {
+    let socket: String = address("client-reach-notice-while-waiting");
+    let listener: UnixListener = listen_at(socket.as_str()).expect("the address is bound");
+    let (finished, held, serving) = take_connections_and_greet_nothing(listener);
+    let settings: ClientConfig = ClientConfig {
+        address: Bind::Abstract(socket.clone()),
+        activation: Activation::Managed,
+        // Twice the notice grace, so the line and the end of the wait are a second apart at the least.
+        start_wait: Duration::from_millis(2_400),
+        heartbeat_silence: Duration::from_millis(200),
+        start_watch: None,
+        keep_fresh: None,
+        answer_ceiling: Duration::from_secs(5),
+        withdraw_ceiling: Duration::from_secs(5),
+        waiting_notice_after: Duration::from_secs(60),
+        extra_wait: Duration::from_secs(1),
+        start_ceiling: Duration::from_secs(5),
+        units_record_dir: None,
+    };
+    let mut notices: TimesOfLines = TimesOfLines::start();
+    let mut announced: bool = false;
+    let began: std::time::Instant = std::time::Instant::now();
+    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+        .expect_err("nothing answered, so nothing is reached");
+    let waited: Duration = began.elapsed();
+    // A formatting call may hand the sink the text and its line feed in two writes, so the text is read as one and the
+    //  moment is the first write's.
+    let said: Vec<(Duration, String)> = notices.lines();
+    let text: String = said.iter().map(|(_when, line)| { return line.as_str(); }).collect();
+    let telling: Vec<&(Duration, String)> = said.iter().filter(|(_when, line)| { return line.contains("nothing has answered at"); }).collect();
+    assert_eq!(telling.len(), 1, "one line, and one only: {text:?}");
+    let (when, _line): &(Duration, String) = telling[0];
+    assert!(text.contains(socket.as_str()), "the line names the address: {text}");
+    assert!(*when < Duration::from_millis(1_500), "the line is read while the wait goes on ({when:?} of {waited:?}): {text}");
+    assert!(waited >= settings.start_wait, "and the wait still ends at its own bound: {waited:?}");
+    assert!(waited < settings.start_wait + Duration::from_millis(200), "and no later than that plus one pause: {waited:?}");
+    assert!(matches!(failure, ClientFailure::NothingAnswered { .. }), "the end says what the wait proved: {failure:?}");
+    finished.store(true, std::sync::atomic::Ordering::Relaxed);
+    serving.join().expect("the stand-in service's thread");
+    drop(held);
 }

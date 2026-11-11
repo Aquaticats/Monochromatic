@@ -496,7 +496,7 @@ fn say_what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimi
 /// const words = whatItWaitsFor(pnpm, command, limits);
 /// ```
 fn what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimits) -> String {
-    let arguments: Vec<String> = command.arguments.iter().map(|word| { return word.to_string_lossy().into_owned(); }).collect();
+    let arguments: Vec<String> = command.arguments.iter().map(argument_text).collect();
     return format!(
         "monochromatic-git-policy-cli: {} {} is still running in {} for the repair of the new worktree; it is stopped when it shows no sign of work for {} seconds, or after {} minutes at the latest.",
         program.display(),
@@ -505,6 +505,23 @@ fn what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimits) 
         limits.window.as_secs(),
         limits.ceiling.as_secs() / 60
     );
+}
+
+/// What:
+///  One argument of a tool's command line,
+/// as the text a person reads.
+/// Why:
+///  The parameters of a repair are what tells two runs of the same tool apart
+/// (`--offline`,
+/// `--frozen-lockfile`),
+/// and the notice is the only place a person sees them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// argumentText(OsString('--offline')) // '--offline'
+/// ```
+fn argument_text(word: &OsString) -> String {
+    return word.to_string_lossy().into_owned();
 }
 
 /// What:

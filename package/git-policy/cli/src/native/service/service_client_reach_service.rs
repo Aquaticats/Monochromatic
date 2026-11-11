@@ -14,8 +14,7 @@
 //! const reader = await reachCurrent(config, notices, announced, trace, serviceSeen);
 //! ```
 
-use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};
-use crate::service_client_listen_and_ask_to_retire::{Heard, connect, listen};
+use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, connect, listen};
 use crate::commit_timing::ReachTrace;
 use crate::service_messages::{ClientFailure, UPDATING_NOTICE, restarting_notice, starting_notice};
 use crate::wait_ceilings::SERVICE_GREETING_SILENCE;
@@ -82,7 +81,7 @@ pub(crate) fn reach(
                 let patience: Duration = match (&config.start_watch, service_seen) {
                     (_, true) => config.heartbeat_silence,
                     (Some(watch), false) => watch.every,
-                    (None, false) => config.start_wait,
+                    (None, false) => greeting_patience_without_a_manager(config, started),
                 };
                 let _timeout = stream.set_read_timeout(Some(patience));
                 let mut reader: BufReader<UnixStream> = BufReader::new(stream);
@@ -247,6 +246,33 @@ pub(crate) fn reach(
         }
         std::thread::sleep(CONNECT_PAUSE);
     }
+}
+
+/// What:
+///  The longest one connection attempt may wait for the greeting where no service manager can be asked,
+///  which is the notice grace or what is left of the start wait,
+/// whichever is shorter.
+/// Why:
+///   A read that lasts the whole start wait spends the entire wait inside one socket read,
+/// so the loop that
+///  says what the wait is for never gets to say it:
+/// a commit against a service stopped inside its own process printed nothing for ten
+///  seconds and then named a cause that was not true
+/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`,
+/// finding 3 of the after-alpha.9 audit).
+/// The bound itself does not move:
+/// what is left of the start wait caps the last attempt,
+/// so the wait still ends at the
+///  bound it was granted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// greetingPatienceWithoutAManager(config, started) // min(START_NOTICE_GRACE, startWait - elapsed)
+/// ```
+fn greeting_patience_without_a_manager(config: &ClientConfig, started: Instant) -> Duration {
+    let remaining: Duration = config.start_wait.saturating_sub(started.elapsed());
+    // A read timeout of no time at all is refused by the system, so one millisecond is the shortest attempt there is.
+    return remaining.min(START_NOTICE_GRACE).max(Duration::from_millis(1));
 }
 
 /// What:

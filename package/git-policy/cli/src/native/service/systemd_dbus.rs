@@ -383,9 +383,11 @@ impl Bus {
     /// leaving the socket that activates it running.
     /// Why:
     ///  A unit the manager reports `active` whose program has stopped inside its own process is not repaired by a
-    /// start (`systemctl` and the manager both leave a running unit alone),
+    /// start
+    /// (`systemctl` and the manager both leave a running unit alone),
     /// and the socket keeps its file either
-    ///  way, so a connection waits in its backlog and nothing ever greets it.
+    ///  way,
+    /// so a connection waits in its backlog and nothing ever greets it.
     /// The service survives a kill by design (its journal,
     ///  its held commits and its work records are durable),
     /// so ending it is how a command that needs its answer gets one.
