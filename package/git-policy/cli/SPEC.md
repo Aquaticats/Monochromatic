@@ -10604,10 +10604,12 @@ The file the first commit of a service needs is made by that commit,
 because the service learns the index only from a request.
 `lock_stage_ms` is what a commit waited for in this step,
 measured over the whole of it:
-near zero when the marker was ready,
-the rest of the flush when it was not,
-a wait for a flush that failed or was for another batch plus the cold staging that followed,
-the whole creation and flush when it staged its own;
+near zero when a marker made ahead was finished for it,
+the removals of the markers it cannot use,
+the whole creation when it staged its own,
+and never the making of a marker another batch will place,
+nor the flush of a marker,
+which the background task makes;
 `lock_stage_kind` says `pre` or `cold`.
 
 A lock the holder owns is removed by the release after the index is installed,
@@ -13619,7 +13621,7 @@ an `answered` line for every request with the phases of its stay
 `queued_ms`,
 `settle_ms`,
 `lock_wait_ms` and the holder when one is named,
-the split of the lock wait into the flush of the marker (`lock_stage_ms`) and the wait for a holder (`lock_place_ms`),
+the split of the lock wait into the making of the marker (`lock_stage_ms`) and the wait for a holder (`lock_place_ms`),
 and when the lock was found held `lock_looks`,
 `lock_found` and `lock_last`,
 `reads_ms`,
