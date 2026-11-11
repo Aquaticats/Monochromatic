@@ -32,12 +32,14 @@ subvolume destroy;
 
 The fixture is a `git clone --no-hardlinks` of this repository at `main`
 (`cefec4667f`) under `${HOME}/temp/agent/pi-wt-removal/run/repo`,
-22,910 tracked files,
+23,082 tracked files,
 and its root was made a btrfs subvolume (inode 256)
 so that the ladder has a subvolume to snapshot from.
-Each arm's worktree carries the checkout plus 40,000 empty files in `payload/bucket-{0..3}`,
+Each arm's worktree carries the checkout plus 40,000 empty files in four `payload/bucket-N` directories,
 which no rule tracks and which `.git/info/exclude` ignores,
-so one tree holds 63,083 entries and its removal deletes them all.
+so one tree holds 63,087 entries,
+the directories included,
+and its removal deletes every one of them.
 Every command ran under `systemd-run --user --scope` with
 `CPUQuota=400%`,
 `MemoryMax=4G`,
@@ -120,7 +122,7 @@ What converting them would save:
 a plain worktree is never served by the destroy,
 so its removal always unlinks every entry.
 The measured cost of that unlink is one system call per entry:
-the plain arm's 8 samples of 63,083 entries span 2.3 s to 41.0 s,
+the plain arm's 8 samples of 63,087 entries span 2.3 s to 41.0 s,
 median 10.1 s,
 which is 36 to 650 microseconds per entry under this load.
 Converting a worktree writes a full copy of it once (the convert command),
@@ -131,7 +133,7 @@ so the trade is that copy against one unlink pass per removal of that worktree.
 Tens of seconds,
 wall clock,
 one removal per sample,
-63,083 entries per tree:
+63,087 entries per tree:
 
 - `S`,
   subvolume,
@@ -209,8 +211,11 @@ in the same fixture.
   5.0 ms to 52.9 ms,
   median 38.5 ms,
   three samples.
-  This is `btrfs subvolume delete` of a snapshot of a prepared 63,083-entry worktree,
+  This is `btrfs subvolume delete` of a snapshot of a prepared 63,087-entry worktree,
   and it is the floor no ioctl-based removal can beat.
+  The same call on a snapshot taken moments after the 40,000 files were copied in took
+  238.5 ms and 313.8 ms in the two runs before this one,
+  which is the flush below and not the deletion.
   The deletion is not what the person waits for when the one-call route runs.
 - The wrapper's cleanliness proof is.
   In the parts probe the clean removal (`proof`,
@@ -272,12 +277,12 @@ A commit timed beside a removal is not in this page,
 for the reason under "What I could not do".
 The nearest command that writes what a commit writes was measured instead:
 a `git worktree add` of the same fixture,
-which checks out 22,910 files and writes an index.
+which checks out 23,082 files and writes an index.
 
 - Alone:
   3.2 s,
   12.1 s and 22.0 s (median 12.1 s).
-- Started while a plain-directory removal of 63,083 entries ran beside it:
+- Started while a plain-directory removal of 63,087 entries ran beside it:
   12.9 s,
   16.6 s and 55.2 s (median 16.6 s).
 - Three rounds of a workload whose unpaired spread is 3.2 s to 22.0 s cannot separate that pair.
