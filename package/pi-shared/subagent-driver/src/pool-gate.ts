@@ -41,7 +41,8 @@ import {
 } from './pool-tallies.ts';
 
 /**
- The status a gate exits with when no pool has room, which the retrying command reads to know it should ask again.
+ The status a gate exits with when it starts nothing for want of room, which is no pool having a slot free or the build volume
+ being under its floor. The retrying command reads it to know it should ask again.
  */
 export const NO_SLOT_EXIT_STATUS = 3;
 
