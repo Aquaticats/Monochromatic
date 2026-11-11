@@ -225,6 +225,44 @@ fn a_held_commit_that_conflicts_keeps_its_record_and_names_the_paths() {
     remove(root.as_path());
 }
 
+/// What:
+///  A settlement that carries the batch onto a branch another session moved,
+///  and then cannot record the commit it made,
+///  names the commit a reference really keeps.
+/// Why:
+///  The carried commit exists only as an object:
+///  the side reference still names the batch's own commit,
+///  so `git gc --prune=now` may take the carried one away,
+///  and a line calling it kept would be the only thing that says otherwise
+///  (a Kimi K3.1 Pro review of this branch,
+///  its finding that a replayed commit is called kept when no reference keeps it).
+///  The journal is made unwritable after the batch was recorded,
+///  which is the one step between the carried commit and the branch move
+///  (`held_commit_settle.rs`,
+///  `carry`).
+#[test]
+fn a_carry_that_cannot_be_recorded_names_the_commit_a_reference_keeps() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let (root, repo, context) = repository("held-settle-unrecorded-carry");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    // Another session moves the branch, so the settlement carries the change onto it.
+    std::fs::write(repo.join(OTHER), b"the other edit\n").expect("the other session's file");
+    git(repo.as_path(), &["add", "--", OTHER]);
+    git(repo.as_path(), &["commit", "--quiet", "--message", OTHER_SUBJECT]);
+    // The record of the carried commit cannot be written, and the carried commit is on no reference until it is.
+    let journal: &Path = held.journal.as_path();
+    std::fs::set_permissions(journal, std::fs::Permissions::from_mode(0o500)).expect("a journal that cannot be written");
+    let settled: Settled = one(&context, &held, Clearing::Never);
+    std::fs::set_permissions(journal, std::fs::Permissions::from_mode(0o700)).expect("the journal writes again");
+    let Settled::Cannot { commit, because } = settled else {
+        panic!("a record that cannot be written is a state this command cannot move, and this was {settled:?}");
+    };
+    assert_eq!(commit, held.new, "the commit the line calls kept is the batch's own, which the side reference holds: {because}");
+    let side: String = git_text(repo.as_path(), &["rev-parse", kept_reference(1).as_str()]).trim().to_string();
+    assert_eq!(side, commit, "a reference keeps the commit the line names");
+    remove(root.as_path());
+}
+
 /// The commit the branch names,
 /// in a repository whose Git directory is not `<work_tree>/.git`.
 fn head_beside(git_dir: &Path, work_tree: &Path) -> String {

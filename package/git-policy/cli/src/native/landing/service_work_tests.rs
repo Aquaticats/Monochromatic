@@ -1515,3 +1515,32 @@ fn a_retryable_answer_keeps_the_record_for_a_later_round() {
         remove(repo.root.as_path());
     }
 }
+
+/// What:
+///  The line a planned push retry writes names the repository the push is of.
+/// Why:
+///  One journal covers every worktree of the machine,
+///  and a branch name is the same in all of them:
+///  `fix/main`,
+///  `main`,
+///  so a retry line that names only the branch and the commit cannot say which worktree's push it plans,
+///  and the person who reads it after a jam cannot find the commit it speaks of
+///  (a Kimi K3.1 Pro review of this branch,
+///  its finding that scheduled push-retry lines still omit the repository).
+#[test]
+fn the_line_a_planned_retry_writes_names_its_repository() {
+    let repo: Repo = repo("work-retry-names-its-repository");
+    let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
+    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+        let _said: PlannedRetry = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down");
+    });
+    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
+    let line: &String = said.iter().find(|line| { return line.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {said:?}"));
+    assert!(
+        line.contains(&format!("repository={:?}", repo.worktree)),
+        "the line names the worktree whose push it plans, quoted so a path with a space stays one field: {line}"
+    );
+    assert!(entries.iter().any(|entry| { return entry.fields.iter().any(|(name, value)| { return name == "CLI_GIT_REPOSITORY" && *value == repo.worktree.display().to_string(); }); }), "the journal field names it too: {entries:?}");
+    remove(repo.root.as_path());
+}

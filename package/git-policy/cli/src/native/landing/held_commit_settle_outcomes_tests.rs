@@ -61,9 +61,28 @@ fn names_the_repository(line: &str) -> bool {
 }
 
 /// What:
+///  A line about a lock that still stands says the move of the branch waits for it,
+///  and says nothing about where the branch is.
+/// Why:
+///  The settlement answers `WaitsForLocks` from the locks alone,
+///  before it reads the branch (`held_commit_settle.rs`,
+///  `one_for`),
+///  and another command may have moved the branch since the record was written:
+///  a line that said the branch had not moved would state something no read of this settlement saw
+///  (a Kimi K3.1 Pro review of this branch,
+///  its finding that the lock-only settlement can say a moved branch has not moved yet).
+#[test]
+fn a_lock_that_still_stands_says_nothing_about_where_the_branch_is() {
+    let lock: PathBuf = Path::new("/home/a person/repo/.git/refs/heads/main.lock").to_path_buf();
+    let line: String = settled_words(SEQ, &held(), &Settled::WaitsForLocks(vec![lock]));
+    assert!(!line.contains("has not moved yet"), "no read of the branch stands behind that claim: {line}");
+    assert!(line.contains(&format!("the move of {BRANCH} waits for")), "the move that waits is named: {line}");
+}
+
+/// What:
 ///  A line about a held commit names the repository,
 ///  says the commit is kept,
-///  and says the branch has not moved yet.
+///  and says the move of the branch waits for the lock.
 /// Why:
 ///  A commit a lock keeps off its branch is not one that failed:
 ///  it is kept and waits,
@@ -74,7 +93,7 @@ fn a_lock_that_still_stands_is_said_as_a_commit_that_is_kept() {
     let line: String = settled_words(SEQ, &held(), &Settled::WaitsForLocks(vec![lock]));
     assert!(names_the_repository(line.as_str()), "the repository is named: {line}");
     assert!(line.contains(&format!("the commit {COMMIT} is kept")), "the commit is kept: {line}");
-    assert!(line.contains("has not moved yet"), "the branch has not moved yet: {line}");
+    assert!(line.contains(&format!("the move of {BRANCH} waits for")), "the move that waits is named: {line}");
     assert!(line.contains("refs/heads/main.lock"), "the lock it waits for is named: {line}");
     assert!(line.contains("removing the lock with `rm -- "), "what the person may do is said, and only when no Git process uses the repository: {line}");
     assert!(!line.contains("refus"), "nothing was refused: {line}");
@@ -146,4 +165,25 @@ fn a_record_whose_commit_is_there_says_nothing_waits() {
     assert!(names_the_repository(line.as_str()), "the repository is named: {line}");
     assert!(line.contains("is not held any more"), "nothing waits: {line}");
     assert!(line.contains(&format!("{BRANCH} already names {COMMIT}")), "the branch names the commit: {line}");
+}
+
+/// What:
+///  A commit this settlement made,
+///  which no reference holds,
+///  is not called kept.
+/// Why:
+///  A carried commit exists only as an object until the batch's record names it and the branch takes it,
+///  and the side reference still names the batch's own commit:
+///  `git gc --prune=now` may take the carried one away,
+///  so a line that called it kept would be the only thing that said otherwise
+///  (a Kimi K3.1 Pro review of this branch,
+///  its finding that a replayed commit is called kept when no reference keeps it).
+#[test]
+fn a_commit_this_command_made_and_no_reference_holds_is_not_called_kept() {
+    let carried: String = String::from("bc170e0026769785b4bee16a6a803a092e30518a");
+    let settled: Settled = Settled::Cannot { commit: carried.clone(), because: String::from("Git refused the branch write (the lock stands), and the settlement waits for the next command") };
+    let line: String = settled_words(SEQ, &held(), &settled);
+    assert!(!line.contains(&format!("the commit {carried} is kept")), "no reference keeps the commit this command made: {line}");
+    assert!(line.contains(&format!("the commit {carried} this command made is kept by no reference")), "the line says what became of it: {line}");
+    assert!(line.contains("the next command makes it again"), "and that nothing is lost: {line}");
 }

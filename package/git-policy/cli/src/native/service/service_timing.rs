@@ -184,6 +184,10 @@ pub struct Answered<'record> {
     /// The batch number,
     /// shared by every request landed together.
     pub batch: u64,
+    /// The worktree root the batch landed in,
+    /// which the line names:
+    /// one journal covers every worktree of the machine.
+    pub repository: &'record Path,
     /// How many requests the batch of this branch held.
     pub size: usize,
     /// This request's place among them,
@@ -312,8 +316,7 @@ pub fn wait_line(seq: u64, repository: &Path, total: Duration, notes: &WaitNotes
         return None;
     }
     return Some(format!(
-        "waited for the index lock batch={seq} repository={} result={} lock_wait_ms={}{}",
-        repository.display(),
+        "waited for the index lock batch={seq} repository={repository:?} result={} lock_wait_ms={}{}",
         if taken { "taken" } else { "refused" },
         total.as_millis(),
         lock_notes_fields(notes)
@@ -383,7 +386,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
     let mut holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
     holder.push_str(lock_notes_fields(&answered.landing.lock_notes).as_str());
     return format!(
-        "answered request={:?} branch={:?} outcome={} batch={} size={} position={} queued_behind={} read_ms={} queued_ms={} settle_ms={} \
+        "answered request={:?} branch={:?} outcome={} batch={} repository={:?} size={} position={} queued_behind={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} index_update_ms={} attempts={} landing_ms={} \
          reads_config_ms={} reads_branch_ms={} reads_parents_ms={} reads_changed_ms={} reads_content_ms={} \
          reads_witness_ms={} reads_conclusion_ms={} reads_owed_ms={} reads_follow_ms={} \
@@ -393,6 +396,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
         answered.reference,
         answered.outcome,
         answered.batch,
+        answered.repository,
         answered.size,
         answered.position,
         answered.queued_behind,
@@ -465,7 +469,36 @@ pub fn retire_line(release: &str) -> String {
 /// inTheRepositoryAt('/home/x/repo') // 'in the repository at /home/x/repo'
 /// ```
 pub fn in_the_repository_at(repository: &Path) -> String {
-    return format!("in the repository at {}", repository.display());
+    return format!("in the repository at {}", repository_label(repository));
+}
+
+/// What:
+///  The text a prose journal line names one repository by,
+/// distinct for every path:
+/// the path as it reads when it is text,
+/// and Rust's quoted form when it is not,
+/// which escapes each byte that is no text.
+/// Why:
+///  One journal covers every worktree of the machine,
+/// and two worktrees can differ only in bytes that cannot be written as text:
+///  the readable spelling of both is the same string with U+FFFD where the bytes were,
+/// so a label built that way names neither,
+/// and a line cannot be attributed to the repository that wrote it
+/// (`path_bytes::path_message_text` keeps the readable spelling for prose,
+///  and the exact bytes travel in the field beside it).
+///  A line of fields writes the path with Rust's quoted form instead,
+///  so a path that holds a space stays one field and reaches the journal whole
+///  (`answered_line`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// repositoryLabel(path) // '/repo/worktree' | '"/repo/worktree-\\xFF"'
+/// ```
+pub fn repository_label(repository: &Path) -> String {
+    return match repository.to_str() {
+        Some(text) => text.to_string(),
+        None => format!("{repository:?}"),
+    };
 }
 
 /// Why a service ended.

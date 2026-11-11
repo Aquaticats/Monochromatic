@@ -105,7 +105,7 @@ use crate::service_instance::instance_of;
 use crate::transaction_git::GitContext;
 /// The log of the service.
 use crate::journald_native::Priority;
-use crate::service_journal::{OPEN_EXTENSION, Recovery, batch_path, list_intents_read_only};
+use crate::service_journal::{OPEN_EXTENSION, batch_path, list_intents_read_only};
 use crate::service_timing::log_entry;
 /// The names of the folders.
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
@@ -381,7 +381,7 @@ pub fn earlier_commits_landed(journal: &Path, instance: &str) -> HashMap<String,
 /// ```ts
 /// for (const report of reports) log(Warning, `${verb(report.handled)} batch=${report.seq} journal=${journal}`, { CLI_GIT_BATCH: report.seq })
 /// ```
-fn log_adopted_batches(reports: &[RecoveryReport], journal: &Path) {
+pub(crate) fn log_adopted_batches(reports: &[RecoveryReport], journal: &Path) {
     for report in reports {
         let what: &str = match report.handled {
             Handled::Finished => "finished the batch the earlier service left open",
@@ -396,7 +396,7 @@ fn log_adopted_batches(reports: &[RecoveryReport], journal: &Path) {
                 "{what} {} batch={} decision={} journal={}",
                 crate::service_timing::in_the_repository_at(report.repository.as_path()),
                 report.seq,
-                if report.decision == Recovery::Finish { "finish" } else { "drop" },
+                crate::service_server_land_group::decision_word(report.decision),
                 journal.display()
             )
             .as_str(),

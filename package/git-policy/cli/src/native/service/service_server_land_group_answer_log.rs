@@ -126,6 +126,7 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
         reference: request.reference.as_str(),
         outcome,
         batch: times.batch,
+        repository: request.repository.as_path(),
         size: times.size,
         position,
         queued_behind: times.queued_behind,

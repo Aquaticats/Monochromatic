@@ -707,3 +707,35 @@ fn a_command_line_longer_than_the_bytes_read_counts_as_may_be_running() {
     assert!(!service_of_instance_may_run(look_for(4242), proc_root.as_path()), "a command line that ends at the limit was read whole");
     remove(world.root.as_path());
 }
+
+/// What:
+///  A batch an earlier service's journal kept behind a reference lock is reported as held,
+///  and never as dropped.
+/// Why:
+///  `settle_a_recorded_hold` answers `Recovery::Hold` with `Handled::Held` when the lock still stands,
+///  and the line says so in its own words.
+///  A decision word of `drop` beside them tells the person two things at once,
+///  one of them false:
+///  nothing was dropped,
+///  and a commit is waiting for a lock to go
+///  (a Kimi K3.1 Pro review of this branch,
+///  its finding that earlier-service adoption reports a held batch as `decision=drop`).
+#[test]
+fn a_batch_the_earlier_service_kept_behind_a_lock_is_reported_as_held() {
+    let (world, state) = world_with_earlier_journal("adopt-hold", "state");
+    let reports: Vec<RecoveryReport> = vec![RecoveryReport {
+        seq: 3,
+        repository: world.repo.clone(),
+        decision: crate::service_journal::Recovery::Hold,
+        handled: Handled::Held,
+    }];
+    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+        crate::earlier_service_journal_adopted::log_adopted_batches(reports.as_slice(), state.as_path());
+    });
+    let said: Vec<&str> = entries.iter().map(|entry| { return entry.message.as_str(); }).collect();
+    let line: &str = said.iter().copied().find(|line| { return line.contains("batch=3"); }).unwrap_or_else(|| panic!("the held batch is said: {said:?}"));
+    assert!(line.contains("decision=hold"), "the decision word is the one the recovery made: {line}");
+    assert!(!line.contains("decision=drop"), "nothing was dropped: {line}");
+    assert!(line.contains("held behind a reference lock"), "the line says what stands in the way: {line}");
+    remove(world.root.as_path());
+}

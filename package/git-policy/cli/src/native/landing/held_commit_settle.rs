@@ -361,7 +361,14 @@ fn carry(git: &GitContext, held: &Held, intent: &Intent, current: &str) -> Resul
             written.commits = commits;
             match write_intent(held.journal.as_path(), &written) {
                 Ok(()) => Ok((written, last)),
-                Err(error) => Err(Settled::Cannot { commit: last, because: format!("the record of the batch cannot be written ({error})") }),
+                // The commits exist and no reference holds them: the side reference still names the commit the batch made,
+                //  so the line that says what is kept names that one and says what became of the others.
+                Err(error) => Err(Settled::Cannot {
+                    commit: held.new.clone(),
+                    because: format!(
+                        "the record of the batch cannot be written ({error}), so the commit this command made from it onto the branch as it moved is kept by no reference and the next command makes it again"
+                    ),
+                }),
             }
         }
         Replay::Conflict { paths } => Err(Settled::Conflicts { commit: held.new.clone(), paths }),

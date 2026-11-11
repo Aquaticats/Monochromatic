@@ -57,7 +57,7 @@ pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>)
 
 /// The word a settled batch is logged with,
 /// so the record says which decision was made and not only that one was.
-fn decision_word(decision: Recovery) -> &'static str {
+pub(crate) fn decision_word(decision: Recovery) -> &'static str {
     return match decision {
         Recovery::Finish => "finish",
         Recovery::Drop => "drop",

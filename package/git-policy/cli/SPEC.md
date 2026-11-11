@@ -8002,10 +8002,14 @@ the client prints them and exits `0`,
 and the commit is on the side reference.
 The service's line about the hold says what the answer says:
 the commit is kept,
-the branch has not moved yet,
-and it moves when the lock is gone,
+the branch moves when the lock is gone,
 on this command or on the next one in that worktree,
 and the line names the repository the batch belongs to as every line about a batch does.
+A line a landing writes at the moment it is held says the branch has not moved yet,
+because that landing had just read the branch;
+a line a settlement writes from the locks alone says only that the move of the branch waits for them,
+and says nothing about where the branch is,
+because that settlement read nothing but the locks.
 No state a settlement decides between calls the commit refused,
 and `src/native/landing/held_commit_settle_outcomes.rs` words all six of them.
 
@@ -14218,11 +14222,12 @@ where the line has them,
 `CLI_GIT_REQUEST_ID`,
 `CLI_GIT_BRANCH`,
 `CLI_GIT_OUTCOME`,
-`CLI_GIT_BATCH` and `CLI_GIT_OID`.
+`CLI_GIT_BATCH`,
+`CLI_GIT_OID` and `CLI_GIT_REPOSITORY`.
 A line about a batch,
 a landing,
 a push or a held commit names the repository it is about,
-as `in the repository at <worktree root>`,
+as `in the repository at <worktree root>` in prose and as `repository=<worktree root>` in a line of fields,
 beside the batch or the branch and before anything about the outcome:
 one journal covers every worktree of the machine,
 including the fixtures of the tests,

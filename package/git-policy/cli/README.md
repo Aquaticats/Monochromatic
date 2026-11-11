@@ -6543,10 +6543,16 @@ and one of them is a test's fixture,
 so a line without a repository reads as one about the repository you are in.
 A line about a commit a reference lock holds never says the commit was refused:
 the commit is kept,
-the branch has not moved yet,
-and the line says what moves it and what,
+and the line says what moves it:
+the branch,
+when the lock is gone,
+and what,
 if anything,
-you may do
+you may do.
+A line the landing writes when it is held says the branch has not moved yet,
+because that landing had just read it;
+a line a settlement writes from the locks alone says only that the move of the branch waits for them,
+because it read nothing else
 (see "A commit held behind a reference lock").
 
 `systemctl --user list-units --all 'monochromatic-git-policy-cli@*.service'` lists the instances that exist.
@@ -6580,7 +6586,12 @@ A line carries its priority (`err` for something the service needed and could no
 and on some lines `CLI_GIT_REQUEST_ID`,
 `CLI_GIT_BRANCH`,
 `CLI_GIT_OUTCOME`,
-`CLI_GIT_BATCH` and `CLI_GIT_OID`.
+`CLI_GIT_BATCH`,
+`CLI_GIT_OID` and `CLI_GIT_REPOSITORY`.
+A line about a push names the worktree whose push it is,
+as `repository=<worktree root>` beside the branch,
+or as `in the repository at <worktree root>` when it is prose,
+because one journal covers every worktree of the machine and a branch name is the same in all of them.
 When the journal is not listening or the machine's socket queue is full,
 the line goes to standard error instead,
 prefixed with its priority as `<n>` for the stream to read,
@@ -6611,7 +6622,9 @@ each prefixed `monochromatic-git-policy-cli-service:` on standard error and iden
   `branch-moved` or
   `failed:<code>`.
   `batch`,
-  `size` and `position` say which requests landed together.
+  `size` and `position` say which requests landed together,
+  and `repository` names the worktree the batch landed in,
+  because one journal covers every worktree of the machine.
   The phases,
   in order of time:
   `read_ms` (the client sending its line),

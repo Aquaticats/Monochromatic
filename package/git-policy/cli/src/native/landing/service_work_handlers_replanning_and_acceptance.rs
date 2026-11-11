@@ -661,14 +661,26 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
         pause.as_secs(),
         attempt + 1
     );
-    let fields: [(&str, String); 3] = [
+    let fields: [(&str, String); 4] = [
         ("CLI_GIT_BRANCH", item.branch_ref.clone()),
         ("CLI_GIT_OID", item.oid.clone()),
         ("CLI_GIT_OUTCOME", String::from("retrying")),
+        ("CLI_GIT_REPOSITORY", item.repository.to_string_lossy().into_owned()),
     ];
+    // The line names the repository: one journal covers every worktree of the machine, and a branch name is the same in all of
+    //  them, so a retry line without it cannot say which worktree's push it plans.
     log_entry(
         Priority::Warning,
-        format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), cause_line(text).unwrap_or_default()).as_str(),
+        format!(
+            "push will be tried again branch={:?} oid={} repository={:?} next_try={} in_seconds={} cause: {}",
+            item.branch_ref,
+            item.oid,
+            item.repository,
+            attempt + 1,
+            pause.as_secs(),
+            cause_line(text).unwrap_or_default()
+        )
+        .as_str(),
         &fields,
     );
     // A plan that could not be kept is not promised: the service of this run still tries the push, and a service started in
