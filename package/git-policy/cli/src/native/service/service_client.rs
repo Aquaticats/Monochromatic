@@ -209,9 +209,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let mut last_blocker: Option<String> = None;
     // Whether the service said this request is inside its stuck branch write, and when the extra wait for that write ends.
     let mut inside_write: bool = false;
-    // What the service said about the write this command's own request is inside, held until the wait has mattered, and the
-    // words of it the person was told last.
-    let mut inside_words: Option<String> = None;
+    // The words of the write this command's own request is inside that the person was told last.
     let mut inside_told: Option<String> = None;
     // The wait for the answer ends here, and the extra wait for a write the request is inside ends the extra wait after it: both
     // are measured from the start of the wait, not from the moment a loop first notices them.
@@ -230,6 +228,15 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         // and
         //  what the person was already told (`told_place`) is what outlives it.
         let mut last_place: Option<(usize, usize)> = None;
+        // What:
+        //  The words the service on this connection said about the write this command's own request is inside,
+        // held until the wait has mattered.
+        // Why:
+        //  They name that service's write,
+        // so they do not outlive the connection that said them,
+        // as the place of a batch does not;
+        // what the person was told (`inside_told`) is what outlives it.
+        let mut inside_words: Option<String> = None;
         // What:
         //  The connection that can answer this request,
         // or the end of the command when no service can.
