@@ -6438,6 +6438,18 @@ now inside these bounds:
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  The beat is written before the note it carries,
+  and a note still unanswered one beat later is left for the next beat
+  (`service_reply.rs`),
+  so a journal read that storage holds costs a note and never a beat,
+  and the connection keeps that read (`StuckNotice`,
+  `service_server_connection_handling.rs`):
+  the beat behind a slow read waits for the same read and the words it answers with are written then,
+  so a read that outlives many beats is made once and never queued behind itself,
+  and every record that note reads is opened only when it is a regular file
+  (`open_regular_file`,
+  `service_busy.rs`):
+  a named pipe at a record's name is answered instead of waited on.
   The connection that carries the beats is accepted before the recovery of the batch an earlier service left open,
   so a service that is recovering still greets and still beats,
   and nothing is landed before that recovery is over because only the landing thread lands and it reads the queue after it
@@ -12541,6 +12553,11 @@ For injected commit-only semantics:
     `?` and `[`;
     they are ordinary in a literal or a noglob mode),
     and a file or a link is at the pathname it gives.
+    That pathname is read from the directory Git reads a relative pathspec from (`pathspec_base`):
+    the directory the command runs in when it is inside the worktree,
+    and the worktree's own top when it is outside it,
+    which is where a command line that names another worktree with `--git-dir` and `--work-tree` is read
+    (`rev-parse --show-prefix` answers nothing there).
     It is staged with `git add -- <element>`,
     so `git commit -- <file>` records a file nothing staged,
     where native Git refuses the pathspec,
