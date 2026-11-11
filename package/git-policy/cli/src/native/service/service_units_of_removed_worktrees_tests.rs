@@ -7,7 +7,7 @@
 use super::*;
 use crate::service_instance::{instance_of, socket_path};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::service_units_fixture_test_support::{Machine, machine};
+use crate::service_units_fixture_test_support::{Machine, age_a_journal, machine};
 use crate::test_support::{git, remove, repository};
 
 /// The units of a worktree that was removed are stopped by name through the manager,
@@ -336,8 +336,14 @@ fn a_service_whose_worktree_cannot_be_told_serves() {
     remove(machine.root.as_path());
 }
 
-/// A journal as a service of a worktree that committed leaves it,
+/// A journal as a service of a worktree that committed long ago leaves it,
 /// with one plan of a push waiting for a new try.
+/// Why:
+///   A journal younger than `A_FINISHED_RECORD_IS_READ` is kept for the client that may still read its landed batches,
+/// so a control that judges what happens to a journal once those records may go needs one older than that,
+/// and the plan is then the only entry that keeps it at all.
+/// The journal is aged after the plan is written into it,
+/// because writing that entry is a write to the journal's own folder.
 fn a_journal_with_a_plan(machine: &Machine, instance: &str, git_dir: &Path, repository: &Path, oid: &str) -> PathBuf {
     let journal: PathBuf = machine.settled_journal_of(instance);
     let plan: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan {
@@ -355,6 +361,7 @@ fn a_journal_with_a_plan(machine: &Machine, instance: &str, git_dir: &Path, repo
         attempt: 149,
     };
     crate::push_retry_store::save(journal.join(crate::push_retry::PLAN_DIRECTORY).as_path(), &plan).expect("the plan is kept");
+    age_a_journal(journal.as_path());
     return journal;
 }
 
@@ -376,7 +383,8 @@ fn a_deleted_repository_under(machine: &Machine, name: &str) -> (PathBuf, PathBu
 /// Why:
 ///   A plan that stayed would be read by a service of this instance started later,
 /// which would spend a try on a directory nothing can reach,
-/// and a journal holding only the records of landed batches is the memory of a service that never runs again.
+/// and a journal holding only the records of landed batches no client may still read is the memory of a service that never
+/// runs again.
 #[test]
 fn a_service_of_a_gone_worktree_ends_the_plan_of_that_repository_and_the_journal_goes() {
     let machine: Machine = machine("units-own-gone-plans");
@@ -388,7 +396,7 @@ fn a_service_of_a_gone_worktree_ends_the_plan_of_that_repository_and_the_journal
     let mut recorder: Recorder = Recorder::default();
     let gone: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
     assert_eq!(gone, Some(git_dir));
-    assert!(!journal.exists(), "the journal held nothing but the records of landed batches and the ended plan, so it goes with the units");
+    assert!(!journal.exists(), "the journal held nothing but the records of landed batches that no client may still read and the ended plan, so it goes with the units");
     remove(machine.root.as_path());
 }
 

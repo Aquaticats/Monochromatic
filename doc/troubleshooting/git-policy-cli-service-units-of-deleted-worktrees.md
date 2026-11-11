@@ -209,7 +209,8 @@ and the brief's 984/522 was taken at 08:55.
   (`src/native/service/service_plans_of_a_gone_repository.rs`),
   writes one journal line naming the branches whose pushes will not be tried again,
   and then removes the note,
-  the socket file and the journal as before
+  the socket file and the journal as before,
+  except that a journal whose landed records a client may still read keeps them for the next sweep
   (`src/native/service/service_units_of_removed_worktrees.rs:446`).
   A plan of a repository that is still there,
   and every other record,

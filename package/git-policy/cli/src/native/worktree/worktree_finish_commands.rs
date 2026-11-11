@@ -13,14 +13,22 @@
 //!  `linked-worktree-only` refuses a hard reset in it and the person who pasted the printed line was
 //!  refused again.
 //!  The finish command therefore names that policy's hatch,
-//!  and the sentence says what the
+//!  and it carries `--no-recurse-submodules` exactly as the ladder's own checkout does
+//!  (`worktree_ladder_finish.rs`):
+//!  with `submodule.recurse` set,
+//! Git's reset of a worktree that never ran its checkout stops at
+//!  "fatal:
+//! gitfile does not point to a valid repository:
+//! .git"
+//!  and leaves the checkout half done.
+//!  The sentence says what the
 //!  reset discards.
 //!  The path is quoted the way a shell reads it back,
 //!  because the person pastes the line.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // finishAndRemove('/tmp/half') => ['git -C /tmp/half reset --no-enforce-worktree --hard',
+//! // finishAndRemove('/tmp/half') => ['git -C /tmp/half reset --no-enforce-worktree --hard --no-recurse-submodules',
 //! //   'git worktree remove --force /tmp/half']
 //! ```
 
@@ -37,6 +45,10 @@ use std::path::Path;
 /// Why:
 ///   A control runs the printed text,
 ///  so the words and the messages come from one place.
+///  The reset is the ladder's own checkout step
+///  (`reset --hard --no-recurse-submodules`) with the guard's hatch after the subcommand,
+///  because a setting of the person's that makes Git recurse into submodules
+///  fails the checkout of a worktree whose submodules were never initialized.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,7 +58,10 @@ pub fn finish_and_remove(destination: &Path) -> (String, String) {
     // The path is read by the person's shell, so it is quoted the way a shell reads a word back, not the way JSON
     // spells a string: `$bucket` and a backquote inside double quotes would be expanded by the shell that runs `rm`.
     let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
-    let finish: String = format!("git -C {shown} reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard");
+    // `--no-recurse-submodules` is the ladder's own checkout step (`worktree_ladder_finish.rs`): with `submodule.recurse`
+    // set, Git's reset of a worktree whose checkout never ran dies in "could not reset submodule index" and leaves staged
+    // deletions behind, which is the failure of the remedy this command is.
+    let finish: String = format!("git -C {shown} reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard --no-recurse-submodules");
     let remove: String = format!("git worktree remove --force {shown}");
     return (finish, remove);
 }
@@ -63,7 +78,7 @@ pub fn finish_and_remove(destination: &Path) -> (String, String) {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// finishOrRemoveSentence('/tmp/half');
-/// // '`git -C /tmp/half reset --no-enforce-worktree --hard` completes its checkout, ...'
+/// // '`git -C /tmp/half reset --no-enforce-worktree --hard --no-recurse-submodules` completes its checkout, ...'
 /// ```
 pub fn finish_or_remove_sentence(destination: &Path) -> String {
     let (finish, remove): (String, String) = finish_and_remove(destination);

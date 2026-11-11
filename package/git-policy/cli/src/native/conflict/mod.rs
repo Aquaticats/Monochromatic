@@ -32,6 +32,9 @@ pub mod conflict_side_notice;
 /// The saved copy of each file a conflict-side command replaces.
 pub mod conflict_sides;
 
+/// The move of the nested Git repositories a clean would delete beside the audit log.
+pub mod discarded_nested_repository;
+
 /// The linked-worktree policy's carve-out for conflicted files during a merge,
 /// rebase,
 /// cherry-pick or revert.

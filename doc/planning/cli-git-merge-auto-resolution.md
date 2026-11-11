@@ -2334,6 +2334,25 @@ the
 head count of `FETCH_HEAD`,
 `rebase_unspecified` with no `--ff`/`--no-ff` (Git's advice stays Git's),
  and `GIT_REFLOG_ACTION`.
+Whether the settings state a merge is Git's own reading,
+asked with `git config --bool --get` for `branch.<name>.rebase` and then `pull.rebase`
+(branch note of 2026-11-11T13:35:00-05:00,
+`fix/git-policy-cli-alpha-10-audit-pull-rebase-values-as-git-reads-them`):
+the reading of the raw text took the first of several values and five spellings,
+so `pull.rebase=true` followed by `false`,
+and `pull.rebase=00`,
+kept the pull native,
+where native Git's merge refused over another session's staged work
+(status 2,
+`Your local changes to the following files would be overwritten by merge`) although Git read the setting as false.
+The same reading merged where a later `true` had asked for a rebase,
+which native Git answers with
+`cannot pull with rebase: Your index contains uncommitted changes`.
+Both directions now equal native Git:
+the binary control `a_pull_whose_rebase_setting_is_written_twice_or_as_a_number_is_completed`
+covers the duplicate and numeric-zero arms,
+and `the_rebase_setting_is_read_the_way_git_reads_it` checks each arm against Git's own `--bool` answer.
+The extra start runs only when the line does not already state a merge.
 What is left to native Git's whole pull and why:
 a rebase (a separate machine,
 not in scope),

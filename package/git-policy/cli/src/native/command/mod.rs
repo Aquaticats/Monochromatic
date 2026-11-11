@@ -15,9 +15,13 @@
 /// Git 2.56.0 `parse-options` tokenization of one command's argument region.
 pub mod command_options;
 
-/// Long-option matching:
+/// Which row one long token names:
 ///  exact names,
 ///  unique abbreviations and `no-` negation.
+pub(crate) mod command_options_long_resolution;
+
+/// Long-option matching:
+///  one token read into the tokenizer's record of the options Git applied.
 pub(crate) mod command_options_long;
 
 /// Final-state and position questions over a tokenized region.
@@ -80,6 +84,9 @@ pub mod command_add;
 /// The Git 2.56.0 option table of `git clean` and its deletion facts.
 pub mod command_clean;
 
+/// Which nested Git repositories a clean's two dry runs say it would delete.
+pub mod command_clean_nested_repositories;
+
 /// The Git 2.56.0 option table of `git reset` and its mode.
 pub mod command_reset;
 
@@ -139,6 +146,10 @@ pub mod rule_linked_worktree;
 
 /// The rejection texts of the linked-worktree-only policy.
 pub mod rule_linked_worktree_messages;
+
+/// The notice that names where a clean's nested repository went,
+/// and the rejection when it could not be moved there.
+pub mod rule_linked_worktree_nested_repository_messages;
 
 /// Pure decision of the shared-remote-settings refusal:
 ///  which `git remote` and `git config` commands write the remote settings every worktree shares.

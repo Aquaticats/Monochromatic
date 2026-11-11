@@ -28,6 +28,9 @@ import type {
   ApiKeyCredential,
   Credential,
 } from '@earendil-works/pi-ai';
+import type {
+  ForeignBorrowed,
+} from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   QWEN_TOKEN_PLAN_INDIVIDUAL_BUILTIN_CREDENTIAL_ENV,
   QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_GUIDANCE,
@@ -158,37 +161,44 @@ export function resolveQwenTokenPlanIndividualCredential({
 
  @example
  ```typescript
- const key = isApiKeyCredential(credential) ? credential.key : undefined;
+ if (isApiKeyCredential(credential)) {
+   // credential.key is the stored key here
+ }
  ```
  */
 export function isApiKeyCredential(
-  credential: Credential,
+  credential: ForeignBorrowed<Credential>,
 ): credential is ApiKeyCredential {
   return credential.type === 'api_key';
 }
 
 /**
- Stored api-key value pi resolved for this route, when it carries one.
+ Stored api-key value pi resolved for this route,
+ expressed as the credential sources fragment it fills:
+ absence is the fragment carrying no `credentialKey`,
+ so no nullish union crosses the seam.
 
  @param credential - credential pi resolved, absent when it resolved none
 
- @returns the stored key, or `undefined` when no api-key credential landed
+ @returns the sources fragment carrying the stored key when one landed
 
  @example
  ```typescript
- const key = storedCredentialKey({ credential: context.credential });
+ const sources = { ...storedCredentialSources({ credential: context.credential }) };
  ```
  */
-export function storedCredentialKey({
+export function storedCredentialSources({
   credential,
 }: {
-  readonly credential?: Credential | undefined;
-},): string | undefined {
+  readonly credential?: ForeignBorrowed<Credential>;
+},): QwenTokenPlanIndividualCredentialSources {
   if (credential === undefined)
-    return undefined;
+    return {};
   if (!isApiKeyCredential(credential))
-    return undefined;
-  return credential.key;
+    return {};
+  if (credential.key === undefined)
+    return {};
+  return { credentialKey: credential.key, };
 }
 
 //endregion Stored credential narrowing
@@ -260,15 +270,17 @@ export function createQwenTokenPlanIndividualApiKeyAuth({
           .env(QWEN_TOKEN_PLAN_INDIVIDUAL_BUILTIN_CREDENTIAL_ENV,),
       ],);
       /**
+       Sources fragment the stored credential fills, when pi resolved one.
+       */
+      const storedSources = storedCredentialSources(input.credential === undefined
+        ? {}
+        : { credential: input.credential, },);
+      /**
        Resolved key and the home it came from.
        */
       const resolution = resolveQwenTokenPlanIndividualCredential({
         sources: {
-          ...(input.credential === undefined
-            ? {}
-            : (input.credential.key === undefined
-              ? {}
-              : { credentialKey: input.credential.key, })),
+          ...storedSources,
           ...(individualEnvironmentKey === undefined
             ? {}
             : { individualEnvironmentKey, }),
