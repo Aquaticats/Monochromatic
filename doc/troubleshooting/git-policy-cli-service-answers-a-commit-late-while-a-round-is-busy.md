@@ -92,15 +92,26 @@ so the interval cannot be attributed to one with the records there are.
 
 ## What to do about it
 
+The second limit below landed on
+`fix/git-policy-cli-pushes-of-main-that-stalled-today`,
+and the first is still open.
 This is a defect on the commit's waiting path,
 which the agent `commit-waiting-path-with-dozens-of-agents` owns.
-Two limits follow from the evidence and neither is implemented:
 
 - the socket's read and the heartbeats must not wait on the drain's work,
-  so a round that is busy with a long removal cannot make a client call the service stopped;
-- a round's trash work needs a bound,
-  as every other wait of the service has one,
-  so pushes and upkeep are not held behind it for hours.
+  so a round that is busy with a long removal cannot make a client call the service stopped.
+  Still open.
+- the pushes of a worktree must not wait for a round's trash work.
+  Done by claiming the push on the round that answers a wake and every other
+  kind on a lane of its own task
+  (`landing/service_work_slow_lane.rs`),
+  which `a_push_is_taken_while_the_service_is_inside_a_trash` asserts.
+  The measurement of the day's late pushes, and what is still unbounded,
+  is in
+  `doc/planning/git-policy-cli-push-jams-2026-11-10.md`,
+  "A round that serves a push holds no slow step".
+  The trash itself is still unbounded: a worktree's `target/` still takes as long
+  as it takes, on the lane rather than on the push.
 
 Until then,
 a commit that reports the service silent has landed more often than not:

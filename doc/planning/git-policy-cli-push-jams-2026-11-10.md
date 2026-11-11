@@ -3,7 +3,9 @@
 Date measured:
  `2026-11-10T17:47:50-05:00`,
  when the last query of the day's records ran.
-Commits that landed after that moment are not counted here.
+Commits that landed after that moment are not counted here,
+except in "A round that serves a push holds no slow step",
+which says the later time it was measured at.
 Branch of this work:
  `fix/git-policy-cli-pushes-of-main-that-stalled-today`.
 The owner's words this serves:
@@ -241,6 +243,149 @@ The control is
 It failed before the change with
  `left: Some("To https://github.com/example/repository")`.
 
+## A round that serves a push holds no slow step
+
+Measured `2026-11-10T21:06:00-05:00`,
+over the whole day,
+from the work items of the main checkout's Git directory
+(`.git/monochromatic-git-policy-cli/work/`)
+and the moment each of them left `pending`:
+
+- 160 push records of `refs/heads/main` were created on the day,
+  and 28 of them settled more than a minute after their commit landed.
+- 192 trash records were created on the same day.
+  The six longest ran 6 507 s to 7 263 s each,
+  emptying worktrees of `pi-ready-issues-*` and `pi-wrapper-issues-*`.
+- Each of the 28 late pushes settled within 43 s of a trash record of the same
+  work directory settling:
+  21 of them after it,
+  and 7 in the same second.
+  The trash record each push is compared with is the one of that directory that
+  settled nearest to it.
+
+One stretch of the day, from the records:
+
+- at `18:14:05` a trash record for
+  `.claude/worktrees/pi-kimi-all-waits-findings-reproduced-then-fixed` was written,
+  and it settled at `18:34:04`.
+- five landings of `refs/heads/main` waited inside that stretch:
+  `18:16:51` `9036aa4b4b` 1 072 s,
+  `18:20:53` `db439133f5` 833 s,
+  `18:21:13` `64d195c3c0` 813 s,
+  `18:25:54` `aa67a4adcf` 533 s,
+  `18:33:10` `cfdfbc2615` 96 s.
+  All five settled between `18:34:43` and `18:34:46`,
+  39 s to 42 s after that trash.
+
+The code path agrees with the record:
+a push is claimed and run by the round that answers its wake,
+and a push record written while a round runs stays in `pending`
+until that round ends
+(`landing/service_work_drain_pending_claims.rs`).
+So the end of a trash and the push that follows it are one round ending.
+This is a correlation of two stored records and not a trace of one push,
+and the journal says the same in its own words:
+no `pushed` line appears between `12:35:56` and `14:12:50`.
+
+The day's other late pushes have causes of their own and not this one:
+a server hook's decline that clears on a retry (the section
+"A decline that clears on a retry and the options for the owner"),
+the push URL of the shared remote settings, fixed on
+`feat/git-policy-cli-shared-remote-settings-refused-in-worktrees`,
+and a held push whose command died, fixed on
+`fix/git-policy-cli-held-push-released-by-the-retry`.
+
+### The two claim lists, and the lane that holds the slow kinds
+
+The kinds the service runs are two lists that partition them,
+and `the_two_claim_lists_partition_the_kinds_the_service_runs`
+fails when a kind is added to one list alone.
+
+- `PUSH_KINDS` is the push alone.
+  The round that answers a wake claims it,
+  so the loop's own path holds nothing else.
+- `SLOW_KINDS` is maintenance,
+  prewarm,
+  subvolume delete,
+  trash and review.
+  `SlowLane` (`landing/service_work_slow_lane.rs`) claims them on a task of the
+  service's runtime,
+  one repository and one step at a time,
+  and the loop hands it the wakes the round is given
+  (`work_loop_awaiting` in `service/service_server_work_loop_awaiting.rs`).
+
+The drain outside the service,
+`drain` in `landing/service_work.rs` and the faces beside it,
+claims every kind,
+because no lane runs beside it there:
+`a_failed_review_is_a_plain_record_not_a_stuck_item` failed while the awaited
+drain passed `PUSH_KINDS` for every caller,
+with `left: []` against the review it expected to settle.
+
+Nothing waits for the lane and the lane waits for nothing:
+a push taken while a trash runs is the whole point of the change.
+The claims are the leases and the renewal that were there before,
+and the two lists are disjoint,
+so neither claims the other's records and no lock was added.
+
+What the change does not do:
+
+- it leaves the socket's read and the heartbeats where they were,
+  so the other limit of
+  `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`
+  stands;
+- two pushes of one directory still run one after the other,
+  in the order their records were written;
+- a service stopped while the lane holds a claim leaves that claim to its
+  lease,
+  as the round did before.
+
+### What each control fails on, before the change
+
+The five controls are in
+`landing/service_work_slow_lane_tests.rs`,
+and all five passed in one run:
+`Summary [   0.910s] 5 tests run: 5 passed, 6471 skipped`.
+Each was then run against the shape it is for.
+
+The round claiming every kind again,
+which is what it did before:
+
+```text
+assertion `left == right` failed: the round claims no trash
+  left: 1
+ right: 0
+```
+
+The lane's list short of a kind,
+which is the shape of a kind added to one list alone:
+
+```text
+assertion `left == right` failed: the lane took the review
+  left: 0
+ right: 1
+```
+
+The partition the two lists are:
+
+```text
+assertion `left == right` failed: the round's kinds and the lane's are the service's kinds, each named once
+  left: ["maintenance", "prewarm", "push", "subvolume-delete", "trash"]
+ right: ["maintenance", "prewarm", "push", "review", "subvolume-delete", "trash"]
+```
+
+The loop not handing its wakes to the lane,
+which is the pre-change service:
+the round claims the pushes alone and nothing claims the slow kinds,
+so `a_push_is_taken_while_the_service_is_inside_a_trash`
+and `the_lane_settles_the_trash_the_loop_was_woken_for`
+both ran into the runner's own per-test limit:
+`Summary [ 300.013s] 5 tests run: 3 passed, 2 timed out, 6471 skipped`.
+A control of this shape ends at that limit rather than at a failed assertion,
+because `wait_until` gives up only when the run stops moving
+(`testing/test_support.rs`),
+and a runtime with a live task keeps moving.
+
 ## Which causes are fixed,
  and where
 
@@ -268,11 +413,15 @@ The day's evidence for it:
  and `next_try=64 in_seconds=600` at `2026-11-10T17:41:34-05:00`,
  so each try costs 600 s and the plans never end.
 - A round that holds the pushes of its own landing:
- not fixed on `main` and not on either branch.
-`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`
- records it and names the limits it needs.
-It belongs to the waiting path of a commit and not to this branch.
-It is the cause of eighteen of the twenty four late pushes.
+ fixed on this branch,
+ in "A round that serves a push holds no slow step".
+The round that answers a wake claims `PUSH_KINDS` alone,
+and a lane of its own task claims `SLOW_KINDS`,
+which
+ `a_push_is_taken_while_the_service_is_inside_a_trash`
+ asserts.
+Of the twenty four late pushes listed above it was the cause of eighteen.
+The whole day's measure of the same cause is in that section.
 - A server hook's decline that clears on a retry:
  the behaviour is the owner's decision and is unchanged.
 The evidence for asking about it is in the next section.
