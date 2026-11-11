@@ -371,18 +371,27 @@ fn stage(name: &str) -> Stage {
 fn holder(stage: &Stage, kind: Holder) -> Command {
     let lock: PathBuf = stage.repo.join(".git").join(format!("{HELD_REF}.lock"));
     let target: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]);
-    // The wait for the lock ends with the test; the hold after it is one `sleep`, because the stop under test walks the holder's
-    //  processes once, and a loop would start new ones after the walk. The fixture ends the sleeper when its test is over.
+    // The wait for the lock ends with the test, and the hold after it must keep the pipe open from a session the stop under
+    //  test cannot reach: `git update-ref --stdin` aborts its prepared transaction and unlinks its own lock when its input
+    //  ends, so a writer that dies with the holder's tree would let Git clean up the lock the control looks for
+    //  (`a_stall_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove`, measured 2026-11-11).
     let lives: String = while_test_lives(stage.root.as_path());
+    let watcher: PathBuf = stage.root.join("hold-the-pipe-open.sh");
+    crate::test_support::executable(watcher.as_path(), format!("#!/bin/sh\nwhile {lives}; do sleep 0.1; done\n").as_bytes());
     // `strace` holds the first `unlink` of Git after it ran: the handler removes the pid file first and the lock second.
     let git: String = match kind {
         Holder::SlowToFinishCleanup => format!("strace -f -o /dev/null -e trace=unlink -e inject=unlink:delay_exit={CLEANUP_DELAY_MICROSECONDS}:when=1 /usr/bin/git"),
         Holder::HeldPastTheStopGrace => format!("strace -f -o /dev/null -e trace=unlink -e inject=unlink:delay_exit={}:when=1 /usr/bin/git", 2 * crate::bounded_push::STOP_GRACE.as_micros()),
         Holder::Responsive | Holder::Unresponsive => String::from("/usr/bin/git"),
     };
+    // The watcher keeps the pipe to Git's input on its standard output, which is what holds the transaction open, and it is
+    //  started in a session of its own and left behind by the subshell: the stop under test ends the tree it can see, so a
+    //  writer in that tree would be ended with Git, and Git reads its end of input, aborts its prepared transaction and unlinks
+    //  the very lock the control looks for (measured 2026-11-11). Every other stream is closed, since a reader of this command's
+    //  output waits for its pipe's end.
     let script: String = format!(
         "( printf 'start\\nupdate %s %s\\nprepare\\n' \"$HELD_REF\" \"$TARGET\"; \
-         while [ ! -e \"$LOCK\" ] && {lives}; do sleep 0.05; done; : > \"$READY\"; sleep 600 ) \
+         while [ ! -e \"$LOCK\" ] && {lives}; do sleep 0.05; done; : > \"$READY\"; setsid \"$WATCHER\" 2>/dev/null </dev/null & ) \
          | {git} update-ref --stdin"
     );
     let mut command: Command = Command::new("sh");
@@ -400,6 +409,7 @@ fn holder(stage: &Stage, kind: Holder) -> Command {
         .env("HELD_REF", HELD_REF)
         .env("TARGET", target)
         .env("LOCK", lock.as_os_str())
+        .env("WATCHER", watcher.as_os_str())
         .env("READY", stage.ready.as_os_str());
     if matches!(kind, Holder::Unresponsive) {
         // SAFETY: only async-signal-safe calls (`sigemptyset`, `sigaddset`, `sigprocmask`) run between fork and exec.
