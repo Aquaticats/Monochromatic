@@ -823,6 +823,11 @@ HXR:
  run them in `podman run --cpus --memory --pids-limit --blkio-weight 10 --rm` or `mvm`;
  containers ignore their launcher's `IOWeight`.
 
+MHX:
+ Never start a service manager (`systemd --user`) on the host
+ or claim a well-known name on the owner's session bus;
+ tests needing one run in `podman` or `mvm`.
+
 NLG:
  Never generate synthetic host load in any session or subagent:
  no `stress-ng`,
