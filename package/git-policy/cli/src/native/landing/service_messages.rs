@@ -259,10 +259,11 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::NothingAnswered { address, waited } => format!(
             "Nothing has answered at the commit service's address for this worktree ({address}) for {} seconds, so this \
              commit was not made. A service that is stopped inside its own process (a frozen control group, a debugger, a \
-             suspended machine, or a wait in the kernel that never ends) looks like that, and this computer has no user \
-             service manager this git can ask to start or restart it. Check what the service of this worktree is doing with \
-             `git monochromatic-git-policy-cli service status`, end the service if it is stopped inside its own process, and \
-             run the commit again. {NOTHING_CHANGED}",
+             suspended machine, or a wait in the kernel that never ends) looks like that, and this git had no user service \
+             manager to ask to start or restart it. See what the service of this worktree is doing with \
+             `git monochromatic-git-policy-cli service status`, let it run again the way it was stopped, and run the commit \
+             again; from a session whose user service manager this git can reach (`loginctl enable-linger` turns one on for \
+             an account that is not logged in), the service is started or restarted for you. {NOTHING_CHANGED}",
             waited.as_secs().max(1)
         ),
         ClientFailure::NoActivation(platform) => format!(
