@@ -108,9 +108,9 @@ fn stage_installing(name: &str, hook_name: Option<&str>) -> Stage {
     git(repo.as_path(), &["commit", "--quiet", "--message=one"]);
     let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
     git(repo.as_path(), &["push", "--quiet", "--set-upstream", "origin", "main"]);
-    if let Some(hook_name) = hook_name {
+    if let Some(stalling) = hook_name {
         let marker: PathBuf = root.join("stalled-once");
-        let hook: PathBuf = remote.join("hooks").join(hook_name);
+        let hook: PathBuf = remote.join("hooks").join(stalling);
         std::fs::write(hook.as_path(), format!("#!/bin/sh\nif [ ! -e '{}' ]; then : > '{}'; exec sleep 600; fi\nexit 0\n", marker.display(), marker.display())).expect("hook");
         std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
     }

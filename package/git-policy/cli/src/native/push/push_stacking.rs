@@ -208,12 +208,12 @@ pub fn stack_failed_push(
             //  the command that failed.
             let wording: Wording = wording_of(&plan);
             let remote: &str = plan.destination.remote.as_str();
-            let local: &str = plan.local.as_str();
+            let kept: &str = plan.local.as_str();
             // Terminal output error: the report is advisory; the exit status already carries the result.
             let _written = writeln!(
                 err,
                 "{}the integration of {remote}/{} into {} did not finish, so {remote}/{} may or may not have taken the merge; \
-                 {local} is kept in this repository either way. What stopped it:\n{error}",
+                 {kept} is kept in this repository either way. What stopped it:\n{error}",
                 wording.line_prefix, wording.short, wording.merged_into, wording.short
             );
             return None;
