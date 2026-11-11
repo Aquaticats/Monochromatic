@@ -183,8 +183,10 @@ fn a_runtime_directory_to_spell(tag: &str) -> PathBuf {
 /// so a construction that assumed three bytes between the copies of the name spent the room exactly for every second
 /// parent length and produced an address one byte past what the kernel carries:
 /// `two_spellings_of_one_runtime_directory_are_one_service` failed whenever the test process's number of digits made
-/// the parent even (measured 2026-11-11T10:05-05:00, pid 919300: the dotted address took 108 bytes, and a run whose
-/// pid made the parent odd passed).
+/// the parent even.
+/// Measured 2026-11-11T10:05-05:00 with pid 919300:
+/// the dotted address took 108 bytes,
+/// and a run whose pid made the parent odd passed.
 #[test]
 fn the_two_spellings_of_a_runtime_directory_fit_one_socket_address_at_every_parent_length() {
     let longest: usize = longest_runtime_directory(INSTANCE);
