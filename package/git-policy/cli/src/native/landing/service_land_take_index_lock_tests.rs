@@ -2,7 +2,8 @@
 //! the lock names the batch that took it,
 //! and the markers of the two batches after it begin flushing while this landing holds the lock,
 //! so the next commit finds its own on the disk and the one after it finds the spare,
-//! instead of waiting for a flush the previous landing started after it ended.
+//! instead of waiting for a flush the previous landing started after it ended,
+//! and a marker another index's landing started is let go without waiting for its flush.
 
 use super::*;
 use crate::service_index_lock::{lock_path_of, marker_text};
@@ -106,6 +107,96 @@ fn the_batch_after_this_one_begins_flushing_when_the_landing_takes_the_lock() {
         expected.sort();
         assert_eq!(texts, expected);
         drop(held);
+        service_index_prestage::discard();
+        remove(root.as_path());
+    });
+}
+
+/// How many of the control's held flushes have entered.
+static HELD_SYNCS_ENTERED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many of the control's held flushes have ended.
+static HELD_SYNCS_ENDED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Whether a held flush may end.
+static FLUSH_MAY_END: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The longest a flush is held:
+/// a product that waits for it ends it at this ceiling,
+/// and the control then reads the wait from `HELD_SYNCS_ENDED` instead of hanging the run.
+const THE_CEILING_OF_A_HELD_SYNC: Duration = Duration::from_secs(2);
+
+/// A flush held until the control lets it go,
+/// which says so when it has ended.
+fn sync_held_by_the_control(file: &std::fs::File) -> std::io::Result<()> {
+    HELD_SYNCS_ENTERED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let held: Instant = Instant::now();
+    while !FLUSH_MAY_END.load(std::sync::atomic::Ordering::SeqCst) && held.elapsed() < THE_CEILING_OF_A_HELD_SYNC {
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    HELD_SYNCS_ENDED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    return file.sync_all();
+}
+
+/// Waits until `want` held flushes have entered.
+fn until_the_held_flushes_are_running(want: usize) {
+    let began: Instant = Instant::now();
+    while HELD_SYNCS_ENTERED.load(std::sync::atomic::Ordering::SeqCst) < want {
+        assert!(began.elapsed() < Duration::from_secs(10), "{} of {want} held flushes entered", HELD_SYNCS_ENTERED.load(std::sync::atomic::Ordering::SeqCst));
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// What:
+///  Taking this batch's index lock returns without waiting for another index's marker made ahead,
+/// though both of that index's markers are still flushing.
+/// Why:
+///   The markers of the two batches after this one are started under the lock this landing just took
+/// (`take_index_lock`),
+/// and a marker another index's landing started is let go there;
+/// a wait there holds this index's lock while another batch's flush finishes,
+/// which is the owner's "nothing should ever wait forever or indefinitely",
+/// and the agent rule that no commit waits on another's work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// start(held(otherIndex, 8)); start(held(otherIndex, 9)); const held = await takeIndexLock(index, 20); expect(heldSyncsEnded).toBe(0);
+/// ```
+#[test]
+fn taking_this_batchs_lock_does_not_wait_for_another_indexs_flush() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let root: PathBuf = fixture("take-index-lock-other-index-flushing");
+        let other_git: PathBuf = root.join("other-git-dir");
+        std::fs::create_dir(&other_git).expect("directory");
+        let other_index: PathBuf = other_git.join("index");
+        std::fs::write(&other_index, "old index").expect("other index");
+        let git_dir: PathBuf = root.join("git-dir");
+        std::fs::create_dir(&git_dir).expect("directory");
+        let index: PathBuf = git_dir.join("index");
+        std::fs::write(&index, "old index").expect("index");
+        let scratch: PathBuf = root.join("scratch");
+        std::fs::create_dir(&scratch).expect("scratch");
+        let journal: PathBuf = root.join("journal");
+        std::fs::create_dir(&journal).expect("journal");
+        HELD_SYNCS_ENTERED.store(0, std::sync::atomic::Ordering::SeqCst);
+        HELD_SYNCS_ENDED.store(0, std::sync::atomic::Ordering::SeqCst);
+        FLUSH_MAY_END.store(false, std::sync::atomic::Ordering::SeqCst);
+        service_index_prestage::start_with(sync_held_by_the_control, other_index.as_path(), 8);
+        service_index_prestage::start_with(sync_held_by_the_control, other_index.as_path(), 9);
+        until_the_held_flushes_are_running(2);
+        let first: CommitRequest = request_of(index.as_path(), scratch.as_path(), git_dir.as_path());
+        let mut timing: LandTiming = LandTiming::default();
+        let held: IndexLock = take_index_lock(&context_of(git_dir.as_path()), journal.as_path(), Duration::from_secs(30), &first, 20, &|_| {}, &mut timing, "new", "scratch-ref").expect("this index's lock is free and is taken");
+        assert_eq!(HELD_SYNCS_ENDED.load(std::sync::atomic::Ordering::SeqCst), 0, "taking this batch's lock waited for another index's marker to finish flushing");
+        assert!(std::fs::read_dir(&other_git).expect("listing").flatten().next().is_none(), "the other index's markers go without waiting for their flushes");
+        drop(held);
+        FLUSH_MAY_END.store(true, std::sync::atomic::Ordering::SeqCst);
+        let ended: Instant = Instant::now();
+        while HELD_SYNCS_ENDED.load(std::sync::atomic::Ordering::SeqCst) < 2 {
+            assert!(ended.elapsed() < Duration::from_secs(10), "{} of 2 held flushes ended", HELD_SYNCS_ENDED.load(std::sync::atomic::Ordering::SeqCst));
+            std::thread::sleep(Duration::from_millis(1));
+        }
         service_index_prestage::discard();
         remove(root.as_path());
     });
