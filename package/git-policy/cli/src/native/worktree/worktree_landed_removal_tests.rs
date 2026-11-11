@@ -124,7 +124,8 @@ fn head_of(main: &Path) -> String {
     return git_text(main, &["rev-parse", "HEAD"]);
 }
 
-/// The commit as the notice text names it, with no abbreviation to resolve.
+/// The commit as the notice text names it,
+/// with no abbreviation to resolve.
 fn plain(commit: &str) -> String {
     return commit.to_string();
 }
@@ -152,7 +153,8 @@ fn plant_lock(common_dir: &Path, name: &str) {
     std::fs::write(lock.as_path(), b"").expect("the lock file");
 }
 
-/// The worktree's own Git directory, as Git's pointer names it.
+/// The worktree's own Git directory,
+/// as Git's pointer names it.
 fn admin_of(worktree: &Path) -> PathBuf {
     let pointer: String = std::fs::read_to_string(worktree.join(".git")).expect("the worktree's pointer");
     let path: &str = pointer.trim().strip_prefix("gitdir: ").expect("a pointer to its Git directory");
@@ -161,7 +163,8 @@ fn admin_of(worktree: &Path) -> PathBuf {
 
 /// What:
 ///  The state a commit that met a reference lock leaves in the worktree:
-///  a commit no branch names, held by the worktree's own reference and named by a held record.
+///  a commit no branch names,
+/// held by the worktree's own reference and named by a held record.
 /// Why:
 ///   Both of those go with the removal,
 ///  so a sweep that removes the worktree without keeping the commit loses it.
@@ -246,12 +249,15 @@ fn land_feature(landed: &Landed) -> LandedSweep {
     return sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
 }
 
-/// A repository, a worktree on `feature` that a merge runs in,
+/// A repository,
+/// a worktree on `feature` that a merge runs in,
 /// and one on `task-z` that a person has just added and not started in:
-/// its branch holds no commit of its own, and its tip is main's.
+/// its branch holds no commit of its own,
+/// and its tip is main's.
 /// Why:
 ///  Every control of a fresh worktree needs the two worktrees and the commit main moved by,
-///  in one place, so none of them drifts from the state a person leaves.
+///  in one place,
+/// so none of them drifts from the state a person leaves.
 fn a_fresh_worktree_beside_the_one_a_merge_runs_in(name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let main: PathBuf = repository(root.as_path(), "main");
@@ -288,7 +294,8 @@ fn a_fresh_worktree_beside_the_one_a_merge_runs_in(name: &str) -> (PathBuf, Path
 ///  (a cross-vendor audit of `574063773d`,
 ///  finding F4).
 ///  What the removal deletes of a worktree it takes is a separate proof (`worktree_landed_ignored_files.rs`),
-///  so this control holds no ignored file: nothing may keep it but the rule about the branch's own commits.
+///  so this control holds no ignored file:
+/// nothing may keep it but the rule about the branch's own commits.
 #[test]
 fn a_worktree_whose_branch_holds_no_commit_of_its_own_is_not_removed_by_another_branchs_merge() {
     let (root, main, merged_in, fresh) = a_fresh_worktree_beside_the_one_a_merge_runs_in("landed-fresh-branch");
@@ -382,8 +389,10 @@ fn a_landed_worktree_holding_another_registered_worktree_stays() {
 ///  The unshown push failure of a worktree the sweep removes reaches the person from the next command,
 ///  as it does when a person removes that worktree.
 /// Why:
-///  A worktree keeps its records in its own Git directory, which the removal deletes;
-///  the sweep ran no removal snapshot, so a failed push nobody had seen vanished with no word
+///  A worktree keeps its records in its own Git directory,
+/// which the removal deletes;
+///  the sweep ran no removal snapshot,
+/// so a failed push nobody had seen vanished with no word
 ///  (a cross-vendor audit of `574063773d`,
 ///  finding F3).
 #[test]
@@ -653,11 +662,13 @@ fn a_landed_worktree_holding_a_commit_keeps_it_on_a_side_reference() {
 
 /// What:
 ///  A landed worktree whose batch kept reference already names another commit keeps its held commit on the reference
-///  beside it, so that commit survives the removal and Git's own maintenance.
+///  beside it,
+/// so that commit survives the removal and Git's own maintenance.
 /// Why:
 ///  A kept reference another batch's commit is kept under is left where it is,
 ///  and the sweep read the collision as a line the person reads rather than as a commit nothing holds:
-///  the worktree went, its per-worktree reference went with it,
+///  the worktree went,
+/// its per-worktree reference went with it,
 ///  and `git gc --prune=now` then took a commit this program said it kept
 ///  (a cross-vendor review of the landed sweep,
 ///  finding 1).
@@ -691,7 +702,8 @@ fn a_landed_worktree_whose_kept_reference_names_another_commit_keeps_its_commit_
 ///  and that command keeps the commit before Git removes the worktree.
 /// Why:
 ///  The refusal told the person to run the same command again,
-///  and a merge whose branch already landed is up to date: the retry looked at no worktree,
+///  and a merge whose branch already landed is up to date:
+/// the retry looked at no worktree,
 ///  wrote no kept reference and said nothing at all,
 ///  so the one remedy the notice named did nothing
 ///  (a cross-vendor review of the landed sweep,

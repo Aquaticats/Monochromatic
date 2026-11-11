@@ -25,12 +25,16 @@
 //!  no process works inside it,
 //!  every ignored file of it is also in the worktree the merge ran in,
 //!  and Git removes it without `--force`.
-//!  The ignored files are the one hole Git leaves: `git worktree remove` deletes what Git ignores
-//!  without a word, and the btrfs destroy takes the whole directory,
+//!  The ignored files are the one hole Git leaves:
+//! `git worktree remove` deletes what Git ignores
+//!  without a word,
+//! and the btrfs destroy takes the whole directory,
 //!  so a file the person wrote there after the add would go with it.
 //!  The source is the proof available (`worktree_landed_ignored_files.rs`):
-//!  an ignored file this repository's worktree holds with the same kind, mode and bytes is state the repository already has,
-//!  and one it does not hold that way may be the person's, so the worktree stays and the file is named.
+//!  an ignored file this repository's worktree holds with the same kind,
+//! mode and bytes is state the repository already has,
+//!  and one it does not hold that way may be the person's,
+//! so the worktree stays and the file is named.
 //!  A branch that has never moved since it was made holds no commit of its own,
 //!  and no merge brought any of its work in:
 //!  a merge that brings in another branch's commits brings every branch sitting on those commits along in the same set,
@@ -48,7 +52,8 @@
 //!  and what the person reads here is Git's sentence.
 //!  Everything else is named with its reason and left alone.
 //!  A commit a reference lock holds in a landed worktree lives in that worktree's own Git directory
-//!  and on its per-worktree reference, and both go with the removal,
+//!  and on its per-worktree reference,
+//! and both go with the removal,
 //!  so every held commit reaches `refs/cli-git/kept/<batch>` of the common Git directory before a candidate is examined
 //!  (`worktree_removal_held_commits.rs`),
 //!  and the person reads where the commit is before reading that the worktree went.
@@ -232,9 +237,28 @@ fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Lan
 fn branch_made_at(common_dir: &Path, reference: &str) -> Option<String> {
     let path: PathBuf = common_dir.join("logs").join(reference);
     let text: Vec<u8> = std::fs::read(path.as_path()).ok()?;
-    let oldest: &[u8] = text.split(|byte| return *byte == b'\n').next()?;
-    let made: &[u8] = oldest.split(|byte| return *byte == b' ').nth(1)?;
+    let oldest: &[u8] = text.split(is_line_end).next()?;
+    let made: &[u8] = oldest.split(is_space).nth(1)?;
     return std::str::from_utf8(made).ok().map(str::to_owned);
+}
+
+/// Whether the byte ends a line of a reflog.
+/// Why:
+///  Named apart from the split that uses it,
+///  because a closure that captures nothing is what this codebase keeps out of its calls.
+fn is_line_end(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// Whether the byte separates two fields of a reflog line.
+fn is_space(byte: &u8) -> bool {
+    return *byte == b' ';
+}
+
+/// The reference a landing names,
+/// for the set of branches that were already contained in a head.
+fn reference_of(one: Landing) -> String {
+    return one.reference;
 }
 
 /// Whether the branch holds a commit of its own,
@@ -281,7 +305,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
     };
     let earlier: HashSet<String> = match branches_merged_into(place, before) {
-        Ok(found) => found.into_iter().map(|one| return one.reference).collect(),
+        Ok(found) => found.into_iter().map(reference_of).collect(),
         Err(reason) => {
             sweep.failed = Some(reason);
             return sweep;
@@ -384,7 +408,8 @@ fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
 ///  The other worktrees this repository registers whose checkout lies inside `one`,
 ///  which a removal of `one` would take with it.
 /// Why:
-///  A worktree can be added from inside another one, and this repository's own agents do it:
+///  A worktree can be added from inside another one,
+/// and this repository's own agents do it:
 ///  the nested checkout is a directory of the outer worktree,
 ///  usually under an ignored name.
 ///  Removing the outer one took the nested worktree's files,
@@ -401,14 +426,18 @@ fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
 /// worktreesInside(one, registered) // the registrations whose worktree starts with one.worktree
 /// ```
 fn worktrees_inside<'a>(one: &Registration, registered: &'a [Registration]) -> Vec<&'a Registration> {
-    return registered
-        .iter()
-        .filter(|other| return other.worktree != one.worktree && other.worktree.starts_with(one.worktree.as_path()))
-        .collect();
+    let mut inside: Vec<&'a Registration> = Vec::new();
+    for other in registered {
+        if other.worktree != one.worktree && other.worktree.starts_with(one.worktree.as_path()) {
+            inside.push(other);
+        }
+    }
+    return inside;
 }
 
 /// What:
-///  The paths of the worktrees found inside, as the person reads them,
+///  The paths of the worktrees found inside,
+/// as the person reads them,
 ///  a few named and the rest counted.
 /// Why:
 ///  A person decides about their own worktrees,
@@ -421,7 +450,10 @@ fn worktrees_inside<'a>(one: &Registration, registered: &'a [Registration]) -> V
 /// ```
 fn names_of(inside: &[&Registration]) -> String {
     const SHOWN: usize = 2;
-    let mut parts: Vec<String> = inside.iter().take(SHOWN).map(|other| format!("`{}`", other.worktree.display())).collect();
+    let mut parts: Vec<String> = Vec::new();
+    for other in inside.iter().take(SHOWN) {
+        parts.push(format!("`{}`", other.worktree.display()));
+    }
     let rest: usize = inside.len().saturating_sub(parts.len());
     if rest > 0 {
         parts.push(format!("and {rest} more"));
