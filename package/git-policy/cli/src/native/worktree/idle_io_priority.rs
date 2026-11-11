@@ -127,7 +127,8 @@ fn set_priority_here(value: libc::c_int) -> bool {
 /// class LoweredIoPriority { static lower(): LoweredIoPriority; [Symbol.dispose](): void }
 /// ```
 pub struct LoweredIoPriority {
-    /// The priority this thread had before the lowering, or nothing when the kernel would not say it.
+    /// The priority this thread had before the lowering,
+    /// or nothing when the kernel will not say it.
     before: Option<libc::c_int>,
     /// Whether this thread's priority stays the idle class until this value is dropped.
     lowered: bool,
