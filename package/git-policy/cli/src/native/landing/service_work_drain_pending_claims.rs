@@ -31,6 +31,7 @@
 //! ```
 
 use super::service_work_handlers_replanning_and_acceptance::*;
+use crate::housekeeping_of_one_round::{HousekeepingOfOneRound, LOOK_AGAIN_AFTER_DEFERRING};
 use crate::service_work_storage_awaited::{
     acceptable_awaiting, claim_all_awaiting, clear_push_failures_before_awaiting, record_push_failure_awaiting, record_push_skip_awaiting,
     settle_all_awaiting, still_held_awaiting,
@@ -40,7 +41,7 @@ use crate::push_failure_notice::PushOutcome;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
-use crate::work_item::{Claimed, DONE, FAILED, WorkItem, WorkKind};
+use crate::work_item::{Claimed, DONE, FAILED, PENDING, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -54,10 +55,17 @@ use std::time::{Duration, Instant};
 /// A directory that cannot be listed ends the round where it is,
 /// as before,
 /// and the records it holds keep their lease.
+///  A round starts housekeeping only while `housekeeping` has room,
+/// and answers how soon to look at this directory
+///  again when it left some for a later round.
+/// An item that has started is never interrupted:
+/// the answer says what a round may start,
+///  not how long one step of it may last
+/// (`housekeeping_of_one_round.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning)
+/// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning, housekeeping) // Duration | undefined
 /// ```
 pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     git_dir: &Path,
@@ -65,10 +73,15 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     lease: Duration,
     renewal: Renewal<'_>,
     replanning: &mut Replanning,
-) {
+    housekeeping: Duration,
+) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
     let (the_claims, renewer) = held_claims(work_dir.as_path());
     let mut held: HeldClaims = the_claims;
+    // The housekeeping this round may still start, and what it left for a later round.
+    let slice: HousekeepingOfOneRound = HousekeepingOfOneRound::starting_now(housekeeping);
+    let mut left_for_a_later_round: Vec<Claimed> = Vec::new();
+    let mut look_again: Option<Duration> = None;
     let renewing: ClaimRenewal = match renewal {
         Renewal::Timed => ClaimRenewal::start(renewer, renewal_interval(lease)),
         Renewal::Driven(driver) => ClaimRenewal::driven(renewer, driver),
@@ -188,6 +201,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             None => break 'round,
         };
         for item in still_here {
+            // The person's push is the backup and the upkeep is what keeps the repository cheap to read, so a round that has
+            //  spent its housekeeping ends here and the rest waits for a later round, named below.
+            if slice.spent() {
+                left_for_a_later_round.push(item);
+                continue;
+            }
             if !upkept.contains(&item.item.repository) {
                 upkept.push(item.item.repository.clone());
                 let upkeep_began: Instant = Instant::now();
@@ -211,6 +230,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             None => break 'round,
         };
         for item in prewarmed {
+            if slice.spent() {
+                left_for_a_later_round.push(item);
+                continue;
+            }
             let verdict: Verdict = handlers.prewarm_awaiting(&item.item).await;
             match settle_with_the_words(held, work_dir.as_path(), item, verdict, "prewarm").await {
                 Some(back) => held = back,
@@ -227,6 +250,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             None => break 'round,
         };
         for item in deleted {
+            if slice.spent() {
+                left_for_a_later_round.push(item);
+                continue;
+            }
             let verdict: Verdict = handlers.subvolume_delete_awaiting(&item.item).await;
             match settle_with_the_words(held, work_dir.as_path(), item, verdict, "subvolume delete").await {
                 Some(back) => held = back,
@@ -243,6 +270,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             None => break 'round,
         };
         for item in trashed {
+            if slice.spent() {
+                left_for_a_later_round.push(item);
+                continue;
+            }
             let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
             match settle_with_the_words(held, work_dir.as_path(), item, verdict, "trash").await {
                 Some(back) => held = back,
@@ -268,9 +299,27 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => break 'round,
             }
         }
+        // The housekeeping this round did not start goes back to `pending` for a later round, named here once, so a person
+        //  reading the journal sees where their trash went and the service says when it looks again.
+        if !left_for_a_later_round.is_empty() {
+            let names: Vec<String> = left_for_a_later_round.iter().map(|item| { return item.id.clone(); }).collect();
+            crate::service_log!(
+                "the round leaves {} housekeeping items of {} for a later round, because it spent {} ms of its {} ms on housekeeping: {}",
+                names.len(),
+                git_dir.display(),
+                slice.spent_ms(),
+                slice.bound().as_millis(),
+                names.join(", ")
+            );
+            // A set the system refused a thread for cannot be handed back, and the records it held keep their lease.
+            let _settled: Option<HeldClaims> = settle_all_awaiting(held, work_dir.as_path(), std::mem::take(&mut left_for_a_later_round), PENDING).await;
+            look_again = Some(LOOK_AGAIN_AFTER_DEFERRING);
+            break 'round;
+        }
     }
     // The renewal is stopped and waited for here, so a drain that returns leaves no task renaming a claim behind it.
     renewing.stop_awaiting().await;
+    return look_again;
 }
 
 /// What:

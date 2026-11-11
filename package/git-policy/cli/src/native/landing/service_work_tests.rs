@@ -1371,3 +1371,88 @@ fn the_awaited_drain_runs_every_kind_of_item() {
     );
     remove(repo.root.as_path());
 }
+
+/// The messages the code under test wrote on this thread while `body` ran,
+/// in the order it wrote them.
+fn journal_of(body: impl FnOnce()) -> Vec<String> {
+    return crate::service_timing::capture::entries_of(body).into_iter().map(|entry| { return entry.message; }).collect();
+}
+
+/// What:
+///  A round that has spent its share of housekeeping leaves the rest of it pending for a later round,
+/// names them in one journal line, and asks to be woken again.
+/// Why:
+///   A trash of one removed worktree is hundreds of thousands of removals,
+/// and a service that logged 15 of them spent 1 h 37 min in one round without making the person's
+///  push (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// A bound makes a round say "not this round" instead of starting another trash,
+/// and the records it did not
+///  start go back to `pending` so nothing is lost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wait = await drainPending(dir, handlers, lease, renewal, plan, ZERO); expect(wait).toBe(LOOK_AGAIN);
+/// ```
+#[test]
+fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
+    let repo: Repo = repo("work-housekeeping-left");
+    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Prewarm, OID, BRANCH), item(&repo, WorkKind::Prewarm, OTHER_OID, BRANCH)];
+    enqueue_all(&repo, &items);
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    // A round whose housekeeping share is already over starts none of it, which is the state a long round reaches.
+    let mut looked_again: Option<Duration> = None;
+    let said: Vec<String> = journal_of(|| {
+        looked_again = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
+            repo.common.as_path(),
+            &recorder,
+            CLAIM_LEASE,
+            Renewal::Timed,
+            &mut replanning,
+            Duration::ZERO,
+        ))
+        .expect("the process runtime runs the drain");
+    });
+    assert_eq!(looked_again, Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING), "a round that left housekeeping for later asks to be woken again");
+    assert_eq!(names(&repo, PENDING).len(), items.len(), "the housekeeping the round did not start is pending again");
+    assert!(names(&repo, CLAIMED).is_empty(), "nothing the round did not start stays claimed");
+    assert!(names(&repo, DONE).is_empty() && names(&repo, FAILED).is_empty(), "nothing the round did not start is settled");
+    let named: Vec<&String> = said.iter().filter(|line| { return line.contains("housekeeping items") && line.contains(items[0].id().as_str()) && line.contains(items[1].id().as_str()); }).collect();
+    assert_eq!(named.len(), 1, "one line names the housekeeping that waits for a later round: {said:?}");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The positive control of the bound:
+/// a round with its housekeeping share unspent runs the housekeeping it finds and leaves nothing behind.
+/// Why:
+///   The bound above must be what leaves work for later,
+/// not the drain answering nothing at all:
+/// with the shipped bound the same
+///  records run and settle.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wait = await drainPending(dir, handlers, lease, renewal, plan, HOUSEKEEPING_OF_ONE_ROUND); expect(names(DONE)).toHaveLength(1);
+/// ```
+#[test]
+fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
+    let repo: Repo = repo("work-housekeeping-run");
+    let items: Vec<WorkItem> = vec![item(&repo, WorkKind::Prewarm, OID, BRANCH)];
+    enqueue_all(&repo, &items);
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    let looked_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
+        repo.common.as_path(),
+        &recorder,
+        CLAIM_LEASE,
+        Renewal::Timed,
+        &mut replanning,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    ))
+    .expect("the process runtime runs the drain");
+    assert_eq!(looked_again, None, "a round that left nothing behind asks for no extra look");
+    assert_eq!(names(&repo, DONE).len(), items.len(), "the housekeeping the round had room for ran");
+    assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
+    remove(repo.root.as_path());
+}

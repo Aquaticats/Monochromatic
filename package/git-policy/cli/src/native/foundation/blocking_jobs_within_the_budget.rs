@@ -107,6 +107,31 @@ pub fn budgeted_blocking_jobs() -> usize {
 }
 
 /// What:
+///  How many of the process's places a round's own long work may take:
+/// every place but one,
+/// and at least one.
+/// Why:
+///   A round of the after-commit work removes trash entries side by side,
+/// and each removal is a job of the blocking pool,
+/// so a round that takes every place holds the steps that answer a client behind it:
+/// the check of which instance a commit belongs to,
+/// a withdrawal's decision,
+/// and the note of a beat
+/// all run there,
+/// and the measurement of 2026-11-10 shows what that cost (`clients_keep_a_place_of_the_pool`,
+/// `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// The one place kept back is small (a read of one directory's name or of a few journal files)
+/// and never idle while a client waits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const places = Math.max(1, budgetedBlockingJobs() - 1);
+/// ```
+pub fn places_a_round_may_take() -> usize {
+    return budget().allowed.saturating_sub(1).max(1);
+}
+
+/// What:
 ///  Holds every blocking job of this process to at most `cap` at once.
 /// Why:
 ///  A process that runs many of its kind at once bounds its own parallel work the way it bounds its runtime

@@ -11,13 +11,18 @@
 use super::*;
 use crate::service_fault::hooks::{self, HoldOnAnyThread};
 use crate::service_protocol::{decode_service, encode_client};
+use crate::service_protocol_messages_and_name_checks::HEARTBEAT_SILENCE;
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
-use tokio::io::AsyncBufReadExt;
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt};
 use std::path::Path;
 
 /// The instance this control's service serves.
 const INSTANCE: &str = "an-instance";
+
+/// The places this control gives the process: two, because a pool of one thread is not the pool an ordinary service runs,
+/// and a round that takes every place of it is what the controls of the waiting path must survive.
+const CONTROL_PLACES: usize = 2;
 
 /// What a connection of a control shares,
 /// and the end where the landing thread would read its queue.
@@ -336,4 +341,116 @@ fn with_threads_a_commit_naming_another_worktree_is_rejected() {
             "the refusal is written where the client reads it"
         );
     });
+}
+
+
+/// The next message a client reads on either half of a connection.
+async fn a_line<Reader: AsyncBufRead + Unpin>(reader: &mut Reader) -> ServiceMessage {
+    let mut line: String = String::new();
+    reader.read_line(&mut line).await.expect("a line arrives");
+    return decode_service(line.trim_end_matches('\n')).expect("a message");
+}
+
+/// What:
+///  Holds every place of the process's blocking pool with a job that waits,
+/// as a round of the after-commit work holds them while it empties a trash.
+/// Why:
+///  The state the control needs is "the pool is full", not a duration,
+/// so each job says it has its place and waits for the barrier the caller holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gate = holdEveryPlace(places); // await each job's word, then gate.wait() to let them go
+/// ```
+async fn hold_every_place(places: usize) -> Arc<std::sync::Barrier> {
+    let gate: Arc<std::sync::Barrier> = Arc::new(std::sync::Barrier::new(places + 1));
+    let mut entered: Vec<tokio::sync::oneshot::Receiver<()>> = Vec::with_capacity(places);
+    for _place in 0..places {
+        let (said, said_waits) = tokio::sync::oneshot::channel::<()>();
+        entered.push(said_waits);
+        let held_by_this_job: Arc<std::sync::Barrier> = Arc::clone(&gate);
+        let _holding = tokio::spawn(async move {
+            let _held = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+                let _said = said.send(());
+                held_by_this_job.wait();
+            })
+            .await;
+        });
+    }
+    for said_waits in entered {
+        tokio::time::timeout(HEARTBEAT_SILENCE, said_waits).await.expect("a place of the pool is held").expect("the job that holds a place says so");
+    }
+    return gate;
+}
+
+/// What:
+///  A client is greeted and beaten within its own silence window while every place of the process's blocking pool is held,
+/// as a round of the after-commit work holds them while it empties a trash.
+/// Why:
+///   The beat asks the landing's board for the note it writes, and that read is a job of the blocking pool
+/// (`service_busy.rs`);
+/// a round's trash removals are jobs of the same pool,
+/// one per entry
+///  (`worktree_trash_entries.rs`),
+/// so a beat that waits for its note waits for a place the round's own work holds,
+/// and the client hears
+///  nothing.
+/// Measured in production on 2026-11-10:
+/// 27 to 32 s of silence while a round was busy,
+/// five silent windows of five seconds,
+///  and the same commit sent six times
+/// (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// The client ends a service it has heard nothing from for `HEARTBEAT_SILENCE`,
+/// so the greeting and the beat must never wait for
+///  a place the round's work holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gate = await holdEveryPlace(places); expect(await aLine(client)).toBe(welcome); expect(await within(SILENCE, aLine(client))).toBe(heartbeat); gate.wait();
+/// ```
+#[test]
+fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
+    let places: usize = CONTROL_PLACES;
+    let _room: usize = crate::room_for_blocking_jobs_in_a_control::for_a_control(places);
+    let (shared, mut jobs) = shared_serving("connection-held-pool", PathBuf::from("/srv/repo/gitdir"));
+    let mut request_line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/srv/repo/gitdir"), "held-pool"))));
+    request_line.push('\n');
+    let outcome = crate::lazy_runtime::run_on_runtime(async move {
+        let gate: Arc<std::sync::Barrier> = hold_every_place(places).await;
+        // The client connects and sends a commit that names this worktree's own Git directory, which is the shape every
+        //  commit of a service that knows its worktree has: the check of whose the request is asks no thread.
+        let (service, client) = UnixStream::pair().expect("a connected pair");
+        let (client_read, mut client_write) = client.into_split();
+        let mut client = BufReader::new(client_read);
+        let serving = tokio::spawn(handle_connection(service, shared));
+        let greeting = tokio::time::timeout(HEARTBEAT_SILENCE, a_line(&mut client)).await.expect("the service greets the client while every place is held");
+        assert!(matches!(greeting, ServiceMessage::Welcome { .. }), "the greeting is the first line, whatever the pool is doing");
+        client_write.write_all(request_line.as_bytes()).await.expect("the client sends its request");
+        // The beat is the proof of life the client's wait rests on, so it is the first thing this control asks for.
+        let beat = tokio::time::timeout(HEARTBEAT_SILENCE, a_line(&mut client)).await;
+        let beat: ServiceMessage = beat.expect("a beat arrives while every place of the pool is held, though the note of a beat cannot be read");
+        assert_eq!(beat, ServiceMessage::Heartbeat, "the beat never waits for a place the round's work holds");
+        let queued = tokio::time::timeout(HEARTBEAT_SILENCE, jobs.recv()).await.expect("the request reaches the landing although every place is held");
+        let Job::Commit(_request, reply, _arrival) = queued.expect("a commit request is queued") else {
+            panic!("a commit request is queued");
+        };
+        let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("held-pool"), commit: String::from("c"), already: false, landing: None };
+        reply.send(&landed);
+        drop(reply);
+        let answered = tokio::time::timeout(HEARTBEAT_SILENCE, async {
+            loop {
+                let heard: ServiceMessage = a_line(&mut client).await;
+                if heard == landed {
+                    return heard;
+                }
+            }
+        })
+        .await
+        .expect("the answer arrives");
+        gate.wait();
+        let _joined = tokio::time::timeout(HEARTBEAT_SILENCE, serving).await;
+        return answered;
+    })
+    .expect("the process runtime runs this control");
+    assert_eq!(outcome, ServiceMessage::Landed { id: String::from("held-pool"), commit: String::from("c"), already: false, landing: None }, "the answer is written while every place is held");
 }

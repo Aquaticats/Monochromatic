@@ -358,6 +358,9 @@ pub mod service_work_handlers_replanning_and_acceptance;
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
+/// How long one round may go on starting housekeeping, and what it leaves for a later round.
+pub mod housekeeping_of_one_round;
+
 /// The storage steps of one drain of work,
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;
