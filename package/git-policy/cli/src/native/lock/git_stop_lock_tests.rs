@@ -778,7 +778,7 @@ fn a_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove() {
 /// because a tracee whose tracer is killed is detached and walks on
 /// (`held_before_the_pid_file_goes`).
 /// Measured on 2026-11-11:
-/// of 24 runs of this control without that last part,
+/// of 33 runs of this control without that last part,
 /// one failed and left nothing at all on disk,
 /// which is Git's handler finishing its cleanup after the tracer it was held in was killed.
 #[test]

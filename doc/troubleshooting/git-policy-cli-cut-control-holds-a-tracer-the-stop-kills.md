@@ -19,8 +19,8 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6211 filtered ou
 ```
 A run of the same control on this machine,
 `mise run //package/git-policy/cli:native:test:host -- a_watched_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove`,
-failed 1 of 24 times with the same line in 8.351 s;
-the other 23 runs passed.
+failed once in 33 runs with the same line in 8.351 s;
+the other 32 runs passed.
 
 The failure is the control's own checkpoint:
 it found no `.lock` file at all under the fixture's Git directory,
