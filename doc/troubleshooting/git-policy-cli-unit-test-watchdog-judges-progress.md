@@ -808,9 +808,11 @@ The same probe written to standard error instead,
 one line per look,
 kept the child alive for its whole five seconds (`finished in 5.01s`,
 no abort),
-and the byte figure grew about 104 per look:
+and the byte figure grew about 104 per look.
+That is by design and not the hole:
 what a look leaves over is the reader's work that is not a reading,
-and that residual is read as the run working at every later look.
+which is the run's work while a wait's predicate does it,
+so the trace has to stay in memory and a watcher must not write while it watches.
 
 Two further holes were then measured at the control level,
 against the watchdog of `6cfc399d09`:
@@ -847,9 +849,9 @@ and nothing here claims it.
 - one thread is one reader,
   however many waits it is inside (`Reader::waits`),
   so no entry of a thread can be read with its readings uncounted;
-- each look measures the reading thread's counters,
-  and takes off the one reading whose own bytes cannot be in the counter it yields
-  (`Tally::add_the_readers_own_counters`);
+- each look counts every reading it takes of the reading thread,
+  including the one whose own bytes cannot be in the counter it yields,
+  so the next look takes exactly them off (`Tally::add_the_readers_own_counters`);
 - only a figure that grew is work,
   so a count that fell at every look cannot keep a run alive;
 - every control waits on its child through `CHILD_DEADLINE` (45 s),

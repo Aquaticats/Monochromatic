@@ -42,11 +42,13 @@
 //! so a run
 //!  whose counters never come back still ends,
 //! and a later look that reads the run counts again.
-//! What the watching thread moves is measured on both sides of its reading,
-//! so a thread
-//!  that writes a line of its own,
-//!  or reads something the reading does not count,
-//!  cannot make the run look busy at every look.
+//! Every reading a look takes is counted,
+//! and the next look of that thread takes exactly them off,
+//! so a reader's
+//!  own readings cannot make the run look busy at every look.
+//! What a reader moves that is not a reading is the run's work,
+//!  as the disk work of a wait's predicate is,
+//! so a thread that reads this run must not write while it watches.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
