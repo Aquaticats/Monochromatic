@@ -463,6 +463,35 @@ fn a_readers_own_stat_line_is_not_the_runs_work() {
     assert_eq!(after.members, before.members, "no task of the run started or ended");
 }
 
+/// A reader's own stat file is not the run's work,
+/// and neither is a stat file whose text cannot be decoded.
+///
+/// A task name may hold a byte that is not UTF-8,
+/// and a read that delivered those bytes counts in the reader's own counters whether or not
+///  its text can be decoded:
+/// judging the length of a decode instead of the length of the read would leave the rest of the
+///  look's own readings in the figures.
+#[test]
+fn a_task_name_that_is_not_utf8_is_still_the_readers_own_reading() {
+    let Some(reader): Option<i32> = current_thread_id() else {
+        eprintln!("skipped: this system numbers no thread, so nothing is measured");
+        return;
+    };
+    let _reading: Option<Reading> = Reading::begin();
+    // A byte no UTF-8 sequence holds, in the name the kernel reports in this thread's own stat line.
+    let named: bool = rename_this_thread(b"reader\xff\0");
+    let first: Option<Look> = look(reader);
+    let second: Option<Look> = look(reader);
+    let renamed_back: bool = rename_this_thread(b"progress-probe\0");
+    assert!(named && renamed_back, "the kernel takes a name holding a byte that is not UTF-8, and gives the readable one back");
+    let before: Look = first.expect("a name that is not UTF-8 is still a stat line this system answers");
+    let after: Look = second.expect("the second look reads the same stat line");
+    assert_eq!(
+        after.bytes, before.bytes,
+        "both looks read the same undecodable stat line and the run showed nothing, so the figures judged must not move"
+    );
+}
+
 /// A run that keeps moving past its window is not ended,
 /// which is the failure this watchdog had with a wall clock.
 #[test]

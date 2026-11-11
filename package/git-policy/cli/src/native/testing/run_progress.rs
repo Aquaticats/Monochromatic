@@ -190,6 +190,31 @@ fn the_readers() -> Vec<Reader> {
 }
 
 /// What:
+///  The text of a `/proc` file,
+///  with every byte that is not UTF-8 replaced,
+/// and the bytes the read delivered.
+/// Why:
+///   A read counts in this reader's own counters even where its text cannot be decoded
+/// (a task name holding a byte that is not UTF-8)
+///  and even where it fails part way,
+/// so a length taken from a decode or from a read that reports only whether it succeeded
+///  would leave some of the reader's own readings in the figures judged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bytes = readFileLossy(path); return [new TextDecoder().decode(bytes), bytes.length];
+/// ```
+fn read_a_tasks_file(path: &std::path::Path) -> (String, u64) {
+    let mut bytes: Vec<u8> = Vec::new();
+    if let Ok(mut file) = std::fs::File::open(path) {
+        // A read that fails part way still delivered what it put here, and that is the caller's own reading too.
+        let _read = std::io::Read::read_to_end(&mut file, &mut bytes);
+    }
+    let delivered: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    return (String::from_utf8_lossy(bytes.as_slice()).into_owned(), delivered);
+}
+
+/// What:
 ///  What one look at the run found,
 /// added up over every task of this process and of the processes it started.
 /// Why:
@@ -321,8 +346,8 @@ impl Tally {
         //  taken off.
         let work: u64 = bytes_in(io).saturating_sub(own_reads);
         self.bytes = self.bytes.saturating_add(work);
-        let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return };
-        self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
+        let (stat, stat_bytes) = read_a_tasks_file(&task.join("stat"));
+        self.read_bytes = self.read_bytes.saturating_add(stat_bytes);
         let Some((state, _ticks)) = parse_activity(stat.as_str()) else { return };
         self.readable = true;
         self.working = self.working || state == 'D';
@@ -343,8 +368,8 @@ impl Tally {
     /// tally.addAReadersDiskWait(`/proc/${pid}/task/${tid}`);
     /// ```
     fn add_a_readers_disk_wait(&mut self, task: &std::path::Path) {
-        let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return };
-        self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
+        let (stat, stat_bytes) = read_a_tasks_file(&task.join("stat"));
+        self.read_bytes = self.read_bytes.saturating_add(stat_bytes);
         let Some((state, _ticks)) = parse_activity(stat.as_str()) else { return };
         self.readable = true;
         self.working = self.working || state == 'D';
@@ -353,18 +378,17 @@ impl Tally {
     /// Add the counters of the task whose directory under `/proc` is `task`,
     /// and leave the tally alone where they cannot be read.
     fn add_task(&mut self, task: &std::path::Path) {
-        let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return };
-        self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
+        let (stat, stat_bytes) = read_a_tasks_file(&task.join("stat"));
+        self.read_bytes = self.read_bytes.saturating_add(stat_bytes);
         let Some((state, ticks)) = parse_activity(stat.as_str()) else { return };
         self.readable = true;
         self.members = self.members.saturating_add(1);
         self.ticks = self.ticks.saturating_add(ticks);
         self.working = self.working || is_working(state);
         // A kernel without task I/O accounting has no `io` file; its tasks are still seen to run and to wait.
-        let io: Option<String> = std::fs::read_to_string(task.join("io")).ok();
-        self.read_bytes = self.read_bytes.saturating_add(io.as_ref().map_or(0, |text: &String| { return text.len() as u64; }));
-        let bytes: u64 = io.map_or(0, |text: String| { return bytes_in(text.as_str()); });
-        self.bytes = self.bytes.saturating_add(bytes);
+        let (io, io_bytes) = read_a_tasks_file(&task.join("io"));
+        self.read_bytes = self.read_bytes.saturating_add(io_bytes);
+        self.bytes = self.bytes.saturating_add(bytes_in(io.as_str()));
     }
 
     /// Add every task of the process `number`,
@@ -460,8 +484,8 @@ fn children_of(parent: i32, read: &mut u64) -> Vec<i32> {
     let mut children: Vec<i32> = Vec::new();
     let Ok(tasks) = std::fs::read_dir(format!("/proc/{parent}/task")) else { return children };
     for task in tasks.flatten() {
-        let Ok(text) = std::fs::read_to_string(task.path().join("children")) else { continue };
-        *read = read.saturating_add(text.len() as u64);
+        let (text, bytes_read) = read_a_tasks_file(&task.path().join("children"));
+        *read = read.saturating_add(bytes_read);
         for word in text.split_whitespace() {
             if let Ok(child) = word.parse::<i32>() {
                 children.push(child);
@@ -511,14 +535,11 @@ fn look(reader: i32) -> Option<Look> {
     //  are read before this look reads anything, because every file a look reads is taken off the next look, so only
     //  these figures hold the reader's work with none of its readings.
     let own_reads: u64 = readers.iter().find(|each: &&Reader| { return each.thread == reader; }).map_or(0, |each: &Reader| { return each.own_reads; });
-    match std::fs::read_to_string(format!("{own_task}/io")) {
-        Ok(io) => {
-            tally.read_bytes = tally.read_bytes.saturating_add(io.len() as u64);
-            tally.add_the_callers_own_work(std::path::Path::new(own_task.as_str()), io.as_str(), own_reads);
-        }
-        // A kernel without task I/O accounting has no `io` file, so the caller's work is not counted and its state still is.
-        Err(_) => tally.add_a_readers_disk_wait(std::path::Path::new(own_task.as_str())),
-    }
+    let (io, io_bytes) = read_a_tasks_file(std::path::Path::new(format!("{own_task}/io").as_str()));
+    tally.read_bytes = tally.read_bytes.saturating_add(io_bytes);
+    // A kernel without task I/O accounting has no `io` file; its text is empty, so the caller's work is not counted and
+    //  its state still is.
+    tally.add_the_callers_own_work(std::path::Path::new(own_task.as_str()), io.as_str(), own_reads);
     for each in &readers {
         if each.thread == reader {
             continue;
@@ -531,12 +552,13 @@ fn look(reader: i32) -> Option<Look> {
         tally.add_process(child, &[]);
     }
     tally.read_bytes = tally.read_bytes.saturating_add(read_by_the_walk);
+    // Every byte this look read was read by the caller, so it is in the caller's own counters before the next look: the
+    //  next look takes exactly these off, and the caller's own work still counts. It is booked before the look is judged
+    //  readable, so a look that found no task's counters to read still leaves nothing of its own readings behind.
+    note_a_reader_s_own_reads(reader, tally.read_bytes);
     if !tally.readable {
         return None;
     }
-    // Every byte this look read was read by the caller, so it is in the caller's own counters before the next look: the
-    //  next look takes exactly these off, and the caller's own work still counts.
-    note_a_reader_s_own_reads(reader, tally.read_bytes);
     return Some(Look { bytes: tally.bytes, ticks: tally.ticks, working: tally.working, members: tally.members });
 }
 
