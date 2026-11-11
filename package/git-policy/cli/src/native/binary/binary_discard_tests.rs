@@ -893,7 +893,10 @@ fn a_save_that_fails_puts_back_the_repositories_it_moved() {
     let observed: Observed = run_wrapped(&fixture, work.linked.as_path(), &["clean", "-f", "-f", "-d", "-X"]);
     std::fs::set_permissions(container.as_path(), std::fs::Permissions::from_mode(0o700)).expect("free the container");
     assert_eq!(observed.code, Some(1), "{}", stderr_of(&observed));
-    assert!(stderr_of(&observed).contains("could not"), "{}", stderr_of(&observed));
+    // The rejection says what it did, and a put-back that worked makes both sentences true.
+    for expected in ["nothing was changed", "The repositories are still where they were"] {
+        assert!(stderr_of(&observed).contains(expected), "{expected} missing from {}", stderr_of(&observed));
+    }
     assert_eq!(
         std::fs::read_to_string(first.join("untracked.txt")).expect("the first repository is where it was"),
         "untracked user data\n"
