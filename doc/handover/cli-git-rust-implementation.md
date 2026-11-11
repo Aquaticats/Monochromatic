@@ -356,6 +356,25 @@ The owner's earlier question in `doc/handover/questions-for-the-owner.md`
 ("The automatic push and a commit a policy blocked") is untouched by this branch:
 a person's own push is still unchanged,
 and only the automatic push stops.
+### 0.6.1-alpha.10 dispatched, and the alpha.11 integration gated (2026-11-11T07:01:28-05:00)
+
+The alpha.10 gate on `b96767962c` ran 7574 tests: 7573 passed, 1 failed,
+`testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive` (the test watchdog's own control, in 5.2 s),
+so it shipped under "Alphas don't even have to resolve all flakes." and "Release now, fixes in alpha.11".
+That failure is not yet rerun alone.
+The integration merged into `main` as `84b67256a7`;
+`native:clippy` on `main` then refused `clippy::manual_map` at `worktree_copy_prune.rs:319`, fixed in `574063773d`, and passed on the rerun.
+`native:release -- 0.6.1-alpha.9 0.6.1-alpha.10` runs in unit `gpc-release-0-6-1-alpha-10`
+(log `${HOME}/temp/agent/gate/release-0.6.1-alpha.10.log`; its host gate runs `native:test:host:btrfs` first).
+
+For alpha.11, pass 8 of `integrate-jam-fixes-after-alpha-9.ts` merged ten branches onto `main` at `7b9eba790e`.
+Two type errors where they met were fixed in `a735f75caa`.
+The landed-worktree sweep now removes nothing when a held commit could not be kept, and reports the refusal as its reason.
+A `clippy::ptr_arg` was fixed in `82829a1696`, and Clippy is clean there.
+Two branches conflicted and went back to their agents (round 166):
+`fix/git-policy-cli-commands-never-wait-on-or-fail-with-a-silent-service` (`wait_ceilings_tests.rs`)
+and `fix/git-policy-cli-kimi-findings-merge-carry-review-round-2-findings` (the merge carry files).
+Gate `gpc-gate-alpha-11-on-82829a1696-20261111T070128-0500` runs on `82829a1696`.
 
 ### An impostor user manager throttled the alpha.10 gate and failed thread creation (2026-11-11T06:45:00-05:00)
 

@@ -62,7 +62,7 @@ type Fixture = {
  */
 function readFixture(): Fixture {
   return JSON.parse(readFileSync(fileURLToPath(new URL(
-    './builtin-catalog.fixture.json',
+    'builtin-catalog.fixture.json',
     import.meta.url,
   ),), 'utf8',),) as Fixture;
 }
@@ -82,7 +82,7 @@ function readInstalledRows(): Record<string, unknown> {
    Data directory beside pi-ai's bundled providers entry.
    */
   const dataDirectory = fileURLToPath(new URL(
-    './data/',
+    'data/',
     import.meta.resolve('@earendil-works/pi-ai/providers/all'),
   ),);
   /**
