@@ -5548,6 +5548,16 @@ on the commit path:
   "not known whether the commit was made" failure,
   which names the write and the scratch ref and says `git log -1` and `git status`;
   the write is left running and the commit lands when it returns.
+  The client holds those words as the blocker of that failure and says them on standard error only once its own
+  wait has passed `WAITING_NOTICE_AFTER` (10 seconds),
+  the wait the place of a waiting commit waits for:
+  a branch write took 5 ms at the median and 4,785 ms at the 99.9th percentile of the 6,703 landings this
+  host's service journal recorded from 2026-11-01 to 2026-11-11,
+  so a commit whose write is a normal one says nothing of it,
+  and words that differ from the ones already said are said at once,
+  so a write that has stayed stuck a new minute is told at once.
+  The words name no moment of the write,
+  because the moment they are read is the client's and not the write's.
   A client that is never told takes the older path and waits
   `WITHDRAW_CEILING`.
   The record holds no lock (the owner:

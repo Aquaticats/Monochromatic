@@ -3817,6 +3817,23 @@ Each line names what the command waits for,
   Every line is written by a thread of its own and dropped when the terminal stops taking lines,
   so a reader that stopped draining costs the commit no more than `WARNING_WRITE_CEILING` (250 ms) at its end
   and never its answer.
+- A commit whose own request is inside the commit service's branch write,
+  which the service never ends in the middle:
+  one line says so,
+  names the write (`git update-ref --stdin`) and what it does (the reference it moves),
+  and says that a write the service does not end is why this commit may be on the branch before its answer.
+  The service says it as the write begins,
+  because a commit whose wait reaches its own deadline inside such a write is not withdrawn,
+  and the words wait for the same 10 seconds as the place above:
+  a branch write took 5 ms at the median,
+  601 ms at the 99th percentile and 4,785 ms at the 99.9th of the 6,703 landings this host's service journal
+  recorded from 2026-11-01 to 2026-11-11,
+  so a commit whose write is a normal one lands before a line could be read and says nothing.
+  The words name no moment of the write for that reason;
+  a write that has stayed stuck for a minute says so in the longer line that follows,
+  at once,
+  because its words changed.
+  `CLI_GIT_STANDING_NOTICE_SECONDS` sets that wait too.
 - A commit whose branch moved while it was being built:
    a commit Git built (a signed one,
    or one with a template or clean-up mode) is built again on the new tip,
@@ -5906,8 +5923,9 @@ all durations in whole milliseconds taken from the monotonic clock:
   another
   program's hold on the index and the landing itself.
   `positions` lists the queue positions the service reported,
-  `waitingNotices` counts its notices that it was waiting for
-  another program,
+  `waitingNotices` counts the notices the service sent it about its wait
+  (another program's hold, and the words of a write its own request is inside),
+  whichever of them its wait had mattered enough to say,
   `lockHolderKind` says what the last of them said of that program
   (`proven-alive` for a process proven to hold the lock,
   `unproven` for an owner nobody could prove alive,

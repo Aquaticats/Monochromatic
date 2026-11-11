@@ -658,7 +658,8 @@ pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 
 /// How long a commit waits before the wrapper says where it stands:
 /// the place the service reported,
-/// or that the service has not started on it.
+/// or that the service has not started on it,
+/// and the words of a write the command's own request is inside.
 /// A notice threshold,
 /// not a bound:
 /// nothing ends at it,
@@ -678,6 +679,11 @@ pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 /// Ten seconds is twice the owner's 5 s bound on what a commit may add to native Git,
 /// so a commit that finishes quickly says nothing,
 /// and 97 of 100 commits say nothing.
+/// A branch write, which is what the words of a write inside the service are about, is shorter than that by far:
+/// the 6,703 landings this host's service journal recorded from 2026-11-01 to 2026-11-11 took 5 ms at the median,
+/// 601 ms at the 99th percentile and 4,785 ms at the 99.9th,
+/// and 6 of them reached 5,000 ms,
+/// so a commit whose write is a normal one lands before this wait is over and says nothing of it.
 pub const WAITING_NOTICE_AFTER: Duration = Duration::from_secs(10);
 
 /// The environment variable that sets how long a commit waits before the wrapper says where it stands,
