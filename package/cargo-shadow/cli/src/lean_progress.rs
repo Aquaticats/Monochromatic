@@ -32,7 +32,7 @@
 use std::{fs, io::{self, Write}, os::fd::OwnedFd, path::{Path, PathBuf}, sync::atomic::{AtomicU64, Ordering}};
 
 /// The bounded read that waits on nothing and follows no link.
-use crate::lean_text::read_small_text;
+use crate::lean_text::read_unlinked_small_text;
 
 /// Imports `rustix::fs::{Mode, OFlags, open}` for this file:
 /// both record files are opened with the flags that make a link and a pipe answer at once.
@@ -50,12 +50,20 @@ pub const PROGRESS_FILE_NAME: &str = "lean-progress";
 /// and this version writes the record into a name of its own and neither opens nor removes this one.
 pub const RETIRED_STAGING_FILE_NAME: &str = "lean-progress.new";
 
-/// What a staging name a run creates for itself starts and ends with.
+/// What a staging name a run creates for itself starts with:
+/// the record's own name and a dot.
 const STAGING_PREFIX: &str = "lean-progress.";
+
+/// What a staging name a run creates for itself ends with.
 const STAGING_SUFFIX: &str = ".new";
 
-/// How many staging names a save tries before it reports that it could not write the record:
-/// only a name a killed run of this same process left behind makes one try fail.
+/// How many staging names a save tries before it reports that it could not write the record.
+/// Why:
+/// A name this run makes is taken only by a file a killed run of this same process left at it,
+/// which needs that process id and that count together;
+/// one such leftover fails one try,
+/// a killed run leaves at most a handful,
+/// and eight is more than that and still a bounded number of opens.
 const STAGING_TRIES: u32 = 8;
 
 /// The count that makes each staging name this process creates its own.
@@ -233,7 +241,7 @@ const RECORD_READ_LIMIT: usize = 64 * 1024;
 /// function readRecord(path: string): { progress: Progress; failure?: string }
 /// ```
 fn read_record(path: &Path) -> ReadRecord {
-    let text: String = match read_small_text(path, RECORD_READ_LIMIT, false) {
+    let text: String = match read_unlinked_small_text(path, RECORD_READ_LIMIT) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return ReadRecord { progress: Progress::default(), failure: None },
         Err(error) => return ReadRecord { progress: Progress::default(), failure: Some(format!("{}: {error}", path.display())) },
@@ -292,7 +300,8 @@ pub enum LongPass {
 /// A name this run made up cannot be an entry that was already there,
 /// so the open that creates it never writes into a file that existed before the run,
 /// which one check followed by a separate open cannot promise:
-/// between the two, another program can put a second name for one of the user's files at the name that was checked,
+/// between the two,
+/// another program can put a second name for one of the user's files at the name that was checked,
 /// and the open would then truncate the file through that other name.
 ///
 /// In TS you'd write (pseudocode):

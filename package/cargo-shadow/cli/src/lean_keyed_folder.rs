@@ -34,7 +34,8 @@ use std::{ffi::OsString, fs, os::unix::ffi::OsStrExt, path::{Path, PathBuf}, pro
 use sha2::{Digest, Sha256};
 /// The reader of `config.toml`.
 use toml_edit::DocumentMut;
-/// Named reads of paths and text: a ledger is read the way every other name here is.
+/// Named reads of paths and text:
+/// a ledger is read the way every other name here is.
 use crate::lean_text::read_small_text;
 
 /// The Cargo variable the shadow sets for the child only.
@@ -204,10 +205,10 @@ pub fn leave_ledger(folder: &Path, root: &Path) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export const readLedger = (folder: string): string | undefined => readSmallText(join(folder, LEDGER_FILE), LEDGER_BYTES, true);
+/// export const readLedger = (folder: string): string | undefined => readSmallText(join(folder, LEDGER_FILE), LEDGER_BYTES);
 /// ```
 pub fn read_ledger(folder: &Path) -> Option<PathBuf> {
-    let text: String = read_small_text(&folder.join(LEDGER_FILE), LEDGER_BYTES, true).ok()?;
+    let text: String = read_small_text(&folder.join(LEDGER_FILE), LEDGER_BYTES).ok()?;
     let line: &str = text.lines().next()?.trim();
     return if line.is_empty() { None } else { Some(PathBuf::from(line)) };
 }

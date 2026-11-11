@@ -35,7 +35,8 @@ use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, profile_
 use crate::lean_keyed_folder::read_ledger;
 /// The proof and the removal.
 use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
-/// Imports `missing` from `crate::lean_identity`: an entry is gone only when its absence is confirmed.
+/// Imports `missing` from `crate::lean_identity`:
+/// an entry is gone only when its absence is confirmed.
 use crate::lean_identity::{Deadline, missing};
 /// Imports the names this file uses from `crate::lean_proc_scan`.
 use crate::lean_proc_scan::{ScanReport, scan_processes};

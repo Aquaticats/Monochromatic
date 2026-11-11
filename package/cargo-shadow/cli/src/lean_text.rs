@@ -68,9 +68,10 @@ pub fn is_directory(entry: &DirEntry) -> bool {
 }
 
 /// What:
-/// `pub fn read_small_text(path: &Path, limit: usize, follow_links: bool) -> std::io::Result<String>` is the text of a regular file at a
-/// path of at most `limit` bytes,
-/// opened so that nothing at the path can hold the caller.
+/// `pub fn read_small_text(path: &Path, limit: usize) -> std::io::Result<String>` is the text of a regular file at a path of at most
+/// `limit` bytes,
+/// opened so that nothing at the path can hold the caller,
+/// and a link at the path is followed.
 /// Why:
 /// Every name these tools read is a name in a directory others can write:
 /// the tool's own state directory,
@@ -82,15 +83,46 @@ pub fn is_directory(entry: &DirEntry) -> bool {
 /// the entry it opened must be a regular file,
 /// and the read stops one byte past the limit,
 /// so a file longer than any file of its kind is reported instead of read.
-/// Whether a link is followed is the caller's decision:
-/// reading a ledger through one cannot change what it names,
-/// and a record of this tool's own is never read through one.
+/// A ledger is read through a link it was given:
+/// reading cannot change what the link names,
+/// and the workspace it names is the guard a removal needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const readSmallText = (path: string, limit: number, followLinks: boolean): string => readFileSync(path, { flag: 'r' }).toString().slice(0, limit + 1);
+/// const readSmallText = (path: string, limit: number): string => readFileSync(path, { flag: 'r' }).toString().slice(0, limit + 1);
 /// ```
-pub fn read_small_text(path: &Path, limit: usize, follow_links: bool) -> io::Result<String> {
+pub fn read_small_text(path: &Path, limit: usize) -> io::Result<String> {
+    return read_small_text_opened(path, limit, true);
+}
+
+/// What:
+/// `pub fn read_unlinked_small_text(path: &Path, limit: usize) -> std::io::Result<String>` is `read_small_text` with one difference:
+/// a symbolic link at the path fails instead of being followed.
+/// Why:
+/// The record of this tool's own is never read out of a file another name holds:
+/// its name is fixed inside the tool's state directory,
+/// so a link there is not the tool's file,
+/// and following it would take the positions from a file this tool never wrote.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readUnlinkedSmallText = (path: string, limit: number): string => readFileSync(path, { flag: 'r', noFollow: true }).toString().slice(0, limit + 1);
+/// ```
+pub fn read_unlinked_small_text(path: &Path, limit: usize) -> io::Result<String> {
+    return read_small_text_opened(path, limit, false);
+}
+
+/// What:
+/// `fn read_small_text_opened(path: &Path, limit: usize, follow_links: bool) -> std::io::Result<String>` is the read both readers share.
+/// Why:
+/// The two differ in one flag,
+/// and the flags of the open are read in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readSmallTextOpened(path: string, limit: number, followLinks: boolean): string
+/// ```
+fn read_small_text_opened(path: &Path, limit: usize, follow_links: bool) -> io::Result<String> {
     let mut flags: OFlags = OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NONBLOCK;
     if !follow_links {
         flags |= OFlags::NOFOLLOW;
@@ -102,7 +134,7 @@ pub fn read_small_text(path: &Path, limit: usize, follow_links: bool) -> io::Res
     }
     let file: fs::File = fs::File::from(opened);
     let mut text: String = String::new();
-    file.take(u64::try_from(limit).unwrap_or(u64::MAX) + 1).read_to_string(&mut text)?;
+    file.take(u64::try_from(limit).unwrap_or(u64::MAX).saturating_add(1)).read_to_string(&mut text)?;
     if text.len() > limit {
         return Err(io::Error::other(format!("larger than the {limit} bytes any file of its kind is")));
     }
