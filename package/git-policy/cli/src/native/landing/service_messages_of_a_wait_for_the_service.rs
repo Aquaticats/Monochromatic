@@ -37,9 +37,25 @@ use std::time::Duration;
 /// ```
 pub(crate) fn waiting_for(blocker: Option<&str>) -> String {
     return match blocker {
-        Some(text) => format!(" It was waiting for: {}", text.trim_end_matches('.')),
+        Some(text) => format!(" It was waiting for: {}", ending_in_a_full_stop(text.trim())),
         None => String::new(),
     };
+}
+
+/// What:
+///  `text` with one full stop at its end,
+///  its own or the one this adds.
+/// Why:
+///  A notice the service sent already ends in a full stop,
+///  and a second one after a quoted notice reads as a mistake,
+///  while a quote with none would run into the sentence that follows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.endsWith('.') ? text : text + '.'
+/// ```
+fn ending_in_a_full_stop(text: &str) -> String {
+    return if text.ends_with('.') { text.to_string() } else { format!("{text}.") };
 }
 
 /// What:
