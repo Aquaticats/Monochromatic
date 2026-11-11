@@ -307,6 +307,13 @@ fn a_service_the_manager_made_elsewhere_is_refused_with_both_addresses() {
     for part in [made.display().to_string(), socket_path(runtime.as_path(), INSTANCE).display().to_string(), String::from("/run/user/1000"), String::from("XDG_RUNTIME_DIR")] {
         assert!(said.contains(part.as_str()), "the message names {part:?}: {said}");
     }
+    // The socket the manager already holds is another runtime directory's service for this worktree, and this command starts
+    //  nothing: a unit started here would listen for a worktree no command of this runtime directory ever looks at.
+    assert!(
+        !manager.calls.iter().any(|call| { return call.starts_with("start "); }),
+        "nothing was started in a manager that serves another runtime directory: {:?}",
+        manager.calls
+    );
 }
 
 /// What:
