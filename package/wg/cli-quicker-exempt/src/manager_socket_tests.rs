@@ -209,7 +209,8 @@ fn endpoint_of(manager: &FakeManager) -> ManagerEndpoint {
 }
 
 /// A manager that sends anything but the reply does not extend the call's deadline:
-/// the call ends at its own timeout, and not when the noise stops.
+/// the call ends at its own timeout,
+/// and not when the noise stops.
 #[test]
 fn a_manager_that_sends_other_messages_does_not_extend_the_call() {
     let mut manager = fake_manager("noise", Answer::Noise);

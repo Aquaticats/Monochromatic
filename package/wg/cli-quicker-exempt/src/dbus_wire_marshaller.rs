@@ -29,7 +29,8 @@ use super::METHOD_CALL;
 /// The first byte of a little-endian message.
 use super::ENDIAN_LITTLE;
 
-/// Where an array's length field is, and where its content starts.
+/// Where an array's length field is,
+/// and where its content starts.
 ///
 /// The two are not adjacent when the element alignment is wider than the length field:
 /// the content starts after the padding that aligns its first element,

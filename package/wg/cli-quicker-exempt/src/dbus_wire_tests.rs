@@ -132,7 +132,8 @@ fn the_header_names_the_member() {
     assert_eq!(message.member.as_deref(), Some("AttachProcessesToUnit"));
 }
 
-/// A reader of one body, written from the specification's layout rules,
+/// A reader of one body,
+/// written from the specification's layout rules,
 /// so a value's bytes are checked against the format and not against the writer.
 struct SpecReader<'a> {
     /// The bytes being read.
@@ -141,7 +142,8 @@ struct SpecReader<'a> {
     at: usize,
 }
 
-/// Reading, by the specification.
+/// Reading,
+/// by the specification.
 impl<'a> SpecReader<'a> {
     /// Starts at the first byte of a body.
     fn new(bytes: &'a [u8]) -> SpecReader<'a> {
@@ -156,7 +158,8 @@ impl<'a> SpecReader<'a> {
         return padding;
     }
 
-    /// Reads a 32-bit number, aligned to four.
+    /// Reads a 32-bit number,
+    /// aligned to four.
     fn u32(&mut self) -> u32 {
         let _padding = self.align(4);
         let value = u32::from_le_bytes(self.bytes[self.at..self.at + 4].try_into().expect("four bytes"));
@@ -164,12 +167,15 @@ impl<'a> SpecReader<'a> {
         return value;
     }
 
-    /// Reads a boolean, aligned to four.
+    /// Reads a boolean,
+    /// aligned to four.
     fn flag(&mut self) -> bool {
         return self.u32() != 0;
     }
 
-    /// Reads a string: its length, its bytes and the end byte.
+    /// Reads a string:
+    /// its length,
+    /// its bytes and the end byte.
     fn string(&mut self) -> String {
         let length = usize::try_from(self.u32()).expect("length fits");
         let text = String::from_utf8_lossy(&self.bytes[self.at..self.at + length]).into_owned();
@@ -179,7 +185,9 @@ impl<'a> SpecReader<'a> {
         return text;
     }
 
-    /// Reads a signature: its length, its bytes and the end byte.
+    /// Reads a signature:
+    /// its length,
+    /// its bytes and the end byte.
     fn signature(&mut self) -> String {
         let length = usize::from(self.bytes[self.at]);
         self.at += 1;
@@ -190,7 +198,8 @@ impl<'a> SpecReader<'a> {
         return text;
     }
 
-    /// Reads an unsigned 64-bit number, aligned to eight.
+    /// Reads an unsigned 64-bit number,
+    /// aligned to eight.
     fn u64(&mut self) -> u64 {
         let _padding = self.align(8);
         let value = u64::from_le_bytes(self.bytes[self.at..self.at + 8].try_into().expect("eight bytes"));
@@ -217,12 +226,15 @@ impl<'a> SpecReader<'a> {
 /// An array of eight-byte-aligned elements declares its content's length and not its padding,
 /// read against the specification's layout.
 ///
-/// The body is that of `SetUnitProperties`: the unit's name, the runtime flag and the properties,
+/// The body is that of `SetUnitProperties`:
+/// the unit's name,
+/// the runtime flag and the properties,
 /// and the property here carries an `a(st)` device list,
 /// whose elements start on eight-byte boundaries.
 ///
 /// The scope name's length moves the array's length field between the two four-byte positions of an
-/// eight-byte boundary, so every leaf length is checked and not one that happens to align.
+/// eight-byte boundary,
+/// so every leaf length is checked and not one that happens to align.
 #[test]
 fn an_array_of_aligned_elements_declares_its_content_length() {
     for leaf_length in 2..=13 {

@@ -5,7 +5,8 @@
 
 /// The stop under test.
 use crate::keeper_process::{process_start_time, stop_command_process};
-/// Starting a fixture in its own session, as the watcher and the keeper are.
+/// Starting a fixture in its own session,
+/// as the watcher and the keeper are.
 use std::os::unix::process::CommandExt;
 /// The fixture's processes.
 use std::process::{Child, Command, Stdio};
@@ -16,7 +17,8 @@ const FIXTURE_SCRIPT: &str = "/usr/bin/sleep 60 & wait";
 /// How many processes are in a process group,
 /// read from the `pgrp` field of every `/proc/<pid>/stat`.
 /// Counting and not asking whether the group exists matters:
-/// a group of one member is the leader alone, which is what a stop that missed the children leaves.
+/// a group of one member is the leader alone,
+/// which is what a stop that missed the children leaves.
 fn group_member_count(pid: i32) -> usize {
     let mut members = 0;
     let Ok(entries) = std::fs::read_dir("/proc") else {
@@ -76,7 +78,8 @@ fn expected_command() -> Vec<Vec<u8>> {
 
 /// The child of a watcher is in the watcher's group,
 /// so a stop that signalled only the leader left it running.
-/// The stop ends the group, and the wait it already had stays bounded.
+/// The stop ends the group,
+/// and the wait it already had stays bounded.
 #[test]
 fn a_stop_ends_the_process_group_of_the_watcher_it_stops() {
     let mut child = session_leader();

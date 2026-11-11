@@ -244,7 +244,8 @@ fn a_pid_the_bus_names_differently_is_not_signalled() {
     assert!(signal.sent.borrow().is_empty(), "nothing was signalled");
 }
 
-/// The pid the bus just named is signalled, once.
+/// The pid the bus just named is signalled,
+/// once.
 #[test]
 fn a_pid_the_bus_still_names_is_signalled() {
     let mut lookup = ScriptedLookup { names: Some(IMPOSTOR_PID) };

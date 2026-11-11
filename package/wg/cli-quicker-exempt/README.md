@@ -336,7 +336,8 @@ reproduced),
 and because the old bus-name call is what a second manager could take over.
 One connection and one login precede each call,
 and the socket's peer credentials are checked before anything is written.
-Each call has one deadline, taken before the connect:
+Each call has one deadline,
+taken before the connect:
 not the socket's read timeout,
 which restarts with every read,
 so a manager that emits an unrelated message more often than the timeout cannot keep an unanswered call open.
@@ -690,8 +691,10 @@ a kernel without process descriptors falls back to the bus proof and a direct si
 The guard also ends when its watcher does:
 the watcher holds the guard's standard input for its whole life,
 and the guard's loop ends when that input reaches its end,
-which a stop, an exit or a kill of the watcher all close.
-Without that, a guard outlived its watcher and kept polling the bus,
+which a stop,
+an exit or a kill of the watcher all close.
+Without that,
+a guard outlived its watcher and kept polling the bus,
 and every restart added another one.
 
 The guard's decisions and its signal are tested
@@ -1011,7 +1014,8 @@ and reported again after it regains the application and loses it later.
 ### Confirming a move
 
 An adoption is confirmed from `/proc/<pid>/cgroup`,
-and the answer is the scope's own cgroup path, compared by whole components:
+and the answer is the scope's own cgroup path,
+compared by whole components:
 a unit whose name contains the slice's name sits beside the slice and not in it,
 so `.../app.slice/app-monochromatic\x2dupdates.slice-task.scope` is not a move
 even though it holds every character of `app-monochromatic\x2dupdates.slice`.
@@ -1080,7 +1084,9 @@ The limit covers every byte of the line and not only the first one:
 readiness and the line are separate steps,
 a child can write part of a line and keep its stream open,
 and a read to the newline then waits for the rest of a line that may never come.
-A handshake that stops arriving, mid-line or before it, ends at the sixty seconds with the message it waited for,
+A handshake that stops arriving,
+mid-line or before it,
+ends at the sixty seconds with the message it waited for,
 and one line is capped at a few kilobytes,
 so a stream that never sends a newline cannot fill memory either.
 `line_ready_tests.rs` reads both handshakes' sources to keep the blocking read and the unbounded child wait out of them,
@@ -1094,7 +1100,8 @@ and adopts a live committed candidate after interruption.
 
 A stop of the watcher or of a holder signals the process group it leads,
 not only its process:
-each one starts its `ip` calls, its `setpriv` and `busctl` clients and the leftover sweep's `systemctl`
+each one starts its `ip` calls,
+its `setpriv` and `busctl` clients and the leftover sweep's `systemctl`
 as children of a session it leads,
 and a signal to the leader alone left an in-flight manager client running,
 able to change the user's manager after `watch-stop` returned.

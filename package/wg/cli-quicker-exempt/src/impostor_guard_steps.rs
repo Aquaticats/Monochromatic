@@ -62,7 +62,8 @@ pub trait SignalSend {
     fn send(&self, pid: i32) -> Result<(), String>;
 }
 
-/// The bus, as the proof asks it.
+/// The bus,
+/// as the proof asks it.
 struct BusLookup<'a> {
     /// The open connection.
     connection: &'a mut BusConnection,
@@ -134,7 +135,8 @@ fn kill_directly(pid: i32) -> Result<(), String> {
 /// is the proof that the pid still names the owner,
 /// and the process descriptor opened for it keeps the signal on that process for the instant between the proof and the signal.
 ///
-/// Every answer that is not exactly this pid is a refusal, and nothing is signalled.
+/// Every answer that is not exactly this pid is a refusal,
+/// and nothing is signalled.
 pub fn kill_proven(
     lookup: &mut dyn OwnerLookup,
     signal: &dyn SignalSend,

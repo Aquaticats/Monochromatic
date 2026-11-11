@@ -13,7 +13,8 @@ use super::LOUD_MARKER;
 use crate::report_cause::quote_name;
 /// The search path the child's command gets.
 use crate::bounded_command::SECURE_PATH;
-/// Reading its lines, reading its input and writing them on.
+/// Reading its lines,
+/// reading its input and writing them on.
 use std::io::{BufRead, BufReader, Read, Write};
 /// Starting the child and taking its streams.
 use std::process::{ChildStdin, Command, Stdio};
@@ -40,7 +41,8 @@ pub struct GuardSetup {
 ///
 /// The watcher holds it for as long as it runs,
 /// and the guard ends when it closes,
-/// which happens when the watcher stops, exits or is killed:
+/// which happens when the watcher stops,
+/// exits or is killed:
 /// a guard that outlived its watcher kept polling the bus with nobody to report to,
 /// and every restart added another one.
 pub struct GuardHandle {
