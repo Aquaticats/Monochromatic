@@ -23,6 +23,19 @@ The installed repository wrapper at `node_modules/.bin/git:40` checks adjacent N
 then a command-resolved binary,
 and finally executes bare `node`:
 
+Note 2026-11-10T04:47:31-05:00:
+`node_modules/.bin/git` was pnpm's launcher for the workspace package `@monochromatic-dev/git-policy-cli`,
+whose `package.json` declared `"bin": { "git": "dist/final/node/index.mjs" }`.
+The TypeScript wrapper,
+its tasks and its bins left the tree on 2026-10-13 in `642b6d72cb`,
+and the package keeps no `"git"` entry in its `bin` field since,
+so the cited path exists nowhere and nothing writes it again.
+The wrapper's current entry is the native executable at the toolchain install's postinstall link,
+`.cache/monochromatic-git-policy-cli-bin/git`,
+which starts no Node process at all,
+so a Node lookup cannot fail on the wrapper's path any more.
+The quoted shim stays as the record of what failed on 2026-09-12.
+
 ```sh
 # node_modules/.bin/git:42 through 49
 elif [ -x "$basedir/node" ]; then
@@ -34,6 +47,28 @@ elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
 else
   exec node  "$basedir/../@monochromatic-dev/git-policy-cli/dist/final/node/index.mjs" "$@"
 ```
+
+Note 2026-11-10T13:16:00-05:00:
+`node_modules/.bin/git` is not in the tree any more.
+`pnpm install` writes every shim in that directory
+from a workspace package's `bin` field,
+and the package that supplied this one was
+`package/git-policy/cli`,
+whose manifest read `"bin": {"git": "dist/final/node/index.mjs"}`;
+it was deleted with the rest of the TypeScript wrapper
+on 2026-10-13 in `642b6d72cb`
+(refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust workflow).
+The line numbers above belong to that deleted shim.
+The installed pnpm 12.18.0 still writes the same node-resolution chain
+for a workspace bin,
+in a newer template:
+`elif [ -x "$basedir/node" ]`,
+then `elif command -v node`,
+then `elif [ -n "$exe" ] && command -v node.exe`,
+and last the bare `exec node` that produced the diagnostic above.
 
 The diagnostic and failed lookup establish the boundary that failed.
 They do not establish which component constructed that command's `PATH`.

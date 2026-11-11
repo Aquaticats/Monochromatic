@@ -40,7 +40,6 @@ use crate::service_server::Bind;
 use crate::service_provision::ProvisionHost;
 use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktree;
 /// The look for the commit a request that was already sent made.
-use crate::service_commit_looking_for_what_landed::journal_of_request;
 use crate::service_commit_fitting_request::embedded_that_fits;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
 /// The file a typed message is kept in when the commit cannot be made.
@@ -56,6 +55,8 @@ use crate::random_id::random_uuid;
 use crate::repository_facts::RepositoryFacts;
 use crate::service_client::{ClientConfig, Submitted};
 use crate::service_commit_waiting_notices::submit_saying_where_it_stands;
+/// What a commit does when the service answers that the branch moved under it.
+use crate::service_commit_after_a_moved_branch::{MovedBranch, after_a_moved_branch};
 use crate::service_commit_args::{opens_editor, parse_service_commit};
 use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again};
@@ -64,7 +65,7 @@ use crate::service_provision::provision_when_needed;
 use crate::service_branch_shows::display_text;
 /// The result of a commit that landed,
 /// and the work after it.
-use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_service, the_landed_commit};
+use crate::service_landed_aftermath::{LandedAftermath, the_landed_commit};
 use crate::service_messages::{ClientFailure, render};
 /// Which end of the commit's scratch tree a submitted request leaves it to.
 use crate::service_commit_tree_ownership::the_service_never_took;
@@ -75,10 +76,10 @@ use crate::service_amend_replayed::{AmendedCommit, AmendsTree, amended_fields, t
 /// and the message Git typed into the commit it built.
 use crate::service_commit_request_of::{RequestOf, the_request_of};
 use crate::service_protocol::CommitRequest;
-use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
+use crate::service_pruned::{content_was_removed, reach_service_phase};
 use crate::transaction_phase::Phase;
-use crate::service_commit_branch_moved::{MovedBranch, Rebuild, after_the_branch_moved};
 use std::ffi::OsString;
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
 /// What the service path returns:
@@ -328,6 +329,14 @@ pub fn service_commit<F: RepositoryFacts>(
                 timing.after_landing += after_landing.elapsed();
                 return Ok(outcome);
             }
+            Ok(Submitted::Held { words, .. }) => {
+                // The commit is written and kept, and a reference lock keeps its branch where it is: the owner's rule is that
+                //  commits never fail, so the command says what became of it and exits 0 (`SPEC.md`, "A commit held behind a
+                //  reference lock"). Nothing is pushed and nothing is reviewed here: no branch names the commit yet, and the
+                //  command that made it is over before its gate could run.
+                let _written = writeln!(std::io::stderr(), "{}: {words}", crate::wrapper_names_old_and_new::PROGRAM.current);
+                return Ok(ServiceCommit { result: TransactionResult { events: Vec::new(), exit_code: 0, landed_oid: None, uses_lfs: false }, handoff: None });
+            }
             Ok(Submitted::PrepareAgain { landed, .. }) => {
                 // The service did not land this attempt, so it left the tree to this command, which reads the change it
                 //  captured from the tree's private index here (`retry_of`) and releases the tree once the arm ends.
@@ -345,65 +354,43 @@ pub fn service_commit<F: RepositoryFacts>(
                 //  tree is released beside the command once the change it captured has been read from it.
                 let _released: HandedBackTree = HandedBackTree(ready.scratch.0.clone());
                 ready.scratch.held_by_the_service(true);
-                // What the move makes of this attempt, and of the person's message, is the rule `service_commit_branch_moved.rs`
-                //  holds: no commit kind waits on the session that moved the branch, and none asks the person twice.
-                let again: Rebuild = after_the_branch_moved(MovedBranch {
+                retry = Some(after_a_moved_branch(MovedBranch {
                     invocation,
                     ready: &ready,
-                    native_inputs,
                     sent: &sent,
                     embedded: embedded.as_ref(),
-                    amended: amended.as_ref(),
+                    native_inputs,
                     typed: typed.as_deref(),
-                    id: id.as_str(),
-                    attempt,
-                    first_build_began,
                     native,
                     editor_possible,
                     rewords,
-                })?;
-                retry = Some(again.retry);
-                amended = again.amended.or(amended);
-                fixed_message = again.fixed_message.or(fixed_message);
-                reissued_line = again.reissued_line.or(reissued_line);
-                unlanded.extend(again.unlanded);
+                    attempt,
+                    first_build_began,
+                    id: id.as_str(),
+                    amended: &mut amended,
+                    fixed_message: &mut fixed_message,
+                    reissued_line: &mut reissued_line,
+                    unlanded: &mut unlanded,
+                })?);
                 continue;
             }
-            Err(ClientFailure::Unavailable)
-                if prepared_content_missing(
-                    native_inputs.capture.layout.common_dir.as_path(),
-                    native_inputs.capture.layout.object_directory.as_path(),
-                    native_inputs.capture.layout.object_format.as_str(),
-                    &sent,
-                ) =>
-            {
-                // The service could not land the request because an object it names is gone from the repository, and the
-                //  worktree is not read again to make it.
-                return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
-            }
             Err(failure) => {
-                // The journal folder of this worktree's service, which a lost answer is looked up in
-                //  (`service_commit_looking_for_what_landed.rs`); it is read here, and not before, so a commit that is answered
-                //  pays nothing for it.
-                let journal: Option<PathBuf> = journal_of_request(&sent);
-                return after_a_silent_or_failed_service(
+                let failed: crate::service_commit_after_a_failure::FailedAttempt<'_> = crate::service_commit_after_a_failure::FailedAttempt {
                     failure,
-                    LandedAftermath {
-                        invocation,
-                        ready: &ready,
-                        events: ready.events.clone(),
-                        native_inputs,
-                        commit: sent.commit.as_deref(),
-                        first_parent,
-                        fixed_message: fixed_message.as_ref(),
-                        embedded_in_use,
-                            amended_as_new: if lands_as_new { amended.as_ref() } else { None },
-                        unlanded: unlanded.as_slice(),
-                        request_id: id.as_str(),
-                        journal: journal.as_deref(),
-                        config: config.clone(),
-                    },
-                );
+                    sent: &sent,
+                    events: ready.events.as_slice(),
+                    ready: &ready,
+                    invocation,
+                    native_inputs,
+                    first_parent: first_parent.as_str(),
+                    fixed_message: fixed_message.as_ref(),
+                    embedded_in_use,
+                    amended_as_new: if lands_as_new { amended.as_ref() } else { None },
+                    unlanded: unlanded.as_slice(),
+                    request_id: id.as_str(),
+                    config: &config,
+                };
+                return crate::service_commit_after_a_failure::answer_after_a_failure(failed);
             }
         }
     }

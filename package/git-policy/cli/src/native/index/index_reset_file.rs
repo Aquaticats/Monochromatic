@@ -24,7 +24,7 @@
 use crate::diagnostic_log::debug;
 use crate::index_byte_search::has_nonzero_byte;
 use crate::index_full::{FullIndex, parse_full_index};
-use crate::index_full_write::write_full_index;
+use crate::index_full_write::{Trailer, write_full_index};
 use crate::index_stat::IndexStamp;
 use crate::index_reset::reset_paths;
 use crate::index_reset_worktree_stat::LandingStat;
@@ -294,7 +294,10 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     reset_paths(&mut index, names.as_slice(), tree.as_slice(), around.settings, stamp, WorktreeStat::Recorded(&source))?;
     let format: ObjectFormat = around.layout.object_format;
     let hash: fn(&[u8]) -> Vec<u8> = if name_length(format) == 20 { sha1_bytes } else { sha256_bytes };
-    let bytes: Vec<u8> = write_full_index(&index, &hash)?;
+    // The file ends as the configuration asks: Git writes zeros for a skipped hash, and the differential controls compare
+    // the bytes, so this update writes what Git's own `reset` would.
+    let trailer: Trailer = if around.settings.skip_hash { Trailer::Skipped { checksum_length: name_length(format) } } else { Trailer::Hashed };
+    let bytes: Vec<u8> = write_full_index(&index, &hash, trailer)?;
     // A copy that could not be published is a decline, and Git's own reset then runs.
     if publish(built, bytes.as_slice(), around.settings.shared_repository).is_err() {
         return None;

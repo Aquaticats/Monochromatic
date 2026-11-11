@@ -37,7 +37,7 @@ use std::path::{Path, PathBuf};
 /// so the version a service announces in its welcome is what is compared,
 /// and a service of another version is asked to retire before any request is sent
 /// (`service_client_reach_service.rs`).
-pub const PROTOCOL_VERSION: u32 = 10;
+pub const PROTOCOL_VERSION: u32 = 11;
 
 /// The release of this build:
 /// the crate version,
@@ -255,6 +255,14 @@ pub struct CommitRequest {
     ///  service keeps it with the commit it lands,
     /// and a retry uses it to tell which of two overlapping captures is the later.
     pub captured: u64,
+    /// The command that will decide this commit's post-commit checks,
+    /// spelled as `held_push_holder_and_verdict::this_command` does,
+    /// or empty when it could not be read.
+    /// The service holds the commit's push before it answers,
+    /// and only the command that asked can say who will promote or
+    ///  forget that record,
+    /// so a record whose command is gone can be told from one that is still deciding.
+    pub holder: String,
 }
 
 /// A commit the service landed and when its bytes were captured,
@@ -478,6 +486,12 @@ pub enum ServiceMessage {
     /// and a service of a release that did not send it leaves it absent,
     /// which the client's record states as no figures rather than as zeros.
     Landed { id: String, commit: String, already: bool, landing: Option<LandingFigures> },
+    /// The commit is written and kept,
+    /// and a reference lock keeps its branch where it is:
+    /// `words` says so,
+    /// names the lock and the branch,
+    /// and says that the next command that finds the lock gone moves it.
+    Held { id: String, commit: String, words: String },
     /// A named path changed on the branch since the base;
     /// prepare again from `base`.
     RetryPrepare { id: String, base: String, landed: Vec<LandedCapture> },

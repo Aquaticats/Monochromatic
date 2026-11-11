@@ -31,6 +31,7 @@ use super::{Aside, TRASH_PARENT, Trash};
 use crate::fs_beneath::open_directory_at;
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::worktree_path_failure_message::path_failure;
+use crate::worktree_trash_manifest::is_trash_name;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt as _;
@@ -65,23 +66,48 @@ use std::path::{Path, PathBuf};
 /// ```
 pub(super) fn remove_containers_beneath(holder: &File, name: &OsStr, shown: &Path) -> Result<(), String> {
     let directory: File = path_failure(open_directory_at(holder, name), shown, "is not a plain directory")?;
-    let mut children: Vec<OsString> = Vec::new();
+    let mut children: Vec<(OsString, Option<bool>)> = Vec::new();
     for listed in path_failure(std::fs::read_dir(crate::fs_beneath::handle_path(&directory)), shown, "cannot be listed")? {
         let entry: std::fs::DirEntry = path_failure(listed, shown, "cannot be listed")?;
-        children.push(entry.file_name());
+        children.push((entry.file_name(), listed_directory_of(&entry)));
     }
-    for child in children {
+    for (child, listed_directory) in children {
         let path: PathBuf = shown.join(&child);
         if names_the_container(Path::new(child.as_os_str())) {
             path_failure(remove_tree_beneath(shown, &directory, child.as_os_str(), None), path.as_path(), "cannot be removed")?;
             continue;
         }
-        if !is_directory_entry_at(&directory, child.as_os_str(), path.as_path())? {
+        // The listing already carries whether the entry is a directory, so only a listing that does not say costs a
+        //  lookup of its own.
+        let is_directory: bool = match listed_directory {
+            Some(found) => found,
+            None => is_directory_entry_at(&directory, child.as_os_str(), path.as_path())?,
+        };
+        if !is_directory {
             continue;
         }
         remove_containers_beneath(&directory, child.as_os_str(), path.as_path())?;
     }
     return Ok(());
+}
+
+/// What:
+///  Whether a listed entry is a directory,
+/// not a link to one,
+/// as far as the listing said,
+/// or nothing when the listing did not say.
+/// Why:
+///   A walk reads every directory's entries anyway,
+/// and the type a listing hands back is the entry's own;
+/// re-examining the
+///  name would be one lookup per entry of every directory the leave-out sets aside.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listedDirectoryOf = (entry) => entry.fileType().map((kind) => kind.isDirectory());
+/// ```
+fn listed_directory_of(entry: &std::fs::DirEntry) -> Option<bool> {
+    return entry.file_type().ok().map(is_dir_kind);
 }
 
 /// What:
@@ -148,7 +174,7 @@ pub(super) fn names_the_container(relative: &Path) -> bool {
 /// const trashName = (trash: Trash) => trash.name;
 /// ```
 fn trash_name(trash: &Trash) -> &str {
-    return trash.name.as_str();
+    return trash.name();
 }
 
 /// What:
@@ -179,13 +205,30 @@ fn is_dir_kind(kind: std::fs::FileType) -> bool {
 /// and the walk skips the trash parent so that this add's own trash is
 ///  not moved into itself;
 /// naming them from the parent's listing is what tells the two apart.
-/// The parent is reached through the
-///  held handle of the snapshot and listed once,
-/// so a name that is not text is carried by its bytes.
+/// Only a directory named the
+///  way the wrapper names a trash is one:
+/// the parent is kept out of every commit,
+/// so a person may keep their own
+///  directories there,
+/// and taking those for an earlier add's trash moved them into this add's trash,
+/// where the
+///  service deleted them.
+/// The parent is reached through the held handle of the snapshot and listed once,
+/// so a name
+///  that is not text is carried by its bytes.
+///   A trash is recognised by the name the wrapper gives one,
+/// and what this add takes over is identified again at the move,
+/// so the
+///  emptying deletes only the directory it moved;
+/// the manifest inside a trash is what lets a record-less one be emptied
+///  outside a copy (`worktree_trash_own_manifest.rs`),
+/// and a copy re-creates the identities it names,
+/// so it decides
+///  nothing here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// readdir(join(stage, TRASH_PARENT)).filter((name) => name !== trash?.name).map((name) => join(TRASH_PARENT, name));
+/// readdir(join(stage, TRASH_PARENT)).filter((name) => isTrashName(name) && name !== trash?.name && provesTheWrapperMadeIt(stage, name)).map((name) => join(TRASH_PARENT, name));
 /// ```
 pub(super) fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec<PathBuf>, String> {
     let parent: PathBuf = stage.join(TRASH_PARENT);
@@ -200,6 +243,11 @@ pub(super) fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec
         let entry: std::fs::DirEntry = path_failure(listed_entry, parent.as_path(), "cannot be listed")?;
         let name: OsString = entry.file_name();
         if own == name.to_str() || !is_directory_entry(&entry) {
+            continue;
+        }
+        // A name that is not the wrapper's shape of a trash is the person's own directory, and the snapshot carries it into the new
+        //  worktree as it is.
+        if !name.to_str().is_some_and(is_trash_name) {
             continue;
         }
         found.push(Path::new(TRASH_PARENT).join(name));

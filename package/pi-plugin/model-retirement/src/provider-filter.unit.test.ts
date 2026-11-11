@@ -12,6 +12,7 @@ import {
 import type { ProviderConfig, } from '@earendil-works/pi-coding-agent';
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type {
+  AnyModel,
   Api,
   ClassifierApi,
   ClassifierModel,
@@ -298,6 +299,21 @@ function requireConfig(plan: ProviderFilterPlan,): ProviderConfig {
   if (plan.kind !== 'config')
     throw new Error('expected a configuration plan',);
   return plan.config;
+}
+
+/**
+ Read the ids a wrapped provider lists through its all-model listing.
+
+ @param provider - wrapped provider the test calls
+
+ @returns ids the listing reports, in order
+
+ @throws when the wrapper declared no all-model listing
+ */
+function allModelIds(provider: Provider,): readonly string[] {
+  if (provider.getAllModels === undefined)
+    throw new Error('the wrapper declared no getAllModels',);
+  return planIds(provider.getAllModels(),);
 }
 
 //endregion Fixtures
@@ -594,6 +610,94 @@ await describe({
             expect(wrapped.name,).toBe('hyper',);
             expect(typeof wrapped.stream,).toBe('function',);
             expect(wrapped.auth,).toBe(original.auth,);
+            // A provider without an all-model listing must not gain one: pi would read
+            // the added member as an empty non-chat catalog.
+            expect('getAllModels' in wrapped,).toBe(false,);
+          },
+        },),
+        it({
+          name: 'filters every model type through getAllModels',
+          fn: async function runAllModelsFiltering() {
+            /**
+             Chat models the composed provider lists.
+             */
+            const chat = [
+              chatModel({ provider: 'hyper', id: 'glm-5.2', },),
+              chatModel({ provider: 'hyper', id: 'glm-5.3', },),
+            ];
+            /**
+             Every model type the composed provider lists, chat included.
+             */
+            const all: AnyModel[] = [
+              ...chat,
+              imageModel({ provider: 'hyper', id: 'vendor/flux', },),
+              classifierModel({ provider: 'hyper', id: 'vendor/judge', },),
+            ];
+            /**
+             Composed provider that lists every model type, as pi wraps one.
+             */
+            const original = {
+              id: 'hyper',
+              name: 'hyper',
+              auth: { name: 'fixture-auth', },
+              getModels: function listChatModels(): readonly Model<Api>[] {
+                return chat;
+              },
+              getAllModels: function listEveryModel(): readonly AnyModel[] {
+                return all;
+              },
+            } as unknown as Provider;
+            /**
+             Index built from one retirement of the oldest chat model.
+             */
+            const index = buildRetiredIndex({
+              retirements: decideRetirements({
+                entries: chat.map(function toEntry(model,) {
+                  return {
+                    provider: model.provider,
+                    api: model.api,
+                    modelId: model.id,
+                  };
+                },),
+              },).retirements,
+            },);
+            /**
+             Wrapped provider.
+             */
+            const wrapped = wrapProvider({ provider: original, index, },);
+            expect(allModelIds(wrapped,),).toEqual(['glm-5.3', 'vendor/flux', 'vendor/judge',],);
+          },
+        },),
+        it({
+          name: 'lists nothing when the provider carries the all-model member without a function',
+          fn: async function runAllModelsFallback() {
+            /**
+             Chat models the composed provider lists.
+             */
+            const chat = [chatModel({ provider: 'hyper', id: 'glm-5.3', },)];
+            /**
+             Composed provider whose all-model member is present but holds no function,
+             which is what `in` sees and what the fallback answers.
+             */
+            const original = {
+              id: 'hyper',
+              name: 'hyper',
+              auth: { name: 'fixture-auth', },
+              getModels: function listChatModels(): readonly Model<Api>[] {
+                return chat;
+              },
+              getAllModels: undefined,
+            } as unknown as Provider;
+            expect('getAllModels' in original,).toBe(true,);
+            /**
+             Index retiring nothing, so only the fallback is under test.
+             */
+            const index = buildRetiredIndex({ retirements: [], },);
+            /**
+             Wrapped provider.
+             */
+            const wrapped = wrapProvider({ provider: original, index, },);
+            expect(allModelIds(wrapped,),).toEqual([],);
           },
         },),
         it({

@@ -1,10 +1,25 @@
 //! The tests of the removal primitive:
 //! the identity is checked before the move and again before the unlink,
-//! and a swapped entry is never deleted.
+//! a swapped entry is never deleted,
+//! and a directory this user may not write is made writable first when this user owns it,
+//! or left alone and named when it does not.
 
-use std::{fs, path::PathBuf};
+use std::{fs, os::unix::fs::{MetadataExt, PermissionsExt}, path::{Path, PathBuf}};
 
-use crate::lean_removal::{Item, Refusal, claim_into_trash, delete_claimed, item_of};
+use rustix::process::geteuid;
+
+use crate::lean_removal::{Deleted, Item, Refusal, claim_into_trash, delete_claimed, delete_claimed_as, item_of, modes_named, widened_mode};
+
+/// The modes a claimed tree of this issue holds:
+/// searchable but not writable,
+/// readable but not writable,
+/// and closed to its owner altogether.
+const CLOSED_MODES: [u32; 3] = [0o500, 0o555, 0o000];
+
+/// How deep below the claimed entry the closed directory sits,
+/// one case per depth.
+const DEPTHS: [usize; 3] = [1, 2, 3];
+
 use crate::test_scratch::scratch;
 
 #[test]
@@ -16,8 +31,9 @@ fn an_item_is_claimed_and_deleted_and_its_bytes_are_reported() {
     let item: Item = item_of(&path).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
     assert!(!path.exists());
-    let bytes: u64 = delete_claimed(&claimed, item.identity).expect("delete");
-    assert!(bytes >= 8192, "{bytes}");
+    let deleted: Deleted = delete_claimed(&claimed, item.identity).expect("delete");
+    assert!(deleted.bytes >= 8192, "{}", deleted.bytes);
+    assert!(deleted.modes_added.is_empty(), "a writable tree needs no mode change: {deleted:?}");
     assert!(!claimed.exists());
 }
 
@@ -72,4 +88,131 @@ fn a_symbolic_link_is_removed_as_a_link_and_its_target_stays() {
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
     delete_claimed(&claimed, item.identity).expect("delete");
     assert!(target.join("data").exists(), "the link's target is untouched");
+}
+
+/// What:
+/// `fn closed_tree(root: &Path, mode: u32, depth: usize) -> (PathBuf, PathBuf)` builds a tree whose directory at the given
+/// depth has the given mode,
+/// and returns the tree and that directory's path below it.
+/// Why:
+/// The cases of unlink failing with `EACCES` are a directory this user may not write,
+/// at the top of what the walk enters and below other directories,
+/// and one that holds both a file and a directory,
+/// so both the unlink and the descent are refused without the mode change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function closedTree(root: string, mode: number, depth: number): [string, string]
+/// ```
+fn closed_tree(root: &Path, mode: u32, depth: usize) -> (PathBuf, PathBuf) {
+    let tree: PathBuf = root.join("tree");
+    fs::create_dir_all(&tree).expect("tree");
+    let mut below: PathBuf = PathBuf::new();
+    let mut directory: PathBuf = tree.clone();
+    for level in 0..depth {
+        below = below.join(format!("level-{level}"));
+        directory = tree.join(&below);
+        fs::create_dir_all(&directory).expect("directory");
+        fs::write(directory.join("file"), b"x").expect("file");
+    }
+    fs::create_dir_all(directory.join("under")).expect("under");
+    fs::write(directory.join("under").join("deep-file"), b"x").expect("deep file");
+    fs::set_permissions(&directory, fs::Permissions::from_mode(mode)).expect("mode");
+    return (tree, below);
+}
+
+#[test]
+fn a_claimed_tree_whose_directory_this_user_may_not_write_is_still_removed_whole() {
+    for mode in CLOSED_MODES {
+        for depth in DEPTHS {
+            let root = scratch();
+            let (tree, below) = closed_tree(root.path(), mode, depth);
+            let item: Item = item_of(&tree).expect("identity");
+            let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
+            let deleted: Deleted = match delete_claimed(&claimed, item.identity) {
+                Ok(deleted) => deleted,
+                Err(refusal) => panic!("mode {mode:04o} at depth {depth}: {refusal}"),
+            };
+            assert!(!claimed.exists(), "mode {mode:04o} at depth {depth}: the whole tree is gone");
+            assert_eq!(deleted.modes_added, vec![claimed.join(&below)], "mode {mode:04o} at depth {depth}: the one directory this removal changed the mode of is named");
+            let named: String = modes_named(&deleted.modes_added);
+            assert!(named.contains("mode changed on 1 directories"), "mode {mode:04o} at depth {depth}: {named}");
+        }
+    }
+}
+
+#[test]
+fn a_symbolic_link_inside_a_claimed_tree_that_names_a_closed_directory_outside_it_leaves_it_untouched() {
+    let root = scratch();
+    let outside: PathBuf = root.path().join("outside");
+    fs::create_dir_all(&outside).expect("outside directory");
+    fs::write(outside.join("kept"), b"a person's file").expect("file");
+    fs::set_permissions(&outside, fs::Permissions::from_mode(0o500)).expect("mode");
+    let tree: PathBuf = root.path().join("tree");
+    fs::create_dir_all(tree.join("inner")).expect("tree");
+    let link: PathBuf = tree.join("inner").join("to-outside");
+    std::os::unix::fs::symlink(&outside, &link).expect("link");
+    let item: Item = item_of(&tree).expect("identity");
+    let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
+    let deleted: Deleted = delete_claimed(&claimed, item.identity).expect("delete");
+    assert!(!claimed.exists(), "the claimed tree is gone");
+    assert_eq!(fs::symlink_metadata(&outside).expect("the outside directory").mode() & 0o7777, 0o500, "the mode of a directory outside the claimed tree is as it was");
+    assert!(outside.join("kept").exists(), "what lies outside the claimed tree is untouched");
+    assert!(deleted.modes_added.is_empty(), "nothing outside the claimed tree was made writable: {deleted:?}");
+}
+
+#[test]
+fn a_closed_directory_of_another_user_stays_and_the_removal_says_so() {
+    // The removal runs as a user id the fixture's directories do not have,
+    // which is what a directory of another user looks like to the walk.
+    let root = scratch();
+    let somebody_else: u32 = geteuid().as_raw() ^ 1;
+    let tree: PathBuf = root.path().join("tree");
+    fs::create_dir_all(tree.join("mine")).expect("tree");
+    fs::write(tree.join("mine").join("file"), b"x").expect("file");
+    let theirs: PathBuf = tree.join("theirs");
+    fs::create_dir_all(&theirs).expect("their directory");
+    fs::write(theirs.join("file"), b"x").expect("file");
+    fs::set_permissions(&theirs, fs::Permissions::from_mode(0o500)).expect("mode");
+    let item: Item = item_of(&tree).expect("identity");
+    let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
+    let deleted: Deleted = match delete_claimed_as(&claimed, item.identity, somebody_else) {
+        Err(Refusal::PartlyRemoved { deleted, .. }) => deleted,
+        other => panic!("a directory of another user is a partial removal: {other:?}"),
+    };
+    assert_eq!(fs::symlink_metadata(claimed.join("theirs")).expect("their directory").mode() & 0o7777, 0o500, "their mode is not changed");
+    assert!(claimed.join("theirs").join("file").exists(), "what lies under their directory stays");
+    assert!(!claimed.join("mine").exists(), "what this user owns is still removed");
+    assert!(deleted.modes_added.is_empty(), "nothing was made writable: {deleted:?}");
+    assert!(
+        deleted.remaining.iter().any(|reason| {
+            return reason.contains("is owned by uid") && reason.contains("was not changed");
+        }),
+        "the reason names the owner and says the mode was not changed: {deleted:?}"
+    );
+}
+
+#[test]
+fn the_display_of_a_partial_removal_says_what_went_and_what_stayed() {
+    let refusal: Refusal = Refusal::PartlyRemoved {
+        path: PathBuf::from("/base/.cargo-shadow-trash/1-2-0-tree"),
+        deleted: Deleted {
+            bytes: 4096,
+            modes_added: vec![PathBuf::from("/base/.cargo-shadow-trash/1-2-0-tree/closed")],
+            remaining: vec![String::from("/base/.cargo-shadow-trash/1-2-0-tree/theirs is owned by uid 70 and the removal runs as uid 1000, so its mode 0500 was not changed")],
+        },
+    };
+    let text: String = refusal.to_string();
+    assert!(text.contains("was only partly removed"), "{text}");
+    assert!(text.contains("4096 disk bytes are gone"), "{text}");
+    assert!(text.contains("mode changed on 1 directories"), "{text}");
+    assert!(text.contains("is owned by uid 70"), "{text}");
+    assert!(!text.contains("skipped"), "{text}");
+}
+
+#[test]
+fn a_widened_directory_gets_this_users_read_write_and_search_and_keeps_every_other_bit() {
+    for (found, widened) in [(0o500, 0o700), (0o555, 0o755), (0o000, 0o700), (0o540, 0o740), (0o2750, 0o2750 | 0o700), (0o1755, 0o1755)] {
+        assert_eq!(widened_mode(found), widened, "mode {found:04o}");
+    }
 }

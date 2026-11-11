@@ -50,7 +50,8 @@ use crate::commit_index::{
     IndexSelection, initialize_commit_index, initialize_retry_index, list_changed_index_paths, list_unmerged_index_paths, prepare_interactive_selection,
     write_private_tree,
 };
-use crate::commit_staged_deletions::{STAGED_DELETION_CODE, STAGED_DELETION_CORE_ID, staged_deletion_message, staged_deletions_present_on_disk};
+use crate::commit_selection_staging::SelectionStagingFailure;
+use crate::service_prepare_selection_refusals::{named_ignored_ending, pathspec_matching_nothing_ending, staged_deletion_ending};
 use crate::commit_transaction::{
     CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection, failed, private_checks, settled_passes, staged_at_base,
 };
@@ -156,7 +157,7 @@ pub fn prepare<F: RepositoryFacts>(
     let retry: Option<&Retry<'_>> = inputs.replay.as_ref();
     if named && retry.is_none() {
         // Before any private staging, so Git's "nothing to commit" or its force-add hint never stands in for the reason.
-        let present: Vec<Vec<u8>> = staged_deletions_present_on_disk(
+        let present: Option<TransactionResult> = staged_deletion_ending(
             context,
             cwd,
             capture.layout.repository_root.as_path(),
@@ -164,17 +165,8 @@ pub fn prepare<F: RepositoryFacts>(
             base.as_str(),
             pathspecs.as_slice(),
         )?;
-        if !present.is_empty() {
-            return Ok(Prepared::Ended(TransactionResult {
-                events: vec![PolicyEvent::CoreFinding {
-                    core_id: STAGED_DELETION_CORE_ID,
-                    code: STAGED_DELETION_CODE,
-                    message: staged_deletion_message(present.as_slice()),
-                }],
-                exit_code: 1,
-                landed_oid: None,
-                uses_lfs: false,
-            }));
+        if let Some(ending) = present {
+            return Ok(Prepared::Ended(ending));
         }
     }
     part.next("scratch");
@@ -235,8 +227,18 @@ pub fn prepare<F: RepositoryFacts>(
         // Every part the word pass merged is told to the person with the commit and sent to the journal.
         word_merge_events = word_merge_notice(combined.as_slice());
     } else {
-        if let Err(error) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
-            return Err(failed(error.0));
+        // A path an ignore rule matches is refused before the private staging runs, from the elements the command names,
+        //  so the refusal is the command line's and never read from the words of a Git message (issue 6278).
+        if let Some(ending) = named_ignored_ending(context, cwd, capture.layout.real_index_path.as_path(), &index_selection)? {
+            return Ok(Prepared::Ended(ending));
+        }
+        if let Err(stop) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
+            // Git refused a pathspec the caller wrote for matching nothing: that is the caller's input, not the engine's, so it
+            // ends as the finding that names the token. Every other failure of the staging stays an engine failure (issue 6283).
+            return match stop {
+                SelectionStagingFailure::Git(git) => Err(failed(git.0)),
+                SelectionStagingFailure::PathspecMatchesNothing(refused) => Ok(Prepared::Ended(pathspec_matching_nothing_ending(refused.as_slice()))),
+            };
         }
     }
     // A commit that landed but did not finish its index update leaves this worktree's index describing the branch before that

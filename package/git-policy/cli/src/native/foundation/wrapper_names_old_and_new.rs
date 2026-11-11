@@ -125,6 +125,15 @@ pub const REPOSITORY_SCRATCH: RenamedName = RenamedName {
     earlier: "cli-git-scratch",
 };
 
+/// The folder inside a Git common directory that holds the finished shadows a commit can take instead of making one.
+///  It sits beside the repository scratch directory,
+/// not inside it,
+///  because a member is standing state the owner asked for and not scratch:
+///  the check that a commit leaves no scratch behind must keep meaning what it says.
+///  This release is the first to keep one,
+///  so it has no earlier spelling.
+pub const SHADOW_POOL_FOLDER: &str = "monochromatic-git-policy-cli-shadow-pool";
+
 /// The prefix of a commit's scratch directory:
 ///  the private indexes Git's scratch repository is built from,
 ///  kept inside the repository scratch directory.

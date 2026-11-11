@@ -1766,3 +1766,90 @@ nothing here needs an answer.
   what is left to publish is small
   (about 153 KiB of test code in `forbidden-strings` and 165 KiB in `forbidden-regex`,
   before compression).
+
+### The wrapper's own Git and fsmonitor (asked 2026-11-10)
+
+Two commit steps of about 60 seconds each were Git waiting for its file-watching daemon
+(`core.fsmonitor`, whose start timeout defaults to 60 seconds),
+as agent `unexplained-items-from-the-handover` found and recorded.
+On this machine fsmonitor is off globally and in the main checkout,
+so it cannot happen here today.
+`package/git-policy/cli/SPEC.md` recorded the owner's decision of 2026-11-03 that the wrapper passes no `core.fsmonitor` setting.
+Asked in the question tool whether the wrapper should switch fsmonitor off for its own internal Git commands only,
+the owner chose:
+"B: off for internal Git (Recommended)".
+That amends the 2026-11-03 decision:
+the wrapper adds `-c core.fsmonitor=false` to the Git commands it starts itself and never to a command the person typed.
+A new agent builds it and amends `SPEC.md` with this answer.
+
+### A landing waiting for the flush of a marker made ahead (coordinator's pick, veto open)
+
+Agent `commit-waiting-path-with-dozens-of-agents` measured landings waiting 9 to 13 seconds
+for the index lock's marker made ahead to finish its flush (`lock_stage_kind=pre`),
+and asked whether that marker may be published without its flush.
+Under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session.",
+"never discard user data" and "commits vs native git should not take 5s longer",
+the coordinator picked neither side of that trade:
+the flush stays, it starts as early as the code allows,
+and a landing that finds the marker still flushing takes the lock the ordinary way and never waits for that flush.
+The same agent builds it.
+Say "undo" to publish without the flush instead.
+
+### A push URL changed from a worktree (asked 2026-11-10)
+
+Agent `stuck-step-notice-review-findings` made a worktree of this repository with `git worktree add` outside the repository folder,
+then ran `git remote set-url --push origin DISABLED` in it as if it were a separate clone.
+Every worktree shares one `.git/config`,
+so every push of `main` failed from the landing of `e5e689c8a5` on,
+until the coordinator removed that one entry.
+Asked whether the wrapper should guard against this,
+the owner chose:
+"Refuse in worktrees (Recommended)".
+In a linked worktree the wrapper refuses commands that change the repository's shared remote settings
+(`git remote set-url`, `add`, `remove` and `rename`, and `git config` writes to `remote.*`),
+says the setting is shared by every worktree,
+and suggests a real clone;
+the main checkout is unaffected.
+Asked whether to tighten `AGENTS.md` rule `APQ`,
+the owner chose:
+"Use the proposed text (Recommended)",
+so `APQ` now says "never in any `git worktree add` folder of this repo".
+
+### Two tokio choices made by an agent (coordinator's pick, veto open)
+
+Agent `tokio-next-step-on-the-runtime`,
+building the owner's "Full on tokio. Multi-thread.",
+made two choices on branch `refactor/git-policy-cli-tokio-next-step-on-the-runtime`
+and recorded both in `doc/planning/git-policy-cli-full-tokio.md`:
+
+- At the service loop's three state steps,
+  a job the system refuses a thread for no longer runs in turn on the awaiting task;
+  the loop keeps its state and lets the pool or the next wake write it,
+  so no storage call ever runs on a runtime worker.
+- The stronger fix for a job that starts after its caller gave up
+  (the job hands its value back through a store the caller awaits)
+  was not built,
+  because it changes the helper every command's blocking work goes through;
+  the plan records it as the alternative.
+
+Under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself from now on for this session.",
+the coordinator keeps both as built,
+and the next tokio agent builds on them.
+Say "undo" for either one.
+
+## Answered in the question tool, recorded 2026-11-10T09:54:58-05:00
+
+### The btrfs host run before a release
+
+Asked whether a systemd timer should start `native:test:host:btrfs` and whether the gate should count the
+`BTRFS CONTROL NOT RUN` lines so a skipped control fails, the owner chose
+"Before each release (Recommended)":
+"A wrapper release waits for that run, and a skipped test fails it."
+No timer, and `--dry-run` stays free of it.
+Built as `bin/native-release-host-controls.ts` of the wrapper
+(`mise run //package/git-policy/cli:native:release:host-controls`),
+named as the `dispatchGate` of the crate in `package/crate-release/cli/releasable-crates.json`,
+so the dispatch runs it after every refusal that costs nothing and before it starts the workflow.
+What the gate refuses, and the one `BTRFS CONTROL NOT RUN` line a btrfs host prints instead of refusing,
+are in `package/git-policy/cli/README.md` ("Development") and
+`doc/troubleshooting/nextest-hides-a-passing-tests-output.md`.

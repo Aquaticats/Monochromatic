@@ -220,7 +220,8 @@ and the next actions.
     inside a chain.
     Fixed by the three decisions of 2026-10-29,
     in `d618de1464`;
-    the next section holds the detail.
+    "The 2026-10-29 miss,
+    closed" holds the detail.
 
 ## The 2026-10-29 miss, closed
 

@@ -44,6 +44,10 @@ export type ApiRequestOptions = {
    Extra request headers merged over the default JSON content type.
    */
   readonly headers?: Readonly<Record<string, string>>;
+  /**
+   Signal the caller aborts to cancel the request, forwarded to `fetch`.
+   */
+  readonly signal?: AbortSignal;
 };
 
 /**
@@ -94,6 +98,7 @@ export async function api<TResponse = unknown,>({
       method: options?.method ?? 'GET',
       body: options?.body ?? null,
       headers,
+      ...(options?.signal === undefined ? {} : { signal: options.signal, }),
     },
   );
 

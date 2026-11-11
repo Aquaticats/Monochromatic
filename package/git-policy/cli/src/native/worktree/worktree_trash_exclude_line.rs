@@ -37,6 +37,7 @@
 //! const added = ensureTrashIsExcluded(commonDir); // append '/.claude/cli-git-trash/' when it is not there
 //! ```
 
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -77,45 +78,54 @@ pub const TRASH_EXCLUDE_LINE: &str = "/.claude/cli-git-trash/";
 /// because appending
 ///  to bytes nobody could read could write the line twice or in the middle of a pattern.
 ///
+/// The line is appended and the file is never opened for truncation:
+/// the bytes the person wrote are not rewritten,
+///  not even when the call fails,
+/// so a full disk,
+/// a quota,
+/// or a kill after the open cannot lose an exclude rule that another
+///  file's staging depends on.
+/// The file's bytes are read and compared as bytes,
+/// because a pattern that is not UTF-8 is a pattern
+///  Git honours,
+/// and a text round trip replaces the bytes that make it work with others that spell nothing.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ensureTrashIsExcluded = (common) => { const path = join(common, 'info/exclude'); const text = readOrEmpty(path); if (text.split('\n').includes(LINE)) return false; write(path, text + (text && !text.endsWith('\n') ? '\n' : '') + LINE + '\n'); return true; };
+/// const ensureTrashIsExcluded = (common) => { const path = join(common, 'info/exclude'); const bytes = readOrEmpty(path); if (alreadyThere(bytes)) return false; appendFileSync(path, (bytes.length && bytes.at(-1) !== 0x0a ? '\n' : '') + LINE + '\n'); return true; };
 /// ```
 pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
     let path: PathBuf = common_dir.join("info").join("exclude");
-    let existing: String = match std::fs::read(path.as_path()) {
-        Ok(bytes) => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+    let existing: Vec<u8> = match std::fs::read(path.as_path()) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(format!("{} cannot be read ({error}), so nothing says whether a trash in this repository would be staged", path.display())),
     };
-    if already_excluded(existing.as_str()) {
+    if already_excluded(existing.as_slice()) {
         return Ok(false);
     }
-    let mut writing: String = existing;
-    if !writing.is_empty() && !writing.ends_with('\n') {
-        writing.push('\n');
+    let mut adding: Vec<u8> = Vec::new();
+    if !existing.is_empty() && !existing.ends_with(b"\n") {
+        adding.push(b'\n');
     }
-    writing.push_str(TRASH_EXCLUDE_LINE);
-    writing.push('\n');
+    adding.extend_from_slice(TRASH_EXCLUDE_LINE.as_bytes());
+    adding.push(b'\n');
     if let Some(parent) = path.parent()
         && let Err(error) = std::fs::create_dir_all(parent)
     {
         return Err(format!("{} cannot be made ({error}), so the trash line cannot be written", parent.display()));
     }
-    return match std::fs::write(path.as_path(), writing.as_bytes()) {
+    // The file is opened for appending and for nothing else: a write that fails or is killed leaves every byte that was there
+    //  where it was, and the worst a half-written addition can leave is a truncated pattern of the wrapper's own that ignores
+    //  nothing.
+    let mut opened: std::fs::File = match std::fs::OpenOptions::new().append(true).create(true).open(path.as_path()) {
+        Ok(file) => file,
+        Err(error) => return Err(format!("{} cannot be written ({error}), so nothing says whether a trash in this repository would be staged", path.display())),
+    };
+    return match opened.write_all(adding.as_slice()) {
         Ok(()) => Ok(true),
         Err(error) => Err(format!("{} cannot be written ({error}), so nothing says whether a trash in this repository would be staged", path.display())),
     };
-}
-
-/// What:
-///  Whether this line is the wrapper's own,
-/// however much space a person left around it.
-/// Why:
-///   The comparison is one line's whole text,
-/// so the space a hand-edited file carries around the line is not a second line.
-fn is_the_trash_line(line: &str) -> bool {
-    return line.trim() == TRASH_EXCLUDE_LINE;
 }
 
 /// What:
@@ -125,14 +135,39 @@ fn is_the_trash_line(line: &str) -> bool {
 /// a comment beside it and a longer pattern that begins with it are not the line,
 /// so the answer is
 ///  asked of whole lines,
-/// never of the file's text as one blob.
+/// never of the file's text as one blob,
+/// and of the bytes,
+/// because a pattern that
+///  is not text is one of the person's lines too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const alreadyExcluded = (text) => text.split('\n').map((line) => line.trim()).includes(TRASH_EXCLUDE_LINE);
+/// const alreadyExcluded = (bytes) => bytes.toString('latin1').split('\n').map((line) => line.trim()).includes(TRASH_EXCLUDE_LINE);
 /// ```
-fn already_excluded(text: &str) -> bool {
-    return text.lines().any(is_the_trash_line);
+fn already_excluded(bytes: &[u8]) -> bool {
+    return bytes.split(is_a_line_end).any(is_the_wrappers_line);
+}
+
+/// Whether a byte ends a line.
+fn is_a_line_end(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  Whether one line,
+/// with the spaces a person may leave around it,
+/// is the wrapper's own.
+/// Why:
+///   The comparison is made of bytes,
+/// so a line that holds a pattern that is not text is compared as it is and
+///  never as replacement characters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isTheWrappersLine = (line) => line.trim() === TRASH_EXCLUDE_LINE;
+/// ```
+fn is_the_wrappers_line(line: &[u8]) -> bool {
+    return line.trim_ascii() == TRASH_EXCLUDE_LINE.as_bytes();
 }
 
 /// Exclude-line controls stay out of the release executable.

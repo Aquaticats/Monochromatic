@@ -682,16 +682,19 @@ fn a_journal_is_compared_by_the_folder_it_names_not_by_its_spelling() {
     remove(world.root.as_path());
 }
 
-/// Only the first bytes of a command line are read,
+/// Only the bytes of a command line the look reads are looked at,
 /// and a line that fills that limit has more words that were not looked at:
-/// an
-///  earlier helper started with a very long program name has its service words past the limit.
+/// a process whose line is longer than any program can carry
+///  has words past the limit that were not compared.
 /// Such a line counts as "may be
 ///  running",
 /// and a line that ends exactly at the limit was read whole.
+/// The limit is the kernel's own ceiling on a command line,
+/// so no program of a machine carries more;
+/// a fake table of a control holds what a kernel would refuse.
 #[test]
 fn a_command_line_longer_than_the_bytes_read_counts_as_may_be_running() {
-    let limit: usize = usize::try_from(crate::earlier_service_process_look::COMMAND_LINE_BYTES).expect("the limit fits");
+    let limit: usize = usize::try_from(crate::earlier_service_command_line_read::COMMAND_LINE_BYTES).expect("the limit fits");
     let world: World = world("adopt-proc-long");
     let proc_root: PathBuf = empty_proc(&world);
     let long_program: String = "p".repeat(limit + limit / 2);
