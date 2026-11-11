@@ -105,7 +105,9 @@ pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 /// Why:
 ///   Coalescing keeps a burst of commits to one push;
 /// a handler that fails leaves the items in `failed`,
-/// not in a loop.
+/// not in a loop,
+///  and one that answers `Retry` leaves its item claimed,
+/// so the lease running out queues it once more and no round spins on it.
 /// A
 ///  claim found in this directory may belong to a live instance (a restarted service starts beside the one it replaces,
 /// and the

@@ -1324,7 +1324,11 @@ an index installed over files from an earlier instant would record stat data for
 which Git would then report as clean.
 Such a name is handed to the service as a `subvolume-delete` work item and the next candidate is tried.
 An add removes the copies past the third and any older than ten minutes (`AHEAD_OLDEST`) the same way,
-so a repository whose adds stop does not pin the source's blocks.
+on the path that claims a copy as well as on the path that waits,
+so a repository whose adds stop does not pin the source's blocks and a pool that answers every add still
+sweeps what it keeps no longer.
+The names it proved stale and the names it keeps no longer go to the service before it asks for a copy of its own,
+so the request for a replacement reaches the service after the deletes that make room for it.
 A source with uncommitted changes is never served this way:
 its snapshot carries its own index,
 which is one instant with its files,
@@ -1333,6 +1337,11 @@ An add that claims nothing asks the service for one (`snapshot-ahead`) and waits
 looking in the pool folder every 25 ms and saying on standard error once,
 after the standing notice's wait,
 what it waits for and until when.
+That wait also ends as soon as the service puts the record this add's own request wrote into `failed`,
+the state nothing scans:
+nothing will make that copy,
+so the add takes its own snapshot instead of paying the ceiling for it,
+and the timing record's `snapshotAhead` note says `given-up`.
 `SNAPSHOT_AHEAD_CEILING` ends that wait at 60 s,
 the owner's bound for an add,
 and the rung then ends:
@@ -1350,15 +1359,44 @@ The service's own step is one work item of kind `snapshot-ahead`
 its `repository` is the worktree root to copy,
 its `git_dir` is that worktree's own Git directory,
 and its `parent` is the pool folder the add named.
-The handler refuses a record whose source is not the worktree its Git directory names (the main checkout's `.git` or
-the `gitdir` a linked worktree's own Git directory records),
+The handler refuses a record whose source is not the worktree its Git directory names (a worktree's `.git`
+directory,
+or the directory the `.git` pointer file of a linked worktree or of a main checkout made with
+`git init --separate-git-dir` names),
 one whose folder is not the repository's own pool folder,
 and one whose source is not a btrfs subvolume,
 with the reason and without a retry,
 because nothing of those can pass by being tried again;
 it makes the folder when it is not there,
-makes no copy while the folder already holds three,
+makes no copy while the folder already holds three that no delete record is taking away,
 and answers `done` for one copy it made.
+A copy an add proved stale has a delete record of its own,
+that delete runs in the same round after this step,
+and a full pool of those is room the round is about to free,
+so the replacement the waiting add asked for is made beside them;
+nothing counts a copy whose delete is queued (`pending`,
+`claimed`,
+`recovering` or `held`) as one an add can claim.
+An answer of `retry`
+(a volume that is busy,
+a full disk,
+an I/O error)
+settles nothing:
+the record keeps its claim,
+and the claim's lease running out returns it to `pending` with one more try
+(`src/native/landing/work_item_recovery.rs`),
+which is how a round after it asks again.
+The same holds for every kind that answers in words,
+including the delete of a subvolume the pool hands over,
+so a copy that proved stale is deleted on a later round instead of staying on the disk for ever.
+A delete the service gave up on after its tries is no permanent answer about that copy:
+the next add that proves the
+same copy stale hands the same name over again,
+and the hand-over queues that record again out of `failed`,
+because
+the id of one path's delete is that path and a record in `failed` is otherwise never run again
+(`src/native/landing/work_item_holding.rs`,
+`requeue_after_giving_up`).
 The drain runs this kind after a push and before the upkeep and every kind that frees space,
 awaited on a thread of the process's blocking pool,
 because it is the one item there that a person's command is waiting for and its ioctl waits for a commit of the whole
@@ -1637,8 +1675,16 @@ so the service's own push and review work keeps its priority,
 and a thread whose class cannot be read or set is left as it is.
 
 A trash that cannot be emptied is reported by the service as a line that names the trash and the reason,
-and its record settles as failed,
-which is where the promise of a later attempt stops.
+and a refusal settles its record as failed,
+which is where the promise of a later attempt stops;
+a failure the emptying's own words call retryable
+(a busy volume,
+an I/O error)
+instead keeps its claim,
+and the claim's lease running out queues the record again with one more try,
+up to `MAX_TRIES`
+(`src/native/landing/work_item_recovery.rs`),
+so a later round tries it again instead of dropping the work.
 Every command later run in that worktree,
 unless its output is read by a program,
 therefore names every directory
@@ -13825,6 +13871,7 @@ and how the snapshot was found (`snapshotAhead`:
 `claimed`,
 `waited`,
 `timed-out`,
+`given-up`,
 `not-for-a-source-with-changes` or
 `no-service`).
 
