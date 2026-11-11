@@ -584,10 +584,12 @@ fn run_settled(
             // A worktree Git just registered is recorded as one this program made, so a later merge that lands its branch
             // removes it by itself (`worktree_landed_removal.rs`). A record that cannot be written costs that one removal
             // and never the add.
-            if facts.creates && settlement.copy_failure.is_none() && settlement.git.code == Some(0) {
-                if let (Some(destination), Some(common_dir)) = (facts.destination.as_ref(), common_directory(&facts.identity)) {
-                    crate::worktree_added_by_the_wrapper::record_or_log(common_dir, destination.as_path());
-                }
+            if facts.creates
+                && settlement.copy_failure.is_none()
+                && settlement.git.code == Some(0)
+                && let (Some(destination), Some(common_dir)) = (facts.destination.as_ref(), common_directory(&facts.identity))
+            {
+                crate::worktree_added_by_the_wrapper::record_or_log(common_dir, destination.as_path());
             }
             return ForwardedRun::Ran(exit_code(&settlement));
         }

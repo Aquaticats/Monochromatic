@@ -44,7 +44,7 @@ fn only_registration(common: &std::path::Path) -> PathBuf {
     let found: Vec<PathBuf> = std::fs::read_dir(common.join("worktrees"))
         .expect("the registrations")
         .flatten()
-        .map(|entry| entry.path())
+        .map(|entry| { return entry.path() })
         .collect();
     assert_eq!(found.len(), 1, "{found:?}");
     return found.into_iter().next().expect("one registration");

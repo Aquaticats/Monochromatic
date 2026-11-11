@@ -279,10 +279,11 @@ The record is written without a flush:
 
 ### The removal on the merge that lands a branch
 
-`src/native/worktree/worktree_landed_removal.rs`,
- `src/native/worktree/worktree_landed_after_a_merge.rs`,
- `src/native/worktree/worktree_landed_sweep_notice.rs`,
- `src/native/worktree/worktree_process_inside.rs`.
+`src/native/worktree/worktree_landed_removal.rs` (the sweep, the conditions and the removal),
+ `src/native/worktree/worktree_landed_registrations.rs` (the registrations and their branches, from file reads only),
+ `src/native/worktree/worktree_landed_after_a_merge.rs` (the two heads and the printing),
+ `src/native/worktree/worktree_landed_sweep_notice.rs` (the words),
+ `src/native/worktree/worktree_process_inside.rs` (the process table read).
 
 The trigger is the event that ends a worktree's use:
  a `git merge` run through this wrapper that ended with status 0 and moved the branch.
@@ -308,8 +309,14 @@ A candidate is removed only when all of these hold, each one a control:
 - it is not locked;
 - no `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge`, `rebase-apply` or `sequencer`
    stands in its administrative directory;
-- `worktree_process_inside.rs` `process_working_inside` finds no process whose working folder is it or below it;
-- `worktree_clean.rs` `check_clean` proves Git would remove it without `--force`.
+- `worktree_process_inside.rs` `process_working_inside` finds no process whose working folder is it or below it.
+
+The last condition, that Git would remove the worktree without `--force`, is Git's own to decide.
+The sweep does not pre-judge cleanliness:
+an earlier draft called `worktree_clean.rs` `check_clean` first and refused more than Git does,
+ because a freshly checked-out worktree has files as new as its index until something refreshes it,
+ which is the state every worktree this program makes is in.
+Instead the removal runs and Git's refusal is what the person reads.
 
 The removal is `worktree_remove.rs` `remove_subvolume_worktree` first,
  which is one ioctl on btrfs and what actually gives the shared blocks back,
@@ -355,6 +362,9 @@ Writing a record for them by inference would defeat the only proof that keeps a 
  `worktree_process_inside_tests.rs`,
  `worktree_landed_sweep_notice_tests.rs`.
 
+The suite's summary line, run 2026-11-10T19:37:00-05:00: `20 tests run: 20 passed, 6289 skipped`
+ (the exact line is in the commit message).
+
 The three the brief asks for, each on a real repository and a real merge:
 
 - `a_landed_clean_worktree_is_removed_and_its_branch_stays`:
@@ -369,8 +379,31 @@ The three the brief asks for, each on a real repository and a real merge:
 Plus `a_landed_worktree_this_program_cannot_prove_it_made_is_left` and
  `a_branch_that_merely_sat_on_an_older_commit_is_no_candidate`.
 
-The failing-first runs are quoted in the commit that added the code,
- and in the section below.
+The suites the brief names, run on the host at 2026-11-10T19:46:00-05:00:
+
+- `test(/worktree_add|worktree_remove/)`: `67 tests run: 67 passed, 6242 skipped`.
+- `test(/worktree_copying/)`: `384 tests run: 384 passed, 5925 skipped`.
+- `test(/landing::/)`: `850 tests run: 850 passed, 5459 skipped`.
+
+Each condition is proved by planting its removal and watching the test that names it fail,
+ then restoring the file.
+The four runs below were made against the committed code with
+ `node ${HOME}/temp/agent/planted-controls-20261110/planted-controls.ts`,
+ whose last line is `restored: true`:
+
+- the authorship record ignored:
+   `1 test run: 0 passed, 1 failed, 6308 skipped` for
+   `a_landed_worktree_this_program_cannot_prove_it_made_is_left`.
+- the process table not read:
+   `1 test run: 0 passed, 1 failed, 6308 skipped` for
+   `a_landed_worktree_with_a_process_inside_stays`.
+- the sweep examining nothing:
+   `1 test run: 0 passed, 1 failed, 6308 skipped` for
+   `a_landed_clean_worktree_is_removed_and_its_branch_stays`.
+- Git asked to remove with `--force`:
+   `1 test run: 0 passed, 1 failed, 6308 skipped` for
+   `a_landed_worktree_with_uncommitted_work_stays`,
+   which is the control that proves the test would catch a `--force` creeping in and taking a person's untracked file.
 
 ## What this change does not do
 

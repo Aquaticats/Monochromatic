@@ -225,7 +225,7 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
             global_prefix: Vec::new(),
             common_dir: None,
         };
-        crate::worktree_landed_after_a_merge::head_of(&sweep_context, &forward.identity).map(|before| (sweep_context, before))
+        crate::worktree_landed_after_a_merge::head_of(&sweep_context, &forward.identity).map(|before| { return (sweep_context, before) })
     } else {
         None
     };

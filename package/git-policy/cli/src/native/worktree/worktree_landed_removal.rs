@@ -39,6 +39,7 @@ use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_process_inside::process_working_inside;
+use crate::worktree_landed_registrations::{Registration, registrations_of};
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
 use crate::worktree_remove_plan::RemovePlan;
 use std::collections::HashSet;
@@ -121,18 +122,6 @@ pub struct LandedSweep {
     pub failed: Option<String>,
 }
 
-/// One registration of the repository,
-/// as the sweep needs it.
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct Registration {
-    /// The administrative directory.
-    admin: PathBuf,
-    /// The worktree root the registration names.
-    worktree: PathBuf,
-    /// The branch its `HEAD` names,
-    /// as a full ref name.
-    branch: String,
-}
 
 /// What:
 ///  The branches that are fully contained in `commit`.
@@ -154,63 +143,6 @@ fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Str
         return Err(format!("Git cannot list the branches merged into {commit}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim()));
     }
     return Ok(String::from_utf8_lossy(output.stdout.as_slice()).lines().map(str::to_owned).collect());
-}
-
-/// What:
-///  Every linked worktree the repository registers,
-///  with the branch each one has checked out.
-/// Why:
-///   The registrations are the only list of worktrees this repository owns,
-///  and each one's `HEAD` names its branch without a Git start:
-///  a file read decides which candidates exist,
-///  and Git runs only for a branch that landed.
-///  A worktree on a detached `HEAD` names no branch,
-///  so it is no candidate:
-///  nothing can land on a branch it does not have.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const registered = registrationsOf(commonDir); // throws the reason
-/// ```
-fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, String> {
-    let folder: PathBuf = common_dir.join("worktrees");
-    let listing = match std::fs::read_dir(folder.as_path()) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", folder.display())),
-    };
-    let mut found: Vec<Registration> = Vec::new();
-    for entry in listing.flatten() {
-        let admin: PathBuf = entry.path();
-        let Some(worktree) = registered_worktree(admin.as_path()) else {
-            continue;
-        };
-        let Some(branch) = head_branch(admin.as_path()) else {
-            continue;
-        };
-        found.push(Registration { admin, worktree, branch });
-    }
-    return Ok(found);
-}
-
-/// The worktree root a registration's `gitdir` file names,
-/// when that root is still a directory.
-fn registered_worktree(admin: &Path) -> Option<PathBuf> {
-    let text: Vec<u8> = std::fs::read(admin.join("gitdir")).ok()?;
-    let recorded: PathBuf = PathBuf::from(String::from_utf8_lossy(text.trim_ascii_end()).into_owned());
-    let pointer: PathBuf = if recorded.is_absolute() { recorded } else { admin.join(recorded) };
-    let root: PathBuf = std::fs::canonicalize(pointer.parent()?).ok()?;
-    return root.is_dir().then_some(root);
-}
-
-/// The branch the registration's `HEAD` names,
-/// as a full ref name,
-/// or nothing for a detached `HEAD`.
-fn head_branch(admin: &Path) -> Option<String> {
-    let text: String = std::fs::read_to_string(admin.join("HEAD")).ok()?;
-    let line: &str = text.trim_end();
-    let branch: &str = line.strip_prefix("ref: ")?;
-    return branch.starts_with("refs/heads/").then(|| branch.to_owned());
 }
 
 /// What:
@@ -242,7 +174,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
             return sweep;
         }
     };
-    let candidates: HashSet<String> = landed.into_iter().filter(|branch| !earlier.contains(branch)).collect();
+    let candidates: HashSet<String> = landed.into_iter().filter(|branch| { return !earlier.contains(branch) }).collect();
     if candidates.is_empty() {
         return sweep;
     }
@@ -264,6 +196,44 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
     }
     return sweep;
+}
+
+/// What:
+///  Remove one worktree,
+/// by one subvolume destroy when the filesystem allows it and by Git otherwise.
+/// Why:
+///  On btrfs the destroy is what gives the snapshot's space back;
+///  Git's own removal is the line every other case keeps,
+///  and it is also the answer when the mount forbids the destroy:
+///  it deletes what Git ignores and refuses what it would keep,
+///  so nothing a person wrote that Git keeps is lost,
+///  and its own words say why when it refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// remove(place, registration) // throws Git's refusal, in Git's words
+/// ```
+fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
+    let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()) };
+    let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
+    match remove_subvolume_worktree(&request) {
+        RemoveOutcome::Removed => {
+            crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
+            return Ok(());
+        }
+        RemoveOutcome::Refused(report) | RemoveOutcome::Incomplete(report) => return Err(report),
+        RemoveOutcome::LeftToGit => {}
+    }
+    let arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove"), one.worktree.clone().into_os_string()];
+    let output: GitOutput = match run_git(place.context, &GitRequest::new(place.cwd, arguments.as_slice())) {
+        Ok(finished) => finished,
+        Err(error) => return Err(format!("Git could not be started to remove it ({error})")),
+    };
+    if output.code == Some(0) {
+        return Ok(());
+    }
+    let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
+    return Err(format!("Git refused to remove it: {words}"));
 }
 
 /// What one candidate came to.
@@ -308,44 +278,6 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration) -> Examined {
         Ok(()) => Examined::Removed,
         Err(reason) => Examined::Kept(reason),
     };
-}
-
-/// What:
-///  Remove one worktree,
-/// by one subvolume destroy when the filesystem allows it and by Git otherwise.
-/// Why:
-///  On btrfs the destroy is what gives the snapshot's space back;
-///  Git's own removal is the line every other case keeps,
-///  and it is also the answer when the mount forbids the destroy:
-///  it deletes what Git ignores and refuses what it would keep,
-///  so nothing a person wrote that Git keeps is lost,
-///  and its own words say why when it refuses.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// remove(place, registration) // throws Git's refusal, in Git's words
-/// ```
-fn remove(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
-    let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()) };
-    let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
-    match remove_subvolume_worktree(&request) {
-        RemoveOutcome::Removed => {
-            crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
-            return Ok(());
-        }
-        RemoveOutcome::Refused(report) | RemoveOutcome::Incomplete(report) => return Err(report),
-        RemoveOutcome::LeftToGit => {}
-    }
-    let arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove"), one.worktree.clone().into_os_string()];
-    let output: GitOutput = match run_git(place.context, &GitRequest::new(place.cwd, arguments.as_slice())) {
-        Ok(finished) => finished,
-        Err(error) => return Err(format!("Git could not be started to remove it ({error})")),
-    };
-    if output.code == Some(0) {
-        return Ok(());
-    }
-    let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
-    return Err(format!("Git refused to remove it: {words}"));
 }
 
 /// The controls of the sweep stay out of the release executable.

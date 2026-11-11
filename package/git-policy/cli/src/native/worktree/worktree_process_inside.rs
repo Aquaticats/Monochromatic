@@ -39,7 +39,7 @@ pub fn process_working_inside(root: &Path, proc_root: &Path) -> Option<u32> {
     let own: u32 = std::process::id();
     let listing = std::fs::read_dir(proc_root).ok()?;
     for entry in listing.flatten() {
-        let Some(pid) = entry.file_name().to_str().and_then(|name| name.parse::<u32>().ok()) else {
+        let Some(pid) = entry.file_name().to_str().and_then(|name| { return name.parse::<u32>().ok() }) else {
             continue;
         };
         if pid == own {
