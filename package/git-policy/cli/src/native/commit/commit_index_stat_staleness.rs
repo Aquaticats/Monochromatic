@@ -399,12 +399,12 @@ fn matches_recorded(entry: &FullEntry, file: &WorktreeFile) -> bool {
 ///   const layout = readLayout(cwd, overlay(context));
 ///   const parsed = parseFullIndex(bytes, layout.objectFormat);
 ///   const restaged = restagedPaths(staging, layout.prefix);
-///   return parsed.entries.some((entry) => !isLeftToGit(entry) && !isRestaged(restaged, entry.path) &&
-///     !matchesRecorded(entry, worktreeFile(join(layout.worktreeRoot, entry.path)) ?? STALE));
+///   const stale = walkInSlices(parsed.entries, layout.worktreeRoot, restaged, workersFor(parsed.entries.length));
+///   return stale === undefined ? UNKNOWN : stale.length === 0 ? CURRENT : STALE(stale, parsed.entries.length);
 /// };
 /// ```
 #[cfg(unix)]
-fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> bool {
+fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> StaleStatData {
     // What:
     //  The index file's bytes.
     // Why:
@@ -418,9 +418,9 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     let bytes: Vec<u8> = match read_regular_file(index, INDEX_LIMIT) {
         Ok(read) => read,
         // A repository nothing was ever staged in has no index, and so no stat data to refresh.
-        Err(ReadRefusal::Missing) => return false,
+        Err(ReadRefusal::Missing) => return StaleStatData::Current,
         // An index this reading cannot open is one Git answers for.
-        Err(_) => return true,
+        Err(_) => return StaleStatData::Unknown,
     };
     // What:
     //  The environment the directory is read with,
@@ -446,7 +446,7 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     // ```
     let layout: RepoLayout = match read_layout_in(cwd, overlay.as_slice()) {
         Some(read) => read,
-        None => return true,
+        None => return StaleStatData::Unknown,
     };
     // What:
     //  Every entry of the index with its stat data.
@@ -459,7 +459,7 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     // ```
     let parsed: FullIndex = match parse_full_index(bytes.as_slice(), name_length(layout.object_format)) {
         Some(read) => read,
-        None => return true,
+        None => return StaleStatData::Unknown,
     };
     // What:
     //  The top-relative paths this commit stages from the worktree.
@@ -473,9 +473,9 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     // ```
     let restaged: Vec<Vec<u8>> = restaged_paths(&staging, layout.prefix.as_slice());
     // What:
-    //  Whether any entry the commit leaves alone records stat data its file no longer has,
+    //  The paths whose entries record stat data their files no longer have,
     // walked in slices on several threads
-    //  where the index is large enough for the walk to pay for them (`slice_needs_refresh`).
+    //  where the index is large enough for the walk to pay for them (`stale_paths_in_slice`).
     // Why:
     //  Git's own stat pass preloads the same work across threads (`core.preloadIndex`),
     // and one thread of this walk took 47 to
@@ -485,14 +485,21 @@ fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: Work
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const needs = walkInSlices(parsed.entries, layout.worktreeRoot, restaged, workersFor(parsed.entries.length));
+    // const stale = walkInSlices(parsed.entries, layout.worktreeRoot, restaged, workersFor(parsed.entries.length));
     // ```
     let workers: usize = workers_for(parsed.entries.len());
     let slice: EntrySlice<'_> = EntrySlice { entries: parsed.entries.as_slice(), worktree_root: layout.worktree_root.as_path(), restaged: restaged.as_slice() };
-    return match workers {
-        1 => slice_needs_refresh(slice),
+    let stale: Option<Vec<Vec<u8>>> = match workers {
+        1 => Some(stale_paths_in_slice(slice)),
         _ => walk_in_slices(slice, workers),
     };
+    let Some(stale) = stale else {
+        return StaleStatData::Unknown;
+    };
+    if stale.is_empty() {
+        return StaleStatData::Current;
+    }
+    return StaleStatData::Stale { paths: stale, entries: parsed.entries.len() };
 }
 
 /// What:
@@ -520,22 +527,77 @@ struct EntrySlice<'a> {
 }
 
 /// What:
-///  Whether any entry of `slice` records stat data its file no longer has.
+///  What the walk of an index found about the stat data its entries record.
 /// Why:
-///   The walk stops at the first entry it cannot prove,
-/// so a slice with a stale entry costs the others nothing,
-/// and an entry
-///  the commit leaves to Git or stages afresh is never asked for.
+///   The answer is the reason a refresh of the private index is started, or is not,
+/// and the paths it names are the ones a refresh has to look at:
+/// a refresh that names them costs a question per stale path instead of one per entry of the index
+/// (`commit_index_stat_refresh.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const sliceNeedsRefresh = (slice) => slice.entries.some((entry) => !leftToGit(entry) && !restaged.has(entry.path)
-///   && !matchesRecorded(entry, worktreeFile(join(slice.worktreeRoot, entry.path)) ?? stale));
+/// type StaleStatData = { kind: 'current' } | { kind: 'stale'; paths: Uint8Array[]; entries: number } | { kind: 'unknown' };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StaleStatData {
+    /// Every entry the commit leaves alone records the stat data its file has.
+    Current,
+    /// These entries, by their top-relative index path, record stat data their files no longer have.
+    Stale {
+        /// The paths the walk could not prove,
+        /// in index order.
+        paths: Vec<Vec<u8>>,
+        /// How many entries the index holds,
+        /// which says whether naming the paths is cheaper than naming the index
+        /// (`REFRESH_NAMES_ONE_PATH_IN` in `commit_index_stat_refresh.rs`).
+        entries: usize,
+    },
+    /// This reading cannot answer,
+    /// so Git's own refresh of the whole index has to.
+    Unknown,
+}
+
+/// What:
+///  Why one entry is one the walk judges,
+/// or what keeps it out of the walk altogether.
+/// Why:
+///   The walk asks about every entry the commit leaves alone,
+/// because an entry it skips cannot starve the refresh of a path Git would have needed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const judged = (entry) => !isLeftToGit(entry) && !isRestaged(restaged, entry.path);
 /// ```
 #[cfg(unix)]
-fn slice_needs_refresh(slice: EntrySlice<'_>) -> bool {
+fn judged(entry: &FullEntry, restaged: &[Vec<u8>]) -> bool {
+    return !is_left_to_git(entry) && !is_restaged(restaged, entry.path.as_slice());
+}
+
+/// What:
+///  The paths of `slice` whose entries record stat data their files no longer have.
+/// Why:
+///   Every entry the walk judges is asked about,
+/// so the paths it answers with are the whole of what a refresh has to look at,
+///  and the answer for a clean slice costs the same walk the yes-or-no question cost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stalePaths = (slice) => slice.entries.filter((entry) => judged(entry) && !matchesRecorded(entry, worktreeFile(join(slice.worktreeRoot, entry.path)) ?? stale)).map((entry) => entry.path);
+/// ```
+#[cfg(unix)]
+fn stale_paths_in_slice(slice: EntrySlice<'_>) -> Vec<Vec<u8>> {
+    let mut stale: Vec<Vec<u8>> = Vec::new();
     for entry in slice.entries.iter() {
-        if is_left_to_git(entry) || is_restaged(slice.restaged, entry.path.as_slice()) {
+        // What:
+        //  Whether the commit leaves this entry's recorded stat data to this walk at all.
+        // Why:
+        //  An entry left to Git or staged afresh costs the scratch commit nothing.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (!judged(entry, slice.restaged)) continue;
+        // ```
+        if !judged(entry, slice.restaged) {
             continue;
         }
         // What:
@@ -557,15 +619,15 @@ fn slice_needs_refresh(slice: EntrySlice<'_>) -> bool {
         // ```ts
         // const file = worktreeFile(path);
         // ```
-        let file: WorktreeFile = match worktree_file(path.as_path()) {
-            Some(read) => read,
-            None => return true,
+        let Some(file) = worktree_file(path.as_path()) else {
+            stale.push(entry.path.clone());
+            continue;
         };
         if !matches_recorded(entry, &file) {
-            return true;
+            stale.push(entry.path.clone());
         }
     }
-    return false;
+    return stale;
 }
 
 /// What:
@@ -598,58 +660,65 @@ fn workers_for(entries: usize) -> usize {
 }
 
 /// What:
-///  Whether any slice of `slice`'s entries needs the refresh,
-/// the slices walked side by side on `workers` threads.
+///  The paths `slice`'s entries hold that need the refresh,
+/// the slices walked side by side on `workers` threads,
+/// or nothing when a worker could not answer.
 /// Why:
 ///   A worker that panicked judged no entry,
 /// and an entry nothing judged is one Git's refresh decides,
 /// so the answer is
-///  "needs the refresh" there too.
+///  the whole index there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const needs = (await Promise.allSettled(slices.map((slice) => walk(slice)))).some((result) => result.status === 'rejected' || result.value);
+/// const stale = (await Promise.allSettled(slices.map((slice) => walk(slice)))).every(ok) ? merged : undefined;
 /// ```
 #[cfg(unix)]
-fn walk_in_slices(slice: EntrySlice<'_>, workers: usize) -> bool {
+fn walk_in_slices(slice: EntrySlice<'_>, workers: usize) -> Option<Vec<Vec<u8>>> {
     let size: usize = slice.entries.len().div_ceil(workers.max(1)).max(1);
     let mut slices: Vec<EntrySlice<'_>> = Vec::new();
     for entries in slice.entries.chunks(size) {
         slices.push(EntrySlice { entries, worktree_root: slice.worktree_root, restaged: slice.restaged });
     }
-    let walked: Vec<std::thread::Result<bool>> = run_all_side_by_side(slices, slice_needs_refresh);
-    let mut needs: bool = false;
+    let walked: Vec<std::thread::Result<Vec<Vec<u8>>>> = run_all_side_by_side(slices, stale_paths_in_slice);
+    let mut stale: Vec<Vec<u8>> = Vec::new();
     for outcome in walked {
-        needs = needs || !matches!(outcome, Ok(false));
+        match outcome {
+            Ok(paths) => stale.extend(paths),
+            Err(_) => return None,
+        }
     }
-    return needs;
+    return Some(stale);
 }
 
 /// What:
-///  Whether `index` records stat data the worktree no longer has for an entry `staging` does not write afresh.
+///  What `index` records about the stat data of the worktree,
+/// answered in process for every entry `staging` does not write afresh.
 /// Why:
 ///  A commit the worktree has not moved needs no refresh,
-/// and asking Git would cost it a start and the real index's lock.
+/// and asking Git would cost it a start and the real index's lock;
+/// a commit whose worktree moved gets the paths a refresh has to look at,
+///  which costs it a question per stale path instead of one per entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stale = indexStatDataNeedsRefresh({ context, cwd, index, staging }); // true: ask Git
+/// const answer = staleStatData({ context, cwd, index, staging }); // unknown: ask Git
 /// ```
 #[cfg(unix)]
-pub fn index_stat_data_needs_refresh(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> bool {
+pub fn stale_stat_data(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> StaleStatData {
     // The reading is the preparation's own work: it parses the whole index and stats every entry the commit leaves alone,
     // so a record that names it is the only thing that can say whether a slow preparation was this question.
     let began: std::time::Instant = std::time::Instant::now();
-    let needed: bool = read_in_process(context, cwd, index, staging);
+    let answer: StaleStatData = read_in_process(context, cwd, index, staging);
     crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_STAT_CHECK, began.elapsed());
-    return needed;
+    return answer;
 }
 
 /// Where there is no `stat` this reading knows,
 /// Git's own refresh always decides.
 #[cfg(not(unix))]
-pub fn index_stat_data_needs_refresh(_context: &GitContext, _cwd: &Path, _index: &Path, _staging: WorktreeStaging<'_>) -> bool {
-    return true;
+pub fn stale_stat_data(_context: &GitContext, _cwd: &Path, _index: &Path, _staging: WorktreeStaging<'_>) -> StaleStatData {
+    return StaleStatData::Unknown;
 }
 
 /// Controls for the question itself,
