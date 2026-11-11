@@ -48,9 +48,7 @@ use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_f
 use crate::command_clean::clean_would_delete_from_answer;
 /// The answer one `git add` selection question gives.
 use crate::rule_add_explicit::StagedSelection;
-use crate::rule_worktree_dirty::{
-    DirtyScope, dirty_from_output, dirty_query_arguments,
-};
+use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
 use crate::rule_repository_stash::{stash_from_output, stash_query_arguments};
 use crate::rule_commit_sequencer::{
     SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
