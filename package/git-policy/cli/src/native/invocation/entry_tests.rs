@@ -18,8 +18,9 @@
 /// Import the decision under test and shared fixtures.
 use super::{MANAGEMENT_COMMAND, plan_invocation};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
-use crate::child_environment::FORWARD_TARGET_VARIABLE;
+use crate::child_environment::{FORWARD_TARGET_VARIABLE, never_prompt_overlay};
 use crate::config_file::CONFIG_FILE_NAME;
+use crate::control_terminal::{Terminal, control_terminal};
 use crate::management_arguments::MANAGEMENT_HELP;
 use crate::real_git::{Platform, ResolutionInputs};
 use crate::test_support::{REAL_GIT, executable, fixture, remove, repository};
@@ -68,25 +69,47 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
     return result;
 }
 
-/// The forward action for these fixtures:
+/// What:
+///  The forward action for these fixtures:
 ///  real Git,
-///  the lock-PID overlay and no warning.
+///  the lock-PID overlay,
+/// the forward-target marker,
+/// and the never-prompt pair when the process running this control has no controlling terminal.
+/// Why:
+///  A forwarded command's overlay carries that pair exactly when its process has no controlling terminal,
+/// so the
+///  expectation has to be built from the same reading (`control_terminal`) the wrapper takes.
+/// A control that froze the
+///  overlay without the pair passed at a person's terminal and failed under a test runner,
+/// an agent's shell and any
+///  container,
+/// where no controlling terminal exists:
+/// both arrangements must pass.
+///  The pair's own order and contents are controlled in `child_environment_tests.rs`;
+/// these controls are about which
+///  action is planned and with which arguments.
 pub(super) fn forward(arguments: Vec<OsString>) -> Action {
+    let mut overlay: Vec<(OsString, OsString)> = vec![
+        (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
+        (
+            OsString::from("GIT_CONFIG_KEY_0"),
+            OsString::from("core.lockfilePid"),
+        ),
+        (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("true")),
+        (
+            OsString::from(FORWARD_TARGET_VARIABLE),
+            OsString::from(REAL_GIT),
+        ),
+    ];
+    // The pair goes last, as the invocation overlay appends it, so a variable the caller set for its own children cannot
+    // reopen the prompt.
+    if control_terminal() == Terminal::Absent {
+        overlay.extend(never_prompt_overlay());
+    }
     return Action::Forward {
         real_git: PathBuf::from(REAL_GIT),
         arguments,
-        overlay: vec![
-            (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
-            (
-                OsString::from("GIT_CONFIG_KEY_0"),
-                OsString::from("core.lockfilePid"),
-            ),
-            (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("true")),
-            (
-                OsString::from(FORWARD_TARGET_VARIABLE),
-                OsString::from(REAL_GIT),
-            ),
-        ],
+        overlay,
         stderr: String::new(),
     };
 }
