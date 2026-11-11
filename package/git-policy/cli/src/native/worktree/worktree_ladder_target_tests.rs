@@ -10,6 +10,7 @@ use crate::config_snapshot::ConfigEntry;
 use crate::worktree_add_binding::{Bound, bind_registration};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, tracked};
+use crate::path_bytes::path_bytes_of;
 use crate::worktree_snapshot_source::{SnapshotSource, common_source};
 
 /// Bind the add and read the target,
@@ -253,12 +254,16 @@ fn an_attributes_file_by_a_relative_path_is_refused() {
     remove(absolute.as_path());
 }
 
-/// The text of an attributes file names the filters it selects,
-/// comments excluded.
+/// The bytes of an attributes file name the filters it selects,
+/// comments excluded,
+/// and a name is read as its own bytes.
 #[test]
 fn filters_are_read_from_attribute_lines() {
-    assert_eq!(filters_named("*.a filter=one\n# *.b filter=two\n*.c text filter=three -diff\n"), vec![String::from("one"), String::from("three")]);
-    assert_eq!(filters_named("*.d -filter\n*.e text\n"), Vec::<String>::new());
+    assert_eq!(
+        filters_named(b"*.a filter=one\n# *.b filter=two\n*.c text filter=three -diff\n"),
+        vec![b"one".to_vec(), b"three".to_vec()]
+    );
+    assert_eq!(filters_named(b"*.d -filter\n*.e text\n"), Vec::<Vec<u8>>::new());
 }
 
 /// A destination that was replaced after the add was bound is no longer the directory Git made,
@@ -278,5 +283,63 @@ fn a_destination_replaced_after_the_binding_ends_the_reading() {
     std::fs::write(destination.join(".git"), std::fs::read(root.join("topic.moved/.git")).expect("pointer")).expect("a copy of the pointer");
     assert!(prepare_target(&source, &plan, &git_context(), &bound).expect_err("replaced").contains("no longer the directory Git made"));
     drop(repo);
+    remove(root.as_path());
+}
+
+/// The configuration entries of the standard Git LFS filter,
+/// with `core.attributesFile` naming `attributes`.
+fn standard_lfs_entries(attributes: Vec<u8>) -> Vec<ConfigEntry> {
+    let mut entries: Vec<ConfigEntry> = Vec::new();
+    for (key, value) in LFS_FILTER {
+        entries.push(ConfigEntry { scope: String::from("local"), key: String::from(key), value: Some(value.as_bytes().to_vec()) });
+    }
+    entries.push(ConfigEntry { scope: String::from("local"), key: String::from("core.attributesfile"), value: Some(attributes) });
+    return entries;
+}
+
+/// What:
+///  The attributes file `core.attributesFile` names is read when its own path is not UTF-8 text.
+/// Why:
+///   The value was rebuilt as text,
+/// so the file at that path was not found,
+///  and a filter it selects would have gone unweighed:
+///  the conversion would have been called equal without reading the rules that change it.
+#[test]
+fn an_attributes_file_whose_path_is_not_text_is_read() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("target-attributes-not-text");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    let source: SnapshotSource = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let attributes: PathBuf = root.join(OsString::from_vec(b"attributes\xff".to_vec()));
+    std::fs::write(attributes.as_path(), b"* filter=lfs\n").expect("attributes file");
+    let entries: Vec<ConfigEntry> = standard_lfs_entries(path_bytes_of(attributes.as_path()).to_vec());
+    let texts: Vec<Vec<u8>> = untracked_attribute_texts(&source, entries.as_slice());
+    assert!(texts.contains(&b"* filter=lfs\n".to_vec()), "the file the entry names is read: {texts:?}");
+    assert_eq!(
+        external_conversion_refusal(entries.as_slice(), texts.as_slice()),
+        None,
+        "the standard LFS filter is proven equal"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  An attributes file whose bytes are not text selects no filter this ladder proves equal.
+/// Why:
+///   Reading such a file as text replaces every byte that is not UTF-8 with the same character,
+///  so two different rule files would look alike;
+///  a filter name is compared as its own bytes here,
+///  and a name that is not `lfs` is a reason not to reuse the target.
+#[test]
+fn an_attributes_file_that_is_not_text_names_no_proven_conversion() {
+    let root: PathBuf = fixture("target-attributes-bytes");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    let source: SnapshotSource = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let attributes: PathBuf = root.join("attributes");
+    std::fs::write(attributes.as_path(), b"* filter=lf\xffs\n").expect("attributes file");
+    let entries: Vec<ConfigEntry> = standard_lfs_entries(path_bytes_of(attributes.as_path()).to_vec());
+    let texts: Vec<Vec<u8>> = untracked_attribute_texts(&source, entries.as_slice());
+    let refusal: String = external_conversion_refusal(entries.as_slice(), texts.as_slice()).expect("no proven conversion");
+    assert!(refusal.contains("filter lf"), "the refusal names the filter it could not prove: {refusal}");
     remove(root.as_path());
 }

@@ -126,6 +126,52 @@ fn a_run_whose_tasks_come_and_go_is_left_alone() {
     }
 }
 
+/// A run whose every figure falls is ended:
+/// a task that ended,
+/// or one the look could not read,
+/// leaves fewer tasks and less moved behind it,
+/// and neither is the run working.
+/// A count that fell at every look kept a stuck run alive before this.
+#[test]
+fn a_run_whose_figures_only_fall_is_ended() {
+    let window: Duration = Duration::from_secs(2);
+    let mut judge: Judge = Judge::new(window);
+    let mut elapsed: Duration = Duration::ZERO;
+    let mut ended: Option<Ending> = None;
+    // Ten looks, each with one task fewer and less moved than the look before it.
+    for step in 0..10_u64 {
+        let fewer: Look = moved(4_000 - step * 100, 100 - step * 10, 10 - step);
+        ended = judge.observe(elapsed, Some(fewer));
+        if ended.is_some() {
+            break;
+        }
+        elapsed += SAMPLE_INTERVAL;
+    }
+    assert_eq!(ended, Some(Ending::Quiet(window)), "a run whose figures only fall is ended at the first look the window covers");
+}
+
+/// A thread inside two waits at once is one reader of the run:
+/// its readings are taken off once,
+/// not left over as the run's work at every look.
+/// A second entry for one thread counted its whole counter as work before this,
+/// and the run was then never quiet.
+#[test]
+fn a_thread_inside_two_waits_is_left_out_of_the_run_once() {
+    if current_thread_id().is_none() {
+        eprintln!("skipped: this system numbers no thread, so nothing is measured");
+        return;
+    }
+    // Two waits of one thread, as a wait whose event another wait reports.
+    let _outer: Option<Reading> = Reading::begin();
+    let _inner: Option<Reading> = Reading::begin();
+    // A fresh registration has read nothing yet, so the first look counts the thread's whole counter; the two looks
+    //  compared here come after it.
+    let _primed: Look = look_now().expect("this system counts its tasks' work");
+    let before: Look = look_now().expect("still readable");
+    let after: Look = look_now().expect("still readable");
+    assert_eq!(after.bytes, before.bytes, "a thread's own readings are not the run's work, however many waits it is inside");
+}
+
 /// Where this system counts no task's work the window is a fixed deadline,
 /// and the ending says so rather than claiming the run showed nothing.
 #[test]
@@ -195,29 +241,15 @@ fn child_path(name: &str) -> String {
     return format!("{without_crate}::{name}");
 }
 
-/// What:
-///  Run the child test `name` in a process of its own and give back what it said and how it ended.
-/// Why:
-///   A watchdog ends its whole process,
-/// so what it does can only be seen from outside it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const output = spawnSync(process.execPath, ['--exact', path, '--ignored', '--nocapture', '--test-threads=1']);
-/// ```
-fn run_child(name: &str) -> std::process::Output {
-    return std::process::Command::new(this_test_binary().expect("the test binary"))
-        .args(["--exact", child_path(name).as_str(), "--ignored", "--nocapture", "--test-threads=1"])
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the child test runs");
-}
-
 /// How long a child a watcher must end is given before the control counts it as a run that never ended.
 /// The child starts this test binary (measured at up to 11 s on this host under load),
 /// waits its one-second window
 /// and aborts,
 /// so this is four times the slowest start measured (`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`).
+/// Every control waits on its child through this deadline,
+/// so a watcher that does not end its child fails the
+///  control,
+/// where a wait without a bound would hold the whole run.
 const CHILD_DEADLINE: Duration = Duration::from_secs(45);
 
 /// What:
@@ -260,13 +292,32 @@ fn run_child_with_stderr_until(name: &str, stderr: std::process::Stdio) -> Optio
     }
 }
 
+/// What:
+///  Run the child test `name` in a process of its own and give back what it said and how it ended,
+///  or nothing where it outlived
+/// `CHILD_DEADLINE`.
+/// Why:
+///   A watchdog ends its whole process,
+/// so what it does can only be seen from outside it;
+/// the deadline is what turns a watcher
+///  that never ends its child into a failed control instead of a run that never returns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await runChildUntil(name, 'piped'); // undefined when the deadline passed
+/// ```
+fn run_child(name: &str) -> Option<std::process::Output> {
+    return run_child_with_stderr_until(name, std::process::Stdio::piped());
+}
+
 /// Child of the control below:
 /// a run whose only task waits for a message nobody sends.
 #[test]
 #[ignore = "started by a_stuck_run_ends_its_process in a process of its own"]
 fn child_that_stops_moving() {
     forbid_core_dumps();
-    let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
+    // A run whose watcher could not start has no bound at all, so that is a failure of this child, not a quiet skip.
+    let _armed: std::thread::JoinHandle<()> = watch(Duration::from_secs(1)).expect("the watchdog thread starts");
     let (_sender, receiver) = std::sync::mpsc::channel::<()>();
     receiver.recv().expect("unreachable: nothing is ever sent");
 }
@@ -278,7 +329,8 @@ fn child_that_stops_moving() {
 fn child_that_keeps_moving() {
     forbid_core_dumps();
     let root: std::path::PathBuf = fixture("progress-child");
-    let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
+    // The fixture's own watcher is enough here; this child's is the one-second window under test.
+    let _armed: std::thread::JoinHandle<()> = watch(Duration::from_secs(1)).expect("the watchdog thread starts");
     for _ in 0..30_u32 {
         std::fs::write(root.join("record"), vec![b'x'; 4096]).expect("write");
         std::thread::sleep(Duration::from_millis(100));
@@ -290,7 +342,8 @@ fn child_that_keeps_moving() {
 /// and the line it leaves names the window and the signs.
 #[test]
 fn a_stuck_run_ends_its_process() {
-    let output: std::process::Output = run_child("child_that_stops_moving");
+    let ended: Option<std::process::Output> = run_child("child_that_stops_moving");
+    let output: std::process::Output = ended.expect("the watchdog ended the process within CHILD_DEADLINE");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     assert!(ran.contains(child_path("child_that_stops_moving").as_str()), "the child ran the test named, not nothing:\n{ran}");
@@ -320,7 +373,7 @@ fn a_stuck_run_ends_its_process_though_its_report_cannot_be_written() {
 /// How many watchers `child_that_sleeps_under_two_watchers` arms:
 /// the fixture's one and the one it starts itself.
 /// The child prints the count it saw and the parent reads it,
-/// because the child's own watcher ends it either way,
+/// because either watcher ends it,
 /// so a control that only looked at how the child ended would pass with the fixture's watcher disconnected.
 const WATCHERS_UNDER_TEST: usize = 2;
 
@@ -367,17 +420,22 @@ fn readers_running(expected: usize, within: Duration) -> usize {
 fn child_that_sleeps_under_two_watchers() {
     forbid_core_dumps();
     arm_watchdog();
-    let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
-    // The parent reads this count: one watcher ends this child either way, so only the count tells two apart from one.
+    let _armed: std::thread::JoinHandle<()> = watch(Duration::from_secs(1)).expect("the watchdog thread starts");
+    // The parent reads this count: a watcher ends this child either way, so only the count tells two apart from one.
     println!("watchers: {}", readers_running(WATCHERS_UNDER_TEST, Duration::from_secs(5)));
-    std::thread::sleep(Duration::from_secs(5));
+    // Nothing is ever sent, so only a watcher can end this child: a child that ended on a clock of its own would let a
+    //  starved scheduler beat the watcher to it, and the control would fail while the watchdog was sound (measured
+    //  2026-11-11, `doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`).
+    let (_sender, receiver) = std::sync::mpsc::channel::<()>();
+    receiver.recv().expect("unreachable: nothing is ever sent");
 }
 
 /// Two watchers of a run that shows nothing end it,
 /// so a reading is never taken for the work of the run it reads.
 #[test]
 fn two_watchers_do_not_keep_each_other_alive() {
-    let output: std::process::Output = run_child("child_that_sleeps_under_two_watchers");
+    let ended: Option<std::process::Output> = run_child("child_that_sleeps_under_two_watchers");
+    let output: std::process::Output = ended.expect("a watcher ended the process within CHILD_DEADLINE");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     assert!(ran.contains(child_path("child_that_sleeps_under_two_watchers").as_str()), "the child ran the test named, not nothing:\n{ran}");
@@ -391,7 +449,8 @@ fn two_watchers_do_not_keep_each_other_alive() {
 /// which is the failure this watchdog had with a wall clock.
 #[test]
 fn a_run_that_keeps_moving_past_its_window_is_not_ended() {
-    let output: std::process::Output = run_child("child_that_keeps_moving");
+    let ended: Option<std::process::Output> = run_child("child_that_keeps_moving");
+    let output: std::process::Output = ended.expect("the moving child ended within CHILD_DEADLINE");
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     assert!(output.status.success(), "the moving child ended on its own:\n{ran}\n{said}");
@@ -407,7 +466,7 @@ fn a_run_that_keeps_moving_past_its_window_is_not_ended() {
 #[ignore = "started by a_wait_does_not_keep_the_watchdog_alive in a process of its own"]
 fn child_that_waits_under_the_watchdog() {
     forbid_core_dumps();
-    let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
+    let _armed: std::thread::JoinHandle<()> = watch(Duration::from_secs(1)).expect("the watchdog thread starts");
     // The wait reads the run itself at every look, and those reads are not the run's work.
     let _held: bool = crate::test_support::wait_until_for(crate::test_support::WaitingFor { window: Duration::from_secs(600), done: &|| { return false; } });
 }

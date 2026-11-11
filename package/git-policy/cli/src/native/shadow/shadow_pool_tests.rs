@@ -395,6 +395,34 @@ fn a_pool_of_a_worktree_git_no_longer_lists_is_removed() {
 }
 
 /// What:
+///  A member stays usable when a common directory gains an entry no commit reads.
+/// Why:
+///  A repository with many agents collects these all the time
+///  (`FETCH_HEAD`,
+/// a timing-log generation,
+/// another tool's file),
+///  and a member that refused on one would send its commit back to the full creation
+///  the pool exists to skip.
+#[test]
+fn a_member_stays_usable_when_an_entry_no_commit_reads_appears() {
+    let root: PathBuf = fixture("shadow-pool-unread-state-appears");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let (template, member) = a_member(repo.as_path());
+    let common: PathBuf = repo.join(".git");
+    for name in ["FETCH_HEAD", "monochromatic-git-policy-cli-commit-timing.jsonl", "cli-git-captures"] {
+        std::fs::write(common.join(name), b"state").expect("an entry no commit reads");
+    }
+    std::fs::create_dir_all(common.join("worktrees").join("another")).expect("another worktree's state");
+    let destination: PathBuf = root.join("shadow");
+    assert!(take(&template, destination.as_path()), "the member is still what this invocation's creation makes");
+    for name in ["FETCH_HEAD", "monochromatic-git-policy-cli-commit-timing.jsonl", "cli-git-captures", "worktrees"] {
+        assert!(std::fs::symlink_metadata(destination.join(name)).is_err(), "the claimed shadow holds no {name}");
+    }
+    assert!(std::fs::symlink_metadata(member.as_path()).is_err(), "and the pool gave the member up");
+    remove(root.as_path());
+}
+
+/// What:
 ///  The pools of every linked worktree go when Git removed their registrations with the last one.
 /// Why:
 ///   Git removes the `worktrees` folder itself when its last registration goes,
@@ -412,6 +440,32 @@ fn every_linked_worktrees_pool_goes_when_git_removed_its_registrations() {
     assert_eq!(removed, vec![topic.clone()], "the one linked worktree's pool");
     assert!(std::fs::symlink_metadata(topic.as_path()).is_err(), "its folder is gone");
     assert!(main.is_dir(), "the main checkout's pool stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  A member stays usable when a common directory loses an entry no commit reads.
+/// Why:
+///   The member holds a link to every entry the common directory had when it was filled;
+///  a link to a name that is no longer there resolves to nothing,
+/// which is the view a creation of this moment gives,
+///  so the entry going away is no reason to refuse the member.
+#[test]
+fn a_member_stays_usable_when_an_entry_no_commit_reads_goes_away() {
+    let root: PathBuf = fixture("shadow-pool-unread-state-goes");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    for name in ["FETCH_HEAD", "monochromatic-git-policy-cli-audit.jsonl"] {
+        std::fs::write(common.join(name), b"state").expect("an entry no commit reads");
+    }
+    std::fs::create_dir_all(common.join("lost-found")).expect("an entry no commit reads");
+    let (template, _member) = a_member(repo.as_path());
+    for name in ["FETCH_HEAD", "monochromatic-git-policy-cli-audit.jsonl"] {
+        std::fs::remove_file(common.join(name)).expect("gone");
+    }
+    std::fs::remove_dir_all(common.join("lost-found")).expect("gone");
+    let destination: PathBuf = root.join("shadow");
+    assert!(take(&template, destination.as_path()), "the member is what a creation of this moment makes");
     remove(root.as_path());
 }
 
@@ -439,6 +493,27 @@ fn a_pool_of_a_worktree_git_is_adding_stays() {
 }
 
 /// What:
+///  A member that would miss an entry a commit reads is still refused.
+/// Why:
+///  The tolerance above is about entries no commit reads;
+/// an entry a commit reads that the repository gained since the fill
+///  is exactly the member that would give the commit a view of an older moment.
+#[test]
+fn a_member_that_would_miss_an_entry_a_commit_reads_is_refused() {
+    let root: PathBuf = fixture("shadow-pool-read-state-appears");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    std::fs::remove_dir_all(common.join("info")).expect("this repository has no info directory");
+    let (template, _member) = a_member(repo.as_path());
+    std::fs::create_dir(common.join("info")).expect("an info directory appears");
+    std::fs::write(common.join("info").join("attributes"), "*.rs text\n").expect("and holds attributes");
+    let destination: PathBuf = root.join("shadow");
+    assert!(!take(&template, destination.as_path()), "a member that misses info is refused");
+    assert!(std::fs::symlink_metadata(destination.as_path()).is_err(), "and the claim's path is left empty");
+    remove(root.as_path());
+}
+
+/// What:
 ///  The pool of a worktree whose checkout is gone stays while Git still lists it.
 /// Why:
 ///   A checkout deleted by hand leaves its registration,
@@ -458,6 +533,28 @@ fn a_pool_of_a_worktree_git_still_lists_stays() {
 }
 
 /// What:
+///  A member that holds a real entry where a link belongs is still refused,
+///  even for a name the repository no longer holds.
+/// Why:
+///   A link to an entry that is gone gives the commit the view a creation gives;
+/// a directory or a file of its own there is what a use of the member left,
+///  and the next commit would trust it.
+#[test]
+fn a_member_that_holds_a_real_entry_where_a_link_belongs_is_refused() {
+    let root: PathBuf = fixture("shadow-pool-real-entry");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let (template, member) = a_member(repo.as_path());
+    assert!(
+        std::fs::symlink_metadata(repo.join(".git").join("rr-cache").as_path()).is_err(),
+        "this repository has no rr-cache"
+    );
+    std::fs::create_dir(member.join("rr-cache").as_path()).expect("a real entry where a link belongs");
+    let destination: PathBuf = root.join("shadow");
+    assert!(!take(&template, destination.as_path()), "a real directory at a shared name is refused");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A folder in the pool the wrapper did not name is left alone.
 /// Why:
 ///   The pool's folder is the repository's own state,
@@ -472,6 +569,32 @@ fn a_folder_the_wrapper_did_not_name_stays() {
     let removed: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
     assert!(removed.is_empty(), "nothing is removed: {removed:?}");
     assert!(stranger.join("member-a-finished-shadow").is_dir(), "the stranger's folder is untouched");
+    remove(root.as_path());
+}
+
+/// What:
+///  A refused member is named in the commit's own timing record,
+///  where a slow commit explains itself,
+///  and nowhere a person's terminal reads.
+/// Why:
+///  A member is the wrapper's own cache:
+/// the person can neither cause a refusal nor fix it,
+///  so the evidence belongs in the record that names the creation it forced
+///  (`shadow_pool.rs`,
+/// `note_refusal`).
+#[test]
+fn a_refused_member_is_named_in_the_build_parts() {
+    let root: PathBuf = fixture("shadow-pool-refusal-evidence");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let (template, member) = a_member(repo.as_path());
+    std::fs::write(member.join("MERGE_HEAD").as_path(), b"0123456789012345678901234567890123456789\n").expect("state");
+    let _before = crate::commit_build_part_durations::drain_build_parts();
+    assert!(!take(&template, root.join("shadow").as_path()), "a member with state is refused");
+    let (parts, _dropped) = crate::commit_build_part_durations::drain_build_parts();
+    assert!(
+        parts.iter().any(|part| { return part.name == "shadow pool refused"; }),
+        "the record names the refusal: {parts:?}"
+    );
     remove(root.as_path());
 }
 
@@ -514,5 +637,31 @@ fn a_second_sweep_removes_nothing() {
     assert_eq!(sweep_gone_worktrees(common.as_path()), vec![gone.clone()], "the first sweep collects it");
     let again: Vec<PathBuf> = sweep_gone_worktrees(common.as_path());
     assert!(again.is_empty(), "the second sweep finds nothing to remove: {again:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A fill makes no member for a linked worktree that keeps its own `info` directory.
+/// Why:
+///   Such a worktree's shadows are made where the commit is,
+///  so every member the service made for it was refused by the very next commit,
+///  which removed it and built its own creation:
+/// the fill made work for nobody and the pool churned.
+#[test]
+fn a_fill_makes_no_member_for_a_worktree_that_keeps_its_own_info() {
+    let root: PathBuf = fixture("shadow-pool-own-info");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let linked: PathBuf = root.join("linked");
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("fixture")],
+    );
+    let git_dir: PathBuf = repo.join(".git").join("worktrees").join("linked");
+    std::fs::create_dir_all(git_dir.join("info")).expect("worktree info");
+    std::fs::write(git_dir.join("info").join("sparse-checkout"), "/*\n").expect("sparse");
+    let template: ShadowTemplate = template_of(linked.as_path());
+    assert_eq!(fill(&git_context(), &template).expect("fill"), None, "no member is made");
+    assert!(members(pool_root(&template).as_path()).is_empty(), "and the pool holds none");
+    assert!(!take(&template, root.join("shadow").as_path()), "nothing is taken either");
     remove(root.as_path());
 }

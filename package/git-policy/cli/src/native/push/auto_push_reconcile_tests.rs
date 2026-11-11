@@ -21,7 +21,7 @@ use std::time::Duration;
 
 /// A function-like value with the right shape is a merge push in these controls:
 /// the shipped callers write a small struct that holds the state.
-impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>> MergePusher for Push {
+impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError> + Send> MergePusher for Push {
     fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
         return self(destination, merge_oid);
     }
@@ -186,7 +186,7 @@ fn commit_local(scenario: &Scenario, file: &str, text: &str) -> String {
 /// Push `main` of the repository under test the way the service does and capture the text it prints.
 fn run(scenario: &Scenario, landed: &str) -> (AutoPushResult, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &mut err).expect("auto-push");
+    let result = push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &[], &mut err).expect("auto-push");
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
@@ -195,7 +195,7 @@ fn run(scenario: &Scenario, landed: &str) -> (AutoPushResult, String) {
 /// even compute its merge ends with.
 fn run_error(scenario: &Scenario, landed: &str) -> SingleFlightError {
     let mut err: Vec<u8> = Vec::new();
-    return push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &mut err).expect_err("the failure is returned");
+    return push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &[], &mut err).expect_err("the failure is returned");
 }
 
 /// What a consumer of the worktree can observe:
@@ -329,7 +329,7 @@ fn the_reconcile_fetch_sets_no_low_speed_abort() {
     let mut coordinator = push_git(&s.local);
     coordinator.real_git = stand_in;
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&coordinator, "refs/heads/main", &landed, &[], &mut err).expect("auto-push");
+    let result = push_once(&coordinator, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(&err));
     assert_eq!(
         std::fs::read_to_string(&record).expect("the fetch ran"),
@@ -1962,6 +1962,48 @@ fn an_adjacent_edit_is_merged_by_word_published_and_listed() {
     remove(&s.root);
 }
 
+/// What:
+///  A resolvable merge whose answer is larger than the push report's output cap is still merged and published.
+/// Why:
+///  The reconcile's commands are judged with `MAX_PUSH_OUTPUT`,
+///  and that ceiling was raised only for `cat-file`,
+///  so `merge-file --stdout` kept the push report's 4 MiB although the pass takes stages at 8 MiB
+///  and its answer is those stages and the settled text around them.
+///  A resolvable file past the cap put the whole merge back as a conflict,
+///  and nothing was pushed
+///  (cross-vendor review of round 133,
+///  finding 4).
+#[test]
+fn a_word_merged_answer_bigger_than_the_push_output_cap_is_published() {
+    let s = scenario("ar-word-large");
+    // The answer holds the shared text around the one conflict, so shared text past the cap makes the answer larger than
+    // the cap; the margin is the region, the marker lines and the text the push reports around them.
+    let shared: usize = usize::try_from(crate::bounded_push::MAX_PUSH_OUTPUT).expect("the cap is a size") + 512 * 1024;
+    let mut base: String = String::new();
+    while base.len() <= shared {
+        base.push_str(format!("a line of the shared text {}\n", base.len()).as_str());
+    }
+    let tail: &str = "alpha one\n";
+    base.push_str(tail);
+    assert!(
+        u64::try_from(base.len()).expect("the fixture's size") < crate::merge_second_pass::LARGEST_STAGE_BYTES,
+        "the fixture is a stage the pass takes"
+    );
+    let both: &str = base.strip_suffix(tail).expect("the tail is there");
+    // The base reaches both clones first, so the local commit changes a path Git knows.
+    advance_remote(&s, "big.md", base.as_str());
+    git(&s.local, &["pull", "--quiet", "--ff-only"]);
+    advance_remote(&s, "big.md", format!("{both}ALPHA one\n").as_str());
+    let landed: String = commit_local(&s, "big.md", format!("{both}alpha uno\n").as_str());
+    let (result, err) = run(&s, &landed);
+    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    let published: String = text_of(&s.remote, &["show", "main:big.md"]);
+    assert!(published.starts_with(both), "the shared text is published whole: {} bytes", published.len());
+    assert!(published.trim_end().ends_with("ALPHA uno"), "the merged line is the word merge of both edits");
+    assert!(err.contains("word-level merge") && err.contains("big.md"), "{err}");
+    remove(&s.root);
+}
+
 /// Sections appended at one point by both sides stay a conflict:
 /// nothing is published and the paths are named.
 #[test]
@@ -2057,7 +2099,7 @@ fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
     let mut git = push_git(&s.local);
     git.real_git = context.real_git.clone();
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&git, "refs/heads/main", &landed, &[], &mut err).expect("auto-push");
+    let result = push_once(&git, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
     assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{}", String::from_utf8_lossy(&err));
     let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
     let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
@@ -2550,5 +2592,91 @@ fn a_refused_fast_forward_is_settled_inside_the_task_that_asked_for_it() {
         "the record is settled by the task itself, so the next command is not stopped for the merge"
     );
     assert_ne!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), old, "the branch moved to the settled merge");
+    remove(&s.root);
+}
+
+/// A merge push a command outside the runtime supplied starts Git synchronously,
+/// which is what `gated_merge_push` does for a person's explicit push,
+/// so the blocking entry runs it where a start of Git is allowed:
+/// on a thread of its own beside the loop,
+/// never inside the runtime that runs the loop.
+/// Why this is the whole reason for the bridge:
+/// the loop is one body and a task's work,
+/// and a start of Git from inside the runtime is refused.
+/// Planted,
+/// by calling the pusher from the loop's own task instead
+/// (`Box::pin(std::future::ready(push_merge.push_merge(destination, merge_oid)))`),
+/// it fails with "the runtime that runs this command's waits was asked for from inside itself",
+/// and nothing is published.
+#[test]
+fn a_merge_push_that_starts_git_synchronously_runs_beside_the_loop_and_not_inside_it() {
+    let s = scenario("ar-blocking-entry-merge-push-thread");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let mut pushed_on: Option<std::thread::ThreadId> = None;
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        // The synchronous face of a read-only query, which the planner of the person's own push also asks.
+        let read = crate::auto_push_single_flight::run_query(
+            &push_git(&s.local),
+            &argv(&["rev-parse", "--verify", "HEAD^{commit}"]),
+        )
+        .expect("the merge push of a command outside the runtime may start Git where it runs");
+        assert_eq!(read.code, Some(0), "{}", String::from_utf8_lossy(&read.stderr));
+        pushed_on = Some(std::thread::current().id());
+        git(
+            &s.local,
+            &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)],
+        );
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let attempt = finished(integrate(&s, &landed, false, &mut push_merge));
+    assert_eq!(attempt.exit_code, 0, "{attempt:?}");
+    assert!(attempt.output.contains("was published"), "{}", attempt.output);
+    assert_ne!(
+        pushed_on,
+        Some(std::thread::current().id()),
+        "the merge push ran on a thread of its own, never on the thread that waits for the loop"
+    );
+    let published: String = text_of(&s.remote, &["rev-parse", "main"]);
+    assert_ne!(published, landed, "the published tip is the merge, not the landed commit");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), published, "the branch follows the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "HEAD"]), published, "the checkout follows the merge");
+    remove(&s.root);
+}
+
+/// A reconcile whose merge push finds no thread reports the rejected attempt and changes nothing:
+/// the commit stays saved,
+/// the branch and the worktree stay where the failed push left them,
+/// and the push's own report is what the person reads.
+#[test]
+fn a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_it_was() {
+    let s = scenario("ar-merge-push-thread-refused");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let remote_before: String = text_of(&s.remote, &["rev-parse", "main"]);
+    let mut pushes: u32 = 0;
+    let mut push_merge = |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        pushes += 1;
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let refused = crate::scoped_start::RefusedStarts::here();
+    let integrated = integrate(&s, &landed, false, &mut push_merge);
+    drop(refused);
+    let Integrated::NotDivergent(attempt) = integrated else {
+        panic!("a reconcile that could not push reports the rejected attempt, not a finished one");
+    };
+    assert_eq!(attempt.exit_code, 1, "{attempt:?}");
+    assert!(attempt.output.contains("[rejected]"), "{}", attempt.output);
+    assert_eq!(pushes, 0, "no merge was pushed");
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before, "nothing was published");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), landed, "the branch did not move");
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the worktree was not touched");
+    assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no private fetch ref was left");
     remove(&s.root);
 }

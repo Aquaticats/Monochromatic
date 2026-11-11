@@ -15,7 +15,8 @@
 //! with 2,182 of 2,796 blocked samples inside `unlink` or `rmdir` and the drive 99% busy
 //!  (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`).
 //! So the add writes the record,
-//! tells the service, and returns.
+//! tells the service,
+//! and returns.
 //! The record lives in the
 //!  repository's common work directory rather than in the new worktree's,
 //! because that is what makes one repository empty its trashes
@@ -42,7 +43,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::iso_time::now_iso;
-use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for, wake};
+use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
 use crate::service_messages::{ClientFailure, render};
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::{ProvisionHost, provision};
@@ -50,7 +51,7 @@ use crate::service_provision_host_and_manager::units_record_dir_of;
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
 use crate::transaction_git::GitContext;
-use crate::wait_ceilings::{ANSWER_CEILING, SHORT_EXTRA_WAIT, START_CEILING, WITHDRAW_CEILING, waiting_notice_after};
+use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_trash::{PendingTrash, TRASH_PARENT, TRASH_REFERENCE};
 use std::io::Write;
@@ -97,19 +98,42 @@ pub struct Reach<'a> {
 }
 
 /// What:
+///  Set the host a route names up for the wake,
+/// when the route names one,
+/// and answer the failure the setup gave.
+/// Why:
+///   A repository whose service units were never installed needs them before its service can be reached,
+/// and the failure is what the person reads when that cannot be done;
+/// naming the step as its own function keeps the state it needs (the provisioner) a parameter.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const provisionedHost = (provisioner, host) => (host === undefined ? undefined : provisioner(host));
+/// ```
+fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ProvisionHost>) -> Option<ClientFailure> {
+    let setup: &ProvisionHost = host?;
+    return (provisioner)(setup).err();
+}
+
+/// What:
 ///  Hand this add's trash to the commit service of the repository,
 /// and answer the reason it stays when the service
 ///  could not be told about it.
 /// Why:
 ///   The production reach is the one a commit uses,
-/// so a trash is handed over exactly as a push record is.
+/// so a trash is handed over exactly as a push record is,
+///  with one difference:
+/// the record is written before the wake and every later command of the repository wakes the same
+///  service,
+/// so the wake waits the hand-over's own greeting bound and never the commit's start wait
+///  (`HAND_OVER_GREETING_WAIT`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// handOverToTheService({ context, trash, notices });
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, trash: &PendingTrash, notices: &mut dyn Write) -> Result<(), String> {
-    return hand_over_with(context, trash, notices, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: START_WAIT });
+    return hand_over_with(context, trash, notices, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
 /// What:
@@ -192,9 +216,9 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
         // The record stays for the next wake a command of this repository gives, which is every commit and every add.
         None => Err(String::from("no commit service can be started from this session")),
-        Some(Route { address, provision: host }) => match host.as_ref().map(|setup: &ProvisionHost| return (reach.provisioner)(setup)) {
-            Some(Err(failure)) => Err(render(&failure)),
-            _ => {
+        Some(Route { address, provision: host }) => match provisioned_host(reach.provisioner, host.as_ref()) {
+            Some(failure) => Err(render(&failure)),
+            None => {
                 let config: ClientConfig = ClientConfig {
                     address,
                     activation: Activation::Managed,
@@ -206,12 +230,14 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
                     withdraw_ceiling: WITHDRAW_CEILING,
                     waiting_notice_after: waiting_notice_after(),
                     extra_wait: SHORT_EXTRA_WAIT,
-                    start_ceiling: START_CEILING,
+                    // A wake reads the record once and returns: with a manager to ask, the commit's start ceiling would hold the add
+                    //  for a start this command does not need, so the wait ends at the hand-over's own bound.
+                    start_ceiling: reach.start_wait,
                     units_record_dir: host.as_ref().map(units_record_dir_of),
                 };
-                // The wake's own lines are not the add's report: the add says what became of the trash once.
-                let mut silent: std::io::Sink = std::io::sink();
-                match wake(&config, trash.common_dir.as_path(), None, &mut silent) {
+                // The wait says what it is for, and the line is the add's own: the trash is handed over once, so there is no
+                //  second report of it.
+                match wake(&config, trash.common_dir.as_path(), None, notices) {
                     Ok(()) => Ok(()),
                     Err(failure) => Err(render(&failure)),
                 }

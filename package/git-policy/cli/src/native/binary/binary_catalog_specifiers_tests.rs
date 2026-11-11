@@ -20,7 +20,7 @@
 
 /// Import the shared fixtures and the commit controls' helpers.
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit};
-use super::support::{Fixture, Observed, fixture, repository, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, fixture, repository, run_wrapped, stderr_of, stderr_without_wait_notices};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -78,7 +78,9 @@ fn an_error_policy_blocks_a_literal_version_and_lets_a_catalog_one_land() {
     assert_nothing_left(&fixture, repo.as_path());
     std::fs::write(repo.join("package.json"), CATALOG).expect("fixed manifest");
     let landed: Observed = commit_manifest(&fixture, repo.as_path());
-    assert_eq!((landed.code, stderr_of(&landed)), (Some(0), String::new()));
+    // A loaded host stretches the service's branch write past a beat, and the client then reads the service's
+    //  notice about the write it is inside; this control means the policy's words, so it drops that notice.
+    assert_eq!((landed.code, stderr_without_wait_notices(&landed)), (Some(0), String::new()));
     assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]), CATALOG);
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
@@ -107,7 +109,8 @@ fn a_warn_policy_reports_and_lets_the_commit_land() {
     let fixture: Fixture = fixture("catalog-commit-warn");
     let repo: PathBuf = configured(&fixture, Some("{ \"policies\": { \"mono/catalog-specifiers\": \"warn\" } }\n"), LITERAL);
     let landed: Observed = commit_manifest(&fixture, repo.as_path());
-    let stderr: String = stderr_of(&landed);
+    // The commit lands however slow its landing is, so a beat's "inside a write" notice is not this control's subject.
+    let stderr: String = stderr_without_wait_notices(&landed);
     assert_eq!(landed.code, Some(0), "{stderr}");
     assert!(stderr.starts_with(literal_finding("pre-forward", "warn").as_str()), "{stderr}");
     assert!(stderr.contains("\"code\":\"warn-unsafe\""), "{stderr}");
@@ -133,7 +136,9 @@ fn a_configuration_that_does_not_name_the_policy_commits_as_before() {
         let fixture: Fixture = fixture(format!("catalog-commit-before-{name}").as_str());
         let repo: PathBuf = configured(&fixture, configuration, LITERAL);
         let landed: Observed = commit_manifest(&fixture, repo.as_path());
-        assert_eq!((landed.code, stderr_of(&landed)), (Some(0), String::new()), "{name}");
+        // A landing that runs past a beat of the service prints the owner's "inside a write" notice (2026-11-04,
+        //  "Short extra wait"), so the control means the words the command said and not the host's speed.
+        assert_eq!((landed.code, stderr_without_wait_notices(&landed)), (Some(0), String::new()), "{name}");
         assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:package.json"]), LITERAL, "{name}");
         remove_settled(&fixture);
     }

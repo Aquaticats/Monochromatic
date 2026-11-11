@@ -12,6 +12,9 @@
 //! // cleanChangesWorktree(parseCleanRegion(['-ndX'])) === false
 //! ```
 
+/// The reading every `git clean --dry-run` answer gets,
+///  which one function owns because both a deletion and a kept repository are read from one.
+use crate::command_clean_nested_repositories::dry_run_lines_from_answer;
 use crate::command_options::{
     Arity, DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions, UNREAD, parse_options, row,
 };
@@ -35,6 +38,19 @@ use crate::command_options_query::{
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
+
+/// The fact the reading of a clean's own dry run names when it fails.
+/// Why:
+///  A refusal means Git deleted nothing,
+/// while a reading that never answered could hide a deletion;
+/// the two fail apart because one lets the command run and the other stops it.
+pub const CLEAN_DELETION_FACT: &str = "what the clean would delete";
+
+/// The words that begin a failed reading of a clean's own dry run.
+/// Why:
+///  The message is this crate's own,
+/// so the caller that must tell Git's refusal of the clean from a reading that never answered matches its start.
+pub const UNREADABLE_CLEAN_DELETION: &str = "Git could not read what the clean would delete:";
 
 /// `-n`,
 ///  `--dry-run`.
@@ -208,6 +224,87 @@ pub fn parse_clean_region(
 /// function cleanDryRunArguments(globalPrefix: string[], region: string[]): string[] | undefined;
 /// ```
 pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
+    return dry_run_arguments(global_prefix, region, true, DryRunForces::AsTyped);
+}
+
+/// What:
+///  The same dry run without the patterns the clean's own `-e`/`--exclude` tokens add to its ignore rules.
+///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
+/// Why:
+///  A pattern can pull into a clean a path the worktree itself does not ignore,
+///  and the difference between
+///  this answer and the typed clean's is exactly what the patterns add
+///  (`paths_only_the_exclusions_add`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cleanDryRunArgumentsWithoutExclusions(globalPrefix: string[], region: string[]): string[] | undefined;
+/// ```
+pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
+    return dry_run_arguments(global_prefix, region, false, DryRunForces::AsTyped);
+}
+
+/// What:
+///  Which force count a rebuilt dry run writes.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///  The two readings differ in one number and in nothing else,
+///  so one builder writes both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DryRunForces = 'as-typed' | 'one';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DryRunForces {
+    /// As many as the person typed,
+    /// and at least one.
+    AsTyped,
+    /// Exactly one,
+    /// whatever the person typed.
+    One,
+}
+
+/// What:
+///  The same dry run written with exactly one `-f`,
+///  the force count at which Git keeps every nested repository it meets.
+///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
+/// Why:
+///  Git removes a nested repository only with a second `-f` (`builtin/clean.c`,
+///  `if (force > 1) rm_flags = 0`),
+///  and its dry run then prints one line naming each repository it keeps instead (`Would skip repository`).
+///  So this reading of the same clean is the exact list of repositories the typed clean would delete,
+///  written by Git itself rather than walked again here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cleanDryRunArgumentsKeepingNestedRepositories(globalPrefix: string[], region: string[]): string[] | undefined;
+/// ```
+pub fn clean_dry_run_arguments_keeping_nested_repositories(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
+    return dry_run_arguments(global_prefix, region, true, DryRunForces::One);
+}
+
+/// What:
+///  The dry-run arguments of one clean,
+/// with or without its own exclusion patterns,
+///  and with the force count one of the two readings writes.
+///  `bool` says whether the patterns are written.
+/// Why:
+///  Every reading is the same command,
+///  so they share one builder and differ in one step each;
+///  a second copy of the
+///  rebuild would drift from this one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function dryRunArguments(globalPrefix: string[], region: string[], withExclusions: boolean, forces: DryRunForces): string[] | undefined;
+/// ```
+fn dry_run_arguments(
+    global_prefix: &[OsString],
+    region: &[OsString],
+    with_exclusions: bool,
+    written_forces: DryRunForces,
+) -> Option<Vec<OsString>> {
     // The region Git refuses is nothing to ask about; the `?` is that refusal.
     let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
     let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
@@ -219,7 +316,8 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) 
         if occurrence.id == FORCE && !occurrence.negated {
             forces += 1;
         }
-        if occurrence.id == EXCLUDE
+        if with_exclusions
+            && occurrence.id == EXCLUDE
             && let Some(value) = occurrence.value
         {
             exclusions.push(value_bytes(region, value));
@@ -229,7 +327,10 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) 
     for token in ["--no-optional-locks", "clean", "-n"] {
         arguments.push(OsString::from(token));
     }
-    for _ in 0..forces.max(1) {
+    for _ in 0..match written_forces {
+        DryRunForces::AsTyped => forces.max(1),
+        DryRunForces::One => 1,
+    } {
         arguments.push(OsString::from("-f"));
     }
     if descends {
@@ -254,45 +355,53 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) 
 }
 
 /// What:
-///  Whether a `git clean --dry-run` answer lists files it would delete.
-///  `Result<bool, String>` is "the answer,
+///  The paths a `git clean --dry-run` answer says it would delete,
+/// each exactly as Git printed it.
+///  `Result<Vec<Vec<u8>>, String>` is "the paths,
 /// or why Git could not give one".
 /// Why:
-///   A dry run prints one line per file it would remove and nothing at all when it would remove nothing,
+///   A dry run prints one line per path it would remove and nothing at all when it would remove nothing,
 /// and a clean Git
 ///  refuses says nothing either,
 ///  so a failure is an error and never "nothing to delete".
+///  Two dry runs of the same clean name a path the same way,
+///  which is what makes
+///       their two answers comparable line by line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function cleanWouldDeleteFromAnswer(answer: MetadataOutput): boolean; // throws
+/// function cleanDeletedPathsFromAnswer(answer: MetadataOutput): Buffer[]; // throws
 /// ```
-pub fn clean_would_delete_from_answer(answer: &MetadataOutput) -> Result<bool, String> {
-    if !answer.success {
-        let detail: String = String::from_utf8_lossy(&answer.stderr)
-            .lines()
-            .next()
-            .unwrap_or_default()
-            .trim()
-            .to_string();
-        return Err(format!("Git could not read what the clean would delete: {detail}"));
-    }
-    return Ok(!answer.stdout.iter().all(is_ascii_whitespace));
+pub fn clean_deleted_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
+    return dry_run_lines_from_answer(answer, CLEAN_DELETION_FACT);
 }
 
 /// What:
-///  Whether one byte of the dry run's answer is whitespace.
+///  The paths one dry-run answer names that the same clean without its exclusion patterns would not delete.
+///  `deleted` and `otherwise_deleted` borrow both answers as Git printed them.
 /// Why:
-///   A dry run that would delete nothing prints nothing,
-/// and a named function keeps that pass free of a
-///  closure that captures nothing.
+///   Git adds the `-e`/`--exclude` patterns to the ignore rules the clean applies,
+///  so a path only the first
+///  answer names is one those patterns call ignored and the worktree does not:
+///  an untracked
+///  file this clean would lose.
+///  A set keeps the comparison linear in the larger answer,
+///  because a
+///  worktree can ignore millions of paths.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (byte: number) => /\s/.test(String.fromCharCode(byte))
+/// function pathsOnlyTheExclusionsAdd(deleted: Buffer[], otherwiseDeleted: Buffer[]): Buffer[];
 /// ```
-fn is_ascii_whitespace(byte: &u8) -> bool {
-    return byte.is_ascii_whitespace();
+pub fn paths_only_the_exclusions_add(deleted: &[Vec<u8>], otherwise_deleted: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let known: std::collections::BTreeSet<&[u8]> = otherwise_deleted.iter().map(Vec::as_slice).collect();
+    let mut added: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for path in deleted {
+        if !known.contains(path.as_slice()) {
+            added.push(path.clone());
+        }
+    }
+    return added;
 }
 
 /// What:

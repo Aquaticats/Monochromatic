@@ -572,3 +572,50 @@ fn head_file_presence_does_not_follow_links() {
     assert!(!head_file_exists(b""));
     remove(root.as_path());
 }
+
+/// Real Git names the main checkout from the main worktree and from a linked one,
+///  wherever that linked worktree sits.
+#[test]
+fn the_main_worktree_is_what_real_git_lists_first() {
+    let root: PathBuf = fixture("facts-main-worktree");
+    let main: PathBuf = repository(root.as_path(), "main");
+    assert_eq!(
+        facts_in(&[main.as_path()]).main_worktree_root(),
+        Ok(main.clone())
+    );
+    let inside: PathBuf = main.join("linked-inside");
+    let outside: PathBuf = root.join("linked-outside");
+    for place in [inside.as_path(), outside.as_path()] {
+        git(
+            main.as_path(),
+            &["worktree", "add", "--detach", place.to_str().expect("text path"), "HEAD"],
+        );
+        assert_eq!(
+            facts_in(&[place]).main_worktree_root(),
+            Ok(main.clone()),
+            "{}",
+            place.display()
+        );
+    }
+    // A place without a repository is a failure, never a guess.
+    let plain: PathBuf = root.join("plain");
+    std::fs::create_dir(&plain).expect("plain directory");
+    assert!(facts_in(&[plain.as_path()]).main_worktree_root().is_err());
+    remove(root.as_path());
+}
+
+/// A path that holds a line feed is still one value,
+///  because the listing separates its lines with a NUL.
+#[test]
+fn a_main_worktree_path_that_holds_a_line_feed_is_read_whole() {
+    let root: PathBuf = fixture("facts-main-worktree-newline");
+    let main: PathBuf = root.join("main\nworktree");
+    std::fs::create_dir_all(&main).expect("repository directory");
+    git(main.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(main.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    assert_eq!(
+        facts_in(&[main.as_path()]).main_worktree_root(),
+        Ok(main.clone())
+    );
+    remove(root.as_path());
+}

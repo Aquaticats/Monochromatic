@@ -63,8 +63,9 @@ pub struct LandingState {
     /// counted by controls only.
     #[cfg(test)]
     pub(crate) name_steps: Cell<u64>,
-    /// The one marker made ahead for the next batch (`service_index_prestage.rs`).
-    pub(crate) prestaged_marker: RefCell<Option<Slot>>,
+    /// The markers made ahead for the next batches (`service_index_prestage.rs`):
+    /// the one the next landing takes and the one after it.
+    pub(crate) prestaged_markers: RefCell<Vec<Slot>>,
     /// Whether this landing queues its syncs (`true`) or makes them where it asks (`false`) (`service_durable.rs`).
     pub(crate) deferring_syncs: Cell<bool>,
     /// Whether the index this landing writes is flushed before it is installed.
@@ -92,7 +93,7 @@ impl LandingState {
             unsettled_locks: Cell::new(0),
             #[cfg(test)]
             name_steps: Cell::new(0),
-            prestaged_marker: RefCell::new(None),
+            prestaged_markers: RefCell::new(Vec::new()),
             deferring_syncs: Cell::new(false),
             index_hardened: Cell::new(true),
             queued_syncs: RefCell::new(Vec::new()),

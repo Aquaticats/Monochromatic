@@ -3,7 +3,6 @@
 //! where it lives,
 //!  one `rename` to claim a member,
 //! the fill the resident service runs ahead,
-//! the fill the resident service runs ahead,
 //! and the sweeps of a fill that was killed and of a worktree Git no longer lists.
 //! Why:
 //!  The creation makes about 40 directory-entry creations per commit on a volume where those calls wait seconds,
@@ -23,6 +22,12 @@
 //! `NLK`).
 //!  An empty pool is not a failure:
 //! the commit makes its creation exactly as it did before.
+//!  A member this invocation refuses is the wrapper's own cache being repaired,
+//! which the person can neither cause nor fix:
+//! the refusal is kept in the debug log and named in the commit's timing record,
+//!  as a build part,
+//! and never written to the terminal
+//! (`shadow_pool_member.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,14 +44,17 @@ use crate::random_id::random_uuid;
 use crate::shadow_create::{ShadowTemplate, create_shadow_template};
 /// What a member must be for this invocation.
 use crate::shadow_pool_member::refusal;
+/// Whether a worktree's shadows can be taken from a pool at all.
+use crate::shadow_links::keeps_its_own_info;
 /// One Git start.
 use crate::transaction_git::{GitContext, GitFailure};
 /// What the pool's folder is called,
 /// beside the repository scratch directory.
 use crate::wrapper_names_old_and_new::SHADOW_POOL_FOLDER;
 /// The build's named stretches,
-/// which the fill names its own work under.
-use crate::commit_build_part_durations::BuildPartClock;
+/// which the fill names its own work under
+/// and the claim names a refusal in.
+use crate::commit_build_part_durations::{BuildPartClock, note_build_part};
 /// Paths and time.
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -86,6 +94,16 @@ const WORKTREE_KEY_PREFIX: &str = "worktree-";
 
 /// The prefix of a member that is still being made.
 const FILLING_PREFIX: &str = "filling-";
+
+/// What a refused member is named as in the commit's timing record.
+/// Why:
+///  The record already names the creation a refusal forced,
+/// and what happened before it is the one fact a reading of a slow commit needs:
+///  a person sees nothing,
+/// because a member of the wrapper's own cache is nothing they can act on,
+///  and the name is a fixed one rather than a path or a reason,
+///  which is what a build part may hold.
+const REFUSED_PART: &str = "shadow pool refused";
 
 /// How many members one claim looks at before it makes its own shadow.
 /// Two members is the pool's whole size,
@@ -189,16 +207,35 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
         }
         match refusal(template, destination) {
             Ok(None) => return true,
-            Ok(Some(reason)) => {
-                crate::diagnostic_log::warn("shadowPool", format!("refused the pooled shadow {name}: {reason}").as_str());
-            }
-            Err(error) => {
-                crate::diagnostic_log::warn("shadowPool", format!("refused the pooled shadow {name}: {error}").as_str());
-            }
+            Ok(Some(reason)) => note_refusal(name.as_str(), reason.as_str()),
+            Err(error) => note_refusal(name.as_str(), error.to_string().as_str()),
         }
         let _removed: std::io::Result<()> = remove_tree(destination);
     }
     return false;
+}
+
+/// What:
+///  Keeps a refused member where a person diagnosing a commit can find it:
+///  in this commit's timing record and in the debug log,
+/// and nowhere on the terminal.
+/// Why:
+///  The member was the wrapper's,
+/// so no line about it is something the person did or can do,
+/// and a timestamped warning in the middle of a commit's output only alarms them
+/// (`AGENTS.md`,
+/// the rule that a confusing behaviour we control is a defect).
+///  The refusal moved that commit onto the creation,
+/// which the record already names,
+/// so the part says why the build paid for one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noteRefusal(name, reason); // build part + debug line, no warning
+/// ```
+fn note_refusal(name: &str, reason: &str) {
+    note_build_part(REFUSED_PART, Duration::ZERO);
+    crate::diagnostic_log::debug("shadowPool", format!("refused the pooled shadow {name}: {reason}").as_str());
 }
 
 /// What:
@@ -207,9 +244,12 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
 /// Why:
 ///   The resident service runs this beside the landing of a commit it already answered,
 /// so no commit pays for the creation of another.
-///  Nothing here can fail a commit:
+///  An empty pool is not a failure:
 /// a fill that cannot run leaves an empty pool,
 /// and the next commit makes its own creation.
+///  A worktree that keeps its own `info` directory is filled for nothing:
+/// every member of it would be refused,
+/// so a fill makes none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -224,6 +264,17 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
 pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<PathBuf>, GitFailure> {
     if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
         return Ok(None);
+    }
+    match keeps_its_own_info(template.common_dir.as_path(), template.git_dir.as_path()) {
+        Ok(false) => {}
+        Ok(true) => {
+            crate::diagnostic_log::debug(
+                "shadowPool",
+                format!("made no member for {}: the worktree keeps its own info directory, so its shadows are made where the commit is", template.common_dir.display()).as_str(),
+            );
+            return Ok(None);
+        }
+        Err(error) => return Err(GitFailure(format!("whether the worktree keeps its own info directory cannot be read: {error}"))),
     }
     let root: PathBuf = pool_root(template);
     if members(root.as_path()).len() >= POOL_LIMIT {

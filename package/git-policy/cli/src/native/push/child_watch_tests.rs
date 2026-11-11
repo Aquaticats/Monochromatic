@@ -1575,14 +1575,30 @@ fn a_step_left_running_whose_waiter_is_refused_names_the_limit() {
     command.arg(script.as_path());
     let sink: SharedSink = SharedSink::default();
     let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(300) };
-    let failure: std::io::Error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound)
-        .expect_err("no thread could be started to wait for the step");
+    let refused: Result<Output, std::io::Error> = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound);
     let waited_for_the_number: Instant = Instant::now();
-    while waited_for_the_number.elapsed() < Duration::from_secs(5) && !pid_file.exists() {
+    let mut recorded: Option<i32> = recorded_step_number(pid_file.as_path());
+    while recorded.is_none() && waited_for_the_number.elapsed() < Duration::from_secs(5) {
         std::thread::sleep(Duration::from_millis(20));
+        recorded = recorded_step_number(pid_file.as_path());
     }
+    // The step ends now, and the control waits for its own end before the fixture holding the marker goes: a step that
+    //  read the removed marker stayed in its loop for ever, and one such `step.sh` was still running hours later
+    //  (the suite of 2026-11-10).
     std::fs::write(&release, b"").expect("let the step end");
+    if let Some(pid) = recorded {
+        let looked_from: Instant = Instant::now();
+        while looked_from.elapsed() < Duration::from_secs(10) && crate::process_tree::member_read(pid) != crate::process_tree::MemberRead::Gone {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        // A step still there after its release is ended here, so the fixture goes with nothing running in it.
+        if crate::process_tree::member_read(pid) != crate::process_tree::MemberRead::Gone {
+            // SAFETY: `kill` takes two integers and touches no memory; the number is the step this control started.
+            let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+        }
+    }
     crate::test_support::remove(directory.as_path());
+    let failure: std::io::Error = refused.expect_err("no thread could be started to wait for the step");
     let said: String = failure.to_string();
     assert!(said.contains("no thread could be started to wait for it"), "the refusal is what this control made: {said}");
     assert!(said.contains("ulimit -u") && said.contains("pids.max"), "the refusal names the limits that refused the thread: {said}");

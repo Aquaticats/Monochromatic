@@ -80,6 +80,9 @@ pub mod command_add;
 /// The Git 2.56.0 option table of `git clean` and its deletion facts.
 pub mod command_clean;
 
+/// Which nested Git repositories a clean's two dry runs say it would delete.
+pub mod command_clean_nested_repositories;
+
 /// The Git 2.56.0 option table of `git reset` and its mode.
 pub mod command_reset;
 
@@ -115,6 +118,12 @@ pub mod command_config_table;
 /// The form and file scope of a `git config` region.
 pub mod command_config;
 
+/// The one option `git remote` reads before a subcommand.
+pub mod command_remote_table;
+
+/// The subcommand of a `git remote` region and where it starts.
+pub mod command_remote;
+
 /// Pure decision of the require-root policy.
 pub mod rule_require_root;
 
@@ -133,6 +142,17 @@ pub mod rule_linked_worktree;
 
 /// The rejection texts of the linked-worktree-only policy.
 pub mod rule_linked_worktree_messages;
+
+/// The notice that names where a clean's nested repository went,
+/// and the rejection when it could not be moved there.
+pub mod rule_linked_worktree_nested_repository_messages;
+
+/// Pure decision of the shared-remote-settings refusal:
+///  which `git remote` and `git config` commands write the remote settings every worktree shares.
+pub mod rule_shared_remote;
+
+/// The rejection texts of the shared-remote-settings refusal.
+pub mod rule_shared_remote_messages;
 
 /// The transform that stops a `checkout` or `switch` replacing an ignored file.
 pub mod rule_keep_ignored_files;

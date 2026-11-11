@@ -9,7 +9,8 @@
 //!  an unmerged index,
 //! nothing to commit,
 //! a policy rewrite,
-//! and change lists that the embedded route cannot carry.
+//! change lists that the embedded route cannot carry,
+//! and a native Git that never answers.
 //! Why:
 //!  The landing of each is the service's compare-and-swap,
 //! and the person must find the commit,
@@ -17,14 +18,20 @@
 //! the index,
 //! the
 //!  state files and Git's own words as native Git leaves them.
+//! Each conclusion state is its own control:
+//! one control carrying all seven lands twenty-eight commits through the service,
+//! took 284.9 s of them in one run on 2026-11-11 on a host other sessions load,
+//! and another run of it reached the runner's five-minute stop,
+//! which ended it naming no state.
 
 use super::commit::remove_settled;
 use super::service_commit::{Running, start};
 use super::service_landing_selection::base_repository;
-use super::service_landing_support::{Case, case, compare, copy_beside, run_native, run_served, finished};
-use super::support::{Fixture, direct, fixture, git};
+use super::service_landing_support::{Case, case, compare, copy_beside, finished, run_native, run_served, text_of_within};
+use super::support::{Fixture, direct, executable, fixture, git};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{Duration, Instant};
 
 fn write(repo: &Path, name: &str, text: &str) {
     std::fs::write(repo.join(name), text).expect("write");
@@ -63,103 +70,228 @@ fn resolve(fixture: &Fixture, repo: &Path) {
     git(fixture, repo, &["add", "b.txt"]);
 }
 
-/// A repository in each state a conclusion can be in,
-/// made once and compared case by case.
-fn conclusion_repositories(fixture: &Fixture, name: &str) -> Vec<(&'static str, PathBuf)> {
-    let mut made: Vec<(&'static str, PathBuf)> = Vec::new();
-    let template: PathBuf = base_repository(fixture);
-    let states: [&'static str; 7] = ["conflicted merge, resolved", "merge without a commit", "squash merge", "conflicted cherry-pick, resolved", "conflicted revert, resolved", "two picks, first resolved", "merge of a side branch with a new file"];
-    for (number, label) in states.into_iter().enumerate() {
-        let repo: PathBuf = copy_beside(fixture, template.as_path(), format!("{name}-{number}").as_str());
-        let (side, main) = diverged(fixture, &repo);
-        match number {
-            0 => {
-                attempt(fixture, &repo, &["merge", "side"]);
-                resolve(fixture, &repo);
-            }
-            1 => {
-                git(fixture, &repo, &["checkout", "--quiet", "-b", "clean-side", "HEAD~1"]);
-                write(&repo, "n.txt", "new\n");
-                git(fixture, &repo, &["add", "n.txt"]);
-                git(fixture, &repo, &["commit", "--quiet", "--message=new file"]);
-                git(fixture, &repo, &["checkout", "--quiet", "main"]);
-                attempt(fixture, &repo, &["merge", "--no-commit", "--no-ff", "clean-side"]);
-            }
-            2 => {
-                git(fixture, &repo, &["checkout", "--quiet", "-b", "clean-squash", "HEAD~1"]);
-                write(&repo, "q.txt", "squashed\n");
-                git(fixture, &repo, &["add", "q.txt"]);
-                git(fixture, &repo, &["commit", "--quiet", "--message=for squash"]);
-                git(fixture, &repo, &["checkout", "--quiet", "main"]);
-                attempt(fixture, &repo, &["merge", "--squash", "clean-squash"]);
-            }
-            3 => {
-                attempt(fixture, &repo, &["cherry-pick", side.as_str()]);
-                resolve(fixture, &repo);
-            }
-            4 => {
-                attempt(fixture, &repo, &["revert", main.as_str()]);
-                write(&repo, "b.txt", "reverted by hand\n");
-                git(fixture, &repo, &["add", "b.txt"]);
-            }
-            5 => {
-                git(fixture, &repo, &["checkout", "--quiet", "side"]);
-                write(&repo, "t.txt", "second pick\n");
-                git(fixture, &repo, &["add", "t.txt"]);
-                git(fixture, &repo, &["commit", "--quiet", "--message=second pick"]);
-                let second: String = text(fixture, &repo, &["rev-parse", "HEAD"]);
-                git(fixture, &repo, &["checkout", "--quiet", "main"]);
-                attempt(fixture, &repo, &["cherry-pick", side.as_str(), second.as_str()]);
-                resolve(fixture, &repo);
-            }
-            _ => {
-                git(fixture, &repo, &["checkout", "--quiet", "-b", "tidy", "HEAD~1"]);
-                write(&repo, "u.txt", "tidy\n");
-                git(fixture, &repo, &["add", "u.txt"]);
-                git(fixture, &repo, &["commit", "--quiet", "--message=tidy"]);
-                git(fixture, &repo, &["checkout", "--quiet", "main"]);
-                attempt(fixture, &repo, &["merge", "--no-ff", "--no-commit", "tidy"]);
-                write(&repo, "u.txt", "tidy, then edited\n");
-                git(fixture, &repo, &["add", "u.txt"]);
-            }
-        }
-        made.push((label, repo));
-    }
-    return made;
+/// The bound the control below gives the read it makes,
+/// in seconds,
+/// and the delay its stand-in for a Git that never answers keeps.
+/// Why these two numbers:
+///  The stand-in delays longer than the bound and shorter than the control's own limit,
+/// so a read that does answer the bound ends in about one second,
+/// and one that lost the bound waits for the whole delay and fails with its own message.
+const NEVER_ANSWERS_BOUND_SECONDS: &str = "1";
+
+/// How long the stand-in for a Git that never answers delays,
+/// in seconds.
+const NEVER_ANSWERS_DELAY_SECONDS: u32 = 5;
+
+/// The longest a control waits for a read that does not answer,
+/// in seconds.
+const CONTROL_LIMIT_SECONDS: u64 = 3;
+
+/// What:
+///  A native Git read that never answers is ended at the harness's bound,
+/// and the failure says which command it was waiting for,
+///  in which repository,
+/// and for how long.
+/// Why:
+///  The oracle every landing control compares the service against is native Git,
+/// and a Git waiting on something a control cannot see
+/// (a lock another program holds,
+/// a mount that stopped answering)
+/// held the control instead until the runner's five-minute stop ended
+///  the run without naming anything
+/// (2026-11-11:
+/// the conclusion control ran past that stop).
+/// The stand-in is a real Git command whose fsmonitor hook never answers,
+/// so what waits is Git and not the test:
+/// the hook hands its own descriptors to `/dev/null` and execs the delay,
+/// so nothing but Git holds the pipes the read has to drain.
+#[test]
+fn a_native_git_read_that_never_answers_ends_at_the_harness_bound_and_names_it() {
+    let fixture: Fixture = fixture("landing-never-answers");
+    let repo: PathBuf = base_repository(&fixture);
+    let hook: PathBuf = fixture.root.join("never-answering-fsmonitor");
+    executable(hook.as_path(), format!("#!/bin/sh\nexec sleep {NEVER_ANSWERS_DELAY_SECONDS} </dev/null >/dev/null 2>&1\n").as_bytes());
+    let setting: String = format!("core.fsmonitor={}", hook.display());
+    let arguments: [&str; 5] = ["-c", setting.as_str(), "status", "--short", "--untracked-files=all"];
+    let began: Instant = Instant::now();
+    // The panic a read that was ended at its bound raises is the control's subject, so its message is read, not printed.
+    let printed = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let ended = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        return text_of_within(&fixture, &repo, arguments.as_slice(), NEVER_ANSWERS_BOUND_SECONDS);
+    }));
+    std::panic::set_hook(printed);
+    let took: Duration = began.elapsed();
+    let message: String = match ended {
+        Ok(text) => panic!("a Git read that never answers must end at the harness's bound instead of answering after {took:?}: {text}"),
+        Err(payload) => match payload.downcast_ref::<String>() {
+            Some(text) => text.clone(),
+            None => payload.downcast_ref::<&str>().map_or_else(|| { return String::from("(a panic with no text)"); }, |text| { return (*text).to_string(); }),
+        },
+    };
+    assert!(message.contains("status"), "the failure names the command it waited for: {message}");
+    assert!(message.contains(repo.display().to_string().as_str()), "the failure names the repository: {message}");
+    assert!(message.contains(NEVER_ANSWERS_BOUND_SECONDS), "the failure names the bound: {message}");
+    assert!(took < Duration::from_secs(CONTROL_LIMIT_SECONDS), "the read was ended at its bound, not when the delay ran out ({took:?} against a {NEVER_ANSWERS_DELAY_SECONDS} s delay): {message}");
+    remove_settled(&fixture);
 }
 
-/// The conclusion of a merge,
-/// a cherry-pick and a revert lands through the service,
-/// leaves the state files as native Git
-///  leaves them,
-/// and has the parents native Git gives (the merged commit after the branch tip).
-#[test]
-fn a_conclusion_lands_through_the_service_and_removes_the_state_native_git_removes() {
-    let fixture: Fixture = fixture("landing-conclusion");
-    let name: String = format!("landing-conclusion-{}", std::process::id());
+/// A repository in one state a conclusion can be in,
+/// copied from `template`,
+/// so each control of this file makes only the state it compares.
+/// Why one state per control:
+///  Each state is compared by four command lines,
+/// and each comparison lands a commit through the service,
+/// which writes and flushes the conclusion state it copies;
+/// a host whose disk stalls makes one comparison take up to the bound of one commit,
+/// and a control carrying every state took 284.9 s of such comparisons in one run (2026-11-11),
+/// 300.0 s in another,
+/// which the runner's five-minute stop then ended without naming a state.
+fn conclusion_repository(fixture: &Fixture, template: &Path, name: &str, number: usize) -> PathBuf {
+    let repo: PathBuf = copy_beside(fixture, template, name);
+    let (side, main) = diverged(fixture, &repo);
+    match number {
+        0 => {
+            attempt(fixture, &repo, &["merge", "side"]);
+            resolve(fixture, &repo);
+        }
+        1 => {
+            git(fixture, &repo, &["checkout", "--quiet", "-b", "clean-side", "HEAD~1"]);
+            write(&repo, "n.txt", "new\n");
+            git(fixture, &repo, &["add", "n.txt"]);
+            git(fixture, &repo, &["commit", "--quiet", "--message=new file"]);
+            git(fixture, &repo, &["checkout", "--quiet", "main"]);
+            attempt(fixture, &repo, &["merge", "--no-commit", "--no-ff", "clean-side"]);
+        }
+        2 => {
+            git(fixture, &repo, &["checkout", "--quiet", "-b", "clean-squash", "HEAD~1"]);
+            write(&repo, "q.txt", "squashed\n");
+            git(fixture, &repo, &["add", "q.txt"]);
+            git(fixture, &repo, &["commit", "--quiet", "--message=for squash"]);
+            git(fixture, &repo, &["checkout", "--quiet", "main"]);
+            attempt(fixture, &repo, &["merge", "--squash", "clean-squash"]);
+        }
+        3 => {
+            attempt(fixture, &repo, &["cherry-pick", side.as_str()]);
+            resolve(fixture, &repo);
+        }
+        4 => {
+            attempt(fixture, &repo, &["revert", main.as_str()]);
+            write(&repo, "b.txt", "reverted by hand\n");
+            git(fixture, &repo, &["add", "b.txt"]);
+        }
+        5 => {
+            git(fixture, &repo, &["checkout", "--quiet", "side"]);
+            write(&repo, "t.txt", "second pick\n");
+            git(fixture, &repo, &["add", "t.txt"]);
+            git(fixture, &repo, &["commit", "--quiet", "--message=second pick"]);
+            let second: String = text(fixture, &repo, &["rev-parse", "HEAD"]);
+            git(fixture, &repo, &["checkout", "--quiet", "main"]);
+            attempt(fixture, &repo, &["cherry-pick", side.as_str(), second.as_str()]);
+            resolve(fixture, &repo);
+        }
+        _ => {
+            git(fixture, &repo, &["checkout", "--quiet", "-b", "tidy", "HEAD~1"]);
+            write(&repo, "u.txt", "tidy\n");
+            git(fixture, &repo, &["add", "u.txt"]);
+            git(fixture, &repo, &["commit", "--quiet", "--message=tidy"]);
+            git(fixture, &repo, &["checkout", "--quiet", "main"]);
+            attempt(fixture, &repo, &["merge", "--no-ff", "--no-commit", "tidy"]);
+            write(&repo, "u.txt", "tidy, then edited\n");
+            git(fixture, &repo, &["add", "u.txt"]);
+        }
+    }
+    return repo;
+}
+
+/// The command lines every conclusion state is compared by.
+fn conclusion_cases(label: &'static str) -> Vec<Case> {
+    let lines: [Case; 4] = [
+        Case { index_commit: true, ..case("no-edit message", &["commit", "--no-edit"]) },
+        Case { index_commit: true, ..case("typed message", &["commit", "-m", "typed"]) },
+        Case { index_commit: true, ..case("editor that accepts the prepared message", &["commit"]) },
+        Case { index_commit: true, ..case("commit all", &["commit", "-a", "-m", "all"]) },
+    ];
+    return lines
+        .into_iter()
+        .map(|line| {
+            return Case { name: Box::leak(format!("{label}: {}", line.name).into_boxed_str()), ..line };
+        })
+        .collect();
+}
+
+/// What:
+///  One conclusion state lands through the service,
+/// plus the four command lines it is concluded by,
+/// and leaves what native Git leaves.
+/// Why:
+///  The landing of each is the service's compare-and-swap,
+/// and the person must find the commit,
+/// the head,
+///  the index and Git's own words as native Git leaves them.
+fn a_conclusion_state_lands_as_native_git_leaves_it(fixture_name: &str, number: usize, label: &'static str) {
+    let fixture: Fixture = fixture(fixture_name);
+    let name: String = format!("{fixture_name}-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
-    let states = conclusion_repositories(&fixture, "state");
-    for (label, repo) in &states {
-        let lines: Vec<Case> = vec![
-            Case { index_commit: true, ..case("no-edit message", &["commit", "--no-edit"]) },
-            Case { index_commit: true, ..case("typed message", &["commit", "-m", "typed"]) },
-            Case { index_commit: true, ..case("editor that accepts the prepared message", &["commit"]) },
-            Case { index_commit: true, ..case("commit all", &["commit", "-a", "-m", "all"]) },
-        ];
-        for line in &lines {
-            let described: Case = Case { name: Box::leak(format!("{label}: {}", line.name).into_boxed_str()), index_commit: line.index_commit, ..case("x", line.command) };
-            let (native, served) = compare(&fixture, repo, name.as_str(), &described);
-            // A conclusion removes its own markers: in the states that make a commit, none is left in either copy.
-            if native.code == Some(0) {
-                for (state, value) in served.left.iter().filter(|(entry, _)| { return ["state MERGE_HEAD", "state CHERRY_PICK_HEAD", "state REVERT_HEAD", "state MERGE_MSG", "state MERGE_MODE", "state SQUASH_MSG"].contains(&entry.as_str()); }) {
-                    assert_eq!(value, "(absent)", "{label}: {state} is removed by the landing");
-                }
+    let template: PathBuf = base_repository(&fixture);
+    let repo: PathBuf = conclusion_repository(&fixture, template.as_path(), "state", number);
+    for line in &conclusion_cases(label) {
+        let (native, served) = compare(&fixture, &repo, name.as_str(), line);
+        // A conclusion removes its own markers: in the states that make a commit, none is left in either copy.
+        if native.code == Some(0) {
+            for (state, value) in served.left.iter().filter(|(entry, _)| { return ["state MERGE_HEAD", "state CHERRY_PICK_HEAD", "state REVERT_HEAD", "state MERGE_MSG", "state MERGE_MODE", "state SQUASH_MSG"].contains(&entry.as_str()); }) {
+                assert_eq!(value, "(absent)", "{label}: {state} is removed by the landing");
             }
         }
     }
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
+}
+
+/// A conflicted merge is resolved and concluded by each of the four command lines.
+#[test]
+fn a_conflicted_merge_conclusion_lands_through_the_service_and_removes_the_state_native_git_removes() {
+    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-merge", 0, "conflicted merge, resolved");
+}
+
+/// A merge Git left without a commit (`--no-commit`) is concluded by each of the four command lines.
+#[test]
+fn a_merge_left_for_its_commit_lands_through_the_service_as_native_git_lands_it() {
+    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-merge-no-commit", 1, "merge without a commit");
+}
+
+/// A squash merge is concluded by each of the four command lines,
+/// and its squash state is removed as native Git removes it.
+#[test]
+fn a_squash_merge_conclusion_lands_through_the_service_and_removes_its_squash_state() {
+    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-squash", 2, "squash merge");
+}
+
+/// A conflicted cherry-pick is resolved and concluded by each of the four command lines.
+#[test]
+fn a_conflicted_cherry_pick_conclusion_lands_through_the_service_and_removes_its_state() {
+    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-cherry-pick", 3, "conflicted cherry-pick, resolved");
+}
+
+/// A conflicted revert is resolved and concluded by each of the four command lines.
+#[test]
+fn a_conflicted_revert_conclusion_lands_through_the_service_and_removes_its_state() {
+    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-revert", 4, "conflicted revert, resolved");
+}
+
+/// A cherry-pick of two commits whose first conflicted is concluded by each of the four command lines,
+/// with the sequencer the second pick left.
+#[test]
+fn a_sequencer_left_by_two_cherry_picks_lands_through_the_service_as_native_git_lands_it() {
+    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-two-picks", 5, "two picks, first resolved");
+}
+
+/// A merge of a side branch that brings a new file is concluded by each of the four command lines,
+/// including the edit of the new file that `commit all` stages.
+#[test]
+fn a_merge_bringing_a_new_file_lands_through_the_service_as_native_git_lands_it() {
+    return a_conclusion_state_lands_as_native_git_leaves_it("landing-conclusion-new-file", 6, "merge of a side branch with a new file");
 }
 
 /// A detached head is moved as `HEAD` itself:

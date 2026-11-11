@@ -31,13 +31,12 @@
 //! ```
 
 use super::service_work_handlers_replanning_and_acceptance::*;
-use crate::service_work_storage_awaited::{
-    acceptable_awaiting, claim_all_awaiting, clear_push_failures_before_awaiting, record_push_failure_awaiting, record_push_skip_awaiting,
-    settle_all_awaiting, still_held_awaiting,
-};
+use super::service_work_settling_a_verdict::settle_after_the_push;
+use crate::service_work_storage_awaited::{acceptable_awaiting, claim_all_awaiting, settle_all_awaiting, still_held_awaiting};
 use crate::journald_native::Priority;
-use crate::push_failure_notice::PushOutcome;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
+use crate::service_work_drain_deletes_subvolumes::delete_subvolumes_awaiting;
+use crate::service_work_settling_with_words::settle_with_the_words;
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
 use crate::work_item::{Claimed, DONE, FAILED, WorkItem, WorkKind};
@@ -45,19 +44,24 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// What:
-///  Claims and runs every pending item of one work directory until none is left;
-/// the claims held are renewed every third of
-/// `lease`,
+///  Claims and runs every pending item of one work directory of the kinds `kinds` names,
+/// until none is left;
+/// the claims held are renewed every third of `lease`,
 /// so that none of them looks abandoned to another instance while it waits or runs.
 /// Why:
 ///   See the module description.
+/// The kinds are the caller's:
+/// the round that holds the service claims `PUSH_KINDS` alone,
+/// so a step that can take minutes never holds a person's push,
+/// and the slow lane claims `SLOW_KINDS`
+///  (`landing/service_work_slow_lane.rs`).
 /// A directory that cannot be listed ends the round where it is,
 /// as before,
 /// and the records it holds keep their lease.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning)
+/// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning, kinds)
 /// ```
 pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     git_dir: &Path,
@@ -65,6 +69,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     lease: Duration,
     renewal: Renewal<'_>,
     replanning: &mut Replanning,
+    kinds: &'static [WorkKind],
 ) {
     let work_dir: PathBuf = work_directory(git_dir);
     let (the_claims, renewer) = held_claims(work_dir.as_path());
@@ -78,7 +83,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     'round: loop {
         // One listing of `pending` for the whole round: each claim of it carries the reading of the moment it is taken, not of
         //  the start of the round, which a long round makes most of a lease old.
-        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path()).await {
+        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path(), kinds).await {
             Ok(taken) => taken,
             Err(reason) => {
                 crate::service_error!("{reason}");
@@ -100,16 +105,20 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         let mut pushes: Vec<Claimed> = Vec::new();
         let mut trashes: Vec<Claimed> = Vec::new();
         let mut prewarms: Vec<Claimed> = Vec::new();
+        let mut relinks: Vec<Claimed> = Vec::new();
         let mut deletions: Vec<Claimed> = Vec::new();
         let mut reviews: Vec<Claimed> = Vec::new();
+        let mut ahead: Vec<Claimed> = Vec::new();
         let mut upkeep: Vec<Claimed> = Vec::new();
         for item in acceptable {
             match item.item.kind {
                 WorkKind::Push => pushes.push(item),
                 WorkKind::Trash => trashes.push(item),
                 WorkKind::Prewarm => prewarms.push(item),
+                WorkKind::Relink => relinks.push(item),
                 WorkKind::SubvolumeDelete => deletions.push(item),
                 WorkKind::Review => reviews.push(item),
+                WorkKind::SnapshotAhead => ahead.push(item),
                 _ => upkeep.push(item),
             }
         }
@@ -179,6 +188,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => break 'round,
             }
         }
+        // A snapshot ahead is the one kind of work a person's own command waits for, so it runs before the upkeep
+        //  and before every kind that frees space.
+        match crate::service_work_drains_a_snapshot_ahead::drain_a_snapshot_ahead(held, work_dir.as_path(), ahead, handlers).await {
+            Some(back) => held = back,
+            None => break 'round,
+        }
         let mut upkept: Vec<PathBuf> = Vec::new();
         let still_here: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), upkeep).await {
             Some((back, mine)) => {
@@ -201,6 +216,26 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => break 'round,
             }
         }
+        // A new worktree's copied package state is relinked before anything else it asked for: it is the work the add
+        //  stopped doing, and the person's next command in the worktree depends on it.
+        let relinked: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), relinks).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in relinked {
+            let relinking: Instant = Instant::now();
+            let verdict: Verdict = handlers.relink_awaiting(&item.item).await;
+            if matches!(verdict, Verdict::Done) {
+                crate::service_log!("the package state of {} was relinked relink_ms={}", item.item.repository.display(), relinking.elapsed().as_millis());
+            }
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "relink").await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
+        }
         // A new worktree's Cargo build directory is filled before the left-out files are emptied: the filling is the work
         //  the add stopped doing, and the sooner it lands the more likely the first build in the worktree finds it.
         let prewarmed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), prewarms).await {
@@ -219,19 +254,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         }
         // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
         //  nothing else names, and it frees everything the worktree held.
-        let deleted: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), deletions).await {
-            Some((back, mine)) => {
-                held = back;
-                mine
-            }
+        match delete_subvolumes_awaiting(held, work_dir.as_path(), deletions, handlers).await {
+            Some(back) => held = back,
             None => break 'round,
-        };
-        for item in deleted {
-            let verdict: Verdict = handlers.subvolume_delete_awaiting(&item.item).await;
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "subvolume delete").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
         }
         // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
         //  reviews: freeing them is a bounded, local job.
@@ -271,138 +296,4 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     }
     // The renewal is stopped and waited for here, so a drain that returns leaves no task renaming a claim behind it.
     renewing.stop_awaiting().await;
-}
-
-/// What:
-///  What one push's verdict does to its records and to the retry plan.
-/// Why:
-///   The four verdicts differ only in what they leave for the person and in what the plan keeps,
-/// so they are one function
-///  and the drain's loop stays readable.
-/// A record goes before its items settle:
-/// a service that dies between the
-///  two pushes again,
-/// and nothing is lost.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await settleAfterThePush(held, workDir, gitDir, members, verdict, pushingSince, replanning)
-/// ```
-async fn settle_after_the_push(
-    held: HeldClaims,
-    work_dir: &Path,
-    git_dir: &Path,
-    members: &[Claimed],
-    verdict: Verdict,
-    pushing_since: std::time::SystemTime,
-    replanning: &mut Replanning,
-) -> Option<HeldClaims> {
-    let newest: Option<&Claimed> = members.last();
-    let settling: Vec<Claimed> = members.to_vec();
-    match verdict {
-        Verdict::Done => {
-            // A push of the branch went through, so an earlier failure to push it is no longer true.
-            if let Some(latest) = newest {
-                clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
-                replanning.forget(git_dir, latest.item.branch_ref.as_str());
-            }
-            return settle_all_awaiting(held, work_dir, settling, DONE).await;
-        }
-        Verdict::Retry(text) => {
-            // Without handlers that retry, a retryable push is a failed one. A push that can pass is not known to
-            //  have reached the remote, so its record says that instead of naming what was refused, and it says
-            //  whether a plan will try it again.
-            let (said, outcome): (String, PushOutcome) = match (newest, replanning.first) {
-                (Some(latest), Some(first)) => {
-                    let planned: PlannedRetry = planned_retry(git_dir, replanning, first, &latest.item, 1, text.as_str());
-                    // The framing promises a retry only when the plan the words speak of exists.
-                    let outcome: PushOutcome = if planned.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry };
-                    (planned.words, outcome)
-                }
-                _ => (text, PushOutcome::UnfinishedWithNoRetry),
-            };
-            if let Some(latest) = newest
-                && let Err(reason) =
-                    record_push_failure_awaiting(git_dir, latest.item.branch_ref.as_str(), latest.item.oid.as_str(), outcome, said.as_str()).await
-            {
-                crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", latest.item.oid);
-            }
-            return settle_all_awaiting(held, work_dir, settling, FAILED).await;
-        }
-        Verdict::Failed(text) => {
-            // A failure the service gives up on is no longer waiting for a new try.
-            if let Some(latest) = newest {
-                replanning.forget(git_dir, latest.item.branch_ref.as_str());
-            }
-            // The record goes before the items settle, so an item in `failed` always has its record.
-            if let Some(latest) = newest
-                && let Err(reason) = record_push_failure_awaiting(
-                    git_dir,
-                    latest.item.branch_ref.as_str(),
-                    latest.item.oid.as_str(),
-                    PushOutcome::Refused,
-                    text.as_str(),
-                )
-                .await
-            {
-                crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", latest.item.oid);
-            }
-            return settle_all_awaiting(held, work_dir, settling, FAILED).await;
-        }
-        Verdict::Skipped(text) => {
-            // Nothing was pushed, so an earlier failure of the branch is still true and stays. A skip with words leaves
-            //  its own record before the items settle; one that could not be recorded settles as failed, so no item
-            //  is done without the person having been told.
-            let recorded: bool = match newest {
-                Some(latest) if !text.is_empty() => {
-                    match record_push_skip_awaiting(git_dir, latest.item.branch_ref.as_str(), latest.item.oid.as_str(), text.as_str()).await {
-                        Ok(()) => true,
-                        Err(reason) => {
-                            crate::service_error!("the skipped push of {} could not be recorded for the person: {reason}", latest.item.oid);
-                            false
-                        }
-                    }
-                }
-                _ => true,
-            };
-            return settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
-        }
-    }
-}
-
-/// What:
-///  Settle one item whose kind answers with words rather than a push:
-/// a skipped one is done and says why,
-/// a failed one is failed and says why.
-/// Why:
-///   A trash and a review answer the same four verdicts and leave the person the same two kinds of line,
-/// so the drain
-///  keeps one account of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await settleWithTheWords(held, workDir, item, verdict, kind)
-/// ```
-async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed, verdict: Verdict, kind: &str) -> Option<HeldClaims> {
-    match verdict {
-        Verdict::Done => {
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
-        }
-        Verdict::Failed(reason) | Verdict::Retry(reason) => {
-            match kind {
-                "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} could not be emptied: {reason}", item.item.parent),
-                "prewarm" => crate::service_warn!("the Cargo build directory of {} could not be filled: {reason}", item.item.repository.display()),
-                _ => crate::service_warn!("the review of {} failed: {reason}", item.item.oid),
-            }
-            return settle_all_awaiting(held, work_dir, vec![item], FAILED).await;
-        }
-        Verdict::Skipped(reason) => {
-            match kind {
-                "trash" => eprintln!("monochromatic-git-policy-cli-service: the trash {} was left as it is: {reason}", item.item.parent),
-                "prewarm" => crate::service_log!("the Cargo build directory of {} was left as it is: {reason}", item.item.repository.display()),
-                _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
-            }
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
-        }
-    }
 }

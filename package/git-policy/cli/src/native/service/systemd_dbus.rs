@@ -17,7 +17,8 @@
 //! the manager's own private socket is documented as private to systemd.
 //! Only `Reload`,
 //! `ResetFailedUnit`,
-//!  `StartUnit`,
+//!  `RestartUnit`,
+//! `StartUnit`,
 //! `StopUnit` and the state query (`GetUnit`,
 //! then a property read) are needed.
 //! The owner chose `zbus` 6 over the
@@ -78,6 +79,9 @@ pub const RELOAD: Target<'static> = Target { destination: MANAGER_NAME, path: MA
 /// `StartUnit` on the user manager.
 pub const START_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StartUnit" };
 
+/// `RestartUnit` on the user manager.
+pub const RESTART_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "RestartUnit" };
+
 /// `StopUnit` on the user manager.
 pub const STOP_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StopUnit" };
 
@@ -96,12 +100,36 @@ pub const STOP_ALONE_MODE: &str = "ignore-dependencies";
 /// The interface whose `Get` reads one property of an object.
 const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
 
+/// The interface that holds a socket unit's addresses.
+const SOCKET_INTERFACE: &str = "org.freedesktop.systemd1.Socket";
+
 /// The interface that holds a unit's `ActiveState`.
 const UNIT_INTERFACE: &str = "org.freedesktop.systemd1.Unit";
 
 /// The error name of a unit the manager does not hold (never loaded,
 /// or unloaded after it stopped).
 pub const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
+
+/// What:
+///  The error names a bus answers a call of the user manager with when the bus carries no user service manager.
+/// Why:
+///   A session bus without `systemd --user` is the one case where nothing about the units matters:
+/// the bus itself says no manager owns the name,
+/// and the person needs the remedy for an account without user services (`loginctl enable-linger`),
+/// not the bus's own words.
+/// `ServiceUnknown` is what a bus says when no unit and no program owns the name;
+/// `NameHasNoOwner` is what it says when the name was owned and has gone.
+pub const NO_MANAGER_ON_THE_BUS: [&str; 2] = ["org.freedesktop.DBus.Error.ServiceUnknown", "org.freedesktop.DBus.Error.NameHasNoOwner"];
+
+/// Whether an error name says the bus that answered carries no user service manager.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const managerIsAbsent = (name: string) => NO_MANAGER_ON_THE_BUS.includes(name);
+/// ```
+pub fn manager_is_absent(error_name: &str) -> bool {
+    return NO_MANAGER_ON_THE_BUS.contains(&error_name);
+}
 
 /// The error name of an object that is gone by the time a property is read.
 const UNKNOWN_OBJECT: &str = "org.freedesktop.DBus.Error.UnknownObject";
@@ -350,6 +378,29 @@ impl Bus {
     }
 
     /// What:
+    ///  Stops a unit and starts it again,
+    /// whether it runs or not,
+    /// leaving the socket that activates it running.
+    /// Why:
+    ///  A unit the manager reports `active` whose program has stopped inside its own process is not repaired by a
+    /// start
+    /// (`systemctl` and the manager both leave a running unit alone),
+    /// and the socket keeps its file either
+    ///  way,
+    /// so a connection waits in its backlog and nothing ever greets it.
+    /// The service survives a kill by design (its journal,
+    ///  its held commits and its work records are durable),
+    /// so ending it is how a command that needs its answer gets one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await manager.call('RestartUnit', [name, 'replace'])
+    /// ```
+    pub fn restart_unit(&mut self, name: &str) -> Result<(), CallError> {
+        return self.call_manager("RestartUnit", (name.to_string(), String::from("replace"))).map(drop);
+    }
+
+    /// What:
     ///  The unit's `ActiveState` (`active`,
     /// `activating`,
     /// `deactivating`,
@@ -399,6 +450,58 @@ impl Bus {
             Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT || error == UNKNOWN_OBJECT => Ok(None),
             Err(error) => Err(error),
         };
+    }
+
+    /// What:
+    ///  The addresses the manager made one unit listen at (its `Listen`),
+    /// or nothing when the manager holds no such unit.
+    /// Why:
+    ///   The unit names its address with `%t`,
+    /// which the manager reads as its own runtime directory,
+    /// and this client connects to a path under the runtime directory it was given.
+    /// The manager's answer is the only fact that says the two agree;
+    /// a command whose runtime directory the manager does not use waits for a service that answers somewhere else,
+    /// and this answer names where.
+    /// An answer that does not read as a list of address pairs says nothing rather than guessing,
+    /// and a caller then has no proof either way.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await bus.listenAddresses('cli-git@3f9a.socket') // ['/run/user/1000/cli-git/3f9a.sock']
+    /// ```
+    pub fn listen_addresses(&mut self, name: &str) -> Result<Option<Vec<String>>, CallError> {
+        let path: String = match self.call_manager("GetUnit", (name.to_string(),)) {
+            Ok(reply) => reply
+                .body()
+                .deserialize::<zbus::OwnedObjectPath>()
+                .map_err(malformed)?
+                .to_string(),
+            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let connection: zbus::Connection = self.connection.clone();
+        let reply = bounded(self.deadline, async move {
+            return connection
+                .call_method(Some(MANAGER_NAME), path.as_str(), Some(PROPERTIES_INTERFACE), "Get", &(SOCKET_INTERFACE, "Listen"))
+                .await
+                .map_err(zbus_failure);
+        });
+        let message = match reply {
+            Ok(answered) => answered,
+            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT || error == UNKNOWN_OBJECT => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let value: zbus::OwnedVariant = message.body().deserialize().map_err(malformed)?;
+        // `Listen` is one entry per address, each a kind (`Stream`, `Datagram`, ...) and the address text.
+        let pairs: Vec<(String, String)> = match Vec::<(String, String)>::try_from(zbus::Variant::from(value)) {
+            Ok(read) => read,
+            Err(error) => return Err(CallError::Malformed(error.to_string())),
+        };
+        let mut addresses: Vec<String> = Vec::new();
+        for (_kind, address) in pairs {
+            addresses.push(address);
+        }
+        return Ok(Some(addresses));
     }
 }
 

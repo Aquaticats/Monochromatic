@@ -34,6 +34,11 @@ use crate::shadow_create::ShadowTemplate;
 use crate::shadow_config::{RepositoryFormat, read_repository_format};
 use crate::shadow_pool::{POOL_LIMIT, fill, members, pool_root_for};
 use crate::shadow_git::REPOSITORY_REDIRECT_VARIABLES;
+/// Answers of one `git rev-parse` report,
+/// read as the bytes Git wrote.
+use crate::git_report_answers::{absolute_reported, answers_of, object_format_of};
+/// One answer without the line feed that ends it.
+use crate::hooks_path_values::without_the_terminator;
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
@@ -133,14 +138,7 @@ fn template_of(
     repository: &Path,
 ) -> Result<ShadowTemplate, GitFailure> {
     let format: RepositoryFormat = read_repository_format(context, common_dir)?;
-    let reported: String = rev_parse_of(context, repository)?;
-    let mut lines = reported.lines();
-    let object_directory: PathBuf = absolute(repository, lines.next().unwrap_or_default());
-    let object_format: String = String::from(lines.next().unwrap_or_default());
-    let ref_format: RefFormat = match lines.next() {
-        Some("reftable") => RefFormat::Reftable,
-        _ => RefFormat::Files,
-    };
+    let (object_directory, object_format, ref_format): (PathBuf, String, RefFormat) = facts_of(context, repository)?;
     return Ok(ShadowTemplate {
         common_dir: common_dir.to_path_buf(),
         git_dir: git_dir.to_path_buf(),
@@ -152,43 +150,82 @@ fn template_of(
     });
 }
 
+/// How many answers the three facts make in one report.
+const FACTS: usize = 3;
+
 /// What:
 ///  The object directory,
 /// the object format and the ref backend of a worktree,
-///  as one Git start answers them.
+///  as Git printed them.
 /// Why:
-///   The three facts come from the same repository,
-/// and the client's own capture takes them in one start too.
+///   One start answers all three,
+///  and a pathname that holds a line feed puts one inside its own answer,
+/// so a report of more answers than three sends each fact to a start of its own.
+///  No answer is ever decoded as text:
+/// the two that are text are read as text and the pathname keeps its bytes (`path_bytes.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await revParseOf({ context, repository }) // 'path\nformat\nrefbackend\n'
+/// const answers = splitReport(await revParse(FACTS_ARGS)); answers.length === 3 ? facts(answers) : await eachFactAlone()
 /// ```
-fn rev_parse_of(context: &GitContext, repository: &Path) -> Result<String, GitFailure> {
-    let mut request: GitRequest = GitRequest::new(
+fn facts_of(context: &GitContext, repository: &Path) -> Result<(PathBuf, String, RefFormat), GitFailure> {
+    let report: Vec<u8> = rev_parse(
+        context,
         repository,
         &["rev-parse", "--path-format=absolute", "--git-path", "objects", "--show-object-format", "--show-ref-format"],
-    );
-    request.without_prefix = true;
-    request.unset = REPOSITORY_REDIRECT_VARIABLES.iter().copied().map(OsString::from).collect();
-    let output: GitOutput = run_git_checked(context, &request)?;
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim_end().to_string());
+    )?;
+    let answers: Vec<&[u8]> = answers_of(report.as_slice());
+    if answers.len() == FACTS {
+        return Ok((
+            absolute_reported(repository, answers[0])?,
+            object_format_of(answers[1])?,
+            ref_format_of(answers[2]),
+        ));
+    }
+    let object_directory: Vec<u8> = rev_parse(context, repository, &["rev-parse", "--path-format=absolute", "--git-path", "objects"])?;
+    let object_format: Vec<u8> = rev_parse(context, repository, &["rev-parse", "--show-object-format"])?;
+    let ref_format: Vec<u8> = rev_parse(context, repository, &["rev-parse", "--show-ref-format"])?;
+    return Ok((
+        absolute_reported(repository, object_directory.as_slice())?,
+        object_format_of(object_format.as_slice())?,
+        ref_format_of(ref_format.as_slice()),
+    ));
 }
 
 /// What:
-///  A path Git reported,
-///  made absolute against the directory it was asked in.
+///  The ref backend one answer names.
 /// Why:
-///   `--path-format=absolute` answers an absolute path,
-/// and a report of another shape must still name one path rather than a relative one.
+///   `reftable` is the only backend besides the files one this package knows,
+///  and every other answer names the files backend.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// absolute(repository, reported)
+/// withoutTheTerminator(answer) === 'reftable' ? Reftable : Files
 /// ```
-fn absolute(repository: &Path, reported: &str) -> PathBuf {
-    let path: PathBuf = PathBuf::from(reported.trim());
-    return if path.is_absolute() { path } else { repository.join(path) };
+fn ref_format_of(answer: &[u8]) -> RefFormat {
+    return match without_the_terminator(answer) == b"reftable" {
+        true => RefFormat::Reftable,
+        false => RefFormat::Files,
+    };
+}
+
+/// What:
+///  The bytes of one `git rev-parse` report,
+///  asked in the repository and with this package's own variables stripped.
+/// Why:
+///   The report is the bytes Git wrote,
+///  because its answers include pathnames a decoding loses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = await runGit({ cwd: repository, args }); return report.stdout
+/// ```
+fn rev_parse(context: &GitContext, repository: &Path, arguments: &[&str]) -> Result<Vec<u8>, GitFailure> {
+    let mut request: GitRequest = GitRequest::new(repository, arguments);
+    request.without_prefix = true;
+    request.unset = REPOSITORY_REDIRECT_VARIABLES.iter().copied().map(OsString::from).collect();
+    let output: GitOutput = run_git_checked(context, &request)?;
+    return Ok(output.stdout);
 }
 
 /// Pool-fill controls stay out of the release executable.

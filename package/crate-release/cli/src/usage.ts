@@ -3,6 +3,7 @@ import {
   defaultAttempts,
   defaultCurlMaxTimeSeconds,
   defaultCpuQuota,
+  defaultFollowAttempts,
   defaultMemoryMax,
   defaultTasksMax,
   defaultPollIntervalSeconds,
@@ -110,10 +111,12 @@ Options:
  */
 export const awaitUsage: string = `Usage: crate-release-await --crate <name> [options] <run> <version>
 
-Waits for the ${releaseWorkflow} run <run> (its URL or numeric id, as crate-release-dispatch printed it), then for the
-publish workflow run that it started, then checks crates.io for <version> and the GitHub release for the expected
-assets. Exits 0 only when the release run succeeded, the publish run succeeded, crates.io has the version and the
-release holds every expected asset.
+Waits for the ${releaseWorkflow} run <run> (its URL or numeric id, as crate-release-dispatch printed it) to end, then for
+the ${defaultWorkflow} run that it started, then checks crates.io for <version> and the GitHub release for the expected
+assets. The ${defaultWorkflow} run is the one that publishes the crate and builds the archives the release holds. Every
+verdict comes from what a run says about itself, never from the exit status of a watcher. Exits 0 only when the release
+run ended with success, the publish run ended with success, crates.io has the version and the release holds every
+expected asset.
 
 Required:
   --crate <name>             crate name on crates.io, as ${registryFileName} lists it
@@ -123,7 +126,7 @@ Options:
   --repo <owner/name>        repository for gh (default: read from the working directory)
   --attempts <count>         looks for the publish run (default ${String(defaultAttempts)})
   --poll-interval <seconds>  seconds between looks (default ${String(defaultPollIntervalSeconds)})
-  --run-limit <count>        recent runs listed per look (default ${String(defaultRunListLimit)})
+  --follow-attempts <count>  looks at one run before giving up on its end (default ${String(defaultFollowAttempts)})
   --tag-template <text>      release tag; {crate} and {version} are filled in (default ${defaultTagTemplate})
   --asset-template <text>    expected release asset; repeatable (default ${defaultAssetTemplates.join(' and ')})
   --user-agent <text>        User-Agent for crates.io (default ${defaultUserAgent})
@@ -137,8 +140,8 @@ Options:
  */
 export const waitUsage: string = `Usage: crate-release-wait --crate-name <name> [options] <sha> <version>
 
-Waits for the publish workflow run of commit <sha>, watches it, then checks crates.io for <version> and the GitHub
-release for the expected assets. Exits 0 only when all three are in place.
+Waits for the ${defaultWorkflow} run of commit <sha> to end, reading what the run says about itself, then checks
+crates.io for <version> and the GitHub release for the expected assets. Exits 0 only when all three are in place.
 
 Required:
   --crate-name <name>        crate name, as on crates.io
@@ -148,6 +151,7 @@ Options:
   --repo <owner/name>        repository for gh (default: read from the working directory)
   --attempts <count>         looks for the run (default ${String(defaultAttempts)})
   --poll-interval <seconds>  seconds between looks (default ${String(defaultPollIntervalSeconds)})
+  --follow-attempts <count>  looks at one run before giving up on its end (default ${String(defaultFollowAttempts)})
   --run-limit <count>        recent runs listed per look (default ${String(defaultRunListLimit)})
   --tag-template <text>      release tag; {crate} and {version} are filled in (default ${defaultTagTemplate})
   --asset-template <text>    expected release asset; repeatable (default ${defaultAssetTemplates.join(' and ')})

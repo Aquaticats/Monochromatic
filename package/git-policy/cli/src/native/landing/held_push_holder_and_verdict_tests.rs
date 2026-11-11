@@ -18,6 +18,7 @@
 use super::{Holding, Verdict, holding_in, pid_of, proven_gone, this_command, with_holding};
 use crate::claim_time::current_boot_id;
 use crate::process_identity::current_birth_identity;
+use crate::test_support::spawn_owned;
 use crate::work_item::{WorkItem, WorkKind};
 use std::path::PathBuf;
 
@@ -96,10 +97,14 @@ fn a_text_that_is_not_a_record_gains_no_holding() {
 /// the command that would have decided the checks cannot answer.
 #[test]
 fn a_command_that_ended_is_proven_gone() {
-    let mut child = std::process::Command::new("true").spawn().expect("a child starts");
+    // Only a child that outlives the read of its identity has one: a child that has already ended, or a zombie the
+    // parent has not reaped yet, answers "gone" (`process_identity.rs`), and a `true` raced this read in about one
+    // run in ten.
+    let mut child: std::process::Child = spawn_owned(std::process::Command::new("sleep").arg("30")).expect("a child starts");
     let pid: u32 = child.id();
     let birth: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("the table is readable").expect("the child runs");
-    let _ended = child.wait();
+    let _ended = child.kill();
+    let _reaped = child.wait();
     assert!(proven_gone(holder_of_an_ended_process(pid, birth.as_str()).as_str()), "a process that ended is gone");
 }
 

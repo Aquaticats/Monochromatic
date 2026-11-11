@@ -125,8 +125,12 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
-        return self.inner.clean_would_delete(arguments);
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.clean_deleted_paths(arguments);
+    }
+
+    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.clean_dry_run_lines_with_one_force(arguments);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -139,6 +143,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
         return self.inner.remote_guess_creates_branch(target);
+    }
+
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        return self.inner.main_worktree_root();
     }
 
     fn candidates(&mut self, request: &CandidateRequest) -> Result<PreparedCandidates, CandidateError> {
@@ -184,8 +192,12 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
-        return (**self).clean_would_delete(arguments);
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).clean_deleted_paths(arguments);
+    }
+
+    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).clean_dry_run_lines_with_one_force(arguments);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -198,6 +210,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
         return (**self).remote_guess_creates_branch(target);
+    }
+
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        return (**self).main_worktree_root();
     }
 
     fn candidates(&mut self, request: &CandidateRequest) -> Result<PreparedCandidates, CandidateError> {

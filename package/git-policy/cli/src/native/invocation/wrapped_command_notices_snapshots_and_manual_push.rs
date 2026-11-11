@@ -21,7 +21,9 @@ use crate::auto_push_single_flight::PushGit;
 use crate::child_environment::environment_with_overlay;
 /// `git add` asks for what it would stage.
 use crate::candidate_prediction::CandidateRequest;
-use crate::discard_audit::{AuditOutcome, record_audit};
+use crate::discard_audit::{AuditOutcome, record_audit_with_facts};
+/// The form word an audit line carries.
+use crate::discard_audit_record::DecidedForm;
 use crate::manual_push_cause::ManualPushCause;
 use crate::manual_push_lifecycle::manual_push_scope;
 use crate::policy_checks::ShippedChecks;
@@ -88,20 +90,25 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
     // An alias reaches the command Git really runs, so this record names the expansion like the guard does.
     let forwarded: GuardedForwarded = guarded_forwarded(checks);
     let seen: &[OsString] = forwarded.arguments.as_slice();
-    let command = match forwarded.decision {
+    let form: DecidedForm = match &forwarded.decision {
         LinkedWorktreeDecision::Pass => return,
-        LinkedWorktreeDecision::NeedsEffectiveTarget(command) | LinkedWorktreeDecision::WhenDirty(command) => command,
+        LinkedWorktreeDecision::NeedsEffectiveTarget(command) | LinkedWorktreeDecision::WhenDirty(command) => {
+            DecidedForm::Guarded(*command)
+        }
+        // A write to the settings every worktree shares runs under the hatch, and this line is what a later reader
+        //  uses to attribute the change to the command that made it.
+        LinkedWorktreeDecision::SharedRemote(_) => DecidedForm::SharedRemote,
         // The owner asked for one line for these two recorded forms, and the policy that writes it is skipped under
         //  the hatch: the line is written here instead, with the same facts a run without the hatch would carry.
         LinkedWorktreeDecision::Audited(audited) => {
             if let Ok(location) = checks.facts.location() {
-                record_audited(&mut checks.facts, seen, audited, &location);
+                record_audited(&mut checks.facts, seen, *audited, &location);
             }
             return;
         }
     };
     if let Ok(location) = checks.facts.location() {
-        record_audit(&location.identity, command, AuditOutcome::Hatch, seen, None);
+        record_audit_with_facts(&location.identity, form, AuditOutcome::Hatch, seen, None, &[]);
     }
 }
 
@@ -120,17 +127,23 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
 ///  A command whose output a program reads shows nothing and takes
 ///  nothing,
 /// and neither does a command run where the repository is not found without starting Git.
+///  Its worktree's held records are still settled:
+/// a record whose command died after it recorded a pass is
+///  the only statement that the push may run,
+/// and a workflow of scripts types no other kind of command,
+/// so leaving
+///  the settlement to one leaves an approved push waiting for ever.
 /// When nothing
 ///  failed the check is one directory read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!isMachineRead(command)) for (const text of takePushFailures(gitDir)) stderr.write(text + '\n');
+/// settleHeldPushes(gitDir); if (!isMachineRead(command)) for (const text of takePushFailures(gitDir)) stderr.write(text + '\n');
 /// ```
 pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
-    if is_machine_read(command_word(stripped), command_region(stripped)) {
-        return;
-    }
+    // A notice is the person's, so a command whose output a program reads shows none and takes none; the held records are not a
+    //  notice, and the state they settle is not the command's to keep from the repository.
+    let silent: bool = is_machine_read(command_word(stripped), command_region(stripped));
     // The records are the worktree's own, so a notice shows in the worktree whose push failed.
     let Some(git_dir) = checks.facts.known_git_dir() else { return };
     // Without a known common directory, the worktree's own Git directory stands in.
@@ -138,6 +151,17 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         Some(known) => known,
         None => git_dir.clone(),
     };
+    // The directory every question of this step is asked in: the command's own, or the Git directory when it cannot be read.
+    let cwd: PathBuf = match std::env::current_dir() {
+        Ok(directory) => directory,
+        Err(_unreadable) => git_dir.clone(),
+    };
+    let context: GitContext = checks.facts.transaction_context();
+    if silent {
+        // The lines are the person's, and this command shows none; the settlement is made all the same.
+        let _settled: Vec<String> = held_push_lines(git_dir.as_path(), &context, cwd.as_path());
+        return;
+    }
     // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next. What could not be kept
     //  for the person is said here, each time, until it can be.
     for problem in settle_removals(common_dir.as_path()) {
@@ -159,18 +183,11 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         let mut stderr = std::io::stderr();
         name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr);
     }
-    // The directory every question of this step is asked in: the command's own, or the Git directory when it cannot be read.
-    let cwd: PathBuf = match std::env::current_dir() {
-        Ok(directory) => directory,
-        Err(_unreadable) => git_dir.clone(),
-    };
     // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
     //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.
     //  A held record whose commit Git already holds in the branch's remote is settled here instead of being named
     //  (`held_push_commit_on_the_remote.rs`).
-    let context: GitContext = checks.facts.transaction_context();
-    let record: GitRemoteRecord<'_> = GitRemoteRecord { context: &context, cwd: cwd.as_path() };
-    for line in crate::service_handoff::held_push_notices(git_dir.as_path(), &record, &crate::held_push_release_wakes_the_service::AskTheService { context: &context }) {
+    for line in held_push_lines(git_dir.as_path(), &context, cwd.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }
@@ -196,6 +213,23 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         //  written stays for the next command.
         let _written = notice.show(&mut std::io::stderr());
     }
+}
+
+/// What:
+///  Settles the worktree's held push records and answers the lines to show.
+/// Why:
+///   Both kinds of command settle from one call,
+/// so a silent one cannot settle less than a speaking one,
+/// and the remote
+///  question and the wake are made the same way for both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// heldPushLines(gitDir, context, cwd) // heldPushNotices with the repository's record and the service's wake
+/// ```
+fn held_push_lines(git_dir: &Path, context: &GitContext, cwd: &Path) -> Vec<String> {
+    let record: GitRemoteRecord<'_> = GitRemoteRecord { context, cwd };
+    return crate::service_handoff::held_push_notices(git_dir, &record, &crate::held_push_release_wakes_the_service::AskTheService { context });
 }
 
 /// What:
@@ -319,7 +353,9 @@ impl CommitNamer for GitShortName<'_> {
 /// What:
 ///  Before `git worktree remove` or `git worktree prune`,
 /// copies the records of the linked worktrees into snapshots that
-///  survive the removal.
+///  survive the removal,
+/// keeps the commit of every held batch where a removal cannot reach it,
+/// and answers the words that stop the command when one such commit cannot be kept at all.
 /// Why:
 ///   Git deletes a removed worktree's Git directory,
 /// and with it the failed pushes nobody was told about and the pushes the
@@ -329,21 +365,24 @@ impl CommitNamer for GitShortName<'_> {
 /// Which worktrees go is
 ///  decided later,
 /// from whether each still exists (`worktree_removal_rescue.rs`).
+///  A held commit that no reference of the repository can be made to hold must not reach Git,
+/// which would delete the only references that name it
+///  (`worktree_removal_held_commits.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (command === 'worktree' && ['remove', 'prune'].includes(region[0])) await snapshotLinkedWorktrees(commonDir);
+/// if (command === 'worktree' && ['remove', 'prune'].includes(region[0])) return await snapshotThenKeep(commonDir);
 /// ```
-pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
+pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) -> Option<String> {
     if command_word(stripped) != b"worktree" {
-        return;
+        return None;
     }
     let removes: bool = match command_region(stripped).first() {
         Some(word) => matches!(word.as_encoded_bytes(), b"remove" | b"prune"),
         None => false,
     };
     if !removes {
-        return;
+        return None;
     }
     if let Some(common_dir) = checks.facts.known_common_dir() {
         // A record that could not be saved is lost with the worktree, so the person is told before Git runs.
@@ -355,10 +394,20 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
         //  per-worktree reference, both of which the removal deletes; it is kept where a removal cannot reach it, and the person
         //  is told, before Git runs (`worktree_removal_held_commits.rs`).
         let context: GitContext = checks.facts.transaction_context();
-        for said in crate::worktree_removal_held_commits::keep_held_commits(common_dir.as_path(), &context) {
+        let kept: crate::worktree_removal_held_commits::KeptCommits = crate::worktree_removal_held_commits::keep_held_commits(common_dir.as_path(), &context);
+        for said in kept.said {
             let _written = writeln!(std::io::stderr(), "{}: {said}", crate::wrapper_names_old_and_new::PROGRAM.current);
         }
+        if !kept.refused.is_empty() {
+            // A command that must stop names what it kept and where, whatever the terminal does with the words.
+            let mut stderr: String = String::new();
+            for refused in kept.refused {
+                stderr.push_str(format!("{}: {refused}\n", crate::wrapper_names_old_and_new::PROGRAM.current).as_str());
+            }
+            return Some(stderr);
+        }
     }
+    return None;
 }
 
 /// What:

@@ -8,7 +8,7 @@ use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::service_work::Verdict;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, git_context, remove};
 use crate::worktree_remove::{Held, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::work_item::WorkKind;
@@ -17,7 +17,8 @@ use crate::work_item::WorkKind;
 ///  A subvolume inside a fresh disposable root,
 /// made with the kernel call the wrapper uses.
 /// Why:
-///   The rename, the record and the delete are about the object the kernel makes,
+///   The rename,
+/// the record and the delete are about the object the kernel makes,
 /// and nothing else stands for it.
 ///
 /// In TS you'd write (pseudocode):
@@ -63,11 +64,11 @@ fn the_hand_over_renames_the_subvolume_and_records_where_it_stands() {
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
     let woken: std::cell::RefCell<Vec<PathBuf>> = std::cell::RefCell::new(Vec::new());
-    let told = |at: &Path| -> Result<(), String> {
+    let told = |_context: &GitContext, at: &Path| -> Result<(), String> {
         woken.borrow_mut().push(at.to_path_buf());
         return Err(String::from("no service answers here"));
     };
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 7, made.as_path(), &told).expect("handed over");
+    hand_over_with(&git_context(), common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 7, made.as_path(), &told).expect("handed over");
     assert!(!made.exists(), "the path the person named is gone");
     let deleting: PathBuf = parent_path.join(deleting_name(7));
     assert!(deleting.is_dir(), "the subvolume stands under the name built from its id");
@@ -100,7 +101,7 @@ fn the_service_deletes_the_subvolume_a_record_names_and_a_gone_path_is_done() {
     let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
-    hand_over_with(common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 11, made.as_path(), &|_: &Path| { return Ok(()); }).expect("handed over");
+    hand_over_with(&git_context(), common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 11, made.as_path(), &|_: &GitContext, _: &Path| { return Ok(()); }).expect("handed over");
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), 11);
     assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the service's own call deletes it");
     assert!(!parent_path.join(deleting_name(11)).exists(), "the directory is gone");
@@ -133,7 +134,7 @@ fn a_removal_hands_the_subvolume_over_and_does_not_destroy_it_here() {
     crate::test_support::git(target.as_path(), &["update-index", "--refresh"]);
     let stand = HandingOverStand { target: target.clone(), handed: std::cell::Cell::new(false), destroyed: std::cell::Cell::new(false) };
     let context = crate::test_support::git_context();
-    let plan = RemovePlan { target: target.clone(), operand: target.as_os_str().to_os_string() };
+    let plan = RemovePlan { target: target.clone(), operand: target.as_os_str().to_os_string(), force: false };
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let outcome: RemoveOutcome = remove_with(&stand, &RemoveRequest { context: &context, plan: &plan, common_dir: common_dir.as_path() });
     assert!(stand.handed.get(), "the removal handed the subvolume over");

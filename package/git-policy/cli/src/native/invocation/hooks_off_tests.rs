@@ -1,7 +1,10 @@
-//! Controls for the hooks-off option:
-//! where it goes,
-//! which commands go without it,
-//! and what real Git does with it.
+//! Controls for the options every real-Git start carries:
+//! every hook switched off,
+//! and Git's file-watching monitor switched off
+//! for the Git the wrapper starts for its own work.
+//! Where the options go,
+//! which commands go without them,
+//! and what real Git does with them.
 
 use super::*;
 use crate::test_support::{REAL_GIT, executable, fixture, git, isolated_overlay, remove, repository};
@@ -14,8 +17,27 @@ fn tokens(command: &Command) -> Vec<String> {
 
 /// The options as they are spelled on the command line:
 /// the hooks path,
-/// then one switch per event.
+/// then one switch per event,
+/// and the switch that keeps the file-watching monitor from starting,
+/// which only the Git the wrapper starts for its own work carries.
 fn prefix() -> Vec<String> {
+    let mut tokens: Vec<String> = vec![
+        String::from("-c"),
+        format!("core.hooksPath={NO_HOOKS_DIRECTORY}"),
+        String::from("-c"),
+        String::from(MONITOR_OFF_SETTING),
+    ];
+    for event in switched_off_events() {
+        tokens.push(String::from("-c"));
+        tokens.push(format!("hook.{event}.enabled=false"));
+    }
+    return tokens;
+}
+
+/// The same options for a command the person typed:
+/// every hook is off,
+/// and the monitor stays the person's setting.
+fn person_prefix() -> Vec<String> {
     let mut tokens: Vec<String> = vec![String::from("-c"), format!("core.hooksPath={NO_HOOKS_DIRECTORY}")];
     for event in switched_off_events() {
         tokens.push(String::from("-c"));
@@ -26,21 +48,37 @@ fn prefix() -> Vec<String> {
 
 /// The expected tokens:
 /// the caller's global options,
-/// then the prefix,
+/// then the prefix of `owner`,
 /// then the subcommand and its arguments.
-fn with_prefix(globals: &[&str], rest: &[&str]) -> Vec<String> {
+fn with_prefix_of(globals: &[&str], rest: &[&str], owner: StartOwner) -> Vec<String> {
     let mut tokens: Vec<String> = globals.iter().map(|token| { return String::from(*token); }).collect();
-    tokens.extend(prefix());
+    tokens.extend(if owner == StartOwner::Wrapper { prefix() } else { person_prefix() });
     tokens.extend(rest.iter().map(|token| { return String::from(*token); }));
     return tokens;
 }
 
-/// Build the command the wrapper builds for `arguments` once the options are switched on.
-fn built(arguments: &[&str]) -> Command {
+/// The expected tokens for the wrapper's own Git.
+fn with_prefix(globals: &[&str], rest: &[&str]) -> Vec<String> {
+    return with_prefix_of(globals, rest, StartOwner::Wrapper);
+}
+
+/// Build the command the wrapper builds for `arguments` once the options are switched on,
+/// for `owner`.
+fn built_as(owner: StartOwner, arguments: &[&str]) -> Command {
     let owned: Vec<OsString> = arguments.iter().map(OsString::from).collect();
     let mut command: Command = Command::new(REAL_GIT);
-    command.args(hooks_off_arguments(owned.as_slice()));
+    command.args(hooks_off_arguments(owned.as_slice(), owner));
     return command;
+}
+
+/// Build the command for a start of the wrapper's own Git.
+fn built(arguments: &[&str]) -> Command {
+    return built_as(StartOwner::Wrapper, arguments);
+}
+
+/// Build the command for a command the person typed.
+fn built_person(arguments: &[&str]) -> Command {
+    return built_as(StartOwner::Person, arguments);
 }
 
 /// Without the switch the command carries nothing extra,
@@ -49,7 +87,7 @@ fn built(arguments: &[&str]) -> Command {
 fn the_option_is_added_only_after_the_process_switched_it_on() {
     let owned: Vec<OsString> = vec![OsString::from("status")];
     let mut command: Command = Command::new(REAL_GIT);
-    add_arguments(&mut command, owned.as_slice());
+    add_arguments(&mut command, owned.as_slice(), StartOwner::Wrapper);
     assert_eq!(tokens(&command), vec!["status"]);
 }
 
@@ -95,7 +133,12 @@ fn the_directory_can_never_exist() {
 
 /// Run the built command in `directory` with the isolated overlay.
 fn run(directory: &Path, arguments: &[&str]) -> std::process::Output {
-    let mut command: Command = built(arguments);
+    return run_as(StartOwner::Wrapper, directory, arguments);
+}
+
+/// Run the command built for `owner` in `directory` with the isolated overlay.
+fn run_as(owner: StartOwner, directory: &Path, arguments: &[&str]) -> std::process::Output {
+    let mut command: Command = built_as(owner, arguments);
     for (name, value) in isolated_overlay() {
         command.env(name, value);
     }
@@ -140,6 +183,54 @@ fn real_git_runs_no_hook_file_and_no_configured_hook() {
     assert!(!direct.status.success());
     assert!(file_marker.exists(), "real Git without the options runs the hook file");
     assert!(config_marker.exists(), "real Git without the options runs the configured hook");
+    remove(root.as_path());
+}
+
+/// A repository whose `core.fsmonitor` names a program that records each call in `root/monitor-ran`,
+/// with one file staged.
+fn monitored_repository(root: &Path) -> (PathBuf, PathBuf) {
+    let repo: PathBuf = repository(root, "monitor-repo");
+    let marker: PathBuf = root.join("monitor-ran");
+    let program: PathBuf = root.join("fsmonitor");
+    executable(program.as_path(), format!("#!/bin/sh\necho call >> '{}'\nexit 1\n", marker.display()).as_bytes());
+    git(repo.as_path(), &["config", "core.fsmonitor", program.to_str().expect("UTF-8")]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("a.txt");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    return (repo, marker);
+}
+
+/// The wrapper's own Git never asks the person's file-watching monitor,
+/// because the prefix switches it off;
+/// the same command without the options runs the program (the positive control),
+/// so an empty record proves the option and not a setting that never fires.
+#[test]
+fn the_wrappers_own_start_never_runs_the_core_fsmonitor_program() {
+    let root: PathBuf = fixture("hooks-off-monitor-own");
+    let (repo, marker) = monitored_repository(root.as_path());
+    std::fs::remove_file(marker.as_path()).expect("clear the record the setup wrote");
+    let switched = run(repo.as_path(), &["status", "--short"]);
+    assert!(switched.status.success(), "{}", String::from_utf8_lossy(&switched.stderr));
+    assert!(!marker.exists(), "the wrapper's own Git must not run the configured monitor program");
+    let direct = crate::test_support::git_output(repo.as_path(), &["status", "--short"]);
+    assert!(direct.status.success(), "{}", String::from_utf8_lossy(&direct.stderr));
+    assert!(marker.exists(), "real Git without the options must run the configured monitor program");
+    remove(root.as_path());
+}
+
+/// `core.fsmonitor` is the person's setting for the command the person typed:
+/// a forwarded start carries the hook switches and no monitor switch,
+/// so Git runs the configured program.
+#[test]
+fn a_forwarded_start_runs_the_core_fsmonitor_program() {
+    let root: PathBuf = fixture("hooks-off-monitor-forward");
+    let (repo, marker) = monitored_repository(root.as_path());
+    std::fs::remove_file(marker.as_path()).expect("clear the record the setup wrote");
+    // The tokens say it without Git: the person's start has no monitor switch, and the wrapper's has one.
+    assert!(!tokens(&built_person(&["status"])).contains(&String::from(MONITOR_OFF_SETTING)));
+    assert!(tokens(&built(&["status"])).contains(&String::from(MONITOR_OFF_SETTING)));
+    let forwarded = run_as(StartOwner::Person, repo.as_path(), &["status", "--short"]);
+    assert!(forwarded.status.success(), "{}", String::from_utf8_lossy(&forwarded.stderr));
+    assert!(marker.exists(), "a forwarded start must run the configured monitor program");
     remove(root.as_path());
 }
 

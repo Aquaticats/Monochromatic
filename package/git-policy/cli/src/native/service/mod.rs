@@ -139,6 +139,9 @@ pub mod service_main;
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
 
+/// The words a waiting command is told about its own wait.
+pub mod service_client_waiting_words;
+
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
 
@@ -163,6 +166,10 @@ pub mod service_provision_earlier_service_retirement;
 
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
+
+/// The states in which provisioning already knows no service can answer this command,
+/// so the command says why instead of waiting out the start ceiling.
+pub mod service_provision_refusals_before_the_wait;
 
 /// The record of the unit texts the service manager was last told about,
 /// which tells an installation it runs from files a kill left behind.
@@ -200,6 +207,10 @@ pub mod service_units_of_removed_worktrees;
 /// The journal folder the unit gives an instance,
 /// and the state folder that holds it.
 pub mod service_journal_folder_of_an_instance;
+
+/// Whether a stopped service's processes are gone,
+/// which is what lets the journal it writes be removed.
+pub mod service_is_gone_after_a_stop;
 
 /// A manager that records the stops it is asked for,
 /// for the controls of the units of removed worktrees.
