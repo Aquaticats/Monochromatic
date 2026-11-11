@@ -68,29 +68,54 @@ const FIXTURE_TIMESTAMP = '2000-01-01T00:00:00.000Z';
  and no real secret ever reaches a throwaway home.
  */
 export const GUARDED_AGENT_FILES: Readonly<Record<string, string>> = {
-  'auth.json': `${JSON.stringify({
+  'auth.json': `${JSON.stringify(
+    {
     [TARGET_PROVIDER]: {
       type: 'api_key',
       key: 'fixture-key',
     },
-  }, null, 1)}\n`,
-  'models-store.json': `${JSON.stringify({
+  },
+    null,
+    1
+  )}\n`,
+  'models-store.json': `${JSON.stringify(
+    {
     [TARGET_PROVIDER]: {
       models: [],
       lastModified: FIXTURE_TIMESTAMP,
       etag: 'fixture',
       checkedAt: FIXTURE_TIMESTAMP,
     },
-  }, null, 1)}\n`,
-  'models.json': `${JSON.stringify({ providers: {}, }, null, 1)}\n`,
-  'settings.json': `${JSON.stringify({
+  },
+    null,
+    1
+  )}\n`,
+  'models.json': `${JSON.stringify(
+    { providers: {}, },
+    null,
+    1
+  )}\n`,
+  'settings.json': `${JSON.stringify(
+    {
     enabledModels: [`${TARGET_PROVIDER}/qwen3.8-max`],
-  }, null, 1)}\n`,
+  },
+    null,
+    1
+  )}\n`,
 };
 
 //endregion Constants
 
 //region Types
+
+/**
+ One guarded agent file the host setup writes and the guard re-reads:
+ the file name and the fixture content it must keep.
+ */
+type GuardedFileEntry = readonly [
+  name: string,
+  content: string,
+];
 
 /**
  One catalog model as the registry reports it.
@@ -220,9 +245,12 @@ export async function createDisposableHome(): Promise<{
     { recursive: true, },
   );
   await Promise.all(Object.entries(GUARDED_AGENT_FILES,)
-    .map(function writeGuarded([name, content,]) {
+    .map(function writeGuarded([name, content,]: GuardedFileEntry,) {
       return writeFile(
-        join(agentDir, name,),
+        join(
+          agentDir,
+          name,
+        ),
         content,
         'utf8',
       );

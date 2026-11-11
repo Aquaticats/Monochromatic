@@ -32,7 +32,7 @@ use crate::auto_push_destination::{Destination, read_destination_awaiting};
 use crate::diagnostic_log::debug;
 use crate::lfs_bounded_push::run_push_awaiting;
 use crate::merge_second_pass_tree::announce;
-use crate::push_retry::CONFLICT_PHRASE;
+use crate::push_retry_failure::CONFLICT_PHRASE;
 use std::ffi::OsString;
 use std::future::Future;
 use std::pin::Pin;

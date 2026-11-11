@@ -23,6 +23,12 @@ import {
   gateImageTagOf,
   nativeTestImageRepository,
 } from './native-gate-image-tag.ts';
+import { runGateChecks, } from './native-gate-checks.ts';
+import { runGateContainer, } from './native-gate-container.ts';
+import {
+  gateContainerLimitOptions,
+  gateLimitsFrom,
+} from './native-gate-container-limits.ts';
 import { gatePassedRecord, } from './native-gate-proof.ts';
 import {
   imageRootDirectory,
@@ -70,20 +76,36 @@ async function localImageNames(): Promise<readonly ImageName[]> {
   return imageNames({ output: listing.stdout, },);
 }
 
-// Resource limits default to the repository's test-container bounds; `--memory`, `--cpus` and `--pids-limit` override them.
+
+// Resource limits default to the repository's test-container bounds, with the gate's own CPU count; `--memory`, `--cpus`
+// and `--pids-limit` after the `--` of the task override them, except that the process bound never goes below what the
+// test threads need (bin/native-gate-container-limits.ts).
 /**
- Container limits of this gate, and the arguments left over, which are a usage error.
+ The limits the parser read, and the arguments left over, which are a usage error.
  */
 const {
-  limits: containerLimits,
+  limits: givenLimits,
   rest: unknownOptions,
 } = parseContainerLimitOptions({
-  options: process.argv
-    .slice(2),
+  // The gate's own bounds come first, so a person's option after them wins: the parser keeps the last repeat.
+  options: [
+    ...gateContainerLimitOptions,
+    ...process.argv
+      .slice(2),
+  ],
   acceptPidsLimit: true,
 });
 if (unknownOptions.length > 0)
   throw new NativeVerificationError(`Only --memory <size>, --cpus <count> and --pids-limit <count> are accepted, got ${unknownOptions.join(' ')}.`);
+/**
+ The limits this gate's containers run under, with the process bound raised to what its test threads need.
+ */
+const {
+  limits: containerLimits,
+  raised: raisedProcessBound,
+} = gateLimitsFrom({ given: givenLimits, });
+if (raisedProcessBound !== undefined)
+  console.log(raisedProcessBound);
 
 // The gate is this package's authority, so it reads the sidecars' locks before it builds anything: a dependency this
 // package gained, dropped or moved makes a sidecar's lock stale, and the sidecar's own build only finds that later.
@@ -292,16 +314,8 @@ await writeFile(
   )}\n`,
 );
 console.log(`Native wrapper verification evidence: ${evidence}`);
-await runCommand({
-  command: 'podman',
-  args: [
-    'run',
-    ...limits,
-    image,
-  ],
-});
 /**
- Result of asking the host's `rustc` for its sysroot.
+ Result of asking the host's `rustc` for its sysroot, which the Clippy container mounts read-only.
  */
 const sysroot = await runCommand({
   command: 'rustc',
@@ -316,31 +330,59 @@ const sysroot = await runCommand({
  */
 const compiler = sysroot.stdout
   .trim();
-await runCommand({
-  command: 'podman',
-  args: [
-    'run',
-    ...limits,
-    '--security-opt',
-    'label=disable',
-    '--volume',
-    `${compiler}:/toolchain:ro`,
-    '--env',
-    'PATH=/toolchain/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-    '--env',
-    'RUSTC=/toolchain/bin/rustc',
-    '--env',
-    'RUSTDOC=/toolchain/bin/rustdoc',
-    image,
-    '/toolchain/bin/cargo',
-    'clippy',
-    '--offline',
-    '--locked',
-    '--all-targets',
-    '--',
-    '-D',
-    'warnings',
-  ],
+// The suite and Clippy start together and the gate waits for both: a clean Clippy is silent, and a Clippy compile
+// behind the suite cost a fifth of the gate's wall time while both checks had nothing to say to each other. Each is
+// bounded, so a container that never ends refuses the gate instead of holding it open
+// (bin/native-gate-checks.ts), and each removes its container whether it ended by itself or at that bound.
+await runGateChecks({
+  testRun: function runTheWholeSuite(deadlineMilliseconds) {
+    return runGateContainer({
+      cidFile: join(
+        evidence,
+        'suite.cid',
+      ),
+      deadlineMilliseconds,
+      args: [
+        ...limits,
+        image,
+      ],
+    },);
+  },
+  // Its diagnostics are captured rather than streamed, so the run stays the one stream a person reads and a refused
+  // Clippy still quotes what Clippy said.
+  clippyRun: function runClippy(deadlineMilliseconds) {
+    return runGateContainer({
+      cidFile: join(
+        evidence,
+        'clippy.cid',
+      ),
+      deadlineMilliseconds,
+      args: [
+        ...limits,
+        '--security-opt',
+        'label=disable',
+        '--volume',
+        `${compiler}:/toolchain:ro`,
+        '--env',
+        'PATH=/toolchain/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        '--env',
+        'RUSTC=/toolchain/bin/rustc',
+        '--env',
+        'RUSTDOC=/toolchain/bin/rustdoc',
+        image,
+        '/toolchain/bin/cargo',
+        'clippy',
+        '--offline',
+        '--locked',
+        '--all-targets',
+        '--',
+        '-D',
+        'warnings',
+      ],
+      capture: true,
+      allowFailure: true,
+    },);
+  },
 });
 await writeFile(
   join(

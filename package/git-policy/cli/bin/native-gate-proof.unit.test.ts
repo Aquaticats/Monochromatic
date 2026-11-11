@@ -13,11 +13,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  defaultContainerLimits,
   diskWeightArguments,
   lowestDiskWeight,
+  memoryBytes,
   runLimitArguments,
 } from './container-limits.ts';
+import { gateContainerLimits, } from './native-gate-container-limits.ts';
 import {
   gatePassedRecord,
   passingGateEvidence,
@@ -34,24 +35,25 @@ const image = 'a'.repeat(64);
 const otherImage = 'b'.repeat(64);
 
 /**
- Container arguments of a gate run at the defaults, as the gate's manifest records them.
+ Container arguments of a gate run, as the gate's manifest records them.
  */
 const gateLimits = [
   '--rm',
   '--init',
   '--network=none',
   ...runLimitArguments({
-    limits: defaultContainerLimits,
+    limits: gateContainerLimits,
     withPidsLimit: true,
   }),
 ];
 
 /**
- Limits of a campaign that is as large as the gate run.
+ Limits of a campaign that is as large as the gate run, derived from the gate's own so a bound the gate gains changes
+ this fixture with it.
  */
 const campaignLimits = {
-  memory: '2g',
-  pidsLimit: 512,
+  memory: gateContainerLimits.memory,
+  pidsLimit: gateContainerLimits.pidsLimit,
 };
 
 /**
@@ -392,13 +394,16 @@ await describe({
             const campaigns = [
               {
                 memory: '2048m',
-                pidsLimit: 512,
+                pidsLimit: gateContainerLimits.pidsLimit,
               },
               {
                 memory: '4g',
-                pidsLimit: 1_024,
+                pidsLimit: gateContainerLimits.pidsLimit
+                  * 2,
               },
             ];
+            // The first campaign's memory is the gate's in another unit, and that is the whole point of the case.
+            expect(memoryBytes('2048m')).toBe(memoryBytes(gateContainerLimits.memory));
             /**
              What each campaign finds.
              */

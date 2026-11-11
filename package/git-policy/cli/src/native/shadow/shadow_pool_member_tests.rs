@@ -201,3 +201,89 @@ fn a_worktree_that_keeps_its_own_info_is_refused() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  An entry a commit does not read that the repository has since lost is no refusal.
+/// Why:
+///   The member holds the link a creation made,
+/// and a link to a name that is gone resolves to nothing,
+///  which is the view a creation of this moment gives:
+/// a common directory that collects and drops state all day
+///  (`FETCH_HEAD`,
+/// its own log generations,
+/// a removed worktree)
+///  must not refuse a member over it.
+#[test]
+fn an_entry_no_commit_reads_that_the_repository_lost_is_no_refusal() {
+    let root: PathBuf = fixture("shadow-pool-member-unread-state-gone");
+    let repo: PathBuf = repository_of(root.as_path());
+    let common: PathBuf = repo.join(".git");
+    let went: [&str; 4] = [
+        "FETCH_HEAD",
+        "monochromatic-git-policy-cli-commit-timing.jsonl",
+        "lost-found",
+        "cli-git-captures",
+    ];
+    for name in went {
+        std::fs::write(common.join(name), b"state").expect("an entry no commit reads");
+    }
+    std::fs::create_dir_all(common.join("worktrees").join("another")).expect("another worktree's state");
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    for name in went {
+        std::fs::remove_file(common.join(name)).expect("gone");
+    }
+    std::fs::remove_dir_all(common.join("worktrees")).expect("gone");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        None,
+        "state no commit reads is no reason to refuse a member"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  An entry a commit reads that appeared after the member was made is a refusal,
+///  named as the entry it would miss.
+/// Why:
+///   A member made before `info` or `rr-cache` existed would give the commit a view of the
+///  repository as it was then,
+///   so the member that would miss one is removed rather than trusted.
+#[test]
+fn an_entry_a_commit_reads_that_appeared_after_the_member_is_a_refusal() {
+    let root: PathBuf = fixture("shadow-pool-member-read-state-appeared");
+    let repo: PathBuf = repository_of(root.as_path());
+    let common: PathBuf = repo.join(".git");
+    assert!(
+        std::fs::symlink_metadata(common.join("rr-cache").as_path()).is_err(),
+        "this repository has no rr-cache"
+    );
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    std::fs::create_dir(common.join("rr-cache")).expect("rerere records something");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        Some(String::from("the shared entry rr-cache is not in the member"))
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A real entry at a shared name the repository no longer holds is a refusal,
+///  because only the link a creation made gives the view a creation gives.
+/// Why:
+///   A directory or a file of the member's own there is what a use of it left,
+///  and the next commit would trust bytes this invocation's creation never made.
+#[test]
+fn a_real_entry_at_a_shared_name_is_a_refusal() {
+    let root: PathBuf = fixture("shadow-pool-member-real-entry");
+    let repo: PathBuf = repository_of(root.as_path());
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    std::fs::create_dir(shadow.join("rr-cache").as_path()).expect("a real entry where a link belongs");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        Some(String::from("the shared entry rr-cache is not a link in the member"))
+    );
+    remove(root.as_path());
+}

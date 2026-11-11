@@ -188,7 +188,10 @@ fn the_kind_of(mode: &str) -> Kind {
 /// its third finding).
 ///  An executable bit changed alone is the same kind,
 /// so a mode the person set is still read as unchanged
-///  bytes and stays theirs.
+///  bytes and stays theirs,
+/// which a path the merge keeps turns into the merge's bytes written with that mode;
+/// a path
+///  the merge deletes reads that mode through `the_mode_a_deletion_would_leave` instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -200,6 +203,32 @@ fn the_same_entry(left: &Option<Side>, right: &Option<Side>) -> bool {
         (Some(one), Some(other)) => one.oid == other.oid && the_kind_of(one.mode.as_str()) == the_kind_of(other.mode.as_str()),
         _ => false,
     };
+}
+
+/// What:
+///  The mode the person set at a path the merge deletes,
+/// when the entry rules would read their side there as no change at all.
+/// Why:
+///   A mode the person set without touching the bytes is theirs,
+/// and a path the merge keeps takes the merge's own
+///  bytes with that mode.
+///  A path the merge deletes has none of the merge's bytes to take the mode,
+/// so the mode
+///  is the whole of what the deletion would discard and their side is kept whole and named instead
+/// (`SPEC.md`,
+///  "Carry edits forward";
+/// the owner's rule "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const deletedMode = (layer) => layer.theirs === null && layer.ours !== null && layer.base !== null && layer.base.mode !== layer.ours.mode ? layer.ours.mode : null;
+/// ```
+fn the_mode_a_deletion_would_leave(layer: &Layer) -> Option<String> {
+    let (Some(base), Some(ours), None) = (&layer.base, &layer.ours, &layer.theirs) else { return None };
+    if base.mode == ours.mode {
+        return None;
+    }
+    return Some(ours.mode.clone());
 }
 
 /// What:
@@ -353,6 +382,11 @@ fn stage(side: &Option<Side>) -> Option<Stage> {
 /// function decide(runner, path, layer): Decision; // throws when Git cannot be read
 /// ```
 pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Result<Decision, String> {
+    // A mode the person set at a path the merge deletes is the whole of what the deletion would discard, and the equality
+    //  rules below read it as no change at all: their side is kept whole and named, as every path the merge deletes is.
+    if let Some(mode) = the_mode_a_deletion_would_leave(layer) {
+        return Ok(Decision { outcome: Outcome::Kept(MODIFY_DELETE), mode: Some(mode) });
+    }
     if the_same_entry(&layer.base, &layer.ours) {
         return Ok(Decision { outcome: Outcome::Merges, mode: end_mode(layer) });
     }
@@ -436,6 +470,9 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
 /// function decideWithoutThePass(layer): Decision | null;
 /// ```
 pub fn decide_without_the_pass(layer: &Layer) -> Option<Decision> {
+    if let Some(mode) = the_mode_a_deletion_would_leave(layer) {
+        return Some(Decision { outcome: Outcome::Kept(MODIFY_DELETE), mode: Some(mode) });
+    }
     if the_same_entry(&layer.base, &layer.ours) {
         return Some(Decision { outcome: Outcome::Merges, mode: end_mode(layer) });
     }

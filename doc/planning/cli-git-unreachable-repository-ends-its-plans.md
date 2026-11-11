@@ -102,7 +102,7 @@ The proof is a point in time,
 and the drain does not apply what it asks:
 the change a gone repository produces is applied by the service loop after the drain returns
 (`push_retry.rs`,
-`Retrying::apply`).
+`PushRetries::apply`).
 A repository renamed away and back in that gap,
 or one whose drive comes back then,
 reads as gone when it was looked at and is reachable when the plan would be dropped.
@@ -155,3 +155,16 @@ Nothing on the filesystem tells a deleted repository from a renamed one,
 so that case is one of the proof's limits rather than a state the applier can see.
 The commit stays local in that case,
 and the journal line names the path whose plan ended.
+
+### The file the worker removes and the plan the loop puts back
+
+The file of the forgotten plan goes where every forget's file goes:
+the worker that decided the branch needs no new try removes it,
+and for this kind of forget it removes it only while the directory still fails a directory check
+(`landing/service_work_handlers_replanning_and_acceptance.rs`,
+`forget_when_unreachable`).
+So a repository renamed back before the worker ran keeps its file as well as the plan the applier puts back,
+and one that reads as gone on the worker's own reading loses the file there;
+the applier's later reading is what decides about the list,
+and a plan it puts back is written to the journal again by the next drain that decides the push needs a
+new try (`Replanning::keep_the_plan`).

@@ -209,7 +209,8 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
     let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
     let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);
-    // A step with no ceiling is waited for as long as it lives: the watch starts without one.
+    // A step that is not ended at a ceiling gives the watch none: a step that may not be run twice is only announced, and a
+    //  command that stops waiting for one leaves it running.
     // `mut` lets the watch be closed here rather than dropped, which would wait for its task on this worker.
     let mut watch: ChildWatch = match ceiling {
         Some(limit) => started.within(limit),
@@ -217,6 +218,11 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     };
     if !stoppable {
         watch.never_stop();
+    }
+    // A step the command stops waiting for and leaves running says so in every notice: the notice names that bound, not a wait
+    //  that has none (`wait_progress.rs`, `child_wait_line`).
+    if let StepBound::LeaveRunning { after, extra } = bound {
+        watch.stops_waiting_after(after.saturating_add(extra));
     }
     // Nothing here ends the step but this wait, unless a watch whose pin proves the process does: that watch ends it at the ceiling
     // and this wait is the backstop behind it, later by the ending such a watch needs. A step with no ceiling is waited for as before.

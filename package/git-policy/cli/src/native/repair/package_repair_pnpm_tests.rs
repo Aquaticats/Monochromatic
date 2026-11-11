@@ -55,6 +55,33 @@ fn applies_only_with_a_lockfile_and_node_modules() {
     remove(&root);
 }
 
+/// What:
+///  A `node_modules` that is a link out of the worktree starts no install.
+/// Why:
+///   The copy of the ignored state copies the link,
+/// so `pnpm install` in the worktree would rewrite the packages of the directory the link names,
+///  which is the source checkout's when both share one.
+/// A repair writes only in directories the worktree it serves holds,
+/// and the worktree already resolves its packages through the person's own link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlink(sourceModules, join(destination, 'node_modules')); assert(repairPnpm(destination, environment) === undefined);
+/// ```
+#[test]
+fn a_node_modules_a_link_carries_out_of_the_worktree_is_not_relinked() {
+    let (root, destination, bin, environment) = scene("pnpm-linked-modules");
+    let record: PathBuf = root.join("record");
+    executable(bin.join("pnpm").as_path(), format!("#!/bin/sh\necho started > '{}'\n", record.display()).as_bytes());
+    let source_modules: PathBuf = root.join("source/node_modules");
+    std::fs::create_dir_all(source_modules.join("leaf")).expect("the source's packages");
+    std::fs::remove_dir(destination.join("node_modules")).expect("remove the copied directory");
+    std::os::unix::fs::symlink(source_modules.as_path(), destination.join("node_modules")).expect("a link to the source's packages");
+    assert!(repair_pnpm(destination.as_path(), &environment).is_none(), "a link that leaves the worktree starts nothing");
+    assert!(!record.exists(), "pnpm was started against the checkout's packages");
+    remove(&root);
+}
+
 /// A failing pnpm is a failure whose command names the worktree,
 /// so it runs from anywhere.
 #[test]

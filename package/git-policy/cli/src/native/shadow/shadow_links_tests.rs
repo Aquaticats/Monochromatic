@@ -1,38 +1,133 @@
 //! Controls for the shadow links:
-//! shared entries link,
-//! private entries never do.
+//! the named entries a commit reads link,
+//! and every other entry of a common Git directory stays absent.
 
 use super::*;
 use crate::candidate_private_index::{PRIVATE_INDEX_PREFIX, STAGING_SUFFIX};
 use crate::test_support::{fixture, git, remove, repository};
 use crate::wrapper_names_old_and_new::{REPOSITORY_SCRATCH, SHADOW_POOL_FOLDER};
 
-/// Shared entries of a plain repository become links to the real entries,
-///  and private entries stay absent from the shadow.
+/// Every entry a shadow shares,
+/// beside the ones a fixture repository has,
+/// written into a common directory so the control names them itself.
+const ENTRIES_A_COMMIT_DOES_NOT_READ: [&str; 12] = [
+    "FETCH_HEAD",
+    "ORIG_HEAD",
+    "description",
+    "lost-found",
+    "worktrees",
+    "fsmonitor--daemon",
+    "monochromatic-git-policy-cli-audit.jsonl",
+    "monochromatic-git-policy-cli-commit-timing.jsonl",
+    "monochromatic-git-policy-cli-commit-timing.jsonl.1",
+    "cli-git-captures",
+    "MERGE_RR",
+    ".factory-scm-trigger",
+];
+
+/// The names of the entries one directory holds,
+/// in the order the directory lists them.
+fn entry_names(directory: &Path) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for listed in std::fs::read_dir(directory).expect("a readable directory") {
+        let entry: std::fs::DirEntry = listed.expect("a readable entry");
+        names.push(entry.file_name().to_string_lossy().into_owned());
+    }
+    return names;
+}
+
+/// A shadow links the entries a commit reads and nothing else,
+/// so a file a command of the repository writes costs it no link.
 #[test]
-fn shared_entries_link_and_private_entries_stay_absent() {
-    let root: PathBuf = fixture("shadow-links-plain");
+fn only_the_named_shared_entries_link() {
+    let root: PathBuf = fixture("shadow-links-named");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let common: PathBuf = repo.join(".git");
-    std::fs::create_dir(root.join("shadow")).expect("shadow");
+    for name in ENTRIES_A_COMMIT_DOES_NOT_READ {
+        std::fs::write(common.join(name), b"state").expect("an entry no commit reads");
+    }
+    std::fs::create_dir(common.join("threshold")).expect("a folder no commit reads");
     let shadow: PathBuf = root.join("shadow");
-    std::fs::write(common.join("index"), b"index").expect("index");
-    std::fs::write(common.join("MERGE_HEAD"), b"x").expect("merge");
-    std::fs::write(common.join("index.lock"), b"x").expect("lock");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
     link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
     assert_eq!(
         std::fs::read_link(shadow.join("hooks")).expect("hooks link"),
-        common.join("hooks")
+        common.join("hooks"),
+        "the hooks directory is the real one"
     );
     assert_eq!(
         std::fs::read_link(shadow.join("info")).expect("info link"),
-        common.join("info")
+        common.join("info"),
+        "the info directory is the real one"
     );
-    assert!(std::fs::symlink_metadata(shadow.join("index")).is_err());
-    assert!(std::fs::symlink_metadata(shadow.join("MERGE_HEAD")).is_err());
-    assert!(std::fs::symlink_metadata(shadow.join("index.lock")).is_err());
-    assert!(std::fs::symlink_metadata(shadow.join("refs")).is_err());
+    let mut expected: Vec<String> = SHARED_ENTRY_NAMES
+        .iter()
+        .map(|name| { return String::from(*name); })
+        .filter(|name| { return common.join(name).exists(); })
+        .collect();
+    let mut linked: Vec<String> = entry_names(shadow.as_path());
+    expected.sort();
+    linked.sort();
+    assert_eq!(linked, expected, "a creation links the named entries the repository holds, and nothing else");
+    for name in ENTRIES_A_COMMIT_DOES_NOT_READ {
+        assert!(std::fs::symlink_metadata(shadow.join(name)).is_err(), "an entry no commit reads reached the shadow as {name}");
+    }
     remove(root.as_path());
+}
+
+/// What:
+///  The named list holds every entry a commit's shadow reads through a link,
+///  and none of the state a busy common directory collects.
+/// Why:
+///  This is the decision the pool rests on:
+///  a member is refused when one of these appears,
+///  and never because of the others
+///  (`shadow_pool_member.rs`,
+/// `doc/planning/cli-git-commit-latency-under-many-agents.md`,
+/// "The choices this leaves to the owner").
+#[test]
+fn the_named_list_is_what_a_commit_reads() {
+    for name in ["branches", "hooks", "info", "lfs", "modules", "remotes", "rr-cache", "shallow", "svn"] {
+        assert!(is_shared_shadow_entry(name), "{name} is an entry a commit reads");
+    }
+    for name in [
+        // The shadow's own.
+        "HEAD",
+        "refs",
+        "packed-refs",
+        "logs",
+        "index",
+        "config",
+        "config.worktree",
+        "objects",
+        "COMMIT_EDITMSG",
+        // The wrapper's own state, under this release's name and an earlier release's.
+        "monochromatic-git-policy-cli",
+        "cli-git",
+        "monochromatic-git-policy-cli-audit.jsonl",
+        REPOSITORY_SCRATCH.current,
+        REPOSITORY_SCRATCH.earlier,
+        SHADOW_POOL_FOLDER,
+        "cli-git-add-policy-1-2-3",
+        // Conclusion state, which the creation copies.
+        "MERGE_HEAD",
+        "MERGE_RR",
+        "sequencer",
+        // Locks and the markers a command stages them in.
+        "index.lock",
+        "ORIG_HEAD.lock",
+        // State of Git and of other tools that no commit reads.
+        "FETCH_HEAD",
+        "ORIG_HEAD",
+        "description",
+        "lost-found",
+        "worktrees",
+        "fsmonitor--daemon",
+        "cli-git-captures",
+        ".factory-scm-trigger",
+    ] {
+        assert!(!is_shared_shadow_entry(name), "{name} is not an entry a commit reads");
+    }
 }
 
 /// A linked worktree keeps its `info` private,
@@ -75,94 +170,11 @@ fn linked_worktree_copies_its_per_worktree_entries() {
     remove(root.as_path());
 }
 
-/// The private-entry list names every conclusion entry,
-/// the sequencer,
-/// lock files,
-///  and the wrapper's own private copy of an index.
-#[test]
-fn private_names_cover_conclusion_state_and_locks() {
-    for name in [
-        "HEAD",
-        "refs",
-        "index",
-        "MERGE_HEAD",
-        "sequencer",
-        "monochromatic-git-policy-cli",
-        "cli-git",
-        "ORIG_HEAD.lock",
-        "cli-git-add-policy-1-2-3",
-        "cli-git-add-policy-1-2-3.making",
-        REPOSITORY_SCRATCH.current,
-        REPOSITORY_SCRATCH.earlier,
-    ] {
-        assert!(is_private_shadow_entry(name), "{name}");
-    }
-    for name in ["hooks", "info", "rr-cache", "description", "logs-not", "cli-git-add-policies"] {
-        assert!(!is_private_shadow_entry(name), "{name}");
-    }
-}
-
-/// What:
-///  The repository's scratch root is left out of every shadow,
-///  under the name of this release and under the one an earlier release gave it.
-/// Why:
-///   The scratch root holds the shadow itself,
-/// so the link points the shadow at the directory it lives in and,
-///  through it,
-/// at every other command's private files;
-/// a link also costs one directory-entry creation on a volume where those calls
-///  wait (`doc/planning/cli-git-commit-latency-under-many-agents.md`).
-/// Every other shared entry still links,
-/// so the scratch root is the one name left out.
-#[test]
-fn the_repository_scratch_root_never_reaches_the_shadow() {
-    let root: PathBuf = fixture("shadow-links-scratch-root");
-    let repo: PathBuf = repository(root.as_path(), "repo");
-    let common: PathBuf = repo.join(".git");
-    let names: [&str; 2] = [REPOSITORY_SCRATCH.current, REPOSITORY_SCRATCH.earlier];
-    for name in names {
-        std::fs::create_dir(common.join(name)).expect("a scratch root");
-    }
-    let shadow: PathBuf = root.join("shadow");
-    std::fs::create_dir(shadow.as_path()).expect("shadow");
-    link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
-    for name in names {
-        assert!(
-            std::fs::symlink_metadata(shadow.join(name)).is_err(),
-            "a shadow reaches its own directory through {name}"
-        );
-    }
-    let mut expected: Vec<String> = shared_entry_names(common.as_path());
-    let mut linked: Vec<String> = entry_names(shadow.as_path());
-    expected.sort();
-    linked.sort();
-    assert_eq!(linked, expected, "every shared entry except the scratch root links");
-    remove(root.as_path());
-}
-
-/// The names of the entries a real common directory shares with a shadow,
-/// in the order the directory lists them.
-fn shared_entry_names(common: &Path) -> Vec<String> {
-    return entry_names(common).into_iter().filter(|name| { return !is_private_shadow_entry(name); }).collect();
-}
-
-/// The names of the entries one directory holds,
-/// in the order the directory lists them.
-fn entry_names(directory: &Path) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
-    for listed in std::fs::read_dir(directory).expect("a readable directory") {
-        let entry: std::fs::DirEntry = listed.expect("a readable entry");
-        names.push(entry.file_name().to_string_lossy().into_owned());
-    }
-    return names;
-}
-
 /// The wrapper's own private copy of an index never reaches the shadow,
-/// and every real entry beside it still links.
+/// and the entries a commit reads still link.
 ///
 /// A common directory collects one such copy for every command that died before it removed it,
-/// so the number of names a shadow must link grows without a limit the person chose,
-///  and none of them is an entry a hook resolves.
+/// so the number of names a shadow must link would grow without a limit the person chose.
 #[test]
 fn the_wrappers_private_index_copies_stay_out_of_the_shadow() {
     let root: PathBuf = fixture("shadow-links-private-index");
@@ -240,13 +252,42 @@ fn existing_shadow_entries_are_replaced_by_links() {
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir_all(shadow.join("hooks")).expect("template hooks");
     std::fs::write(shadow.join("hooks").join("sample"), "x").expect("sample");
-    std::fs::write(shadow.join("description"), "template\n").expect("template description");
+    std::fs::create_dir_all(shadow.join("info")).expect("template info");
+    std::fs::write(shadow.join("info").join("exclude"), "template\n").expect("template exclude");
     link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
     assert_eq!(std::fs::read_link(shadow.join("hooks")).expect("hooks link"), common.join("hooks"));
-    assert_eq!(
-        std::fs::read_link(shadow.join("description")).expect("description link"),
-        common.join("description")
-    );
+    assert_eq!(std::fs::read_link(shadow.join("info")).expect("info link"), common.join("info"));
+    remove(root.as_path());
+}
+
+/// What:
+///  A shared entry that a command removes between the listing and the link does not fail the link.
+/// Why:
+///  `lfs` appears when somebody starts using it and can go again;
+/// a removal that lands inside a commit's creation must leave the commit building the shadow of a
+///  repository that does not hold the entry,
+/// never failing it.
+///  Unix makes a link to a name whether or not that name is there,
+/// and Git reads a link to nothing as nothing,
+///  which is what a creation of this moment holds.
+#[test]
+fn a_shared_entry_that_is_gone_before_it_is_linked_is_not_an_error() {
+    let root: PathBuf = fixture("shadow-links-gone");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    std::fs::create_dir(common.join("lfs")).expect("lfs");
+    let (shared, own_info): (Vec<SharedEntry>, bool) = shared_entries_of(common.as_path(), common.as_path()).expect("listed");
+    assert!(!own_info);
+    assert!(shared.iter().any(|entry| { return entry.name == "lfs"; }), "the listing holds lfs");
+    std::fs::remove_dir_all(common.join("lfs")).expect("another command removes lfs");
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    link_directory_entries(shared.as_slice(), shadow.as_path()).expect("a vanished entry is no failure");
+    assert!(!common.join("lfs").exists(), "the real entry is gone");
+    if let Ok(metadata) = std::fs::symlink_metadata(shadow.join("lfs").as_path()) {
+        assert!(metadata.file_type().is_symlink(), "a gone entry is a link to nothing, never a copy of something");
+    }
+    assert!(std::fs::symlink_metadata(shadow.join("hooks").as_path()).is_ok(), "the entries that are there still link");
     remove(root.as_path());
 }
 
@@ -293,8 +334,7 @@ fn a_shared_info_that_is_not_a_directory_is_an_error() {
 ///  under any name the lock it belongs to has.
 /// Why:
 ///   Every command of a repository leaves one of these while it runs,
-///  so a shadow that linked one held an entry a creation made a moment ago and no other creation would make,
-///  which is exactly what the pool refuses a member for.
+///  so a shadow that linked one held an entry a creation made a moment ago and no other creation would make.
 ///  The name is `<lock>.cli-git-marker-<pid>.<namespace>-<batch>-<token>`,
 ///  and the lock can be a ref's,
 /// not only the index's.
@@ -305,19 +345,10 @@ fn a_staged_lock_marker_never_reaches_the_shadow() {
     let common: PathBuf = repo.join(".git");
     for name in [
         "index.lock.cli-git-marker-4242.4026531836-1794310871725332-cf320c2d-d336-4336-b19e-d9e64c8c9d9e",
-        "refs/heads/main.lock.cli-git-marker-4242-7-0123456789abcdef",
         "HEAD.lock",
     ] {
         std::fs::write(common.join(name), b"marker").expect("marker");
     }
-    assert!(
-        is_private_shadow_entry("index.lock.cli-git-marker-4242.4026531836-1794310871725332-cf320c2d"),
-        "the index's staged marker is private"
-    );
-    assert!(
-        is_private_shadow_entry("refs/heads/main.lock.cli-git-marker-4242-7-0123456789abcdef"),
-        "a ref's staged marker is private"
-    );
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(shadow.as_path()).expect("shadow");
     link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
@@ -333,11 +364,10 @@ fn a_staged_lock_marker_never_reaches_the_shadow() {
 ///  The folder of finished shadows beside the scratch root never reaches a shadow.
 /// Why:
 ///   A link to the pool would let a shadow reach every member,
-///   and whether the folder exists would decide what a member has to hold:
-///   the first fill of a repository would then refuse the member it had just made.
+///   and whether the folder exists would decide whether a claim trusts a member.
 ///  It is the wrapper's own state that holds shadow trees,
 ///  like the scratch root beside it,
-///  and not an entry a hook resolves.
+///  and not an entry a commit reads.
 #[test]
 fn the_pool_of_finished_shadows_never_reaches_the_shadow() {
     let root: PathBuf = fixture("shadow-links-pool");
@@ -345,12 +375,15 @@ fn the_pool_of_finished_shadows_never_reaches_the_shadow() {
     let common: PathBuf = repo.join(".git");
     let pool: PathBuf = common.join(SHADOW_POOL_FOLDER);
     std::fs::create_dir_all(pool.join("main").join("member-x")).expect("the pool and one member");
-    assert!(is_private_shadow_entry(SHADOW_POOL_FOLDER), "the pool's own name is never linked");
-    assert!(!is_private_shadow_entry("hooks"), "a shared entry of the repository is linked");
+    assert!(!is_shared_shadow_entry(SHADOW_POOL_FOLDER), "the pool's own name is never linked");
+    assert!(is_shared_shadow_entry("hooks"), "an entry a commit reads is linked");
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(shadow.as_path()).expect("shadow");
     link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
-    assert!(std::fs::symlink_metadata(shadow.join(SHADOW_POOL_FOLDER).as_path()).is_err(), "the pool is not in the shadow");
+    assert!(
+        std::fs::symlink_metadata(shadow.join(SHADOW_POOL_FOLDER).as_path()).is_err(),
+        "the pool is not in the shadow"
+    );
     assert!(std::fs::symlink_metadata(shadow.join("hooks").as_path()).is_ok(), "a real shared entry is");
     remove(root.as_path());
 }
