@@ -100,6 +100,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         let mut pushes: Vec<Claimed> = Vec::new();
         let mut trashes: Vec<Claimed> = Vec::new();
         let mut prewarms: Vec<Claimed> = Vec::new();
+        let mut deletions: Vec<Claimed> = Vec::new();
         let mut reviews: Vec<Claimed> = Vec::new();
         let mut upkeep: Vec<Claimed> = Vec::new();
         for item in acceptable {
@@ -107,6 +108,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 WorkKind::Push => pushes.push(item),
                 WorkKind::Trash => trashes.push(item),
                 WorkKind::Prewarm => prewarms.push(item),
+                WorkKind::SubvolumeDelete => deletions.push(item),
                 WorkKind::Review => reviews.push(item),
                 _ => upkeep.push(item),
             }
@@ -211,6 +213,22 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         for item in prewarmed {
             let verdict: Verdict = handlers.prewarm_awaiting(&item.item).await;
             match settle_with_the_words(held, work_dir.as_path(), item, verdict, "prewarm").await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
+        }
+        // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
+        //  nothing else names, and it frees everything the worktree held.
+        let deleted: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), deletions).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in deleted {
+            let verdict: Verdict = handlers.subvolume_delete_awaiting(&item.item).await;
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "subvolume delete").await {
                 Some(back) => held = back,
                 None => break 'round,
             }

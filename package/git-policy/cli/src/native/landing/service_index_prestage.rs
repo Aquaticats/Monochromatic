@@ -1,14 +1,18 @@
 //! What:
 //!  The marker of the next batch's index lock,
-//! created,
-//! written and flushed to storage while the service is idle,
+//! created and written while the service is idle,
+//!  and its flush handed to the service's background task,
 //! so that a commit's lock path only places it.
 //! Why:
-//!  The marker must be on storage before it can become `index.lock`,
-//! so that a power loss never leaves a lock with an
-//!  empty or partial marker.
+//!  The flush of the marker kept nothing a commit needs on the drive:
+//! the marker names the process that holds the lock and
+//!  nothing else,
+//! and a power cut that leaves a partial one leaves a lock the wrapper judges stale and removes
+//!  (`stale_ref_lock_judge.rs`).
 //! That flush is a few milliseconds on an idle disk and seconds on a loaded one,
-//! and it sat on every commit's path.
+//! and it sat on every commit's path,
+//! 8 to 12.5 s of it under load
+//!  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
 //! The batch number of the next landing is known when the last one ends (one more),
 //! and so is the index,
 //! so the file is made then.
@@ -17,7 +21,8 @@
 //! it is removed when the service ends or the next batch is not the one it was made for,
 //! and it names this process,
 //! so the next service removes what a crash left (`remove_dead_staging`).
-//! A commit that arrives while the flush is still running waits for it and does not start a second.
+//! A commit that arrives while the mark is still being made waits for the making and never for a flush,
+//! and does not start a second.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -205,7 +210,8 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     }
     discard();
     let work_lock: PathBuf = lock.clone();
-    // The flush can wait on the disk, so the marker is made by a job of the blocking pool, which a task of the runtime awaits.
+    // The flush is handed to the service's background task, so a commit that takes this marker waits for the making of the
+    //  file and never for a flush; see the module doc.
     let spawned = spawn_on_runtime(run_blocking_job(move || -> std::io::Result<Prestaged> {
         let marker: String = marker_text(seq, &own_identity).map_err(identity_error)?;
         // The file is recorded before the flush, because the flush can take seconds on a loaded disk and a stop that

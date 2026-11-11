@@ -91,6 +91,7 @@ pub mod worktree_remove_plan;
 /// and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
+pub mod worktree_remove_hand_over;
 
 pub mod worktree_remove_registry;
 

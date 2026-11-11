@@ -30,7 +30,7 @@ use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 /// The kinds of work the service runs itself.
-pub const SERVICE_KINDS: [WorkKind; 5] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm];
+pub const SERVICE_KINDS: [WorkKind; 6] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
@@ -157,6 +157,22 @@ pub trait WorkHandlers {
     /// ```
     fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.prewarm(item)));
+    }
+    /// Delete the subvolume of a removed worktree that the removal handed over;
+    /// a handler that does not know it skips.
+    fn subvolume_delete(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler does not delete subvolumes"));
+    }
+    /// The same delete,
+    /// awaited by a caller that is itself a task of the runtime,
+    /// which is how the round asks every kind.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// subvolumeDeleteAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn subvolume_delete_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.subvolume_delete(item)));
     }
 }
 

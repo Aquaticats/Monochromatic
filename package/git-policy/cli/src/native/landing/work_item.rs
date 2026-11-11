@@ -407,7 +407,7 @@ pub fn find_claim(work_dir: &Path, id: &str) -> Option<PathBuf> {
 /// await rename(join(workDir, 'pending', id), join(workDir, 'claimed', claimFileName(id, newGeneration(), now)))
 /// ```
 pub fn claim_next(work_dir: &Path, now: &ClaimTime) -> Result<Option<Claimed>, String> {
-    return claim_next_of(work_dir, now, &[WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash]);
+    return claim_next_of(work_dir, now, &[WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete]);
 }
 
 /// What:
