@@ -3,11 +3,14 @@
 Status:
 measured and partially changed on branch `fix/git-policy-cli-never-waits-on-btrfs-commits`,
 from the owner's question of 2026-11-10:
-"How about making our wrapper not wait on btrfs-cleaner and btrfs-transactions?"
-The rest of what this document proposes is not built:
-the snapshot taken ahead of an add,
-the hand-over of subvolume deletion,
-and the bound on a stuck btrfs call.
+"How about making our wrapper not wait on btrfs-cleaner and btrfs-transactions?",
+and on branch `perf/git-policy-cli-worktree-add-snapshot-off-the-waiting-path`,
+which built steps 2 and 3:
+the commit service makes the snapshots ahead (see the numbers at the end of this document),
+an add proves one against its source's index before it claims it,
+and an add waits for one no longer than `SNAPSHOT_AHEAD_CEILING`.
+What that branch did not build is the pool size the worst measured call would need (fourteen), and it leaves the
+snapshot ioctl on the add's own path where no commit service can be reached.
 
 The owner's words this work answers:
 "nothing should ever wait forever or indefinitely",
@@ -289,9 +292,16 @@ the load average 111 and `/proc/pressure/io` some avg60 36.02 when the first arm
   so this change's worth here is that the wait cannot happen,
   not that a measured number fell.
 
-## Step 2: snapshots made ahead, sized from measured arrivals (not built)
+## Step 2: snapshots made ahead, sized from measured arrivals (built on another branch)
 
-Not built on this branch.
+Built on branch `perf/git-policy-cli-worktree-add-snapshot-off-the-waiting-path`
+(`package/git-policy/cli/src/native/worktree/worktree_snapshot_ahead.rs` and
+`worktree_snapshot_ahead_job.rs`).
+The pool below is what the measurements say it should be.
+What that branch built is one snapshot per add's request, kept to `AHEAD_KEPT` (three) and to `AHEAD_OLDEST` (ten
+minutes), made by the commit service in `<git-dir>/monochromatic-git-policy-cli/ahead`,
+claimed by one rename after the copy is walked against the source's index,
+and refused with the name handed back to the service when the walk does not hold.
 What the measurement that must size it says,
 from the 404 adds of the repository's own timing log over 23.5 hours:
 
@@ -307,9 +317,12 @@ from the 404 adds of the repository's own timing log over 23.5 hours:
 The pool also has to keep a stale snapshot from pinning `main`'s files:
 a snapshot that has fallen behind `main` by more than the pool needs is deleted through step 1.
 
-## Step 3: a bound on a btrfs call that has not returned (not built)
+## Step 3: a bound on a btrfs call that has not returned (built on another branch)
 
-Not built on this branch.
+Built on branch `perf/git-policy-cli-worktree-add-snapshot-off-the-waiting-path`, as this section says it must be:
+the call lives in the service, and the client waits for the answer at most `SNAPSHOT_AHEAD_CEILING` (60 s, the
+owner's bound for an add) and then makes the worktree with Git's own checkout, naming why.
+Where no commit service can be reached the add takes its own snapshot, which is the route it had before.
 The bound must come from the measurement beside it:
 `snapshotIoctl` costs 7,443.8 ms at the median, 18,006.2 ms at p90 and 39,828.5 ms at its worst
 (300 adds to 2026-11-10T23:09:44.166Z),
@@ -347,16 +360,47 @@ it cannot remove this one.
 
 ## What the next step should be
 
-1. Take the snapshot ahead of the add:
-   the service keeps a few snapshots of a proven-clean source root,
-   and an add claims one with a rename and brings it to the requested commit,
-   as it already keeps private repositories made ahead (`373e8adfe2`).
-   The claim must prove the snapshot's files equal the source's index
-   before it installs an index over them,
-   because a stale file with refreshed stat data would be silently wrong.
-2. Hand a subvolume deletion to the service and never wait for it,
-   as the trash hand-over already does,
-   so that no removal takes the filesystem-wide `subvol_sem` write lock on a person's path.
-3. Bound the snapshot ioctl and leave the stuck call in the service:
-   a bound in the client alone cannot work,
-   because a thread asleep in the ioctl keeps the process from exiting.
+All three of the steps this document names are built (steps 1 and 2 above, steps 2 and 3 below).
+What is left:
+
+1. Size the pool from the worst measured call rather than the median: three copies cover the median arrival rate and
+   leave an add waiting when one copy costs what it does at p90, which the six-add rounds of the measurement below
+   show (ten of eighteen adds waited for the service's copy).
+2. A repository whose adds stop keeps one copy until its next add, because only an add removes what no add claimed.
+
+## The numbers, on a throwaway fixture, alternating the arms
+
+Branch `perf/git-policy-cli-worktree-add-snapshot-off-the-waiting-path`,
+2026-11-11T02:00 to 02:05 (`${HOME}/temp/agent/pi-runs/add-snapshot-ahead-off-the-waiting-path`,
+`measures-*.jsonl`), on this volume, with the fixture a btrfs subvolume of 8,000 tracked files and 6,000 ignored ones,
+its own `HOME` and `XDG_RUNTIME_DIR`, and the commit service started from the measured binary itself.
+The host's load average was 100 to 111 of 8 threads, and other sessions were writing to the same filesystem, so
+these are the numbers this host has and not a quiet machine's (rule `NQH`).
+
+Each arm was three rounds of six adds at once through the wrapper as `git`; every add's own timing record was read
+from `.git/monochromatic-git-policy-cli-worktree-add-timing.jsonl`.
+
+- before the change, `binaries/before` (0.6.1-alpha.9):
+  `snapshotIoctl` median 5,272.0 ms (min 114, p90 37,731, max 55,567) in 18 of 18 adds,
+  the whole add median 61,295 ms.
+- the same binary minutes later, load average 105: `snapshotIoctl` median 321.0 ms (min 83, max 1,477) in 18 of 18
+  adds, the whole add median 2,372 ms.
+  The same binary's ioctl varied sixteen-fold between the two runs, so the wall clock cannot separate the arms here
+  and the ioctl's own share is what the change is measured by.
+- after the change, `binaries/after`: `snapshotIoctl` in 0 of 36 adds, `snapshotAhead` median 155.0 and 327.0 ms
+  (the walk of the claimed copy against the index is 14.0 ms of that at the median),
+  a wait for the service's copy in 8 and 10 of the 18 adds (median 242.0 and 612.0 ms, worst 5,196.0 ms),
+  the whole add median 8,450 and 4,203 ms.
+- one add at a time, five rounds an arm, each arm run twice:
+  before paid an ioctl in 10 of 10 adds, 1,008.0 and 210.0 ms at the median (worst 6,085.4 ms), and took 2,140 and
+  503 ms for the whole add;
+  after paid an ioctl in 0 of 10 adds, claimed a copy in 4 of 5 and in 5 of 5 rounds (46.0 and 3.0 ms at the median),
+  and waited for the service's copy in the first round of one arm only (1,402.8 ms), taking 3,760 and 7,420 ms for the
+  whole add.
+  The wall clock of five adds an arm swings by more than any difference between the arms on this host.
+
+What the numbers say:
+the add no longer calls the ioctl at all (0 of 46 adds in the four after arms, 46 of 46 in the four before arms),
+the claim of a copy the service made ahead costs a walk of the copy (single-digit to 45 ms here)
+and one rename,
+and the wait for a copy that is not ready yet is the service's cost seen from the add instead of the add's own.
