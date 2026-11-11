@@ -1,0 +1,44 @@
+{
+  "name": "@monochromatic-dev/pi-plugin-qwen-token-plan-individual",
+  "description": "Qwen Token Plan Individual provider for pi: overrides the builtin route with the live model list as the baseline catalog, refreshes it from the bounded live listing at session start, and resolves the API key from pi's credential, then the QWEN_TOKEN_PLAN_INDIVIDUAL_API_KEY and QWEN_TOKEN_PLAN_API_KEY environment names",
+  "type": "module",
+  "private": true,
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/pi-plugin/qwen-token-plan-individual"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts"
+  },
+  "pi": {
+    "extensions": ["./dist/final/node/index.mjs"]
+  },
+  "files": [
+    "dist/final",
+    "src"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  }
+}
