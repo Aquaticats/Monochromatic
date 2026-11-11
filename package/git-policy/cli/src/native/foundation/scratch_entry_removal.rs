@@ -15,8 +15,10 @@
 //!  The threads such a removal leaves behind are bounded:
 //!  every removal that has not finished holds one of the process's places for blocking work,
 //!  and a removal that finds none leaves its entry to a later sweep instead of waiting.
-//!  The place of one removal comes back when its work ends and before its caller is told what became of it,
-//!  so a caller that has just swept can sweep again and find the places its own removals took.
+//!  The place of one removal comes back when its own work ends,
+//!  before the caller is told the entry is gone or that the removal failed,
+//!  so a caller that has just swept can sweep again and find the places its own removals took;
+//!  a removal that outlives its ceiling keeps its place until its work ends.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -87,7 +89,8 @@ static UNFINISHED_REMOVALS: AtomicUsize = AtomicUsize::new(0);
 
 /// What:
 ///  The place one removal that outlasted its ceiling took,
-///  given back when the removal's own work ends and before the caller is told what became of it.
+///  given back when the removal's own work ends,
+///  before the caller is told the entry is gone or that the removal failed.
 /// Why:
 ///   The caller stops waiting at the ceiling and its budget slot goes back,
 ///  so without this place the threads of stalled removals would gather with nothing bounding them

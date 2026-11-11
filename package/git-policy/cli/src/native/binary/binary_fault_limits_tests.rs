@@ -354,8 +354,10 @@ fn spread(low: u64, high: u64, count: u64) -> Vec<u64> {
 ///  and `SWEEP_WIDTH` cases at once move it further still.
 ///  The landing this control needs is therefore asked for at twice the limit the search landed at,
 ///  where a commit needs the same descriptors it needed at the boundary and the limit leaves as much room again,
-///  which is a landing rather than the boundary's coin flip;
-///  the batch proves the rest of the promise:
+///  which is a landing rather than the boundary's coin flip:
+///  the caller counts it with the batch's landings,
+///  so it supplies the landing exactly when the batch refused every limit.
+///  The batch proves the rest of the promise:
 ///  every limit fails with a message or lands,
 ///  and the repository recovers after each.
 ///  Twice a figure the search measured is the only margin this control states.

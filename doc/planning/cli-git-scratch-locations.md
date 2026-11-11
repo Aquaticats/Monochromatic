@@ -253,9 +253,11 @@ So the product was wrong:
 (`scratch_entry_removal.rs`,
 `remove_within`).
 The place is now given back when the removal's own work ends and before the answer is sent,
-and the control that states it holds it
+and the controls that state it hold it,
+for a removal that finished and for one that was refused
 (`scratch_entry_removal_tests.rs`,
-`a_removal_reported_finished_has_given_its_place_back`).
+`a_removal_reported_finished_has_given_its_place_back`,
+`a_removal_reported_failed_has_given_its_place_back`).
 The same measurements after that change held no place in 80,000 removals,
 and the control's two counts held in every one of 360,000 rounds across six measurements at once.
 
