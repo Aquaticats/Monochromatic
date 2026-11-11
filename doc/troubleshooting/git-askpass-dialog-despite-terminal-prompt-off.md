@@ -400,6 +400,42 @@ recorded in `ad1802df3c` (2026-11-07T06:37:42-05:00):
   The `package/git-policy/cli` rule is `NDG` in that package's `README.md`,
   section "Git commands that may need a login".
 
+### A control of the invocation overlay asks the terminal itself
+
+`90991fa86e` (2026-11-10T07:47:34-05:00) made the overlay of a typed command `invocation_overlay`,
+which adds the never-prompt pair when the process has no controlling terminal.
+The controls that compared a plan against a hardcoded overlay
+(`entry_tests.rs`'s `forward`,
+read by `entry_announced_tests.rs` and `entry_stop_tests.rs`)
+expected the pair in no case at all,
+so ten of the twenty-nine tests of `invocation::entry` failed in a session without a terminal
+while the whole module passed under one.
+The ten are `a_global_prefix_keeps_the_query_announced`,
+`the_four_spellings_plan_an_announced_child_run`,
+`the_other_queries_stay_an_exact_replacement`,
+`forward_target_naming_this_executable_stops`,
+`inspection_commands_are_forwarded_without_wrapper_controls`,
+`invocations_git_answers_itself_are_forwarded_unchanged`,
+`inspection_commands_do_not_load_configuration`,
+`policy_commands_outside_a_worktree_use_defaults`,
+`policy_commands_validate_configuration_then_run_policies` and
+`the_opt_out_and_short_circuit_forms_are_not_settled`.
+The expectation is `expected_overlay` now,
+which asks `control_terminal()` the way the plan does,
+so a session with a terminal and one without each check the overlay its own answer produces.
+Measured on branch `fix/git-policy-cli-fsmonitor-off-for-the-wrappers-own-git`
+after it merged the jam-fix integration,
+with `mise run //package/git-policy/cli:native:test:host -- invocation::entry::`:
+`29 tests run: 19 passed, 10 failed` without a controlling terminal,
+`29 tests run: 29 passed` with one (through `script -qec`),
+and `29 tests run: 29 passed` without one after the fix.
+
+`expected_overlay` was replaced on 2026-11-10 by `5f724cd494` (`inputs_at(root, Terminal)`):
+the controlling terminal is a `ResolutionInputs` field gathered once beside the other process facts,
+planning reads that answer instead of asking the kernel for it,
+and `a_command_without_a_controlling_terminal_never_prompts` pins the overlay of both answers,
+so no control's answer depends on the terminal the runner happens to have.
+
 ## Upstream filing decision
 
 Checked for `ccdf827304` (2026-11-07T06:30:01-05:00).

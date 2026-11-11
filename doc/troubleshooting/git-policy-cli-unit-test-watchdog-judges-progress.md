@@ -214,6 +214,11 @@ The line a stuck test leaves names the figure and the signs:
 the unit-test run showed no sign of work for 120.1 s (no task able to run or waiting for the disk, no processor time, no bytes moved, and no process or task started or ended): a test is stuck
 ```
 
+Since 2026-11-11 the line ends `and no process or task started`:
+a figure that fell is a task that ended or one the look could not read,
+and neither is the run working,
+so only a figure that grew counts (`Judge::observe`).
+
 A test that hangs from its start ends after the window plus up to the runner's own 60-second line:
 libtest prints `has been running for over 60 seconds` at 60 s,
 which is a write and therefore a sign of work,
@@ -699,6 +704,200 @@ The watchdog controls after both fixes:
   and it is not what this change is about.
 - The claim publishes' flushes are still real for these controls,
   and the real-platform controls keep every flush by design.
+
+## Two watchers under a starved processor
+
+Measured on this host on 2026-11-11.
+The two-watchers control fails again when the run gets one processor,
+with the signature this record already gives for the judgement before every
+reader's own reads were taken off.
+
+### Symptom
+
+In one run of the whole library suite on this host,
+the only failure of `6612 tests run: 6611 passed, 1 failed, 19 skipped` was
+`testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive`,
+and that control passed alone:
+`1 test run: 1 passed`.
+
+### What was measured
+
+- The control failed with
+  `assertion left == right failed: a watcher ended the process:`,
+  `left: None`,
+  `right: Some(6)`,
+  so the child ran its whole five seconds and no watcher ended it.
+- The control's own module passed in `30 tests run: 30 passed` when the run had
+  the whole host.
+- The same module failed the control with the same three lines in
+  `30 tests run: 29 passed, 1 failed`
+  when it ran inside
+  `systemd-run --user --scope -p CPUQuota=100% -p MemoryMax=6G -p TasksMax=512 -p IOWeight=1`
+  around
+  `mise run //package/git-policy/cli:native:test:host -- testing:: --no-fail-fast`,
+  and passed in `30 tests run: 30 passed` with `CPUQuota=700%`.
+  So the control's answer follows how much processor the run gets.
+
+### What is not claimed
+
+The cause is not measured to a line.
+`look` takes the bytes each reader recorded for its own readings off the counters
+(`Reader::own_reads`,
+`note_a_reader_s_own_reads`),
+so a reading by another reader that lands between the two counter readings of one look
+is not taken off,
+and two readers can then look like work at every window.
+That reading of `package/git-policy/cli/src/native/testing/run_progress.rs` is a hypothesis
+this record leaves to a measurement.
+What is measured is the failure,
+its signature,
+and its dependence on the processor the run is given.
+
+Note,
+2026-11-11:
+the hypothesis did not hold when it was measured.
+Two readers' looks read the same byte figure window after window,
+and the two-watcher control of this crate did not show the leftover the paragraph above predicts
+(see "The reading thread's own work,
+measured" below).
+
+## The reading thread's own work, measured (2026-11-11)
+
+### Symptom
+
+Two release gates on this host left these controls unended:
+
+- the gate on `82829a1696`'s successor `6cfc399d09` failed
+  `a_stuck_run_ends_its_process_though_its_report_cannot_be_written` and
+  `a_wait_does_not_keep_the_watchdog_alive` at 45 s each,
+  and sat 1158 s and 1251 s in `two_watchers_do_not_keep_each_other_alive` and
+  `a_stuck_run_ends_its_process` until the gate's own SIGTERM ended the run,
+  with `2072/7707 tests were not run due to signal`;
+- the gate on alpha-10 failed `two_watchers_do_not_keep_each_other_alive` with
+  `assertion left == right failed: a watcher ended the process:`,
+  `left: None`,
+  `right: Some(6)`,
+  after its child ran its whole five seconds.
+
+Neither gate's children can be read afterwards:
+the parent test captures its child's standard error,
+and the two controls that ended by SIGTERM printed nothing,
+so whether a watcher judged at all is not in either log.
+
+### What was measured
+
+The look,
+with a temporary trace of every look kept in memory
+(so the trace itself was not work the run could see),
+taken from the two-watcher child (`child_that_sleeps_under_two_watchers`,
+two registered readers):
+
+```text
+look reader=2482853 bytes=16225 ticks=0 members=2 working=false read_bytes=1617
+look reader=2482852 bytes=15892 ticks=0 members=2 working=false read_bytes=1616
+look reader=2482852 bytes=15892 ticks=0 members=2 working=false read_bytes=1618
+look reader=2482853 bytes=16225 ticks=0 members=2 working=false read_bytes=1618
+look reader=2482852 bytes=15892 ticks=0 members=2 working=false read_bytes=1618
+look reader=2482853 bytes=16225 ticks=0 members=2 working=false read_bytes=1618
+```
+
+Each reader's figure is constant across its looks,
+so the accounting took every reading off,
+with one reader and with two.
+The same probe written to standard error instead,
+one line per look,
+kept the child alive for its whole five seconds (`finished in 5.01s`,
+no abort),
+and the byte figure grew about 104 per look.
+That is by design and not the hole:
+what a look leaves over is the reader's work that is not a reading,
+which is the run's work while a wait's predicate does it,
+so the trace has to stay in memory and a watcher must not write while it watches.
+
+Two further holes were then measured at the control level,
+against the watchdog of `6cfc399d09`:
+
+- a thread inside two registrations of one wait
+  (`Reading::begin` twice,
+  as a wait whose event another wait reports)
+  is two entries in `READING_THREADS`,
+  and the second entry's `own_reads` was never advanced,
+  so it counted the thread's whole counter as the run's work:
+  `a_thread_inside_two_waits_is_left_out_of_the_run_once` failed with
+  `left: 20966`,
+  `right: 19680`,
+  a figure that grew by 1286 between two looks of a thread that did nothing;
+- a figure that fell was work to the judge,
+  so ten looks with one task fewer and less moved at each never ended:
+  `a_run_whose_figures_only_fall_is_ended` failed with
+  `left: None`,
+  `right: Some(Quiet(2s))`.
+
+What did not reproduce the gate:
+the same image,
+the same container limits and the same family passed
+`15 tests run: 15 passed` at `--cpus 2`,
+`32 tests run: 32 passed` at `--cpus 1`,
+`30 tests run: 30 passed` three times under `CPUQuota=100%` on this host,
+and the two-watcher child was ended by a watcher in 24 of 24 runs at eight at once under `CPUQuota=100%`,
+its control passing 24 of 24.
+So the trigger of that gate is not measured,
+and nothing here claims it.
+
+### The judgment and the controls now
+
+- one thread is one reader,
+  however many waits it is inside (`Reader::waits`),
+  so no entry of a thread can be read with its readings uncounted;
+- each look counts every reading it takes of the reading thread,
+  including the one whose own bytes cannot be in the counter it yields,
+  so the next look takes exactly them off (`Tally::add_the_readers_own_counters`);
+- only a figure that grew is work,
+  so a count that fell at every look cannot keep a run alive;
+- every control waits on its child through `CHILD_DEADLINE` (45 s),
+  and the child controls start their watcher with `expect`,
+  so a watcher that cannot start fails its control in 0.1 s instead of leaving a child blocked;
+- `child_that_sleeps_under_two_watchers` waits for a message nobody sends instead of sleeping five seconds,
+  so a starved scheduler cannot beat its watcher to it.
+
+### The controls, before and after
+
+Measured on this host on 2026-11-11,
+each with the watchdog file it guards put back:
+
+- `a_thread_inside_two_waits_is_left_out_of_the_run_once`:
+  `left: 20966`,
+  `right: 19680` before,
+  `Summary [3.283s] 17 tests run: 17 passed` after,
+  that control among them;
+- `a_run_whose_figures_only_fall_is_ended`:
+  `left: None`,
+  `right: Some(Quiet(2s))` before,
+  `Summary [3.283s] 17 tests run: 17 passed` after;
+- with `run` planted to start and never judge,
+  every child control failed in 45 s and the run finished:
+  `Summary [45.073s] 3 tests run: 0 passed, 3 failed`,
+  where the same plant before this change would have held the run for ever;
+- with `watch` planted to answer nothing,
+  `a_stuck_run_ends_its_process` failed in 0.108 s with
+  `the watchdog thread starts` from the child and `left: None`,
+  `right: Some(6)`;
+- with the fixes in place the family is
+  `Summary [3.283s] 17 tests run: 17 passed`,
+  the module `Summary [3.816s] 32 tests run: 32 passed`,
+  and the touched families together `Summary [3.246s] 21 tests run: 21 passed`.
+
+### What is not claimed
+
+- The trigger of the gate on `6cfc399d09` is not measured.
+  The controls pass in that gate's own image and at a quarter of the processors it had,
+  so the cause is either host state this record cannot see or the accounting holes above
+  meeting conditions not reproduced here.
+- Why the runner's own per-test limit (`slow-timeout` 60 s times `terminate-after` 5)
+  did not end the two tests that ran 1158 s and 1251 s is not measured.
+  What this change fixes is that a control no longer depends on it to end a hung child.
+- The two falling-figure and two-registration controls are driven by made-up looks and by a real thread,
+  not by a task that vanished under a load average of 100.
 
 ## Records this changes
 

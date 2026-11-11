@@ -237,6 +237,45 @@ fn a_kill_after_the_branch_moved_carries_the_edits() {
     remove_settled(&fixture);
 }
 
+/// What:
+///  A save that accepts the whole merge,
+///  made after the branch moved and a kill stopped the carry:
+/// the next command leaves the newer save as it is,
+///  says the path changed under the merge,
+///  and the older captured line does not come back.
+/// Why:
+///  The saved bytes are exactly the merge's own,
+/// so nothing but the entry Git's own update wrote tells the two apart,
+///  and a recovery makes no reading of its own:
+/// without one the next command merges the older captured layer into a file whose
+///  bytes already accept the merge
+/// (a cross-vendor review of round two,
+/// its first finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// killedAt('merge-applied'); const merged = read('a.txt'); write('a.txt', merged); await wrapped(['status']);
+/// expect(read('a.txt')).toBe(merged); expect(ran.stderr).toSay('changed while the merge ran');
+/// ```
+#[test]
+fn a_save_after_the_kill_that_accepts_the_whole_merge_stands() {
+    let fixture: Fixture = fixture("carry-kill-applied-saved");
+    let repo: PathBuf = edited(&fixture, "repo");
+    killed_at(&fixture, repo.as_path(), "merge-applied");
+    let merged: String = text_at(repo.as_path(), "a.txt").expect("a.txt holds the merge");
+    assert!(merged.contains(FEATURE_THIRD), "the fixture holds the merge's line: {merged:?}");
+    assert!(!merged.contains(PERSON_LINE), "the merge's own write is what stands before any save: {merged:?}");
+    // The editor's newer decision accepts the whole merge: exactly the bytes Git's own update left,
+    //  and the older captured line deliberately gone.
+    std::fs::write(repo.join("a.txt"), merged.as_bytes()).expect("the save that accepts the merge");
+    let recovered: Observed = after_the_kill(&fixture, repo.as_path());
+    assert_eq!(text_at(repo.as_path(), "a.txt"), Some(merged), "the newer save stands, and the older captured line does not come back");
+    assert!(said(&recovered).contains("changed while the merge ran"), "the command says the path was written under the merge: {}", said(&recovered));
+    assert_eq!(status(&fixture, repo.as_path()), "", "the checkout holds the merge's own file, with nothing left over");
+    assert_merged(&fixture, repo.as_path(), "a save that accepts the merge");
+    remove_settled(&fixture);
+}
+
 /// A kill after the carry and before the record went:
 /// the next command finds the carried bytes and only finishes the record.
 #[test]

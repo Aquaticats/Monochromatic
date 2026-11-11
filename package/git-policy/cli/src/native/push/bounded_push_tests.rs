@@ -10,6 +10,8 @@ use crate::process_tree::{TreeMember, member_of};
 use std::time::Instant;
 use crate::stop_of_a_push_and_sweep_of_its_locks::grace_remains;
 use crate::test_support::scratch_environment;
+// The window a connected run is stopped by, which the wait line names.
+use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
 
 /// An environment holding the given pairs.
 fn environment(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
@@ -433,3 +435,60 @@ fn a_push_that_floods_and_ends_keeps_its_status_and_says_its_output_was_cut() {
     assert!(attempt.output.contains("only the first"), "the attempt says its output was cut: {}", attempt.output);
     assert!(attempt.output.len() < usize::try_from(MAX_PUSH_OUTPUT).unwrap_or(usize::MAX) + 2048, "the kept output stays bounded");
 }
+
+//region The words of a stop name the window that fired
+
+/// What:
+///  The line that says a connected run is waiting names the window that will end it.
+/// Why:
+///   A run whose connection stays open is stopped at the connected window,
+///  so a line that says no time limit applies promises a wait the wrapper does not keep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(waitLine(label, report)).toContain(`${CONNECTED_PUSH_QUIET_WINDOW}s is stopped as a stall`)
+/// ```
+#[test]
+fn the_wait_line_names_the_connected_window_that_ends_the_wait() {
+    let report = WaitReport {
+        silent: CONNECTED_PUSH_QUIET_WINDOW,
+        elapsed: CONNECTED_PUSH_QUIET_WINDOW * 2,
+        window: CONNECTED_PUSH_QUIET_WINDOW,
+    };
+    let line: String = wait_line("git push", &report);
+    assert!(line.contains(WAIT_NOTE_PHRASE), "the line names the wait: {line}");
+    assert!(!line.contains("no time limit"), "no promise of an unbounded wait: {line}");
+    assert!(
+        line.contains(&format!("{} seconds is stopped as a stall", CONNECTED_PUSH_QUIET_WINDOW.as_secs())),
+        "the connected window that ends it is named: {line}"
+    );
+}
+
+/// What:
+///  A stop by the connected window names that window and does not offer the stall setting;
+/// a stop by the stall window keeps the setting as its remedy.
+/// Why:
+///   `CLI_GIT_PUSH_DEADLINE_SECONDS` sets the stall window only,
+///  so offering it after a connected stop sends its reader to a limit that cannot move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(connected).not.toContain('to allow longer'); expect(stalled).toContain('to allow longer');
+/// ```
+#[test]
+fn a_connected_stop_says_its_window_is_fixed_and_a_stall_stop_offers_the_setting() {
+    let window: Duration = CONNECTED_PUSH_QUIET_WINDOW;
+    let connected: String = stalled_reason(&StopReport { window: StopWindow::Connected, limit: window, moved: 12, elapsed: window });
+    assert!(connected.contains("limit=connected"), "the window that fired is named: {connected}");
+    assert!(
+        connected.contains(&format!("{PUSH_DEADLINE_VARIABLE} does not change this window")),
+        "the setting is named as one that does not move this window: {connected}"
+    );
+    assert!(!connected.contains("to allow longer"), "no remedy that cannot work is offered: {connected}");
+    assert!(connected.contains(PUSH_QUEUED_LINE), "the retry that does settle it is named: {connected}");
+    let stalled: String = stalled_reason(&StopReport { window: StopWindow::Stall, limit: window, moved: 12, elapsed: window });
+    assert!(stalled.contains("limit=stall"), "the window that fired is named: {stalled}");
+    assert!(stalled.contains("to allow longer"), "the setting that moves this window is offered: {stalled}");
+}
+
+//endregion

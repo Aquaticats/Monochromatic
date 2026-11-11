@@ -72,7 +72,7 @@ fn stamp(milliseconds: i64) -> String {
 fn no_pause() {}
 
 /// The sort key that puts the deepest directory first.
-fn depth_deepest_first(path: &&PathBuf) -> std::cmp::Reverse<usize> {
+pub(crate) fn depth_deepest_first(path: &&PathBuf) -> std::cmp::Reverse<usize> {
     return std::cmp::Reverse(path.components().count());
 }
 
@@ -92,6 +92,24 @@ fn fresh_directory(saved_root: &Path, name: &str) -> std::io::Result<PathBuf> {
         }
     }
     return Err(std::io::Error::other("a thousand copies were saved in this second"));
+}
+
+/// What:
+///  A fresh directory for the copies one invocation saves,
+///  named for `milliseconds`.
+/// Why:
+///  The conflicted files and the nested repositories a command saves go under the same folder,
+/// so both name a place beside the audit log the same way and both leave the age and size limits one folder to prune.
+///  A directory that already exists is never reused,
+///  so no copy overwrites another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function freshSavedDirectory(commonDir: string, milliseconds: number): string; // throws
+/// ```
+pub(crate) fn fresh_saved_directory(common_dir: &Path, milliseconds: i64) -> std::io::Result<PathBuf> {
+    let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
+    return fresh_directory(saved_root.as_path(), stamp(milliseconds).as_str());
 }
 
 /// What:

@@ -104,6 +104,11 @@ pub mod worktree_copy_stage_claim;
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_reaping;
 
+/// The stage containers a live command is filling that stand below a tree,
+/// read from the claims beside the journals.
+#[cfg(unix)]
+pub mod worktree_copy_stages_being_filled;
+
 /// The durable record of the object one stage's creation made:
 /// its identity,
 /// and the instant the wrapper last wrote into it.
@@ -174,11 +179,20 @@ pub mod worktree_copy_owner;
 #[cfg(unix)]
 pub mod worktree_copy_registration_naming;
 
+/// The bound one command holds when it finishes a copy it did not start,
+/// and the words a copy stopped at that bound is reported with.
+#[cfg(unix)]
+pub mod worktree_copy_ceiling;
+
+/// The checkout an interrupted `git worktree add` never finished,
+/// finished by a command in the worktree Git registered for it.
+#[cfg(unix)]
+pub mod worktree_copy_interrupted_checkout;
+
 /// The ignored-state copy an interrupted `git worktree add` still owes,
-/// made by the next command that finds it.
+/// made by a command in the worktree it fills.
 #[cfg(unix)]
 pub mod worktree_copy_owed_copy;
-
 /// Recovery of interrupted copies:
 /// registration checks,
 /// discards with notices,

@@ -1929,7 +1929,9 @@ the owner chose:
 "B: off for internal Git (Recommended)".
 That amends the 2026-11-03 decision:
 the wrapper adds `-c core.fsmonitor=false` to the Git commands it starts itself and never to a command the person typed.
-A new agent builds it and amends `SPEC.md` with this answer.
+Built on 2026-11-10 (branch `fix/git-policy-cli-fsmonitor-off-for-the-wrappers-own-git`),
+recorded in `package/git-policy/cli/SPEC.md`,
+"Real Git starts with traditional hooks off".
 
 ### A landing waiting for the flush of a marker made ahead (coordinator's pick, veto open)
 

@@ -120,3 +120,18 @@ fn a_file_that_exists_is_used_as_it_is_and_a_deleted_one_is_read_through_proc() 
     assert!(error.message.contains(&gone.display().to_string()), "the error names the vanished path: {error}");
     assert!(error.message.contains("no longer exists") && !error.message.contains("/proc"), "and does not blame a /proc path: {error}");
 }
+
+#[test]
+fn an_install_on_a_machine_whose_home_is_a_link_is_still_found() {
+    let (rig, canonical_home) = Rig::through_symlinked_home();
+    // The install sits under the physical home, and the running program reports that resolved spelling,
+    // while the scope spells every path through the link (the machine's `/home` is a link to `/var/home`).
+    let physical_root: PathBuf = canonical_home.join(".local").join("share").join("monochromatic-dev").join("toolchain");
+    let running: PathBuf = install_shadow(&physical_root, "0.2.1", "the newest one");
+    let newest: PathBuf = shadow_through_current(&rig.scope.toolchain_root, "0.2.1");
+    assert_eq!(
+        newest_installed_shadow(&rig.scope, &running),
+        Some(newest),
+        "an install is found by the file it is, never by the spelling of the path"
+    );
+}

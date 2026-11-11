@@ -13,7 +13,7 @@
 /// Import the functions under test and native string types.
 use super::{
     ASKPASS_VARIABLE, CHILD_SET_PREFIX, COUNT_VARIABLE, FORWARD_TARGET_VARIABLE, TERMINAL_PROMPT_VARIABLE, child_environment_overlay,
-    environment_with_overlay, invocation_overlay, lockfile_pid_overlay, never_prompt_overlay, service_child_overlay,
+    environment_with_overlay, invocation_overlay, lockfile_pid_overlay, never_prompt_overlay, prompting_disabled, service_child_overlay,
 };
 /// The answer about the process's controlling terminal the invocation overlay is built from.
 use crate::control_terminal::Terminal;
@@ -367,4 +367,30 @@ fn the_never_prompt_pair_wins_over_a_caller_set_child_variable() {
     let overlay = invocation_overlay(inherited.as_slice(), Path::new("/usr/bin/git"), Terminal::Absent);
     let askpass: Vec<&OsString> = overlay.iter().filter(|(name, _value)| { return name == ASKPASS_VARIABLE; }).map(|(_name, value)| { return value; }).collect();
     assert_eq!(askpass.last(), Some(&&OsString::new()), "the last entry wins, as an environment block reads it: {askpass:?}");
+}
+
+/// What:
+///  The reading of whether a list of variables turns prompting off wants both halves of the never-prompt pair,
+/// and each half alone is not the pair.
+/// Why:
+///   The explanation after a failed login says what the wrapper did about prompting,
+///  so a list that carries only one of the two variables must not be read as "the prompt was disabled".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(promptingDisabled([])).toBe(false); expect(promptingDisabled([['GIT_ASKPASS', ''], ['GIT_TERMINAL_PROMPT', '0']])).toBe(true);
+/// ```
+#[test]
+fn prompting_is_disabled_only_by_both_halves_of_the_never_prompt_pair() {
+    assert!(!prompting_disabled(&environment(&[])), "an empty list turns nothing off");
+    assert!(!prompting_disabled(&environment(&[(ASKPASS_VARIABLE, "")])), "an empty askpass alone does not stop a terminal prompt");
+    assert!(!prompting_disabled(&environment(&[(TERMINAL_PROMPT_VARIABLE, "0")])), "a terminal refusal alone does not stop the askpass program");
+    assert!(
+        !prompting_disabled(&environment(&[(ASKPASS_VARIABLE, "/usr/bin/other"), (TERMINAL_PROMPT_VARIABLE, "0")])),
+        "an askpass program of the caller's own still answers"
+    );
+    assert!(
+        prompting_disabled(&environment(&[(ASKPASS_VARIABLE, ""), (TERMINAL_PROMPT_VARIABLE, "0")])),
+        "the pair itself turns prompting off"
+    );
 }

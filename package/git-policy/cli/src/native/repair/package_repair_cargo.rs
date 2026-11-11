@@ -209,10 +209,11 @@ enum Done {
     /// Nothing was needed;
     /// the text says why.
     Skipped,
-    /// The members were cleaned,
     /// The members were cleaned at the add's own location,
-    /// and the build directory they were cleaned in was the worktree's.
-    Cleaned,
+    /// and the build directory they were cleaned in was the worktree's;
+    /// the line is what the person reads about the lock bytes the clean displaced,
+    /// if any.
+    Cleaned(Option<String>),
     /// The workspace's build directory is to be filled by the commit service,
     /// which also cleans the worktree's own crates out of the copy,
     /// so nothing was cleaned here.
@@ -241,7 +242,7 @@ enum Done {
 /// ```ts
 /// async function repairWorkspace(tool: CargoTool, workspace: Workspace, destinationRoot: string, source: string): Promise<Done>;
 /// ```
-async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, destination_root: &Path, source: &Path) -> Done {
+async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, destination_root: &Path, source: &Path, kept_in: Option<&Path>) -> Done {
     let manual: String = manual_command(workspace.root.as_path(), workspace.members.as_slice());
     let Ok(relative) = workspace.root.strip_prefix(destination_root) else {
         debug(TAG, format!("{} lies outside {} and is left alone", workspace.root.display(), destination_root.display()).as_str());
@@ -282,9 +283,11 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
     let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
     let run: ToolRun = timed_clean_awaiting(tool, &command).await;
-    restore_lock(workspace.root.as_path(), lock_before.as_deref());
+    // The bytes the clean displaced are kept before the checked-out lock comes back, and the line says where they are
+    //  (`package_repair_cargo_lock.rs`).
+    let displaced: Option<String> = restore_lock(workspace.root.as_path(), lock_before.as_deref(), kept_in);
     return match run.end {
-        ToolEnd::Succeeded => Done::Cleaned,
+        ToolEnd::Succeeded => Done::Cleaned(displaced),
         ToolEnd::Failed(reason) => workspace_failed(manual.as_str(), reason),
         ToolEnd::TimedOut => workspace_failed(manual.as_str(), String::from("it showed no sign of work for the quiet window and was stopped")),
         ToolEnd::CeilingReached(ceiling) => workspace_failed(manual.as_str(), crate::package_repair_report::ceiling_reason(crate::package_repair_report::Tool::Cargo, ceiling)),
@@ -434,7 +437,7 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         // A worktree whose real path cannot be read is used as the caller named it.
         Err(_cannot_be_resolved) => request.destination.to_path_buf(),
     };
-    let repairer: RepairWorkspaceJob = RepairWorkspaceJob { tool, destination_root, source: request.source.to_path_buf() };
+    let repairer: RepairWorkspaceJob = RepairWorkspaceJob { tool, destination_root, source: request.source.to_path_buf(), kept_in: request.git.common_dir.clone() };
     let repaired: Vec<Result<Done, String>> =
         map_concurrent_awaiting(Arc::clone(&workspaces), workers, Arc::new(RepairLabel), Arc::new(repairer)).await;
     let mut done: Vec<Done> = Vec::new();
@@ -445,18 +448,27 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         });
     }
     let mut cleaned: usize = 0;
+    let mut displaced: Vec<String> = Vec::new();
     let mut handed_over: Vec<PrewarmEntry> = Vec::new();
     for outcome in done {
         match outcome {
             Done::Skipped => {}
-            Done::Cleaned => cleaned += 1,
+            Done::Cleaned(said) => {
+                cleaned += 1;
+                if let Some(line) = said {
+                    displaced.push(line);
+                }
+            }
             Done::HandedOver(entry) => handed_over.push(entry),
             Done::Failed(finding) => findings.push(finding),
         }
     }
     if cleaned > 0 {
         let workspace_noun: &str = if cleaned == 1 { "workspace" } else { "workspaces" };
-        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun}"), millis: started.elapsed().as_millis() } });
+        // A clean that displaced a lock keeps those bytes, and the line says where they are: a worktree that is clean again may
+        //  still hold a command's newer lock under its Git directory (`package_repair_cargo_lock.rs`).
+        let kept: String = if displaced.is_empty() { String::new() } else { format!("; {}", displaced.join("; ")) };
+        findings.push(Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail: format!("Cargo kept dependency builds and cleaned the worktree's own crates in {cleaned} {workspace_noun}{kept}"), millis: started.elapsed().as_millis() } });
     }
     if !handed_over.is_empty() {
         findings.push(hand_the_filling_over(request, handed_over.as_slice()).await);

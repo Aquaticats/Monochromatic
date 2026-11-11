@@ -6,6 +6,55 @@ use crate::test_support::{fixture, remove};
 use crate::time_spent_outside_the_phases::outside_the_phases;
 use std::os::unix::fs::PermissionsExt;
 
+/// What:
+///  The names `directory` holds,
+///  sorted.
+/// Why:
+///   What a sweep did is the entries it left,
+///  so every control of it states that as a list of names.
+fn names_in(directory: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(directory)
+        .expect("list")
+        .map(|entry| { return entry.expect("entry").file_name().to_string_lossy().into_owned(); })
+        .collect();
+    names.sort();
+    return names;
+}
+
+/// What:
+///  Sweep `directory` until it holds nothing but `wanted`,
+///  at most twice per entry that may still go,
+///  and answer how many removals finished inside those calls.
+/// Why:
+///   A sweep removes every stale entry it can and leaves the one it could not to a later sweep:
+///  a removal that outlasts its ceiling,
+///  a place the process cannot take because a stalled removal holds it,
+///  a thread the machine refuses.
+///  So how many entries one call removes is not a promise the product makes,
+///  and a control that asserted it failed in a gate whose disk was jammed
+///  (`doc/planning/cli-git-scratch-locations.md`,
+///  "What one sweep promises").
+///  What the product promises is which entries remain,
+///  which is `wanted`,
+///  and the figure this answers is reported in that assertion's message and never asserted,
+///  because a removal cut short still finishes on its thread while the later sweeps run.
+fn sweep_until(directory: &Path, now: SystemTime, ceiling: Duration, wanted: &[&str]) -> usize {
+    let mut removed: usize = 0;
+    let attempts: usize = names_in(directory).len().saturating_mul(2).saturating_add(1);
+    for attempt in 0..attempts {
+        if names_in(directory) == wanted {
+            break;
+        }
+        let finished_before: usize = removed;
+        removed += sweep_stale(directory, now, SCRATCH_STALE_AFTER, ceiling);
+        if removed == finished_before && attempt + 1 < attempts {
+            // Nothing finished inside that call, so a removal it started is still on its thread: the next sweep waits for it.
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+    return removed;
+}
+
 /// An environment of the given pairs.
 fn environment(pairs: &[(&str, &Path)]) -> Vec<(OsString, OsString)> {
     return pairs
@@ -152,17 +201,12 @@ fn the_sweep_removes_only_stale_entries_and_never_follows_links() {
         .set_modified(SystemTime::now() + SCRATCH_STALE_AFTER * 2)
         .expect("future");
     // The link itself is fresh, so the first sweep keeps it: only its own time counts, never its target's.
-    let removed: usize = sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
-    assert_eq!(removed, 2);
-    let mut left: Vec<String> = std::fs::read_dir(&scratch)
-        .expect("list")
-        .map(|entry| { return entry.expect("entry").file_name().to_string_lossy().into_owned(); })
-        .collect();
-    left.sort();
-    assert_eq!(left, ["cli-git-fresh", "cli-git-future", "cli-git-old-link"]);
+    let removed: usize = sweep_until(scratch.as_path(), SystemTime::now(), SCRATCH_REMOVAL_CEILING, &["cli-git-fresh", "cli-git-future", "cli-git-old-link"]);
+    assert_eq!(names_in(scratch.as_path()), ["cli-git-fresh", "cli-git-future", "cli-git-old-link"], "the stale file and the stale directory went, and the fresh entry, the entry dated in the future and the link stayed ({removed} removals finished inside a sweep)");
     // Two days later the fresh file and the link are stale: both go, and the file the link points at stays.
     let later: SystemTime = SystemTime::now() + SCRATCH_STALE_AFTER * 2;
-    assert_eq!(sweep_stale(scratch.as_path(), later, SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 2);
+    let removed_later: usize = sweep_until(scratch.as_path(), later, SCRATCH_REMOVAL_CEILING, &["cli-git-future"]);
+    assert_eq!(names_in(scratch.as_path()), ["cli-git-future"], "the file that was fresh and the link went, and the entry dated in the future stayed ({removed_later} removals finished inside a sweep)");
     assert!(std::fs::symlink_metadata(scratch.join("cli-git-old-link")).is_err(), "the link is gone");
     assert_eq!(std::fs::read(&outside).expect("target"), b"outside");
     remove(root.as_path());
@@ -194,9 +238,9 @@ fn a_sweep_keeps_a_tree_that_may_still_be_read_and_takes_one_that_is_abandoned()
     let abandoned: PathBuf = scratch.join("monochromatic-git-policy-cli-service-gone1");
     std::fs::create_dir_all(&abandoned).expect("a tree no command writes any more");
     age(abandoned.as_path(), crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
-    assert_eq!(sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
+    let removed: usize = sweep_until(scratch.as_path(), SystemTime::now(), SCRATCH_REMOVAL_CEILING, &["monochromatic-git-policy-cli-service-recent1"]);
     assert!(read_by_a_landing.exists(), "a tree written an hour ago may still be read by a landing");
-    assert!(!abandoned.exists(), "a tree nothing has written for the abandonment age goes, long before the day");
+    assert!(!abandoned.exists(), "a tree nothing has written for the abandonment age goes, long before the day, and a sweep that could not remove it inside its ceiling leaves it to the next one ({removed} removals finished inside a sweep)");
     remove(root.as_path());
 }
 
@@ -394,8 +438,8 @@ fn the_sweep_keeps_an_entry_exactly_at_the_bound_and_removes_one_past_it() {
     assert_eq!(sweep_stale(scratch.as_path(), at_bound, SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 0);
     assert!(entry.exists(), "an entry exactly at the bound is kept");
     let past_bound: SystemTime = at_bound + Duration::from_secs(1);
-    assert_eq!(sweep_stale(scratch.as_path(), past_bound, SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
-    assert!(!entry.exists(), "an entry past the bound is removed");
+    let removed: usize = sweep_until(scratch.as_path(), past_bound, SCRATCH_REMOVAL_CEILING, &[]);
+    assert!(!entry.exists(), "an entry past the bound is removed ({removed} removals finished inside a sweep)");
     remove(root.as_path());
 }
 
@@ -425,8 +469,31 @@ fn a_sweep_removes_within_its_ceiling_and_leaves_what_it_cannot() {
     std::fs::create_dir_all(&later).expect("later tree");
     std::fs::write(later.join("entry"), b"x").expect("an entry");
     age(later.as_path(), SCRATCH_STALE_AFTER * 2);
-    assert_eq!(sweep_stale(second.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
-    assert!(!later.exists(), "a stale entry goes within the ceiling");
+    let later_removed: usize = sweep_until(second.as_path(), SystemTime::now(), SCRATCH_REMOVAL_CEILING, &[]);
+    assert!(!later.exists(), "a stale entry goes within the ceiling ({later_removed} removals finished inside a sweep)");
+    remove(root.as_path());
+}
+
+/// A sweep whose every call is cut short at its ceiling still empties the stale entries over later sweeps:
+/// what it promises is which entries remain,
+/// never how many one call removes,
+/// so a control that required that figure would fail whenever the device stalls
+/// or a stalled removal holds the process's place for removals.
+#[test]
+fn a_sweep_cut_short_empties_the_stale_entries_over_later_sweeps() {
+    let root: PathBuf = fixture("scratch-sweep-cut-short");
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir(&scratch).expect("scratch");
+    for at in 0..3 {
+        let tree: PathBuf = scratch.join(format!("cli-git-tree-{at}"));
+        std::fs::create_dir(&tree).expect("tree");
+        std::fs::write(tree.join("entry"), b"x").expect("an entry");
+        age(tree.as_path(), SCRATCH_STALE_AFTER * 2);
+    }
+    let before: u64 = outside_the_phases().removals_that_did_not_finish;
+    let removed: usize = sweep_until(scratch.as_path(), SystemTime::now(), Duration::from_micros(1), &[]);
+    assert!(names_in(scratch.as_path()).is_empty(), "every stale tree went over the later sweeps, though only {removed} of their removals finished inside a sweep");
+    assert!(outside_the_phases().removals_that_did_not_finish > before, "the removals a one-microsecond ceiling cut short were reported as not finished");
     remove(root.as_path());
 }
 
@@ -481,8 +548,8 @@ fn a_renewed_entry_survives_the_sweep_and_an_unrenewed_one_does_not() {
         std::fs::File::open(directory).expect("open").set_modified(long_ago).expect("age");
     }
     renew(kept.as_path());
-    assert_eq!(sweep_stale(root.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
-    assert!(kept.exists() && !left.exists());
+    let removed: usize = sweep_until(root.as_path(), SystemTime::now(), SCRATCH_REMOVAL_CEILING, &["kept"]);
+    assert!(kept.exists() && !left.exists(), "the renewed entry stays and the one nobody renewed goes ({removed} removals finished inside a sweep)");
     remove(root.as_path());
 }
 

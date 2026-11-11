@@ -370,8 +370,8 @@ catalogs:
       specifier: '>=1.3.1'
       version: 1.3.1
     rolldown-plugin-dts:
-      specifier: '>=0.30.0'
-      version: 0.30.0
+      specifier: '>=0.30.1'
+      version: 0.30.1
     sharp:
       specifier: '>=0.35.5'
       version: 0.35.5
@@ -708,6 +708,24 @@ importers:
         version: 7.1.0-beta
 
   package/agent-harness-shared/neuralwatt-listing:
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+
+  package/agent-harness-shared/qwen-token-plan-individual-listing:
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -1383,7 +1401,7 @@ importers:
         version: 1.3.1
       rolldown-plugin-dts:
         specifier: 'catalog:'
-        version: 0.30.0(rolldown@1.3.1)(typescript@7.1.0-beta)
+        version: 0.30.1(rolldown@1.3.1)(typescript@7.1.0-beta)
     devDependencies:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
@@ -2055,6 +2073,43 @@ importers:
       '@monochromatic-dev/agent-harness-shared-neuralwatt-listing':
         specifier: workspace:*
         version: link:../../agent-harness-shared/neuralwatt-listing
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 'catalog:'
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@deepseek-ai/dsh-llm-pi-ai':
+        specifier: 'catalog:'
+        version: 0.2.2-rc.1(@deepseek-ai/cordis-plugin-loader@1.1.0)(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-fs@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-brand@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0))(@deepseek-ai/dsh-llm@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0))(@deepseek-ai/dsh-sandbox@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-llm@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0))(@deepseek-ai/dsh-session@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-scope@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)))))(undici@8.12.4)(zod@4.6.7)
+      '@deepseek-ai/dsh-settings':
+        specifier: 'catalog:'
+        version: 0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-brand@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0))(@deepseek-ai/dsh-session@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-scope@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)))(@deepseek-ai/schemastery@3.19.0)
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+
+  package/dsh-plugin/qwen-token-plan-individual:
+    dependencies:
+      '@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/qwen-token-plan-individual-listing
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -3494,7 +3549,7 @@ importers:
         version: 1.3.1
       rolldown-plugin-dts:
         specifier: 'catalog:'
-        version: 0.30.0(rolldown@1.3.1)(typescript@7.1.0-beta)
+        version: 0.30.1(rolldown@1.3.1)(typescript@7.1.0-beta)
 
   package/oxlint-plugin/shared:
     devDependencies:
@@ -4097,6 +4152,40 @@ importers:
       typebox:
         specifier: 'catalog:'
         version: 1.4.6
+
+  package/pi-plugin/qwen-token-plan-individual:
+    dependencies:
+      '@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing':
+        specifier: workspace:*
+        version: link:../../agent-harness-shared/qwen-token-plan-individual-listing
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
+      '@monochromatic-dev/ownership-marker-foreign-borrowed':
+        specifier: workspace:*
+        version: link:../../ownership-marker/foreign-borrowed
+    devDependencies:
+      '@earendil-works/pi-ai':
+        specifier: 'catalog:'
+        version: 1.5.2(undici@8.12.4)(zod@4.6.7)
+      '@earendil-works/pi-coding-agent':
+        specifier: 'catalog:'
+        version: 1.5.2(zod@4.6.7)
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
 
   package/pi-plugin/spawn:
     dependencies:
@@ -10476,8 +10565,8 @@ packages:
   earcut@2.2.4:
     resolution: {integrity: sha512-/pjZsA1b4RPHbeWZQn66SWS8nZZWLQQ23oE3Eam7aroEFGEvwKAsJfZ9ytiEMycfzXWpca4FA9QIOehf7PocBQ==, tarball: https://registry.npmjs.org/earcut/-/earcut-2.2.4.tgz}
 
-  electron-to-chromium@1.5.478:
-    resolution: {integrity: sha512-pftG+ma5Lm8O6/p45bhYT6StBN5ziQymaRzmCZwFl8DwWHKPPD93FdOmP1aqftcepolQYvrcyTLa17kE8Yf+jg==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.478.tgz}
+  electron-to-chromium@1.5.479:
+    resolution: {integrity: sha512-uAJdJQ7vHa4TvPfzt1TOqoRgHmav5gwmqHMPLxBH6m8Cbj5R9/z/rygTOQiZ8pe5g0ZAEogga1bP6HoKcOzx/Q==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.479.tgz}
 
   electron@45.2.3:
     resolution: {integrity: sha512-Vurzu5UOA5nTGT4LqIwXD16QFGrOZdiXxF+1UP4KNsAOo/YtDcT3/u0jhP4WSwNJ0iLrLDi85hzBJ0arnGDhyw==, tarball: https://registry.npmjs.org/electron/-/electron-45.2.3.tgz}
@@ -11357,8 +11446,8 @@ packages:
     resolution: {integrity: sha512-9LkiTwjUh6rT555DtE9rTX+BKByPfrMzEAtnlEtdEwr3Nkffwiihqe2bWADg+OQRjt9gl6ICdmB/ZFDCGAtSow==, tarball: https://registry.npmjs.org/retry/-/retry-0.12.0.tgz}
     engines: {node: '>= 4'}
 
-  rolldown-plugin-dts@0.30.0:
-    resolution: {integrity: sha512-5FNezfYv5alHvrYw5Xoj4RNqbZ9F+/1jETFSohhYfRiama8tUN4mcVURmBqbZQba45t5hRdW7aSOnV6WYIj0MA==, tarball: https://registry.npmjs.org/rolldown-plugin-dts/-/rolldown-plugin-dts-0.30.0.tgz}
+  rolldown-plugin-dts@0.30.1:
+    resolution: {integrity: sha512-tCDbuPygVmJMeq+Jk5BM3DUFx/6HO3HhJxI2yfc6ngtDGH71D5Qb7wv0V1sx4PPlqOErUrzAHXo8wQcLInreRQ==, tarball: https://registry.npmjs.org/rolldown-plugin-dts/-/rolldown-plugin-dts-0.30.1.tgz}
     engines: {node: ^22.18.0 || ^24.11.0 || >=26.0.0}
     peerDependencies:
       '@volar/typescript': ~2.4.0
@@ -13346,7 +13435,7 @@ snapshots:
     dependencies:
       baseline-browser-mapping: 2.11.35
       caniuse-lite: 1.0.30001823
-      electron-to-chromium: 1.5.478
+      electron-to-chromium: 1.5.479
       node-releases: 2.0.63
       update-browserslist-db: 1.3.4(browserslist@4.29.5)
 
@@ -13457,7 +13546,7 @@ snapshots:
 
   earcut@2.2.4: {}
 
-  electron-to-chromium@1.5.478: {}
+  electron-to-chromium@1.5.479: {}
 
   electron@45.2.3:
     dependencies:
@@ -14686,7 +14775,7 @@ snapshots:
 
   retry@0.12.0: {}
 
-  rolldown-plugin-dts@0.30.0(rolldown@1.3.1)(typescript@7.1.0-beta):
+  rolldown-plugin-dts@0.30.1(rolldown@1.3.1)(typescript@7.1.0-beta):
     dependencies:
       dts-resolver: 3.0.0
       get-tsconfig: 5.0.0-beta.6

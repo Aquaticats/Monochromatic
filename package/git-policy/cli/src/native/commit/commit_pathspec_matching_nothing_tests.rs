@@ -82,6 +82,79 @@ fn several_refused_tokens_are_reported_in_the_order_git_names_them() {
     );
 }
 
+/// A token that itself holds the wording Git closes the refusal with is one pathspec,
+/// so the whole token is read and reported,
+/// instead of stopping at the wording inside it.
+#[test]
+fn a_token_that_holds_the_closing_wording_is_read_whole() {
+    let stderr: &str = "fatal: pathspec 'x' did not match any files' did not match any files\n";
+    assert_eq!(
+        refused(stderr, &["x' did not match any files"]),
+        Some(vec![String::from("x' did not match any files")])
+    );
+}
+
+/// Both closings can sit inside the token the same way,
+/// and the wording that closes that token is the one after it,
+/// not the one it holds.
+#[test]
+fn a_token_that_holds_the_commit_wording_is_read_whole() {
+    let stderr: &str = "fatal: pathspec 'x' did not match any file(s) known to git' did not match any files\n";
+    assert_eq!(
+        refused(stderr, &["x' did not match any file(s) known to git"]),
+        Some(vec![String::from("x' did not match any file(s) known to git")])
+    );
+}
+
+/// A token holding a newline is still one pathspec,
+/// because Git ends the refusal with its own wording after the whole token,
+/// so the token is read whole.
+#[test]
+fn a_token_that_holds_a_newline_is_read_whole() {
+    let stderr: &str = "fatal: pathspec 'no\npe.txt' did not match any files\n";
+    assert_eq!(refused(stderr, &["no\npe.txt"]), Some(vec![String::from("no\npe.txt")]));
+}
+
+/// The wording only closes a refusal where Git ends the sentence with it,
+/// so a message that goes on after those words is no refusal and names nothing.
+#[test]
+fn wording_that_goes_on_after_the_refusal_names_nothing() {
+    let stderr: &str = "fatal: pathspec 'nope.txt' did not match any files or directories\n";
+    assert_eq!(refused(stderr, &["nope.txt"]), None);
+}
+
+/// A pathspec file Git read itself is read by the same rule,
+/// so a token in it that holds the closing wording is named whole.
+#[test]
+fn a_file_pathspec_that_holds_the_closing_wording_is_read_whole() {
+    let stderr: &[u8] = b"fatal: pathspec 'x' did not match any files' did not match any files\n";
+    assert_eq!(
+        pathspec_matching_nothing(stderr, WrittenPathspecs::FromTheCallersFile),
+        Some(vec![b"x' did not match any files".to_vec()])
+    );
+}
+
+/// The same rule holds for the file Git read itself:
+/// a sentence that goes on after those words is no refusal.
+#[test]
+fn wording_that_goes_on_after_the_refusal_names_nothing_in_a_file_too() {
+    let stderr: &[u8] = b"fatal: pathspec 'nope.txt' did not match any files or directories\n";
+    assert_eq!(pathspec_matching_nothing(stderr, WrittenPathspecs::FromTheCallersFile), None);
+}
+
+/// An element that only begins the token Git refused is not that refusal,
+/// because the sentence Git closed is the longer token's,
+/// so the shorter element is not reported as refused itself.
+#[test]
+fn an_element_that_only_begins_the_refused_token_is_not_reported() {
+    let stderr: &str = "fatal: pathspec 'nope.txt' did not match any files' did not match any files\n";
+    assert_eq!(refused(stderr, &["nope.txt"]), None);
+    assert_eq!(
+        refused(stderr, &["nope.txt' did not match any files"]),
+        Some(vec![String::from("nope.txt' did not match any files")])
+    );
+}
+
 /// A token whose bytes are not valid UTF-8 is compared and kept as written,
 /// so a path that is not text is still named exactly.
 #[test]

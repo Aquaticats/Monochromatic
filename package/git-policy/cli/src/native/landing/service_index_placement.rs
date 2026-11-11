@@ -99,6 +99,10 @@ pub const SYSTEM: Platform<'static> = Platform {
     release: unlink_file,
 };
 
+/// The name a landing's timing records give the flush of the lock marker,
+/// so a control can tell which of the syncs a landing asked for is the marker's.
+pub const LOCK_MARKER_SYNC: &str = "lock-marker";
+
 /// Flushes the lock marker the index lock is made of,
 /// in the background task,
 /// and never waits for it.
@@ -112,7 +116,7 @@ pub const SYSTEM: Platform<'static> = Platform {
 /// 8 to 12.5 s of it under load
 /// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
 pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
-    return crate::service_durable::defer_file(file, "lock-marker");
+    return crate::service_durable::defer_file(file, LOCK_MARKER_SYNC);
 }
 
 fn link_file(from: &Path, to: &Path) -> std::io::Result<()> {

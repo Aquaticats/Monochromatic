@@ -79,3 +79,35 @@ fn the_checked_name_refuses_a_directory_that_cannot_be_resolved() {
     }
     remove(root.as_path());
 }
+
+/// What:
+///  One socket address holds a name of exactly `LONGEST_SOCKET_PATH` bytes and refuses one byte more.
+/// Why:
+///   The check that refuses a too-long runtime directory counts this limit from the kernel's field size,
+/// and a limit one byte wrong would either refuse a name that works or let through one that the manager cannot bind.
+/// The kernel is the only authority,
+/// so the boundary is bound here:
+/// the shorter name listens and the longer one fails.
+#[test]
+fn one_socket_address_holds_a_name_of_the_longest_length_and_no_more() {
+    // The name must have room to be 107 bytes long, which the fixture root under the build directory does not give it.
+    let root: PathBuf = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .expect("a home directory")
+        .join("temp/agent")
+        .join(format!("sq{}", std::process::id()));
+    std::fs::create_dir_all(&root).expect("the short scratch directory");
+    crate::test_support::track_for_this_thread(root.as_path());
+    let fits: PathBuf = root.join("x".repeat(LONGEST_SOCKET_PATH - root.as_os_str().len() - 1));
+    assert_eq!(fits.as_os_str().len(), LONGEST_SOCKET_PATH, "the name fills the address to its last byte");
+    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(&fits).expect("a name of the longest length binds");
+    drop(listener);
+    std::fs::remove_file(&fits).expect("the name goes");
+    let past: PathBuf = root.join("x".repeat(LONGEST_SOCKET_PATH + 1 - root.as_os_str().len() - 1));
+    assert_eq!(past.as_os_str().len(), LONGEST_SOCKET_PATH + 1);
+    let refused: std::io::Result<std::os::unix::net::UnixListener> = std::os::unix::net::UnixListener::bind(&past);
+    let error: std::io::Error = refused.map(drop).expect_err("one byte more than the address holds cannot bind");
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput, "the kernel refuses it for its length: {error}");
+    assert!(error.to_string().contains("SUN_LEN"), "the refusal names the address limit: {error}");
+    remove(root.as_path());
+}

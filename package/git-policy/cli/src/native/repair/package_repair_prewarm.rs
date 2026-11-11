@@ -28,10 +28,10 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-/// A pathname from the bytes Git printed for it.
-use crate::hooks_path_values::path_answer;
+use crate::hooks_path_values::{path_answer, without_the_terminator};
 use crate::iso_time::now_iso_never_the_same_twice;
-use crate::service_client::{START_WAIT, wake};
+use crate::service_client::wake;
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
 use crate::service_messages::{ClientFailure, render};
 use crate::service_provision::provision;
@@ -252,7 +252,7 @@ pub fn item_of(common_dir: &Path, destination: &Path, entries: &[PrewarmEntry]) 
 /// handOverToTheService({ context, commonDir, destination, entries });
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entries: &[PrewarmEntry]) -> Result<(), String> {
-    return hand_over_with(context, common_dir, destination, entries, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: START_WAIT });
+    return hand_over_with(context, common_dir, destination, entries, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
 /// What:
@@ -284,7 +284,12 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
     {
         return Err(render(&failure));
     }
-    let config: ClientConfig = managed_client_config(address, host.as_ref());
+    // What: The record is written before this wake, so the wake waits the hand-over's own greeting bound and never the
+    //       commit's start wait.
+    // Why:  The worktree must work for the person's next command either way: an answer that does not come within the bound
+    //       means this command does the filling itself instead of waiting on a service
+    //       (`wait_ceilings.rs`, `HAND_OVER_GREETING_WAIT`).
+    let config: ClientConfig = ClientConfig { start_wait: reach.start_wait, start_ceiling: reach.start_wait, ..managed_client_config(address, host.as_ref()) };
     // The wake's lines are not the add's: it says once what became of the filling.
     let mut silent: std::io::Sink = std::io::sink();
     return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
@@ -331,8 +336,9 @@ pub async fn common_directory_awaiting(git: &GitContext, destination: &Path) -> 
     if !output.succeeded() {
         return Err(format!("git could not name the repository's common directory: {}", output.error_text()));
     }
-    // Git ends the path with one line feed; every other byte is the path's own, so nothing but whitespace goes.
-    let named: &[u8] = output.stdout.trim_ascii();
+    // Git ends the path with one line feed; every other byte is the path's own, so only that terminator goes.
+    //  A directory whose name ends in a space is that directory, and the record is queued there.
+    let named: &[u8] = without_the_terminator(output.stdout.as_slice());
     return if named.is_empty() {
         Err(String::from("git named no common directory for the worktree"))
     } else {

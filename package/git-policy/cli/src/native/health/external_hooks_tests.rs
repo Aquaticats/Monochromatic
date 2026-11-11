@@ -18,9 +18,10 @@ fn listing_snapshot(records: &[(&str, &str)]) -> ConfigSnapshot {
     return ConfigSnapshot::parse(bytes.as_slice(), true).expect("a well-formed listing");
 }
 
-/// A `core.fsmonitor` is left as configured:
-/// it is no hook of the report,
-/// whatever it names.
+/// A `core.fsmonitor` is no hook of the report,
+/// whatever it names:
+/// the wrapper's own Git switches the monitor off in its options (`hooks_off.rs`),
+/// and neither the report nor its warning counts the setting as a traditional hook.
 #[test]
 fn core_fsmonitor_is_not_reported_as_a_hook() {
     for value in ["/usr/local/bin/watch", "true", "false"] {

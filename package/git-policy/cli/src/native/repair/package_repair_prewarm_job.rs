@@ -551,10 +551,37 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
     if entry.to.exists() {
         return Ok(Filled::Kept);
     }
+    make_the_destinations_own_directory(entry)?;
     let names: TheNames = names_for(entry.to.as_path())?;
     let filled: Result<Filled, String> = fill_the_staging(fill, entry, &names).await;
     give_back(&names);
     return filled;
+}
+
+/// What:
+///  Make the directory the destination and its two staging names live in.
+/// Why:
+///   The names are taken before the clone,
+/// and the marker that claims them sits beside the destination,
+/// so that directory must exist before the marker is written.
+/// Cargo keys an external build directory by the workspace's path,
+/// and the name it keys it by is two levels below the root a person's configuration names
+/// (`build-dir = "~/build/{workspace-path-hash}"` resolves to `~/build/8d/0e503e8832e433`),
+/// so neither level exists before the first build of a new worktree,
+/// and Cargo makes them itself before a build.
+/// The clone makes the same directory before it publishes anything,
+/// so making it here changes nothing the clone would leave.
+///
+/// # Errors
+///
+/// A directory that cannot be made,
+/// which fills nothing and says why.
+fn make_the_destinations_own_directory(entry: &PrewarmEntry) -> Result<(), String> {
+    let Some(parent) = entry.to.parent() else { return Ok(()) };
+    return match std::fs::create_dir_all(parent) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("{} could not be made, so nothing of this workspace was filled ({error})", parent.display())),
+    };
 }
 
 /// What:
