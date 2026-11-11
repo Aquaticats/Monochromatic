@@ -16,12 +16,12 @@
  */
 
 import {
-  QWEN_TOKEN_PLAN_INDIVIDUAL_API,
   QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME,
   QWEN_TOKEN_PLAN_INDIVIDUAL_ROUTE,
   fetchQwenTokenPlanIndividualListing,
   mapQwenTokenPlanIndividualModels,
   qwenTokenPlanIndividualListingSnapshot,
+  type QWEN_TOKEN_PLAN_INDIVIDUAL_API,
   type QwenTokenPlanListingFetcher,
 } from '@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing/ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -181,7 +181,7 @@ function refreshListingCredential({
   credential,
   environment,
 }: {
-  readonly credential?: RefreshModelsContext['credential'];
+  readonly credential?: RefreshModelsContext['credential'] | undefined;
   readonly environment: Readonly<Record<string, string | undefined>>;
 },): string | undefined {
   /**

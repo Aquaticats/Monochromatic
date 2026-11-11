@@ -372,7 +372,10 @@ await describe({
              */
             const [sessionShutdown] = capture.sessionShutdowns;
             await Promise.resolve(sessionShutdown?.(
-              { type: 'session_shutdown', },
+              {
+                type: 'session_shutdown',
+                reason: 'quit',
+              },
               {} as ForeignBorrowed<ExtensionContext>,
             ),);
             await refresh;

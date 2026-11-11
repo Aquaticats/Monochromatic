@@ -26,8 +26,6 @@ import type {
   ModelInputLimits,
 } from '@earendil-works/pi-ai';
 import {
-  PI_SCHEMA_DEFAULT_CONTEXT_WINDOW,
-  PI_SCHEMA_DEFAULT_MAX_TOKENS,
   QWEN_TOKEN_PLAN_COST_RATE_ZERO,
   QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
   QWEN_TOKEN_PLAN_INDIVIDUAL_PROVIDER_NAME,
@@ -158,8 +156,8 @@ export function projectQwenTokenPlanIndividualModel({
     baseUrl: QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
     input: [...facts.input],
     cost: mapQwenTokenPlanIndividualModelCost(),
-    contextWindow: facts.contextWindow ?? PI_SCHEMA_DEFAULT_CONTEXT_WINDOW,
-    maxTokens: facts.maxTokens ?? PI_SCHEMA_DEFAULT_MAX_TOKENS,
+    contextWindow: facts.contextWindow,
+    maxTokens: facts.maxTokens,
     compat: facts.compat,
     ...(facts.input
       .includes('image')

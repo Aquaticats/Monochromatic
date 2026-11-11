@@ -26,14 +26,14 @@ import {
   mapQwenTokenPlanIndividualModels,
   qwenTokenPlanIndividualFacts,
   qwenTokenPlanIndividualListingSnapshot,
+  QWEN_TOKEN_PLAN_DEFAULT_CONTEXT_WINDOW,
+  QWEN_TOKEN_PLAN_DEFAULT_MAX_TOKENS,
   type QwenTokenPlanEffortsDict,
   type QwenTokenPlanResolvedModelFacts,
 } from '@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing/ts';
 import {
   hasResolvedEfforts,
   mapQwenTokenPlanIndividualModelCost,
-  PI_SCHEMA_DEFAULT_CONTEXT_WINDOW,
-  PI_SCHEMA_DEFAULT_MAX_TOKENS,
   projectQwenTokenPlanIndividualModel,
   projectQwenTokenPlanIndividualModels,
   QWEN_TOKEN_PLAN_COST_RATE_ZERO,
@@ -104,7 +104,7 @@ const REASONING_WITH_EFFORTS_ID = 'qwen3.8-max';
  const rows = readBuiltinCatalogRows();
  ```
  */
-function readBuiltinCatalogRows(): Record<string, unknown> {
+function readBuiltinCatalogRows(): Record<string, Record<string, unknown>> {
   /**
    Data directory beside pi-ai's bundled providers entry.
    */
@@ -119,7 +119,7 @@ function readBuiltinCatalogRows(): Record<string, unknown> {
     `${dataDirectory}/qwen-token-plan-individual.json`,
     'utf8',
   ),) as Record<string, unknown>;
-  return document['openai-completions'] as Record<string, unknown>;
+  return document['openai-completions'] as Record<string, Record<string, unknown>>;
 }
 
 /**
@@ -182,8 +182,8 @@ function resolvedFactsFixture(overrides: {
     id: overrides.id ?? 'fixture-model',
     name: overrides.name ?? 'Fixture Model',
     kind: 'chat',
-    contextWindow: overrides.contextWindow ?? PI_SCHEMA_DEFAULT_CONTEXT_WINDOW,
-    maxTokens: overrides.maxTokens ?? PI_SCHEMA_DEFAULT_MAX_TOKENS,
+    contextWindow: overrides.contextWindow ?? QWEN_TOKEN_PLAN_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: overrides.maxTokens ?? QWEN_TOKEN_PLAN_DEFAULT_MAX_TOKENS,
     input: overrides.input ?? ['text'],
     reasoning: overrides.reasoning ?? false,
     ...(overrides.efforts === undefined ? {} : { efforts: overrides.efforts, }),
@@ -386,7 +386,7 @@ await describe({
         },);
         expect(row.reasoning,).toBe(true);
         expect(Object.hasOwn(row, 'thinkingLevelMap',),).toBe(false);
-        expect(row.compat.supportsReasoningEffort,).toBe(false);
+        expect(row.compat?.supportsReasoningEffort,).toBe(false);
       },
     },),
     it({
@@ -457,8 +457,8 @@ await describe({
         const withoutEfforts = projectQwenTokenPlanIndividualModel({
           facts: resolvedFactsFixture({ reasoning: true, },),
         },);
-        expect(withEfforts.compat.supportsReasoningEffort,).toBe(true);
-        expect(withoutEfforts.compat.supportsReasoningEffort,).toBe(false);
+        expect(withEfforts.compat?.supportsReasoningEffort,).toBe(true);
+        expect(withoutEfforts.compat?.supportsReasoningEffort,).toBe(false);
       },
     },),
     ...Object.entries(readBuiltinCatalogRows(),)
@@ -550,8 +550,8 @@ await describe({
         const row = projectQwenTokenPlanIndividualModel({ facts, },);
         expect(row.id,).toBe(ROUTER_ALIAS);
         expect(row.name,).toBe(ROUTER_ALIAS);
-        expect(row.contextWindow,).toBe(PI_SCHEMA_DEFAULT_CONTEXT_WINDOW);
-        expect(row.maxTokens,).toBe(PI_SCHEMA_DEFAULT_MAX_TOKENS);
+        expect(row.contextWindow,).toBe(QWEN_TOKEN_PLAN_DEFAULT_CONTEXT_WINDOW);
+        expect(row.maxTokens,).toBe(QWEN_TOKEN_PLAN_DEFAULT_MAX_TOKENS);
         expect(row.input,).toEqual(['text']);
         expect(row.reasoning,).toBe(true);
         expect(Object.hasOwn(row, 'thinkingLevelMap',),).toBe(false);

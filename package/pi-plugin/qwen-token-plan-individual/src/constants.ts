@@ -1,8 +1,8 @@
 /**
  Package constants for the Qwen Token Plan Individual pi extension:
- pi's documented model defaults,
  the identity pi displays,
  the endpoint pi already streams over,
+ the zero cost rate the builtin rows carry,
  and the credential homes the seam resolves.
 
  @module
@@ -11,26 +11,6 @@
 import {
   QWEN_TOKEN_PLAN_INDIVIDUAL_CREDENTIAL_NAME,
 } from '@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing/ts';
-
-//region Pi schema defaults
-
-/**
- pi's `models-configuration` documentation states these defaults for
- `contextWindow` and `maxTokens`,
- so the projection fills them exactly where the listing discloses no limit
- instead of inventing a ceiling the endpoint never stated.
-
- @see https://pi.dev/docs/latest/models-configuration
- */
-export const PI_SCHEMA_DEFAULT_CONTEXT_WINDOW = 128_000;
-
-/**
- pi's documented default output ceiling,
- cited beside {@link PI_SCHEMA_DEFAULT_CONTEXT_WINDOW}.
- */
-export const PI_SCHEMA_DEFAULT_MAX_TOKENS = 16_384;
-
-//endregion Pi schema defaults
 
 //region Cost rates
 

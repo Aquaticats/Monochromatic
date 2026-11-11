@@ -182,7 +182,7 @@ export function isApiKeyCredential(
 export function storedCredentialKey({
   credential,
 }: {
-  readonly credential?: Credential;
+  readonly credential?: Credential | undefined;
 },): string | undefined {
   if (credential === undefined)
     return undefined;

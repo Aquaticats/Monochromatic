@@ -23,19 +23,19 @@ import {
   normalizeContext,
   type ApiKeyAuth,
   type AssistantMessageEvent,
-  type SimpleStreamOptions,
+  type OpenAICompletionsOptions,
 } from '@earendil-works/pi-ai';
-import type {
-  QwenTokenPlanEffortsDict,
-  QwenTokenPlanResolvedModelFacts,
+import {
+  QWEN_TOKEN_PLAN_DEFAULT_CONTEXT_WINDOW,
+  QWEN_TOKEN_PLAN_DEFAULT_MAX_TOKENS,
+  type QwenTokenPlanEffortsDict,
+  type QwenTokenPlanResolvedModelFacts,
 } from '@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing/ts';
 import type {
   Logger,
 } from '@monochromatic-dev/logger-core/ts';
 import {
   createQwenTokenPlanIndividualProvider,
-  PI_SCHEMA_DEFAULT_CONTEXT_WINDOW,
-  PI_SCHEMA_DEFAULT_MAX_TOKENS,
   projectQwenTokenPlanIndividualModel,
   type QwenTokenPlanIndividualPiModel,
 } from '../dist/final/node/index.mjs';
@@ -98,8 +98,8 @@ function resolvedFactsFixture(overrides: {
     id: 'fixture-model',
     name: 'Fixture Model',
     kind: 'chat',
-    contextWindow: PI_SCHEMA_DEFAULT_CONTEXT_WINDOW,
-    maxTokens: PI_SCHEMA_DEFAULT_MAX_TOKENS,
+    contextWindow: QWEN_TOKEN_PLAN_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: QWEN_TOKEN_PLAN_DEFAULT_MAX_TOKENS,
     input: ['text'],
     reasoning: overrides.reasoning ?? true,
     ...(overrides.efforts === undefined ? {} : { efforts: overrides.efforts, }),
@@ -188,7 +188,7 @@ async function captureDispatch({
   options,
 }: {
   readonly model: QwenTokenPlanIndividualPiModel;
-  readonly options: SimpleStreamOptions;
+  readonly options: OpenAICompletionsOptions;
 },): Promise<CapturedRequest[]> {
   /**
    Requests pi serialized, in order.
@@ -218,7 +218,7 @@ async function captureDispatch({
       ...options,
       apiKey: 'fixture-key',
       signal: new AbortController().signal,
-      onPayload: function onPayload(payload,) {
+      onPayload: function onPayload(payload: unknown,) {
         requests.push({
           payload: payload as Record<string, unknown>,
         });
@@ -413,10 +413,10 @@ await describe({
             }],
           },),
           {
-            reasoningEffort: 'high',
+            reasoning: 'high',
             apiKey: 'fixture-key',
             signal: new AbortController().signal,
-            onPayload: function onPayload(payload,) {
+            onPayload: function onPayload(payload: unknown,) {
               requests.push({
                 payload: payload as Record<string, unknown>,
               });
