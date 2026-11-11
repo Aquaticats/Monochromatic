@@ -4342,6 +4342,16 @@ Why neither needs the flush:
   (`write_then_publish` and `settle_exclusive_publish`),
   so the flush could not make the entry findable after a power loss even before this change.
   It made every merge commit wait for the disk eight times and bought nothing.
+- What the landing does with a copy that is not there is pinned by two controls that passed in
+  the suite run below:
+  `absent_copies_change_nothing`
+  (`conclusion_cleanup_tests.rs`),
+  where a transaction with no copies directory removes nothing and the
+  worktree's `MERGE_MSG` stays,
+  and `entries_are_removed_only_while_unchanged`,
+  where an entry goes only while it was copied,
+  is gone from the shadow,
+  and still holds the copied bytes.
 
 The test is `a_merge_in_progress_copies_its_entries_and_flushes_neither_copy`
 (`package/git-policy/cli/src/native/commit/conclusion_copy_tests.rs`),
