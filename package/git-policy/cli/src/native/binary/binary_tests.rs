@@ -641,6 +641,11 @@ mod service_landing_state;
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
 
+/// The rerere cache a concluded merge leaves behind,
+/// compared with real Git.
+#[path = "binary_merge_rr_cleanup_tests.rs"]
+mod merge_rr_cleanup;
+
 /// The timing record of a wrapped commit and the service's log lines,
 /// which split a slow commit by phase.
 #[path = "binary_commit_timing_tests.rs"]
