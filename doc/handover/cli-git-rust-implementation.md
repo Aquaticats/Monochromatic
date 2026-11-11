@@ -221,6 +221,14 @@ so round 230 (`feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-g
 round 212's agent (`feat/pi-shared-subagent-driver-takes-the-remaining-scratch-scripts`) keeps the rest:
 a batch as its own unit, the after-run steps of a launcherless run, the finished-worktree remover's in-use check.
 Until both are on `main` the existing scratch scripts are still run, unedited, to start agents.
+Round 230 finished and is on `main` since about 18:55 (merge of `feat/pi-shared-subagent-driver-pools-and-gate-match-the-scratch-gate`):
+the package's gate holds today's pool table, the closed-pool rule for resumes and the free-space floor.
+Run one after the other at 18:57, `mise run //package/pi-shared/subagent-driver:start-pi-run-when-a-pool-has-room -- --counts-only`
+and the scratch gate printed the same line
+(`qwen-plan-deepseek 2/18, neuralwatt 3/0, neuralwatt-flex 11/20, opencode-go 0/0, neuralwatt-kimi-flex 20/20, qwen-token-plan 0/4; 336 GiB free on /var/mnt/encrypted`).
+So new batches start through the package's `start-pi-runs-from-a-batch-list`, in a `systemd-run --user` unit named on the command line,
+and the scratch gate and launcher are no longer used for new runs;
+the scratch review starter is the one starter still in use, until round 212's port replaces it.
 
 The owner, minutes later, quoting the coordinator's "the release pipeline runs native:clippy on main":
 "make the release pipeline avoid running any extra work for alphas."
@@ -228,6 +236,13 @@ The coordinator's own steps change at once: an alpha gets no `native:clippy` run
 In the coded pipeline an alpha today still waits for the crate's `dispatchGate` (the btrfs controls, 3286 s when measured),
 a `cargo check`, a `cargo publish --dry-run` and a `cargo package`, though an alpha never goes to crates.io;
 round 229 (`feat/crate-release-cli-alpha-releases-run-no-extra-work`) removes what an alpha does not need.
+It finished and is on `main` since about 19:00:
+an alpha skips the dispatch gate and the `cargo check` (166.4 s of the 230 s release job of the recorded alpha.10 run `43019306127`),
+refreshes the crate's lockfile on purpose (the check used to do that as a side effect, and two `--locked` calls need it),
+and prints one line for each step it leaves out;
+the publish dry run was already skipped for alphas by the label rule, and the binary builds and the GitHub release are unchanged.
+Its estimate for an alpha: about 64 to 71 s of release job plus the 342 s publish run, with no wait before the dispatch.
+Every other label's plan is unchanged, and tests in `package/crate-release/cli/src` pin that.
 This narrows the owner's 2026-11-10 choice "Before each release (Recommended)"
 ("A wrapper release waits for that run, and a skipped test fails it."): the coordinator reads it as holding for every release but an alpha.
 The owner's answers of 2026-11-11T17:58-05:00, through the question tool, each asked with its options and a ranking:
