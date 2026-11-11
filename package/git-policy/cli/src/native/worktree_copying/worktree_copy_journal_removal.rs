@@ -477,3 +477,8 @@ pub fn remove_unfinished_writes(path: &Path) -> Result<(), WorktreeCopyError> {
     }
     return Ok(());
 }
+
+/// Removal controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_copy_journal_removal_tests.rs"]
+mod tests;
