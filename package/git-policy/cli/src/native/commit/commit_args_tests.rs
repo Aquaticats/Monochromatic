@@ -232,6 +232,19 @@ fn selection_removal_drops_every_spelling_of_the_controls() {
         private_selection_commit_args(&args(&["-m", "--patc"]), &[]),
         args(&["-m", "--patc"])
     );
+    // A value attached inside a cluster is the person's text, never a selection letter.
+    assert_eq!(
+        private_selection_commit_args(&args(&["--include", "-mp"]), &[]),
+        args(&["-mp"])
+    );
+    assert_eq!(
+        private_selection_commit_args(&args(&["-i", "-mip"]), &[]),
+        args(&["-mip"])
+    );
+    assert_eq!(
+        private_selection_commit_args(&args(&["-p", "-Skey-i"]), &[]),
+        args(&["-Skey-i"])
+    );
 }
 
 /// Selection controls go away once the private index already holds the choice.

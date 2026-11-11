@@ -34,7 +34,7 @@ use crate::transaction_journal::TransactionMode;
 /// import { longOptionNames } from './command_options_long_resolution.ts';
 /// import { separatorIndex, takesNextToken } from './commit_args_reading.ts';
 /// ```
-use super::commit_args_reading::{PATHSPEC_SEPARATOR, is_optional_value_letter};
+use super::commit_args_reading::{OPTIONAL_VALUE_LETTERS, PATHSPEC_SEPARATOR, SHORT_VALUE_OPTIONS, is_optional_value_letter};
 use crate::command_commit_table::COMMIT_TABLE;
 use crate::command_options_long_resolution::long_option_names;
 
@@ -383,41 +383,43 @@ fn without_selection_letters(token: &str) -> Option<String> {
         return None;
     }
     let letters: Vec<char> = token.chars().skip(1).collect();
-    let value_start: Option<usize> = letters.iter().position(is_optional_value_letter);
-    let flags: &[char] = match value_start {
-        Some(index) => &letters[..index],
-        None => &letters[..],
-    };
-    if !flags.iter().any(is_selection_letter) {
+    let mut cluster: String = String::from("-");
+    let mut removed: bool = false;
+    let mut index: usize = 0;
+    while index < letters.len() {
+        let letter: char = letters[index];
+        // A letter that takes a value ends the flags: what follows it is the person's value and stays whole,
+        // so a key or a message that spells `i` or `p` never disappears.
+        if letter_takes_a_value(letter) {
+            break;
+        }
+        if SELECTION_LETTERS.contains(&letter) {
+            removed = true;
+        } else {
+            cluster.push(letter);
+        }
+        index += 1;
+    }
+    if !removed {
         return None;
     }
-    let mut cluster: String = String::from("-");
-    for letter in flags {
-        if !SELECTION_LETTERS.contains(letter) {
-            cluster.push(*letter);
-        }
-    }
-    if let Some(index) = value_start {
-        for letter in &letters[index..] {
-            cluster.push(*letter);
-        }
+    for letter in &letters[index..] {
+        cluster.push(*letter);
     }
     return Some(cluster);
 }
 
 /// What:
-///  Whether a letter of a short-option cluster names a selection control.
-///  `&char` borrows the letter,
-/// as `any` hands it over.
+///  Whether a letter of a short-option cluster takes a value.
 /// Why:
-///   `any` takes this function by path where a closure would otherwise stand.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isSelectionLetter = (letter: string) => SELECTION_LETTERS.includes(letter);
-/// ```
-fn is_selection_letter(letter: &char) -> bool {
-    return SELECTION_LETTERS.contains(letter);
+///   `-m<text>`,
+///  `-F<file>` and `-S<keyid>` carry their value in the same token,
+///  so a selection letter after one is that value and not a flag.
+fn letter_takes_a_value(letter: char) -> bool {
+    if OPTIONAL_VALUE_LETTERS.contains(&letter) {
+        return true;
+    }
+    return SHORT_VALUE_OPTIONS.contains(&format!("-{letter}").as_str());
 }
 
 /// What:
