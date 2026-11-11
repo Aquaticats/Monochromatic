@@ -401,7 +401,7 @@ pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
     }
     // The capture's bytes are the person's files' own, so the ref that kept them is not one more name to clean up by hand.
     if let Some(capture) = intent.carried.as_ref() {
-        crate::merge_isolation_carry::drop_capture_ref_awaiting(&place.git, root, capture).await;
+        crate::merge_isolation_carry::drop_capture_ref_awaiting(&place.git, place.git_dir.as_path(), root, capture).await;
     }
     return Ok(crate::merge_isolation_recovery_steps::MergeRecoveryAction::DeferredRefused);
 }

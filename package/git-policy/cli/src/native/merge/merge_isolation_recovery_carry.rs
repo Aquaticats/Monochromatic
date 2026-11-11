@@ -184,7 +184,7 @@ pub(crate) fn the_work_could_not_be_carried(failure: &CarryFailure) -> String {
 /// ```
 pub(crate) async fn drop_capture_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
     if let Some(capture) = intent.carried.as_ref() {
-        drop_capture_ref_awaiting(&place.git, root, capture).await;
+        drop_capture_ref_awaiting(&place.git, place.git_dir.as_path(), root, capture).await;
     }
 }
 

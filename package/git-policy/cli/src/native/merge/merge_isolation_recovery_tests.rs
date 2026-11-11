@@ -4321,3 +4321,73 @@ fn a_copy_with_a_special_permission_the_path_does_not_have_stays() {
     assert!(aside.exists(), "the only entry carrying the setuid bit was removed; the path's mode is {mode:o}");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A capture that another record still names keeps its ref when the first of two records is discarded.
+/// Why:
+///  A merge that saves its result for a later finish writes a second record beside the first,
+/// and both keep one
+///  capture (`save_for_a_later_finish`).
+/// The first record is discarded by the next command while the second waits for
+///  its own finish,
+/// and dropping the shared ref there left the person's bytes reachable by nothing:
+/// `git gc` collects a
+///  commit nothing points at,
+/// and the wait may last until the next command after the lock frees
+/// (a qwen4-max-preview audit of the saved merge,
+/// its second finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// capture(); record({ sideRef: undefined, carried }); record({ sideRef, target: 'refs/heads/other', carried }); await recover(...); expect(carried.reference).toBe('refs/cli-git/carried/...'); expect(catFile(capture.commit)).toBe('commit');
+/// ```
+#[test]
+fn a_capture_another_record_still_names_keeps_its_ref() {
+    let world: World = world("merge-recovery-shared-capture");
+    let first_id: &str = "11111111-0000-4000-8000-000000000071";
+    let saved_id: &str = "22222222-0000-4000-8000-000000000072";
+    let saved_ref: &str = "refs/cli-git/kept/72";
+    std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n").expect("the person's edit");
+    let context = crate::test_support::git_context();
+    let capture = crate::merge_isolation_carry::keep_capture(
+        &context,
+        world.repo.as_path(),
+        &crate::merge_isolation_carry::capture_work(&context, world.repo.as_path(), &[b"f.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
+    let reference: String = capture.reference.clone().expect("the ref that keeps the capture");
+    let first: MergeIntent = MergeIntent {
+        owner: dead_owner(first_id),
+        repository_root: world.repo.clone(),
+        target_ref: Some(String::from("refs/heads/main")),
+        old_oid: world.old_oid.clone(),
+        new_oid: world.new_oid.clone(),
+        side_ref: None,
+        carried: Some(capture.clone()),
+    };
+    let first_record: PathBuf = write_merge_intent(world.git_dir.as_path(), &first).expect("the first record");
+    git(world.repo.as_path(), &["update-ref", saved_ref, world.new_oid.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "refs/heads/other", world.old_oid.as_str()]);
+    // The save's record names a branch this worktree does not have checked out, so its own settle keeps it for the command that
+    //  checks that branch out: the capture's ref must outlive the first record.
+    let saved: MergeIntent = MergeIntent {
+        owner: dead_owner(saved_id),
+        repository_root: world.repo.clone(),
+        target_ref: Some(String::from("refs/heads/other")),
+        old_oid: world.old_oid.clone(),
+        new_oid: world.new_oid.clone(),
+        side_ref: Some(String::from(saved_ref)),
+        carried: Some(capture.clone()),
+    };
+    let saved_record: PathBuf = write_merge_intent(world.git_dir.as_path(), &saved).expect("the save's record");
+    let _outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("the command must not stop");
+    assert!(!first_record.exists(), "the merge's first record is settled");
+    assert!(saved_record.exists(), "the save's record waits for the branch it is for");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["rev-parse", "--verify", reference.as_str()]).trim(),
+        capture.commit,
+        "the ref that another record still names keeps the person's capture"
+    );
+    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", capture.commit.as_str()]).trim(), "commit", "the capture's commit is still there");
+    remove(world.parent.as_path());
+}
