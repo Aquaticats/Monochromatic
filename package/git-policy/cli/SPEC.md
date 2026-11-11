@@ -5192,6 +5192,14 @@ so:
   because the claim decides it:
   either the step will not run and changed nothing,
   or the pool ran it on another thread and whether it finished is not known.
+- a storage step of a drain awaits its place of that bound,
+  and its job,
+  no longer than the after-commit work's own state,
+  because a place is held by the job that took it until that job ends:
+  a read left behind in a job would otherwise leave the round waiting for a place nothing gives back,
+  so no later push or upkeep round would run and the service would never exit idle
+  (`a_storage_step_awaited_no_longer_than`);
+  the step that found no place ran nothing, and it says so.
 - the read of the retry plan and of the watch at a service's start is bounded,
   and a read that gave no answer is made again rather than given up on:
   the plan's directory and the watch's directory are kept either way,

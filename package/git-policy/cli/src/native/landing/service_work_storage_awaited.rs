@@ -35,8 +35,7 @@
 //! const claimed = await claimAllAwaiting(held, workDir); const [ok, refused] = await acceptableAwaiting(gitDir, claimed); await settleAllAwaiting(held, workDir, refused, FAILED)
 //! ```
 
-use crate::blocking_job::BlockingJobError;
-use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_once_awaited_no_longer_than};
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::{PushOutcome, clear_push_failures_before, record_push_failure, record_push_skip};
 use crate::service_claim_renewal::HeldClaims;
@@ -45,25 +44,59 @@ use crate::service_work_handlers_replanning_and_acceptance::{
 };
 use crate::work_item::{Claimed, claim_all_of};
 use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired_reporting_telling};
+use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// What:
-///  Say that a storage step did not run,
-///  and carry on with what the drain can still do.
+///  Say that a storage step of the drain was refused,
+/// and what that leaves for the next round.
 /// Why:
-///   The step changed nothing,
-/// so nothing is lost:
-/// the records it would have moved keep their lease and the next
-///  round finds them,
+///   A step that changed nothing and a step that may still be finishing are both said plainly
+/// (`a_storage_step_awaited_no_longer_than`),
 /// and a caller told nothing would read the silence as a drain that did all of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const refused = (what, reason) => service_warn(`${what} did not run: ${reason}`)
+/// const refused = (said) => serviceWarn(`${said}; the records it would have moved keep their lease`)
 /// ```
-fn refused(step: &str, reason: &BlockingJobError) {
-    crate::service_warn!("{step} did not run, so the records it would have moved keep their lease: {reason}");
+fn refused(said: &str) {
+    crate::service_warn!("{said}; the records it would have moved keep their lease, so the next round finds them");
+}
+
+/// What:
+///  Run one storage step of a drain as a job of the process's blocking pool,
+/// awaiting the place and the job no longer than `ceiling`,
+/// and give its answer or the words it is refused with,
+/// which name the step and what it left undone.
+/// Why:
+///   A place of the process's bound is held by the job that took it until that job ends,
+/// and a job whose read outlasted its ceiling is left behind holding the place
+/// (`blocking_jobs_within_the_budget.rs`).
+/// A step that awaited a place without an end would then wait for a place nothing gives back:
+/// the round would never end,
+/// so no later push or upkeep round ran and the service never exited idle
+/// (finding 4 of the review of `5686c7bb29`,
+/// "nothing should ever wait forever or indefinitely").
+/// The ceiling is the caller's so that a control can reach a step's bound in a moment,
+/// as `restored_within` does for the journal's read;
+/// every step the drain runs passes the ceiling the after-commit work's other state steps take.
+/// Each answer is said as what it is:
+/// no place within the ceiling proves the step did not run and changed nothing,
+/// while a step that outlasted its own ceiling may still be finishing what it began.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await aStorageStep(ceiling, 'the settling of the records this round ran', 'no record is settled', job)
+/// ```
+async fn a_storage_step_awaited_no_longer_than<T: Send + 'static>(ceiling: Duration, step: &str, left: &str, job: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+    return match run_a_job_once_awaited_no_longer_than(ceiling, job).await {
+        TheAnswerOfAJobAwaited::Ran(value) => Ok(value),
+        TheAnswerOfAJobAwaited::NotRun => {
+            Err(format!("{step} did not run, because no place of the process's bound and no thread came within {ceiling:?}, so {left}"))
+        }
+        TheAnswerOfAJobAwaited::NoAnswer => Err(format!("{step} gave no answer within {ceiling:?}, so {left}, and what it began may still be being written")),
+    };
 }
 
 /// What:
@@ -79,10 +112,20 @@ fn refused(step: &str, reason: &BlockingJobError) {
 /// const claimed = await claimAllAwaiting(workDir)
 /// ```
 pub(crate) async fn claim_all_awaiting(work_dir: &Path) -> Result<Vec<Claimed>, String> {
+    return claim_all_within_awaiting(AFTER_COMMIT_STATE_CEILING, work_dir).await;
+}
+
+/// `claim_all_awaiting` with the ceiling its place and its job are given,
+/// so a control can reach the bound this step keeps in a moment (`service_round_tests.rs`).
+pub(crate) async fn claim_all_within_awaiting(ceiling: Duration, work_dir: &Path) -> Result<Vec<Claimed>, String> {
     let directory: PathBuf = work_dir.to_path_buf();
-    return match run_blocking_job_within_the_budget(move || { return claim_all_of(directory.as_path(), &SERVICE_KINDS); }).await {
-        Ok(taken) => taken,
-        Err(reason) => Err(format!("the look for this directory's pending records did not run, so none was claimed: {reason}")),
+    return match a_storage_step_awaited_no_longer_than(ceiling, "the look for this directory's pending records", "none was claimed", move || {
+        return claim_all_of(directory.as_path(), &SERVICE_KINDS);
+    })
+    .await
+    {
+        Ok(claimed) => claimed,
+        Err(said) => Err(said),
     };
 }
 
@@ -98,7 +141,7 @@ pub(crate) async fn claim_all_awaiting(work_dir: &Path) -> Result<Vec<Claimed>, 
 /// ```
 pub(crate) async fn acceptable_awaiting(git_dir: &Path, claimed: Vec<Claimed>) -> (Vec<Claimed>, Vec<Claimed>) {
     let directory: PathBuf = git_dir.to_path_buf();
-    return match run_blocking_job_within_the_budget(move || {
+    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the look that decides which records are acceptable", "no record is decided either way", move || {
         let mut acceptable: Vec<Claimed> = Vec::new();
         let mut refused_here: Vec<Claimed> = Vec::new();
         for item in claimed {
@@ -114,8 +157,8 @@ pub(crate) async fn acceptable_awaiting(git_dir: &Path, claimed: Vec<Claimed>) -
     {
         Ok((acceptable, refused_here)) => (acceptable, refused_here),
         // Nothing is decided on a job that did not run, so no record is failed for a reason the service did not read.
-        Err(reason) => {
-            refused("the look that decides which records are acceptable", &reason);
+        Err(said) => {
+            refused(said.as_str());
             (Vec::new(), Vec::new())
         }
     };
@@ -145,15 +188,15 @@ pub(crate) async fn settle_all_awaiting(held: HeldClaims, work_dir: &Path, claim
     }
     let directory: PathBuf = work_dir.to_path_buf();
     let settling: Vec<Claimed> = claimed;
-    return match run_blocking_job_within_the_budget(move || {
+    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the settling of the records this round ran", "no record is settled", move || {
         settle_all(directory.as_path(), &held, settling.as_slice(), state);
         return held;
     })
     .await
     {
         Ok(back) => Some(back),
-        Err(reason) => {
-            refused("the settling of the records this round ran", &reason);
+        Err(said) => {
+            refused(said.as_str());
             None
         }
     };
@@ -182,15 +225,15 @@ pub(crate) async fn still_held_awaiting(held: HeldClaims, work_dir: &Path, claim
         return Some((held, Vec::new()));
     }
     let directory: PathBuf = work_dir.to_path_buf();
-    return match run_blocking_job_within_the_budget(move || {
+    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the look that finds a claim taken over", "no claim is checked", move || {
         let mine: Vec<Claimed> = still_held(&held, directory.as_path(), claimed);
         return (held, mine);
     })
     .await
     {
         Ok(answered) => Some(answered),
-        Err(reason) => {
-            refused("the look that finds a claim taken over", &reason);
+        Err(said) => {
+            refused(said.as_str());
             None
         }
     };
@@ -210,14 +253,14 @@ pub(crate) async fn still_held_awaiting(held: HeldClaims, work_dir: &Path, claim
 pub(crate) async fn clear_push_failures_before_awaiting(git_dir: &Path, branch_ref: &str, since: std::time::SystemTime) {
     let directory: PathBuf = git_dir.to_path_buf();
     let branch: String = String::from(branch_ref);
-    match run_blocking_job_within_the_budget(move || {
+    match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the removal of this branch's earlier push records", "none is removed", move || {
         clear_push_failures_before(directory.as_path(), branch.as_str(), since);
     })
     .await
     {
         Ok(()) => {}
-        Err(reason) => {
-            refused("the removal of this branch's earlier push records", &reason);
+        Err(said) => {
+            refused(said.as_str());
         }
     }
 }
@@ -238,14 +281,14 @@ pub(crate) async fn record_push_failure_awaiting(git_dir: &Path, branch_ref: &st
     let branch: String = String::from(branch_ref);
     let oid: String = String::from(commit);
     let words: String = String::from(said);
-    return match run_blocking_job_within_the_budget(move || {
+    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the record of a push that did not land", "none was written", move || {
         return record_push_failure(directory.as_path(), branch.as_str(), oid.as_str(), outcome, words.as_str());
     })
     .await
     {
-        Ok(answer) => answer,
         // A record that was not written leaves the item to its lease, and the next round tells the person.
-        Err(reason) => Err(format!("{reason}")),
+        Ok(answer) => answer,
+        Err(said) => Err(said),
     };
 }
 
@@ -265,13 +308,13 @@ pub(crate) async fn record_push_skip_awaiting(git_dir: &Path, branch_ref: &str, 
     let branch: String = String::from(branch_ref);
     let oid: String = String::from(commit);
     let words: String = String::from(said);
-    return match run_blocking_job_within_the_budget(move || {
+    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the record of a push that was skipped", "none was written", move || {
         return record_push_skip(directory.as_path(), branch.as_str(), oid.as_str(), words.as_str());
     })
     .await
     {
         Ok(answer) => answer,
-        Err(reason) => Err(format!("{reason}")),
+        Err(said) => Err(said),
     };
 }
 
@@ -291,14 +334,14 @@ pub(crate) async fn record_push_skip_awaiting(git_dir: &Path, branch_ref: &str, 
 pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime, lease: Duration) -> Option<Duration> {
     let directory: PathBuf = work_dir.to_path_buf();
     let reading: ClaimTime = now.clone();
-    return match run_blocking_job_within_the_budget(move || {
+    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the look that finds when another instance's claim runs out", "no wait is answered", move || {
         return next_claim_expiry(directory.as_path(), &reading, lease);
     })
     .await
     {
         Ok(wait) => wait,
-        Err(reason) => {
-            refused("the look that finds when another instance's claim runs out", &reason);
+        Err(said) => {
+            refused(said.as_str());
             None
         }
     };
@@ -323,14 +366,14 @@ pub(crate) async fn requeue_expired_awaiting(work_dir: &Path, git_dir: &Path, no
     let repository: PathBuf = git_dir.to_path_buf();
     let reading: ClaimTime = now.clone();
     // A record given up on is a notice about this repository, which the job says with its own path so nothing is lent to it.
-    match run_blocking_job_within_the_budget(move || {
+    match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the taking back of claims whose holder stopped renewing them", "none is taken back", move || {
         let _recovered: Recovered = requeue_expired_reporting_telling(directory.as_path(), &reading, lease, MAX_TRIES, &SkipNotice(repository.as_path()));
     })
     .await
     {
         Ok(()) => {}
-        Err(reason) => {
-            refused("the taking back of claims whose holder stopped renewing them", &reason);
+        Err(said) => {
+            refused(said.as_str());
         }
     }
 }
@@ -347,15 +390,15 @@ pub(crate) async fn requeue_expired_awaiting(work_dir: &Path, git_dir: &Path, no
 /// ```
 pub(crate) async fn instance_of_awaiting(git_dir: &Path) -> Result<String, crate::service_instance::GitDirUnreachable> {
     let directory: PathBuf = git_dir.to_path_buf();
-    return match run_blocking_job_within_the_budget(move || {
+    return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the look for this directory's instance record", "it is not read", move || {
         return crate::service_instance::try_instance_of(directory.as_path());
     })
     .await
     {
         Ok(answer) => answer,
-        Err(reason) => {
-            refused("the look for this directory's instance record", &reason);
-            Err(crate::service_instance::GitDirUnreachable { path: git_dir.to_path_buf(), reason: format!("{reason}") })
+        Err(said) => {
+            refused(said.as_str());
+            Err(crate::service_instance::GitDirUnreachable { path: git_dir.to_path_buf(), reason: said })
         }
     };
 }
