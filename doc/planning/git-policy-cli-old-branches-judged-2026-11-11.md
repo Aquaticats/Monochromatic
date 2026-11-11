@@ -584,7 +584,8 @@ Evidence that it is wanted:
   so those two verdicts are historical rather than live.
 
 Evidence that its findings still hold,
-each re-checked against `fc9f7f5f4b`:
+each re-checked against `fc9f7f5f4b`,
+with the three the tree has resolved since named in their own place:
 
 - `#492`:
   `rg -i 'post.?push'` over `package/git-policy/cli/src/native` finds no stage.
@@ -602,6 +603,12 @@ each re-checked against `fc9f7f5f4b`:
   the request list is written from a thread of its own with a poll-based deadline,
   and the answers are read under `RANGE_QUERY_CEILING`
   (`src/native/push/manual_push_range.rs`).
+  The issue closed on 2026-11-10T19:48Z as fixed by `73ae19e83c` (2026-11-09),
+  which is in the integration,
+  and the control the pass named was re-run here:
+  `manual_push_range` gives 14 tests run,
+  14 passed,
+  6854 skipped.
 - `#3258`,
   `#3275`,
   `#3276` and `#3745`:
@@ -616,22 +623,36 @@ each re-checked against `fc9f7f5f4b`:
 - `#1698`:
   `doc/migration/no-class.md` still cites `package/` paths that no longer exist.
 - `#1332`:
-  one hand-written marker pair remains in
-  `package/git-executable/core/src/self-shim.ts`,
-  at lines 156 and 165 rather than the 143 and 148 the pass read.
+  resolved after the pass by `512bd213b7`,
+  which is in the integration:
+  `package/git-executable/core/src/self-shim.ts` now spells the package once and
+  computes `WINDOWS_GIT_POLICY_CLI_PACKAGE_PATH` from it.
+  The pass's reading was of the two hand-written literals at its lines 143 and 148.
 - `#1768`:
-  the triage comment the pass quotes is unchanged,
-  and the wrapper still cannot detect its own absence.
+  the triage comment the pass quotes is unchanged and the wrapper still cannot detect
+  its own absence,
+  and a comment of 2026-11-10T18:26Z,
+  written after the pass,
+  corrects the link it names:
+  `mise.no-env.toml` and `.cache/cli-git-bin/` are gone,
+  the link is `.cache/monochromatic-git-policy-cli-bin/git`,
+  it resolves to the main checkout's launcher in a protected session,
+  and the comment asks the owner which surface carries the check.
 
 What the pass can no longer claim without edit:
  its line numbers for `#1332`,
  its Method line ("returned 89 issues on 2026-11-10";
  77 open wrapper issues on 2026-11-11),
- and the two verdicts whose issues closed after it.
+ its heading "The one fix this branch carries",
+ because the fix landed as `aeb87871b3` and the branch's own two commits are not
+ carried,
+ the two verdicts whose issues closed after it,
+ the `#1332` and `#4487` verdicts the tree has resolved,
+ and the `#1768` triage whose link name is stale.
 
 Proposal:
  port the pass,
- with the header note and the four corrections this record lists,
+ with the header note and the corrections this record lists,
  on a new branch from the integration.
 That is the port this session made,
 recorded in the section "The port this session made".
@@ -641,32 +662,44 @@ recorded in the section "The port this session made".
 Branch `fix/git-policy-cli-open-issues-fourth-pass`,
 started from `integrate/git-policy-cli-jam-fixes-after-alpha-9` at `fc9f7f5f4b`.
 
+Commit `7f84c90b1b`.
 It carries `doc/planning/git-wrapper-open-issues-round-4.md` as the branch
 `fix/git-policy-cli-open-issues-next-batch` wrote it,
-with four edits:
+with these edits:
 
 - a header note recording where the pass came from,
-  which commit wrote it,
+  which commits wrote it,
   that its tree reading is `aca920cdf4`,
   and what was re-checked at `fc9f7f5f4b`;
 - the two issues that closed after the pass,
   `#1907` and `#1911`,
   named as historical in their verdicts;
-- the open-issue count refreshed to 77;
-- the `#1332` line numbers refreshed to 156 and 165.
-
-`08cdb8979a` is not cited as the fix for the pointer items,
-because it is not in the integration's history:
-`aeb87871b3` is.
+- `#4487` marked closed as fixed by `73ae19e83c`,
+  and `#1332` marked fixed by `512bd213b7`;
+- `#1768` carrying the correction its own comment of 2026-11-10T18:26Z makes;
+- the open-issue count refreshed from 89 to 77;
+- the pointer section retitled to "The fix this pass named",
+  saying the fix landed as `aeb87871b3` rather than as the branch's own
+  `08cdb8979a` and `67eea12838`,
+  and recording that one data row in `doc/handover` is all the wider sweep left;
+- the `#1698` count reproduced (33 paths cited,
+  16 missing).
 
 Build,
 Clippy and tests:
  the port changes one Markdown file and no Rust source,
- so the crate's build and tests are unchanged by it.
+ so the crate's build and its tests are untouched by it.
 The repository's only Markdown gate is `monochromatic-lint`,
 run as `mise run lint:monochromatic-lint -- <paths>`,
-and the port was checked with it;
-the result is in the commit message.
+and the ported file is clean under it.
+One filtered test run was made to re-check the `#4487` control the pass names:
+`mise run //package/git-policy/cli:native:test:host -- manual_push_range` gives
+14 tests run,
+14 passed,
+6854 skipped,
+`a_request_list_larger_than_a_pipe_is_written_while_the_answers_are_read` among them.
+The crate was built for that run and Clippy was not run for it,
+because no Rust file of this port differs from the integration's.
 
 ## What was run
 
@@ -692,7 +725,26 @@ the result is in the commit message.
   each file name and each symbol the verdicts rest on,
   with a whitespace-normalized copy of SPEC for the phrases its line breaks split.
 - `gh issue list --repo Aquaticats/Monochromatic --state all --search 'git-policy in:title,body'`
-  for the state of the 15 issues and the open count.
+  for the state of the 15 issues and the open count,
+  `gh issue view --json number,state,updatedAt` for each of the 15 and the two outside
+  them,
+  and `gh issue view --comments` for the comments the verdicts cite
+  (2026-11-10T18:26Z on `#1768`,
+  2026-11-10T19:48Z on `#4487`,
+  2026-11-10T19:54Z on `#1332`).
+- `git merge-base --is-ancestor` for `aeb87871b3`,
+  `512bd213b7` and `73ae19e83c`,
+  the three commits whose presence in the integration the verdicts claim.
+- A `python3` pass over `doc/migration/no-class.md` for the `package/` paths it cites
+  and a `test -e` over each:
+  33 cited,
+  16 missing.
+- `mise run //package/git-policy/cli:native:test:host -- manual_push_range`
+  on branch `fix/git-policy-cli-open-issues-fourth-pass`,
+  which built the crate and ran the filtered tests:
+  14 tests run,
+  14 passed,
+  6854 skipped.
 
 ## What this record does not do
 
