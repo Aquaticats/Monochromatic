@@ -128,12 +128,12 @@ therefore had that chain read again from `wt`,
 asked Git for `<top>/wt/../cfg.git`,
 and the listing failed.
 
-Reproduced with the review's script
-(`relative_directory_change_selects_wrong_repository.ts` in
-`~/temp/agent/kimi-findings-133-dependent-bump`,
-run against a wrapper built from this branch's base,
-in a throwaway `HOME` and `XDG_RUNTIME_DIR`),
-whose own control arm commits the same fixture without `-C`:
+Reproduced with the review's script,
+adapted into
+`~/temp/agent/kimi-findings-133-dependent-bump-2/relative_directory_change_selects_wrong_repository.ts`
+and run in a throwaway `HOME` and `XDG_RUNTIME_DIR`,
+once against a wrapper built from this branch's base and again against the fixed one.
+Its own control arm commits the same fixture without `-C`:
 
 ```text
 control-without-directory-change: exit 0, `@s/a` 1.1.0, `@s/b` 2.0.1, changed paths b and c, passed: true
@@ -147,6 +147,11 @@ so this is a missing dependent bump rather than data loss.
 After the fix the same script prints `passed: true` for both arms,
 with `@s/b` 2.0.1 and `@s/c` 3.0.1 in the committed tree and in the worktree,
 and no failed-listing note.
+The script's teardown was corrected on the way:
+it now registers the service's `exit` listener before the kill,
+and allows 30 seconds rather than 5,
+because the first bound once expired with every assertion already passed on a busy disk,
+and a service that ended in the moment between the check and the kill was waited for until the bound.
 
 The fix:
 `real_index_entries` takes the invocation's `RepositoryLocation` instead of the worktree top plus the caller's
