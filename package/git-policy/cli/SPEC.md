@@ -3175,6 +3175,15 @@ because its writer renames it.
 Every later linked-worktree or bare-repository invocation checks for pending journals and stage claims before forwarding
 and recovers those of dead owners.
 It never waits.
+The copy itself is finished only by a command run in the worktree it fills:
+staging or installing a source's ignored state costs what that tree costs,
+so a command in another worktree never pays for it and never waits while another worktree is filled.
+Such a command writes one line naming the worktree whose files are missing,
+that the first command run in that worktree makes the copy,
+and that this command does not wait for it.
+The discards and the keeps stay open to every command,
+because they read a few records and remove the files of a transaction nothing may resume;
+a worktree that is gone has no command left to run in it.
 Recovery validates that journal paths remain canonical,
 reading their bytes rather than a spelling of them,
 the stage is a private owned directory beside the destination,
@@ -3250,6 +3259,13 @@ whose destination is still a registration of this repository with a whole checko
 and whose stage no pending journal names,
 is filled from that source by the same staging,
 journaling and installation a creating command makes.
+That copy is the worktree's own work:
+only a command run in that worktree makes it,
+and it says so before the first entry is read,
+with one line naming the worktree,
+the source,
+and that the line stops at the ceiling below.
+A command in another worktree writes the line that names the worktree and makes no copy.
 Nothing is overwritten,
 because the installation accepts an exact entry and refuses a differing one,
 so a worktree that gained anything since the add is named instead of written into.
@@ -3259,6 +3275,25 @@ it creates a marker in the journal root whose name carries its owner,
 one exclusive create of `<identifier>.<owner>.taking`,
 and a marker whose owner is dead is removed and taken over,
 so two commands that find the same dead claim never stage into one name.
+The command that makes a copy it did not start holds a ceiling on it
+(`src/native/worktree_copying/worktree_copy_ceiling.rs`):
+six minutes,
+five times the longest copy measured at the scale the wait was found with
+(15,151 ignored entries and 150 MB in 72 s),
+rounded up to a whole minute.
+The walk of the source,
+every entry the copy writes,
+every batch the installation writes,
+and each step between them ask the ceiling,
+and the copy a creating command makes for the worktree it just registered holds none,
+because the owner allows that add its own time.
+A copy that reaches the ceiling ends as a copy that could not be finished:
+the installation rolls back what it wrote,
+the worktree is named by the record of an unfilled worktree with the sentence that names the ceiling,
+and `git worktree remove --force` with the same `git worktree add` line copies the same state again,
+with no ceiling on the add.
+So no command waits without a bound for state another command left,
+and no checkout's size decides how long one does.
 A copy that cannot be made ends with the record of an unfilled worktree,
 naming the reason the failure gave,
 so every later command prints that reason instead of staging the source again;

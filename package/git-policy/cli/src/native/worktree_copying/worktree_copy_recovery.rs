@@ -20,6 +20,7 @@
 use crate::json_record::quote;
 use crate::plain_file::read_plain_file;
 use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
+use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_registration_naming::{NamedRegistration, absent_path, registration_naming};
@@ -31,6 +32,76 @@ use crate::worktree_copy_journal_encoding_and_validation::{PendingJournal, Phase
 use crate::worktree_copy_journal_removal::remove_pending_journal;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+/// What:
+///  Which destinations one recovery pass may finish a copy into.
+/// Why:
+///   Finishing a copy stages or installs the source's ignored state,
+/// which costs what the tree costs: minutes for a large checkout.
+/// Only the worktree a copy fills waits for it,
+/// because that is the worktree that needs the files;
+/// a command in another worktree never pays for it,
+/// which is the owner's "Agents should never wait on each other".
+/// The discards and the keeps stay open to every command:
+/// they read a few records and remove the files of a transaction nothing may resume,
+/// and a worktree that is gone has no command left to run in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RecoveryDestinations = 'every' | { onlyWorktree: string } | 'no-worktree';
+/// ```
+pub enum RecoveryDestinations<'a> {
+    /// Every destination of the repository:
+    /// the library's own sweep,
+    /// which a command never holds.
+    EveryDestination,
+    /// Only the worktree the command runs in.
+    OnlyThisWorktree(&'a Path),
+    /// None, because the command runs in a shape that holds no worktree.
+    NoWorktree,
+}
+
+/// What:
+///  Whether this pass may finish the copy into `destination`.
+/// Why:
+///   The recorded destination is Git's canonical absolute path and so is the worktree the command
+/// reports,
+/// but a path a symbolic link crosses is still the same worktree,
+/// so both are resolved before they are compared
+/// and an answer that cannot be resolved is unmatched rather than assumed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const finishes = (destinations, destination) => destinations === 'every' || samePath(destinations.onlyWorktree, destination);
+/// ```
+fn same_worktree(left: &Path, right: &Path) -> bool {
+    if left == right {
+        return true;
+    }
+    return match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
+        (Ok(left_canonical), Ok(right_canonical)) => left_canonical == right_canonical,
+        _ => false,
+    };
+}
+
+/// What:
+///  Whether a recovery pass may finish a copy into `destination`,
+/// asked before the copy's staging or installation.
+/// Why:
+///   One predicate answers for the journals and for the copy an add owed,
+/// so both refuse another worktree's work the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const finishesHere = (destinations, destination) => destinations === 'every' || (destinations.onlyWorktree !== undefined && sameWorktree(destinations.onlyWorktree, destination));
+/// ```
+pub fn finishes_destination(destinations: &RecoveryDestinations<'_>, destination: &Path) -> bool {
+    return match destinations {
+        RecoveryDestinations::EveryDestination => true,
+        RecoveryDestinations::OnlyThisWorktree(root) => same_worktree(root, destination),
+        RecoveryDestinations::NoWorktree => false,
+    };
+}
 
 /// What:
 ///  Whether a journal's destination is still a linked worktree of the journal's repository.
@@ -269,6 +340,7 @@ pub fn validate_stage(pending: &PendingJournal) -> Result<StagePresence, Worktre
 fn recover_transaction(
     common_dir: &Path,
     pending: PendingJournal,
+    ceiling: &CopyCeiling,
 ) -> Result<(bool, Option<String>), WorktreeCopyError> {
     let destination: String = quote(pending.journal.destination_root.to_string_lossy().as_ref());
     let registration: Registration = destination_registration(
@@ -333,7 +405,7 @@ fn recover_transaction(
         ));
     }
     // `match` on the outcome: a completed installation is recovered; a failed one becomes a notice.
-    match complete_journal(pending, &SnapshotSource::FromJournal(&journal_for_snapshot))? {
+    match complete_journal(pending, &SnapshotSource::FromJournal(&journal_for_snapshot), ceiling)? {
         Outcome::Installed(_) => return Ok((true, None)),
         Outcome::Ended(failure) => {
             return Ok((
@@ -371,7 +443,12 @@ pub fn recover_worktree_copy_transactions(
     common_dir: &Path,
 ) -> Result<RecoveryReport, WorktreeCopyError> {
     let verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
-    return recover_judged_transactions(common_dir, &verdicts);
+    return recover_judged_transactions(
+        common_dir,
+        &verdicts,
+        &RecoveryDestinations::EveryDestination,
+        &CopyCeiling::unbounded(),
+    );
 }
 
 /// What:
@@ -387,7 +464,12 @@ pub fn recover_worktree_copy_transactions(
 /// ```ts
 /// const report = await recoverJudgedTransactions(commonDir, verdicts);
 /// ```
-fn recover_judged_transactions(common_dir: &Path, verdicts: &StageVerdicts) -> Result<RecoveryReport, WorktreeCopyError> {
+fn recover_judged_transactions(
+    common_dir: &Path,
+    verdicts: &StageVerdicts,
+    destinations: &RecoveryDestinations<'_>,
+    ceiling: &CopyCeiling,
+) -> Result<RecoveryReport, WorktreeCopyError> {
     let pending: Vec<PendingJournal> = read_pending_journals(common_dir)?;
     let owner = current_copy_owner()?;
     let mut recovered: usize = 0;
@@ -399,11 +481,25 @@ fn recover_judged_transactions(common_dir: &Path, verdicts: &StageVerdicts) -> R
         }
     }
     for journal in dead {
+        // A copy into another worktree is that worktree's own work: staging or installing the source's ignored state
+        // costs what the tree costs, and a command in this worktree gains nothing from it. The journal is left whole,
+        // with no takeover, so a long-running command elsewhere never holds a registration this worktree needs, and the
+        // first command run there finishes it. A destination no registration names has no command left to run in it, so
+        // its transaction is settled here like any other.
+        if !finishes_destination(destinations, journal.journal.destination_root.as_path())
+            && destination_registration(common_dir, journal.journal.destination_root.as_path())
+                != Registration::Unregistered
+        {
+            notices.push(crate::worktree_copy_owed_copy::owed_in_another_worktree_notice(
+                journal.journal.destination_root.as_path(),
+            ));
+            continue;
+        }
         // `match` on the take-over: another command already took this journal, and it recovers it.
         let Some(mine) = adopt_journal(&journal, &owner)? else {
             continue;
         };
-        let (completed, notice) = recover_transaction(common_dir, mine)?;
+        let (completed, notice) = recover_transaction(common_dir, mine, ceiling)?;
         if completed {
             recovered += 1;
         }
@@ -411,7 +507,7 @@ fn recover_judged_transactions(common_dir: &Path, verdicts: &StageVerdicts) -> R
             notices.push(line);
         }
     }
-    notices.extend(reap_judged_stages(common_dir, verdicts)?);
+    notices.extend(reap_judged_stages(common_dir, verdicts, destinations)?);
     // A worktree a copy gave up on stays named until it is gone or replaced, so every command says what is missing
     // there and what settles it; a copy still running wrote its record first and is left without a word.
     notices.extend(crate::worktree_copy_unfilled_record::report_unfilled_records(common_dir)?);
@@ -461,13 +557,16 @@ pub fn report_recovered(
 ///   It never waits and takes no lock:
 /// items of live owners are skipped,
 /// and one atomic rename picks the single recoverer.
+/// A copy is finished only into the worktree the command runs in,
+/// and under the bound one command holds for work it did not start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recoverPendingWorktreeCopies(commonDir, stderr);
+/// await recoverPendingWorktreeCopies(commonDir, destinations, stderr);
 /// ```
 pub fn recover_pending_worktree_copies(
     common_dir: &Path,
+    destinations: RecoveryDestinations<'_>,
     context: &crate::transaction_git::GitContext,
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
@@ -477,10 +576,18 @@ pub fn recover_pending_worktree_copies(
         return Ok(());
     }
     // One judgement of every owner, before anything is changed: the copy an interrupted add owes is finished first,
-    // with the same verdicts the sweep below settles its claims on.
+    // with the same verdicts the sweep below settles its claims on, into the worktree this command runs in.
     let verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
-    let mut finished: Vec<String> = crate::worktree_copy_owed_copy::finish_owed_worktree_copies(common_dir, &verdicts, context, stderr)?;
-    let mut report: RecoveryReport = recover_judged_transactions(common_dir, &verdicts)?;
+    let ceiling: CopyCeiling = CopyCeiling::lasting(crate::worktree_copy_ceiling::OWED_COPY_CEILING);
+    let mut finished: Vec<String> = crate::worktree_copy_owed_copy::finish_owed_worktree_copies(
+        common_dir,
+        &verdicts,
+        &destinations,
+        &ceiling,
+        context,
+        stderr,
+    )?;
+    let mut report: RecoveryReport = recover_judged_transactions(common_dir, &verdicts, &destinations, &ceiling)?;
     finished.append(&mut report.notices);
     report.notices = finished;
     return report_recovered(&report, stderr);

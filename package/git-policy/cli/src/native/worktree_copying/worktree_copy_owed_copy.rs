@@ -1,6 +1,7 @@
 //! What:
 //!  The ignored-state copy an interrupted `git worktree add` still owes,
-//! made by the next command that finds it.
+//! made by the first command run in the worktree it fills, under the bound one command holds for work it
+//! did not start.
 //! Why:
 //!  An add records the destination,
 //! the source and the selection before real Git runs,
@@ -10,8 +11,10 @@
 //! or the installation never ran.
 //! Left alone, the worktree stays unfilled and the person must remove it and add it again,
 //! losing their own work in it;
-//! so the next command stages from the recorded source and installs under the journal,
+//! so the first command run in that worktree stages from the recorded source and installs under the journal,
 //! when the destination is still the registration the add made and its checkout is whole.
+//! A command in another worktree never makes it: the copy costs what the source's ignored tree costs, and that
+//! command gains nothing from it.
 //! Nothing is overwritten:
 //! the installation accepts an exact entry and refuses a differing one,
 //! so a worktree that gained anything since the add is named rather than written into.
@@ -26,8 +29,10 @@
 
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{Binding, OwedCopy, OwedSelection, Recorded, bind_registration, decode_record, owed_copy_of, path_identity};
+use crate::worktree_copy_ceiling::CopyCeiling;
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_interrupted_add_settlement::{add_is_finished, registration_directory};
+use crate::worktree_copy_interrupted_checkout::CheckoutFinish;
 use crate::worktree_copy_journal::{Role, assert_private_path, journal_root, read_pending_journals};
 use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
 use crate::worktree_copy_journal_removal::remove_stage;
@@ -82,6 +87,46 @@ pub fn owed_selection_of(selection: &CopySelection) -> Option<OwedSelection> {
         CopySelection::MainCheckout => Some(OwedSelection::MainCheckout),
         CopySelection::Paths(_) => None,
     };
+}
+
+/// What:
+///  The line a command prints when it meets a copy owed into another worktree,
+/// and the worktree whose own commands fill it.
+/// Why:
+///   The work is the worktree's own,
+/// so the person learns which worktree is short of files,
+/// that no command pays for it here,
+/// and that nothing is lost while it waits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: the ignored-state copy an interrupted \`git worktree add\` owed ${shown} is still owed; the first command run in that worktree makes it, and this command does not wait for it.`
+/// ```
+pub fn owed_in_another_worktree_notice(destination: &Path) -> String {
+    let shown: String = quote(destination.to_string_lossy().as_ref());
+    return format!(
+        "monochromatic-git-policy-cli: the ignored-state copy an interrupted `git worktree add` owed {shown} is still owed; the first command run in that worktree makes it, and this command does not wait for it."
+    );
+}
+
+/// What:
+///  The line that says this worktree's own command is about to make the copy it owes,
+/// naming the worktree and the source.
+/// Why:
+///   The copy costs what the source's ignored tree costs,
+/// which can be minutes;
+/// a command that says what it is doing before it starts leaves nothing silent while it lasts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: finishing the ignored-state copy an interrupted \`git worktree add\` owed ${shown} from ${source}; this command waits for it, and it stops at the ceiling one command holds for a copy it did not start.`
+/// ```
+fn finishing_notice(destination: &Path, source: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: finishing the ignored-state copy an interrupted `git worktree add` owed {} from {}, because this command runs in that worktree and its files are missing there; it stops at the ceiling one command holds for a copy it did not start.",
+        quote(destination.to_string_lossy().as_ref()),
+        quote(source.to_string_lossy().as_ref())
+    );
 }
 
 /// What:
@@ -363,10 +408,11 @@ fn clear_the_own_stage(container: &Path, destination: &Path) -> Result<bool, Wor
     }
     // A copy writes its binding into the container before its first payload entry, so a container that holds nothing but
     // the parts of that record is a copy killed while recording it; nothing of the source's state is there to lose, and
-    // only the claim's random identifier names that container.
+    // only the claim's random identifier names that container. A container that holds nothing at all is the step before
+    // that write, and it holds nothing to lose either.
     let own: bool = match stage_binding(container)? {
         Some(binding) => binding.destination == destination,
-        None => holds_only_a_binding(container),
+        None => holds_nothing_a_copy_wrote(container),
     };
     if !own {
         return Ok(false);
@@ -377,38 +423,42 @@ fn clear_the_own_stage(container: &Path, destination: &Path) -> Result<bool, Wor
 }
 
 /// What:
-///  Whether a container holds nothing but the stage binding a copy writes before its first payload entry,
-/// or a part of the write that publishes it.
+///  Whether a container holds nothing this wrapper cannot account for:
+/// no entry at all,
+/// or nothing but the stage binding a copy writes before its first payload entry
+/// and a part of the write that publishes it.
 /// Why:
-///   The write of that record publishes it by a rename,
-/// so a kill leaves either the record's own temporary or the
-///  file that temporary was being written in,
-/// and no binding;
+///   A copy creates its container and records which registration it fills as the step after it,
+/// so a kill in between leaves an empty
+///  container at a name only this wrapper's own private claim chose,
+/// and nothing stands in it that can be lost:
+/// the add it serves names the
+///  same container,
+/// so the empty folder is the wrapper's own step and not the person's work.
+/// The write of that record publishes it by a rename,
+/// so a kill at the next instruction leaves either the record's own temporary or the
+///  file that temporary was being written in;
 /// such a container holds no ignored file of the source,
-/// while one that holds a payload or a
-///  snapshot holds data and is never removed.
+/// while one that holds a payload,
+///  a snapshot or anything else holds data unless its binding names this destination,
+/// and is never removed.
 /// Only the record's own names count,
-/// so an ignored file of the source that merely begins with them keeps the
-///  container,
-/// and a container holding no entry at all proves nothing either:
-/// another program can make an empty directory at that name.
+/// so an ignored file of the source that merely begins with them keeps the container.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const named = readdir(container);
-/// const bare = named.length > 0 && named.every((name) => namesTheBindingWrite(name));
+/// const bare = named.every((name) => namesTheBindingWrite(name));
 /// ```
-fn holds_only_a_binding(container: &Path) -> bool {
+fn holds_nothing_a_copy_wrote(container: &Path) -> bool {
     let Ok(entries) = std::fs::read_dir(container) else { return false };
-    let mut named: bool = false;
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if !names_the_binding_write(name.as_str()) {
             return false;
         }
-        named = true;
     }
-    return named;
+    return true;
 }
 
 /// What:
@@ -456,6 +506,7 @@ fn finish_one_owed_copy(
     common_dir: &Path,
     add: &OwedAdd,
     journaled: bool,
+    ceiling: &CopyCeiling,
     context: &GitContext,
     stderr: &mut dyn Write,
 ) -> Result<Option<String>, WorktreeCopyError> {
@@ -464,7 +515,33 @@ fn finish_one_owed_copy(
         crate::diagnostic_log::debug("worktreeCopyOwed", format!("{} is journaled", add.destination.display()).as_str());
         return Ok(None);
     }
-    let Some(binding) = whole_registration(common_dir, add.destination.as_path()) else {
+    // The add's own Git may never have finished its checkout: a kill inside it leaves a registered worktree with no
+    // index, or with the lock of the step that publishes one. A command in that worktree finishes it here, and only
+    // where everything standing there came from the source, so no file of the person's is ever replaced.
+    let mut whole: Option<Binding> = whole_registration(common_dir, add.destination.as_path());
+    if whole.is_none() {
+        match crate::worktree_copy_interrupted_checkout::finish_interrupted_checkout(
+            common_dir,
+            add.destination.as_path(),
+            add.owed.source.as_path(),
+            context,
+            // The caller reached this claim through the judgement that proved its owner dead, so the lock a kill left
+            // here is a dead add's and no live writer's.
+            true,
+            ceiling,
+        )? {
+            CheckoutFinish::Finished(line) => {
+                stderr.write_all(line.as_bytes()).map_err(crate::worktree_copy_error::raw_failure_of)?;
+                stderr.write_all(b"\n").map_err(crate::worktree_copy_error::raw_failure_of)?;
+                whole = whole_registration(common_dir, add.destination.as_path());
+            }
+            CheckoutFinish::Whole => whole = whole_registration(common_dir, add.destination.as_path()),
+            CheckoutFinish::NotProvable(reason) => {
+                crate::diagnostic_log::debug("worktreeCopyOwed", format!("the checkout of {} is not finished here: {reason}", add.destination.display()).as_str());
+            }
+        }
+    }
+    let Some(binding) = whole else {
         crate::diagnostic_log::debug("worktreeCopyOwed", format!("{} is not a whole registration", add.destination.display()).as_str());
         return Ok(None);
     };
@@ -519,6 +596,10 @@ fn finish_one_owed_copy(
     let Some(claim) = StageClaim::adopted(add.claim.as_path(), add.container.as_path(), Some(add.record.as_path())) else {
         return Ok(None);
     };
+    // Said before the first entry is read, so the command that waits for this copy is never silent while it lasts.
+    stderr
+        .write_all(finishing_notice(add.destination.as_path(), add.owed.source.as_path()).as_bytes())
+        .map_err(crate::worktree_copy_error::raw_failure_of)?;
     return match synchronize_created_worktree_noting(
         context,
         common_dir,
@@ -528,6 +609,7 @@ fn finish_one_owed_copy(
         &selection_of(&add.owed),
         Some(claim),
         Some(&binding),
+        ceiling,
         stderr,
     ) {
         Ok(copied) => Ok(Some(finished_notice(add.destination.as_path(), add.owed.source.as_path(), copied))),
@@ -608,13 +690,14 @@ fn remove_dead_taking_marks(root: &Path) -> Result<(), WorktreeCopyError> {
 }
 
 /// What:
-///  Makes every copy an interrupted add still owes,
+///  Makes every copy an interrupted add still owes into the worktree this command runs in,
 /// on the dead owners the verdicts named.
 /// Why:
 ///   A live owner's add is running and its copy with it,
 /// so only a dead owner's records are finished here;
 /// the judgement is the sweep's own,
 /// taken before anything is changed.
+/// A copy into another worktree stays owed and is named instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -623,6 +706,8 @@ fn remove_dead_taking_marks(root: &Path) -> Result<(), WorktreeCopyError> {
 pub fn finish_owed_worktree_copies(
     common_dir: &Path,
     verdicts: &StageVerdicts,
+    destinations: &crate::worktree_copy_recovery::RecoveryDestinations<'_>,
+    ceiling: &CopyCeiling,
     context: &GitContext,
     stderr: &mut dyn Write,
 ) -> Result<Vec<String>, WorktreeCopyError> {
@@ -648,8 +733,14 @@ pub fn finish_owed_worktree_copies(
         let Some(add) = owed_add_of(claim.as_path(), container.as_path()) else {
             continue;
         };
+        // The copy fills one worktree, and the command that runs in it is the one that waits: a command in another
+        // worktree does not pay for the source's ignored state, and is told which worktree does.
+        if !crate::worktree_copy_recovery::finishes_destination(destinations, add.destination.as_path()) {
+            notices.push(owed_in_another_worktree_notice(add.destination.as_path()));
+            continue;
+        }
         let journaled_here: bool = journaled.iter().any(|named| { return named.as_path() == add.container.as_path(); });
-        if let Some(notice) = finish_one_owed_copy(common_dir, &add, journaled_here, context, stderr)? {
+        if let Some(notice) = finish_one_owed_copy(common_dir, &add, journaled_here, ceiling, context, stderr)? {
             notices.push(notice);
         }
     }
