@@ -131,8 +131,30 @@ fn current_thread() -> std::io::Result<Runtime> {
     return tokio::runtime::Builder::new_current_thread().enable_all().build();
 }
 
+/// The variable that makes the build of the multi-thread runtime wait before it starts its workers,
+/// so a control can produce a build that outlasts `BUILD_DEADLINE`:
+/// a whole number of milliseconds.
+/// Why:
+///  A real build takes milliseconds even under load,
+/// so no control could reach the one state the gate of 2026-11-11T10:29-05:00 reached on a machine slow to give a process its threads;
+///  the pause stands in for that machine.
+/// It is compiled into the release executable and inert unless the variable names a pause,
+///  as `CLI_GIT_TEST_ONLY_SERVICE_FAULT` is.
+pub const SLOW_BUILD_VARIABLE: &str = "CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS";
+
+/// The pause `SLOW_BUILD_VARIABLE` names,
+/// or none.
+fn the_pause_a_control_asks_for() -> Duration {
+    let named: Option<u64> = std::env::var(SLOW_BUILD_VARIABLE).ok().and_then(|text| { return text.trim().parse::<u64>().ok(); });
+    return named.map_or(Duration::ZERO, Duration::from_millis);
+}
+
 /// The multi-thread runtime with `workers` workers and at most `blocking` blocking-pool threads.
 fn multi_thread(workers: usize, blocking: usize) -> std::io::Result<Runtime> {
+    let pause: Duration = the_pause_a_control_asks_for();
+    if !pause.is_zero() {
+        std::thread::sleep(pause);
+    }
     return tokio::runtime::Builder::new_multi_thread()
         .worker_threads(workers)
         .max_blocking_threads(blocking)
