@@ -1024,3 +1024,23 @@ fn a_push_whose_tracking_reference_could_not_be_written_says_so() {
     assert_eq!(git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]), tip, "the next push leaves the reference naming its own commit");
     stage.finish();
 }
+
+/// What:
+///  The reference a push may write by hand is the one its own remote updates.
+/// Why:
+///   `push.default=current` sends the branch to `branch.<name>.pushRemote`,
+/// which may be no remote the branch tracks:
+///  writing the tracked remote's reference there would name a commit that remote never received.
+/// The two shapes that write nothing are a push that matches the branches itself and a push to another remote.
+#[test]
+fn only_a_push_to_the_branchs_own_tracked_remote_names_a_reference_to_write() {
+    let own: Sent = Sent { remote: String::from("origin"), targets: vec![String::from("refs/heads/main")] };
+    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &own, "refs/heads/main"), Some("refs/remotes/origin/main"));
+    let elsewhere: Sent = Sent { remote: String::from("mirror"), targets: vec![String::from("refs/heads/main")] };
+    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &elsewhere, "refs/heads/main"), None, "the tracked remote is not the one this push wrote");
+    let matching: Sent = Sent { remote: String::from("origin"), targets: Vec::new() };
+    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &matching, "refs/heads/main"), None, "a push that matches branches itself names no one reference");
+    let tagged: Sent = Sent { remote: String::from("origin"), targets: vec![String::from("refs/tags/v1")] };
+    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &tagged, "refs/heads/main"), None, "a push to another ref writes no branch reference");
+    assert_eq!(pushed_tracking_ref(None, &own, "refs/heads/main"), None, "a branch with no upstream has no reference to write");
+}

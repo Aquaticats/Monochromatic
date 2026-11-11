@@ -470,19 +470,29 @@ pub fn push_once(
 ///  The remote-tracking reference a push of this shape updates,
 ///  or nothing when no single reference is its.
 /// Why:
-///   The reference is written by hand only where the push sends the branch to its own name,
-/// which is the one case in which Git updates the branch's upstream ref;
-/// a push to another
-///  destination, or one that matches the branches itself, leaves that to Git.
+///   The reference is written by hand only where the push sends the branch to its own name on the remote the branch tracks,
+/// because that is the one case in which Git updates the branch's upstream ref:
+/// a push that matches the branches
+///  itself,
+/// a push to another destination,
+/// and a push whose remote is not the branch's tracked remote
+///  (`branch.<name>.pushRemote`, `push.default=current`) all leave that reference to Git,
+/// and writing it there would name a
+///  commit the other remote never received.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ref = (upstream, sent, branchRef) => upstream !== undefined && sent.targets.length === 1 && sent.targets[0] === branchRef ? upstream : undefined;
+/// const ref = (upstream, sent, branchRef) => upstream === `refs/remotes/${sent.remote}/${branchRef.slice('refs/heads/'.length)}` && sent.targets.length === 1 && sent.targets[0] === branchRef ? upstream : undefined;
 /// ```
 pub(crate) fn pushed_tracking_ref<'a>(upstream: Option<&'a str>, sent: &Sent, branch_ref: &str) -> Option<&'a str> {
     let of: &'a str = upstream?;
     let target: &String = sent.targets.first()?;
-    return (sent.targets.len() == 1 && target.as_str() == branch_ref).then_some(of);
+    if sent.targets.len() != 1 || target.as_str() != branch_ref {
+        return None;
+    }
+    let short: &str = branch_ref.strip_prefix("refs/heads/")?;
+    let expected: String = format!("refs/remotes/{}/{short}", sent.remote);
+    return (of == expected).then_some(of);
 }
 
 /// What:
