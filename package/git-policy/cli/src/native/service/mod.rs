@@ -69,6 +69,10 @@ pub mod service_journal;
 /// written and parsed.
 pub mod service_journal_intent_text_and_parse;
 
+/// How old a finished batch's record is,
+/// read from the clocks the record itself carries.
+pub mod service_journal_record_age;
+
 /// Test-only fault points of the commit service.
 pub mod service_fault;
 

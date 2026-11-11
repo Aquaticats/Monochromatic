@@ -1520,8 +1520,9 @@ once they are older than the longest a client that lost its answer can look,
 and an empty landing record are the memory of a service that will never run again,
 while a batch that did not land,
 a landing that was in flight,
-and a file this release does not know keep the whole journal,
-and the command names the file it kept it for.
+the repositories a service was still to look at and the pushes it was still to try again,
+and a file or folder this release does not know keep the whole journal,
+and the command names the entry it kept it for.
 A journal that stays only for the clients that may still read it,
 or for a service the manager does not yet report gone,
 keeps the note and the socket file too and is not named:
@@ -1534,15 +1535,21 @@ It starts nothing,
 nothing runs it by itself,
 and no unit it concerns is enabled for login.
 A service that finds its own worktree gone stops its own socket and serves nothing,
-so those leftovers also go without anyone running the command.
+so those leftovers also go at the next sweep without anyone running the command for that worktree.
 It asks the same question of the same note and journal records,
 when it starts and then once a minute while it serves
 (a removal by another Git takes the worktree while its service is running,
 so no start of that service ever comes),
 stops its socket with the stop mode that leaves the units requiring it alone,
-removes the note,
-the socket file and the journal when the journal holds nothing else,
+keeps the journal,
+the note and the socket file,
 and ends with status 0.
+It never removes its own journal:
+its after-commit task writes the note of a repository to look at and the plan of a push to try again,
+on a thread of its own and from jobs of the blocking pool,
+so a write that lands between a listing of the journal and its removal would be taken with the tree.
+The sweep above removes the journal once the manager reports its service gone,
+and until then `doctor` counts the instance the note still names.
 Its own end is what stops its service unit,
 so it never asks the manager to stop the service it is,
 and a failure status would make `Restart=on-failure` start it again.

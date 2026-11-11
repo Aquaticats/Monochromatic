@@ -10435,12 +10435,24 @@ or the `gitdir=` records of the service's own journal,
 names that directory and hashes to the instance.
 It stops its socket unit with the job mode that leaves the units requiring it alone,
 because its own end is what stops its service unit,
-and a stop of that unit from inside the service would signal it before it could remove the note and the socket file.
+and a stop of that unit from inside the service would signal it before it could stop its own socket and leave its files as the sweep finds them.
+It never removes its own journal,
+because it is still one of that journal's writers:
+its after-commit task writes the note of a repository to look at and the plan of a push to try again,
+on a thread of its own and from jobs of the blocking pool,
+so a write that lands between the listing that says the journal holds nothing unresolved and the removal of the whole tree
+would be taken with it.
+It keeps the journal,
+the note and the socket file instead,
+names the journal in its own log when it holds work a person may want,
+and leaves the removal to the sweep that asks the manager whether its service is gone
+(`service stop-units-of-removed-worktrees`),
+which finds the instance by the note it kept.
 It ends with status 0,
 not a refusal,
 because `Restart=on-failure` would start a refused unit again,
 and a socket that could not be stopped is left to `service stop-units-of-removed-worktrees` and to `doctor`'s count.
-The instance's service journal goes with the socket and the note when it holds nothing else:
+The sweep removes the instance's service journal with the socket and the note when it holds nothing else:
 the records of the batches that landed,
 once no client of the instance can still read them,
 and an empty landing record are the memory of a service that is never served again,
@@ -10448,7 +10460,8 @@ while a batch that did not land,
 a batch whose objects a scratch reference may hold,
 a record that was written and not published,
 a landing or withdrawal record,
-and a file this release does not know keep the whole journal and are logged,
+the repositories a service was still to look at and the pushes it was still to try again,
+and a file or folder this release does not know keep the whole journal and are logged,
 never discarded.
 A finished batch's record is kept for `A_FINISHED_RECORD_IS_READ` in `service/wait_ceilings.rs`
 (`ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `LOOKING_FOR_A_LANDED_COMMIT`:
@@ -10457,6 +10470,17 @@ the short extra wait inside it,
 and the look for its commit),
 because a client whose answer was lost reads that record to learn which commit its request became,
 and sends the same request again to be told it already landed.
+That age is read from the clock reading the record carries,
+written with the record itself (`service/service_journal_record_age.rs`):
+the boot and machine IDs,
+the monotonic clock and the wall clock,
+the reading a claim's lease is judged by (`service/claim_time.rs`),
+so two records of one boot are compared on a clock that never steps and does not count a suspended host's sleep,
+a record of an earlier boot of the same machine is past at once because a restart ended every client of it,
+and only a record of an earlier release,
+which carries no reading,
+is judged by its modification time.
+A wall clock that stepped forward is therefore no reason to take a record a client of this boot may still read.
 A journal kept only for those clients,
 or for a service the manager does not yet report gone,
 keeps the note and the socket file instead of being logged:
