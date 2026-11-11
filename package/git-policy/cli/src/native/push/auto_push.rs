@@ -453,7 +453,7 @@ pub fn push_once(
         && let Some(of) = pushed_tracking_ref(upstream.as_deref(), &sent, pushed_ref.as_str())
     {
         // The reference is written by its full name: the name a branch's upstream is answered with, `origin/main`, is no ref.
-        let full: String = crate::push_tracking_ref_repair::resolve(git, of).unwrap_or_else(|| of.to_owned());
+        let full: String = crate::push_tracking_ref_repair::resolve(git, of).unwrap_or_else(|| { return of.to_owned(); });
         if !crate::push_tracking_ref_repair::bring_up_to_date(git, full.as_str(), source.as_str()) {
             note = crate::push_tracking_ref_repair::still_behind(full.as_str(), source.as_str());
         }
