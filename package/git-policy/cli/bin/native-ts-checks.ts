@@ -59,9 +59,9 @@ export const recordedCheckTasks: readonly string[] = [
 /**
  Seconds one check is given when the caller names none.
 
- The TypeScript unit run of this package and its type check are the two this command starts by default; a run of both,
- measured on 2026-11-11 on this host, took 53 seconds in all (`native:ts-checks`, first full run of this command), so
- fifteen minutes is seventeen times that and a check still running then is one that will not answer. `--deadline-seconds`
+ The TypeScript unit run of this package and its type check are the two this command starts by default; one full run of
+ both on this host on 2026-11-11 took 91 seconds (13:46:48 to 13:48:19, `mise run //package/git-policy/cli:native:ts-checks`),
+ so fifteen minutes is ten times that and a check still running then is one that will not answer. `--deadline-seconds`
  overrides it.
  */
 export const defaultCheckDeadlineSeconds = 900;

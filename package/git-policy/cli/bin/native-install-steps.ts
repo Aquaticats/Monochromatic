@@ -155,6 +155,27 @@ export function newestTimingLine({ text }: { readonly text: string; }): {
 }
 
 /**
+ The line an install prints about the wrapper's own timing record of the sample commit.
+
+ @param timing - the record's newest line and how many lines it holds
+
+ @returns the report, which says so when the wrapper left no record at all
+
+ @example
+ ```ts
+ timingReportLine({ timing: { line: '{"step":"commit"}', count: 1 } });
+ ```
+ */
+export function timingReportLine({ timing }: { readonly timing: {
+  readonly line: string;
+  readonly count: number
+}; }): string {
+  return timing.count === 0
+    ? `== ${commitTimingFileName} holds no line yet, so the commit was answered without a record`
+    : `== newest timing line (${String(timing.count)} lines in all)\n${timing.line}`;
+}
+
+/**
  One moment as the text `journalctl --since` reads, in UTC with a second precision.
 
  @param moment - the moment to write

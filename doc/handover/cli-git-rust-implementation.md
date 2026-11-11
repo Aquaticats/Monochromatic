@@ -12435,8 +12435,13 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   `mise run //package/git-policy/cli:native:release` (dispatches the `crate-release` workflow;
   it refuses while origin lacks local main commits),
   `native:release:wait`,
-  then `node ~/temp/agent/upgrade-wrapper.ts <version>`
+  then `mise run //package/git-policy/cli:native:install -- <version>`
   and a sample commit.
+  That task is the scratch script `~/temp/agent/upgrade-wrapper.ts`
+  folded into the package on 2026-11-11
+  (`package/git-policy/cli/README.md`,
+  "The checks and the install");
+  it takes the same steps and samples the same commit.
   Owner (2026-11-02T21:58:07-05:00):
   "This is expected and fine,
   the correct answer is to release again combining all the

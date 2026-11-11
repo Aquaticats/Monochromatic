@@ -196,6 +196,45 @@ function isArgumentArray(value: unknown): value is readonly string[] {
 }
 
 /**
+ Reads one file a stand-in wrote, answering empty text when it never wrote it.
+
+ @param directory - the fixture's directory
+
+ @param fileName - the file the stand-in writes
+
+ @returns the file's text, or empty text when it is not there
+
+ @throws Error when the file is there and cannot be read, which is no fixture these tests make
+
+ @example
+ ```ts
+ await readRecordedText({ directory: standIn.directory, fileName: 'systemctl.jsonl' });
+ ```
+ */
+async function readRecordedText({
+  directory,
+  fileName,
+}: {
+  readonly directory: string;
+  readonly fileName: string;
+}): Promise<string> {
+  try {
+    return await readFile(
+      join(
+        directory,
+        fileName
+      ),
+      'utf8'
+    );
+  }
+  catch (error) {
+    if (!isMissingPathError({ error, }))
+      throw error;
+    return '';
+  }
+}
+
+/**
  Reads every argument array one stand-in recorded.
 
  @param directory - the fixture's directory
@@ -221,20 +260,10 @@ export async function recordedCalls({
   /**
    The recorded text, empty when the stand-in was never called.
    */
-  let text = '';
-  try {
-    text = await readFile(
-      join(
-        directory,
-        fileName
-      ),
-      'utf8'
-    );
-  }
-  catch (error) {
-    if (!isMissingPathError({ error, }))
-      throw error;
-  }
+  const text = await readRecordedText({
+    directory,
+    fileName,
+  });
   return text.split('\n')
     .filter(function hasText(line) {
       return line !== '';

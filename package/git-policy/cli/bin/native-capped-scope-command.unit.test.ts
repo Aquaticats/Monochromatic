@@ -163,7 +163,7 @@ await describe({
           program: process.execPath,
           args: [
             '-e',
-            'process.stdout.write("the check ran\\n"); process.stderr.write("and said why\\n"); process.exit(3);',
+            String.raw`process.stdout.write("the check ran\n"); process.stderr.write("and said why\n"); process.exit(3);`,
           ],
           deadlineMilliseconds: testDeadlineMilliseconds,
           environment: standIn.environment,
@@ -182,7 +182,7 @@ await describe({
         expect(calls.starts[0],).toContain('--property=IOWeight=1',);
         expect(calls.starts[0]?.slice(-2),).toEqual([
           '-e',
-          'process.stdout.write("the check ran\\n"); process.stderr.write("and said why\\n"); process.exit(3);',
+          String.raw`process.stdout.write("the check ran\n"); process.stderr.write("and said why\n"); process.exit(3);`,
         ],);
         expect(calls.stops,).toHaveLength(0,);
       },
@@ -227,27 +227,26 @@ await describe({
         /**
          The refusal the runner threw.
          */
-        const refusal = await runInCappedScope({
-          name: testScopeName,
-          caps: defaultCheckScopeCaps,
-          program: process.execPath,
-          args: [
-            '-e',
-            `setTimeout(function end() {}, ${String(outlastMilliseconds)});`,
-          ],
-          deadlineMilliseconds,
-          environment: {
-            ...standIn.environment,
-            [scopeStandInStopFailureVariable]: '1',
-          },
-        }).then(
-          function answered(): undefined {
-            return undefined;
-          },
-          function refused(error: unknown) {
-            return error;
-          },
-        );
+        let refusal: unknown;
+        try {
+          await runInCappedScope({
+            name: testScopeName,
+            caps: defaultCheckScopeCaps,
+            program: process.execPath,
+            args: [
+              '-e',
+              `setTimeout(function end() {}, ${String(outlastMilliseconds)});`,
+            ],
+            deadlineMilliseconds,
+            environment: {
+              ...standIn.environment,
+              [scopeStandInStopFailureVariable]: '1',
+            },
+          });
+        }
+        catch (error) {
+          refusal = error;
+        }
         expect(refusal,).toBeInstanceOf(NativeGateError,);
         expect(String(refusal),).toContain('could not be ended',);
         expect(String(refusal),).toContain('the stand-in was asked to refuse this stop',);

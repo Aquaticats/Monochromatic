@@ -47,6 +47,7 @@ import {
   readOrEmpty,
   stepNameOf,
   summaryLinesOf,
+  timingReportLine,
   wrapperToolName,
   wrapperVersionLine,
 } from './native-install-steps.ts';
@@ -93,6 +94,58 @@ const deadlineOption = '--deadline-seconds';
 const usage = 'usage: native:install [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>';
 
 /**
+ Runs one install step's command, bounded, and refuses with the whole step named and what it said.
+
+ `runGateCommandOrThrow` names a command by its program and first argument, which for a task runner is the word `run`; a
+ coordinator reading an install's refusal needs the task itself, so the step's own name is put in front of it.
+
+ @param step - the step to run
+
+ @param deadlineMilliseconds - how long it may run
+
+ @returns what the step printed and how it ended
+
+ @throws NativeGateError naming the whole step, when it could not run, ran past its deadline, or failed
+
+ @example
+ ```ts
+ await runStepCommand({ step, deadlineMilliseconds: 1_800_000 });
+ ```
+ */
+async function runStepCommand({
+  step,
+  deadlineMilliseconds,
+}: {
+  readonly step: InstallStep;
+  readonly deadlineMilliseconds: number;
+}): Promise<{
+  readonly status: number;
+  readonly stdout: string;
+  readonly stderr: string
+}> {
+  try {
+    return await runGateCommandOrThrow({
+      program: step.program,
+      args: step.args,
+      deadlineMilliseconds,
+      environment: {
+        ...process.env,
+        ...promptlessGitSettings,
+      },
+      workingDirectory: step.repository,
+    });
+  }
+  catch (error) {
+    if (!(error instanceof NativeGateError))
+      throw error;
+    throw new NativeGateError(
+      `the step ${stepNameOf({ step, })} did not succeed: ${error.message}`,
+      { cause: error, }
+    );
+  }
+}
+
+/**
  Runs one install step, bounded, and prints the summary lines it wrote.
 
  @param step - the step to run
@@ -118,15 +171,9 @@ async function runStep({
   /**
    What the step printed, which a failed step carries in its refusal.
    */
-  const answered = await runGateCommandOrThrow({
-    program: step.program,
-    args: step.args,
+  const answered = await runStepCommand({
+    step,
     deadlineMilliseconds,
-    environment: {
-      ...process.env,
-      ...promptlessGitSettings,
-    },
-    workingDirectory: step.repository,
   });
   printLine(`== ${stepNameOf({ step, })}: exit ${String(answered.status)}`);
   for (const line of summaryLinesOf({
@@ -205,9 +252,7 @@ async function printSampleEvidence({
       ),
     }),
   });
-  printLine(timing.count === 0
-    ? `== ${commitTimingFileName} holds no line yet, so the commit was answered without a record`
-    : `== newest timing line (${String(timing.count)} lines in all)\n${timing.line}`);
+  printLine(timingReportLine({ timing, }));
   /**
    The service journal of the sample commit, bounded, so a service that answered nothing says so.
    */

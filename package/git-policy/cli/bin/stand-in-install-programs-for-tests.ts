@@ -199,13 +199,9 @@ async function git({
 
  @param version - the release the stand-in tool reports and writes into the lockfile
 
- @param options - `lockUnchanged` leaves the lockfile as it is, which is an install of a release already recorded
-
- @param options.lockUnchanged - whether the lockfile is left as it is
-
- @param options.failStep - the step whose stand-in fails
-
- @param options.timingLine - one recorded timing line to write beside the common Git directory
+ @param options - what the fixture's stand-ins are told: `lockUnchanged` leaves the lockfile as it is, which is an
+   install of a release already recorded, `failStep` names the step whose stand-in fails, and `timingLine` is one recorded
+   timing line to write beside the common Git directory
 
  @returns the fixture; declare it with `await using`
 
@@ -296,11 +292,19 @@ export async function createInstallFixture({
   ]);
   await git({
     directory: repository,
-    args: ['init', '--quiet', '--initial-branch=main', '.',],
+    args: [
+      'init',
+      '--quiet',
+      '--initial-branch=main',
+      '.',
+    ],
   });
   await git({
     directory: repository,
-    args: ['add', 'toolchain.lock.json',],
+    args: [
+      'add',
+      'toolchain.lock.json',
+    ],
   });
   await git({
     directory: repository,
