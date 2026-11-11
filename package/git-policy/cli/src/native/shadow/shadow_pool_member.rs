@@ -73,10 +73,10 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// await refusal(template, member); // 'its config is not the one this invocation would write' | undefined
 /// ```
 pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<String>> {
-    if read_bytes(member.join("config").as_path())? != template.config_bytes().as_bytes() {
+    if read_bytes(member.join("config").as_path())? != template.config_bytes() {
         return Ok(Some(String::from("its config is not the one this invocation would write")));
     }
-    if read_bytes(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_bytes().as_bytes() {
+    if read_bytes(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_bytes() {
         return Ok(Some(String::from("its alternates do not name this invocation's object directory")));
     }
     if read_bytes(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD.as_bytes() {
@@ -145,13 +145,15 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
 }
 
 /// What:
-///  A file's bytes,
+///  A file's exact bytes,
 ///  and nothing for one that is not there.
 /// Why:
-///   A configuration is compared byte for byte:
-/// two files whose bytes differ in a way that decodes to the
-///  same text are still two configurations,
-/// and a member that kept the older one would hand a commit the editor,
+///   Every file of a member is compared byte for byte:
+/// its config and alternates name paths,
+///  and the worktree's configuration can hold one too,
+/// so two files that differ only in bytes that are not UTF-8
+///  decode to the same text and would be judged equal.
+/// A member that kept the older one would hand a commit the editor,
 /// the hook
 ///  or the command the person has since changed.
 /// A missing entry is a difference the caller refuses,
@@ -161,26 +163,6 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await readBytes(path) // the empty buffer when absent
-/// ```
-fn read_bytes(path: &Path) -> std::io::Result<Vec<u8>> {
-    return match std::fs::read(path) {
-        Ok(bytes) => Ok(bytes),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
-        Err(error) => Err(error),
-    };
-}
-
-/// What:
-///  The exact bytes of a file of a member,
-///  or nothing for an absent one.
-/// Why:
-///   A member's config and alternates name paths,
-///  and a path need not be UTF-8;
-///  a lossy text of them compared equal to a lossy text of another directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await readIfExists(path) ?? Buffer.alloc(0)
 /// ```
 fn read_bytes(path: &Path) -> std::io::Result<Vec<u8>> {
     return match std::fs::read(path) {
