@@ -121,6 +121,15 @@ The launcher's standard pool holds 6 runs until the owner turns auto-renew back 
 which is the owner's billing decision.
 Restart a run that ended this way under its own name;
 its worktree keeps the work.
+Two launcher defects showed that night,
+fixed in the scratch launcher and owed to `package/pi-shared/subagent-driver`:
+a run whose launcher process had gone was counted in the `opencode-go` pool,
+so 12 runs sat on standard Neuralwatt while it read 0 of 6 and took more;
+the pool now comes from the unit's own `--provider` and `--model`.
+And `--run` defaulted to 1,
+so each restart wrote over the first run's `summary.json`
+(16 reports, 11 recovered from `~/.pi/agent/sessions/`);
+a run with no `--run` now takes the next free number.
 The owner on 2026-11-10:
 "And you should almost always keep all slots filled."
 and
