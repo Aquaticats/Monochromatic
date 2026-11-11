@@ -101,6 +101,51 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### An impostor user manager throttled the alpha.10 gate and failed thread creation (2026-11-11T06:45:00-05:00)
+
+At 2026-11-11T03:51:27-05:00 a Kimi agent's probe script started a second `/usr/lib/systemd/systemd --user --log-target=console`
+(pid 2477887, in scope `run-p2476658-i316681074`).
+systemd requests `org.freedesktop.systemd1` on the session bus with replacement allowed,
+and the real manager (pid 5697, main process of `user@1000.service`) never asks for it back,
+so the impostor owned the name for almost three hours.
+Every `systemctl --user` and `systemd-run --user` call in that time, and every `busctl --user call org.freedesktop.systemd1` call of `wg-quicker-exempt`,
+went to the impostor.
+`wg-quicker-exempt` adopted processes into scopes the impostor created,
+named for the probe's origin and holding its limits (CPUQuota 100%, MemoryMax 1 GiB, TasksMax 256):
+the alpha.10 gate's podman build compiled there, with `nr_throttled 71282` of `nr_periods 90513`,
+and a Git merge failed with "fatal: unable to create threaded lstat: Resource temporarily unavailable".
+The host itself was not short of threads (`threads-max` 503082, `ulimit -u` 32768, `user-1000.slice` TasksMax 32768, about 5,000 in use).
+Earlier the same night pass 8 of the integration script failed on that error too,
+and the coordinator's own `TasksMax=1024` scope for it was a second cause.
+
+What was done:
+
+- The coordinator raised the impostor scope's limits by hand so the gate could finish,
+  killed pid 2477887 with SIGKILL (SIGTERM would have made it stop the units it had started),
+  and ran `systemctl --user daemon-reexec`; pid 5697 owns the name again.
+- Stopgap: user service `guard-user-manager-bus-name`
+  (`${HOME}/temp/agent/pi-runs/guard-user-manager-bus-name.ts`, Restart=always)
+  watches `NameOwnerChanged` for the name, polls every 5 s as a backstop,
+  kills any owner that is not the real manager and re-executes the manager, logging every action to the journal.
+- Owner, 2026-11-11: "Make sure no imposer can never succeed again."
+  Rule `MHX` in `AGENTS.md` (owner-approved as written, commit `6e62e0aafe`) and the shared Pi brief rules forbid starting a service manager on the host;
+  a private `dbus-daemon` on its own socket stays allowed, as the `nested-wayland-session` and `music-player` tests use one.
+  A search of `package/` found no test that starts `systemd --user`.
+- The durable fix belongs to the wg packages:
+  agent `wg-exempt-adopted-scopes-say-what-they-hold` (run 3, branch `fix/wg-exempt-adopted-scopes-say-what-they-hold`)
+  has it first in its brief: manager calls only over the private socket with an `SO_PEERCRED` check against `user@<uid>.service`'s `MainPID`,
+  root-watcher eviction of any other owner of the name, controls for both,
+  then a moved process keeping its own origin's limits, the scope names and descriptions, and the Claude Sonnet audit's findings F2 to F9
+  (`${HOME}/temp/agent/sonnet-audits/wg-packages/report.md`).
+  Its round 164 launches at 06:05 and 06:23 exited with status 1 and left empty run folders, most likely because the name had no owner or an impostor then;
+  run 3 started at 06:38.
+
+Also seen at 06:42: the commit service's auto-push of `main` (`6e62e0aafe`) was refused with "GH006: Protected branch update failed for refs/heads/main." and an empty reason line,
+one minute after another session pushed `7731b5fbe6`;
+a push by hand at 06:44 went through as a fast-forward.
+`main`'s protection requires signed commits (the commit is signed, `G`) and has no required checks.
+The cause is unmeasured.
+
 ### 0.6.1-alpha.9 installed; the next integration is being built (2026-11-10T20:18:00-05:00)
 
 Release `0.6.1-alpha.9` (bump `64989e5e89`) shipped:
