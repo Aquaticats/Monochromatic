@@ -108,8 +108,8 @@ pub(crate) fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig
 ///  command that lands at once and says nothing else.
 /// The words therefore wait for the wait the place of a waiting commit waits for
 ///  (`waiting_notice_after`),
-/// and words that differ from the ones already said are newer news,
-/// so they are said at once.
+/// and every change of them past that wait is said,
+/// so a write that has stayed stuck a new minute is told in its new words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,14 +122,11 @@ pub(crate) fn say_the_write_it_is_inside(notices: &mut dyn Write, config: &Clien
     if told.as_deref() == Some(text) {
         return;
     }
-    // Words other than the ones already said are newer news: a write that has stayed stuck a new minute, said at once.
-    if told.is_none() {
-        let Some(since) = parked else {
-            return;
-        };
-        if since.elapsed() < config.waiting_notice_after {
-            return;
-        }
+    let Some(since) = parked else {
+        return;
+    };
+    if since.elapsed() < config.waiting_notice_after {
+        return;
     }
     *told = Some(text.to_string());
     // Terminal output error: a notice is advisory; a failed write must not stop the commit.
