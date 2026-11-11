@@ -255,8 +255,11 @@ fn git_line(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> String {
 }
 
 /// What:
-///  A repository whose `main` holds one commit, its clone, and a remote commit that adds
-///  `new.txt`, with `new.txt` in the clone untracked.
+///  A repository whose `main` holds one commit,
+/// its clone,
+/// and a remote commit that adds
+///  `new.txt`,
+/// with `new.txt` in the clone untracked.
 /// Why:
 ///   That is the state the review reproduced:
 ///  the pull's fetch moves the checked-out branch,
@@ -307,7 +310,9 @@ fn a_copy_the_words_name(text: &str, name: &str) -> Option<String> {
     return None;
 }
 
-/// The pull's recovery, run as printed, leaves the untracked file it would have overwritten
+/// The pull's recovery,
+/// run as printed,
+/// leaves the untracked file it would have overwritten
 /// in the copy the words name.
 #[test]
 fn the_pulls_recovery_runs_as_printed_and_keeps_the_untracked_file() {
