@@ -52,13 +52,15 @@ use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_di
 use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
 use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
-use crate::subvolume_remove_walk::{empty_directory, verify_below};
+use crate::subvolume_remove_walk::{empty_directory, find_boundary_below, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
-use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, stage_state};
+use crate::worktree_removal_clears_the_ahead_pool::clear_the_snapshots_ahead;
+use crate::worktree_removal_refuses_a_nested_volume::refusal_for_nested_volume;
+use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, snapshots_ahead_report, stage_state};
 use crate::worktree_remove_registry::{Registration, registration_of};
 use std::ffi::OsString;
 use std::fs::File;
@@ -455,6 +457,12 @@ fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>)
         Ok(admin) => admin,
         Err(error) => return incomplete(registration, request, format!("its directory cannot be used ({error})")),
     };
+    // The snapshots ahead of an add are this program's own and sit in the registration, so they go before the walk that
+    // refuses every nested subvolume. A pool a fill made in the moments since the removal cleared it is the one case this
+    // second clear answers, and a member that cannot go is the reason the registration stays.
+    if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held.admin).as_path()) {
+        return incomplete(registration, request, format!("its content cannot be removed ({reason})"));
+    }
     let emptied = match verify_below(&admin, registration.admin.as_path()) {
         Ok(()) => empty_directory(&admin, registration.admin.as_path()),
         Err(error) => Err(error),
@@ -553,6 +561,26 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     if let Err(reason) = confirm(&held, &registration) {
         debug(TAG, format!("{reason}; Git decides").as_str());
         return RemoveOutcome::LeftToGit;
+    }
+    // The kernel refuses a destroy for a subvolume that contains another one, so a worktree holding a subvolume of its own
+    // could never go this way: it has to be refused while nothing has happened, and never handed to Git, whose removal
+    // unlinks the inner worktree's files. A tree that cannot be walked proves nothing either way, and the removal is then
+    // Git's, which is what it was before this check existed.
+    match find_boundary_below(&held.target, target) {
+        Ok(None) => {}
+        Ok(Some(found)) => {
+            let report: String = refusal_for_nested_volume(target, request.common_dir, &found);
+            warn(TAG, report.as_str());
+            return RemoveOutcome::Refused(report);
+        }
+        Err(error) => debug(TAG, format!("the tree of {} cannot be walked for a subvolume of its own ({error}); Git decides", target.display()).as_str()),
+    }
+    // The snapshots ahead of an add are this program's own and stand in the registration the removal empties after the
+    // destroy, so they go first: a pool that cannot be taken stops the removal while nothing has happened.
+    if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held.admin).as_path()) {
+        let report: String = snapshots_ahead_report(target, registration.admin.as_path(), reason.as_str());
+        warn(TAG, report.as_str());
+        return RemoveOutcome::Refused(report);
     }
     // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the
     // removal of the registration leaves a state the next command can finish instead of one only `git worktree prune`

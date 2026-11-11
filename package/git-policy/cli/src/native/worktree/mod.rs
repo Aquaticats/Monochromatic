@@ -125,6 +125,14 @@ pub mod worktree_removal_stops_units;
 /// taken after the removal proved the worktree is gone.
 pub mod worktree_removal_clears_the_pool;
 
+/// The snapshots this program made ahead of an add,
+/// taken out of a worktree's administrative directory before that worktree is removed.
+pub mod worktree_removal_clears_the_ahead_pool;
+
+/// The refusal of a removal for a worktree that holds a subvolume or a mount point of its own,
+/// which the kernel can never destroy in one step.
+pub mod worktree_removal_refuses_a_nested_volume;
+
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
 pub mod worktree_path_failure_message;

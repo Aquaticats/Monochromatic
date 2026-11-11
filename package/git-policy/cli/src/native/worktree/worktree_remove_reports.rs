@@ -1,9 +1,11 @@
 //! What:
-//!  The three reports a removal can end with:
+//!  The reports a removal can end with:
 //! the command that forgets a registration whose directory is gone,
 //! the report of a refused
 //!  removal,
-//! and the report of one that destroyed the files and could not remove the registration.
+//! the report of one that destroyed the files and could not remove the registration,
+//! and the report of one
+//!  refused because the snapshots this program made ahead of an add cannot be taken.
 //! Why:
 //!  Each report is text a person acts on,
 //! so each names the paths and every command that finishes the job,
@@ -19,6 +21,7 @@
 //! ```ts
 //! const prune = pruneCommand(commonDir);
 //! const refused = leftoverStageReport(target, converting);
+//! const blocked = snapshotsAheadReport({ target, admin, reason });
 //! const incomplete = incompleteReport({ target, registration, commonDir, reason });
 //! ```
 
@@ -179,5 +182,38 @@ pub(crate) fn incomplete_report(target: &Path, registration: &Registration, comm
         worktrees = registration.worktrees.display(),
         reason = reason,
         prune = prune
+    );
+}
+
+/// What:
+///  The report of a removal refused because the snapshots the wrapper made ahead of an add cannot be taken.
+/// Why:
+///   A worktree that was the source of one `git worktree add` keeps those snapshots in its administrative
+///  directory,
+/// the removal destroys the worktree's subvolume before it empties that directory,
+/// and the emptying
+///  refuses a nested subvolume,
+/// so a pool that cannot go first has to stop the removal while nothing has happened yet
+///  (a Sonnet finding, F1).
+///  The pool is the wrapper's own,
+/// so the person is told which folder holds it and the one command that takes each member,
+///  and that nothing of the worktree was removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function snapshotsAheadReport(target: string, admin: string, reason: string): string;
+/// ```
+pub(crate) fn snapshots_ahead_report(target: &Path, admin: &Path, reason: &str) -> String {
+    let pool: std::path::PathBuf = crate::worktree_snapshot_ahead::pool_folder(admin);
+    return format!(
+        "monochromatic-git-policy-cli: the worktree {target} holds the snapshots this program made ahead of an add, in \
+         {pool}, and they cannot be removed: {reason}.\n\
+         Removing the worktree now would leave them behind with no registration that names them, so nothing was removed \
+         and nothing of the worktree changed.\n\
+         Fix what the reason names and run the removal again; to take the snapshots yourself, delete every entry of {pool} \
+         (`btrfs subvolume delete <entry>`), and then run the removal again.",
+        target = target.display(),
+        pool = pool.display(),
+        reason = reason
     );
 }

@@ -2,13 +2,17 @@
 //!  The words one landed sweep prints,
 //!  one line per worktree it removed,
 //!  left,
-//!  or could not prove it made,
+//!  could not prove it made,
+//!  or removed the files of without emptying the registration,
 //!  and one for each commit a removal would have deleted.
 //! Why:
 //!   A command that removed a person's worktree by itself must say so,
 //!  and one that left a landed worktree must say what kept it:
 //!  the space a snapshot holds is invisible otherwise,
 //!  and a person who expected a removed worktree needs to know it is still there and why.
+//!  A removal whose files went and whose registration stayed is said in those terms,
+//!  because the worktree is not in place any more
+//!  and the report that finishes it is the only thing that says where the registration is.
 //!  A commit held behind a reference lock lives in the worktree's own Git directory,
 //!  so a removal deletes the only thing that names it;
 //!  the line about it comes before the removal's line and names where this repository keeps it.
@@ -62,6 +66,15 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
             removed.branch,
             sweep.landed_branch
         ));
+    }
+    for unfinished in &sweep.unfinished {
+        lines.push(format!(
+            "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}, and could not remove its registration, so Git still lists the worktree as missing; this is what finishes it:",
+            unfinished.worktree.display(),
+            unfinished.branch,
+            sweep.landed_branch
+        ));
+        lines.push(unfinished.report.clone());
     }
     for kept in &sweep.kept {
         lines.push(format!(

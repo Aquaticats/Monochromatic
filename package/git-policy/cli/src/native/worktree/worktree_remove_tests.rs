@@ -166,7 +166,7 @@ fn btrfs_a_worktree_holding_a_nested_subvolume_is_refused_before_the_hand_over()
     let RemoveOutcome::Refused(report) = outcome else { panic!("a worktree the kernel can never destroy is refused, but it was {outcome:?}") };
     assert!(report.contains(inner.to_str().expect("UTF-8")), "the report names the subvolume that stands in the way: {report}");
     assert!(report.contains("refs/heads/inner"), "and the branch the worktree there has checked out: {report}");
-    assert!(report.contains("nothing was removed"), "and says nothing changed: {report}");
+    assert!(report.contains("Nothing was removed"), "and says nothing changed: {report}");
     assert!(worktree.join("tracked.txt").is_file(), "the worktree is where it was");
     assert!(inner.join("notes.txt").is_file(), "and nothing of the worktree inside it went");
     assert!(repo.join(".git/worktrees/wt").is_dir(), "the registration is where it was");
