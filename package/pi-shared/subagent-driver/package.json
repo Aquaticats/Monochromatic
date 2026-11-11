@@ -21,7 +21,8 @@
     "start-pi-run-when-a-pool-has-room": "dist/final/node/start-pi-run-when-a-pool-has-room.mjs",
     "start-pi-run-in-a-worktree": "dist/final/node/start-pi-run-in-a-worktree.mjs",
     "retry-pi-run-start-until-a-pool-has-room": "dist/final/node/retry-pi-run-start-until-a-pool-has-room.mjs",
-    "start-pi-runs-from-a-batch-list": "dist/final/node/start-pi-runs-from-a-batch-list.mjs"
+    "start-pi-runs-from-a-batch-list": "dist/final/node/start-pi-runs-from-a-batch-list.mjs",
+    "save-the-final-message-of-a-review-that-wrote-no-review-file": "dist/final/node/save-the-final-message-of-a-review-that-wrote-no-review-file.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

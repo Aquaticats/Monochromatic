@@ -90,3 +90,13 @@ run = """
 {{vars.run_pi_command}}
 runPiCommand('start-pi-runs-from-a-batch-list')
 """
+
+[tasks."save-the-final-message-of-a-review-that-wrote-no-review-file"]
+description = "Write the last assistant message of a review's newest finished run as that review's review.md, when the run wrote none"
+usage = 'arg "[args]" var=#true help="--review=<name> (repeatable), [--runs-folder=<folder>], [--review-folder=<folder>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('save-the-final-message-of-a-review-that-wrote-no-review-file')
+"""

@@ -142,6 +142,15 @@ made from the checkout's `main` unless the run's branch already exists.
 The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to put the run away,
 which is the only bound that reaches a driver stuck in a file system call.
 
+The wait for the unit is the launcher's own:
+it starts the waiter,
+and asks the manager for the unit's `ActiveState` every minute,
+and ends the waiter once the unit has read as not running twice in a row,
+or once the run's wall clock plus fifteen minutes has passed.
+It used to wait on `systemd-run --wait` alone,
+and while an impostor manager held the session bus name on 2026-11-11,
+sixteen launchers never heard their units end and waited about ten hours.
+
 When the run has ended the worktree is removed only if the run ended `idle` or on its stop file,
 its HEAD is a branch,
 and `git status` holds nothing.
@@ -398,6 +407,21 @@ so silence after one ends the run as `compaction-failed`.
 
 A Pi that reports no compaction and answers nothing is unchanged:
 the wait ends after its silence bound and the run ends as `prompt-rejected`.
+
+### `save-the-final-message-of-a-review-that-wrote-no-review-file`
+
+`--review` (repeatable),
+`--runs-folder`,
+and `--review-folder`.
+A Kimi review that ends without writing `review.md` leaves its findings only in its last message,
+and a review's worktree is kept until that file exists.
+This reads the last assistant message whole from the Pi session file the newest finished
+`kimi-review-<review>-<n>` run names,
+and writes it as `<review-folder>/<review>/review.md` with a note saying which run it came from.
+The summary's own `lastAssistantText` cannot be the source:
+it is cut to 900 characters.
+A review that wrote its own file is left alone,
+and the command exits non-zero when any review it was asked for was not saved.
 
 ## The three answers a run waits for while Pi starts
 

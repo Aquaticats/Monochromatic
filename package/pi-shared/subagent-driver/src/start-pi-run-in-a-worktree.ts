@@ -8,6 +8,7 @@
  @module
  */
 
+import { spawn, } from 'node:child_process';
 import {
   mkdir,
   readdir,
@@ -18,6 +19,7 @@ import {
   argv,
   env,
 } from 'node:process';
+import { setTimeout as wait, } from 'node:timers/promises';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
   fieldsOf,
@@ -34,10 +36,12 @@ import {
   CommandAnswerMissingError,
   requiredOutputOf,
 } from './required-output-of-a-command.ts';
+import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
+import { runCommandWithChildProcess, } from './run-command.ts';
 import {
-  runCommandShowingItsOutput,
-  runCommandWithChildProcess,
-} from './run-command.ts';
+  UNIT_WAIT_GRACE_SECONDS,
+  waitForUnitToEnd,
+} from './wait-for-a-unit-to-end.ts';
 import { siblingCommandEntry, } from './sibling-command-entry.ts';
 import {
   NO_FINISHED_RUN,
@@ -46,6 +50,7 @@ import {
   turnCapSizing,
 } from './turn-cap-of-finished-runs.ts';
 import { unitCommandOf, } from './unit-command-of-a-run.ts';
+import { unitNameOfGiven, } from './running-pi-units.ts';
 import {
   makeWorktree,
   removeWorktree,
@@ -112,6 +117,20 @@ const runFolder = join(
   options.runsFolder,
   `${options.name}-${String(runNumber,)}`,
 );
+
+/**
+ Waits between two looks at the unit's state, which is what keeps this command up while the run works.
+
+ @param milliseconds - how long to wait
+
+ @example
+ ```ts
+ await waitBetweenLooks(60_000);
+ ```
+ */
+async function waitBetweenLooks(milliseconds: number,): Promise<void> {
+  await wait(milliseconds,);
+}
 
 /**
  Reads the turn cap from the finished runs of this kind, or stops the run when no finished run says how long this work takes.
@@ -359,17 +378,41 @@ const unit = unitCommandOf({
 },);
 
 /**
- What the unit's process ended with, which is what this command answers with.
+ The process that follows the unit, which this launcher ends once the unit has ended rather than waiting on the manager's own
+ signals.
  */
-const ended = await runCommandShowingItsOutput({
-  command: unit.command,
-  words: unit.words,
-  environment: env,
+const waiter = spawn(
+  unit.command,
+  [...unit.words,],
+  {
+    stdio: 'inherit',
+    env,
+  },
+);
+/**
+ What ended the wait for the unit.
+ */
+const waited = await waitForUnitToEnd({
+  run: runCommandWithChildProcess,
+  unitName: unitNameOfGiven({ name: options.name, },),
+  deadline: Date.now() + ((options.wallSeconds + UNIT_WAIT_GRACE_SECONDS) * MILLISECONDS_PER_SECOND),
+  wait: waitBetweenLooks,
+  now: Date.now,
+  endWaiter: function endWaiter() {
+    // Only the waiter is ended: the unit is the manager's, and it ends on its own terms or at its own RuntimeMaxSec.
+    waiter.kill('SIGTERM',);
+  },
+  waiterIsGone: function waiterIsGone() {
+    return (waiter.exitCode !== null) || (waiter.signalCode !== null);
+  },
 },);
-if (ended.startProblem !== undefined) {
-  throw new Error(`${unit.command} could not be started: ${ended.startProblem}`,);
-}
-console.log(`${options.name}: unit ended with status ${String(ended.status,)}; run folder ${runFolder}; worktree ${worktree}`,);
+/**
+ The status this command answers with: the unit's own when its waiter ended in time, and a failure when the wait gave up.
+ */
+const status = (waited.ended === 'the-unit-ended')
+  ? (waiter.exitCode ?? 0)
+  : 1;
+console.log(`${options.name}: unit ${waited.ended} with status ${String(status,)}; run folder ${runFolder}; worktree ${worktree}`,);
 
 /**
  Why the run ended, or nothing when it wrote no summary.
@@ -403,4 +446,4 @@ if (outcome.action === 'remove') {
     worktree,
   },)}`,);
 }
-process.exitCode = ended.status ?? 1;
+process.exitCode = status;

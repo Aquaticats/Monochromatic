@@ -16,6 +16,8 @@ const config: NodeFlavorConfig = nodeConfig({
     'start-pi-run-in-a-worktree': './src/start-pi-run-in-a-worktree.ts',
     'retry-pi-run-start-until-a-pool-has-room': './src/retry-pi-run-start-until-a-pool-has-room.ts',
     'start-pi-runs-from-a-batch-list': './src/start-pi-runs-from-a-batch-list.ts',
+    'save-the-final-message-of-a-review-that-wrote-no-review-file':
+      './src/save-the-final-message-of-a-review-that-wrote-no-review-file.ts',
   },
 },);
 

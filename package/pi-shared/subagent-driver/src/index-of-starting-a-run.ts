@@ -170,3 +170,29 @@ export {
   valueOfOption,
 } from './text-of-an-option.ts';
 export { optionIn, } from './option-in.ts';
+
+/**
+ A review whose run wrote no review file, and the command that saves its last message:
+ `save-the-final-message-of-a-review-that-wrote-no-review-file.ts`.
+ */
+export {
+  REVIEW_FILE_NAME,
+  SAVED_REVIEW_NOTE,
+  type SavedReview,
+  lastAssistantTextIn,
+  newestRunOf,
+  saveTheLastMessage,
+} from './last-message-of-a-review.ts';
+export {
+  SAVE_REVIEW_USAGE,
+  SaveReviewOptionsError,
+  parseSaveReviewOptions,
+} from './parse-save-review-options.ts';
+export {
+  NOT_RUNNING_LOOKS_TO_END,
+  type UnitWaitOutcome,
+  UNIT_STATE_INTERVAL_MILLISECONDS,
+  UNIT_WAIT_GRACE_SECONDS,
+  unitStateOf,
+  waitForUnitToEnd,
+} from './wait-for-a-unit-to-end.ts';
