@@ -2,6 +2,8 @@
 //! the codes they carry,
 //! the exit status,
 //! and the selections that end it with neither.
+//!  The pathspec Git refuses for matching nothing is decided inside the staging instead
+//! and has its own controls (`commit_pathspec_matching_nothing_tests.rs`).
 
 use super::*;
 use crate::commit_index_selection::IndexSelection;
@@ -106,4 +108,18 @@ fn a_selection_without_a_staged_deletion_has_no_ending() {
     assert!(deletion_ending(repo.as_path(), base.as_str(), &["a.txt"]).is_none());
     assert!(deletion_ending(repo.as_path(), base.as_str(), &[]).is_none());
     remove(root.as_path());
+}
+
+/// A pathspec Git refused for matching nothing ends the preparation with its own code,
+/// exit `1`,
+/// and the token the caller wrote (issue 6283).
+#[test]
+fn a_pathspec_that_matches_nothing_ends_the_preparation_with_its_finding() {
+    let ending: TransactionResult = pathspec_matching_nothing_ending(&[b"nope.txt".to_vec()]);
+    assert_eq!(finding(&ending), "explicit-path-commit/pathspec-matches-nothing");
+    let PolicyEvent::CoreFinding { message, .. } = &ending.events[0] else {
+        panic!("a core finding");
+    };
+    assert!(message.contains("pathspec 'nope.txt' did not match any files"), "{message}");
+    assert!(!message.contains("options belong before"), "{message}");
 }

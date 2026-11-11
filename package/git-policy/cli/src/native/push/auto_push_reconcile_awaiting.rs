@@ -1,25 +1,26 @@
 //! What:
-//!  The reconcile of a rejected push,
-//! awaited by a caller that is itself a task of the runtime:
-//! the loop that fetches the remote tip,
+//!  The reconcile of a rejected push:
+//! the one loop that fetches the remote tip,
 //! merges it into the local tip,
 //! publishes the merge and
-//!  moves the branch.
+//!  moves the branch,
+//!  written once and awaited by whichever caller it has.
 //! Why:
 //!  Every step of the loop starts Git,
 //! and a synchronous start is refused from inside the runtime,
-//! so the landing round's push cannot use the synchronous loop.
-//!  The loop's own decisions,
-//! its wording,
-//! its attempt limit and the bookkeeping of a refusal are the synchronous loop's,
-//! so the two cannot publish or say different things.
+//! so the loop is a task's work.
+//!  A command that is not a task of the runtime reaches this one body through
+//! `auto_push_reconcile.rs`,
+//! which runs the merge push that command supplied on a thread of its own;
+//! no decision of the reconcile is written twice,
+//! so the two callers cannot publish or say different things.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const integrated = await integrateAndPushOnTheRuntime({ git, plan, rejected, pushMerge });
 //! ```
 
-use crate::auto_push_reconcile::{Integrated, Reconcile, wording_of};
+use crate::auto_push_reconcile_plan::{Integrated, Reconcile, wording_of};
 use crate::auto_push_reconcile_basics_and_limits::{
     MAX_RECONCILE_ATTEMPTS, TAG, argv, fetch_remote_tip_awaiting, is_ancestor_awaiting, journal_identifier,
     unpublished, was_rejected_as_stale,
@@ -94,13 +95,13 @@ impl MergePusherAwaiting for PushMergeThroughGitAwaiting<'_> {
 }
 
 /// What:
-///  The same reconcile loop,
+///  The reconcile loop,
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
 ///   Every step below it is awaited,
 /// so the loop holds no worker while Git runs;
-/// the decisions,
-/// the wording and the limits are the synchronous loop's.
+/// it is the only body of these decisions,
+/// so the entry a command outside the runtime calls cannot drift from it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

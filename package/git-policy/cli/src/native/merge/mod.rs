@@ -130,6 +130,13 @@ pub mod merge_isolation_take_aside_names;
 /// and the private names it leaves behind.
 pub mod merge_isolation_take_asides;
 
+/// The copies of the person's own bytes a merge keeps beside a path,
+/// and the record of each.
+pub mod merge_isolation_kept_copies;
+
+/// The one decision every command makes about a copy a merge kept.
+pub mod merge_isolation_kept_copies_decisions;
+
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 

@@ -20,7 +20,8 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
-use crate::push_retry::{RetryChange, Retrying, cause_line, pause_before};
+use crate::push_retry::{RetryChange, Retrying, pause_before};
+use crate::push_retry_cause_line::cause_line;
 use crate::service_instance::GitDirUnreachable;
 use crate::unreachable_git_dir_proven_gone::Gone;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
@@ -32,7 +33,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 /// The kinds of work the service runs itself:
 /// the push and every slow kind.
-pub const SERVICE_KINDS: [WorkKind; 6] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::SubvolumeDelete];
+pub const SERVICE_KINDS: [WorkKind; 8] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead];
 
 /// The kinds the round that answers a wake claims:
 /// the push,
@@ -50,19 +51,31 @@ pub const PUSH_KINDS: [WorkKind; 1] = [WorkKind::Push];
 /// The kinds whose steps can take minutes:
 /// the upkeep,
 /// the prewarm of a new worktree's build directories,
+/// the relink of a new worktree's copied package state,
 /// the delete of a
 /// removed worktree's subvolume,
 /// the emptying of a trash,
+/// the snapshot made ahead of an add,
 /// and the shadow review.
 /// Why:
-///   Each of them is waited for by nobody,
+///   No command waits for these steps to end:
+/// a person's add that wrote a snapshot ahead looks for one and makes its own when none is ready in time
+/// (`worktree/worktree_snapshot_ahead.rs`),
 /// and the whole of `2026-11-10` shows that a step of these kinds that ran for minutes held every push of
 /// `refs/heads/main` of the round it ran in
 /// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
 /// They are claimed by the slow lane (`landing/service_work_slow_lane.rs`),
 /// one at a time,
 /// and never by the round.
-pub const SLOW_KINDS: [WorkKind; 5] = [WorkKind::Maintenance, WorkKind::Prewarm, WorkKind::SubvolumeDelete, WorkKind::Trash, WorkKind::Review];
+pub const SLOW_KINDS: [WorkKind; 7] = [
+    WorkKind::Maintenance,
+    WorkKind::Prewarm,
+    WorkKind::Relink,
+    WorkKind::SubvolumeDelete,
+    WorkKind::Trash,
+    WorkKind::SnapshotAhead,
+    WorkKind::Review,
+];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
@@ -190,6 +203,25 @@ pub trait WorkHandlers {
     fn prewarm_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.prewarm(item)));
     }
+    /// Relink the copied package state of a new worktree with each tool's own install;
+    /// a handler that does not know it skips.
+    fn relink(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler does not relink the package state of a worktree"));
+    }
+    /// The same relinking,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The drain of a round is a task,
+    /// and each tool's install is a child process the synchronous face would refuse to start from inside the runtime;
+    /// a handler that knows nothing of the runtime keeps the synchronous one as its answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// relinkAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn relink_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.relink(item)));
+    }
     /// Delete the subvolume of a removed worktree that the removal handed over;
     /// a handler that does not know it skips.
     fn subvolume_delete(&self, _item: &WorkItem) -> Verdict {
@@ -205,6 +237,27 @@ pub trait WorkHandlers {
     /// ```
     fn subvolume_delete_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.subvolume_delete(item)));
+    }
+    /// Make a snapshot of a worktree ahead of the next add;
+    /// a handler that does not know it skips.
+    fn snapshot_ahead(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler makes no snapshots ahead"));
+    }
+    /// The same snapshot,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The ioctl waits for a btrfs transaction commit,
+    /// so it belongs on the blocking pool and never on a worker the
+    ///  runtime needs for the commits queued behind it;
+    /// a handler that knows nothing of the runtime keeps the synchronous one as its
+    ///  answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshotAheadAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn snapshot_ahead_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.snapshot_ahead(item)));
     }
 }
 

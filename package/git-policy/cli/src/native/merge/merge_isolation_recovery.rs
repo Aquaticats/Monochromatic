@@ -39,7 +39,7 @@ use crate::transaction_git_awaiting::run_git_checked_awaiting;
 /// The install and the branch move of a merge that is finished from its record.
 use crate::merge_isolation_recovery_complete::complete_awaiting;
 use crate::merge_isolation_recovery_steps::{
-    index_standings_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes,
+    index_standings_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes_awaiting,
 };
 /// The awaited face of the settle of a moved branch.
 use crate::merge_isolation_moved::settle_moved_branch_awaiting;
@@ -126,7 +126,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
             }
             // The merge is in the branch, so the person's own work in its paths is merged with it now, and the record goes only
             //  once every byte of theirs is back in the checkout.
-            if !carry_the_capture_awaiting(place, root, intent, out).await? {
+            // What the command that moved the checkout read is what this carry judges the paths against, so a save that
+            //  arrived after a kill is left alone instead of being replaced by the person's older layer.
+            let landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
+                crate::merge_isolation_carry_landed::read_landed_record(place.git_dir.as_path(), intent.owner.transaction_id.as_str());
+            if !carry_the_capture_awaiting(place, root, intent, landed.as_slice(), out).await? {
                 return Ok(MergeRecoveryAction::IndexHeld);
             }
             if let Err(error) = drop_record_and_side_ref_awaiting(place, root, record, intent).await {
@@ -147,7 +151,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     };
     // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty
     //  while the file waits beside it, and would otherwise be read as someone else's.
-    put_back_stranded_takes(root, place.git_dir.as_path(), changes.as_slice(), out);
+    put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), out).await;
     // What this worktree already holds of the merge is read once, the index first and the worktree second, before anything can
     //  refuse; every refusal after this point reports from this one reading, so no path can say nothing is installed while the
     //  index holds the merge.
@@ -333,8 +337,9 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
         }
         return Ok(MergeRecoveryAction::IndexHeld);
     }
-    // The checkout holds the merge, so the person's own work in its paths is merged with it before the record goes.
-    if !carry_the_capture_awaiting(place, root, intent, out).await? {
+    // The checkout holds the merge, so the person's own work in its paths is merged with it before the record goes. The
+    //  checkout was written by this command, so no earlier reading describes it.
+    if !carry_the_capture_awaiting(place, root, intent, &[], out).await? {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
     drop_record_and_side_ref_awaiting(place, root, record, intent).await.map_err(partly_installed)?;

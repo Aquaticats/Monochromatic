@@ -117,16 +117,21 @@ fn nested_under(source_root: &Path, roots: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 /// What:
-///  Whether a path component begins the name of a private stage container.
+///  Whether a path component begins the name of a private stage container or of a snapshot the wrapper made ahead.
 /// Why:
-///   A path that goes through one is part of another copy's stage and is never staged.
+///   A path that goes through one is part of another copy's stage,
+/// or a whole copy of the source that no worktree owns yet,
+/// and is
+///  never staged:
+/// a snapshot ahead that the ignored state of one new worktree carried would be a second copy of the
+///  source inside a worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// component.startsWith(STAGE_PREFIX)
+/// component.startsWith(STAGE_PREFIX) || component.startsWith(AHEAD_PREFIX)
 /// ```
 fn starts_private_stage(component: &[u8]) -> bool {
-    return component.starts_with(STAGE_PREFIX.as_bytes());
+    return component.starts_with(STAGE_PREFIX.as_bytes()) || component.starts_with(crate::worktree_snapshot_ahead::AHEAD_PREFIX.as_bytes());
 }
 
 /// What:
@@ -219,6 +224,31 @@ pub fn stage_ignored_snapshot(
     registered_roots: &[PathBuf],
     selection: &CopySelection,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
+    return stage_ignored_snapshot_for(context, source_root, stage_container, registered_roots, selection, None);
+}
+
+/// What:
+///  `stage_ignored_snapshot` for a copy bound to one registration,
+/// which records that binding in the container before the first ignored entry is copied.
+/// Why:
+///   A command killed while it stages leaves a container holding part of the source's ignored state and no journal;
+/// the binding inside it is the only proof that the container is that copy's own,
+/// so a later command may remove it and make the copy
+///  again,
+/// and nothing else at that name is ever removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function stageIgnoredSnapshotFor({ context, sourceRoot, stageContainer, registeredRoots, selection, binding }): Promise<StagedSnapshot>;
+/// ```
+pub fn stage_ignored_snapshot_for(
+    context: &GitContext,
+    source_root: &Path,
+    stage_container: &Path,
+    registered_roots: &[PathBuf],
+    selection: &CopySelection,
+    binding: Option<&crate::worktree_add_binding::Binding>,
+) -> Result<StagedSnapshot, WorktreeCopyError> {
     let selecting: std::time::Instant = std::time::Instant::now();
     let nested: Vec<PathBuf> = nested_under(source_root, registered_roots);
     let git_selected: Vec<Vec<u8>> = select_roots(context, source_root, nested.as_slice(), selection)?;
@@ -227,6 +257,14 @@ pub fn stage_ignored_snapshot(
         format!("selected {} ignored roots in {} ms", git_selected.len(), selecting.elapsed().as_millis()).as_str(),
     );
     create_private_directory(stage_container).map_err(raw_failure_of)?;
+    // The registration goes in before the first byte of the payload, so a container killed at any later instruction says
+    // which copy it belongs to.
+    if let Some(bound) = binding
+        && let Err(error) = crate::worktree_copy_stage_binding::record_stage_binding(stage_container, bound)
+    {
+        std::fs::remove_dir_all(stage_container).map_err(raw_failure_of)?;
+        return Err(error);
+    }
     let stage_root: PathBuf = stage_container.join(PAYLOAD_NAME);
     create_private_tree(stage_root.as_path())?;
     let staged: Result<StagedSnapshot, WorktreeCopyError> = stage_into(

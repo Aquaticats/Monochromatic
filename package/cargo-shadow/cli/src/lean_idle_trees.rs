@@ -30,6 +30,8 @@ use std::{collections::HashSet, path::{Path, PathBuf}};
 
 /// The tree readers.
 use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, profile_dirs_of, workspace_of};
+/// The ledger that names the workspace a tree was built for.
+use crate::lean_keyed_folder::read_ledger;
 /// The proof and the removal.
 use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
 /// Imports the names this file uses from `crate::lean_identity`.
@@ -140,6 +142,62 @@ fn qualifies(tree: &Tree, workspace: &Workspace, retired: &HashSet<String>, poli
 }
 
 /// What:
+/// `pub fn ledger_roots(trees: &[Tree]) -> Vec<(PathBuf, PathBuf)>` is every tree among them whose ledger names a workspace,
+/// with that workspace.
+/// Why:
+/// The guard against removing a tree that holds another tree's workspace must cover the whole base.
+/// A pass that continues after a recorded position judges only the trees after it,
+/// while the trees before it still record workspaces that a tree it judges may hold.
+/// Only the ledger is read,
+/// never the dependency information,
+/// so a guard costs one small file read where identifying an unlabelled tree costs a walk over its dependency files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const ledgerRoots = (trees: Tree[]): [string, string][] => trees.flatMap((tree) => { const root = readLedger(tree.path); return root === undefined ? [] : [[tree.path, root]]; });
+/// ```
+pub fn ledger_roots(trees: &[Tree]) -> Vec<(PathBuf, PathBuf)> {
+    let mut roots: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for tree in trees {
+        if let Some(root) = read_ledger(&tree.path) {
+            roots.push((tree.path.clone(), root));
+        }
+    }
+    return roots;
+}
+
+/// What:
+/// `fn records_a_workspace_inside(workspace: &Workspace, trees: &[&[Tree]], own: &Path) -> Option<PathBuf>` is the tree
+/// of the base,
+/// other than the one given,
+/// that the recorded workspace of the tree given lies inside.
+/// Why:
+/// Such a record is the only thing that keeps the other tree from being removed,
+/// so a tree that holds it cannot go before the workspace inside that other tree is gone:
+/// the record goes with the tree,
+/// and the next pass would have nothing to guard with and would delete the live workspace.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordsWorkspaceInside = (workspace: Workspace, trees: Tree[][], own: string): string | undefined
+/// ```
+fn records_a_workspace_inside(workspace: &Workspace, trees: &[&[Tree]], own: &Path) -> Option<PathBuf> {
+    let Workspace::Known(root) = workspace else { return None };
+    // A workspace that is gone holds nothing, so its record guards nothing.
+    if !root.exists() {
+        return None;
+    }
+    for list in trees {
+        for tree in *list {
+            if tree.path != own && root.starts_with(&tree.path) {
+                return Some(tree.path.clone());
+            }
+        }
+    }
+    return None;
+}
+
+/// What:
 /// `fn holds_other_workspace(tree: &Path, roots: &[(PathBuf, PathBuf)]) -> Option<PathBuf>` finds another tree whose recorded
 /// workspace lies inside this tree.
 /// Why:
@@ -237,19 +295,25 @@ fn collect_one(tree: &Tree, reason: &str, trash: &Path, environment: &GuardEnvir
 
 /// What:
 /// `pub fn collect_idle_trees(...) -> TreeCollection`
-/// judges every tree it is given and removes the ones that qualify.
+/// judges every tree it is given and removes the ones that qualify,
+/// holding the workspaces the trees it is not given record as guards.
 /// Why:
 /// It is mechanism C.
 /// A dry run reports what would be removed with its size and removes nothing.
 /// The deadline stops the judging,
 /// and the count of judged trees is where the next run continues from.
+/// The trees before the position this pass continues from are still trees of the base,
+/// and a tree this pass judges may hold one of their workspaces:
+/// the guard covers them too,
+/// so resuming never loses the guard a pass from the front had.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function collectIdleTrees(trees: Tree[], base: string, retired: Set<string>, policy: IdlePolicy, env: GuardEnvironment, now: number, dryRun: boolean, deadline: Deadline, log: string[]): TreeCollection
+/// export function collectIdleTrees(trees: Tree[], earlier: Tree[], base: string, retired: Set<string>, policy: IdlePolicy, env: GuardEnvironment, now: number, dryRun: boolean, deadline: Deadline, log: string[]): TreeCollection
 /// ```
 pub fn collect_idle_trees(
     trees: &[Tree],
+    earlier: &[Tree],
     base: &Path,
     retired: &HashSet<String>,
     policy: &IdlePolicy,
@@ -260,10 +324,13 @@ pub fn collect_idle_trees(
     log: &mut Vec<String>,
 ) -> TreeCollection {
     let mut collection: TreeCollection = TreeCollection::default();
-    let mut roots: Vec<(PathBuf, PathBuf)> = Vec::new();
     // The workspaces are read once for the whole list, before the deadline applies to the judging,
     // so the run says how long that took: it is a fixed cost of every pass, however small the bound is.
     let reading_began: std::time::Instant = std::time::Instant::now();
+    // The trees this pass does not judge are guards all the same, so their records are read first:
+    // a resumed pass starts in the middle of the list, and a tree before that position may record a workspace
+    // inside a tree this pass would otherwise remove.
+    let mut roots: Vec<(PathBuf, PathBuf)> = ledger_roots(earlier);
     // Read once and kept: the same answer decides whether a tree holds another tree's workspace,
     // and whether the tree itself qualifies.
     let mut workspaces: Vec<Workspace> = Vec::with_capacity(trees.len());
@@ -274,8 +341,8 @@ pub fn collect_idle_trees(
         }
         workspaces.push(found);
     }
-    if !trees.is_empty() {
-        emit(log, format!("read the recorded workspace of {} trees in {} s", trees.len(), reading_began.elapsed().as_secs()));
+    if !trees.is_empty() || !earlier.is_empty() {
+        emit(log, format!("read the recorded workspace of {} trees in {} s", trees.len() + earlier.len(), reading_began.elapsed().as_secs()));
     }
     let trash: PathBuf = base.join(TRASH_DIRECTORY_NAME);
     if !dry_run {
@@ -305,6 +372,11 @@ pub fn collect_idle_trees(
         };
         if let Some(inside) = holds_other_workspace(&tree.path, &roots) {
             collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep(format!("the workspace of {} lies inside it", inside.display())) });
+            continue;
+        }
+        // The record this tree holds may be what keeps another tree from being removed, so it stays while it does.
+        if let Some(guarded) = records_a_workspace_inside(&workspaces[index], &[trees, earlier], &tree.path) {
+            collection.outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep(format!("the workspace it records lies inside {}, whose guard that record is", guarded.display())) });
             continue;
         }
         if dry_run {

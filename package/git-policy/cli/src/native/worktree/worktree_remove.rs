@@ -85,6 +85,17 @@ const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
 pub const DESTROY_NOTICE: &str = "monochromatic-git-policy-cli: removed the btrfs subvolume of the worktree in one step, and the commit service deletes the files after this command returns (normally within a second); this cannot be undone, and anything another process wrote or locked in the moments since the last check went with it (the risk of git worktree remove, here faster).";
 
 /// What:
+///  The line the command prints on standard error when a removed worktree was a btrfs subvolume and the person forced the removal.
+/// Why:
+///   `--force` is the one form that removes a worktree holding changes,
+/// and the destroy cannot be undone,
+/// so the
+///  line has to say that nothing was checked for changes before it,
+///  and the files leave later than the path does,
+/// because the same commit service the unforced line names deletes them after this command returns.
+pub const DESTROY_FORCED_NOTICE: &str = "monochromatic-git-policy-cli: removed the btrfs subvolume of the forced removal in one step, without checking it for changes first, as `--force` asks, and the commit service deletes the files after this command returns (normally within a second); this cannot be undone, and everything the worktree held went with it, which is the set `git worktree remove --force` deletes (the risk of git worktree remove, here faster).";
+
+/// What:
 ///  Whether the administrative directory holds a `locked` entry.
 /// Why:
 ///   A lock is a promise to keep the worktree.
@@ -530,7 +541,12 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
             return RemoveOutcome::LeftToGit;
         }
     };
-    if let Err(reason) = operations.check_clean(request, registration.admin.as_path(), request.common_dir) {
+    // Git's own removal makes this proof only when the person did not force it (`remove_worktree` in
+    // `builtin/worktree.c`: `if (!force) check_clean_worktree(wt, av[0])`), and a forced removal deletes the worktree
+    // it was given whatever it holds, so the destroy answers for the same set of files.
+    if !request.plan.force
+        && let Err(reason) = operations.check_clean(request, registration.admin.as_path(), request.common_dir)
+    {
         debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
         return RemoveOutcome::LeftToGit;
     }

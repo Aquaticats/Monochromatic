@@ -15,7 +15,8 @@
 //! with 2,182 of 2,796 blocked samples inside `unlink` or `rmdir` and the drive 99% busy
 //!  (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`).
 //! So the add writes the record,
-//! tells the service, and returns.
+//! tells the service,
+//! and returns.
 //! The record lives in the
 //!  repository's common work directory rather than in the new worktree's,
 //! because that is what makes one repository empty its trashes
@@ -94,6 +95,24 @@ pub struct Reach<'a> {
     pub provisioner: Provisioner<'a>,
     /// The longest wait for the service to start.
     pub start_wait: Duration,
+}
+
+/// What:
+///  Set the host a route names up for the wake,
+/// when the route names one,
+/// and answer the failure the setup gave.
+/// Why:
+///   A repository whose service units were never installed needs them before its service can be reached,
+/// and the failure is what the person reads when that cannot be done;
+/// naming the step as its own function keeps the state it needs (the provisioner) a parameter.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const provisionedHost = (provisioner, host) => (host === undefined ? undefined : provisioner(host));
+/// ```
+fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ProvisionHost>) -> Option<ClientFailure> {
+    let setup: &ProvisionHost = host?;
+    return (provisioner)(setup).err();
 }
 
 /// What:
@@ -192,9 +211,9 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
         // The record stays for the next wake a command of this repository gives, which is every commit and every add.
         None => Err(String::from("no commit service can be started from this session")),
-        Some(Route { address, provision: host }) => match host.as_ref().map(|setup: &ProvisionHost| return (reach.provisioner)(setup)) {
-            Some(Err(failure)) => Err(render(&failure)),
-            _ => {
+        Some(Route { address, provision: host }) => match provisioned_host(reach.provisioner, host.as_ref()) {
+            Some(failure) => Err(render(&failure)),
+            None => {
                 let config: ClientConfig = ClientConfig {
                     address,
                     activation: Activation::Managed,

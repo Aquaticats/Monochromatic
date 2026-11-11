@@ -28,6 +28,8 @@
 //! ```
 
 use crate::diagnostic_log::debug;
+/// A pathname from the bytes Git printed for it.
+use crate::hooks_path_values::path_answer;
 use crate::iso_time::now_iso;
 use crate::service_client::{START_WAIT, wake};
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
@@ -322,8 +324,14 @@ pub async fn common_directory_awaiting(git: &GitContext, destination: &Path) -> 
     if !output.succeeded() {
         return Err(format!("git could not name the repository's common directory: {}", output.error_text()));
     }
-    let named: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-    return if named.is_empty() { Err(String::from("git named no common directory for the worktree")) } else { Ok(PathBuf::from(named)) };
+    // Git ends the path with one line feed; every other byte is the path's own, so nothing but whitespace goes.
+    let named: &[u8] = output.stdout.trim_ascii();
+    return if named.is_empty() {
+        Err(String::from("git named no common directory for the worktree"))
+    } else {
+        // The answer is a pathname, and a pathname is bytes: decoding it replaced a byte that is not UTF-8.
+        Ok(path_answer(named))
+    };
 }
 
 /// What:

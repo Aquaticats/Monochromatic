@@ -378,6 +378,29 @@ pub fn create_journal_for(
 }
 
 /// What:
+///  Whether the journal root holds any item at all.
+/// Why:
+///   Every forwarded command asks whether there is recovery work before it does any,
+/// and a temporary of a write a
+///  killed command never renamed is work too:
+/// a predicate that looked only for journals,
+/// claims and unfilled records let those
+///  temporaries stay for as long as the repository lived.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pending = (await readdir(root)).length > 0;
+/// ```
+pub fn journal_items_exist(common_dir: &Path) -> Result<bool, WorktreeCopyError> {
+    // `match` treats an absent root as holding nothing, and every other failure as fatal.
+    return match std::fs::read_dir(journal_root(common_dir).as_path()) {
+        Ok(mut listing) => Ok(listing.next().is_some()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(raw_failure(&error)),
+    };
+}
+
+/// What:
 ///  Takes over a journal whose owner is dead,
 /// by renaming it to a name that carries the new owner.
 /// Why:

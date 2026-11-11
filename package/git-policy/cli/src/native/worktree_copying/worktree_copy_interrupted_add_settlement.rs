@@ -250,7 +250,7 @@ fn unfinished_copy_notice(shown: &str) -> String {
 /// ```ts
 /// !exists(destination) || (exists(join(admin, 'index')) && !exists(join(admin, 'index.lock')) && (entryCount(index) === 0 || entries(destination).length > 1))
 /// ```
-fn add_is_finished(destination: &Path, admin: &Path) -> bool {
+pub(crate) fn add_is_finished(destination: &Path, admin: &Path) -> bool {
     // `match` on the lookup: a destination that is gone is nothing to finish, while one that cannot be examined is kept.
     match std::fs::symlink_metadata(destination) {
         Ok(_present) => {}

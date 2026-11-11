@@ -37,6 +37,9 @@ pub mod stacked_merge_push;
 /// the final failure.
 pub mod push_retry;
 
+/// The first of Git's own lines that gives a reason for a push's failure.
+pub mod push_retry_cause_line;
+
 /// The retry plan on disk,
 /// in the service instance's journal,
 /// so that a restarted service keeps trying the pushes it was trying.
@@ -113,12 +116,19 @@ pub mod auto_push_trigger;
 /// or declined with its reason.
 pub mod push_trigger_log;
 
+/// What one reconcile run integrates,
+/// where it publishes,
+/// how it words itself and how it ended,
+/// so the loop and the entry that reaches it read one plan.
+pub mod auto_push_reconcile_plan;
+
 /// Publishing a landed commit that a moved remote branch rejected:
 /// the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 
 /// The reconcile loop and its merge push,
-/// awaited by a task of the runtime.
+/// awaited by a task of the runtime,
+/// which is the one body of those decisions.
 pub mod auto_push_reconcile_awaiting;
 
 /// What a reconcile of a rejected push shares:

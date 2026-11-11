@@ -117,6 +117,10 @@ pub mod worktree_removal_interrupted_destroy;
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;
 
+/// The removal of the shadow pool a removed worktree's commits were served from,
+/// taken after the removal proved the worktree is gone.
+pub mod worktree_removal_clears_the_pool;
+
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
 pub mod worktree_path_failure_message;
@@ -150,6 +154,23 @@ pub mod worktree_snapshot;
 ///  snapshot's own index when the source changed under the copy.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_index_step;
+
+/// The snapshots the wrapper makes ahead of an add,
+/// and the add's claim of one instead of a snapshot of its own.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead;
+
+/// What one add does with the snapshots the service made ahead of it:
+/// the proof,
+/// the claim,
+/// the bounded wait and the sweep.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_claim;
+
+/// The commit service's own snapshot of a worktree,
+/// made for the add after the one that asked for it.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_job;
 
 /// The empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 /// found below the folders that

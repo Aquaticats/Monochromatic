@@ -174,7 +174,7 @@ pub(super) fn names_the_container(relative: &Path) -> bool {
 /// const trashName = (trash: Trash) => trash.name;
 /// ```
 fn trash_name(trash: &Trash) -> &str {
-    return trash.name.as_str();
+    return trash.name();
 }
 
 /// What:
