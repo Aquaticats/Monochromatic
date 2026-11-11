@@ -42,6 +42,46 @@ use std::path::Path;
 pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> Option<String> {
     let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
     let made: Result<GitOutput, FailureCode> = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
+    return words_of_a_refused_write(made);
+}
+
+/// What:
+///  Writes the reference `name` at `tip`
+/// only while that name names nothing,
+/// and answers nothing when Git wrote it
+///  or Git's own words when it did not.
+/// Why:
+///   A command that removes a linked worktree keeps a held commit on a reference of the common Git directory
+///  before Git removes the only other ones (`worktree_removal_held_commits.rs`),
+///  and a name that another command already wrote must never be replaced:
+///  replacing it would forget the commit that reference was made for,
+///  which is the owner's rule "never discard user data" again.
+///  The empty old value is Git's `--stdin`-free way to ask for exactly that:
+///  `update-ref <ref> <new> ""` refuses when the name exists at all,
+///  whether this command read it first or another one wrote it in between.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const made = await git(['-c', withNoReflog, 'update-ref', '--no-deref', name, tip, '']); return made.succeeded ? undefined : made.stderr
+/// ```
+pub(crate) fn keep_on_a_side_ref_only_if_free(git: &GitContext, repository: &Path, name: &str, tip: &str) -> Option<String> {
+    let made: Result<GitOutput, FailureCode> = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name, tip, ""], None);
+    return words_of_a_refused_write(made);
+}
+
+/// What:
+///  Nothing when Git took a side-reference write,
+/// and Git's own words, or the reason it could not be run, when it did not.
+/// Why:
+///  Every write of a side reference reads its answer here,
+/// so a write Git refused and one that could not start
+///  are the same shape for every caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function wordsOfARefusedWrite(made) { return made.ok && made.value.succeeded ? undefined : (made.error ?? (made.value.stderr.trim() || `git update-ref ended with ${made.value.code}`)) }
+/// ```
+fn words_of_a_refused_write(made: Result<GitOutput, FailureCode>) -> Option<String> {
     return match made {
         Ok(output) if output.succeeded() => None,
         Ok(output) => {
