@@ -1132,7 +1132,9 @@ A removal Git refused leaves the units alone,
 a worktree that never committed costs the removal no question to the manager,
 and a manager that cannot be reached is logged and never fails the removal.
 Two forms are not seen afterwards because the process becomes Git
-(`git worktree remove --force` and `git worktree prune`),
+(`git worktree prune`,
+and a `git worktree remove --force` the wrapper does not serve because the worktree is no subvolume
+or its mount lacks the option),
 and a worktree deleted without Git leaves its units too.
 Those leftovers end at the first connection,
 when the service starts and finds the worktree gone,
