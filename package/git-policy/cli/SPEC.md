@@ -9389,6 +9389,9 @@ and cannot be disabled or assigned a severity through repository config.
   Every other failure of that staging start keeps its engine-failure report
   (`commit_pathspec_matching_nothing.rs`;
   issue 6283).
+  The twenty commits that stopped inside that staging on 2026-11-10,
+  before this finding existed,
+  are measured in `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`.
 
 Every `concurrent-commit` finding leaves ref,
 real index,

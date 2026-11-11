@@ -3325,6 +3325,8 @@ none is waited out or retried on the moved head yet:
   Every other failure of that staging start keeps its engine-failure report (`SPEC.md`,
   "Core finding event";
   issue 6283).
+  The twenty commits that stopped inside that staging on 2026-11-10 are measured in
+  `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`.
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
