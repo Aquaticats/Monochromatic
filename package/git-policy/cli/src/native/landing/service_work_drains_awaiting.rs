@@ -27,7 +27,7 @@
 
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work_handlers_replanning_and_acceptance::{
-    Drained, PUSH_KINDS, PlannedRetry, Replanning, Verdict, WorkHandlers, common_directory_of, end_the_plans_of_a_gone_repository_awaiting, is_acceptable, is_bare_common_directory,
+    Drained, PlannedRetry, Replanning, Verdict, WorkHandlers, common_directory_of, end_the_plans_of_a_gone_repository_awaiting, is_acceptable, is_bare_common_directory,
     keep_plans_while_unreachable, planned_retry, work_directory,
 };
 use crate::service_work_storage_awaited::{
@@ -38,11 +38,12 @@ use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::PushOutcome;
 use crate::push_retry::{Due, Retrying, cause_line};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
+use crate::work_item::WorkKind;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// What:
-///  Drain one directory for a service round,
+///  Drain one directory of the kinds `kinds` names for a service round,
 /// awaited by a caller that is itself a task of the runtime:
 /// the pushes due again come with the request,
 /// and the changes the
@@ -53,13 +54,25 @@ use std::time::{Duration, Instant};
 /// and the wait for another instance's claim is
 ///  read after the drain,
 /// as the synchronous face does.
+/// The kinds are the caller's:
+/// the round that answers a wake claims the pushes alone (`PUSH_KINDS`),
+/// so a step that can take minutes never stands between a landing and its push,
+/// and a drain outside the service claims every kind (`SERVICE_KINDS`),
+///  because nothing else would run them there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPlannedAwaiting(dir, handlers, now, retrying)
+/// await drainPlannedAwaiting(dir, handlers, now, retrying, kinds)
 /// ```
-pub async fn drain_planned_awaiting<H: WorkHandlers + ?Sized>(git_dir: &Path, handlers: &H, now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
-    return drain_planned_with_awaiting(git_dir, handlers, now, lease, Renewal::Timed, retrying).await;
+pub async fn drain_planned_awaiting<H: WorkHandlers + ?Sized>(
+    git_dir: &Path,
+    handlers: &H,
+    now: &ClaimTime,
+    lease: Duration,
+    retrying: &Retrying,
+    kinds: &'static [WorkKind],
+) -> Drained {
+    return drain_planned_with_awaiting(git_dir, handlers, now, lease, Renewal::Timed, retrying, kinds).await;
 }
 
 /// What:
@@ -79,6 +92,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
     lease: Duration,
     renewal: Renewal<'_>,
     retrying: &Retrying,
+    kinds: &'static [WorkKind],
 ) -> Drained {
     // A directory that cannot be reached runs nothing,
     // and what becomes of its push plans is what the filesystem still proves about it:
@@ -100,7 +114,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + ?Sized>(
     //  keeps a kill in between from abandoning the branch in silence.
     requeue_expired_awaiting(work_dir.as_path(), git_dir, now, lease).await;
     run_due_push_retries_awaiting(git_dir, handlers, retrying.due.as_slice(), &mut replanning).await;
-    drain_pending_awaiting(git_dir, handlers, lease, renewal, &mut replanning, &PUSH_KINDS).await;
+    drain_pending_awaiting(git_dir, handlers, lease, renewal, &mut replanning, kinds).await;
     let wait: Option<Duration> = next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await;
     return Drained { wait, changes: replanning.changes };
 }
@@ -148,6 +162,7 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + ?Sized>(
     now: &ClaimTime,
     lease: Duration,
     retrying: &Retrying,
+    kinds: &'static [WorkKind],
 ) -> Drained {
     let Some(common) = common_directory_of(git_dir) else {
         return Drained::default();
@@ -157,7 +172,7 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + ?Sized>(
     }
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     requeue_expired_awaiting(work_directory(common.as_path()).as_path(), common.as_path(), now, lease).await;
-    drain_pending_awaiting(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning, &PUSH_KINDS).await;
+    drain_pending_awaiting(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning, kinds).await;
     let wait: Option<Duration> = next_claim_expiry_awaiting(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease).await;
     return Drained { wait, changes: replanning.changes };
 }

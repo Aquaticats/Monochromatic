@@ -119,6 +119,9 @@ pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 ///  is reported as failed,
 /// as for handlers that do not retry.
 /// The service's rounds use `drain_planned` instead.
+/// It claims every kind the service runs (`SERVICE_KINDS`),
+/// because no lane runs beside it as it does beside a round
+///  (`landing/service_work_slow_lane.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,7 +167,7 @@ pub fn drain_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTim
 /// runOnRuntime(drainPlannedWithAwaiting(gitDir, handlers, now, lease, renewal, retrying))
 /// ```
 pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, renewal: Renewal<'_>, retrying: &Retrying) -> Drained {
-    return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(git_dir, handlers, now, lease, renewal, retrying)) {
+    return match crate::lazy_runtime::run_on_runtime(drain_planned_with_awaiting(git_dir, handlers, now, lease, renewal, retrying, &SERVICE_KINDS)) {
         Ok(drained) => drained,
         Err(refusal) => {
             crate::diagnostic_log::debug("drainPlanned", format!("the drain of {} was not run: {refusal}", git_dir.display()).as_str());
@@ -230,7 +233,7 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
 /// runOnRuntime(drainCommonRecordsPlannedAwaiting(gitDir, handlers, now, lease, retrying))
 /// ```
 pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
-    return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(git_dir, handlers, now, lease, retrying)) {
+    return match crate::lazy_runtime::run_on_runtime(drain_common_records_planned_awaiting(git_dir, handlers, now, lease, retrying, &SERVICE_KINDS)) {
         Ok(drained) => drained,
         Err(refusal) => {
             crate::diagnostic_log::debug("drainCommonRecords", format!("the drain of the common records of {} was not run: {refusal}", git_dir.display()).as_str());

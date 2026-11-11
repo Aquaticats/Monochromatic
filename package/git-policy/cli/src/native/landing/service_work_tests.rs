@@ -872,6 +872,10 @@ fn a_round_leaves_no_credential_in_the_handlers() {
 /// Git command that takes input),
 /// the loopback gateway is asked with the key from the wake,
 /// and the entry is appended.
+/// The lane is what claims a review in the service,
+/// beside the round that serves the pushes
+/// (`service_work_slow_lane.rs`),
+/// so the lane is what this control drives.
 #[test]
 fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
@@ -904,7 +908,8 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     // The service's own context: no repository is named, because one service serves many.
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
-    run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
+    let lane_handlers: GitHandlers = handlers.for_round(std::collections::HashMap::from([(common.clone(), ReviewKey::new(SECRET).expect("the key this control serves with"))]));
+    crate::merge_second_pass::tests::await_it(crate::service_work_slow_lane::drain_the_slow_work_awaiting(common.as_path(), &lane_handlers));
     let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
@@ -1342,6 +1347,7 @@ fn the_awaited_drain_runs_every_kind_of_item() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &Retrying::none(),
+        &SERVICE_KINDS,
     ));
     let mut asked: Vec<&str> = Vec::new();
     if !recorder.pushes.borrow().is_empty() {

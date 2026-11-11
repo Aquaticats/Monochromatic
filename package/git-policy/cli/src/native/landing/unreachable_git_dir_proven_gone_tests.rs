@@ -24,7 +24,7 @@ use super::{Gone, GoneBecause, Mounts, NothingIsMounted, Proof, TheMountTable, g
 use crate::claim_time::ClaimTime;
 use crate::push_retry::{RetryChange, Retrying};
 use crate::service_claim_renewal_running::Renewal;
-use crate::service_work::Verdict;
+use crate::service_work::{SERVICE_KINDS, Verdict};
 use crate::service_work_drains_awaiting::drain_planned_with_awaiting;
 use crate::test_support::{fixture, remove};
 use crate::work_item::{WorkItem, WorkKind};
@@ -182,6 +182,7 @@ fn a_deleted_repository_ends_its_plans() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &retrying_for(git_dir.as_path(), worktree.as_path()),
+        &SERVICE_KINDS,
     ));
     assert!(
         !drained.changes.iter().any(|change| return matches!(change, RetryChange::Plan { .. })),
@@ -217,6 +218,7 @@ fn a_path_behind_an_unmounted_mount_point_keeps_its_plans() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &retrying_for(git_dir.as_path(), root.join("drive/repository").as_path()),
+        &SERVICE_KINDS,
     ));
     assert!(
         !drained.changes.iter().any(|change| return matches!(change, RetryChange::Forget { .. })),
