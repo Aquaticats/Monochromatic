@@ -4039,12 +4039,16 @@ once into the shadow repository,
 where the native `git commit` reads it,
 and once into the transaction,
 where the landing compares it with the real entry before removing anything.
-A clean `git merge --no-ff --no-commit` leaves three of them behind,
+A clean `git merge --no-ff --no-commit` in this Git (2.56.0) leaves four of them behind:
 `MERGE_HEAD`,
-`MERGE_MSG` and `MERGE_MODE`,
-so one merge commit published six files through `write_private_file`,
-which flushes each file before it publishes it.
-A plain commit of the same paths publishes none.
+`MERGE_MSG`,
+`MERGE_MODE`
+and `AUTO_MERGE`,
+as the traced commit under "The flushes,
+counted" shows.
+So one merge commit published eight files through `write_private_file`,
+which flushes each file before it publishes it,
+and a plain commit of the same paths publishes none.
 
 ### The shape, reproduced in a disposable clone
 
