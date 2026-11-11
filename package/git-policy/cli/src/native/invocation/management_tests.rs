@@ -822,6 +822,44 @@ fn a_status_asked_of_git_keeps_a_git_directory_that_is_not_text() {
     remove(root.as_path());
 }
 
+/// What:
+///  A status asked of Git keeps a Git directory whose name ends in a space.
+/// Why:
+///   The answer is a pathname and Git ends it with one line feed,
+///  so every trailing whitespace byte taken from it took the space that belongs to the name:
+/// the status then asked for the service of a directory that does not exist,
+///  refused the question as "the Git directory ... cannot be resolved",
+/// and named a service that was running as one that was not.
+///
+/// `--git-dir` is a selection the in-process reader leaves to Git,
+/// so this asks Git itself.
+#[test]
+fn a_status_asked_of_git_keeps_a_git_directory_that_ends_in_a_space() {
+    let root: PathBuf = fixture("management-status-trailing-space");
+    let repo: PathBuf = root.join("repo");
+    let administered: PathBuf = root.join("metadata ");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(
+        root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            "--separate-git-dir",
+            administered.to_str().expect("a UTF-8 fixture path"),
+            repo.to_str().expect("a UTF-8 fixture path"),
+        ],
+    );
+    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
+    let selected: Vec<OsString> = vec![OsString::from("--git-dir"), administered.clone().into_os_string()];
+    assert_eq!(
+        status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))),
+        Selection::Found(std::fs::canonicalize(administered.as_path()).expect("git directory")),
+        "the Git directory keeps the space its name ends in"
+    );
+    remove(root.as_path());
+}
+
 /// The reader learns the system configuration file from the real Git,
 /// so a status that names none cannot tell a plain layout
 /// from one it must leave to Git:

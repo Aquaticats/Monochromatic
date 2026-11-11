@@ -129,10 +129,10 @@ pub(crate) fn status_git_dir(global_arguments: &[OsString], environment: &[(OsSt
         Ok(found) => found,
         Err(error) => return Selection::Unresolved(format!("Git could not be started: {error}")),
     };
-    // The answer is a pathname, so it is read as the bytes Git printed it as, trimmed of the whitespace Git
-    //  ends a report with; a spelling of it named a directory that does not exist when the name was not UTF-8.
-    let printed: &[u8] = without_the_terminator(output.stdout.as_slice());
-    let said: &[u8] = printed.trim_ascii();
+    // The answer is a pathname, so it is read as the bytes Git printed it as, without the one line feed Git ends a
+    //  report with. A spelling of it named a directory that does not exist when the name was not UTF-8, and taking
+    //  every trailing whitespace byte named a directory that is not there when the name itself ends in a space.
+    let said: &[u8] = without_the_terminator(output.stdout.as_slice());
     if output.status.success() && !said.is_empty() {
         return Selection::Found(path_answer(said));
     }
