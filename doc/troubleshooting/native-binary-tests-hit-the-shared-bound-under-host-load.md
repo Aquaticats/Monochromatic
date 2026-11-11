@@ -1657,7 +1657,8 @@ The failing controls were
 `word_merge_finish::merge_edit_runs_the_editor_and_merge_message_is_kept`
 and `word_merge_finish::each_operation_is_finished_like_a_clean_run`,
 in a run of 949 tests that passed 941
-(`package/git-policy/cli`, worktree `pi-wrapper-suite-failures-on-main-tip`;
+(`package/git-policy/cli`,
+worktree `pi-wrapper-suite-failures-on-main-tip`;
 the summary and each failure's own output are kept at
 `~/temp/agent/wrapper-suite-5/binary-suite-failures-2026-11-11.log`,
 which the session's own process log of that run supplied).
@@ -1665,7 +1666,8 @@ which the session's own process log of that run supplied).
 ### What the killed trees were doing
 
 Every message named the same task:
-the wrapper, waiting in `unix_stream_read_generic`,
+the wrapper,
+waiting in `unix_stream_read_generic`,
 the kernel's read of the Unix socket it sends its commit request on.
 The same run's service log names the other half of that wait:
 
@@ -1679,7 +1681,8 @@ and the service's own records were being flushed through a volume that was stall
 under the other sessions' writes.
 No look at the *command's* tree can see that work:
 the service is not a descendant of the command,
-and it outlives it on purpose (`binary_supervisor_tests.rs`, `a_command_that_has_exited_is_finished_and_not_judged_idle`).
+and it outlives it on purpose (`binary_supervisor_tests.rs`,
+`a_command_that_has_exited_is_finished_and_not_judged_idle`).
 
 The idle rule as it stood counted a task asleep in a socket read as a hang,
 which is right for a deadlock between two programs of one command
@@ -1695,13 +1698,16 @@ not repeatedly.
 The look at a tree reads each task's kernel wait channel (`/proc/<pid>/wchan`,
 the file the kill message already printed)
 and marks a process asleep in `unix_stream_read_generic` or `unix_stream_data_wait` as waiting for an answer
-(`binary_supervisor_proc.rs`, `waits_for_an_answer`).
+(`binary_supervisor_proc.rs`,
+`waits_for_an_answer`).
 A tree with such a task restarts the idle window as one waiting for the disk does
-(`binary_supervisor.rs`, `Judge::observe`),
+(`binary_supervisor.rs`,
+`Judge::observe`),
 so a command whose answer is being prepared is not called hung,
 and a deadlock on a pipe,
 a futex or a lock is still ended at the window
-(`a_deadlock_is_ended_and_reported_with_its_tasks`, `a_tree_that_stands_still_is_hung_when_the_window_has_passed`).
+(`a_deadlock_is_ended_and_reported_with_its_tasks`,
+`a_tree_that_stands_still_is_hung_when_the_window_has_passed`).
 
 The control is `a_wait_for_an_answer_over_a_socket_is_not_a_hang`
 (`binary_supervisor_tests.rs`):

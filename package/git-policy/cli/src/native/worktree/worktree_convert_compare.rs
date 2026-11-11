@@ -49,7 +49,8 @@
 //! ```
 
 use crate::subvolume_sync_attrs::carried_attributes_equal;
-/// Another command's stage container is no state of the old tree, so it is not a difference.
+/// Another command's stage container is no state of the old tree,
+/// so it is not a difference.
 use crate::worktree_copy_prune::names_a_private_stage;
 use crate::worktree_copy_compare::COMPARE_BUFFER_BYTES;
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
@@ -183,10 +184,11 @@ fn attribute_difference(before: &std::fs::Metadata, after: &std::fs::Metadata, o
 ///  because every entry under it is another command's stage container or a folder of those alone.
 /// Why:
 ///   A copy leaves a stage container out wherever it stands,
-/// and it does not make a folder whose every entry was left out
-///  (`subvolume_sync.rs`, `remove_a_directory_that_holds_nothing`);
+/// and it does not make a folder whose every entry was left out,
+/// as `subvolume_sync.rs` does in `remove_a_directory_that_holds_nothing`;
 /// the comparison must read the same rule,
-///  or it demands an entry the copy never makes and keeps the old tree on every run.
+///  or it demands an entry the copy never makes,
+/// and the old tree is kept on every run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

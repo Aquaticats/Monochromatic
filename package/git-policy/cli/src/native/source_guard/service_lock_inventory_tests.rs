@@ -61,8 +61,9 @@ const COVERED_PREFIXES: &[&str] = &[
 ///  and an inventory entry would say one of them ships;
 ///  keeping the
 ///       file out of the scan instead would hide the production locks beside it.
-/// `service/service_fault_hooks_test_support.rs` holds the hold a control sets on whichever thread reaches a
-///  fault point, and `service/service_fault.rs` declares it under `#[cfg(test)]`.
+/// `service/service_fault_hooks_test_support.rs` holds the hold a control sets on whichever thread reaches
+///  a fault point,
+/// and `service/service_fault.rs` declares it under `#[cfg(test)]`.
 ///  It arrived with `7663284896`,
 ///  which ran a filtered unit selection that did not include this scan.
 ///

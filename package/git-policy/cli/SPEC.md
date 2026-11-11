@@ -56,7 +56,8 @@ build trees and caches,
 and the wrapper's own records)
 the owner handed the choice to the coordinator,
 2026-11-10:
-"I think you can decide yourself on which fsync to remove and not have to ask me. Or do it with the advisor."
+"I think you can decide yourself on which fsync to remove and not have to ask me.
+Or do it with the advisor."
 The coordinator's rule,
 made with the advisor on 2026-11-10 and open to the owner's veto:
 

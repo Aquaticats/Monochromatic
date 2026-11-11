@@ -51,7 +51,8 @@ use crate::subvolume_anchor::Anchor;
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_sync_attrs::preserve_on_descriptor;
-/// Another command's stage container is no state of the source, so a pass never enters one and never removes one.
+/// Another command's stage container is no state of the source,
+/// so a pass never enters one and never removes one.
 use crate::worktree_copy_prune::names_a_private_stage;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -261,12 +262,10 @@ impl Pass<'_> {
             return Ok(());
         }
         // Only a source directory whose entries were all left out answers this; one with no entry at all is copied.
-        let source_holds_an_entry: bool = std::fs::read_dir(self.source.join(relative)).is_ok_and(|mut entries: std::fs::ReadDir| { return entries.next().is_some(); });
-        if !source_holds_an_entry {
+        if !std::fs::read_dir(self.source.join(relative)).is_ok_and(holds_an_entry) {
             return Ok(());
         }
-        let made_holds_nothing: bool = std::fs::read_dir(self.destination.join(relative)).is_ok_and(|mut entries: std::fs::ReadDir| { return entries.next().is_none(); });
-        if !made_holds_nothing {
+        if !std::fs::read_dir(self.destination.join(relative)).is_ok_and(holds_no_entry) {
             return Ok(());
         }
         remove_entry(self.destination.join(relative).as_path(), self.shown(relative).as_path())?;
@@ -274,6 +273,16 @@ impl Pass<'_> {
         self.stats.directories = self.stats.directories.saturating_sub(1);
         return Ok(());
     }
+}
+
+/// Whether a directory read answered with at least one entry.
+fn holds_an_entry(mut entries: std::fs::ReadDir) -> bool {
+    return entries.next().is_some();
+}
+
+/// Whether a directory read answered with no entry at all.
+fn holds_no_entry(mut entries: std::fs::ReadDir) -> bool {
+    return entries.next().is_none();
 }
 
 /// What:

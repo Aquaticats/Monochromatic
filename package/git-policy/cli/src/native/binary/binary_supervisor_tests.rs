@@ -391,7 +391,7 @@ fn a_wait_for_the_disk_longer_than_the_window_is_not_a_hang() {
 #[test]
 fn a_wait_for_an_answer_over_a_socket_is_not_a_hang() {
     let made: Fixture = fixture("supervisor-answer-wait");
-    let (answer, waiting) = std::os::unix::net::UnixStream::pair().expect("a socket pair");
+    let (answered, waiting) = std::os::unix::net::UnixStream::pair().expect("a socket pair");
     let child_end: std::os::fd::OwnedFd = waiting.into();
     let raw: std::os::fd::RawFd = std::os::fd::AsRawFd::as_raw_fd(&child_end);
     let mut command: Command = Command::new("/bin/sh");
@@ -404,7 +404,7 @@ fn a_wait_for_an_answer_over_a_socket_is_not_a_hang() {
             return if libc::dup2(raw, 3) == -1 { Err(std::io::Error::last_os_error()) } else { Ok(()) };
         });
     }
-    let child: Child = command.spawn().expect("the script starts");
+    let mut child: Child = command.spawn().expect("the script starts");
     // Owned, so a script that waits here does not outlive a control that failed before it ended it.
     own_group(&child);
     // The window is short and the whole wait is several of them, so a tree asleep in the socket read is what is judged.
@@ -414,7 +414,7 @@ fn a_wait_for_an_answer_over_a_socket_is_not_a_hang() {
     std::thread::sleep(short(CPU_BUDGET).no_progress * 4);
     assert!(!kill_recorded(pid), "a command waiting for an answer over a socket was ended");
     // The answer arrives, and the command finishes by itself, which is the proof the wait was the only thing holding it.
-    let mut answer: std::os::unix::net::UnixStream = answer;
+    let mut answer: std::os::unix::net::UnixStream = answered;
     std::io::Write::write_all(&mut answer, b"go\n").expect("the answer is written");
     let status: std::process::ExitStatus = finish(&mut child, MONITOR_PATIENCE);
     assert!(status.success(), "{status:?}");
