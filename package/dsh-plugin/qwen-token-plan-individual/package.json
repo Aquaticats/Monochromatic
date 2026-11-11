@@ -1,0 +1,69 @@
+{
+  "name": "@monochromatic-dev/dsh-plugin-qwen-token-plan-individual",
+  "description": "Qwen Token Plan Individual provider for DSH: owns the qwen-token-plan-individual pi-ai route over the shipped llm-pi-ai adapter, serving every serviceable chat model the endpoint lists today against a curated facts table with sibling fallback, and a checked-in listing snapshot standing in while the endpoint is unreachable",
+  "type": "module",
+  "private": true,
+  "version": "0.0.1",
+  "engines": {
+    "dsh": "0.2.2-rc.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/dsh-plugin/qwen-token-plan-individual"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "cordis.patch.yml",
+    "locale/en.json",
+    "locale/zh.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "dsh-bundle",
+    "dsh-plugin",
+    "qwen-token-plan-individual",
+    "llm-provider",
+    "model-list"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-credentials": "catalog:",
+    "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
+    "@deepseek-ai/dsh-settings": "catalog:"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-credentials": "catalog:",
+    "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
+    "@deepseek-ai/dsh-settings": "catalog:",
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

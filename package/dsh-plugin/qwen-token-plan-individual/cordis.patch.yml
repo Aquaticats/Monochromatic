@@ -1,0 +1,17 @@
+# In-process Qwen Token Plan Individual provider row for this profile.
+#
+# The package `@monochromatic-dev/dsh-plugin-qwen-token-plan-individual` exports
+# `apply(ctx)` and `inject`, and serves the `qwen-token-plan-individual`
+# provider route by writing a mapped model list into the `llm-pi-ai` entry
+# volatile `providers` field: the checked-in snapshot lands at mount and the
+# list fetched live from
+# `https://token-plan.maas.qwencloudapi.com/compatible-mode/v1/models` lands
+# once the bounded fetch resolves, keeping the snapshot when the endpoint is
+# unreachable or no credential resolves. Requests and the listing GET resolve
+# the `QWEN_TOKEN_PLAN_INDIVIDUAL_API_KEY` credential reference. There is no
+# row config: the endpoint, credential name, and fetch bound are package
+# constants.
+- insert:
+    - id: qwen-token-plan-individual
+      name: '@monochromatic-dev/dsh-plugin-qwen-token-plan-individual'
+      config: {}
