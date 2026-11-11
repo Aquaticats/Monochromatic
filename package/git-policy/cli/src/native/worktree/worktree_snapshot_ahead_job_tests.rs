@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
-use crate::test_support::{git, remove};
+use crate::test_support::{git, git_context, remove};
 use crate::worktree_ladder_test_support::{commit_all, subvolume_repository, tracked};
 use crate::worktree_snapshot_ahead::{AHEAD_KEPT, hand_over_with, kept_in, pool_folder, request_item};
 use std::path::PathBuf;
@@ -164,7 +164,18 @@ fn btrfs_a_main_checkout_whose_git_directory_is_elsewhere_names_its_worktree() {
     commit_all(checkout.as_path(), "first");
     assert!(std::fs::symlink_metadata(checkout.join(".git")).expect("a .git pointer").is_file(), "the shape this control is about: .git is a pointer file");
     assert_eq!(git_directory_of_worktree(checkout.as_path()), Some(metadata.clone()), "the pointer names the Git directory this checkout uses");
-    let item: WorkItem = request_item(metadata.as_path(), checkout.as_path(), pool_folder(metadata.as_path()).as_path()).expect("a record");
+    // The add itself takes this checkout as a snapshot source, and the request it writes names the Git directory the pointer
+    //  named: this is the shape whose requests the service used to refuse.
+    let identity: crate::worktree_identity::WorktreeIdentity = crate::worktree_identity::WorktreeIdentity::MainWorktree {
+        common_dir: metadata.clone(),
+        git_dir: metadata.clone(),
+        worktree_root: checkout.clone(),
+    };
+    let source: crate::worktree_snapshot_source::SnapshotSource =
+        crate::worktree_snapshot_source::choose_snapshot_source(&git_context(), &identity, &crate::worktree_ladder_test_support::plan_to(checkout.join("destination")))
+            .expect("the add takes this checkout as a source");
+    assert_eq!(source.git_dir, metadata, "the request names the Git directory the pointer names");
+    let item: WorkItem = request_item(source.git_dir.as_path(), checkout.as_path(), pool_folder(source.git_dir.as_path()).as_path()).expect("a record");
     assert_eq!(snapshot_ahead(&item), Verdict::Done, "the service copies the checkout its record names");
     assert_eq!(kept_in(pool_folder(metadata.as_path()).as_path(), checkout.as_path()).len(), 1, "one copy stands in the folder the record named");
     remove(root.as_path());
