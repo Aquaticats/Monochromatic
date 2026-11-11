@@ -51,7 +51,6 @@ use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_f
 use crate::command_clean::clean_deleted_paths_from_answer;
 /// The reading of a dry run written with one force,
 ///  which names the nested repositories that force keeps.
-use crate::command_clean_nested_repositories::dry_run_lines_from_answer;
 /// The answer one `git add` selection question gives.
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
@@ -133,13 +132,6 @@ pub trait RepositoryFacts {
     /// asked for a clean
     ///  that carries its own `-e`/`--exclude` patterns.
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String>;
-    /// The lines of the same clean's dry run written with exactly one `-f`,
-    /// each as Git printed it,
-    /// asked for the nested repositories a clean with a second `-f` would delete.
-    /// Git keeps every nested repository at one force and names each of them
-    ///  (`Would skip repository`),
-    ///  and the same walk removes them at the second.
-    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String>;
     /// Whether a merge,
     ///  cherry-pick or revert awaits its concluding commit.
     fn sequencer_state(&mut self) -> Result<SequencerState, String>;
@@ -428,12 +420,6 @@ impl RepositoryFacts for GitFacts {
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         let output: MetadataOutput = self.query(arguments, "what the clean would delete")?;
         return clean_deleted_paths_from_answer(&output);
-    }
-
-    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        let what: &str = "which repositories the clean would keep";
-        let output: MetadataOutput = self.query(arguments, what)?;
-        return dry_run_lines_from_answer(&output, what);
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {

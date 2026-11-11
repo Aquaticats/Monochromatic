@@ -954,36 +954,18 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
 
 /// What:
 ///  linked-worktree-only:
-///  a clean whose second force would delete a nested Git repository asks Git which repositories one force
-///  keeps,
-///  and stops the clean when that reading fails,
-///  because a reading that failed could hide a repository the clean would delete.
+///  a clean with a second force asks Git what it would delete,
+///  stops when that reading never answered,
+///  and asks nothing for one force or for an interactive clean.
 /// Why:
-///   The nested repository's work is invisible to the outer status,
-///  so nothing else in this policy can see it;
-///  a clean with one force is Git's own protection of that repository,
-/// and asks nothing.
+///   A reading that never answered could hide a repository the clean would delete,
+///  so the clean stops rather than running on a guess;
+///  one force is Git's own protection of every nested repository,
+///  and an interactive clean is answered after Git starts,
+///  so its repositories are kept out of that menu by the fixed transform instead of being moved before it.
 #[test]
-fn a_clean_with_a_second_force_asks_which_repositories_one_force_keeps() {
+fn a_clean_with_a_second_force_asks_what_git_would_delete() {
     let two_forces: Vec<&str> = vec!["clean", "-f", "-f", "-d", "-X"];
-    let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-    unreadable.clean_deletes = Ok(vec![b"Would remove cache/".to_vec()]);
-    unreadable.clean_keeps_with_one_force =
-        Err(String::from("Git could not read which repositories the clean would keep: fatal"));
-    let (outcome, questions): (PolicyOutcome, Vec<String>) =
-        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), unreadable);
-    assert_eq!(
-        outcome,
-        one(
-            "linked-worktree-required",
-            "Git could not read which repositories the clean would keep: fatal"
-        ),
-        "{questions:?}"
-    );
-    assert!(
-        questions.iter().any(|question| { return question.starts_with("clean-would-keep:"); }),
-        "{questions:?}"
-    );
     // Git refuses the clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
     let mut refused: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
     refused.clean_deletes = Err(format!("{UNREADABLE_CLEAN_DELETION} fatal: options '-x' and '-X' cannot be used together"));
@@ -991,13 +973,15 @@ fn a_clean_with_a_second_force_asks_which_repositories_one_force_keeps() {
         pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), refused);
     assert_eq!(refused_outcome, clean(), "{refused_questions:?}");
     // A reading that never answered is not a refusal: the clean stops rather than deleting a repository it could not see.
+    let unanswered_text: &str =
+        "Git never answered what the clean would delete: the read ended without an exit status, so the clean was not judged";
     let mut unanswered: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-    unanswered.clean_deletes = Err(String::from("the read of the clean's dry run was ended at its ceiling"));
+    unanswered.clean_deletes = Err(String::from(unanswered_text));
     let (unanswered_outcome, unanswered_questions): (PolicyOutcome, Vec<String>) =
         pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), unanswered);
     assert_eq!(
         unanswered_outcome,
-        one("linked-worktree-required", "the read of the clean's dry run was ended at its ceiling"),
+        one("linked-worktree-required", unanswered_text),
         "{unanswered_questions:?}"
     );
     // One force is Git's own protection of every nested repository, so the wrapper asks nothing.
@@ -1006,15 +990,26 @@ fn a_clean_with_a_second_force_asks_which_repositories_one_force_keeps() {
         pre_forward(PolicyId::LinkedWorktreeOnly, one_force.as_slice(), dirty_in(linked_worktree("/r", "/w"), false));
     assert_eq!(one_outcome, clean(), "{one_questions:?}");
     assert!(
-        one_questions.iter().all(|question| { return !question.starts_with("clean-would-keep:"); }),
+        one_questions.iter().all(|question| { return !question.starts_with("clean-would-delete:"); }),
         "{one_questions:?}"
+    );
+    // A menu is answered after Git starts: the repositories are kept out of it by the transform, never moved first.
+    let interactive: Vec<&str> = vec!["clean", "-i", "-f", "-f", "-d", "-X"];
+    let (interactive_outcome, interactive_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, interactive.as_slice(), dirty_in(linked_worktree("/r", "/w"), false));
+    assert_eq!(interactive_outcome, clean(), "{interactive_questions:?}");
+    assert!(
+        interactive_questions
+            .iter()
+            .all(|question| { return !question.starts_with("clean-would-delete:"); }),
+        "{interactive_questions:?}"
     );
     // The main checkout refuses the same clean before any of this is asked.
     let (main_outcome, main_questions): (PolicyOutcome, Vec<String>) =
         pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), dirty_in(main_worktree("/r", ""), false));
     assert!(matches!(main_outcome, PolicyOutcome::Findings(_)), "{main_questions:?}");
     assert!(
-        main_questions.iter().all(|question| { return !question.starts_with("clean-would-keep:"); }),
+        main_questions.iter().all(|question| { return !question.starts_with("clean-would-delete:"); }),
         "{main_questions:?}"
     );
 }

@@ -52,6 +52,13 @@ pub const CLEAN_DELETION_FACT: &str = "what the clean would delete";
 /// so the caller that must tell Git's refusal of the clean from a reading that never answered matches its start.
 pub const UNREADABLE_CLEAN_DELETION: &str = "Git could not read what the clean would delete:";
 
+/// The words that begin the reading of a clean's own dry run that never answered.
+/// Why:
+///  Git's refusal of the clean deletes nothing and is Git's own answer to the person,
+///  while a read that ended without an exit status says nothing about what the clean would delete;
+///  the two sentences differ so the caller can let the first run and stop the second.
+pub const CLEAN_READ_NEVER_ANSWERED: &str = "Git never answered what the clean would delete:";
+
 /// `-n`,
 ///  `--dry-run`.
 pub const DRY_RUN: u16 = 1;
@@ -224,7 +231,7 @@ pub fn parse_clean_region(
 /// function cleanDryRunArguments(globalPrefix: string[], region: string[]): string[] | undefined;
 /// ```
 pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, true, DryRunForces::AsTyped);
+    return dry_run_arguments(global_prefix, region, true);
 }
 
 /// What:
@@ -241,53 +248,12 @@ pub fn clean_dry_run_arguments(global_prefix: &[OsString], region: &[OsString]) 
 /// function cleanDryRunArgumentsWithoutExclusions(globalPrefix: string[], region: string[]): string[] | undefined;
 /// ```
 pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, false, DryRunForces::AsTyped);
-}
-
-/// What:
-///  Which force count a rebuilt dry run writes.
-///  An `enum` is a closed set of named alternatives.
-/// Why:
-///  The two readings differ in one number and in nothing else,
-///  so one builder writes both.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type DryRunForces = 'as-typed' | 'one';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum DryRunForces {
-    /// As many as the person typed,
-    /// and at least one.
-    AsTyped,
-    /// Exactly one,
-    /// whatever the person typed.
-    One,
-}
-
-/// What:
-///  The same dry run written with exactly one `-f`,
-///  the force count at which Git keeps every nested repository it meets.
-///  `&[OsString]` borrows the invocation's global options and the clean's own tokens.
-/// Why:
-///  Git removes a nested repository only with a second `-f` (`builtin/clean.c`,
-///  `if (force > 1) rm_flags = 0`),
-///  and its dry run then prints one line naming each repository it keeps instead (`Would skip repository`).
-///  So this reading of the same clean is the exact list of repositories the typed clean would delete,
-///  written by Git itself rather than walked again here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function cleanDryRunArgumentsKeepingNestedRepositories(globalPrefix: string[], region: string[]): string[] | undefined;
-/// ```
-pub fn clean_dry_run_arguments_keeping_nested_repositories(global_prefix: &[OsString], region: &[OsString]) -> Option<Vec<OsString>> {
-    return dry_run_arguments(global_prefix, region, true, DryRunForces::One);
+    return dry_run_arguments(global_prefix, region, false);
 }
 
 /// What:
 ///  The dry-run arguments of one clean,
-/// with or without its own exclusion patterns,
-///  and with the force count one of the two readings writes.
+/// with or without its own exclusion patterns.
 ///  `bool` says whether the patterns are written.
 /// Why:
 ///  Every reading is the same command,
@@ -297,13 +263,12 @@ pub fn clean_dry_run_arguments_keeping_nested_repositories(global_prefix: &[OsSt
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dryRunArguments(globalPrefix: string[], region: string[], withExclusions: boolean, forces: DryRunForces): string[] | undefined;
+/// function dryRunArguments(globalPrefix: string[], region: string[], withExclusions: boolean): string[] | undefined;
 /// ```
 fn dry_run_arguments(
     global_prefix: &[OsString],
     region: &[OsString],
     with_exclusions: bool,
-    written_forces: DryRunForces,
 ) -> Option<Vec<OsString>> {
     // The region Git refuses is nothing to ask about; the `?` is that refusal.
     let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
@@ -327,21 +292,20 @@ fn dry_run_arguments(
     for token in ["--no-optional-locks", "clean", "-n"] {
         arguments.push(OsString::from(token));
     }
-    for _ in 0..match written_forces {
-        DryRunForces::AsTyped => forces.max(1),
-        DryRunForces::One => 1,
-    } {
+    for _ in 0..forces.max(1) {
         arguments.push(OsString::from("-f"));
     }
     if descends {
         arguments.push(OsString::from("-d"));
     }
-    // Only the two ignored modes need a mode token; a plain clean deletes non-ignored files and `-e` only removes
-    //  files from that set, which the status measurement over-reports rather than under-reports.
+    // Every ignored-mode token the person wrote is written too, in Git's own order: `git clean` refuses `-x` with `-X`
+    //  inside its own process (`cmd_clean`), and a rebuilt reading that dropped one of them succeeded where the command
+    //  the person typed cannot, so the wrapper moved a repository for a clean Git never ran.
+    if include_ignored {
+        arguments.push(OsString::from("-x"));
+    }
     if ignored_only {
         arguments.push(OsString::from("-X"));
-    } else if include_ignored {
-        arguments.push(OsString::from("-x"));
     }
     for pattern in exclusions {
         arguments.push(OsString::from("-e"));

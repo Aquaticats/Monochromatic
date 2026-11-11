@@ -161,6 +161,9 @@ pub mod rule_shared_remote_messages;
 /// The transform that stops a `checkout` or `switch` replacing an ignored file.
 pub mod rule_keep_ignored_files;
 
+/// The transform that keeps a nested Git repository out of an interactive clean's menu.
+pub mod rule_clean_interactive_nested_repositories;
+
 /// The one-query question whether the repository holds a stash entry.
 pub mod rule_repository_stash;
 
