@@ -242,6 +242,14 @@ fn the_command_the_older_lock_warning_prints_reaches_the_shadow_and_moves_the_gl
 /// The bin the fixture's demo tool declares.
 const DEMO_BIN: &str = "tool";
 
+/// The program every machine-global sentence names,
+/// the name the scope's install links in its exposure farm.
+const SHADOW_PROGRAM: &str = "mpm-shadow";
+
+/// The programs every shell has,
+/// after the scope's own directories.
+const SYSTEM_PATH: &str = "/usr/bin:/bin";
+
 /// The repository-published tool the fixture's machine-global plan declares,
 /// a crate of this repository so the older-lock warning applies to it.
 const DEMO_CRATE: &str = "monochromatic-demo-tool";
@@ -333,7 +341,7 @@ impl Machine {
     fn shadow_program(&self) -> PathBuf {
         let version: &str = env!("CARGO_PKG_VERSION");
         let folder: String = format!("monochromatic-mpm-shadow-{version}-x86_64-unknown-linux-gnu");
-        return self.global_root().join(SHADOW_ID).join(version).join(folder).join("mpm-shadow");
+        return self.global_root().join(SHADOW_ID).join(version).join(folder).join(SHADOW_PROGRAM);
     }
 
     /// What:
@@ -354,7 +362,7 @@ impl Machine {
         fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).expect("make it executable");
         fs::write(version_dir.join(COMPLETE_MARKER), format!("{version}\n")).expect("mark the install finished");
         let folder: String = program.parent().expect("a parent").file_name().expect("a folder name").to_string_lossy().to_string();
-        symlink(format!("{folder}/mpm-shadow"), version_dir.join("mpm-shadow")).expect("link the program beside its folder");
+        symlink(format!("{folder}/{SHADOW_PROGRAM}"), version_dir.join(SHADOW_PROGRAM)).expect("link the program beside its folder");
         symlink(version, self.global_root().join(SHADOW_ID).join("current")).expect("link current");
     }
 
@@ -404,7 +412,7 @@ impl Machine {
             Place::Repo => vec![self.repo().join(".cache").join("toolchain-bin"), self.repo().join(SHADOW_LINK_DIR)],
         };
         let joined: Vec<String> = directories.iter().map(|directory| return directory.display().to_string()).collect();
-        return format!("{}:/usr/bin:/bin", joined.join(":"));
+        return format!("{}:{SYSTEM_PATH}", joined.join(":"));
     }
 
     /// Runs `program` the way a person in this home would:
@@ -444,7 +452,7 @@ impl Machine {
     /// Runs the worktree's install,
     /// which links `mpm` and the farm of that tree.
     fn install_repo(&self) -> Output {
-        let program: PathBuf = self.global_root().join(SHADOW_ID).join("current").join("mpm-shadow");
+        let program: PathBuf = self.global_root().join(SHADOW_ID).join("current").join(SHADOW_PROGRAM);
         return Command::new(&program)
             .args(["install"])
             .current_dir(self.repo())
@@ -509,7 +517,7 @@ fn every_printed_remedy_names_a_program_its_own_install_puts_on_path() {
     assert_eq!(linked.status.code(), Some(0), "the worktree's install failed:\n{}", text(&linked.stderr));
 
     let global_lock: PathBuf = machine.global_lock_file();
-    let missing_global: PathBuf = machine.farm().join("mpm-shadow-nowhere");
+    let missing_global: PathBuf = machine.farm().join("nothing-here");
     let global_sentences: [String; 2] = [
         older_lock_message_for(ScopeKind::Global, TOOL_ID, LOCKED, INSTALLED, &global_lock),
         missing_program_advice(MissingProgram {
@@ -521,7 +529,7 @@ fn every_printed_remedy_names_a_program_its_own_install_puts_on_path() {
         }),
     ];
     for sentence in &global_sentences {
-        let command: String = command_naming(sentence, "mpm-shadow");
+        let command: String = command_naming(sentence, SHADOW_PROGRAM);
         let found = machine.shell(&format!("command -v {command}"), Place::Global);
         assert!(
             found.status.success(),
@@ -553,7 +561,7 @@ fn the_global_remedy_runs_as_printed_and_clears_the_warning() {
     let machine = Machine::new();
     let installed = machine.install_global();
     assert_eq!(installed.status.code(), Some(0), "the machine-global install failed:\n{}", text(&installed.stderr));
-    let program: PathBuf = machine.farm().join("mpm-shadow");
+    let program: PathBuf = machine.farm().join(SHADOW_PROGRAM);
     assert!(
         program.exists(),
         "the install puts the program the printed command starts in the farm a fresh shell reads: {}",
@@ -567,7 +575,7 @@ fn the_global_remedy_runs_as_printed_and_clears_the_warning() {
     let warning: String = text(&before.stderr);
     assert!(warning.contains(TOOL_ID) && warning.contains(LOCKED) && warning.contains(INSTALLED), "{warning}");
     let remedy: String = printed_command(&warning);
-    assert_eq!(remedy, format!("mpm-shadow update -g {TOOL_ID}"), "the sentence names the shadow and the verb that moves one row");
+    assert_eq!(remedy, format!("{SHADOW_PROGRAM} update -g {TOOL_ID}"), "the sentence names the shadow and the verb that moves one row");
 
     let ran = machine.shell(&remedy, Place::Global);
     assert_eq!(

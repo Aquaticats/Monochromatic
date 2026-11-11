@@ -151,13 +151,13 @@ pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<Exposure
 /// export function exposeRunningShadow(ctx: Context, running: string): string | undefined
 /// ```
 pub fn expose_running_shadow(ctx: &Context, running: &Path) -> Result<Option<String>, ToolchainError> {
-    let Some(installed) = newest_installed_shadow(&ctx.scope, running) else {
+    let Some(installed) = newest_installed_shadow(ctx.scope, running) else {
         return Ok(None);
     };
-    let Some(name) = program_name(&installed) else {
+    let Some(program) = program_name(&installed) else {
         return Ok(None);
     };
-    let name: String = name.to_string_lossy().to_string();
+    let name: String = program.to_string_lossy().to_string();
     // A plan row that declares this bin owns the farm link and the launcher record behind it,
     // which names that tool's id; a second link here would take the name over with a record no lock row knows.
     if declares_bin(ctx.tools, &name) {
