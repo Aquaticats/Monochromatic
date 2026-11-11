@@ -55,6 +55,9 @@ const RECOVERY_MARK: u32 = 7_777;
 fn cli_binary() -> io::Result<PathBuf> {
     let test_binary = std::env::current_exe()?;
     // Cargo toolchains can place test artifacts under `debug/deps` or deeper `debug/build` directories.
+    // A host `build.build-dir` setting puts that artifact tree outside the target dir,
+    // where no `debug` ancestor holds the CLI,
+    // so the package's own target dir answers then.
     for directory in test_binary.ancestors() {
         if !directory.ends_with("debug") {
             continue;
@@ -63,6 +66,13 @@ fn cli_binary() -> io::Result<PathBuf> {
         if binary.exists() {
             return Ok(binary);
         }
+    }
+    let package_binary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("target")
+        .join("debug")
+        .join("wg-quicker-exempt");
+    if package_binary.exists() {
+        return Ok(package_binary);
     }
     return Err(io::Error::new(
         io::ErrorKind::NotFound,
