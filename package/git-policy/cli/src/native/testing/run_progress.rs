@@ -21,7 +21,11 @@
 //! no task able to run,
 //!  no task waiting for the disk,
 //!  no processor time and no bytes moved,
-//!  and no process or task started or ended.
+//!  and no process or task started.
+//! A figure that fell says a task ended or could not be read,
+//! and neither is the run working,
+//!  so only a
+//!  figure that grew counts.
 //!  Those are the signs the wrapper's own wait for a child process reads (`push_progress.rs`),
 //! so a test run
 //!  and a shipped wait are judged alike.
@@ -38,6 +42,11 @@
 //! so a run
 //!  whose counters never come back still ends,
 //! and a later look that reads the run counts again.
+//! What the watching thread moves is measured on both sides of its reading,
+//! so a thread
+//!  that writes a line of its own,
+//!  or reads something the reading does not count,
+//!  cannot make the run look busy at every look.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -82,25 +91,31 @@ static READING_THREADS: std::sync::Mutex<Vec<Reader>> = std::sync::Mutex::new(Ve
 
 /// What:
 ///  A thread that reads this run,
-///  and the bytes its own readings of `/proc` have added so far.
+///  how many waits it is inside,
+///  and the bytes its own readings of `/proc` have moved so far.
 /// Why:
-///   A reader's work is the run's work and its readings are not,
-/// and the counters are monotonic,
-/// so the two are only told
-///  apart by what each look added to its own reader's counters:
-/// that figure is kept here and subtracted from the reader's counters at every
-///  look.
+///   One thread may be inside more than one wait at a time (a wait whose event another wait reports),
+/// and a second entry for it would be
+///  read as a second watcher whose readings were never counted,
+/// so its whole counter would look like the run's work at every look.
+/// The readings are kept here because the counter is cumulative:
+///  what a look reads is taken off the next one,
+/// exactly,
+/// including the one reading each look makes to learn the counter itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Reader = { thread: number; ownReads: number };
+/// type Reader = { thread: number; waits: number; ownReadings: number };
 /// ```
 #[derive(Clone, Copy)]
 struct Reader {
     /// The thread the kernel numbers for the reader.
     thread: i32,
-    /// The bytes this reader's own looks have added to its counters.
-    own_reads: u64,
+    /// How many registrations of this thread are still live.
+    waits: usize,
+    /// The bytes this thread's own readings have moved,
+    /// counted and uncounted alike.
+    own_readings: u64,
 }
 
 /// What:
@@ -138,25 +153,33 @@ impl Reading {
     pub(crate) fn begin() -> Option<Reading> {
         let thread: i32 = current_thread_id()?;
         let Ok(mut reading) = READING_THREADS.lock() else { return None };
-        reading.push(Reader { thread, own_reads: 0 });
+        for each in reading.iter_mut() {
+            if each.thread == thread {
+                each.waits = each.waits.saturating_add(1);
+                return Some(Reading { thread });
+            }
+        }
+        reading.push(Reader { thread, waits: 1, own_readings: 0 });
         return Some(Reading { thread });
     }
 }
 
 /// What:
-///  Note what the look this reader took added to its own counters,
+///  Note what the look this reader took moved of its own readings,
 ///  so the next look counts the reader's work and not its readings.
 /// Why:
 ///   Each look reads one file per task,
-/// and those bytes are in the reader's own counters before the next look;
-/// subtracting them is what lets the
-///  reader's own work (a predicate that retries,
-/// a round it runs) still count.
-fn note_a_reader_s_own_reads(reader: i32, added: u64) {
+/// and the kernel charges those bytes to the thread that read them,
+/// so they would look like the run's work at every
+///  look;
+/// the readings are added up here,
+/// one entry per thread,
+/// and the next look of that thread takes exactly them off.
+fn note_a_reader_s_own_readings(reader: i32, added: u64) {
     let Ok(mut reading) = READING_THREADS.lock() else { return };
     for each in reading.iter_mut() {
         if each.thread == reader {
-            each.own_reads = each.own_reads.saturating_add(added);
+            each.own_readings = each.own_readings.saturating_add(added);
             return;
         }
     }
@@ -168,22 +191,26 @@ fn note_a_reader_s_own_reads(reader: i32, added: u64) {
 impl Drop for Reading {
     fn drop(&mut self) {
         let Ok(mut reading) = READING_THREADS.lock() else { return };
-        // The last registration of this thread, because nested reads of one thread end in the order they began.
-        if let Some(at) = reading.iter().rposition(|each: &Reader| { return each.thread == self.thread; }) {
+        let Some(at) = reading.iter().position(|each: &Reader| { return each.thread == self.thread; }) else { return };
+        let ending: &mut Reader = &mut reading[at];
+        ending.waits = ending.waits.saturating_sub(1);
+        if ending.waits == 0 {
             let _gone: Reader = reading.remove(at);
         }
     }
 }
 
 /// The threads a look leaves out,
-/// which is every reader of this process.
+/// which is every reader of this process,
+/// each once.
 pub(crate) fn reading_threads() -> Vec<i32> {
     let Ok(reading) = READING_THREADS.lock() else { return Vec::new() };
     return reading.iter().map(|each: &Reader| { return each.thread; }).collect();
 }
 
 /// The readers of this process,
-/// with the bytes their own looks have added to their counters.
+/// one entry per thread,
+/// with the bytes their own readings have moved.
 fn the_readers() -> Vec<Reader> {
     let Ok(reading) = READING_THREADS.lock() else { return Vec::new() };
     return reading.clone();
@@ -197,6 +224,8 @@ fn the_readers() -> Vec<Reader> {
 /// and a task able to run or waiting for the disk is at work now,
 /// so a look
 ///  says whether anything moved since the one before it.
+/// A figure that fell says a task ended or could not be read,
+///  which is not the run working.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -253,7 +282,7 @@ impl std::fmt::Display for Ending {
         return match self {
             Ending::Quiet(quiet) => write!(
                 formatter,
-                "showed no sign of work for {:.1} s (no task able to run or waiting for the disk, no processor time, no bytes moved, and no process or task started or ended)",
+                "showed no sign of work for {:.1} s (no task able to run or waiting for the disk, no processor time, no bytes moved, and no process or task started)",
                 quiet.as_secs_f64()
             ),
             Ending::Unreadable(unread) => write!(
@@ -301,34 +330,34 @@ struct Tally {
 
 impl Tally {
     /// What:
-    ///  Add the counters a reader had before this look,
-    ///  so the readings the look itself makes are not the run's work.
+    ///  Add what the looking thread has moved that no reading of its own accounts for,
+    ///  and answer the bytes of the one reading that the next look must take off too.
     /// Why:
     ///   A reader's own work is the run's work:
     /// a predicate that makes a retry or a round does real disk work on the waiting thread,
     /// and its
     ///  `D` state is the evidence `run_progress` treats as work.
-    /// Its readings of `/proc` are not.
-    /// Reading its counters before the walk
-    ///  separates the two,
-    /// so the walk may count that thread's work and still leave out the bytes the walk adds to it.
-    /// Only the disk wait counts as its work here,
+    /// Its readings of `/proc` are not,
+    ///  and the kernel charges every one of them to the thread that read it.
+    /// `own_readings` is what its previous looks read,
+    /// so the difference is the work it did of its own.
+    /// The `io` file is read first and its own bytes answered to the caller,
+    /// because that reading happens before the
+    ///  counter it yields can include itself.
+    /// Only the disk wait counts for its state,
     ///  never state `R`:
     /// the reader is running because it is taking this very look.
-    fn add_a_readers_own_work(&mut self, task: &std::path::Path, own_reads: u64) -> u64 {
-        let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return 0 };
-        self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
-        let Some((state, _ticks)) = parse_activity(stat.as_str()) else { return 0 };
-        self.readable = true;
-        // The reader runs because it is taking this very look, so only its disk wait is its work.
-        self.working = self.working || state == 'D';
-        let io: String = std::fs::read_to_string(task.join("io")).unwrap_or_default();
+    fn add_the_readers_own_counters(&mut self, task: &std::path::Path, own_readings: u64) -> Option<u64> {
+        let io: String = std::fs::read_to_string(task.join("io")).ok()?;
         self.read_bytes = self.read_bytes.saturating_add(io.len() as u64);
-        // Its processor time is this look's too, so the run is judged on the bytes the reader moved, its own readings
-        //  taken off.
-        let work: u64 = bytes_in(io.as_str()).saturating_sub(own_reads);
-        self.bytes = self.bytes.saturating_add(work);
-        return work;
+        // Its processor time is this look's too, so the run is judged on what it moved that was not a reading.
+        self.bytes = self.bytes.saturating_add(bytes_in(io.as_str()).saturating_sub(own_readings));
+        let stat: String = std::fs::read_to_string(task.join("stat")).ok()?;
+        self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
+        let (state, _ticks): (char, u64) = parse_activity(stat.as_str())?;
+        self.readable = true;
+        self.working = self.working || state == 'D';
+        return Some(io.len() as u64);
     }
 
     /// What:
@@ -500,18 +529,18 @@ fn look(reader: i32) -> Option<Look> {
     if !leaving_out.contains(&reader) {
         leaving_out.push(reader);
     }
-    // Every thread whose readings are not the run's work is read first, with its own readings taken off: its own work
-    //  still counts, and the bytes this walk adds to its counters do not.
+    // What the looking thread moved that no reading of its own accounts for is the run's work, and the reading that
+    //  learns this is itself taken off the next look (`Tally::add_the_readers_own_counters`).
+    let own_readings: u64 = readers.iter().find(|each: &&Reader| { return each.thread == reader }).map_or(0, |each: &Reader| { return each.own_readings; });
+    let task: String = format!("/proc/{own}/task/{reader}");
+    let uncounted: Option<u64> = tally.add_the_readers_own_counters(std::path::Path::new(task.as_str()), own_readings);
+    // Another reader's disk wait is work whatever reader took the look, and nothing else of it is counted: its bytes
+    //  would be its own readings, which only its own looks can take off.
     for each in &readers {
-        let task: String = format!("/proc/{own}/task/{}", each.thread);
         if each.thread == reader {
-            tally.add_a_readers_own_work(std::path::Path::new(task.as_str()), each.own_reads);
-        } else {
-            tally.add_a_readers_disk_wait(std::path::Path::new(task.as_str()));
+            continue;
         }
-    }
-    if !readers.iter().any(|each: &Reader| { return each.thread == reader; }) {
-        tally.add_a_readers_own_work(std::path::Path::new(format!("/proc/{own}/task/{reader}").as_str()), 0);
+        tally.add_a_readers_disk_wait(std::path::Path::new(format!("/proc/{own}/task/{}", each.thread).as_str()));
     }
     tally.add_process(own, leaving_out.as_slice());
     let mut read_by_the_walk: u64 = 0;
@@ -522,9 +551,9 @@ fn look(reader: i32) -> Option<Look> {
     if !tally.readable {
         return None;
     }
-    // Every byte this look read was read by the caller, so it is in the caller's own counters before the next look: the
-    //  next look takes exactly these off, and the caller's own work still counts.
-    note_a_reader_s_own_reads(reader, tally.read_bytes);
+    // Every byte this look read was read by the caller, so the next look takes exactly these off, with the one reading
+    //  whose own bytes cannot be in the counter it yields.
+    note_a_reader_s_own_readings(reader, tally.read_bytes.saturating_add(uncounted.unwrap_or(0)));
     return Some(Look { bytes: tally.bytes, ticks: tally.ticks, working: tally.working, members: tally.members });
 }
 
@@ -575,8 +604,10 @@ impl Judge {
             return self.ending_without_a_look(elapsed);
         };
         self.last_read = Some(elapsed);
+        // Only a figure that grew is work: a figure that fell means a task ended, or one could not be read, and neither
+        //  is the run doing anything. A count that fell at every look would otherwise keep a quiet run alive for ever.
         let moved: bool = self.previous.is_none_or(|before: Look| {
-            return before.bytes != current.bytes || before.ticks != current.ticks || before.members != current.members;
+            return current.bytes > before.bytes || current.ticks > before.ticks || current.members > before.members;
         });
         if moved || current.working {
             self.last_change = elapsed;
@@ -673,6 +704,9 @@ pub(crate) fn watch(window: Duration) -> Option<std::thread::JoinHandle<()>> {
 /// ```
 pub(crate) fn look_now() -> Option<Look> {
     LOOKS_TAKEN.with(|taken: &std::cell::Cell<u64>| { taken.set(taken.get().saturating_add(1)); });
+    // This thread's own readings of the run are not the run's work, and this look's are taken off the next one even
+    //  where the caller keeps no registration of its own.
+    let _reading: Option<Reading> = Reading::begin();
     return current_thread_id().and_then(look);
 }
 
@@ -726,8 +760,7 @@ fn run(window: Duration) {
         std::thread::sleep(SAMPLE_INTERVAL);
         if let Some(ending) = judge.observe(started.elapsed(), look(reader)) {
             end(ending);
-        }
-    }
+        }    }
 }
 
 /// What:
