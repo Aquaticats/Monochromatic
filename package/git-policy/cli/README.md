@@ -451,11 +451,16 @@ Read-only commands,
   not only the recorded one,
    and a branch deleted on the remote is not recreated.
    One such push can be refused for a sibling branch while the recorded one arrived,
-   so after a matching push that failed the service asks the remote what the recorded branch's ref names,
-   and a branch the remote holds at the commit it sent is reported as pushed:
+   so after a matching push that failed the service asks each URL that remote pushes to
+   what the recorded branch's ref names there,
+   and a branch every one of them holds at the commit it sent is reported as pushed:
    the sibling's refusal is no failure of that branch and does not delay it,
   and the service log names the refused sibling from Git's own line,
   since nothing else would.
+   A push remote that is a URL rather than a name the repository holds
+   (`branch.<name>.pushRemote` or `remote.pushDefault`)
+   is asked as that URL,
+   since `git remote get-url` answers nothing for one.
    When Git refuses the setting or would push the branch nowhere
    (several `branch.<name>.merge` values under `simple` or `upstream`,
   `push.default=nothing`,
@@ -851,9 +856,12 @@ Read-only commands,
   What the command no longer does itself is delete the files:
      it renames the worktree's subvolume to `cli-git-deleting-<subvolume id>`
    beside the path you typed,
-     writes a record of it, tells the worktree's commit service, and returns;
+     writes a record of it,
+     tells the worktree's commit service,
+     and returns;
      that service deletes the
-   subvolume in its own time, normally within a second,
+   subvolume in its own time,
+     normally within a second,
      so a busy volume's btrfs transaction or cleaner does not hold your
    command.
      The path you named is gone the moment the command returns;
@@ -865,8 +873,10 @@ Read-only commands,
      which is every
    commit and every add,
      and the service says in `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
-   (a mount without `user_subvol_rm_allowed`, for one).
-     Nothing of yours is in it: a worktree is only removed
+   (a mount without `user_subvol_rm_allowed`,
+     for one).
+     Nothing of yours is in it:
+     a worktree is only removed
    after the wrapper proved it clean and unlocked.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that

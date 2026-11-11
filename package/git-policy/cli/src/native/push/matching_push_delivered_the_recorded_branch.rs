@@ -13,31 +13,34 @@
 //! then forty,
 //! which could not clear while the sibling stayed refused,
 //! so a published branch kept its push retried for as long as the plan lived.
-//!  The remote is asked instead,
+//!  The remote that was pushed to is asked instead,
 //! with `git ls-remote`,
 //! and the answer is the ref's own object:
-//! the branch arrived when that object is the commit this push sent.
-//!  The remote-tracking ref cannot answer this:
-//! it is a local copy that lags the remote,
+//! the branch arrived when every push URL of the remote names the commit this push sent.
+//!  Two other sources were tried and are wrong.
+//! The push's own status is the thing that started this.
+//! The remote-tracking ref is a local copy that lags the remote,
 //! so it still names a commit whose branch was deleted on the remote,
-//! and a push to a remote that cannot be reached at all would read as delivered
-//!  (`a_matching_push_with_no_branch_in_common_fails_with_gits_words`,
-//! `a_matching_push_to_an_unreachable_remote_fails_loudly`).
-//!  A remote that cannot be asked,
-//!  or that names another object,
+//!  and a push to a remote that cannot be reached at all would read as delivered.
+//! The remote's fetch URL is not the place the push went either:
+//! `remote.<name>.pushurl` can name another repository,
+//!  and one that holds the commit while the push URL refused it would read as delivered
+//! (`a_matching_push_whose_push_url_lacks_the_branch_is_a_failure`).
+//!  A push remote can also be a URL rather than a name the repository holds
+//! (`branch.<name>.pushRemote` or `remote.pushDefault`),
+//! and `git remote get-url` answers nothing for one,
+//! so the setting is where that URL is read from
+//! (`a_matching_push_to_a_push_remote_that_is_a_url_still_publishes_the_branch`).
+//!  A push URL that cannot be asked,
+//! or that names another object,
 //! proves nothing and leaves the push the failure it was,
-//! because a delivery this wrapper cannot prove is never
-//!  claimed,
+//!  because a delivery this wrapper cannot prove is never claimed,
 //! and the next push of something the remote already has succeeds and clears the record.
-//!  The question is put to the remote's fetch URL,
-//! the one the remote-tracking refs are read from and the one a person's `git status` speaks of;
-//! a push URL that differs can therefore leave the answer unproven,
-//! which errs toward the retry and never toward a claim.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const arrived = gitMatched && exitCode !== 0
-//!   ? (await lsRemote(git, [remote, refOf(branchRef)])).get(refOf(branchRef)) === landedOid
+//!   ? (await pushUrls(git, remote)).every((url) => lsRemote(git, [url, refOf(branchRef)]).get(refOf(branchRef)) === landedOid)
 //!   : false;
 //! ```
 
@@ -108,6 +111,80 @@ pub(crate) struct MatchingPush<'facts> {
 }
 
 /// What:
+///  The URLs one `git remote get-url --push --all` answered with.
+/// Why:
+///   One URL is printed per line,
+/// and a remote with no push URL answers with the URLs it fetches from,
+/// which is where Git itself pushes in that case.
+/// A line that is empty names nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listing.split('\n').map((line) => line.trim()).filter((line) => line !== '')
+/// ```
+pub(crate) fn urls_of(listing: &str) -> Vec<&str> {
+    return listing.lines().map(str::trim).filter(is_a_url).collect();
+}
+
+/// Whether one line of that listing names a URL.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (line) => line !== ''
+/// ```
+fn is_a_url(line: &&str) -> bool {
+    return !line.is_empty();
+}
+
+/// What:
+///  The URLs a push went to,
+/// from the answer to `git remote get-url --push --all`.
+/// Why:
+///   One URL is printed per line,
+/// and a remote with no push URL answers with the URLs it fetches from,
+/// which is where Git itself pushes in that case.
+///  A remote this repository does not name is a URL the push went to itself:
+/// Git accepts a URL where a remote name belongs,
+/// and `git remote get-url` refuses to answer for one,
+/// so the setting that named it is the only place that URL is written down.
+/// Nothing written down is no URL at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listing === undefined ? [remote] : listing.split('\n').map((line) => line.trim()).filter((line) => line !== '')
+/// ```
+pub(crate) fn urls_the_push_went_to(listing: Option<&str>, remote: &str) -> Vec<String> {
+    let Some(answered): Option<&str> = listing else {
+        return vec![remote.to_owned()];
+    };
+    return urls_of(answered).into_iter().map(str::to_owned).collect();
+}
+
+/// What:
+///  Whether every push URL named the commit,
+/// which is what proves the recorded branch arrived.
+/// Why:
+///   Git reports a push as done only when every push URL of the remote took it,
+/// so one URL that names nothing else is not a delivery.
+/// No URL at all proves nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// answers.length > 0 && answers.every((answer) => answer === landedOid)
+/// ```
+pub(crate) fn every_url_named_it(answers: &[Option<String>], landed_oid: &str) -> bool {
+    if answers.is_empty() {
+        return false;
+    }
+    for answer in answers {
+        if answer.as_deref() != Some(landed_oid) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
 ///  The object `ls-remote` says one ref of a remote names,
 /// from its own listing.
 /// Why:
@@ -164,26 +241,40 @@ fn is_a_refusal(line: &&str) -> bool {
     return line.contains(REJECTED_MARKER) || line.contains(REMOTE_REJECTED_MARKER);
 }
 
-/// What:
-///  The arguments that ask a remote what one ref names.
-/// Why:
-///   `--refs` keeps symbolic refs out of the listing,
+/// The arguments that name the URLs a remote pushes to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ['remote', 'get-url', '--push', '--all', remote]
+/// ```
+fn push_url_arguments<'facts>(remote: &'facts str) -> [&'facts str; 5] {
+    return ["remote", "get-url", "--push", "--all", remote];
+}
+
+/// The arguments that ask one remote what one ref names.
+///  `--refs` keeps symbolic refs out of the listing,
 /// so one ref cannot be answered twice.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// ['ls-remote', '--refs', remote, ref]
+/// ['ls-remote', '--refs', url, ref]
 /// ```
-fn ask_arguments<'facts>(remote: &'facts str, remote_ref: &'facts str) -> [&'facts str; 4] {
-    return ["ls-remote", "--refs", remote, remote_ref];
+fn ask_arguments<'facts>(url: &'facts str, remote_ref: &'facts str) -> [&'facts str; 4] {
+    return ["ls-remote", "--refs", url, remote_ref];
+}
+
+/// The argument vectors of one query,
+/// as owned OS strings.
+fn argv_of<'text>(arguments: &[&'text str]) -> Vec<OsString> {
+    return arguments.iter().map(OsString::from).collect();
 }
 
 /// What:
 ///  Whether the remote proves the recorded branch arrived although Git's status says the push failed,
-/// asked of the remote itself.
+/// asked of every URL that remote pushes to.
 /// Why:
 ///  The remote is the only authority on what it holds,
-/// and the question costs one query on a push that already failed.
+/// and the question costs a few queries on a push that already failed.
 ///  A question that cannot be put proves nothing,
 /// and the push keeps the failure it was.
 ///
@@ -191,7 +282,8 @@ fn ask_arguments<'facts>(remote: &'facts str, remote_ref: &'facts str) -> [&'fac
 /// ```ts
 /// if (!asksTheRemote(push.gitMatched, push.exitCode)) return false;
 /// const ref = remoteRefOf(push.branchRef); if (ref === undefined) return false;
-/// try { return objectNamedBy(await lsRemote(git, [push.remote, ref]), ref) === push.landedOid; } catch { return false; }
+/// const urls = pushUrls(git, push.remote); if (urls.length === 0) return false;
+/// return everyUrlNamedIt(urls.map((url) => lsRemote(git, [url, ref])), push.landedOid);
 /// ```
 pub(crate) fn delivered_although_git_failed(git: &PushGit, push: &MatchingPush<'_>) -> Result<bool, SingleFlightError> {
     if !asks_the_remote(push.git_matched, push.exit_code) {
@@ -200,14 +292,22 @@ pub(crate) fn delivered_although_git_failed(git: &PushGit, push: &MatchingPush<'
     let Some(remote_ref): Option<String> = remote_ref_of(push.branch_ref) else {
         return Ok(false);
     };
-    let arguments: [&str; 4] = ask_arguments(push.remote, remote_ref.as_str());
-    let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
-    let listing = match run_query(git, &argv) {
-        Ok(output) if output.code == Some(0) => output,
-        // A remote that cannot be asked, or that answered with an error, holds nothing this wrapper can prove.
-        Ok(_) | Err(_) => return Ok(false),
+    let listing: Option<String> = match run_query(git, argv_of(&push_url_arguments(push.remote)).as_slice()) {
+        Ok(output) if output.code == Some(0) => Some(String::from_utf8_lossy(output.stdout.as_slice()).into_owned()),
+        // A remote this repository does not name is the URL the push went to.
+        Ok(_) => None,
+        Err(_) => return Ok(false),
     };
-    return Ok(object_named_by(String::from_utf8_lossy(listing.stdout.as_slice()).as_ref(), remote_ref.as_str()).as_deref() == Some(push.landed_oid));
+    let mut answers: Vec<Option<String>> = Vec::new();
+    for url in urls_the_push_went_to(listing.as_deref(), push.remote) {
+        let answer = match run_query(git, argv_of(&ask_arguments(url.as_str(), remote_ref.as_str())).as_slice()) {
+            Ok(output) if output.code == Some(0) => output,
+            // A push URL that cannot be asked holds nothing this wrapper can prove.
+            Ok(_) | Err(_) => return Ok(false),
+        };
+        answers.push(object_named_by(String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(), remote_ref.as_str()));
+    }
+    return Ok(every_url_named_it(answers.as_slice(), push.landed_oid));
 }
 
 /// What:
@@ -216,8 +316,8 @@ pub(crate) fn delivered_although_git_failed(git: &PushGit, push: &MatchingPush<'
 /// Why:
 ///  The service's push is a task,
 /// and the synchronous query enters the runtime and is refused from there.
-/// The question,
-///  the ref and the reading of the answer are the synchronous face's,
+/// The questions,
+///  the ref and the reading of the answers are the synchronous face's,
 /// so the two cannot disagree about a branch.
 ///
 /// In TS you'd write (pseudocode):
@@ -231,14 +331,22 @@ pub(crate) async fn delivered_although_git_failed_awaiting(git: &PushGit, push: 
     let Some(remote_ref): Option<String> = remote_ref_of(push.branch_ref) else {
         return Ok(false);
     };
-    let arguments: [&str; 4] = ask_arguments(push.remote, remote_ref.as_str());
-    let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
-    let listing = match run_query_awaiting(git, &argv).await {
-        Ok(output) if output.code == Some(0) => output,
-        // A remote that cannot be asked, or that answered with an error, holds nothing this wrapper can prove.
-        Ok(_) | Err(_) => return Ok(false),
+    let listing: Option<String> = match run_query_awaiting(git, argv_of(&push_url_arguments(push.remote)).as_slice()).await {
+        Ok(output) if output.code == Some(0) => Some(String::from_utf8_lossy(output.stdout.as_slice()).into_owned()),
+        // A remote this repository does not name is the URL the push went to.
+        Ok(_) => None,
+        Err(_) => return Ok(false),
     };
-    return Ok(object_named_by(String::from_utf8_lossy(listing.stdout.as_slice()).as_ref(), remote_ref.as_str()).as_deref() == Some(push.landed_oid));
+    let mut answers: Vec<Option<String>> = Vec::new();
+    for url in urls_the_push_went_to(listing.as_deref(), push.remote) {
+        let answer = match run_query_awaiting(git, argv_of(&ask_arguments(url.as_str(), remote_ref.as_str())).as_slice()).await {
+            Ok(output) if output.code == Some(0) => output,
+            // A push URL that cannot be asked holds nothing this wrapper can prove.
+            Ok(_) | Err(_) => return Ok(false),
+        };
+        answers.push(object_named_by(String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(), remote_ref.as_str()));
+    }
+    return Ok(every_url_named_it(answers.as_slice(), push.landed_oid));
 }
 
 /// The judgement's own controls stay out of the release executable.

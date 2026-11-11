@@ -60,24 +60,38 @@ was the pause the person saw.
 The recorded branch's fate is asked of the remote,
 never read from the aggregated status:
 `package/git-policy/cli/src/native/push/matching_push_delivered_the_recorded_branch.rs`
-runs one `git ls-remote --refs <remote> refs/heads/<name>` after a matching push that failed,
-and a push whose answer is the commit it sent is reported as published,
+reads the URLs the push went to with `git remote get-url --push --all <remote>`,
+asks each of them `git ls-remote --refs <url> refs/heads/<name>`,
+and reports the push as published only when every one of them names the commit it sent,
 so no retry is planned.
 The service journal now names each refused ref from Git's own line for it.
 
-A remote that cannot be asked,
+A push URL that cannot be asked,
 or that names another object,
 proves nothing and leaves the push the failure it was.
+A push remote that is a URL rather than a name the repository holds
+(`branch.<name>.pushRemote` or `remote.pushDefault`)
+is asked as that URL:
+`git remote get-url` answers nothing for one,
+so the setting that named it is where the URL is read
+(`a_matching_push_to_a_push_remote_that_is_a_url_still_publishes_the_branch`).
 
-## Why the remote-tracking ref is not the proof
+## Why neither the remote-tracking ref nor the fetch URL is the proof
 
-It was tried first and it is wrong in both directions.
+The remote-tracking ref was tried first and it is wrong in both directions.
 `refs/remotes/<remote>/<name>` is a local copy that lags the remote,
 so it still names a commit whose branch the remote deleted
 (`a_matching_push_with_no_branch_in_common_fails_with_gits_words`),
 and a push to a remote that cannot be reached at all reads as delivered
 (`a_matching_push_to_an_unreachable_remote_fails_loudly`).
 Both controls caught it.
+
+Asking `ls-remote <remote>` is wrong in the same way for a remote whose
+`remote.<name>.pushurl` names another repository:
+the fetch side can hold the commit while the push side refused it,
+which read as published
+(`a_matching_push_whose_push_url_lacks_the_branch_is_a_failure`,
+found by an independent review and shown to fail with the fetch URL asked).
 
 ## The ten seconds was not a fixed grace
 
@@ -111,9 +125,11 @@ so the spread of every arm is reported rather than one figure per arm.
 
 ## Limits
 
-The question goes to the remote's fetch URL,
-so a `remote.<name>.pushurl` that differs can leave the answer unproven,
-which errs toward the retry and never toward a claim.
-A remote that answers with an error,
+The question costs one `remote get-url --push --all` and one `ls-remote` per push URL,
+on a push that already failed,
+and each is bounded by the push's own stall window.
+A push URL that answers with an error,
 or that names another object,
 also proves nothing.
+A remote the repository does not name is asked as the URL the push went to,
+so a misspelled remote name costs one question that fails and proves nothing.

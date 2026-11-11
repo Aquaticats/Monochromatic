@@ -54,6 +54,43 @@ fn the_refused_refs_are_the_lines_that_say_so() {
     assert!(refused_lines("To /nowhere/remote.git\n   abc..def  main -> main\n").is_empty());
 }
 
+/// A remote's push URLs are its own lines,
+/// one per URL,
+/// and a remote with none names nothing.
+#[test]
+fn the_push_urls_are_the_lines_that_name_one() {
+    assert_eq!(urls_of("https://one.example.invalid/r.git\n"), vec!["https://one.example.invalid/r.git"]);
+    assert_eq!(urls_of("  /first/path.git  \n/second/path.git\n"), vec!["/first/path.git", "/second/path.git"]);
+    assert!(urls_of("\n  \n").is_empty());
+}
+
+/// Every push URL must name the commit,
+/// and no URL proves nothing.
+#[test]
+fn every_push_url_must_name_the_commit() {
+    let landed: &str = "3f786850e387550fdab836ed7e6dc881de23001b";
+    let one: Option<String> = Some(String::from(landed));
+    let other: Option<String> = Some(String::from("89e6c98d92887913ead7cdc37f937e1cc95807c6"));
+    assert!(every_url_named_it(std::slice::from_ref(&one), landed), "one URL that names it");
+    assert!(every_url_named_it(&[one.clone(), one.clone()], landed), "two URLs that both name it");
+    assert!(!every_url_named_it(&[one.clone(), other], landed), "one URL that names another object");
+    assert!(!every_url_named_it(&[one.clone(), None], landed), "one URL that could not be asked");
+    assert!(!every_url_named_it(&[], landed), "no URL at all");
+}
+
+/// A remote the repository names answers with its own push URLs,
+/// and one it does not name is the URL the push went to,
+/// so that URL is the one asked.
+#[test]
+fn the_urls_are_the_listing_or_the_remote_itself() {
+    assert_eq!(
+        urls_the_push_went_to(Some("/first/path.git\n/second/path.git\n"), "origin"),
+        vec!["/first/path.git", "/second/path.git"]
+    );
+    assert_eq!(urls_the_push_went_to(None, "/somewhere/published.git"), vec!["/somewhere/published.git"]);
+    assert!(urls_the_push_went_to(Some("\n  \n"), "origin").is_empty(), "a listing that names nothing asks nothing");
+}
+
 /// A repository with `main` published to a local bare remote,
 /// and the commit `main` holds there.
 fn published(name: &str) -> (PathBuf, PushGit, String) {
