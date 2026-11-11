@@ -11411,6 +11411,13 @@ and nothing about a claim can fail a commit.
 
 The pool lives in `<common-dir>/monochromatic-git-policy-cli-shadow-pool/<worktree>`,
 one folder per worktree because a member's `config` names the worktree root the commit runs in.
+`<worktree>` is `main` for the main checkout,
+whose own Git directory is the common directory,
+and `worktree-<name>` for a linked one,
+named after its own Git directory,
+and one rule names it on both sides (`pool_key` in `shadow_pool.rs`):
+the fill and a claim that would look at one folder,
+and the sweep that removes it.
 It is its own folder beside the repository scratch directory and never an entry of it:
 a member is standing state the owner asked for,
 not scratch,
@@ -11460,10 +11467,26 @@ from this invocation's own capture.
   and stops at two members for a worktree.
 - A fill that a stop interrupts leaves a folder named as a fill,
   which no claim takes and the next fill of that pool removes once it is fifteen minutes old.
-  Nothing else collects the pool:
-  it is not scratch,
-  so no age a sweep uses reaches a member,
-  and a pool left unused keeps its members until the next landing fills it again or a person removes the folder.
+  Nothing a sweep of scratch removes reaches a member,
+  because the pool is not scratch.
+- A worktree Git no longer lists has no pool:
+  every wrapped command removes the folder of a worktree whose own Git directory is gone
+  (`sweep_gone_worktrees` in `shadow_pool.rs`).
+  `git worktree prune` deletes the registration alone,
+  and a registration deleted by hand leaves even less,
+  so the members of that folder would otherwise keep the shape of a checkout that is gone for ever.
+  The question is asked of the repository's own `worktrees` folder and never of Git,
+  so a command whose repository has no pool pays one `read_dir` that finds nothing.
+  A worktree Git is adding keeps its folder,
+  because Git makes a registration before it makes the checkout,
+  and a folder the wrapper did not name stays,
+  because only a folder named for a worktree can be proven to belong to one.
+  A removal that fails is named in the diagnostic log and left for the next command,
+  and nothing it removes is followed through a member's links into this repository.
+  A removal that succeeds prints nothing:
+  no member holds a ref or a commit of the person's,
+  so there is nothing for them to do about it,
+  and a line on every command that happened to run next would say nothing that changes it.
 
 `buildParts` names the claim `shadow pool`:
 a build that took a member names no `shadow skeleton`,

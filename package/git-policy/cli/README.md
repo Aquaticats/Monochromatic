@@ -1285,6 +1285,9 @@ and a worktree deleted without Git leaves its units too.
 Those leftovers end at the first connection,
 when the service starts and finds the worktree gone,
 or when the command named next runs.
+The pool of finished private repositories that worktree's commits filled is not a unit:
+no service runs it,
+and the next wrapped command in the repository removes it (see "State on disk").
 `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those:
 it takes no options and looks at every unit instance of the user,
 not at one repository.
@@ -4229,6 +4232,23 @@ so a running command never loses it;
 the trees a machine makes while no service answers are bounded by that rule (about 9 MiB each)
  and by at most eight removed per command sweep;
  other entries of the directory go once they are a day old.
+A commit can take a finished private repository from a pool the service fills ahead:
+`monochromatic-git-policy-cli-shadow-pool` in the common Git directory,
+one folder per worktree (`main` for the main checkout and `worktree-<name>` for a linked one),
+holding a few prepared repositories a commit renames into place instead of building one.
+An empty or absent folder is not a failure:
+that commit builds its own repository as it always did.
+A worktree Git no longer lists has no folder,
+because every command in the repository removes the pool of a worktree whose registration is gone.
+`git worktree prune` and a registration deleted by hand are what leave such a folder behind.
+The pool of a worktree Git still lists is never touched,
+and neither is one of a worktree Git is adding,
+because Git makes a registration before it makes the checkout.
+A folder the wrapper did not name is left alone,
+so anything you keep in that folder stays.
+Nothing in a member is yours:
+it holds no branch and no ref of yours,
+so one removed is built again the next time a commit in that worktree needs it.
 The service's after-commit work records and the notices of a failed backup push are kept under `monochromatic-git-policy-cli/`.
 The timing record of each wrapped commit is appended to `monochromatic-git-policy-cli-commit-timing.jsonl` (see "Splitting a slow commit").
 A directory `cli-git-transactions` in the worktree's Git directory belongs to an earlier release:
