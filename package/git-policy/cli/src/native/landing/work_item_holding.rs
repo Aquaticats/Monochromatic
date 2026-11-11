@@ -24,7 +24,7 @@
 //! ```
 
 use crate::held_push_holder_and_verdict::{Holding, Verdict, this_command, with_holding};
-use crate::private_storage::{create_private_directory_all, replace_private_file, write_private_file_unsynced};
+use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced, write_private_file_unsynced};
 use crate::work_item::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, WorkItem, state_directory};
 use std::path::{Path, PathBuf};
 
@@ -77,7 +77,7 @@ pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String
 /// beside the item the record already states,
 /// and answers whether a record was there to write it into.
 /// Why:
-///   The verdict must be durable before the record is promoted or forgotten:
+///   The verdict must be in the record before it is promoted or forgotten:
 /// a command killed between its gate
 ///  and that step leaves a record whose own words say what it decided,
 /// so a later command settles it from the verdict rather than
@@ -87,10 +87,16 @@ pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String
 /// The holder written with the verdict is the command that decided,
 /// which is the retry's own
 ///  command when a retry is the one that finishes the commit.
+///   The record is published whole by one rename and flushed by nothing,
+/// because a commit's answer waits on no sync of the wrapper's own
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`):
+/// a kill keeps the verdict,
+/// and a machine crash keeps the record the gate found,
+/// which the settlement reads as no verdict.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// recordVerdict(held/<id>, holder, verdict, reason) // replace the record whole; false when there is none
+/// recordVerdict(held/<id>, holder, verdict, reason) // replace the record whole, unflushed; false when there is none
 /// ```
 pub fn record_verdict(work_dir: &Path, id: &str, holder: &str, verdict: Verdict, reason: &str) -> bool {
     let path: PathBuf = state_directory(work_dir, HELD).join(id);
@@ -101,7 +107,7 @@ pub fn record_verdict(work_dir: &Path, id: &str, holder: &str, verdict: Verdict,
     let Some(record) = with_holding(text.as_str(), &holding) else {
         return false;
     };
-    return replace_private_file(path.as_path(), record.as_bytes()).is_ok();
+    return replace_private_file_unsynced(path.as_path(), record.as_bytes()).is_ok();
 }
 
 /// What:
