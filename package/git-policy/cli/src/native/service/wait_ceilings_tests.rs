@@ -218,3 +218,18 @@ fn the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add() {
     let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");
     assert!(rung.contains("SNAPSHOT_AHEAD_CEILING"), "the snapshot rung takes this ceiling");
 }
+
+/// The start of one repair tool is bounded by the wait a client grants a service's own start:
+/// both are one program's start on this host,
+/// and the repair's run takes that bound from this file.
+/// A start that does not answer waits for ever otherwise,
+/// because the quiet window,
+/// the ceiling and the notice are read from a clock the run reaches only after the start.
+#[test]
+fn a_repair_tool_start_is_bounded_by_the_service_start_wait() {
+    assert_eq!(REPAIR_TOOL_START_CEILING, START_CEILING);
+    let run: &str = include_str!("../repair/package_repair_command.rs");
+    assert!(run.contains("REPAIR_TOOL_START_CEILING"), "the repair's run takes this bound");
+    let start: &str = include_str!("../repair/package_repair_start.rs");
+    assert!(start.contains("async fn start_within("), "the start of a tool is the bounded one");
+}

@@ -3749,6 +3749,13 @@ so a form the ladder does
 not serve is read too),
 for a bare repository (nothing was copied),
 or after a copy that failed.
+The switches are read only before `--` or `--end-of-options`,
+the two tokens that end Git's own `parse-options`:
+a destination literally named `--no-checkout` stands after `--end-of-options`,
+where Git checks the worktree out,
+and a repair of that worktree runs as for any other checkout
+(`src/native/repair/package_repair_request.rs`,
+`RepairSwitch::from_arguments`).
 
 The repairs,
 of which the two that rewrite link layouts in place are the service's work whenever a service answers:
@@ -3880,6 +3887,20 @@ and each tool decides from the directory it finds whether it has anything to rel
 so the run is the one the new worktree's own record asks for.
 
 Each tool ends in a finding.
+A start that does not answer is one of those findings:
+the repair waits for the start no longer than `REPAIR_TOOL_START_CEILING`
+(`src/native/service/wait_ceilings.rs`,
+one minute, the wait a client grants the service's own start)
+because `Command::spawn` returns only after the child's own `exec`,
+which can wait in the kernel with no end on a mount that stopped answering,
+and the quiet window,
+the ceiling and the notice below are all read from a clock the run has not reached while that wait stands
+(`src/native/repair/package_repair_start.rs`,
+`start_within`).
+The start runs on a job of the blocking pool,
+so a fork that does not answer holds no worker of the runtime,
+and a child that appears after the bound is stopped with its whole process group and collected by a reaper,
+because the finding has already said the tool did not start and named the command to run by hand.
 A tool that shows no sign of work for the quiet window (600 seconds;
 the longest quiet gap measured is 30.3 s,
 see "The quiet
