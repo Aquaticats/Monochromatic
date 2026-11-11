@@ -47,10 +47,15 @@ Two suppressions sit on that one structural mirror
   so the raw reference name resolves identically).
 
 Every other absence in this package
-(the optional `credentials` property,
+(the optional `getCredentials` lookup,
+the `credentials` property of
+`QwenTokenPlanIndividualCredentialsLookupResult` in `src/fetch-listing.ts`,
 the facts fields the shared core keeps optional,
 and the test fixtures)
 uses optional properties,
 and the resolution failure half travels as
 `QwenTokenPlanIndividualCredentialError` (PP4),
 not as a nullish value.
+
+`eslint/no-await-in-loop` suppressions for the mount-race retry loops are
+recorded in `doc/lint/sequential-awaits.md`.

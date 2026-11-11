@@ -12,7 +12,8 @@ On 2026-10-04,
 `format-error.ts` and `format-error.property.unit.test.ts` moved from `package/test-harness/core/src/`
 to `package/test-harness/core-diagnostic/src/`.
 The `fast-check` development dependency moved to that package too.
-The decision and historical paths in this record remain unchanged.
+The decision is unchanged;
+the paths in this record name that current location.
 
 ## Context
 
@@ -22,7 +23,7 @@ The decision and historical paths in this record remain unchanged.
  using hand-picked example inputs.
 Several internal behaviors have wide input domains where example fixtures miss edge cases,
  most
-visibly `package/test-harness/core/src/format-error.ts`:
+visibly `package/test-harness/core-diagnostic/src/format-error.ts`:
  cycle detection over `.cause` chains and
 `AggregateError.errors`,
  recursion termination,
@@ -43,7 +44,7 @@ Add `fast-check` as a `devDependency` of `package/test-harness/core`,
 (`pnpm-workspace.yaml`) at `>=4.8.0`.
  Use it for property-based self-tests,
  starting with
-`package/test-harness/core/src/format-error.property.unit.test.ts`.
+`package/test-harness/core-diagnostic/src/format-error.property.unit.test.ts`.
  Drive the source functions directly
 (`formatErrorDeep`,
  `formatFailure`);
@@ -88,7 +89,7 @@ constraint-fit checks still apply and were verified before adding it:
 The property tests were proven falsifiable,
  not just green:
  temporarily changing the cycle marker in
-`package/test-harness/core/src/format-error.ts` made the cycle-termination property fail and fast-check
+`package/test-harness/core-diagnostic/src/format-error.ts` made the cycle-termination property fail and fast-check
 shrank to the minimal counterexample (`Counterexample: [1]`),
  then the source was reverted.
  A green
