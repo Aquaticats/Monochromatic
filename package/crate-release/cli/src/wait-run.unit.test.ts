@@ -6,6 +6,7 @@ import {
 
 import {
   cratesIoApiBase,
+  failureExitCode,
   millisecondsPerSecond,
 } from './constants.ts';
 import { cratesIoRoute } from './crates-io-version-label.ts';
@@ -19,7 +20,6 @@ import type {
   ProgramCall,
   ProgramResult,
 } from './run-program.ts';
-import { failureExitCode } from './constants.ts';
 import { waitForPublish } from './wait-run.ts';
 import type { WaitOptions } from './wait-options.ts';
 
@@ -146,11 +146,11 @@ async function record({
       calls.push(call);
       if (call.program === 'curl')
         return { status: 0, stdout: script.crates ?? publishedVersion, stderr: '' };
-      if (call.args[1] === 'list') {
+      if ((call.args[0] === 'run') && (call.args[1] === 'list')) {
         const next = listings.length > 1 ? listings.shift() : listings[0];
         return next ?? answer(foundListing);
       }
-      if (call.args[1] === 'view') {
+      if ((call.args[0] === 'run') && (call.args[1] === 'view')) {
         const next = views.length > 1 ? views.shift() : views[0];
         return next ?? passedRunAnswer();
       }

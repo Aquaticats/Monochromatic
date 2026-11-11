@@ -171,17 +171,8 @@ function releaseAssets(release: ProgramResult): Lookup<readonly string[]> {
  */
 export type PublishCheckInput = Pick<
   WaitOptions,
-  | 'root'
-  | 'crateName'
-  | 'version'
-  | 'repo'
-  | 'workflow'
-  | 'tagTemplate'
-  | 'assetTemplates'
-  | 'userAgent'
-  | 'maxTimeSeconds'
-  | 'pollIntervalSeconds'
-  | 'followAttempts'
+  | 'root' | 'crateName' | 'version' | 'repo' | 'workflow' | 'tagTemplate' | 'assetTemplates'
+    | 'userAgent' | 'maxTimeSeconds' | 'pollIntervalSeconds' | 'followAttempts'
   >;
 
 /**

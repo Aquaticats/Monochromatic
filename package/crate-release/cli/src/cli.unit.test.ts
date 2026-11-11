@@ -759,7 +759,7 @@ await describe({
           fn: async () => {
             await using fixture = await createStubFixture();
             await fixture.script({ key: 'gh.run-view', stdout: JSON.stringify(recordedReleaseRunPassed) });
-            const unrelated = { databaseId: 901, headSha: 'a'.repeat(40), createdAt: '2026-11-01T10:04:00Z' };
+            const unrelated = { databaseId: 901, headSha: 'a'.repeat(40), createdAt: '2026-11-11T01:04:00Z' };
             const own = { databaseId: 902, headSha: 'b'.repeat(40), createdAt: '2026-11-11T01:05:00Z' };
             await fixture.script({ key: 'gh.run-list', stdout: JSON.stringify([own, unrelated]) });
             await fixture.script({

@@ -97,7 +97,9 @@ function parseSteps(job: Readonly<Record<string, unknown>>): readonly RunStep[] 
     return [];
   return (job.steps as readonly unknown[])
     .flatMap(function toStep(step) {
-      return isRecord(step) && ((typeof step.name) === 'string') && ((typeof step.status) === 'string')
+      return isRecord(step)
+        && ((typeof step.name) === 'string')
+        && ((typeof step.status) === 'string')
         ? [{
           name: step.name as string,
           number: ((typeof step.number) === 'number') ? step.number as number : 0,
@@ -125,7 +127,9 @@ function parseJobs(jobs: unknown): readonly RunJob[] {
     return [];
   return (jobs as readonly unknown[])
     .flatMap(function toJob(job) {
-      return isRecord(job) && ((typeof job.name) === 'string') && ((typeof job.status) === 'string')
+      return isRecord(job)
+        && ((typeof job.name) === 'string')
+        && ((typeof job.status) === 'string')
         ? [{
           name: job.name as string,
           status: job.status as string,
@@ -164,16 +168,20 @@ export function parseRunOutcome(body: string): Lookup<RunOutcome> {
   if (!createdAt.found)
     return createdAt;
   /**
-   Status of the run itself.
+   How the run stands, as its own answer reports it.
    */
-  const status = answer.value.status;
+  const {
+    status,
+    conclusion,
+    jobs
+  } = answer.value;
   if ((typeof status) !== 'string')
     return missingValue('The run answer holds no status.');
   return foundValue({
     createdAt: createdAt.value,
     status,
-    conclusion: conclusionOf(answer.value.conclusion),
-    jobs: parseJobs(answer.value.jobs),
+    conclusion: conclusionOf(conclusion),
+    jobs: parseJobs(jobs),
   });
 }
 

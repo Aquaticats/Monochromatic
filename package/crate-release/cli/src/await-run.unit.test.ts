@@ -59,7 +59,7 @@ const followBound = describeDuration(options.followAttempts * options.pollInterv
 /**
  When the release run of the recorded pass was created.
  */
-const releaseCreatedAt = String((recordedReleaseRunPassed as { createdAt: string }).createdAt);
+const releaseCreatedAt = (recordedReleaseRunPassed as { createdAt: string }).createdAt;
 
 /**
  Commit of the publish run that the happy listing holds after the release run, and of the run older than it.
@@ -167,7 +167,7 @@ type Answers = {
   /**
    Answer of `gh run view` for every other run.
    */
-  readonly publishView?: ProgramResult;
+  readonly publish?: ProgramResult;
   readonly list?: ProgramResult;
   readonly versions?: ReadonlyMap<string, string>;
   readonly curl?: ProgramResult;
@@ -408,7 +408,7 @@ await describe({
             });
             expect(result.status).toBe(0);
             expect(result.sleeps).toEqual([pollSleepMilliseconds]);
-            expect(result.printed[0]).toContain(`${releaseWorkflow} run ${options.releaseRunId} could not be read (HTTP 500: Server Error)`);
+            expect(result.printed[1]).toContain(`${releaseWorkflow} run ${options.releaseRunId} could not be read (HTTP 500: Server Error)`);
             expect(result.printed).toContain(`${releaseWorkflow} run ${options.releaseRunId}: completed with success`);
             expect(result.printed.at(-1)).toContain('PUBLISHED ');
           },
@@ -419,8 +419,8 @@ await describe({
             const result = await record({ answers: { releaseViews: [stillGoingAnswer()] } });
             expect(result.status).toBe(failureExitCode);
             expect(result.sleeps).toEqual([pollSleepMilliseconds, pollSleepMilliseconds]);
-            expect(result.printed[0]).toContain(`${releaseWorkflow} run ${options.releaseRunId} is still going: `);
-            expect(result.printed[0]).toContain(`waiting up to ${followBound}`);
+            expect(result.printed[1]).toContain(`${releaseWorkflow} run ${options.releaseRunId} is still going: `);
+            expect(result.printed[1]).toContain(`waiting up to ${followBound}`);
             // The line names the bound and what the wait was still waiting for.
             expect((result.printed.at(-1) ?? '').startsWith(
               `RELEASE RUN NOT FINISHED: The run was still going after ${followBound}, waiting for `,
@@ -441,9 +441,9 @@ await describe({
               run: async function run(call) {
                 if (call.program === 'curl')
                   return happy.curl;
-                if (call.args[1] === 'view')
+                if ((call.args[0] === 'run') && (call.args[1] === 'view'))
                   return call.args[2] === options.releaseRunId ? happy.release : happy.publish;
-                if (call.args[1] === 'list') {
+                if ((call.args[0] === 'run') && (call.args[1] === 'list')) {
                   lists += 1;
                   return lists < 3 ? answer('[]') : happy.list;
                 }
@@ -505,7 +505,7 @@ await describe({
           fn: async () => {
             const result = await record({
               answers: {
-                publishView: answer(JSON.stringify({
+                publish: answer(JSON.stringify({
                   createdAt: '2026-11-11T01:00:30Z',
                   status: 'completed',
                   conclusion: 'failure',

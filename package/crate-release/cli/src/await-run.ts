@@ -261,6 +261,10 @@ export async function awaitRelease({
     return failureExitCode;
   }
   /**
+   When the release run was created, from the same answer: a publish run older than it cannot be the one it started.
+   */
+  const { createdAt: releaseCreatedAt } = release.value;
+  /**
    The publish run the release run started, or why none turned up.
    */
   const publishRun = await findPublishRun({
@@ -268,13 +272,13 @@ export async function awaitRelease({
       options,
       run,
       sleep,
-      notBefore: release.value.createdAt
+      notBefore: releaseCreatedAt
     },
     attempt: 1
   });
   if (!publishRun.found) {
     print(
-      `no ${options.workflow} run was started since ${release.value.createdAt} within ${describeDuration(options.attempts * options.pollIntervalSeconds)}`,
+      `no ${options.workflow} run was started since ${releaseCreatedAt} within ${describeDuration(options.attempts * options.pollIntervalSeconds)}`,
     );
     print(`last result: ${publishRun.reason}`);
     return failureExitCode;

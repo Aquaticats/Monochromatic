@@ -259,6 +259,42 @@ export type PublishReport = {
 };
 
 /**
+ List why a workflow run is not a pass.
+
+ @param workflow - workflow file of the run
+
+ @param runId - numeric identifier of the run
+
+ @param outcome - what the run says about itself, or a miss that says why it could not be followed to its end
+
+ @returns one reason per way the run keeps the publish from being complete; empty when the run ended with success
+
+ @example
+ ```ts
+ problemsOfRun({ workflow: 'cargo-publish.yml', runId: '42', outcome });
+ ```
+ */
+function problemsOfRun({
+  workflow,
+  runId,
+  outcome,
+}: {
+  readonly workflow: string;
+  readonly runId: string;
+  readonly outcome: Lookup<RunOutcome>;
+}): readonly string[] {
+  if (!outcome.found)
+    return [`${workflow} run ${runId} did not finish: ${outcome.reason}`];
+  if (runPassed(outcome.value))
+    return [];
+  /**
+   Conclusion the run ended with.
+   */
+  const { conclusion } = outcome.value;
+  return [`${workflow} run ${runId} concluded ${conclusion}`];
+}
+
+/**
  Format what was found after a publish and decide whether it is complete.
 
  The verdict on the workflow run comes from the run's own answer (see `RunOutcome`), never from the exit status of a
@@ -320,16 +356,14 @@ export function formatPublishResult({
     actual: release.found ? release.value : []
   });
   /**
-   Why the workflow run is not a pass, when it is not.
-   */
-  const runProblem = outcome.found
-    ? (runPassed(outcome.value) ? [] : [`${workflow} run ${runId} concluded ${outcome.value.conclusion}`])
-    : [`${workflow} run ${runId} did not finish: ${outcome.reason}`];
-  /**
    Reasons the check failed, in report order.
    */
   const problems = [
-    ...runProblem,
+    ...problemsOfRun({
+      workflow,
+      runId,
+      outcome
+    }),
     ...((skippedCratesIoReason !== undefined) || createdAt.found ? [] : [`${version} is not on crates.io`]),
     ...(missing.length === 0 ? [] : [`missing release assets: ${missing.join(', ')}`]),
   ];

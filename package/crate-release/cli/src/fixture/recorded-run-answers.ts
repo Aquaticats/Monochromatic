@@ -36,8 +36,12 @@ export const recordedReleaseRunFailed: unknown = releaseRunFailed;
 export const recordedCargoPublishRunPassed: unknown = cargoPublishRunPassed;
 
 /**
- A push-triggered workflow run recorded while it was still going: its status is not `completed` and its jobs report the
- status they held at the moment of the recording, which is the answer a wait reads while it keeps waiting. Recorded
- 2026-11-11.
+ A workflow run recorded while it was still going: `nodejs/node` run `42952699825` of its `Test Linux` workflow,
+ recorded 2026-11-11T03:57:20Z. Both of its jobs report `in_progress`, whose steps are a mix of `completed`,
+ `in_progress` and `pending`, and its conclusion is the empty text `gh` prints for a run that has not ended.
+
+ It comes from another repository because no run of this repository was going while the fixture was recorded; nothing
+ in the answer depends on which repository ran it, and a second recording of this repository's own run can replace it
+ verbatim.
  */
 export const recordedRunStillGoing: unknown = runStillGoing;
