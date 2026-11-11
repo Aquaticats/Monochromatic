@@ -170,6 +170,49 @@ Issues whose named module is gone but whose behaviour is not were marked
  `GIT_ALTERNATE_OBJECT_DIRECTORIES` for the shadow's Git children,
  or a symlink under a clean name,
  each with its own lifetime to sweep.
+ The coordinator decided both open questions on 2026-11-10T18:57:00-05:00,
+ for this branch `fix/git-policy-cli-layout-paths-line-feed-and-same-class-sites`:
+ controls in 9b5624b007 (2026-11-10T18:52:34-05:00),
+ fixes in ac586c2b18 (2026-11-10T19:11:37-05:00).
+ The shadow's `objects/info/alternates` line is now written C-quoted when the pathname needs it,
+ which is when it holds a line feed or begins with a double quote or a hash,
+ and every other pathname stays the plain bytes it was.
+ Git 2.56.0 reads that form:
+ `odb/source-files.c:247` hands the file's contents to
+ `parse_alternates(buf.buf, '\n', source->path, out)`,
+ `odb.c:154` sends a line that begins with a double quote through `unquote_c_style`
+ and falls back to the unquoted reading when the quoting is broken,
+ `quote.c:386` is that unquoting,
+ which turns `\n` into a line feed (`quote.c:414`)
+ and keeps `\"` and `\\` as themselves (`quote.c:419`).
+ The environment variable was not needed:
+ the file carries the quoting that the parser already reads.
+ The same class of defect is closed beside it,
+ each with a control that was red on 9b5624b007 and green on ac586c2b18:
+ `service/service_shadow_pool_fill.rs` reads the three facts as bytes
+ and asks each fact in a start of its own when the answer count is not three,
+ `repair/package_repair_prewarm.rs` builds the common directory from the bytes Git printed,
+ `worktree/worktree_ladder_target.rs` reads `core.attributesFile` as a pathname of bytes
+ and every attributes file as the bytes it holds,
+ so a filter name is compared with the standard one as those same bytes,
+ `worktree/worktree_audit.rs` reads a `gitdir:` pointer as bytes,
+ and `repo_read/repo_read_layout.rs` reads a `gitdir:` line as bytes.
+ Measured with the built wrapper in throwaway repositories,
+ one service per case,
+ through `${HOME}/temp/agent/pi-layout-linefeed/probe-lines-and-bytes.ts`:
+ a directory name holding a line feed failed its commit with
+ "unable to normalize alternate object path" before this branch,
+ and `add`,
+ `commit` and `log` each exit 0 after it,
+ for a plain name,
+ a name that is not UTF-8 and a name holding a line feed.
+ With `CLI_GIT_IN_PROCESS_READS=off` the line-feed name is still refused
+ by the identity reader (`worktree/worktree_identity.rs:125`),
+ which is a defect of its own and is not touched here.
+ Two sites of the same class are also left:
+ `repo_read/git_directory_roots.rs` reads `commondir` and a `gitdir:` file as text,
+ and `repo_read/repo_read_odb.rs::alternates_of` declines a quoted alternates line,
+ which is a refusal that sends those reads to Git and never a path with the wrong bytes.
 - `#6005`:
   `index_writer_coordination.rs` and `transaction_lease.rs` are gone,
  and no lossy-write against a strict `Path::to_str` compare survives in
