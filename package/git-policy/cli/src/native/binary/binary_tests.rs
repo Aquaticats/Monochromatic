@@ -175,6 +175,13 @@ mod conflict_side;
 #[path = "binary_discard_tests.rs"]
 mod discard;
 
+/// The remote settings every worktree of a repository shares:
+/// refused from a linked worktree,
+/// unchanged in the main checkout,
+/// and readable everywhere.
+#[path = "binary_shared_remote_tests.rs"]
+mod shared_remote;
+
 /// A clone made with `--no-checkout` has no index file,
 /// and the guard of uncommitted work lets its first checkout run.
 #[path = "binary_no_checkout_clone_tests.rs"]
@@ -290,6 +297,12 @@ mod pull_isolation;
 #[path = "binary_merge_never_fails_tests.rs"]
 mod merge_never_fails;
 
+/// The lines a merge prints about a path it kept whole,
+/// and the commands in them,
+/// run as the person's shell reads them.
+#[path = "binary_merge_notice_tests.rs"]
+mod merge_notice;
+
 /// Real commits through the transaction:
 /// landing,
 /// policies,
@@ -391,6 +404,12 @@ mod worktree_dirty_snapshot;
 #[path = "binary_worktree_checkout_workers_tests.rs"]
 mod worktree_checkout_workers;
 
+/// The commit a reference lock holds in a linked worktree:
+/// a removal or a prune keeps it where Git cannot reach it,
+/// and a removal stops when no reference can hold it.
+#[path = "binary_worktree_removal_held_commit_tests.rs"]
+mod worktree_removal_held_commit;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
@@ -459,6 +478,12 @@ mod fault;
 /// for controls that signal or limit it.
 #[path = "binary_fault_run.rs"]
 mod fault_run;
+
+/// The hang guard of those runs:
+/// a command that keeps moving is left alone,
+/// and one that stops moving is ended with the words that name the silence.
+#[path = "binary_fault_run_tests.rs"]
+mod fault_run_guard;
 
 /// Signals sent to the wrapper alone and to its process group.
 #[path = "binary_fault_signal_tests.rs"]
@@ -655,6 +680,12 @@ mod service_lane;
 /// removed by the service when the client's connection closes.
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
+
+/// A pooled shadow member the commit refuses:
+/// nothing on the terminal,
+/// and the refusal named in the commit's own timing record.
+#[path = "binary_shadow_pool_refusal_tests.rs"]
+mod shadow_pool_refusal;
 
 /// The ends of the waits on the commit path:
 /// a commit withdrawn at its bound never lands,

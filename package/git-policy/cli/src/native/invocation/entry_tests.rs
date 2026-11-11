@@ -18,9 +18,9 @@
 /// Import the decision under test and shared fixtures.
 use super::{MANAGEMENT_COMMAND, plan_invocation};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
-use crate::child_environment::invocation_overlay;
-use crate::control_terminal::control_terminal;
+use crate::child_environment::{FORWARD_TARGET_VARIABLE, never_prompt_overlay};
 use crate::config_file::CONFIG_FILE_NAME;
+use crate::control_terminal::Terminal;
 use crate::management_arguments::MANAGEMENT_HELP;
 use crate::real_git::{Platform, ResolutionInputs};
 use crate::test_support::{REAL_GIT, executable, fixture, remove, repository};
@@ -30,15 +30,24 @@ use std::path::{Path, PathBuf};
 
 /// What:
 ///  Inputs selecting the image's real Git,
-///  with a fixture file standing in for this wrapper.
+///  with a fixture file standing in for this wrapper,
+///  for a command typed at a terminal.
 /// Why:
-///  `pub(super)` lets the sibling stop controls in `entry_stop_tests.rs` reuse these helpers.
+///  `pub(super)` lets the sibling stop controls in `entry_stop_tests.rs` reuse these helpers;
+///  a control that pins the other terminal case asks `inputs_at` for it,
+///  so no control depends on the terminal the runner happens to have.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function inputs(root: string): ResolutionInputs { /* ... */ }
+/// export function inputs(root: string): ResolutionInputs { /* ... terminal: 'present' ... */ }
 /// ```
 pub(super) fn inputs(root: &Path) -> ResolutionInputs {
+    return inputs_at(root, Terminal::Present);
+}
+
+/// The same inputs with the controlling-terminal answer a control pins;
+///  that answer decides whether every Git child of the command gets the never-prompt pair.
+pub(super) fn inputs_at(root: &Path, terminal: Terminal) -> ResolutionInputs {
     let own: PathBuf = root.join("own-wrapper");
     executable(own.as_path(), b"\x7fELF fixture wrapper");
     return ResolutionInputs {
@@ -49,6 +58,7 @@ pub(super) fn inputs(root: &Path) -> ResolutionInputs {
         common_paths: Vec::<PathBuf>::new(),
         own_executable: own,
         service_unit: None,
+        terminal,
     };
 }
 
@@ -71,18 +81,32 @@ fn in_directory(directory: &Path, rest: &[&str]) -> Vec<OsString> {
 
 /// The forward action for these fixtures:
 ///  real Git,
-///  the overlay the product plans for a command of this process,
-///  and no warning.
+///  the lock-PID overlay and no warning.
 /// Why:
-///  The never-prompt pair is in that overlay exactly when this process has no controlling terminal,
-///  so a list written out here would answer for the terminal nextest happens to give it and not for the
-///  one the product reads;
-///  asking the product keeps the two answers the same fact.
+///   Every routing control here,
+///  in `entry_announced_tests.rs` and in `entry_stop_tests.rs`,
+///  compares planning's answer against this,
+///  and planning takes the controlling terminal from the inputs it was handed (`inputs_at`),
+///  which is `Terminal::Present` here;
+/// a fixture that read the runner's own terminal instead would disagree with them on a run without one.
+///   The never-prompt pair a command without a terminal earns is appended from that answer,
+///  and its variables and order are proven in `child_environment_tests.rs`.
 pub(super) fn forward(arguments: Vec<OsString>) -> Action {
     return Action::Forward {
         real_git: PathBuf::from(REAL_GIT),
         arguments,
-        overlay: invocation_overlay(&[], Path::new(REAL_GIT), control_terminal()),
+        overlay: vec![
+            (OsString::from("GIT_CONFIG_COUNT"), OsString::from("1")),
+            (
+                OsString::from("GIT_CONFIG_KEY_0"),
+                OsString::from("core.lockfilePid"),
+            ),
+            (OsString::from("GIT_CONFIG_VALUE_0"), OsString::from("true")),
+            (
+                OsString::from(FORWARD_TARGET_VARIABLE),
+                OsString::from(REAL_GIT),
+            ),
+        ],
         stderr: String::new(),
     };
 }
@@ -163,6 +187,52 @@ fn invocations_git_answers_itself_are_forwarded_unchanged() {
             plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution),
             forward(text(arguments.as_slice())),
             "{arguments:?}"
+        );
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A command whose process has no controlling terminal plans every Git child with the never-prompt pair,
+///  and a command at a terminal plans none of it.
+/// Why:
+///   Nobody can answer a login question without a terminal,
+///  so Git's and git-lfs's prompt programs must not open a desktop window for some person;
+///  the answer is the one planning was handed,
+///  so a control states it instead of inheriting the runner's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(planInvocation(args, [], inputsAt(root, 'absent')).overlay).toContainEqual(['GIT_ASKPASS', '']);
+/// expect(planInvocation(args, [], inputsAt(root, 'present')).overlay).not.toContainEqual(['GIT_ASKPASS', '']);
+/// ```
+#[test]
+fn a_command_without_a_controlling_terminal_never_prompts() {
+    let root: PathBuf = fixture("entry-terminal");
+    let Action::Forward {
+        overlay: at_a_terminal,
+        ..
+    } = forward(text(&["--html-path"]).as_slice().to_vec())
+    else {
+        panic!("the fixture is a plain forward");
+    };
+    // `mut` lets the pair be appended to a copy of the at-a-terminal overlay, in the order planning appends it.
+    let mut without_a_person: Vec<(OsString, OsString)> = at_a_terminal.clone();
+    without_a_person.extend(never_prompt_overlay());
+    for (terminal, expected) in [
+        (Terminal::Present, at_a_terminal),
+        (Terminal::Absent, without_a_person),
+    ] {
+        let resolution: ResolutionInputs = inputs_at(root.as_path(), terminal);
+        assert_eq!(
+            plan_invocation(text(&["--html-path"]).as_slice(), &[], &resolution),
+            Action::Forward {
+                real_git: PathBuf::from(REAL_GIT),
+                arguments: text(&["--html-path"]),
+                overlay: expected,
+                stderr: String::new(),
+            },
+            "{terminal:?}"
         );
     }
     remove(root.as_path());

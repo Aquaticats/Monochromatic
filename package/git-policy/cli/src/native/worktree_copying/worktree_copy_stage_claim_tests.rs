@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::json_record::quote;
+use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use crate::worktree_copy_stage_claim_reaping::*;
 use crate::private_storage::{create_private_directory, take_directory_syncs, take_file_syncs};
 use crate::test_support::{dead_copy_owner, fixture, git_context, remove, repository};
@@ -519,6 +520,9 @@ fn an_add_killed_before_its_binding_is_recorded_is_named_until_it_is_finished() 
     let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
     assert!(destination.join(".git").exists() && admin.exists(), "nothing of the worktree was changed");
     assert_eq!(first.len(), 1, "{first:?}");
+    // The two commands are the ones a report of an interrupted add names everywhere, and they are the ones
+    //  `worktree_finish_commands.rs` owns, so the expected words come from there: the finish command carries the
+    //  worktree guard's hatch, which a checkout that never ran needs.
     let (finish, remove_command): (String, String) = crate::worktree_finish_commands::finish_and_remove(destination.as_path());
     assert!(first[0].contains(finish.as_str()) && first[0].contains(remove_command.as_str()), "the report names what finishes or removes it: {}", first[0]);
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record stays while the worktree is not whole");
@@ -635,7 +639,7 @@ fn an_interrupted_add_that_is_removed_stops_being_reported() {
 /// and the report names it with the one
 ///  step that makes the rest work.
 /// Why:
-///   `git -C <destination> reset --hard` cannot start while that lock stands (Git answers
+///   `git -C <destination> reset --no-enforce-worktree --hard --no-recurse-submodules` cannot start while that lock stands (Git answers
 /// `fatal: Unable to create '.../index.lock': File exists`),
 /// so a report that offers only that command offers a
 ///  remedy that cannot run;
@@ -969,7 +973,7 @@ fn awkward_components() -> Vec<OsString> {
 /// naming exactly the
 ///  destination and the lock file.
 /// Why:
-///   `git -C <path> reset --hard` and `rm <lock>` act on whatever path the shell read,
+///   `git -C <path> reset --no-enforce-worktree --hard --no-recurse-submodules` and `rm <lock>` act on whatever path the shell read,
 /// so the text has
 ///  to name one place under a shell,
 /// whatever the directory is called.
@@ -990,16 +994,18 @@ fn a_report_names_its_path_as_the_shell_reads_it_back() {
         std::fs::write(admin.join(INDEX_LOCK), b"").expect("the lock a killed Git leaves");
         let destination: PathBuf = repository.join("topic");
         let text: String = finish_instructions(destination.as_path(), admin.as_path());
-        // The finish command is one backtick span whose words follow the path, so its end marker names them; the other two
-        //  commands end with the words that follow the path inside their own span, because a path may itself hold a backtick
-        //  and a marker at the next backtick would stop inside it.
-        let expected: Vec<(&str, String, PathBuf)> = vec![
-            ("git -C ", format!(" reset {} --hard", crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH), destination.clone()),
-            ("git worktree remove --force ", String::from("` removes it with everything in it"), destination.clone()),
-            ("rm ", String::from("` removes it,"), admin.join(INDEX_LOCK)),
+        // The finish command names the path before its own flags, so that word ends where the rest of the command begins;
+        //  the flags are the ones `worktree_finish_commands.rs` prints.
+        let finish_tail: String = format!(" reset {WORKTREE_ENFORCEMENT_ESCAPE_HATCH} --hard");
+        // A word that ends the command ends at the closing backtick and the first word the sentence after it writes: a
+        //  backtick alone cannot end a word, because one of the names below holds a backtick of its own.
+        let expected: Vec<(&str, &str, PathBuf)> = vec![
+            ("git -C ", finish_tail.as_str(), destination.clone()),
+            ("git worktree remove --force ", "` removes it with everything in it", destination.clone()),
+            ("rm ", "` removes it,", admin.join(INDEX_LOCK)),
         ];
         for (marker, end, path) in expected {
-            let word: &str = word_between(text.as_str(), marker, end.as_str());
+            let word: &str = word_between(text.as_str(), marker, end);
             assert_eq!(shell_reads(word), path.as_os_str().as_bytes(), "{marker}{word}{end} in {text}");
         }
         remove(repository.parent().expect("the component's directory"));
@@ -1749,6 +1755,7 @@ fn killed_snapshot_add(name: &str) -> Option<(PathBuf, PathBuf, PathBuf)> {
         &bound.admin,
         bound.binding.pointer.as_slice(),
         &crate::fixture_content_decision::content_environment(),
+        &crate::worktree_snapshot_ahead::AheadService::nothing(),
     )
     .expect("the snapshot");
     assert!(crate::fs_kind::is_subvolume_root(container.as_path()).expect("probe"), "the stage is a subvolume");

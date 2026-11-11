@@ -10,7 +10,7 @@ use crate::merge_isolation_recovery_index_lock::may_install;
 
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
-use crate::merge_isolation_recovery_steps::{install_entries, put_back_stranded_takes, standing};
+use crate::merge_isolation_recovery_steps::{install_entries, put_back_stranded_takes_awaiting, standing};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::{Path, PathBuf};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
@@ -1189,7 +1189,8 @@ fn a_file_a_killed_take_set_aside_is_kept_beside_a_path_that_holds_something_els
 }
 
 /// What:
-///  A private name no record claims is left where it is and named,
+///  A private name no record claims is never put back on a guess,
+///  and a copy whose bytes Git holds is removed and said so,
 ///  while one a record claims is put back.
 /// Why:
 ///  A merge that ended keeps no record,
@@ -1200,15 +1201,19 @@ fn a_file_a_killed_take_set_aside_is_kept_beside_a_path_that_holds_something_els
 ///  forward
 ///  (a cross-vendor review of the second round,
 /// its third finding).
+///  A copy the merge's own commit holds the bytes of is the second copy of them,
+/// so it
+///  goes and the line names the commit,
+/// and the path the person emptied stays empty.
 /// The claimed file is the control:
 /// the same step still puts back what a live record names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// record(deadOwner('2020...')); rename('f.txt', asideOf('f.txt', '2020...')); rename('gone.txt', asideOf('gone.txt', '2121...')); putBackStrandedTakes(root, gitDir, changes, sink); expect(exists(asideOf('gone.txt'))).toBe(true); expect(sink).toContain(asideOf('gone.txt'));
+/// record(deadOwner('2020...')); rename('f.txt', asideOf('f.txt', '2020...')); rename('gone.txt', asideOf('gone.txt', '2121...')); await putBackStrandedTakes(...); expect(exists(asideOf('gone.txt'))).toBe(false); expect(exists('gone.txt')).toBe(false); expect(sink).toContain('removed');
 /// ```
 #[test]
-fn a_private_name_no_record_claims_is_left_and_named() {
+fn a_private_name_no_record_claims_is_never_put_back_on_a_guess() {
     let world: World = world("merge-recovery-aside-without-record");
     let (changes, _judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
     // One merge is still unfinished, and its own take waits beside `f.txt`.
@@ -1221,13 +1226,22 @@ fn a_private_name_no_record_claims_is_left_and_named() {
     let ended: PathBuf = stranded_name(ended_location.as_path(), "21212121-0000-4000-8000-000000000021");
     std::fs::rename(ended_location.as_path(), ended.as_path()).expect("a take of a merge that ended");
     let mut said: Vec<u8> = Vec::new();
-    put_back_stranded_takes(world.repo.as_path(), world.git_dir.as_path(), changes.as_slice(), &mut said);
+    crate::lazy_runtime::run_on_runtime(put_back_stranded_takes_awaiting(
+        &place(&world).git,
+        world.repo.as_path(),
+        world.git_dir.as_path(),
+        changes.as_slice(),
+        None,
+        &mut said,
+    ))
+    .expect("the runtime of the controls");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(!claimed.exists(), "a file a record claims loses its private name");
     assert!(claimed_location.exists(), "the claimed path holds its file again");
-    assert!(ended.exists(), "a file no record claims stays where it is");
+    assert!(!ended.exists(), "a copy whose bytes the merge's commit holds is removed");
     assert!(!ended_location.exists(), "the path a person emptied stays empty");
-    assert!(text.contains(ended.to_string_lossy().as_ref()), "the private name that stayed is said: {text}");
+    assert!(text.contains(ended.to_string_lossy().as_ref()), "the copy that went is named: {text}");
+    assert!(text.contains("git restore"), "the line says how to reach the bytes: {text}");
     assert!(record.exists(), "the record is not the putting back's to remove");
     remove(world.parent.as_path());
 }
@@ -2322,6 +2336,8 @@ fn a_ref_lookup_that_cannot_start_reports_the_install_already_found() {
 /// its first finding).
 /// The seam is the instant between the last look and the write,
 /// which no other test can reach.
+/// The line that undo names is a command the person runs where they are,
+/// so it carries the flag this wrapper's linked-worktree policy asks for (3147d271df).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -2355,7 +2371,7 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
         refused.0
     );
     let undo: String = format!("`git restore {} --staged --worktree -- <path>`", crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH);
-    assert!(refused.0.contains(undo.as_str()), "it names the way to undo the staged content, in the words a person can run: {}", refused.0);
+    assert!(refused.0.contains(undo.as_str()), "it names the way to undo the staged content, with the flag this wrapper's policy asks for, in the words a person can run: {}", refused.0);
     assert!(!refused.0.contains(".."), "the sentence the refusal itself ends with is not followed by a second period: {}", refused.0);
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
@@ -3165,5 +3181,358 @@ fn a_merge_another_command_landed_before_the_write_is_not_a_failure() {
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch names the merge");
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(!text.contains("was kept"), "nothing claims a record that is gone: {text}");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A private name an earlier release of the wrapper wrote carries no merge key.
+/// Why:
+///  The name is the only thing a command has to go on,
+/// and the earlier form is exactly this one:
+///  the key of the path's name,
+///  the process,
+///  the count and the moment,
+/// with no key of a merge between
+///  them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${dirname}/.cli-git-recovery-${nameKey(basename)}-${pid}-0-1`
+/// ```
+fn an_earlier_releases_name(location: &Path) -> PathBuf {
+    let found: Option<std::ffi::OsString> = location.file_name().map(std::ffi::OsStr::to_os_string);
+    let name: String = found.unwrap_or_default().to_string_lossy().into_owned();
+    return location.with_file_name(format!(
+        ".cli-git-recovery-{}-{}-0-1",
+        crate::merge_isolation_take_aside_names::name_key(name.as_str()),
+        std::process::id()
+    ));
+}
+
+/// The bytes the file the merge holds at one path has,
+/// from the tree of a commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git(['show', `${oid}:${path}`])
+/// ```
+fn the_bytes_of_a_commit(world: &World, oid: &str, path: &str) -> Vec<u8> {
+    let text: String = git_text(world.repo.as_path(), &["show", format!("{oid}:{path}").as_str()]);
+    return format!("{text}\n").into_bytes();
+}
+
+/// What:
+///  A copy an earlier release left of the file the merge holds at a free path is put back,
+///  and the merge goes on from the checkout it expected.
+/// Why:
+///  The name an earlier release wrote carries no merge key,
+/// so no record could say whether an unfinished merge took
+///  it;
+///  the bytes can,
+/// and a copy of the branch's own file or the merge's own file is
+///  the file the merge judged there.
+/// Without this,
+/// a merge interrupted before this release was never finished:
+///  the path stayed empty,
+/// the copy stayed beside it,
+/// and every later merge read the emptiness as the
+///  person's own deletion (`merge-carry-review-round-2-findings-1`,
+/// its second finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// record(deadOwner(...)); rename('f.txt', earlierName('f.txt')); await putBackStrandedTakes(...); expect(exists('f.txt')).toBe(true); expect(sink).toContain('put back');
+/// ```
+#[test]
+fn a_copy_an_earlier_release_left_of_the_merges_own_file_is_put_back() {
+    let world: World = world("merge-recovery-earlier-release-copy");
+    let (changes, _judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let _record: PathBuf = record_of(&world, dead_owner("23232323-0000-4000-8000-000000000023"), Some("refs/heads/main"));
+    let location: PathBuf = world.repo.join("f.txt");
+    let aside: PathBuf = an_earlier_releases_name(location.as_path());
+    // The copy holds the branch's own file, which is what a take of an interrupted install moved aside.
+    std::fs::write(aside.as_path(), the_bytes_of_a_commit(&world, world.old_oid.as_str(), "f.txt")).expect("the copy");
+    std::fs::remove_file(location.as_path()).expect("the path a killed take emptied");
+    let mut said: Vec<u8> = Vec::new();
+    crate::lazy_runtime::run_on_runtime(put_back_stranded_takes_awaiting(
+        &place(&world).git,
+        world.repo.as_path(),
+        world.git_dir.as_path(),
+        changes.as_slice(),
+        None,
+        &mut said,
+    ))
+    .expect("the runtime of the controls");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(location.exists(), "the path holds the file the merge judged again");
+    assert_eq!(
+        std::fs::read(location.as_path()).expect("the file is back"),
+        the_bytes_of_a_commit(&world, world.old_oid.as_str(), "f.txt"),
+        "its bytes are the ones it had"
+    );
+    assert!(!aside.exists(), "the copy is not a copy any more");
+    assert!(text.contains("put back"), "the putting back is said: {text}");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A copy an earlier release left of bytes nothing else holds is never put back on a guess,
+///  and it is recorded so a later command ends it.
+/// Why:
+///  The bytes are the person's newest,
+/// and nothing else holds them:
+///  not a commit,
+/// and not the capture the merge's record names.
+/// Putting them back would
+///  overwrite whatever the person put at the path afterwards,
+/// so the copy stays,
+/// the line names
+///  it,
+/// and the record makes the next command look at it again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rename('f.txt', earlierName('f.txt')); write(aside, 'the person\'s own newer bytes\n'); await putBackStrandedTakes(...); expect(exists(location)).toBe(false); expect(exists(aside)).toBe(true); expect(records(gitDir)).toHaveLength(1);
+/// ```
+#[test]
+fn a_copy_an_earlier_release_left_of_newer_bytes_stays_and_is_recorded() {
+    let world: World = world("merge-recovery-earlier-release-newer");
+    let (changes, _judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let _record: PathBuf = record_of(&world, dead_owner("24242424-0000-4000-8000-000000000024"), Some("refs/heads/main"));
+    let location: PathBuf = world.repo.join("f.txt");
+    let aside: PathBuf = an_earlier_releases_name(location.as_path());
+    std::fs::write(aside.as_path(), b"the person's own newer bytes\n").expect("the copy");
+    std::fs::remove_file(location.as_path()).expect("the path a killed take emptied");
+    let mut said: Vec<u8> = Vec::new();
+    crate::lazy_runtime::run_on_runtime(put_back_stranded_takes_awaiting(
+        &place(&world).git,
+        world.repo.as_path(),
+        world.git_dir.as_path(),
+        changes.as_slice(),
+        None,
+        &mut said,
+    ))
+    .expect("the runtime of the controls");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(!location.exists(), "the path the person emptied stays empty");
+    assert!(aside.exists(), "the bytes nothing else holds are kept");
+    assert_eq!(std::fs::read(aside.as_path()).expect("the copy"), b"the person's own newer bytes\n", "and they are whole");
+    assert!(text.contains(aside.to_string_lossy().as_ref()), "the copy is named: {text}");
+    assert!(text.contains("mv --"), "the line says how to put it back: {text}");
+    assert!(
+        crate::merge_isolation_kept_copies::record_of_a_control(world.git_dir.as_path(), aside.as_path()).exists(),
+        "the copy is recorded, so a later command decides it again"
+    );
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A copy whose bytes the person's file holds again is removed,
+///  and the line says the file holds them.
+/// Why:
+///  Two files holding one run of bytes are one too many,
+/// and the copy beside the path is the one to go:
+///  the person's file is where they look,
+/// and a copy that stayed would be a name nothing explains.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('f.txt', 'mine\n'); rename('f.txt', aside); write('f.txt', 'mine\n'); await putBackStrandedTakes(...); expect(exists(aside)).toBe(false); expect(sink).toContain('holds those same bytes again');
+/// ```
+#[test]
+fn a_copy_the_persons_file_holds_again_is_removed() {
+    let world: World = world("merge-recovery-copy-the-file-holds");
+    let (changes, _judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let location: PathBuf = world.repo.join("f.txt");
+    let aside: PathBuf = an_earlier_releases_name(location.as_path());
+    std::fs::write(aside.as_path(), b"mine\n").expect("the copy");
+    std::fs::write(location.as_path(), b"mine\n").expect("the person's file holds the same bytes");
+    let mut said: Vec<u8> = Vec::new();
+    crate::lazy_runtime::run_on_runtime(put_back_stranded_takes_awaiting(
+        &place(&world).git,
+        world.repo.as_path(),
+        world.git_dir.as_path(),
+        changes.as_slice(),
+        None,
+        &mut said,
+    ))
+    .expect("the runtime of the controls");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(!aside.exists(), "the second copy goes");
+    assert_eq!(std::fs::read(location.as_path()).expect("the person's file"), b"mine\n", "their file is untouched");
+    assert!(text.contains("holds those same bytes again"), "the line says why the copy went: {text}");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A copy a merge kept is decided by a command that has no merge record at all,
+///  and it ends the moment the person's file holds its bytes.
+/// Why:
+///  A copy is left beside a path one merge touched,
+/// and a later merge that touches another path says nothing
+///  about it;
+/// without this the copy is a file no command ever ends
+///  (`merge-carry-review-round-2-findings-1`,
+/// its first finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await putBackStrandedTakes(...); expect(records).toHaveLength(1); const first = await recover(noRecord); expect(sink).toContain(aside); write('f.txt', copyBytes); const second = await recover(noRecord); expect(exists(aside)).toBe(false); expect(sink).toContain('removed');
+/// ```
+#[test]
+fn a_kept_copy_is_decided_once_more_and_ends_when_the_file_holds_its_bytes() {
+    let world: World = world("merge-recovery-kept-copy-end");
+    let (changes, _judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let location: PathBuf = world.repo.join("f.txt");
+    let aside: PathBuf = an_earlier_releases_name(location.as_path());
+    let kept: &[u8] = b"the person's own newer bytes\n";
+    std::fs::write(aside.as_path(), kept).expect("the copy");
+    let mut said: Vec<u8> = Vec::new();
+    crate::lazy_runtime::run_on_runtime(put_back_stranded_takes_awaiting(
+        &place(&world).git,
+        world.repo.as_path(),
+        world.git_dir.as_path(),
+        changes.as_slice(),
+        None,
+        &mut said,
+    ))
+    .expect("the runtime of the controls");
+    let record: PathBuf = crate::merge_isolation_kept_copies::record_of_a_control(world.git_dir.as_path(), aside.as_path());
+    assert!(record.exists(), "the copy is recorded");
+    // A later command with no merge record in this worktree: the file the merge held is gone, so nothing judges the copy's
+    //  bytes again, and the copy still ends.
+    let mut later: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut later).expect("recovery");
+    assert!(outcomes.is_empty(), "no merge record is left to settle");
+    let text: String = String::from_utf8(later).expect("the notices are UTF-8");
+    assert!(text.contains(aside.to_string_lossy().as_ref()), "the copy is named again: {text}");
+    assert_eq!(std::fs::read(location.as_path()).expect("the world's file"), b"f.txt base\n", "nothing was put back on a guess");
+    // The person copies their bytes into the file themselves, which is the end the line named.
+    std::fs::write(location.as_path(), kept).expect("the person's file holds the bytes again");
+    let mut last: Vec<u8> = Vec::new();
+    let _outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut last).expect("recovery");
+    let ending: String = String::from_utf8(last).expect("the notices are UTF-8");
+    assert!(!aside.exists(), "the copy goes once the file holds its bytes");
+    assert!(!record.exists(), "and its record goes with it");
+    assert!(ending.contains("removed"), "the line says the copy went: {ending}");
+    assert_eq!(std::fs::read(location.as_path()).expect("the person's file"), kept, "their file is untouched");
+    remove(world.parent.as_path());
+}
+
+/// Write the record of a merge of the world whose paths held the person's own work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeMergeIntent(gitDir, { ...record(id), carried: capture });
+/// ```
+fn record_with_a_capture(world: &World, id: &str, capture: &crate::merge_isolation_carry_parts::Capture) -> PathBuf {
+    let intent: MergeIntent = MergeIntent {
+        owner: dead_owner(id),
+        repository_root: world.repo.clone(),
+        target_ref: Some(String::from("refs/heads/main")),
+        old_oid: world.old_oid.clone(),
+        new_oid: world.new_oid.clone(),
+        side_ref: None,
+        carried: Some(capture.clone()),
+    };
+    return write_merge_intent(world.git_dir.as_path(), &intent).expect("the record");
+}
+
+/// What:
+///  A merge the world's own steps left half carried,
+///  with the person's own edit in `f.txt` captured and the merge already in the branch.
+/// Why:
+///  The state a kill between Git's update and the carry leaves is the one thing these controls need,
+/// and every
+///  step of it is a step the merge makes itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('f.txt', `${BRANCH}\n${PERSON_LINE}\n`); const capture = keepCapture(captureWork([f.txt])); record(capture); clear(); readTree(old, new); updateRef(main, new);
+/// ```
+fn half_carried(world: &World, id: &str) -> crate::merge_isolation_carry_parts::Capture {
+    let person_lines: &str = "f.txt base\nthe person's line\n";
+    std::fs::write(world.repo.join("f.txt"), person_lines).expect("the person's edit");
+    let context = crate::test_support::git_context();
+    let capture: crate::merge_isolation_carry_parts::Capture = crate::merge_isolation_carry::keep_capture(
+        &context,
+        world.repo.as_path(),
+        &crate::merge_isolation_carry::capture_work(&context, world.repo.as_path(), &[b"f.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
+    let _record: PathBuf = record_with_a_capture(world, id, &capture);
+    // The person's path is put back to the branch, which is what the merge's own clear does before Git's update.
+    git(world.repo.as_path(), &["checkout", "--quiet", "--", "f.txt"]);
+    git(world.repo.as_path(), &["read-tree", "-u", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", world.new_oid.as_str()]);
+    return capture;
+}
+
+/// What:
+///  A save that holds exactly the merge's bytes and arrives after a kill stands,
+///  because the reading of what Git's update left travels beside the record.
+/// Why:
+///  The recovery of a killed merge had no reading of its own,
+/// so a person's save whose bytes accept every line the
+///  merge brought was read as the merge's own file and replaced with their older layer,
+/// and the bytes of their newer
+///  decision existed nowhere (`merge-carry-review-round-2-findings-1`,
+/// its third finding).
+/// The reading the command that moved the checkout made is
+///  what tells the two apart,
+/// so a recovery reads it too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const capture = halfCarried(world); writeLandedRecord(gitDir, id, landedOf(root, ['f.txt'])); write('f.txt', mergeVersion); await recover(...); expect(read('f.txt')).toEqual(mergeVersion); expect(sink).toContain('changed');
+/// ```
+#[test]
+fn a_save_of_the_merges_own_bytes_after_a_kill_stands() {
+    let world: World = world("merge-recovery-landed-reading");
+    let id: &str = "26262626-0000-4000-8000-000000000026";
+    let _capture: crate::merge_isolation_carry_parts::Capture = half_carried(&world, id);
+    let merged: Vec<u8> = the_bytes_of_a_commit(&world, world.new_oid.as_str(), "f.txt");
+    // What the command that moved the checkout read, written where the recovery of a kill finds it.
+    let landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
+        crate::merge_isolation_carry_landed::landed_of(world.repo.as_path(), &[b"f.txt".to_vec()]);
+    crate::merge_isolation_carry_landed::write_landed_record(world.git_dir.as_path(), id, landed.as_slice());
+    // The person's editor saves its buffer, which holds the merge's version and no longer their older line.
+    std::fs::write(world.repo.join("f.txt"), merged.as_slice()).expect("the save");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded, "the merge is the branch's");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("f.txt"), merged, "the newer save stands");
+    assert!(text.contains("f.txt"), "the line names the path it left alone: {text}");
+    assert!(text.contains("changed"), "the line says the path changed after the capture: {text}");
+    assert!(!text.contains("git merge refs/heads/"), "the line never calls a repository ref the merge the person ran: {text}");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  The control of the line above:
+///  without the reading,
+///  the same save is replaced by the captured layer.
+/// Why:
+///  A control that only passes after a change proves nothing unless the same steps go the other way before it,
+///  and this is the state every recovery of a killed merge was in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const capture = halfCarried(world); write('f.txt', mergeVersion); await recover(...); expect(read('f.txt')).toEqual(`${mergeVersion}${PERSON_LINE}\n`);
+/// ```
+#[test]
+fn without_the_landed_reading_a_save_of_the_merges_own_bytes_is_carried_over() {
+    let world: World = world("merge-recovery-no-landed-reading");
+    let id: &str = "27272727-0000-4000-8000-000000000027";
+    let _capture: crate::merge_isolation_carry_parts::Capture = half_carried(&world, id);
+    let merged: Vec<u8> = the_bytes_of_a_commit(&world, world.new_oid.as_str(), "f.txt");
+    std::fs::write(world.repo.join("f.txt"), merged.as_slice()).expect("the save");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::AlreadyLanded, "the merge is the branch's");
+    let after: Vec<u8> = std::fs::read(world.repo.join("f.txt")).expect("f.txt");
+    assert_ne!(after, merged, "without a reading the save is read as the merge's own file, which is the defect");
+    assert!(String::from_utf8_lossy(after.as_slice()).contains("the person's line"), "the captured layer is written over it");
     remove(world.parent.as_path());
 }

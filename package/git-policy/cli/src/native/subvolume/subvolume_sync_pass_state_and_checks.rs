@@ -143,8 +143,15 @@ pub(crate) const SAMPLE_SIZE: usize = 20;
 pub(crate) enum Work {
     /// List a directory and handle its children.
     Visit(PathBuf),
-    /// Apply a directory's own attributes after its children.
-    Finish(PathBuf, Metadata),
+    /// Apply a directory's own attributes after its children,
+    /// and forget a folder the source kept nothing but another command's stage container in.
+    Finish {
+        relative: PathBuf,
+        metadata: Metadata,
+        /// Whether this pass made the destination directory,
+        /// so that a folder the source held nothing of is not left behind.
+        created: bool,
+    },
 }
 
 /// The destination directory being filled and the temporary name used inside it.
@@ -182,9 +189,13 @@ pub(crate) struct Pass<'a> {
     /// Several copies
     ///  exist when the destination cannot link across a boundary (two subvolumes).
     pub(crate) links: HashMap<(u64, u64), Vec<PathBuf>>,
-    /// The directories this pass made in the destination,
-    /// so one whose every entry was left out can go again.
-    pub(crate) made_here: HashSet<PathBuf>,
+    /// The source folders that held another command's stage container,
+    /// so a folder that holds nothing else can be
+    ///  recognised when its own turn comes and is not left in the destination.
+    /// Empty on nearly every pass,
+    /// which is what
+    ///  keeps the question free for a tree with no container in it.
+    pub(crate) stage_holders: HashSet<PathBuf>,
 }
 
 /// Whether the destination entry already equals the source file:

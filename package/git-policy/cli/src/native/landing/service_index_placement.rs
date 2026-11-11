@@ -100,7 +100,8 @@ pub const SYSTEM: Platform<'static> = Platform {
 };
 
 /// The name the record of the lock marker's flush carries,
-/// in the sync figures and in the background task's own line.
+/// in the sync figures,
+/// in a landing's timing records and in the background task's own line.
 /// Why:
 ///  A control of what a landing waits for tells the marker's flush from a record's by this name,
 /// so both

@@ -50,6 +50,17 @@ pub mod package_repair_prewarm;
 #[cfg(target_os = "linux")]
 pub mod package_repair_prewarm_job;
 
+/// The hand-over of a new worktree's copied package state to the commit service,
+/// so the add does not wait for pnpm's relink or the toolchain install.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink;
+
+/// The service's relinking of that state:
+/// each tool's own frozen install in the worktree,
+/// run after the add returned.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_job;
+
 /// The runner that does one job for every item of a list on several threads.
 pub mod package_repair_cargo_concurrent;
 

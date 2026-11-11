@@ -381,7 +381,8 @@ fn index_hardened_in(state: &LandingState, (): ()) -> bool {
 ///
 /// # Errors
 ///
-/// The error of duplicating the handle; a queue that the background task no longer takes is synced here.
+/// The error of duplicating the handle;
+/// a queue that the background task no longer takes is synced here.
 pub fn defer_file(file: &File, what: &'static str) -> std::io::Result<()> {
     let handle: File = file.try_clone()?;
     note_a_sync(SyncFigure { what, waited: false, took: Duration::ZERO });

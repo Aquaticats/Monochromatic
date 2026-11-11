@@ -17,7 +17,7 @@ use super::commit::{
     COMMIT_BOUND_SECONDS, assert_nothing_left, git_text, keep_maintenance_in_the_foreground,
     remove_settled,
 };
-use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, porcelain, repository, stderr_of, without_advisory_notices, wrapper_first_path};
+use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, porcelain, repository, stderr_of, without_wait_notices, wrapper_first_path};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
@@ -60,10 +60,10 @@ fn wrapped_os(fixture: &Fixture, directory: &Path, arguments: &[OsString]) -> Co
 ///  the exit status,
 /// or the repository it left,
 ///  and a wait notice or the service's inside-a-write note says the host was slow,
-///  which none of them claims (`without_advisory_notices`).
+///  which none of them claims (`without_wait_notices`).
 fn run_os(fixture: &Fixture, directory: &Path, arguments: &[OsString]) -> Observed {
     let observed: Observed = observe(&mut wrapped_os(fixture, directory, arguments), b"");
-    return Observed { stderr: without_advisory_notices(observed.stderr.as_slice()), ..observed };
+    return Observed { stderr: without_wait_notices(observed.stderr.as_slice()), ..observed };
 }
 
 /// What:
@@ -82,7 +82,7 @@ fn run_os(fixture: &Fixture, directory: &Path, arguments: &[OsString]) -> Observ
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(withoutAdvisoryNotices(wait + inside + minutes + finding + sentence)).toEqual(finding + sentence)
+/// expect(withoutWaitNotices(wait + inside + minutes + finding + sentence)).toEqual(finding + sentence)
 /// ```
 #[test]
 fn only_the_lines_about_a_wait_are_left_out_of_a_read_command() {
@@ -104,10 +104,10 @@ fn only_the_lines_about_a_wait_are_left_out_of_a_read_command() {
     let sentence: &str = "monochromatic-git-policy-cli: copied 1 ignored filesystem entry\n";
     let mixed: String = format!("{wait}{inside}{minutes}{finding}{sentence}");
     assert_eq!(
-        String::from_utf8_lossy(&without_advisory_notices(mixed.as_bytes())).into_owned(),
+        String::from_utf8_lossy(&without_wait_notices(mixed.as_bytes())).into_owned(),
         format!("{finding}{sentence}")
     );
-    assert_eq!(without_advisory_notices(sentence.as_bytes()), sentence.as_bytes());
+    assert_eq!(without_wait_notices(sentence.as_bytes()), sentence.as_bytes());
 }
 
 /// Operating-system string arguments from literals and one name.

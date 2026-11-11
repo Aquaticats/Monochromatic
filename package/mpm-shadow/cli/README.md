@@ -1166,9 +1166,16 @@ the newest finished copy wins wherever it is.
   (`Usage: mpm upgrade [OPTIONS] [PACKAGES_SPECS]...`,
   `Error: No such option '-g'.`,
   measured 2026-11-08).
-  A machine whose global plan declares no `mpm-shadow` entry has none on `PATH` either;
-  the entry the repository plan carries exposes it in the global exposure directory,
-  which `PATH` holds.
+  A machine whose global plan declares no `mpm-shadow` entry has none of that plan's entries on `PATH` either,
+  so the machine-global remedy named a program no shell outside a worktree could find
+  (`/bin/sh: line 1: mpm-shadow: command not found`,
+  exit status 127,
+  measured 2026-11-11 in a home laid out like this machine's).
+  The scope's own install puts it there:
+  the farm also links the running `mpm-shadow` under its own name,
+  which is the program every sentence prints,
+  so the command runs as printed in a fresh shell.
+  See "The farm also carries the running `mpm-shadow`".
 - The exposed links,
   postinstall links and postinstall commands of both scopes use the winning copy,
   so `mpm-shadow install --global` makes `~/.local/bin/git` run the repository root's newest wrapper (through the global launcher) when that is the newest.
@@ -1222,6 +1229,53 @@ every `install` removes the older managed copies of this repository's tools:
 - A clone that git does not list for the repository is unseen:
   its launchers keep working through the forward,
   and a link that names a version directory itself dangles until that tree's next `install`.
+
+### The farm also carries the running `mpm-shadow`
+
+Every sentence `mpm-shadow` prints tells a person to run `mpm-shadow` or `mpm`,
+so every command that syncs a scope (`install`,
+and the `update` that syncs the tools it needs)
+makes those names reachable from a fresh shell:
+
+- The scope's exposure farm holds a link named after the running `mpm-shadow`,
+  pointing at the installed program through the tool's `current` link,
+  so a later version move never leaves it dangling.
+  It is made when no tool of the scope's lock declares that bin:
+  a plan row that declares it owns the farm link and the launcher record behind it,
+  even when that row installed nothing.
+  It is never made for a program that belongs to no install,
+  so a run from a build folder puts no build on the machine's `PATH`
+  (`src/toolchain/exposure.rs`,
+  `expose_running_shadow`).
+  Nothing removes it:
+  the program that would is the one that is gone.
+- The repository plan's `mpm-shadow` row also links `mpm` in `.cache/mpm-shadow-bin`,
+  which a worktree's `PATH` holds.
+  A machine-global plan need not declare `mpm-shadow` at all,
+  and this machine's does not,
+  so before the farm link the machine-global sentences
+  (`mpm-shadow update -g <tool id>`,
+  `mpm-shadow install -g`,
+  `mpm-shadow --help`)
+  named a program nothing outside a worktree could find
+  (`/bin/sh: line 1: mpm-shadow: command not found`,
+  exit status 127,
+  measured 2026-11-11 in a home laid out like this machine's).
+- An install is found by the file it is,
+  never by the spelling of its path.
+  `/proc/self/exe` reports the resolved spelling (on this machine `/home` is a link to `/var/home`),
+  while a scope's root keeps the spelling `HOME` gives,
+  and comparing the text found no install at all,
+  so every launcher was a copy of whichever program ran `install` instead of the newest installed one.
+  A launcher made from a program reached through a per-program link is a hard link of the file itself,
+  never of the link,
+  because a hard link of a symbolic link resolves its relative target beside the launcher and dangles.
+- `tests/printed_remedy.rs` builds a disposable home with that layout,
+  runs each printed sentence's own command in a fresh shell,
+  and asserts every program it names resolves through the scope's install
+  (measured 2026-11-11:
+  `mpm-shadow update -g cargo:monochromatic-git-policy-cli` moved the fixture's global lock to the version that runs
+  and the warning was gone).
 
 ### The launcher
 

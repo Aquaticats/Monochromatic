@@ -25,6 +25,7 @@ use super::support::{Fixture, Observed, fixture, git, on_btrfs_or_acknowledged, 
 use git_policy_cli::fs_btrfs_ioctl::subvolume_create_at;
 use git_policy_cli::fs_kind::is_subvolume_root;
 use git_policy_cli::fs_mount_options::read_mount_facts;
+use git_policy_cli::worktree_remove::DESTROY_NOTICE;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -197,10 +198,84 @@ fn a_worktree_named_by_its_last_component_is_destroyed_in_one_step() {
     assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is gone");
     let said: String = stderr_of(&removed);
     if removal_allowed(fixture.root.as_path()) {
-        // The line the removal prints when the subvolume is handed to the service, read from its one owner: the hand-over
-        //  renames the subvolume away and the service deletes the files after the command returns (`worktree_remove.rs`).
-        assert!(said.contains(git_policy_cli::worktree_remove::DESTROY_NOTICE), "the one-step destroy and the service's delete of the files are stated: {said}");
+        // The sentence is the one the removal owns, so a rewording of what it says the commit service then deletes does
+        //  not read as a rung that went missing.
+        assert!(said.contains(DESTROY_NOTICE), "the one-call destroy is stated: {said}");
     }
+    remove(&fixture);
+}
+
+/// A name that differs from the registered worktree's last component only by case is Git's own decision:
+/// on a repository whose `core.ignorecase` is false Git's suffix match compares the bytes,
+/// so Git answers that the name is not a working tree.
+/// Why:
+///  Serving that name removed a worktree the person did not name,
+///  with every ignored file it held and no other copy,
+///  while Git's own refusal was the answer they would have got.
+#[test]
+fn a_name_that_differs_only_by_case_is_left_to_git() {
+    let fixture: Fixture = fixture("ladder-remove-other-case");
+    if !on_btrfs_or_acknowledged(&fixture, "ladder-remove-other-case") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = populated_repository(&fixture, false);
+    // Git's comparison folds case only when this setting says so, and this is the case-sensitive filesystem's default.
+    git(&fixture, repo.as_path(), &["config", "core.ignorecase", "false"]);
+    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    let topic: PathBuf = fixture.root.join("topic");
+    assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the add made a subvolume");
+    std::fs::create_dir_all(topic.join("ignored")).expect("ignored directory");
+    std::fs::write(topic.join("ignored/only-copy.txt"), b"the only copy\n").expect("ignored file");
+    age_tracked_files(&fixture, topic.as_path());
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "TOPIC"]);
+    assert_ne!(refused.code, Some(0), "Git refuses a name that is not this worktree's: {}", stderr_of(&refused));
+    assert!(stderr_of(&refused).contains("is not a working tree"), "Git's own refusal: {}", stderr_of(&refused));
+    assert_eq!(std::fs::read(topic.join("ignored/only-copy.txt")).expect("the ignored only copy is kept"), b"the only copy\n");
+    assert!(topic.join("README.md").is_file(), "the worktree is kept");
+    assert!(listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is kept");
+    remove(&fixture);
+}
+
+/// A name two registrations match,
+/// ignoring ASCII case,
+/// is Git's ambiguous case even when one of them spells the same directory through a symbolic link:
+/// Git says the name is not a working tree,
+/// so the wrapper leaves it to Git and the worktree keeps every ignored file.
+/// Why:
+///  Serving that name removed the worktree Git refused,
+///  with ignored files that have no other copy,
+///  while Git's own refusal was the answer the person would have got.
+#[test]
+fn a_name_two_registrations_match_is_left_to_git() {
+    let fixture: Fixture = fixture("ladder-remove-alias-case");
+    if !on_btrfs_or_acknowledged(&fixture, "ladder-remove-alias-case") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = populated_repository(&fixture, false);
+    let created: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    let upper: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "TOPIC", "../TOPIC"]);
+    assert_eq!(upper.code, Some(0), "{}", stderr_of(&upper));
+    let topic: PathBuf = fixture.root.join("topic");
+    assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the add made a subvolume");
+    // Git's suffix match folds ASCII case when this setting says so, and then it finds both registrations; Git's own add
+    // refuses a case variant under it, so the setting comes after both worktrees exist.
+    git(&fixture, repo.as_path(), &["config", "core.ignorecase", "true"]);
+    // The second worktree moves and a link is left at its old name, so both registrations name the topic directory.
+    std::fs::rename(fixture.root.join("TOPIC"), fixture.root.join("upper-kept")).expect("move the second worktree");
+    std::os::unix::fs::symlink(topic.as_path(), fixture.root.join("TOPIC")).expect("leave a link at the old name");
+    std::fs::create_dir_all(topic.join("ignored")).expect("ignored directory");
+    std::fs::write(topic.join("ignored/only-copy.txt"), b"the only copy\n").expect("ignored file");
+    age_tracked_files(&fixture, topic.as_path());
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "topic"]);
+    assert_ne!(refused.code, Some(0), "Git refuses a name two registrations match: {}", stderr_of(&refused));
+    assert!(stderr_of(&refused).contains("is not a working tree"), "Git's own refusal: {}", stderr_of(&refused));
+    assert_eq!(std::fs::read(topic.join("ignored/only-copy.txt")).expect("the ignored only copy is kept"), b"the only copy\n");
+    assert!(topic.join("README.md").is_file(), "the worktree is kept");
+    assert!(listing(&fixture, repo.as_path()).contains("/topic\n"), "the registration is kept");
     remove(&fixture);
 }
 

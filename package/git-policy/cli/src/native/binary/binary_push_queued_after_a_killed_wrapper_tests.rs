@@ -221,3 +221,67 @@ fn commit_through(setup: &Setup, content: &str) -> String {
     let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
+
+/// What:
+///  The push records a worktree holds,
+///  as the queue keeps them.
+/// Why:
+///  The state the command is about lives in the records,
+///  so a case reads them rather than what a command printed.
+fn held_push_records(setup: &Setup) -> Vec<String> {
+    let held: PathBuf = state_directory(work_directory(git_dir(setup).as_path()).as_path(), git_policy_cli::work_item::HELD);
+    let mut names: Vec<String> = std::fs::read_dir(held)
+        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+        .unwrap_or_default();
+    names.retain(|name| { return name.starts_with("push-"); });
+    return names;
+}
+
+/// What:
+///  Commits `content` to `a.txt` and ends the wrapper at the instant after it wrote its pass into the push record,
+///  before it made the record runnable.
+/// Why:
+///  That is the state a killed command leaves:
+///  the record says the checks passed,
+///  its command is gone,
+///  and nothing has been woken for it.
+fn commit_and_die_after_the_verdict(setup: &Setup, content: &str) -> String {
+    std::fs::write(setup.repo.join("a.txt"), content).expect("edit");
+    let mut command: Command = super::commit::wrapped_commit(&setup.fixture, setup.repo.as_path(), &["commit", "--quiet", "-m", content.trim(), "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", &setup.service.runtime);
+    command.env(git_policy_cli::service_fault::FAULT_VARIABLE, git_policy_cli::service_fault::AFTER_THE_VERDICT);
+    let output: Output = command.output().expect("the wrapped commit runs");
+    assert!(!output.status.success(), "the wrapper was killed at the fault point: {:?}", output.status);
+    let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
+    return String::from_utf8_lossy(&named.stdout).trim().to_string();
+}
+
+/// What:
+///  A command whose output a program reads releases the push an approved record holds,
+///  so an approved push never waits for a person to type a command only a program will read.
+/// Why:
+///  The record is the only place the state exists,
+///  and the command that would have promoted it is gone;
+///  a workflow of scripts runs no other kind of command,
+///  so leaving the settlement to the next command a person types leaves the push waiting forever.
+///  The command still shows nothing and takes no failure notice:
+///  its output is read by a program.
+#[test]
+fn a_machine_read_command_releases_a_held_push_whose_command_left_a_pass() {
+    let setup: Setup = setup("push-held-released-by-a-program");
+    let commit: String = commit_and_die_after_the_verdict(&setup, "one\n");
+    assert_eq!(held_push_records(&setup).len(), 1, "the killed command left one held record");
+    assert!(pending_push_records(&setup).is_empty(), "and nothing runnable");
+    assert!(!remote_has(&setup, commit.as_str()), "nothing pushed the commit yet");
+
+    // `rev-parse` is a command whose output a program reads.
+    let read: Observed = run_without_settling(&setup, &["rev-parse", "HEAD"]);
+
+    assert_eq!(read.code, Some(0), "{}", stderr_of(&read));
+    assert_eq!(String::from_utf8_lossy(read.stdout.as_slice()).trim(), commit, "the command's own answer is unchanged");
+    assert_eq!(held_push_records(&setup).len(), 0, "the record the command found is settled");
+    // The record became runnable and the service was woken for it: the service claims it at once, so the record's own state
+    //  is read from the push it makes rather than from `pending`, which the service empties as fast as it fills.
+    wait_until("the service pushed the record the program's command released", &|| { return remote_has(&setup, commit.as_str()); });
+    remove_settled(&setup.fixture);
+}

@@ -286,6 +286,9 @@ pub fn write_merge_intent(git_dir: &Path, intent: &MergeIntent) -> std::io::Resu
 /// await rm(path, { force: true }); // no syncDirectory: the next command settles a record this brought back
 /// ```
 pub fn remove_merge_intent(path: &Path) -> std::io::Result<()> {
+    // What Git's update left travels beside the record, so it goes with it: a reading that outlived its merge would name a
+    //  checkout state the next command never made (`merge_isolation_carry_landed.rs`).
+    let _landed: Result<(), _> = std::fs::remove_file(path.with_extension("landed"));
     return match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),

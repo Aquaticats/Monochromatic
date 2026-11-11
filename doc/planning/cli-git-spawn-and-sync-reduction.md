@@ -1950,42 +1950,33 @@ The four constants name no repository,
 so their `check-ignore` stays 0,
 and a commit whose command line names one repository asks one question about its named paths.
 
-Raised on 2026-11-10:
-`wrapper_syncs` from 0 to 2 in all four constants,
-for the verdict of a commit's own post-commit gate.
-Since `77e8348a84` the wrapper writes what its gate decided into the push record the service held for the commit before
-the branch moved
-(`package/git-policy/cli/src/native/landing/service_handoff.rs`,
-`promote_the_push`,
-which calls `record_pass` in
-`package/git-policy/cli/src/native/landing/work_item_holding.rs`),
-and `private_storage::replace_private_file` makes that durable as one sync of the staged record and one of the folder
-that holds it.
-The write comes before the promotion because a command killed in that gap leaves a record whose own words say what it
-decided,
-which a later command settles from them
-(`held_push_holder_and_verdict.rs`);
-without the sync those words could be lost with the page cache.
-Measured on 2026-11-10 with the harness of this section:
-the no-hooks control,
-with its constant still at 0,
-failed with
-`sync calls by the wrapper: observed 2, budget 0`,
-and all six `budget::` controls pass with `wrapper_syncs` 2,
-so every scenario reads exactly 2,
-and the comparison reports a wrong number as well as a right one.
-Those two calls are all the sync-class calls of a commit:
-the kept `strace` of a cold commit holds them and no `fsync`,
-`fdatasync`,
-`syncfs` or `sync_file_range` of any Git child.
-The counts this section states earlier,
-19 syncs in a cold commit and 14 in a warm one,
-are therefore historical;
-a commit makes two now.
-Leaving the verdict in the page cache instead would save both,
-and it is a durability question for the owner:
-a record whose verdict was lost keeps the commit local,
-which is the fallback the change already names.
+Failed and fixed on 2026-11-10:
+the same six controls read "sync calls by the wrapper:
+observed 2,
+budget 0",
+with no other figure differing,
+at `5686c7bb29`,
+the integration branch of the jam fixes after alpha.9.
+`77e8348a84` ("a held push is settled by the verdict its command left,
+and named with what sends it") writes the post-commit gate's verdict into
+the commit's held push record through `replace_private_file`,
+which flushes the record and its directory,
+and every landed commit reaches it,
+so every commit waited on two filesystem commits of the wrapper's own after its landing.
+The record now goes through `replace_private_file_unsynced` (`work_item_holding.rs`,
+`record_verdict`):
+the verdict is still published whole by one rename before the record is promoted or forgotten,
+which is what that change meant,
+a kill keeps it,
+and a machine crash leaves the record the gate found,
+which the settlement reads as a record with no verdict
+(`binary_held_push_settled_by_the_verdict_tests.rs`,
+`a_commit_whose_command_died_before_its_checks_names_what_sends_it`).
+The four constants stay as measured,
+and the mechanism,
+the kernel cost of the removed flushes,
+and the controls are recorded in `doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+"A commit".
 
 ## Filesystem identity without `findmnt` (slice S2)
 

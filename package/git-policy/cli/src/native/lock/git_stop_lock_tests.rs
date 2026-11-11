@@ -21,6 +21,7 @@ use crate::bounded_push::{run_bounded_push, Patience, STOPPED_EXIT_CODE};
 use crate::child_watch::{output_watched, WatchTerms};
 use crate::process_tree::TreeMember;
 use crate::push_limit_held_for_an_ordering::{LimitHeldForAnOrdering, LimitHoldGuard, hold_limit_for_an_ordering};
+use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 use crate::stop_waits_while_a_member_cannot_be_interrupted::{ControlRules, RulesGuard, STOP_CEILING, rules_for_this_thread};
 use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment, while_test_lives};
 use std::cell::Cell;
@@ -66,6 +67,35 @@ const RESPONSIVE_GRACE: Duration = Duration::from_micros(6_031_986).saturating_m
 /// The tracking ref the incident left locked.
 const HELD_REF: &str = "refs/remotes/origin/main";
 
+/// What:
+///  The two files Git makes for the lock of `HELD_REF`:
+/// the lock,
+/// and the pid file it writes beside it under `core.lockfilePid`.
+/// Why:
+///   A control judges the ordering of a stop by these two files,
+/// and the holder's own hold is aimed at one of them,
+/// so both name them from one place:
+/// the stop under test reads the same two names
+///  (`stopped_git_locks::LOCK_SUFFIX`,
+/// `PID_LOCK_SUFFIX`).
+struct LockFiles {
+    /// The lock itself.
+    lock: PathBuf,
+    /// The pid file beside it.
+    pid_file: PathBuf,
+}
+
+impl LockFiles {
+    /// The two files of the held reference in the repository of `stage`.
+    fn of(stage: &Stage) -> Self {
+        let git_directory: PathBuf = stage.repo.join(".git");
+        return Self {
+            lock: git_directory.join(format!("{HELD_REF}{LOCK_SUFFIX}")),
+            pid_file: git_directory.join(format!("{HELD_REF}{PID_LOCK_SUFFIX}")),
+        };
+    }
+}
+
 /// Whether the holder can act on `SIGTERM`.
 #[derive(Clone, Copy, Debug)]
 enum Holder {
@@ -75,25 +105,24 @@ enum Holder {
     /// as for a Git that sits in an uninterruptible call.
     Unresponsive,
     /// Git answers `SIGTERM`,
-    /// but its handler is held for `CLEANUP_DELAY_MICROSECONDS` after its first `unlink` (the lock's pid file),
+    /// but the removal of its lock's pid file is held for `CLEANUP_HOLD`,
     ///  as a handler is held by a stalled disk or a processor that is not given to it:
-    /// a `SIGKILL` at the end of the grace then
+    /// a `SIGKILL` that arrives while the hold lasts then
     ///  falls between the removal of the pid file and the removal of the lock.
     SlowToFinishCleanup,
     /// As `SlowToFinishCleanup`,
     /// held for twice `STOP_GRACE`:
     /// the watched stop's grace is that constant,
-    /// and the kill at its end falls
+    /// and the kill that follows it falls
     ///  inside the hold.
     HeldPastTheStopGrace,
 }
 
-/// How long the handler of the slow holder is held after its first `unlink`,
-/// in microseconds:
+/// How long the handler of the slow holder is held before the lock's pid file is removed:
 /// more than twice `SHORT_GRACE`,
 /// so the
 ///  kill at the end of the grace always falls inside it.
-const CLEANUP_DELAY_MICROSECONDS: u64 = 5_000_000;
+const CLEANUP_HOLD: Duration = Duration::from_secs(5);
 
 /// How long a control holds the run's limit back for the holder's announcement of its lock,
 /// before it lets the limit pass and its own assertion reports that the announcement never came.
@@ -143,13 +172,8 @@ struct Watched {
 
 impl Watched {
     fn of(stage: &Stage) -> Self {
-        let git_directory: PathBuf = stage.repo.join(".git");
-        return Self {
-            lock: git_directory.join(format!("{HELD_REF}.lock")),
-            pid_file: git_directory.join(format!("{HELD_REF}~pid.lock")),
-            held_seen: Cell::new(false),
-            cut_seen: Cell::new(false),
-        };
+        let files: LockFiles = LockFiles::of(stage);
+        return Self { lock: files.lock, pid_file: files.pid_file, held_seen: Cell::new(false), cut_seen: Cell::new(false) };
     }
 
     /// What the two files look like now,
@@ -365,11 +389,41 @@ fn stage(name: &str) -> Stage {
     return Stage { root, repo, ready };
 }
 
+/// What:
+///  The holder's Git,
+/// wrapped in a `strace` that holds one removal back:
+/// the removal of the lock's pid file.
+/// Why:
+///   Git's handler removes a lock's pid file and then the lock,
+/// 130 µs apart on a quiet disk,
+/// so a kill that falls between the two leaves a lock nothing names,
+/// and a control about that has to keep the handler in the cut.
+/// The hold has to be on *that* removal:
+/// `when=1` counts each traced process's own first `unlink`,
+/// which is some earlier file in a command that unlinks anything before it takes its lock,
+/// and the hold would then be spent where nothing is being cut.
+/// `-P` therefore names the pid file,
+/// and the injection applies to that path alone.
+/// `--kill-on-exit` ends the tracee with its tracer:
+/// a tracee whose tracer is killed is detached and walks on,
+/// so without it a stop that kills the `strace` lets the handler finish the cleanup the hold was keeping in the cut.
+/// Recorded in `doc/troubleshooting/git-policy-cli-cut-control-holds-a-tracer-the-stop-kills.md`,
+/// with the probes behind each of these.
+fn held_before_the_pid_file_goes(hold: Duration) -> String {
+    let microseconds: u128 = hold.as_micros();
+    return format!(
+        "strace -f -o /dev/null --kill-on-exit -P \"$PID_FILE\" -e trace=unlink,unlinkat \
+         -e inject=unlink:delay_exit={microseconds}:when=1 -e inject=unlinkat:delay_exit={microseconds}:when=1 /usr/bin/git"
+    );
+}
+
 /// The command that holds the lock of `HELD_REF`:
 /// `git update-ref --stdin` told to prepare,
 /// then kept waiting.
 fn holder(stage: &Stage, kind: Holder) -> Command {
-    let lock: PathBuf = stage.repo.join(".git").join(format!("{HELD_REF}.lock"));
+    let files: LockFiles = LockFiles::of(stage);
+    let lock: PathBuf = files.lock;
+    let pid_file: PathBuf = files.pid_file;
     let target: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]);
     // The wait for the lock ends with the test, and the hold after it must keep the pipe open from a session the stop under
     //  test cannot reach: `git update-ref --stdin` aborts its prepared transaction and unlinks its own lock when its input
@@ -378,10 +432,9 @@ fn holder(stage: &Stage, kind: Holder) -> Command {
     let lives: String = while_test_lives(stage.root.as_path());
     let watcher: PathBuf = stage.root.join("hold-the-pipe-open.sh");
     crate::test_support::executable(watcher.as_path(), format!("#!/bin/sh\nwhile {lives}; do sleep 0.1; done\n").as_bytes());
-    // `strace` holds the first `unlink` of Git after it ran: the handler removes the pid file first and the lock second.
     let git: String = match kind {
-        Holder::SlowToFinishCleanup => format!("strace -f -o /dev/null -e trace=unlink -e inject=unlink:delay_exit={CLEANUP_DELAY_MICROSECONDS}:when=1 /usr/bin/git"),
-        Holder::HeldPastTheStopGrace => format!("strace -f -o /dev/null -e trace=unlink -e inject=unlink:delay_exit={}:when=1 /usr/bin/git", 2 * crate::bounded_push::STOP_GRACE.as_micros()),
+        Holder::SlowToFinishCleanup => held_before_the_pid_file_goes(CLEANUP_HOLD),
+        Holder::HeldPastTheStopGrace => held_before_the_pid_file_goes(2 * crate::bounded_push::STOP_GRACE),
         Holder::Responsive | Holder::Unresponsive => String::from("/usr/bin/git"),
     };
     // The watcher keeps the pipe to Git's input on its standard output, which is what holds the transaction open, and it is
@@ -410,6 +463,7 @@ fn holder(stage: &Stage, kind: Holder) -> Command {
         .env("TARGET", target)
         .env("LOCK", lock.as_os_str())
         .env("WATCHER", watcher.as_os_str())
+        .env("PID_FILE", pid_file.as_os_str())
         .env("READY", stage.ready.as_os_str());
     if matches!(kind, Holder::Unresponsive) {
         // SAFETY: only async-signal-safe calls (`sigemptyset`, `sigaddset`, `sigprocmask`) run between fork and exec.
@@ -465,27 +519,85 @@ fn describe_left(files: &[PathBuf]) -> String {
     return lines.join("; ");
 }
 
-/// What a stop leaves on disk.
+/// What:
+///  What a stop leaves on disk,
+/// which is also the ordering its kill fell at.
+/// Why:
+///   Git's handler removes a lock and the pid file beside it with two `unlink` calls,
+/// so the two files say where a kill landed:
+/// both there is a kill before the handler ran,
+/// the lock alone is a kill between the two,
+/// and neither is a handler that finished.
+/// A control that checked only that *some* file was left would pass for either of the first two,
+/// and its name would claim an ordering nothing had seen.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Leftover {
     /// Git's own handler removed the lock and its pid file.
     TheHolderCleansItUp,
-    /// The holder was killed before it could remove them,
+    /// The kill came before the handler ran,
+    /// so the lock stays with its pid file beside it,
     /// and nothing the wrapper sees proves the lock's holder gone,
-    /// so the lock stays and the next command prints the command that clears it.
-    NothingProvesIt,
+    /// so the next command prints the command that clears it.
+    BeforeTheHandlerRan,
+    /// The kill came between the handler's two removals,
+    /// so the lock stays with no pid file beside it:
+    /// the only file that named its holder went with the kill,
+    /// and the next command prints the command that clears the lock.
+    BetweenTheUnlinks,
+}
+
+impl Leftover {
+    /// Whether the pid file is expected beside the lock the kill left,
+    /// or nothing when the holder cleaned up after itself.
+    fn pid_file_beside_the_lock(self) -> Option<bool> {
+        return match self {
+            Leftover::TheHolderCleansItUp => None,
+            Leftover::BeforeTheHandlerRan => Some(true),
+            Leftover::BetweenTheUnlinks => Some(false),
+        };
+    }
+}
+
+/// What:
+///  Assert that the stop left the two files the control's name claims:
+/// the lock,
+/// and the pid file its kill did or did not take.
+/// Why:
+///   A kill before Git's handler ran leaves both files,
+/// and a kill between the handler's two removals leaves the lock alone;
+/// a control that accepted either would pass without the ordering it is named for,
+/// and one that saw neither would report a handler that cleaned up as a kill it is not about.
+/// The sweep runs before the stop returns,
+/// and it removes nothing it cannot prove,
+/// so the lock a killed holder left is still there for the next command to name.
+fn assert_the_kill_landed_where_the_control_says(stage: &Stage, kind: Holder, how: &str, leftover: Leftover) {
+    let Some(pid_file_beside_the_lock) = leftover.pid_file_beside_the_lock() else {
+        return;
+    };
+    let expected: &str = if pid_file_beside_the_lock {
+        "a kill before Git's handler ran, which leaves the lock with its pid file beside it"
+    } else {
+        "a kill between Git's two removals, which leaves the lock with no pid file beside it"
+    };
+    let files: LockFiles = LockFiles::of(stage);
+    let left: Vec<PathBuf> = lock_files(stage.repo.join(".git").as_path());
+    let lock_there: bool = files.lock.exists();
+    let pid_file_there: bool = files.pid_file.exists();
+    assert!(
+        lock_there && pid_file_there == pid_file_beside_the_lock,
+        "{how} {kind:?}: this control is about {expected}, and the stop left lock present={lock_there} and pid file present={pid_file_there}, over {}",
+        describe_left(left.as_slice())
+    );
 }
 
 /// The checks that follow a stop,
 /// according to what the stop leaves:
 /// a holder that cleaned up leaves nothing,
-/// and one that was killed leaves the lock the wrapper will not remove.
+/// and one that was killed leaves the lock the wrapper will not remove,
+/// with the pid file its kill did or did not take.
 fn assert_after_stop(stage: &Stage, kind: Holder, how: &str, leftover: Leftover) {
-    if leftover == Leftover::NothingProvesIt {
-        // The sweep runs before the stop returns, and it removes nothing it cannot prove:
-        // the lock the killed holder left is still there for the next command to name.
-        let left: Vec<PathBuf> = lock_files(stage.repo.join(".git").as_path());
-        assert!(!left.is_empty(), "{how} {kind:?}: no lock was left, so this control no longer tests a lock nothing proves gone");
+    assert_the_kill_landed_where_the_control_says(stage, kind, how, leftover);
+    if leftover != Leftover::TheHolderCleansItUp {
         return;
     }
     let waited: Instant = Instant::now();
@@ -603,7 +715,7 @@ fn a_stall_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), patience, SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped on no progress");
     assert_the_holder_announced_its_lock(&stage, Holder::Unresponsive, "stalled run");
-    assert_after_stop(&stage, Holder::Unresponsive, "stalled run", Leftover::NothingProvesIt);
+    assert_after_stop(&stage, Holder::Unresponsive, "stalled run", Leftover::BeforeTheHandlerRan);
     remove(stage.root.as_path());
 }
 
@@ -645,7 +757,7 @@ fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
 ///  left `refs/remotes/origin/main.lock` after 29.9 s while the host was loaded).
 /// The stop that waits while a member cannot be
 ///  interrupted only makes the cut rarer.
-/// The holder here is held after its first unlink by a traced stop,
+/// The holder here is held at the removal of its lock's pid file by a traced stop,
 /// which the production rule does not
 ///  count as a wait,
 /// so the production stop kills at its grace;
@@ -653,17 +765,35 @@ fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
 ///  the cut on disk begins,
 /// so the kill falls between the two unlinks however long the host takes to run
 ///  Git's handler.
+/// The hold is aimed at that file and ends with its tracer (`held_before_the_pid_file_goes`),
+/// so neither an earlier `unlink` of Git nor the stop's kill of the tracer can spend it.
 /// A number in a pid file is not the wrapper's own observation,
 /// so the lock stays and is named.
 #[test]
 fn a_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove() {
-    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-cut-cleanup", StopRule::UntilTheCutIsReached, Leftover::NothingProvesIt);
+    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-cut-cleanup", StopRule::UntilTheCutIsReached, Leftover::BetweenTheUnlinks);
 }
 
 /// The same cut in the watched path leaves the lock too.
+/// Why:
+///  The watched stop decides by the step's own quiet window rather than by a limit a control can hold,
+/// and its watcher runs on the runtime's own thread,
+/// so no rule of this thread reaches it.
+/// The ordering is read off the two files instead,
+/// which is what `Leftover::BetweenTheUnlinks` asserts:
+/// the lock stays and the pid file it lost is gone.
+/// The hold has to outlast the stop's grace,
+/// which is why this holder is held for twice `STOP_GRACE` (`Holder::HeldPastTheStopGrace`),
+/// and it has to survive the stop's own kill of the `strace`,
+/// because a tracee whose tracer is killed is detached and walks on
+/// (`held_before_the_pid_file_goes`).
+/// Measured on 2026-11-11:
+/// of 33 runs of this control without that last part,
+/// one failed and left nothing at all on disk,
+/// which is Git's handler finishing its cleanup after the tracer it was held in was killed.
 #[test]
 fn a_watched_kill_between_the_pid_file_and_the_lock_leaves_the_lock_it_cannot_prove() {
-    watched_step(Holder::HeldPastTheStopGrace, "stop-lock-watched-cut-cleanup", Leftover::NothingProvesIt);
+    watched_step(Holder::HeldPastTheStopGrace, "stop-lock-watched-cut-cleanup", Leftover::BetweenTheUnlinks);
 }
 
 /// A member that never leaves the state where a signal cannot act is still ended at the stop's ceiling:
@@ -689,7 +819,7 @@ fn a_member_held_for_ever_is_ended_at_the_ceiling_and_its_lock_is_left() {
     assert!(took < HOLD_DEADLINE + CEILING + GENEROUS_SLACK, "the stop took {took:?}: it waited past its ceiling");
     assert_the_holder_held_its_lock(Holder::Unresponsive, "stalled run held for ever");
     drop(watching);
-    assert_after_stop(&stage, Holder::Unresponsive, "bounded run held for ever", Leftover::NothingProvesIt);
+    assert_after_stop(&stage, Holder::Unresponsive, "bounded run held for ever", Leftover::BeforeTheHandlerRan);
     remove(stage.root.as_path());
 }
 
@@ -697,7 +827,7 @@ fn a_member_held_for_ever_is_ended_at_the_ceiling_and_its_lock_is_left() {
 /// and the lock it held stays.
 #[test]
 fn a_push_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
-    bounded_run(Holder::Unresponsive, "stop-lock-push-unresponsive", Leftover::NothingProvesIt);
+    bounded_run(Holder::Unresponsive, "stop-lock-push-unresponsive", Leftover::BeforeTheHandlerRan);
 }
 
 /// A holder that answers `SIGTERM` gets the chance in the watched path.
@@ -710,7 +840,7 @@ fn a_watched_stop_of_a_responsive_holder_leaves_no_lock() {
 /// and the lock it held stays.
 #[test]
 fn a_watched_stop_of_an_unresponsive_holder_leaves_the_lock_it_cannot_prove() {
-    watched_step(Holder::Unresponsive, "stop-lock-watched-unresponsive", Leftover::NothingProvesIt);
+    watched_step(Holder::Unresponsive, "stop-lock-watched-unresponsive", Leftover::BeforeTheHandlerRan);
 }
 
 /// The watched path asks with a catchable signal before it kills:
@@ -750,6 +880,6 @@ fn a_stop_without_grace_sweeps_on_a_thread_of_its_own() {
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), Duration::ZERO, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its limit");
     assert_the_holder_held_its_lock(Holder::Unresponsive, "bounded run without grace");
-    assert_after_stop(&stage, Holder::Unresponsive, "bounded run without grace", Leftover::NothingProvesIt);
+    assert_after_stop(&stage, Holder::Unresponsive, "bounded run without grace", Leftover::BeforeTheHandlerRan);
     remove(stage.root.as_path());
 }

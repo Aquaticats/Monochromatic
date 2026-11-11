@@ -1681,26 +1681,30 @@ fn a_check_is_repeated_only_while_it_cannot_be_made() {
 }
 
 /// What:
-///  The flush the service makes of its marker is the background task's,
-/// so what `sync_file` answers is the hand-over's answer and never the flush's:
-/// a file that cannot be flushed (a pipe has no data to make durable) does not end the step that asked for it,
-/// a file that can be flushed is handed over the same way,
-/// and the task makes both.
+///  The flush the placement asks of the index lock's marker is the service's background task's:
+///  `sync_file` queues a handle on the marker and answers the queueing,
+///  so a file the operating system refuses to flush (a pipe has no data to make durable) is not an error there,
+///  and a file it can flush is not one either.
 /// Why:
 ///  The marker names the process that holds the lock and nothing else,
-///  and its flush sat on every commit's path,
-///  8 to 12.5 s of it under load
+///  and its flush sat on every commit's waiting path,
+///  8 to 12.5 s of it under load,
+///  so 322079b2f0 handed it to the background task
 ///  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
-/// A marker a power cut tears names no holder,
-///  and the step before a landing removes exactly that file at once
-///  (`service_index_unheld_removal.rs`),
-///  so no commit waits for the flush and no commit's answer is the flush's.
-/// Durability itself is not observable without a crash;
-/// what is observable is that the call answers before the flush,
-///  that a flush that cannot be made does not reach the caller,
-///  and that the task makes it.
+///  A marker a power cut tears names no holder,
+///  and the step that runs before a landing removes exactly that file at once
+///  (`service_index_unheld_removal.rs`).
+///  Durability itself is not observable without a crash:
+///  the call is the operating system's,
+///  and its answer is the caller's when the caller makes it,
+///  which is the positive control below.
+///  What is observable of the commit's own path is that no flush is waited for,
+///  that the flush is queued under the marker's own name,
+///  and that the background task is the one that makes it;
+///  `service_durable_tests.rs` shows the same of a lock marker a landing queues
+///  (`the_lock_markers_flush_is_queued_and_the_background_task_makes_it`).
 #[test]
-fn the_markers_flush_is_handed_over_and_its_answer_never_reaches_the_caller() {
+fn the_flush_of_the_marker_is_the_background_tasks_and_a_refusal_fails_nothing() {
     use crate::service_index_placement::{LOCK_MARKER_SYNC, sync_file};
     use std::os::fd::FromRawFd;
     use std::sync::atomic::Ordering;
@@ -1709,6 +1713,11 @@ fn the_markers_flush_is_handed_over_and_its_answer_never_reaches_the_caller() {
     assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0);
     // SAFETY: each descriptor is a fresh end of the pipe, owned by exactly one `File`.
     let (reader, writer) = unsafe { (std::fs::File::from_raw_fd(ends[0]), std::fs::File::from_raw_fd(ends[1])) };
+    // Positive control: the operating system does refuse this flush, so it is the queueing and not a lenient answer that
+    // keeps the refusal off the commit. The call is the flush's own, and its answer is the caller's when the caller makes
+    //  it; the marker's own flush is queued instead (`sync_file`, `service_durable::defer_file`).
+    let refused = crate::service_durable::flush_file(&writer, LOCK_MARKER_SYNC).expect_err("a pipe cannot be flushed");
+    assert_eq!(refused.raw_os_error(), Some(libc::EINVAL));
     let before: u64 = crate::service_durable::BACKGROUND_SYNCED.load(Ordering::SeqCst);
     crate::service_fault::hooks::take_events();
     sync_file(&writer).expect("a pipe's flush is handed over like any other file's, so the step that asked for it goes on");
@@ -1720,9 +1729,9 @@ fn the_markers_flush_is_handed_over_and_its_answer_never_reaches_the_caller() {
     let (root, index) = index_in("index-lock-sync-file");
     let file = std::fs::File::create(index.with_file_name("a-file")).expect("a file");
     let before_the_file: u64 = crate::service_durable::BACKGROUND_SYNCED.load(Ordering::SeqCst);
-    assert!(sync_file(&file).is_ok());
+    assert!(sync_file(&file).is_ok(), "a file that can be flushed is handed over the same way");
     crate::service_durable::drain();
-    assert!(crate::service_durable::BACKGROUND_SYNCED.load(Ordering::SeqCst) > before_the_file, "a file that can be flushed is handed over the same way, and the task makes it");
+    assert!(crate::service_durable::BACKGROUND_SYNCED.load(Ordering::SeqCst) > before_the_file, "the background task made the flush of a file that can be flushed");
     remove(root.as_path());
 }
 
