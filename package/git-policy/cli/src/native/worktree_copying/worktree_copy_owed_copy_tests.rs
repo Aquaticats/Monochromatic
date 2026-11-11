@@ -182,25 +182,24 @@ fn a_stage_this_copy_left_is_removed_and_a_container_holding_anything_stays() {
     assert_eq!(std::fs::read(destination.join("cache/data")).expect("the ignored file arrived"), b"payload", "and the copy is made: {emptied}");
     remove(root.as_path());
     // A container holding an entry nothing proves the wrapper made is named and left, and no copy is written.
-    let (root, repo, destination) = interrupted_add("owed-copy-stage-holding");
-    let common: PathBuf = repo.join(".git");
-    let records: PathBuf = journal_root(common.as_path());
-    let (container, _owner) = read_claim(claim_path_of(records.as_path()).as_path()).expect("claim").expect("named");
-    std::fs::create_dir_all(container.join("payload"))
-        .expect("the stage the kill left");
-    std::fs::set_permissions(container.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("private stage");
-    std::fs::write(container.join("payload/mine.txt"), b"a person's file").expect("a file nothing proves");
-    let kept: String = told_in(common.as_path(), destination.as_path());
-    assert!(container.exists(), "a container holding an entry nothing proves is the copy's own stays: {kept}");
-    assert!(!destination.join("cache/data").exists(), "and no copy is written from a stage it could not clear");
-    assert_eq!(std::fs::read(container.join("payload/mine.txt")).expect("the file stays"), b"a person's file");
+    let (holding_root, holding_repo, holding_destination) = interrupted_add("owed-copy-stage-holding");
+    let holding_common: PathBuf = holding_repo.join(".git");
+    let holding_records: PathBuf = journal_root(holding_common.as_path());
+    let (holding_container, _holding_owner) = read_claim(claim_path_of(holding_records.as_path()).as_path()).expect("claim").expect("named");
+    std::fs::create_dir_all(holding_container.join("payload")).expect("the stage the kill left");
+    std::fs::set_permissions(holding_container.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("private stage");
+    std::fs::write(holding_container.join("payload/mine.txt"), b"a person's file").expect("a file nothing proves");
+    let kept: String = told_in(holding_common.as_path(), holding_destination.as_path());
+    assert!(holding_container.exists(), "a container holding an entry nothing proves is the copy's own stays: {kept}");
+    assert!(!holding_destination.join("cache/data").exists(), "and no copy is written from a stage it could not clear");
+    assert_eq!(std::fs::read(holding_container.join("payload/mine.txt")).expect("the file stays"), b"a person's file");
     // The binding a staging copy records first proves the container is its own.
-    let binding: Binding = crate::worktree_add_binding::bind_registration(common.as_path(), destination.as_path()).expect("bound").binding;
-    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding).expect("recorded");
-    let made: String = told_in(common.as_path(), destination.as_path());
-    assert!(!container.exists(), "the copy's own stage goes before the copy is made again: {made}");
-    assert_eq!(std::fs::read(destination.join("cache/data")).expect("the ignored file arrived"), b"payload");
-    remove(root.as_path());
+    let binding: Binding = crate::worktree_add_binding::bind_registration(holding_common.as_path(), holding_destination.as_path()).expect("bound").binding;
+    crate::worktree_copy_stage_binding::record_stage_binding(holding_container.as_path(), &binding).expect("recorded");
+    let made: String = told_in(holding_common.as_path(), holding_destination.as_path());
+    assert!(!holding_container.exists(), "the copy's own stage goes before the copy is made again: {made}");
+    assert_eq!(std::fs::read(holding_destination.join("cache/data")).expect("the ignored file arrived"), b"payload");
+    remove(holding_root.as_path());
 }
 
 /// The stage of another worktree's copy is never removed by the binding rule:
@@ -293,5 +292,80 @@ fn a_copy_that_passes_its_ceiling_ends_named_and_is_not_staged_again() {
     assert!(again.contains("git worktree remove --force"), "every later command names what settles it: {again}");
     assert!(!again.contains("finishing the ignored-state copy"), "and nothing stages the source again: {again}");
     assert!(!destination.join("cache/data").exists(), "nothing is installed after the ceiling");
+    remove(root.as_path());
+}
+
+/// What:
+///  An add killed after it bound its record and before its copy ran still names the copy it owes,
+/// and the command run in that worktree makes it.
+/// Why:
+///   The binding is recorded the moment real Git returns,
+/// which is before the copy runs,
+/// so a record written with the binding alone
+///  named no source and no later command could ever make that copy;
+/// the person was left with a worktree that looks ordinary,
+/// holds less than its source ignores,
+///  and a message that offered removing it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claim.recordBinding(binding); expect(owedCopyOf(read(record))).toBeDefined(); toldIn(common, destination); expect(read(destination, 'cache/data')).toEqual('payload');
+/// ```
+#[test]
+fn a_bound_record_keeps_the_copy_it_owes_until_the_worktree_makes_it() {
+    let (root, repo, destination) = interrupted_add("owed-copy-bound");
+    let common: PathBuf = repo.join(".git");
+    let records: PathBuf = journal_root(common.as_path());
+    let claim_path: PathBuf = claim_path_of(records.as_path());
+    let record: PathBuf = claim_path.with_extension("add");
+    let (container, _owner) = read_claim(claim_path.as_path()).expect("claim").expect("named");
+    let binding: Binding = crate::worktree_add_binding::bind_registration(common.as_path(), destination.as_path()).expect("bound").binding;
+    // The binding is recorded the moment Git returns, which is before the copy runs.
+    let claim: StageClaim = StageClaim::adopted(claim_path.as_path(), container.as_path(), Some(record.as_path())).expect("adopted");
+    claim.record_binding(&binding).expect("recorded");
+    let text: String = std::fs::read_to_string(record.as_path()).expect("the record");
+    assert!(
+        crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some(),
+        "the record written with the binding keeps the copy the add owes: {text}"
+    );
+    let said: String = told_in(common.as_path(), destination.as_path());
+    assert_eq!(std::fs::read(destination.join("cache/data")).expect("the ignored file arrived"), b"payload", "the command in that worktree makes the copy: {said}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "and the records go: {said}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record that names a copy is kept by a command that runs elsewhere,
+/// and says which worktree makes it,
+/// while the same record settles at once when it names no copy.
+/// Why:
+///   The record is the only place the copy's source and selection survive,
+/// so a command that removes it leaves a worktree nothing can fill;
+/// a record written by an earlier release names no source,
+/// and nothing can fill that one,
+/// so it is said once instead of on every command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owed = reap(common); expect(owed[0]).toContain('is still owed'); expect(claimsExist(common)).toBe(true);
+/// ```
+#[test]
+fn a_record_that_names_a_copy_is_kept_by_a_command_in_another_worktree() {
+    let (root, repo, destination) = interrupted_add("owed-copy-kept");
+    let common: PathBuf = repo.join(".git");
+    let records: PathBuf = journal_root(common.as_path());
+    let claim_path: PathBuf = claim_path_of(records.as_path());
+    let record: PathBuf = claim_path.with_extension("add");
+    let (container, _owner) = read_claim(claim_path.as_path()).expect("claim").expect("named");
+    let binding: Binding = crate::worktree_add_binding::bind_registration(common.as_path(), destination.as_path()).expect("bound").binding;
+    let claim: StageClaim = StageClaim::adopted(claim_path.as_path(), container.as_path(), Some(record.as_path())).expect("adopted");
+    claim.record_binding(&binding).expect("recorded");
+    let notices: Vec<String> = crate::worktree_copy_stage_claim_reaping::reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(notices.iter().any(|notice: &String| { return notice.contains("that copy is still owed") && notice.contains("the first command run in that worktree makes it"); }), "{notices:?}");
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the record that names the copy stays");
+    // Once the worktree's own command made the copy, nothing is owed and the records go.
+    let said: String = told_in(common.as_path(), destination.as_path());
+    assert_eq!(std::fs::read(destination.join("cache/data")).expect("the ignored file arrived"), b"payload", "{said}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the records go with the copy: {said}");
     remove(root.as_path());
 }

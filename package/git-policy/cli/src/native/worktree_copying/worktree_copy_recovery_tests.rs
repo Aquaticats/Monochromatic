@@ -1152,3 +1152,42 @@ fn a_command_in_another_worktree_leaves_a_killed_copys_journal_to_the_worktree_i
     assert!(!pending.path.exists(), "a finished copy takes its journal with it");
     remove(root.as_path());
 }
+
+/// What:
+///  A journal that a kill left beside the add's own claim is resumed,
+/// and the claim and its record go with it.
+/// Why:
+///   The copy releases its claim as soon as its journal names the stage,
+/// so a kill between the two leaves a claim naming a stage the journal also names;
+/// the journal's installation fills the worktree,
+/// and nothing else ever removed that claim,
+/// so the records of an add that finished stayed in the journal root for good.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = claimStageForAddAsOwing(...); stageIgnoredSnapshot(claim.container()); createJournal(claim.container());
+/// recover(common); expect(read(topic, 'cache/data')).toEqual('payload'); expect(claimsExist(common)).toBe(false);
+/// ```
+#[test]
+fn a_journal_resumed_settles_the_claim_that_names_its_stage() {
+    let root: PathBuf = fixture("recovery-claim-with-journal");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let owed = crate::worktree_add_binding::OwedCopy { source: source.clone(), selection: crate::worktree_add_binding::OwedSelection::MainCheckout };
+    let claim = crate::worktree_copy_stage_claim::claim_stage_for_add_as_owing(
+        common.as_path(),
+        topic.as_path(),
+        &dead_copy_owner(),
+        Some(&owed),
+    )
+    .expect("the add's claim");
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(&git_context(), source.as_path(), claim.container(), &[], &CopySelection::Ignored).expect("staged");
+    let _journal = create_journal_for(common.as_path(), topic.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
+    // The process dies here: the claim is neither released nor dropped cleanly.
+    std::mem::forget(claim);
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the claim a kill left stands");
+    let _report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("the ignored file arrived"), b"payload");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the claim and its record go with the journal");
+    remove(root.as_path());
+}

@@ -404,8 +404,22 @@ fn recover_transaction(
             )),
         ));
     }
+    let stage_container: PathBuf = journal_for_snapshot.journal.stage_container.clone();
     // `match` on the outcome: a completed installation is recovered; a failed one becomes a notice.
-    match complete_journal(pending, &SnapshotSource::FromJournal(&journal_for_snapshot), ceiling)? {
+    let outcome: Outcome = complete_journal(pending, &SnapshotSource::FromJournal(&journal_for_snapshot), ceiling)?;
+    // The add's claim names the stage this journal filled, and a kill between the journal's creation and the claim's
+    // release leaves both; the journal's own end settles the claim, so no copy finished here leaves a claim naming a
+    // stage that is gone.
+    if let Some(claim) = crate::worktree_copy_stage_claim::claim_naming_stage(common_dir, stage_container.as_path()) {
+        match outcome {
+            // The copy is made, so the add is complete and its records go.
+            Outcome::Installed(_) => claim.settle()?,
+            // The installation ended, and the record of the unfilled worktree now names what is missing there, so the
+            // claim is released rather than marked complete.
+            Outcome::Ended(_) => claim.release()?,
+        }
+    }
+    match outcome {
         Outcome::Installed(_) => return Ok((true, None)),
         Outcome::Ended(failure) => {
             return Ok((

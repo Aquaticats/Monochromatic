@@ -2567,11 +2567,30 @@ The two proofs are the record written beside the stage's claim
 `worktree_copy_stage_made_object.rs`)
 and that record's own accounting of the folder
 (`worktree_copy_stage_entries_the_record_accounts_for.rs`).
+A copy's own container is not held to that record,
+because a copy creates one and records the registration it fills as the step after it:
+a container whose binding names the destination it fills is the copy's own and goes,
+and so does a container that holds nothing at all,
+which is the state a kill between the container's creation and that record leaves,
+because an empty folder holds nothing that can be lost
+and only the copy's own private claim chose its name;
+a container holding anything else is reported and kept.
 The claim goes with the stage it names,
 and with the records of the add once the destination settles.
 When the worktree's administrative directory holds `index.lock`
 (the shape a kill inside the index install leaves),
-that file is named first,
+the command run in that worktree finishes the checkout itself
+(`src/native/worktree_copying/worktree_copy_interrupted_checkout.rs`),
+because nothing else ever would:
+the person's only remedy was to remove the worktree and add it again.
+It acts only when every entry standing there holds the very bytes the source holds at that name,
+which is what the interrupted add's own copies are,
+so Git's own `reset --hard` replaces only those and no file of the person's;
+it takes the lock away first,
+and only where that file is the published index's own object,
+or where the add that made it is proven dead and no process of this machine holds the lock open.
+The destination that holds anything else is left exactly as it is,
+and its lock is named first,
 with the condition for removing it (no Git command running in the worktree),
 because `git -C <path> reset --no-enforce-worktree --hard` cannot start while it stands
 (`fatal: Unable to create '.../index.lock': File exists`)

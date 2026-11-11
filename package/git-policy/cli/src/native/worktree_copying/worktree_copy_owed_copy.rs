@@ -130,6 +130,25 @@ fn finishing_notice(destination: &Path, source: &Path) -> String {
 }
 
 /// What:
+///  The line that says the copy an interrupted add owed is still owed,
+/// and why the command in that worktree did not make it.
+/// Why:
+///   A command that runs in the worktree its files are missing from must never leave the person guessing:
+/// it either makes the copy or says what stands in the way,
+/// and the record stays so the next command tries again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the ignored-state copy an interrupted \`git worktree add\` owed ${shown} is still owed, and this command did not make it: ${reason}`
+/// ```
+fn still_owed_notice(destination: &Path, reason: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the ignored-state copy an interrupted `git worktree add` owed {} is still owed, and this command did not make it: {reason}. Nothing was changed; the next command run in that worktree tries again.",
+        quote(destination.to_string_lossy().as_ref())
+    );
+}
+
+/// What:
 ///  The line that says the copy an interrupted add owed was made,
 /// and how much it copied.
 /// Why:
@@ -227,11 +246,24 @@ fn taking_marks_of(root: &Path, identifier: &str) -> Result<Vec<PathBuf>, Worktr
             names.push(name);
         }
     }
-    names.sort_by(|left, right| { return crate::worktree_copy_selection::js_order(left.as_str(), right.as_str()); });
+    names.sort_by(by_mark_name);
     for name in names {
         marks.push(root.join(name.as_str()));
     }
     return Ok(marks);
+}
+
+/// What:
+///  Order two mark names the way JavaScript's default sort does.
+/// Why:
+///   Which marker is judged first must not depend on the directory's order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// marks.sort(([left], [right]) => compareJs(left, right))
+/// ```
+fn by_mark_name(left: &String, right: &String) -> std::cmp::Ordering {
+    return crate::worktree_copy_selection::js_order(left.as_str(), right.as_str());
 }
 
 /// What:
@@ -250,14 +282,16 @@ fn taking_marks_of(root: &Path, identifier: &str) -> Result<Vec<PathBuf>, Worktr
 /// const taking = await takeTheCopy(root, claim);
 /// ```
 fn take_the_copy(root: &Path, claim: &Path) -> Result<Option<Taking>, WorktreeCopyError> {
-    let Some(identifier) = claim.file_stem().map(|stem| { return stem.to_string_lossy().into_owned(); }) else {
-        return Ok(None);
-    };
+    let Some(stem) = claim.file_stem() else { return Ok(None) };
+    let identifier: String = stem.to_string_lossy().into_owned();
     let owner: CopyOwner = current_copy_owner()?;
     // A marker whose owner is proven dead holds nothing, so it is removed; one whose owner lives keeps the copy.
     let mut held: bool = false;
     for mark in taking_marks_of(root, identifier.as_str())? {
-        let token: Option<String> = std::fs::read_to_string(mark.as_path()).ok().map(|text| { return text.trim().to_string(); });
+        let token: Option<String> = match std::fs::read_to_string(mark.as_path()) {
+            Ok(text) => Some(text.trim().to_string()),
+            Err(_unreadable) => None,
+        };
         if !token_owner_is_dead(token.as_deref(), mark.as_path())? {
             held = true;
             break;
@@ -381,7 +415,13 @@ fn source_is_registered(roots: &[PathBuf], source: &Path) -> bool {
     };
     // Git writes the roots as it sees them, so both sides are compared in their canonical form: a symbolic link above a
     // worktree must not hide a source the repository still registers.
-    return roots.iter().any(|root| { return std::fs::canonicalize(root).is_ok_and(|found| { return found.as_path() == wanted.as_path(); }); });
+    for root in roots {
+        let Ok(found) = std::fs::canonicalize(root) else { continue };
+        if found.as_path() == wanted.as_path() {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -543,14 +583,14 @@ fn finish_one_owed_copy(
     }
     let Some(binding) = whole else {
         crate::diagnostic_log::debug("worktreeCopyOwed", format!("{} is not a whole registration", add.destination.display()).as_str());
-        return Ok(None);
+        return Ok(Some(still_owed_notice(add.destination.as_path(), "its checkout is not whole, and nothing proves the worktree holds only what the interrupted add made of it")));
     };
     // A worktree removed and made again at the same path is another object than the add's, so nothing is copied into the
     // one that stands there now; a record written before the add was bound names no identity and is filled as before.
     if let Some(recorded) = add.destination_identity
         && path_identity(add.destination.as_path()) != Some(recorded)
     {
-        return Ok(None);
+        return Ok(Some(still_owed_notice(add.destination.as_path(), "the directory there now is not the one the add registered, so nothing is written into it")));
     }
     // The listing runs where the source is, so a command's own working directory never decides what the repository
     // registers.
@@ -579,7 +619,7 @@ fn finish_one_owed_copy(
     // A source that is itself being filled holds part of its ignored state; the record stays and a later command asks again.
     if source_is_still_being_filled(common_dir, add.owed.source.as_path())?.is_some() {
         crate::diagnostic_log::debug("worktreeCopyOwed", format!("the source {} is still being filled", add.owed.source.display()).as_str());
-        return Ok(None);
+        return Ok(Some(still_owed_notice(add.destination.as_path(), "the worktree it takes the ignored state from is itself being filled, so it holds only part of its own")));
     }
     // One command copies into one destination: a marker whose owner lives keeps this one out, and one whose owner died is
     // taken over.
@@ -591,7 +631,7 @@ fn finish_one_owed_copy(
     // A stage nothing proves is the copy's own is named by the settlement, which keeps it and its claim.
     if !clear_the_own_stage(add.container.as_path(), add.destination.as_path())? {
         crate::diagnostic_log::debug("worktreeCopyOwed", format!("the stage {} is not provably this copy's own", add.container.display()).as_str());
-        return Ok(None);
+        return Ok(Some(still_owed_notice(add.destination.as_path(), format!("the stage {} holds something nothing proves this copy made, so it is not touched", quote(add.container.to_string_lossy().as_ref())).as_str())));
     }
     let Some(claim) = StageClaim::adopted(add.claim.as_path(), add.container.as_path(), Some(add.record.as_path())) else {
         return Ok(None);
@@ -676,12 +716,15 @@ fn remove_dead_taking_marks(root: &Path) -> Result<(), WorktreeCopyError> {
     };
     for listed in listing {
         let path: PathBuf = listed.map_err(crate::worktree_copy_error::raw_failure_of)?.path();
-        let name: String = path.file_name().map(|found| { return found.to_string_lossy().into_owned(); }).unwrap_or_default();
+        let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
         if !name.ends_with(TAKING_SUFFIX) {
             continue;
         }
         // The name is `<identifier>.<owner>.taking`, and the owner field is the one before the suffix.
-        let token: Option<String> = name.strip_suffix(TAKING_SUFFIX).and_then(|stem| { return stem.rsplit_once('.').map(|(_item, owner)| { return owner.to_string(); }); });
+        let token: Option<String> = match name.strip_suffix(TAKING_SUFFIX) {
+            Some(stem) => stem.rsplit_once('.').map(|(_item, owner)| { return owner.to_string(); }),
+            None => None,
+        };
         if token_owner_is_dead(token.as_deref(), path.as_path())? {
             let _removed: std::io::Result<()> = std::fs::remove_file(path.as_path());
         }
@@ -739,7 +782,7 @@ pub fn finish_owed_worktree_copies(
             notices.push(owed_in_another_worktree_notice(add.destination.as_path()));
             continue;
         }
-        let journaled_here: bool = journaled.iter().any(|named| { return named.as_path() == add.container.as_path(); });
+        let journaled_here: bool = journaled.contains(add.container.as_path());
         if let Some(notice) = finish_one_owed_copy(common_dir, &add, journaled_here, ceiling, context, stderr)? {
             notices.push(notice);
         }

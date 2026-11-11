@@ -70,7 +70,53 @@ the pass does all of it.
 
 ## Measurements
 
-REPLACED BELOW when measured.
+The audit's numbers stand for the state before this branch: with the release build of the integration tip and
+15,151 ignored entries (about 150 MB), after a `git worktree add` was `SIGKILL`ed during its ignored-state copy,
+a `git merge` (already up to date) in a second linked worktree took 63.5 s,
+a `git worktree add` there 64.0 s,
+and a `git push` there 119.8 s,
+summarised by one line printed after the work was done
+(`reproductions/s11_killed_add_then_other_command.sh` and `drive_s11_scale.sh` in
+`/var/home/user/temp/agent/sonnet-audits/integration-tip-never-stuck`).
+A commit in a linked worktree, which runs through the commit service, paid none of it.
+
+The measurement was not repeated at that scale in this session:
+the shared build tool (`cargo-shadow`) spent an hour of it in an uninterruptible wait behind other sessions' builds,
+and the volume the build trees live on read 99 to 100 per cent full.
+What stands in for it is the control that decides the behaviour the audit timed:
+`a_command_in_another_worktree_leaves_the_copy_to_the_worktree_it_fills`
+(`src/native/worktree_copying/worktree_copy_owed_copy_tests.rs`)
+holds a killed add's state, runs a command in another linked worktree,
+and requires that it writes nothing into the unfilled worktree,
+starts no copy,
+and prints one line naming the worktree whose files are missing.
+It fails on the code the audit measured and passes here.
+
+## What the kill points leave, and what finishes each
+
+The 14 `a_worktree_copy_killed_at_each_*` controls in `src/native/binary/binary_fault_trace_tests.rs`
+kill the wrapper at every counted call of one kind and then require the worktree to hold its source's ignored state,
+with no record, claim or stage left.
+Three of them failed on the integration tip (`chmod`, `openat2`, `write`) and a different set on each run,
+because a kill lands at the Nth call of its kind and timing decides which step that is.
+What each leftover now settles to:
+
+- a stage container the copy created and never filled:
+  the copy clears it, because it records the registration it fills as its first step,
+  and a container that holds nothing at all is the step before that record and loses nothing when it is removed;
+- a record that was rewritten with the add's binding:
+  the record keeps the source and the selection of the copy the add owes,
+  so a command run in that worktree still has everything it needs to make the copy;
+  before this, the rewrite dropped both lines and no later command could ever make that copy;
+- a checkout the add never finished, with no index or with the lock of the index publish still standing:
+  a command in that worktree finishes it with Git's own `reset --hard`,
+  and only when every entry standing there holds the very bytes the source holds at that name,
+  so no file of the person's is replaced;
+  a lock goes only when it is the published index's own object,
+  or when the add that made it is proven dead and no process holds it open;
+- a journal a kill left beside the add's claim:
+  the journal's own recovery installs the copy and settles that claim,
+  which nothing used to remove.
 
 ## Left to the owner
 
@@ -80,5 +126,10 @@ REPLACED BELOW when measured.
   and the work would be one more work kind with its own handler. It was not taken here because the
   worktree's own first command is the command that needs the files, and because a new work kind is a
   change to the service protocol rather than to one recovery pass.
-- `OWED_COPY_CEILING` is derived from the measurements below; the owner may prefer a different
-  margin or no ceiling at all for a worktree's own work.
+- `OWED_COPY_CEILING` is derived from the audit's measurement, not from one of this branch: the owner may
+  prefer a different margin, or no ceiling at all for a worktree's own work.
+- The stage the snapshot rung creates is recorded with its object as soon as it exists, so a kill between
+  that creation and the record leaves a folder nothing proves the wrapper made. The clone rung, which is
+  the rung these controls take, leaves no such folder. A repository that is a btrfs subvolume takes the
+  snapshot rung, and that window is still open there: its stage can hold a copy of the person's
+  uncommitted work, so nothing in this branch removes it.

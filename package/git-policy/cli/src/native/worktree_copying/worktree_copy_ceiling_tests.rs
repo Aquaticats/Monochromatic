@@ -31,7 +31,7 @@ fn a_shorter_ceiling_bounds_the_copies_this_thread_starts() {
         let _shorter: ShorterCeilingForTheControl = a_shorter_ceiling_for_this_thread(Duration::ZERO);
         assert!(CopyCeiling::lasting(OWED_COPY_CEILING).reached(), "the control's bound stands in for the shipped one");
         let other: std::thread::JoinHandle<bool> = std::thread::spawn(|| { return CopyCeiling::lasting(OWED_COPY_CEILING).reached(); });
-        assert_eq!(other.join().expect("the other thread"), false, "another thread keeps the shipped bound");
+        assert!(!other.join().expect("the other thread"), "another thread keeps the shipped bound");
     }
     assert!(!CopyCeiling::lasting(OWED_COPY_CEILING).reached(), "the shipped bound is back once the control is dropped");
 }

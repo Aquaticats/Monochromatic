@@ -99,7 +99,8 @@ fn holds_the_same_bytes(left: &Path, right: &Path) -> bool {
     if !wanted.is_file() || held.len() != wanted.len() {
         return false;
     }
-    return std::fs::read(left).is_ok_and(|mine| { return std::fs::read(right).is_ok_and(|theirs| { return mine == theirs; }); });
+    let (Ok(mine), Ok(theirs)) = (std::fs::read(left), std::fs::read(right)) else { return false };
+    return mine == theirs;
 }
 
 /// What:
@@ -128,6 +129,11 @@ fn first_foreign_entry(destination: &Path, source: &Path, relative: &Path) -> Op
         }
         let Ok(held) = std::fs::symlink_metadata(here.as_path()) else { return Some(named) };
         if held.is_dir() {
+            // A directory that cannot be listed proves nothing about the files below it, so it is named rather than
+            // walked past.
+            if names_of(here.as_path()).is_none() {
+                return Some(named);
+            }
             if let Some(foreign) = first_foreign_entry(here.as_path(), source, named.as_path()) {
                 return Some(foreign);
             }
@@ -135,7 +141,8 @@ fn first_foreign_entry(destination: &Path, source: &Path, relative: &Path) -> Op
         }
         let there: PathBuf = source.join(named.as_path());
         if held.file_type().is_symlink() {
-            let same: bool = std::fs::read_link(here.as_path()).is_ok_and(|mine| { return std::fs::read_link(there.as_path()).is_ok_and(|theirs| { return mine == theirs; }); });
+            let (Ok(mine), Ok(theirs)) = (std::fs::read_link(here.as_path()), std::fs::read_link(there.as_path())) else { return Some(named) };
+            let same: bool = mine == theirs;
             if !same {
                 return Some(named);
             }
@@ -166,20 +173,21 @@ fn destination_holds_only_the_sources_bytes(destination: &Path, source: &Path) -
 ///  Whether no process of this machine holds the lock open,
 /// which is the evidence a lock whose writer died rests on.
 /// Why:
-///   A scan that could not see everything proves nothing,
-/// so a partial scan,
-/// an unresolvable descriptor and a live holder all answer no.
+///   An open holder and a descriptor the scan could not identify both answer no,
+/// because either may be the writer and a name is no proof otherwise;
+/// that is the bar `classify_index_lock` sets for a lock no command may clear
+/// (`src/native/lock/index_lock_evidence.rs`).
 /// A lock that stands where the published index stands is not asked this:
 /// that file is the index itself,
 /// and taking the lock's name away takes no data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const unheld = (lock) => { const e = scanPlatformHolders(lock); return e.holders.length === 0 && e.partial.length === 0 && !e.unresolved() };
+/// const unheld = (lock) => { const e = scanPlatformHolders(lock); return e.holders.length === 0 && !e.unresolved() };
 /// ```
 fn nothing_holds_the_lock_open(lock: &Path, locked: ObjectId) -> bool {
     let evidence: HolderEvidence = scan_platform_holders(lock, locked.device, locked.inode);
-    return evidence.holders.is_empty() && evidence.partial.is_empty() && !evidence.unresolved();
+    return evidence.holders.is_empty() && !evidence.unresolved();
 }
 
 /// What:
@@ -202,11 +210,22 @@ fn nothing_holds_the_lock_open(lock: &Path, locked: ObjectId) -> bool {
 fn clear_the_lock(admin: &Path, owner_is_dead: bool) -> Result<(), WorktreeCopyError> {
     let directory = open_root(admin).map_err(raw_failure_of)?;
     let lock: &OsStr = OsStr::new(INDEX_LOCK);
-    let Ok(locked) = identity_at(&directory, lock) else {
-        // Nothing at the lock's name is the answer this pass wants.
-        return Ok(());
+    let locked: ObjectId = match identity_at(&directory, lock) {
+        Ok(known) => known,
+        // Nothing at the lock's name is the answer this pass wants; a name that cannot be examined is not.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(failure_with_cause(
+                format!(
+                    "monochromatic-git-policy-cli: the lock {} of an interrupted `git worktree add` cannot be examined ({error}), so nothing was changed.",
+                    quote(admin.join(INDEX_LOCK).to_string_lossy().as_ref())
+                )
+                .as_str(),
+                None,
+            ));
+        }
     };
-    let published: bool = identity_at(&directory, OsStr::new(INDEX)).is_ok_and(|index| { return index == locked; });
+    let published: bool = matches!(identity_at(&directory, OsStr::new(INDEX)), Ok(index) if index == locked);
     if !published && !owner_is_dead {
         return Err(failure_with_cause(
             format!(
@@ -303,9 +322,10 @@ pub fn finish_interrupted_checkout(
         return Ok(CheckoutFinish::NotProvable(format!("the source {} stands no more", quote(source.to_string_lossy().as_ref()))));
     }
     if !destination_holds_only_the_sources_bytes(destination, source) {
-        let foreign: String = first_foreign_entry(destination, source, Path::new(""))
-            .map(|found| { return String::from_utf8_lossy(found.as_os_str().as_encoded_bytes()).into_owned(); })
-            .unwrap_or_default();
+        let foreign: String = match first_foreign_entry(destination, source, Path::new("")) {
+            Some(found) => String::from_utf8_lossy(found.as_os_str().as_encoded_bytes()).into_owned(),
+            None => String::new(),
+        };
         return Ok(CheckoutFinish::NotProvable(format!("the entry {foreign} there holds something the source does not")));
     }
     if ceiling.reached() {

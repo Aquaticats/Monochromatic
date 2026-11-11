@@ -70,8 +70,10 @@ impl CopyCeiling {
     /// ```
     pub fn lasting(longest: Duration) -> CopyCeiling {
         #[cfg(test)]
-        let longest: Duration = SHORTER_FOR_THIS_THREAD.with(std::cell::Cell::get).unwrap_or(longest);
-        return CopyCeiling { deadline: Some(Instant::now() + longest), longest: Some(longest) };
+        let shortened: Duration = SHORTER_FOR_THIS_THREAD.with(std::cell::Cell::get).unwrap_or(longest);
+        #[cfg(not(test))]
+        let shortened: Duration = longest;
+        return CopyCeiling { deadline: Some(Instant::now() + shortened), longest: Some(shortened) };
     }
 
     /// Whether the copy has run past its bound,
