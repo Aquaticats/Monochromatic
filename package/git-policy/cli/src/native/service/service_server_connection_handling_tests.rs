@@ -320,6 +320,75 @@ fn a_commit_sent_over_a_connection_is_beaten_while_its_directory_check_waits() {
     });
 }
 
+/// What:
+///  A commit whose journal note waits is beaten while it waits,
+///  more than once,
+///  and its answer is written after the note is let go.
+/// Why:
+///  A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`, `service_client.rs`),
+/// sends the commit again,
+///  and may report it failed although it landed.
+///  Every beat asks the note what the landing thread is inside,
+/// and that note reads the journal,
+/// which can wait on storage:
+///  a beat that asked the note before writing anything would hold back the note,
+/// the answer,
+///  and the proof of life itself,
+/// and a note that is still waiting when the next beat is due would hold back the beats after it.
+///  Two beats are read while the note waits,
+/// so a holder of the first beat and a writer that never came back to its interval both fail this control.
+///  The note is let go here whatever happened,
+///  so a run that saw no beat still ends and still reads the answer.
+#[test]
+fn a_commit_is_beaten_while_the_note_read_waits() {
+    // Six beats: wide enough that no delay of this loaded machine passes for the wait itself.
+    let the_longest_a_beat_may_wait: Duration = HEARTBEAT_EVERY.saturating_mul(6);
+    let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
+    let (shared, mut jobs) = shared_serving("connection-held-instance-and-note", own);
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_request_at(Path::new("/elsewhere/repo/gitdir"), "held-check-and-note"))));
+    let ((), _ticks) = with_a_ticker_beside(async move {
+        let (_read_half, mut write_half, mut client) = connection();
+        // The instance read and the note's journal read answer only when this control lets them go, so "while they wait" is a
+        //  state and not a duration.
+        let (instance_reached, instance_wait) = tokio::sync::oneshot::channel::<()>();
+        let (instance_go, instance_held) = std::sync::mpsc::channel::<()>();
+        hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_INSTANCE_READ), reached: instance_reached, let_go: instance_held });
+        let (note_reached, note_wait) = tokio::sync::oneshot::channel::<()>();
+        let (note_go, note_held) = std::sync::mpsc::channel::<()>();
+        let answering = async {
+            answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
+        };
+        let watching = async {
+            tokio::time::timeout(the_longest_a_beat_may_wait, instance_wait).await.expect("the instance read is reached").expect("the instance read says it is reached");
+            // The hold is set after the instance read is reached, because one registry holds one point at a time.
+            hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_NOTE_READ), reached: note_reached, let_go: note_held });
+            tokio::time::timeout(the_longest_a_beat_may_wait, note_wait).await.expect("the note's journal read is reached").expect("the note says it reached its read");
+            let mut beats: Vec<ServiceMessage> = Vec::new();
+            while beats.len() < 2 {
+                let heard: ServiceMessage = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client))
+                    .await
+                    .expect("a beat arrives while the instance and journal reads wait");
+                beats.push(heard);
+            }
+            // Both reads are let go before any assertion, so a run that saw no beat still ends and still reads the answer.
+            note_go.send(()).expect("the note's read is let go");
+            instance_go.send(()).expect("the instance read is let go");
+            let answer: ServiceMessage = loop {
+                let heard: ServiceMessage = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client)).await.expect("the answer arrives after both reads are released");
+                if heard == ServiceMessage::Heartbeat {
+                    continue;
+                }
+                break heard;
+            };
+            return (beats, answer);
+        };
+        let ((), (beats, answer)) = tokio::join!(answering, watching);
+        assert!(jobs.try_recv().is_err(), "a commit another instance serves never reaches the landing");
+        assert_eq!(answer, ServiceMessage::Failed { id: String::from("held-check-and-note"), code: FailureCode::Rejected });
+        assert_eq!(beats, vec![ServiceMessage::Heartbeat, ServiceMessage::Heartbeat], "the note must not gate the beats");
+    });
+}
+
 /// POSITIVE CONTROL of the check itself:
 /// with threads available,
 /// a commit naming another worktree is refused `Rejected`,

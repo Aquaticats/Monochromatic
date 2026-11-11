@@ -44,6 +44,11 @@ pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(test)]
 const IN_THE_INSTANCE_READ: &str = "in-the-instance-read";
 
+/// The point at which a beat's note reads the journal,
+/// for a control that holds that read (`service_fault_hooks_test_support.rs`).
+#[cfg(test)]
+const IN_THE_NOTE_READ: &str = "in-the-note-read";
+
 /// What every connection of one service run shares:
 /// the queues to the landing and the work loop,
 /// the count of work in flight,
@@ -108,6 +113,9 @@ pub(crate) struct StuckNotice {
 /// which can wait on storage,
 /// so the reads run on the blocking pool.
 fn note_from_the_board(board: &LandingBoard, request: Option<&str>, last: Option<String>) -> (Option<ServiceMessage>, Option<String>) {
+    // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
+    #[cfg(test)]
+    crate::service_fault::hooks::run_on_any_thread(IN_THE_NOTE_READ);
     // A client whose own request is in the group being landed is told so when the write starts, because its commit may be on
     // the branch already; the key changes when the longer words of a minute's stuck write replace the first ones.
     let inside: Option<(String, String)> = match request {
