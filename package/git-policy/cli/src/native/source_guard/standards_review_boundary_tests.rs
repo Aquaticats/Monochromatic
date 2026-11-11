@@ -46,12 +46,16 @@ const SERVICE_ONLY_FILE_PREFIXES: [&str; 3] =
 /// the module
 /// declarations,
 /// the service's work consumer (which owns the handler that calls the review),
-/// and this test with its
+/// this test with its
 /// fixture controls (`standards_review_boundary_*`),
-/// which name the library and the modules on purpose.
+/// which name the library and the modules on purpose,
+/// and the rules of the scan that keeps blocked work off the runtime,
+/// whose list of kept threads and pauses names the files it excuses,
+/// a module of the review among them.
 fn may_name_service_modules(file: &str) -> bool {
     return file == "lib.rs"
         || file.starts_with("source_guard/standards_review_boundary_")
+        || file.starts_with("source_guard/blocking_code_off_the_runtime_rules_")
         || file.starts_with("landing/service_work")
         || SERVICE_ONLY_FILE_PREFIXES.iter().any(|prefix| return file.starts_with(prefix));
 }
