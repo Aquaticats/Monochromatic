@@ -101,9 +101,58 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Integration pass 11, and finished branches the earlier passes never took (2026-11-11T10:28:07-05:00)
+
+Pass 11 of `integrate-jam-fixes-after-alpha-9.ts` took the alpha.11 blockers that had finished:
+the test watchdog fix (round 184, `fix/git-policy-cli-pass-9-watchdog-ends-stuck-tests-and-the-manager-list-holds`),
+the owed-copy recovery tests (round 170)
+and the landed sweep that keeps a held commit (round 177).
+The watchdog agent found no pass 9 change behind the gate's stop.
+The judgment counted the reading thread's own movement as the run's work and a falling figure as work,
+and two controls waited on their child with no bound, so one missed ending held the whole gate;
+each fix has a control that failed first.
+It also put `RestartUnit` on the manager-call guard's list.
+
+Passes 4 to 10 each listed only the rounds they named,
+so a dozen finished fixes (the kimi-findings fixers that ended between 04:50 and 08:00, and jam fixes from 2026-11-10 evening) waited unmerged for hours.
+`${HOME}/temp/agent/pi-runs/list-finished-branches-not-in-the-integration.ts` now lists every wrapper branch with commits the integration lacks,
+with how its newest run ended,
+and pass 11 took every finished one.
+Not taken, and not yet judged:
+`fix/git-policy-cli-commits-never-fail`, `feat/git-policy-cli-commit-protocol-models` and `refactor/git-policy-cli-source-layout` (2026-11-04),
+and `fix/git-policy-cli-open-issues-next-batch` (2026-11-10, documentation).
+`fix/git-policy-cli-merge-abort-is-allowed-during-a-merge` had four runs end on the provider errors of 2026-11-10 evening;
+round 196 starts it again on its branch.
+
+Pass 11 merged 14 branches, to `fc9f7f5f4b`, and 17 conflicted.
+Round 197 runs 15 re-merge agents;
+the service-lines branch's own agent (round 188) still runs and has the round 186 Kimi review's six findings in its inbox.
+The earlier watchdog control (`fix/git-policy-cli-watchdog-control-two-watchers-under-load`) conflicts with the round 184 fix in `run_progress.rs`;
+its re-merge agent reconciles the two.
+
+Seen live in the main checkout between 10:21 and 10:29, on 0.6.1-alpha.10:
+another session's commits `5eaa6f875d` and `510d969f8b` on `main` were pushed at 10:22 (the remote answers `510d969f8b`),
+but `refs/remotes/origin/main` stayed two behind,
+and every wrapped command in every worktree, read-only ones included, printed
+"the commit 5eaa6f875d… is held: no command has said whether its checks passed, so nothing here publishes it, and a push you make of refs/heads/main sends it".
+That line is false once the remote has the commit, and it asks the person to push.
+Their review items in `work/claimed/` were still being worked at 10:28.
+Agent `held-notice-names-a-published-commit-and-reviews-stay-claimed` (round 196) reproduces and fixes each part;
+the stale tracking ref is also the Kimi push audit's finding 2, in round 195.
+
 ### Audits of what 0.6.1-alpha.10 ships, and where each finding went (2026-11-11T09:15:00-05:00)
 
-Three Claude Sonnet audits of `574063773d` ran beside eight Kimi K3.1 Pro audits (rule `LHZ`; the Kimi ones are still running).
+Seven of the eight Kimi K3.1 Pro audits have finished (`${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-10-*/report.md`, 36 findings);
+the commit-service-landing audit still runs.
+Round 195 runs 16 fix agents on them,
+and `${HOME}/temp/agent/pi-runs/kimi-findings-groups-round-195.json` names the findings each one owns.
+The two sweep agents start at the round 177 branch's tip, which already changed that code.
+Three findings went to agents already in that code:
+the stale pending relink to the round 191 delayed-relink agent,
+the silent push's CPU-tick bound to the round 180 silent-push agent,
+and the commit over five seconds to the round 175 commit-time agent.
+
+Three Claude Sonnet audits of `574063773d` ran beside eight Kimi K3.1 Pro audits (rule `LHZ`).
 Reports: `${HOME}/temp/agent/sonnet-audits/alpha-10-*/report.md`.
 Findings already in code an agent was changing went to that agent's run inbox, so no two agents edit one file:
 
