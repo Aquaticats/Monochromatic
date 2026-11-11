@@ -22,7 +22,7 @@ use crate::merge_second_pass::Merged;
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::announce;
 /// The intent record.
-use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
+use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent, rewrite_merge_intent, write_merge_intent};
 /// Recovery of records.
 use crate::merge_isolation_recovery::RecoveryPlace;
 /// The refusal findings.
@@ -175,7 +175,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         Ok(found) => found,
         Err(error) => return Err(Bail::from(error.to_string())),
     };
-    let intent: MergeIntent = MergeIntent {
+    let mut intent: MergeIntent = MergeIntent {
         owner,
         repository_root: root.to_path_buf(),
         target_ref,
@@ -183,6 +183,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         new_oid: String::from(new_oid),
         side_ref: None,
         carried: plan.carried.cloned(),
+        landed: Vec::new(),
     };
     let record: PathBuf = match write_merge_intent(git_dir, &intent) {
         Ok(written) => written,
@@ -287,6 +288,15 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         written_paths.push(change.path.clone());
     }
     let landed_paths: Vec<LandedFile> = landed_of(root, written_paths.as_slice());
+    // The reading reaches the record before the marker a control kills the merge at, so a command that dies here leaves the next
+    //  one the entry Git's own update wrote: a save that accepts the whole merge is the person's newer decision, and only that
+    //  entry tells it apart from the file the merge wrote.
+    intent.landed = landed_paths.clone();
+    if let Err(error) = rewrite_merge_intent(record.as_path(), &intent) {
+        // A record that kept no reading recovers the merge by the bytes of each path, as this release did before the reading
+        //  lived in it; the merge must not stop for that.
+        debug(TAG, format!("the merge record kept no reading of what Git wrote: {error}").as_str());
+    }
     let landed: &[LandedFile] = landed_paths.as_slice();
     reach_phase(Phase::MergeApplied)?;
     // The merge's own paths hold the merge now, and the person's two layers are merged with it: an edit away from the merge's

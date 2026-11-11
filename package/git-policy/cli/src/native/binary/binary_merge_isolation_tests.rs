@@ -187,6 +187,7 @@ fn saved_merge_record(fixture: &Fixture, repo: &Path) -> (String, String) {
         new_oid: merge.clone(),
         side_ref: Some(String::from("refs/cli-git/kept/1")),
         carried: None,
+        landed: Vec::new(),
     };
     write_merge_intent(repo.join(".git").as_path(), &intent).expect("the merge record");
     return (old.trim().to_owned(), merge);
@@ -1069,6 +1070,7 @@ fn a_live_merges_record_is_left_alone() {
         new_oid: tip,
         side_ref: None,
         carried: None,
+        landed: Vec::new(),
     };
     let record: PathBuf = git_policy_cli::merge_isolation_journal::write_merge_intent(repo.join(".git").as_path(), &intent).expect("record");
     let status: Observed = run(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);

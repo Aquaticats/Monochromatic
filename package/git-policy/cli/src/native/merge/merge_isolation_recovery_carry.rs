@@ -50,7 +50,10 @@ pub(crate) async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
 ) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, &[], intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
+    // The reading the apply made before it died, which is the one thing that tells the file Git wrote from a save whose bytes
+    //  accept the whole merge: a record written before that reading names no entry, and then the bytes are all the evidence
+    //  there is, as before (`merge_isolation_carry_landed.rs`).
+    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, intent.landed.as_slice(), intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
             for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());
@@ -93,7 +96,7 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &Reco
             changes.push(change.clone());
         }
     }
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, &[], intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
+    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, intent.landed.as_slice(), intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
             for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());
@@ -107,7 +110,6 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &Reco
         Err(other) => return Err(MergeRefusal { error: RecoveryError(the_work_could_not_be_carried(&other)), began: false }),
     }
 }
-
 /// What:
 ///  Put the person's own work back exactly as it was captured,
 /// for a merge that does not land.

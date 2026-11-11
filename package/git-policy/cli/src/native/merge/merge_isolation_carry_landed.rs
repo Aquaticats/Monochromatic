@@ -27,6 +27,11 @@
 //! ```ts
 //! const landed = landedOf(root, paths); const still = theFileGitLanded(landed, landedFileAt(location, path));
 //! ```
+//!
+//! The reading travels into the merge's record,
+//! so the recovery of a killed command judges a path by the same entry the
+//!  apply read before its carry,
+//! and its record form is written and read here beside it.
 
 use crate::merge_isolation_changes::{FileIdentity, file_identity, worktree_path};
 use std::path::{Path, PathBuf};
@@ -118,8 +123,11 @@ pub fn landed_of(root: &Path, paths: &[Vec<u8>]) -> Vec<LandedFile> {
 ///  line the merge brought.
 /// A path the landed reading does not name was read by nothing,
 /// so its bytes are all the evidence
-///  there is,
-/// which is what a recovery of a killed merge has.
+///  there is:
+/// a record written before the reading,
+/// or one a machine crash left at the state before the reading was published,
+/// and a
+///  recovery of an earlier release's record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,4 +140,113 @@ pub fn the_file_git_landed(landed: &[LandedFile], standing: &LandedFile) -> bool
         }
     }
     return true;
+}
+
+/// What:
+///  One entry's identity as the record holds it.
+/// Why:
+///   Every number is written as a number,
+/// so nothing here decides what a byte of a name means,
+/// and the identity
+///  decodes back into the same comparison.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identityJson = (identity: FileIdentity) => ({ device: identity.device, inode: identity.inode, size: identity.size, mode: identity.mode, modifiedSeconds: identity.modifiedSeconds, modifiedNanos: identity.modifiedNanos });
+/// ```
+fn identity_json(identity: &FileIdentity) -> serde_json::Value {
+    let mut map: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    map.insert(String::from("device"), serde_json::Value::from(identity.device));
+    map.insert(String::from("inode"), serde_json::Value::from(identity.inode));
+    map.insert(String::from("size"), serde_json::Value::from(identity.size));
+    map.insert(String::from("mode"), serde_json::Value::from(identity.mode));
+    map.insert(String::from("modifiedSeconds"), serde_json::Value::from(identity.modified_seconds));
+    map.insert(String::from("modifiedNanos"), serde_json::Value::from(identity.modified_nanos));
+    return serde_json::Value::Object(map);
+}
+
+/// What:
+///  The reading as one field of a merge record.
+/// Why:
+///   A carry that runs after a kill has no reading of its own,
+/// and a save whose bytes accept the whole merge was
+///  replaced by the older captured layer until the record carried one
+/// (a cross-vendor review of round two,
+/// its first finding).
+///  The path travels as bytes beside its text,
+/// so a name that is not UTF-8 survives the round trip.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const encodeLanded = (landed: LandedFile[]) => JSON.stringify(landed.map((entry) => ({ pathHex: hex(entry.path), identity: entry.identity && identityJson(entry.identity), changedSeconds: entry.changedSeconds, changedNanos: entry.changedNanos })));
+/// ```
+pub fn encode_landed(landed: &[LandedFile]) -> String {
+    let mut entries: Vec<serde_json::Value> = Vec::with_capacity(landed.len());
+    for entry in landed {
+        let mut map: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        map.insert(String::from("pathHex"), serde_json::Value::String(crate::path_bytes_in_records::hex_of_bytes(entry.path.as_slice())));
+        if let Some(identity) = &entry.identity {
+            map.insert(String::from("identity"), identity_json(identity));
+        }
+        map.insert(String::from("changedSeconds"), serde_json::Value::from(entry.changed_seconds));
+        map.insert(String::from("changedNanos"), serde_json::Value::from(entry.changed_nanos));
+        entries.push(serde_json::Value::Object(map));
+    }
+    return serde_json::Value::Array(entries).to_string();
+}
+
+/// One unsigned number of a record,
+/// or nothing when the field is not one.
+fn unsigned(map: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<u64> {
+    return map.get(key)?.as_u64();
+}
+
+/// One signed number of a record,
+/// or nothing when the field is not one.
+fn signed(map: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<i64> {
+    return map.get(key)?.as_i64();
+}
+
+/// One entry's identity as a record holds it,
+/// or nothing when any part of it is not the shape this file writes.
+fn identity_of(map: &serde_json::Map<String, serde_json::Value>) -> Option<FileIdentity> {
+    return Some(FileIdentity {
+        device: unsigned(map, "device")?,
+        inode: unsigned(map, "inode")?,
+        size: unsigned(map, "size")?,
+        mode: u32::try_from(unsigned(map, "mode")?).ok()?,
+        modified_seconds: signed(map, "modifiedSeconds")?,
+        modified_nanos: signed(map, "modifiedNanos")?,
+    });
+}
+
+/// What:
+///  Read a record's reading back,
+///  or nothing when it is not the shape this file writes.
+/// Why:
+///   A reading a record cannot be read from is no proof of what Git wrote,
+/// so a malformed one must fail
+///  closed rather than name an entry the file never held.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function decodeLanded(value: unknown): LandedFile[] | undefined;
+/// ```
+pub fn decode_landed(value: &serde_json::Value) -> Option<Vec<LandedFile>> {
+    let items: &Vec<serde_json::Value> = value.as_array()?;
+    let mut landed: Vec<LandedFile> = Vec::with_capacity(items.len());
+    for item in items {
+        let map: &serde_json::Map<String, serde_json::Value> = item.as_object()?;
+        let path: PathBuf = crate::path_bytes_in_records::path_of_hex(map.get("pathHex")?.as_str()?)?;
+        landed.push(LandedFile {
+            path: crate::path_bytes::path_bytes_of(path.as_path()).to_vec(),
+            identity: match map.get("identity") {
+                Some(identity) => Some(identity_of(identity.as_object()?)?),
+                None => None,
+            },
+            changed_seconds: signed(map, "changedSeconds")?,
+            changed_nanos: signed(map, "changedNanos")?,
+        });
+    }
+    return Some(landed);
 }

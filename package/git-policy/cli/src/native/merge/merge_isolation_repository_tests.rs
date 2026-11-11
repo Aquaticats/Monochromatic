@@ -386,6 +386,7 @@ fn an_attempt_recovers_a_dead_merge_before_it_checks_the_staged_work() {
         new_oid: new_oid.clone(),
         side_ref: None,
         carried: None,
+        landed: Vec::new(),
     };
     let record: PathBuf = write_merge_intent(repo.join(".git").as_path(), &intent).expect("the record");
     git(repo.as_path(), &["read-tree", "-m", "-u", old_oid.as_str(), new_oid.as_str()]);
