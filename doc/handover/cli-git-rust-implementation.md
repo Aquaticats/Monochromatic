@@ -120,8 +120,10 @@ Two defects showed on the way, both open:
 - The machine-global lock still names `0.6.1-alpha.8`,
   so every `git` call prints `mpm-shadow`'s older-lock warning.
   Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`,
-  does not run: no `mpm-shadow` is on `PATH`.
-  Agent `mpm-shadow-printed-global-lock-remedy-runs-as-printed` is fixing the printed remedies.
+  did not run, because no `mpm-shadow` was on `PATH`;
+  branch `fix/mpm-shadow-printed-global-lock-remedy-runs-as-printed`
+  makes the scope's install put it in the exposure farm and proves the command runs as printed.
+  The lock itself is still the coordinator's to move.
 
 Every finished wrapper branch `main` lacked is going into `integrate/git-policy-cli-jam-fixes-after-alpha-9`,
 built from `main` by the coordinator's script,
@@ -2109,12 +2111,29 @@ and `tests/printed_remedy.rs` runs the warning's own command in a disposable hom
 
 Still open,
 because it is the owner's file under the config directory:
-the machine-global plan declares no `mpm-shadow` entry,
-so `mpm-shadow` is not on the machine `PATH` either.
-Adding the entry the repository plan carries (`route: archive`,
-`bins: ["mpm-shadow"]`,
-`tagPrefix: monochromatic-mpm-shadow-v`,
-then `mpm-shadow install -g`) exposes it in the global exposure directory.
+the machine-global plan declares no `mpm-shadow` entry.
+The branch `fix/mpm-shadow-printed-global-lock-remedy-runs-as-printed`
+no longer needs that entry:
+the scope's install links the running `mpm-shadow` in its exposure farm (`expose_running_shadow`,
+`src/toolchain/exposure.rs`) when no tool of the lock declares that bin,
+never for a program that belongs to no install,
+and points it through the tool's `current` link.
+Two defects in that path were fixed with it,
+both measured on this machine:
+`install_below_root` compared a program's own path with a root as text,
+so `/proc/self/exe`'s resolved `/var/home/...` never matched the `/home/...` a scope spells,
+and found no install at all;
+`place_binary` hard-linked a symbolic link,
+which a release archive's install leaves beside the program's folder,
+so the launcher became a link whose relative target resolved in the launcher's own directory.
+Evidence, 2026-11-11,
+in a disposable home holding the global plan and lock and both installs:
+`mpm-shadow install --global` put `mpm-shadow` in the farm,
+the launcher's own sentence `mpm-shadow update -g cargo:monochromatic-demo-tool` ran as printed and exited 0,
+the lock then named the version that runs and the warning was gone.
+`tests/printed_remedy.rs` holds both checks and each one failed before its fix.
+Still the coordinator's to do after the release:
+run `mpm-shadow install -g` on this machine so the farm carries the link here.
 
 Ordered behind other work rather than waiting for a slot:
 
