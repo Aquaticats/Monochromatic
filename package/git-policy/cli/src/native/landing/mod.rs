@@ -70,6 +70,11 @@ pub mod earlier_service_journal_adopted;
 /// A scan of the processes run on the blocking pool and awaited under a ceiling.
 pub mod scan_awaited_under_a_ceiling;
 
+/// What one process of the process table says about itself:
+/// its command line up to the largest line any program can carry,
+/// and the report of a line that cannot be proved.
+pub mod earlier_service_command_line_read;
+
 /// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
 pub mod earlier_service_process_look;
 

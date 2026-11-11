@@ -6522,6 +6522,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   gates;
   cause not measured;
   queued).
+  Cause found 2026-11-10:
+  the look at the earlier helper counted any command line longer than the 65,536 bytes it read as one that may be the
+  earlier helper,
+  so one unrelated program of the user carrying a long argument (a commit message,
+  a script passed with `-e`) refused every settle command on the machine for as long as it ran;
+  the limit is now the kernel's own ceiling on a command line,
+  and a process whose line cannot be read is named
+  (`doc/troubleshooting/cli-git-settle-look-could-not-prove-a-process.md`).
   Its agent wrote a planning section into main's checkout by mistake and removed
   exactly its own lines with `git apply --reverse`;
   main was clean after.
