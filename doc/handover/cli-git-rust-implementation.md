@@ -143,6 +143,19 @@ Agent `held-notice-names-a-published-commit-and-reviews-stay-claimed` (round 196
 round 185's `service-runs-independent-work-side-by-side` has the push that waited behind them;
 the lagging tracking ref is also the Kimi push audit's finding 2, in round 195.
 
+### Round 187: documented behaviors that broke the owner's rules, and two choices adopted with the veto open (2026-11-11T11:35:00-05:00)
+
+Branch `fix/git-policy-cli-documented-behaviors-that-break-the-owner-rules` (four commits, for the next integration pass):
+a socket, named pipe or device node in the ignored state is left out and named instead of failing the whole copy;
+a kill between the snapshot ioctl and its record no longer leaves a snapshot for ever (the record is written first, and a later command removes only a btrfs subvolume root holding nothing born after the record's instant);
+an add that installs a copy taken ahead names every ignored entry that changed after the copy, with the full list in a file beside the worktree's Git directory;
+"the commit service did not start" for a frozen service was already fixed.
+Adopted under the owner's "Please make any non-destructive options (when they are the ones I would likely have picked) yourself", with the veto open:
+a copy taken ahead is kept and its newer entries named, rather than a fresh snapshot on every add (a fresh snapshot measured 5.4 s at the median and 26 s in the agent's fixture, against "60s is fine for adding worktrees");
+and the kill-window proof is the record's instant plus the folder's shape, since the object's identity cannot exist before the object.
+Its report also named a test run that lost 157 tests when its binary vanished mid-run;
+the build folder's ledger names only that agent's worktree, so the cause is open, and round 203 proves or rules out the cargo shadow's sweeps.
+
 ### Audits of what 0.6.1-alpha.10 ships, and where each finding went (2026-11-11T09:15:00-05:00)
 
 Seven of the eight Kimi K3.1 Pro audits have finished (`${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-10-*/report.md`, 37 findings);
