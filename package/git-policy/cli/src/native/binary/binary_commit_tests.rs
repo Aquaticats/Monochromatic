@@ -8,7 +8,7 @@
 
 use super::support::{
     Fixture, Observed, bounded_for, fixture, git, observe, porcelain, remove, repository, run_direct,
-    stderr_of, wrapper_first_path,
+    stderr_of, stderr_without_wait_notices, wrapper_first_path,
 };
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -1491,5 +1491,94 @@ fn a_merge_conclusion_writes_the_reflog_message_native_git_writes() {
     assert_eq!(run_direct(&fixture, native.as_path(), &["commit", "--quiet", "--message=merged"]).code, Some(0));
     assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1"), reflog_subjects(&fixture, native.as_path(), "1"), "the merge row");
     assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1").as_str(), "commit (merge): merged\n", "the merge's wording");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit Git itself builds lands in a reftable repository whose own directory name is not UTF-8.
+/// Why:
+///   A reftable shadow is the one shadow Git itself creates with `init`,
+///  and the path handed to that `init` was a spelling of the shadow's path:
+///  Git initialized a directory under the replacement character,
+///  the creation then protected a path that did not exist,
+///  and the commit stopped instead of landing.
+///  A message file that is not text is Git's to read,
+/// so Git builds this commit in the shadow repository.
+#[test]
+fn a_commit_git_builds_lands_in_a_reftable_repository_whose_directory_is_not_utf8() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    let fixture: Fixture = fixture("commit-reftable-not-utf8-directory");
+    let repo: PathBuf = fixture.root.join(OsString::from_vec(b"reftable-\xef".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(&fixture, repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    keep_maintenance_in_the_foreground(&fixture, repo.as_path());
+    let base: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    // A message file that is not text is Git's to read, so Git builds this commit in the shadow repository, and Git's own
+    //  warning about the encoding is the only thing on standard error.
+    std::fs::write(repo.join("message.txt"), b"one \xe9\n").expect("message file");
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--file=message.txt", "--", "a.txt"]);
+    assert_eq!(landed.code, Some(0), "the commit lands: {}", stderr_of(&landed));
+    let said: String = stderr_without_wait_notices(&landed);
+    assert!(!said.contains("failed:"), "no step of the shadow creation failed: {said}");
+    assert!(!said.contains("monochromatic-git-policy-cli:"), "the wrapper adds no words of its own: {said}");
+    assert_ne!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch moved to the new commit");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit lands in a worktree whose Git directory name ends with a space,
+/// selected with `--git-dir`.
+/// Why:
+///   The route reads the Git directory from Git's answer,
+/// and it removed a trailing byte that belongs to the name:
+///  it resolved a directory that does not exist and reached no service,
+///  so the commit stopped instead of landing in the repository the person selected.
+#[test]
+fn a_commit_lands_in_a_worktree_whose_git_directory_name_ends_with_a_space() {
+    use std::ffi::OsString;
+    let fixture: Fixture = fixture("commit-git-dir-trailing-space");
+    let worktree: PathBuf = fixture.root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("worktree directory");
+    let metadata: PathBuf = fixture.root.join("metadata ");
+    git(
+        &fixture,
+        fixture.root.as_path(),
+        &[
+            "init",
+            "--quiet",
+            "--initial-branch=main",
+            "--separate-git-dir",
+            metadata.to_str().expect("UTF-8 fixture name"),
+            worktree.to_str().expect("UTF-8 worktree"),
+        ],
+    );
+    git(&fixture, worktree.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    std::fs::write(worktree.join("a.txt"), b"one\n").expect("a");
+    git(&fixture, worktree.as_path(), &["add", "--", "a.txt"]);
+    keep_maintenance_in_the_foreground(&fixture, worktree.as_path());
+    let base: String = git_text(&fixture, worktree.as_path(), &["rev-parse", "HEAD"]);
+    let arguments: Vec<OsString> = vec![
+        OsString::from(format!("--git-dir={}", metadata.display())),
+        OsString::from("commit"),
+        OsString::from("--message=one"),
+        OsString::from("--"),
+        OsString::from("a.txt"),
+    ];
+    let mut command: Command = bounded_for(
+        &fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(&fixture).as_os_str(),
+        COMMIT_BOUND_SECONDS,
+    );
+    command.current_dir(worktree.as_path()).args(arguments.as_slice());
+    let landed: Observed = observe(&mut command, b"");
+    assert_eq!(landed.code, Some(0), "the commit lands: {}", stderr_of(&landed));
+    assert_ne!(git_text(&fixture, worktree.as_path(), &["rev-parse", "HEAD"]), base, "the branch moved to the new commit");
+    assert_nothing_left(&fixture, worktree.as_path());
     remove_settled(&fixture);
 }
