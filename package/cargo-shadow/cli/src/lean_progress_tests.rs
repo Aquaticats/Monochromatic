@@ -6,7 +6,7 @@
 
 use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
-use crate::lean_progress::{LongPass, Progress, PROGRESS_FILE_NAME, RETIRED_STAGING_FILE_NAME, resume_index, state_directory};
+use crate::lean_progress::{HEADER, LongPass, Progress, PROGRESS_FILE_NAME, RETIRED_STAGING_FILE_NAME, resume_index, state_directory};
 use crate::lean_test_support::{make_pipe, within};
 use crate::test_scratch::scratch;
 
@@ -146,6 +146,35 @@ fn a_save_leaves_only_the_record_behind() {
     progress.save(root.path()).expect("saved again");
     let names: Vec<String> = fs::read_dir(root.path()).expect("the state directory").map(|entry| { return entry.expect("entry").file_name().to_string_lossy().to_string(); }).collect();
     assert_eq!(names, vec![String::from(PROGRESS_FILE_NAME)], "only the record is left behind");
+}
+
+/// A link at the record's name is not a file of this tool's,
+/// so the record is not read through it into whatever it names.
+#[test]
+fn a_link_at_the_record_name_is_not_followed() {
+    let root = scratch();
+    let elsewhere: PathBuf = root.path().join("a-file-of-the-user");
+    fs::write(&elsewhere, format!("{HEADER}\ntrees /base/00/bbbb\n")).expect("a record-shaped file of the user's");
+    std::os::unix::fs::symlink(&elsewhere, root.path().join(PROGRESS_FILE_NAME)).expect("a link at the record's name");
+    let (read, notes) = crate::lean_progress::read(root.path());
+    assert_eq!(read.after(LongPass::Trees), None, "a link says nothing about where a pass stopped");
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    assert!(notes[0].contains("starts at the front"), "{notes:?}");
+}
+
+/// A file larger than any record this version writes is not read at all:
+/// a device at the record's name never reaches its end,
+/// and reading one until it does is a run that never returns.
+#[test]
+fn a_file_larger_than_any_record_this_version_writes_is_not_read() {
+    let root = scratch();
+    let oversized: String = format!("{HEADER}\ntrees /base/00/bbbb\n{}", "x".repeat(1024 * 1024));
+    fs::write(root.path().join(PROGRESS_FILE_NAME), oversized).expect("a file longer than any record");
+    let directory: PathBuf = root.path().to_path_buf();
+    let (read, notes) = within(move || { return crate::lean_progress::read(&directory); });
+    assert_eq!(read.after(LongPass::Trees), None, "a file longer than any record says nothing about where a pass stopped");
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    assert!(notes[0].contains("starts at the front"), "{notes:?}");
 }
 
 /// A pipe at the record's own name is not a record this version reads,

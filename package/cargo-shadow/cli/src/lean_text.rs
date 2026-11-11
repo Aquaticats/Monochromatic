@@ -100,7 +100,7 @@ pub fn read_small_text(path: &Path, limit: usize, follow_links: bool) -> io::Res
     if kind != FileType::RegularFile {
         return Err(io::Error::other("not a regular file"));
     }
-    let mut file: fs::File = fs::File::from(opened);
+    let file: fs::File = fs::File::from(opened);
     let mut text: String = String::new();
     file.take(u64::try_from(limit).unwrap_or(u64::MAX) + 1).read_to_string(&mut text)?;
     if text.len() > limit {

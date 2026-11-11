@@ -29,7 +29,10 @@
 /// paths,
 /// the descriptor the record files are opened on,
 /// and the count that makes each staging name this run's own.
-use std::{fs, io::{self, Read, Write}, os::fd::OwnedFd, path::{Path, PathBuf}, sync::atomic::{AtomicU64, Ordering}};
+use std::{fs, io::{self, Write}, os::fd::OwnedFd, path::{Path, PathBuf}, sync::atomic::{AtomicU64, Ordering}};
+
+/// The bounded read that waits on nothing and follows no link.
+use crate::lean_text::read_small_text;
 
 /// Imports `rustix::fs::{Mode, OFlags, open}` for this file:
 /// both record files are opened with the flags that make a link and a pipe answer at once.
@@ -60,7 +63,7 @@ static STAGING_COUNT: AtomicU64 = AtomicU64::new(0);
 
 /// The first line of the record,
 /// so a file of another shape is not read as this one.
-const HEADER: &str = "cargo-shadow lean progress 1";
+pub const HEADER: &str = "cargo-shadow lean progress 1";
 
 /// The tag of the line that names the last tree the idle-trees pass judged.
 const TREES_TAG: &str = "trees";
@@ -200,26 +203,16 @@ struct ReadRecord {
 /// because they name this user's own directories.
 const RECORD_MODE: u32 = 0o600;
 
-/// What:
-/// `fn read_text(path: &Path) -> std::io::Result<String>` is the whole file,
-/// opened so that a pipe at the path answers at once instead of waiting for a writer.
+/// The most bytes of the record that are read.
 /// Why:
-/// The record's name is fixed and lives in this tool's own state directory,
-/// and a pipe left at it would hold the run until someone wrote to it,
-/// which nothing here promises to do:
-/// a run waits for nothing indefinitely.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const readText = (path: string): string => readFileSync(path, { encoding: 'utf8' });
-/// ```
-fn read_text(path: &Path) -> io::Result<String> {
-    let opened: OwnedFd = open(path, OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NONBLOCK, Mode::empty()).map_err(io::Error::from)?;
-    let mut file: fs::File = fs::File::from(opened);
-    let mut text: String = String::new();
-    file.read_to_string(&mut text)?;
-    return Ok(text);
-}
+/// A record is a header and two escaped paths,
+/// a path on Linux is at most 4096 bytes (`PATH_MAX`),
+/// and escaping one at most doubles it,
+/// so a record is under 16 KiB and this limit is four times the largest one this version writes.
+/// A file longer than it is not a record,
+/// and a device at the record's name never reaches its end,
+/// so reading stops at the limit rather than at an end that may never come.
+const RECORD_READ_LIMIT: usize = 64 * 1024;
 
 /// What:
 /// `fn read_record(path: &Path) -> ReadRecord` reads the positions,
@@ -228,15 +221,19 @@ fn read_text(path: &Path) -> io::Result<String> {
 /// A missing file is the ordinary first run and stays silent;
 /// a file of another shape or one that cannot be read is said once,
 /// and the run starts at the front.
-/// A pipe is one of those shapes:
-/// it is read for what it already holds and never waited on.
+/// The record is read as a regular file and never through a link:
+/// its name is fixed inside this tool's own state directory,
+/// so a link at it names a file this run never wrote,
+/// and a pipe or a device at it is not a record.
+/// The read waits on nothing and stops at the length no record exceeds,
+/// so a record left behind cannot hold the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function readRecord(path: string): { progress: Progress; failure?: string }
 /// ```
 fn read_record(path: &Path) -> ReadRecord {
-    let text: String = match read_text(path) {
+    let text: String = match read_small_text(path, RECORD_READ_LIMIT, false) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return ReadRecord { progress: Progress::default(), failure: None },
         Err(error) => return ReadRecord { progress: Progress::default(), failure: Some(format!("{}: {error}", path.display())) },
