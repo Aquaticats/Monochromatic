@@ -25,6 +25,8 @@
 
 /// Text trimming with the incumbent's `.trim()` semantics.
 use crate::js_text::trim_javascript;
+/// The start that rides out a refused start of a child.
+use crate::start_retry::RetryStart;
 /// `OnceLock` holds a value computed at most once per process.
 use std::sync::OnceLock;
 
@@ -290,7 +292,7 @@ fn inspector_identity(command: &str, arguments: &[String], prefix: &str) -> Opti
         .env("LC_ALL", "C")
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .output()
+        .output_retrying()
         .ok()?;
     if !output.status.success() {
         return None;

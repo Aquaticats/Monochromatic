@@ -41,11 +41,15 @@ use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
 use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
 /// The clock that reads the signs of work of a process tree.
 use crate::push_progress::Clock;
+/// The start that rides out a refused start of a child.
+use crate::start_retry::spawn_retrying_without_blocking;
 /// The longest quiet gap of each tool,
 /// kept for the timing records.
 use crate::output_capture::Capture;
 use crate::quiet_ledger;
+use crate::wait_ceilings::REPAIR_TOOL_NOTICE_AFTER;
 use std::ffi::{OsStr, OsString};
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -383,13 +387,15 @@ pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &
     for (name, value) in &command.set {
         starting.env(name, value);
     }
-    let mut child: OwnedChild = match starting.spawn() {
+    let mut child: OwnedChild = match spawn_retrying_without_blocking(&mut starting).await {
         Ok(running) => adopt(running),
         Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
     };
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
     let mut at_ceiling: bool = false;
     let mut wait_failure: Option<std::io::Error> = None;
+    // Whether the person has been told what this tool waits for, which is said once per run and never for a tool that ends quickly.
+    let mut noticed: bool = false;
     let status: Option<std::process::ExitStatus> = loop {
         match wait_status(&mut child).await {
             Ok(Some(done)) => break Some(done),
@@ -405,6 +411,14 @@ pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &
                 wait_failure = Some(error);
                 break None;
             }
+        }
+        // What: A tool that is still running after the notice bound says what it is,
+        //       where it runs and what ends it.
+        // Why:  An add whose `pnpm` never ended printed its last line at two seconds and said nothing for the next 613 s, though the
+        //       quiet window and the ceiling above it were both running (`wait_ceilings.rs`, `REPAIR_TOOL_NOTICE_AFTER`).
+        if !noticed && started.elapsed() >= REPAIR_TOOL_NOTICE_AFTER {
+            noticed = true;
+            say_what_it_waits_for(program, command, limits);
         }
     };
     // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
@@ -442,6 +456,91 @@ pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &
     let disclosed: String = if shown.notes.is_empty() { String::new() } else { format!(" ({})", shown.notes.join("; ")) };
     return ToolRun { end: ToolEnd::Failed(format!("{}: {text}{disclosed}", describe_status(finished))), millis, stdout: Vec::new(), notes: shown.notes };
 }
+
+/// What:
+///  The line that says a repair tool is still running,
+/// what it runs,
+/// where,
+/// and what ends it.
+/// Why:
+///   The two bounds that end a tool (the quiet window and the ceiling) are the only thing that ends it,
+/// and a person who
+///  sees nothing for ten minutes cannot tell a tool that works from one the wrapper lost;
+/// the tool,
+/// its
+///  arguments and the worktree it runs in are what tells them apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sayWhatItWaitsFor(pnpm, { arguments: ['install', '--offline'], directory: worktree }, { window: 600, ceiling: 1080 })
+/// ```
+fn say_what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimits) {
+    let words: String = what_it_waits_for(program, command, limits);
+    #[cfg(test)]
+    NOTICES_SAID.lock().expect("notices").push(words.clone());
+    // Terminal output: this line is the person's, not a log record, and there is nowhere to report a closed standard error.
+    let _written = writeln!(std::io::stderr(), "{words}");
+}
+
+/// What:
+///  The words of that line,
+/// which a control reads without touching the process's standard error.
+/// Why:
+///   A repair's waits are announced on standard error,
+/// which a control of a test binary that runs its tests side by side cannot
+///  take for itself;
+/// the words are built here and printed by the caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = whatItWaitsFor(pnpm, command, limits);
+/// ```
+fn what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimits) -> String {
+    let arguments: Vec<String> = command.arguments.iter().map(argument_text).collect();
+    return format!(
+        "monochromatic-git-policy-cli: {} {} is still running in {} for the repair of the new worktree; it is stopped when it shows no sign of work for {} seconds, or after {} minutes at the latest.",
+        program.display(),
+        arguments.join(" "),
+        command.directory.display(),
+        limits.window.as_secs(),
+        limits.ceiling.as_secs() / 60
+    );
+}
+
+/// What:
+///  One argument of a tool's command line,
+/// as the text a person reads.
+/// Why:
+///  The parameters of a repair are what tells two runs of the same tool apart
+/// (`--offline`,
+/// `--frozen-lockfile`),
+/// and the notice is the only place a person sees them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// argumentText(OsString('--offline')) // '--offline'
+/// ```
+fn argument_text(word: &OsString) -> String {
+    return word.to_string_lossy().into_owned();
+}
+
+/// What:
+///  What the waiting notices said,
+/// so a control reads them without taking the process's standard error.
+/// Why:
+///   A tool's wait runs as a task of the process's runtime,
+/// on a worker of its own,
+/// so a record of one thread would miss it;
+/// a control of a test process that runs its tests side by side reads its own line by the
+///  fixture path in it.
+#[cfg(test)]
+pub(crate) fn notices_said() -> Vec<String> {
+    return NOTICES_SAID.lock().expect("notices").clone();
+}
+
+/// The notices the controls read.
+#[cfg(test)]
+static NOTICES_SAID: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
 
 /// The child's end if it comes within `POLL_INTERVAL`,
 /// awaited on its pidfd,

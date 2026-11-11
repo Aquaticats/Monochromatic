@@ -82,12 +82,32 @@ directly.
     reading the version from the commit the dispatch runs on,
     which is `main` after the bump.
 5.  The person runs the crate's `release:wait` task with the run URL and the version.
-    It follows the release run,
+    It follows the release run to its end,
     finds the publish run that it started
     (the earliest run built from a commit that holds the released version),
-    follows that,
+    follows that one to its end too,
     and checks crates.io and the GitHub release.
     For a version that never goes to crates.io (see "Labels and crates.io") it leaves crates.io out and says so.
+
+A release therefore runs two workflows,
+and both matter to whoever waits for it:
+
+- `.github/workflows/crate-release.yml`,
+  the run `release` dispatches.
+  Its `release` job bumps the version,
+  checks the crate,
+  dry-runs the publish and pushes the bump to `main`;
+  its `publish` job dispatches the second workflow and does no publishing itself.
+- `.github/workflows/cargo-publish.yml`,
+  the run the `publish` job dispatches.
+  It publishes the crate to crates.io
+  and its per-crate jobs build the tarballs and create the GitHub release,
+  so the archives a released version ships come from this run,
+  never from the release run.
+  It also runs a `detect` job for every crate of the repository,
+  so most of its jobs of another crate are `skipped`:
+  a skipped job is no failure,
+  and a run is a pass only when the run itself concluded with success.
 
 A release that fails before the push leaves `main` as it was.
 A push that finds a path the release depends on changed on `main` pushes nothing,
@@ -514,10 +534,21 @@ node bin/await-release.ts --crate <name> [options] <run URL or id> <version>
 
 The command
 
-1.  watches the release run with `gh run watch --exit-status`,
-    and stops with `RELEASE RUN FAILED` and the `gh run view <id> --log-failed` command when it failed,
+1.  follows the release run to its own end,
+    reading the answer of `gh run view --json=createdAt,status,conclusion,jobs`,
+    and never the exit status of a watcher:
+    `gh run watch --exit-status` exits 1 both for a run that failed and for a failure of the watcher itself,
+    which reported a release that passed as failed once
+    (`doc/troubleshooting/gh-run-watch-exit-status-conflates-failures.md`).
+    A run that ended with success passes and is reported as such;
+    a run that failed stops the wait with `RELEASE RUN FAILED`,
+    the job and the step that did not pass,
+    and the `gh run view <id> --log-failed` command,
     because a failed release run starts no publish;
+    a run that has not ended says which jobs it is still running and is looked at again,
+    for a bounded number of looks;
 2.  reads when the release run was created,
+    from the same answer,
     and finds the publish run:
     the earliest manually started run of `cargo-publish.yml` created at or after it
     and built from a commit whose `Cargo.toml` of the crate holds `<version>`,
@@ -533,15 +564,22 @@ The command
     so a dispatch for another crate made on `main` after the bump and before the release's own dispatch cannot be told apart.
     When no run matches,
     the last result lists every run seen and why it was passed over;
-3.  watches the publish run,
+3.  follows the `cargo-publish.yml` run to its own end the same way,
     then checks crates.io (unless the version never goes there) and the GitHub release for the expected assets,
     as the wait command does.
+    A run that is still building keeps the wait going,
+    with a line per look naming the jobs it is still running,
+    until the look limit.
 
-It exits 0 only when every part succeeded.
+It exits 0 only when every part succeeded,
+and its last line names the release it found,
+for example `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.9`.
+
 Its publish check options (`--workflow`,
 `--repo`,
 `--attempts`,
 `--poll-interval`,
+`--follow-attempts`,
 `--run-limit`,
 `--tag-template`,
 `--asset-template`,
@@ -638,25 +676,32 @@ mise run //package/crate-release/cli:release:wait:commit -- --crate-name <name> 
 ```
 
 The command waits for the publish workflow run of commit `<sha>` (a prefix of at least seven hexadecimal digits),
-watches it,
+follows the run to its own end,
 then checks crates.io for `<version>` (unless the version never goes there) and the GitHub release for the expected assets.
 It is for a publish that something other than the release workflow started,
 such as a push to `main`.
 It prints
 
 ```text
-run 40991272842
-watch exit 0
+cargo-publish.yml run 40991272842: completed with success
 crates.io 0.4.3: 2026-10-30T02:26:00.989331Z
 release monochromatic-git-policy-cli-v0.4.3 assets: ...x86_64-unknown-linux-gnu.tar.gz, ...
-PUBLISHED
+PUBLISHED monochromatic-git-policy-cli-v0.4.3
 ```
 
-and exits 0 only when the workflow succeeded,
+and exits 0 only when the run ended with success,
 crates.io has the version and the release holds every expected asset.
-Otherwise it ends with `PUBLISH CHECK FAILED: ...` naming each reason,
+A run that has not ended is reported as such and looked at again:
+
+```text
+cargo-publish.yml run 40991272842 is still going: gpc-build-binary (in_progress); waiting up to 40 minutes
+```
+
+A run that failed names the job and the step that did not pass,
+for example `job gpc-publish-crate concluded failure at step "Publish the crate to crates.io"`.
+Otherwise the report ends with `PUBLISH CHECK FAILED: ...` naming each reason,
 and exits 1.
-A failed workflow run does not skip the checks,
+A failed or unfinished run does not skip the checks,
 so the report shows everything that is and is not in place.
 When no run appears it prints the bound that was waited,
 for example `within 15 minutes`,
@@ -675,7 +720,11 @@ the hash is never placed in a `gh --jq` program.
 - `--attempts <count>` (default 45),
   `--poll-interval <seconds>` (default 20) and `--run-limit <count>` (default 10)
   bound the wait and each listing;
-  the defaults wait at most 15 minutes.
+  the defaults wait at most 15 minutes for a run to appear.
+- `--follow-attempts <count>` (default 120) and the same poll interval bound how long one run is followed to its end,
+  so the defaults follow one run for 40 minutes.
+  Raise it for a crate whose archive build is slower than the two releases measured on 2026-11-11,
+  which took 4 minutes 38 seconds and 7 minutes 28 seconds.
 - `--tag-template <text>` (default `{crate}-v{version}`) and `--asset-template <text>`,
   repeatable (default the `x86_64`
   and `aarch64` Linux tarballs,
@@ -697,6 +746,10 @@ the hash is never placed in a `gh --jq` program.
   they hold no logic.
 - `src/` holds the pure builders and parsers,
   each with a unit test:
+  the reader of a run's own answer,
+  which is the only verdict a wait accepts
+  (`run-outcome.ts`,
+  tested against the answers of real runs recorded under `src/fixture/`),
   version and name validation (`version.ts`,
   `validate.ts`),
   the registry (`crate-registry.ts`),

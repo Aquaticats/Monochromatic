@@ -136,20 +136,34 @@ fn is_same_file(_first: &Path, _second: &Path) -> bool {
     return false;
 }
 
+/// What:
 /// A hard link of `source` at `target` (a copy when the two are on different file systems),
 /// placed with a rename.
+/// Why:
+/// `source` may be a symbolic link:
+/// a release archive's install leaves a link beside the folder it unpacked into,
+/// and the search for the newest installed `mpm-shadow` finds the program through `current`.
+/// A hard link of a symbolic link is another symbolic link,
+/// and its relative target then resolves beside the launcher instead of beside the version directory,
+/// so the launcher dangled and the tool it was made for stopped starting.
+/// The file the link resolves to is what a launcher must be.
 fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
-    if is_same_file(source, target) {
-        return Ok(());
-    }
     let mut temporary_name: OsString = OsString::from(".");
     temporary_name.push(target.file_name().unwrap_or_default());
     temporary_name.push(format!(".{}.bin", std::process::id()));
     let temporary: PathBuf = target.with_file_name(temporary_name);
+    // A link on the way to the program is followed: the launcher must be the program's own file.
+    let file: PathBuf = match fs::canonicalize(source) {
+        Ok(resolved) => resolved,
+        Err(_) => source.to_path_buf(),
+    };
+    if is_same_file(&file, target) {
+        return Ok(());
+    }
     // Best effort: a leftover from a killed run is replaced; absence is the normal case.
     let _ = fs::remove_file(&temporary);
-    if fs::hard_link(source, &temporary).is_err()
-        && let Err(error) = fs::copy(source, &temporary)
+    if fs::hard_link(&file, &temporary).is_err()
+        && let Err(error) = fs::copy(&file, &temporary)
     {
         return Err(ToolchainError::failure(format!("cannot copy {} to {}: {error}", source.display(), temporary.display())));
     }

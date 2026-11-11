@@ -748,6 +748,11 @@ HXR:
  run them in `podman run --cpus --memory --pids-limit --blkio-weight 10 --rm` or `mvm`;
  containers ignore their launcher's `IOWeight`.
 
+MHX:
+ Never start a service manager (`systemd --user`) on the host
+ or claim a well-known name on the owner's session bus;
+ tests needing one run in `podman` or `mvm`.
+
 NLG:
  Never generate synthetic host load in any session or subagent:
  no `stress-ng`,
@@ -1512,11 +1517,9 @@ VB7:
  lint misses CommonMark emphasis edge cases.
 
 SCF:
- Screenshot after scripted input:
- confirm intended rendered state,
- then capture;
- command completion isn't frame completion.
-Recapture stale or transitional frames.
+ Before accepting a screenshot,
+ verify the target application/window and intended rendered state;
+ recapture mismatches or transitional frames.
 
 ABR:
  End browser verification with `agent-browser close`:

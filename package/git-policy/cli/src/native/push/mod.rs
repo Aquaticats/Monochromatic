@@ -33,9 +33,17 @@ pub mod stacked_merge_push;
 
 /// The service's own retry of a push it stopped or that failed:
 /// the pauses,
-/// the waiting branches,
-/// the final failure.
+/// and the waiting branches.
 pub mod push_retry;
+
+/// What a failed push's own words mean for that retry:
+/// whether the failure is final,
+/// how many tries the one counted cause gets,
+/// and the words the person reads.
+pub mod push_retry_failure;
+
+/// The first of Git's own lines that gives a reason for a push's failure.
+pub mod push_retry_cause_line;
 
 /// The retry plan on disk,
 /// in the service instance's journal,
@@ -77,6 +85,11 @@ pub mod bounded_query_input;
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
 
+/// The causes and reports of a stop,
+/// and the line a stalled push prints,
+/// which names the window that fired and a remedy that works.
+pub mod stop_cause_and_words;
+
 /// The stop of a running push and the sweep of the lock files it and what it started leave.
 pub mod stop_of_a_push_and_sweep_of_its_locks;
 
@@ -113,12 +126,19 @@ pub mod auto_push_trigger;
 /// or declined with its reason.
 pub mod push_trigger_log;
 
+/// What one reconcile run integrates,
+/// where it publishes,
+/// how it words itself and how it ended,
+/// so the loop and the entry that reaches it read one plan.
+pub mod auto_push_reconcile_plan;
+
 /// Publishing a landed commit that a moved remote branch rejected:
 /// the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 
 /// The reconcile loop and its merge push,
-/// awaited by a task of the runtime.
+/// awaited by a task of the runtime,
+/// which is the one body of those decisions.
 pub mod auto_push_reconcile_awaiting;
 
 /// What a reconcile of a rejected push shares:

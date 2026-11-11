@@ -344,13 +344,19 @@ only seams were added.
   an unreadable one `SETTLE_LOOKS` times,
   unreadable then owned twice.
 - `sync_file` to `Ok(())`:
-  `the_flush_of_the_marker_is_the_operating_systems` calls it on a pipe end,
+  `the_flush_of_the_marker_is_the_background_tasks_and_a_refusal_fails_nothing`
+  calls it on a pipe end,
   where the real
-  `fsync` fails with `EINVAL`.
-  Durability itself is not observable without a crash;
-  what is shown is that the call is
-  made and its answer is returned,
-  not swallowed.
+  `fsync` fails with `EINVAL`,
+  and requires `sync_file` to answer `Ok`.
+  Since 322079b2f0 the placement hands the flush to the service's background task
+  (`defer_file`),
+  so the answer is the queueing's:
+  no refusal of a flush reaches the placement,
+  and only a handle that cannot be cloned could,
+  which no test makes.
+  Durability itself is not observable without a crash,
+  and the background task only logs a refused flush.
 - `rename_unsupported` to `true`,
   and the `links_unsupported` and `place_marked` guard mutants of the same lines:
   `only_an_unsupported_rename_falls_back_to_a_link` and `only_an_unsupported_link_ends_as_unsupported` inject the

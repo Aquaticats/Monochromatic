@@ -343,6 +343,10 @@ fn install_shadow(toolchain_root: &Path, version: &str, content: &[u8]) -> PathB
     fs::create_dir_all(program.parent().expect("a parent")).expect("make the install");
     fs::write(&program, content).expect("write the program");
     fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("make the program executable");
+    // What the install leaves beside the folder: a link named after the program, which the search finds through `current`.
+    let named: PathBuf = toolchain_root.join("mpm-shadow").join(version).join("mpm-shadow");
+    let _ = fs::remove_file(&named);
+    std::os::unix::fs::symlink(format!("monochromatic-mpm-shadow-{version}-linux/mpm-shadow"), &named).expect("link the program");
     let link: PathBuf = toolchain_root.join("mpm-shadow").join("current");
     let _ = fs::remove_file(&link);
     std::os::unix::fs::symlink(version, &link).expect("link current");
@@ -413,6 +417,11 @@ fn a_launcher_is_a_copy_of_the_newest_installed_mpm_shadow() {
             NEWEST_SHADOW,
             "the launcher is a copy of {}, not of the installer that ran (newest in the other root: {newest_in_the_other_root})",
             newest.display()
+        );
+        let launcher: PathBuf = rig.scope.launcher_dir.join("git");
+        assert!(
+            !fs::symlink_metadata(&launcher).expect("the launcher exists").file_type().is_symlink(),
+            "a launcher is the program's own file, never a link whose relative target resolves beside the launcher"
         );
     }
 }

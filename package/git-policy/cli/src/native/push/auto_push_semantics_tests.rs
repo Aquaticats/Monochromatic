@@ -130,7 +130,7 @@ fn service_push(rig: &Rig) -> (AutoPushResult, String) {
 /// which a case that commits again names itself.
 fn service_push_of(rig: &Rig, landed: &str) -> (AutoPushResult, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&rig.repo), BRANCH_REF, landed, &[], &mut err).expect("the push runs");
+    let result = push_once(&push_git(&rig.repo), BRANCH_REF, landed, &[], &[], &mut err).expect("the push runs");
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
@@ -462,7 +462,7 @@ fn a_branch_that_tracks_a_local_branch_is_skipped_with_a_note() {
     git(&rig.repo, &["branch", "--quiet", "--track", "topic", "main"]);
     let before = remote_refs(&rig.remote);
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&rig.repo), "refs/heads/topic", &rig.landed, &[], &mut err).expect("the push runs");
+    let result = push_once(&push_git(&rig.repo), "refs/heads/topic", &rig.landed, &[], &[], &mut err).expect("the push runs");
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert_eq!(result.outcome, AutoPushOutcome::Skipped, "{shown}");
     assert_eq!(result.exit_code, 0, "{shown}");

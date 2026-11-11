@@ -456,42 +456,275 @@ fn ignored_work_survives(repo: &std::path::Path) -> bool {
     return repo.join(".env").exists() && repo.join("ignored/data.bin").exists();
 }
 
-/// A `clean` that deletes ignored files is rejected in a clean linked worktree,
-/// because a linked worktree that holds no tracked change can still hold the
-/// environment files the person depends on.
+/// What:
+///  The audit lines a clean leaves after the ones already in the file,
+/// with the last one last.
+/// Why:
+///   A clean that runs must leave exactly one line naming it and the worktree it ran in,
+///  and nothing else about the repository changes the count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [line] = auditLinesSince(repo, before)
+/// ```
+fn audit_lines_since(repo: &std::path::Path, before: usize) -> Vec<String> {
+    return audit_lines_of(repo).split_off(before);
+}
+
+/// A `clean` that deletes ignored files runs in a linked worktree,
+/// exits with Git's own status,
+/// and leaves one audit line naming the command and the worktree,
+/// because the owner answered the question about it on 2026-11-10 with
+/// "All four are deleted,
+///  exit 0,
+///  and the audit log records the command."
 #[test]
-fn a_clean_that_deletes_ignored_files_is_rejected_in_a_linked_worktree() {
+fn a_clean_that_deletes_ignored_files_runs_and_is_logged_in_a_linked_worktree() {
     let fixture: Fixture = fixture("discard-clean-ignored");
     let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
     let linked: PathBuf = fixture.root.join("linked");
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
-    keep_ignored_work(linked.as_path());
-    for arguments in [
-        vec!["clean", "-fdx"],
-        vec!["clean", "-fdX"],
-        vec!["clean", "--force", "-d", "-x"],
+    // `-x` is measured over tracked and untracked work; `-X` deletes ignored files only, so the line says the
+    //  policy asked no question.
+    for (arguments, form, dirty) in [
+        (vec!["clean", "-fdx"], "CleanIgnored", "\"dirty\":false"),
+        (vec!["clean", "-fdX"], "CleanIgnoredOnly", "\"dirty\":null"),
+        (vec!["clean", "--force", "-d", "-x"], "CleanIgnored", "\"dirty\":false"),
     ] {
+        keep_ignored_work(linked.as_path());
+        let before: usize = audit_lines_of(repo.as_path()).len();
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-        assert!(
-            rejected_by_policy(&observed),
-            "{arguments:?} deleted ignored files: {}",
-            stderr_of(&observed)
-        );
-        assert!(
-            ignored_work_survives(linked.as_path()),
-            "{arguments:?} deleted the ignored work anyway"
-        );
+        assert!(!rejected_by_policy(&observed), "{arguments:?}: {}", stderr_of(&observed));
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(!ignored_work_survives(linked.as_path()), "{arguments:?} kept the ignored work");
+        let lines: Vec<String> = audit_lines_since(repo.as_path(), before);
+        assert_eq!(lines.len(), 1, "{arguments:?} left {lines:?}");
+        let last: &str = lines.first().expect("one line");
+        for field in [
+            format!("\"form\":\"{form}\""),
+            String::from("\"outcome\":\"allowed\""),
+            String::from("\"worktree\":\"linked\""),
+            String::from(dirty),
+        ] {
+            assert!(last.contains(field.as_str()), "{field} missing from {last}");
+        }
+        // The line names the command the person typed.
+        for word in &arguments {
+            assert!(last.contains(format!("\"{word}\"").as_str()), "{word} missing from {last}");
+        }
     }
-    // The same clean is allowed where the ignored files are not what it deletes.
+    // The main worktree still refuses, and nothing of it is measured or deleted.
+    keep_ignored_work(repo.as_path());
+    let main: Observed = run_wrapped(&fixture, repo.as_path(), &["clean", "-fdx"]);
+    assert!(rejected_by_policy(&main), "{}", stderr_of(&main));
+    assert!(ignored_work_survives(repo.as_path()), "the main worktree lost its ignored work");
+    // An untracked file is still a reason to refuse the same clean in the linked worktree.
+    keep_ignored_work(linked.as_path());
+    std::fs::write(linked.join("new.txt"), b"the person wrote this\n").expect("untracked file");
+    let untracked: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fdx"]);
+    assert!(rejected_by_policy(&untracked), "{}", stderr_of(&untracked));
+    assert!(ignored_work_survives(linked.as_path()), "the refused clean deleted the ignored work");
+    assert!(linked.join("new.txt").exists(), "the refused clean deleted the untracked file");
+    std::fs::remove_file(linked.join("new.txt")).expect("drop the untracked file");
+    // The dry runs list what each would delete, in every worktree.
+    let dry: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-ndx"]);
+    assert!(!rejected_by_policy(&dry), "{}", stderr_of(&dry));
+    assert_eq!(dry.code, Some(0), "{}", stderr_of(&dry));
+    assert!(String::from_utf8_lossy(dry.stdout.as_slice()).contains(".env"), "{}", String::from_utf8_lossy(dry.stdout.as_slice()));
+    assert!(ignored_work_survives(linked.as_path()), "a dry run deleted the ignored work");
+    // A plain clean, which keeps the ignored files, is unaffected.
     let without_ignored: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fd"]);
     assert!(!rejected_by_policy(&without_ignored), "{}", stderr_of(&without_ignored));
     assert!(ignored_work_survives(linked.as_path()), "a plain clean deleted ignored work");
-    // And the documented way to clear build output still runs.
-    std::fs::remove_file(linked.join(".env")).expect("drop the ignored file");
-    std::fs::remove_dir_all(linked.join("ignored")).expect("drop the ignored directory");
-    let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fdx"]);
-    assert!(!rejected_by_policy(&empty), "{}", stderr_of(&empty));
-    assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
+    remove(&fixture);
+}
+
+/// What:
+///  A repository with two ignored directories and one linked worktree,
+///  where one ignored directory is a Git repository of its own that holds both kinds of uncommitted work.
+/// Why:
+///   The outer worktree reports that repository as the one ignored entry `!! nested/`,
+///  and Git's own clean removes it whole only with a second `-f`,
+///  so nothing the outer status or a single force says can see the work inside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, linked, nested } = repositoryWithANestedRepository(fixture);
+/// ```
+struct NestedRepository {
+    /// The main checkout,
+    /// which holds the audit file every worktree writes to.
+    repo: PathBuf,
+    /// The linked worktree each clean runs in.
+    linked: PathBuf,
+    /// The nested repository inside the linked worktree's ignored directory.
+    nested: PathBuf,
+}
+
+fn repository_with_a_nested_repository(fixture: &Fixture) -> NestedRepository {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b"nested/\ncache/\n").expect("ignore file");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    let nested: PathBuf = linked.join("nested");
+    std::fs::create_dir(nested.as_path()).expect("nested repository directory");
+    git(fixture, nested.as_path(), &["init", "--quiet", "--initial-branch=inner"]);
+    std::fs::write(nested.join("tracked.txt"), b"committed\n").expect("nested tracked file");
+    git(fixture, nested.as_path(), &["add", "--", "tracked.txt"]);
+    git(fixture, nested.as_path(), &["commit", "--quiet", "--message=inner"]);
+    std::fs::write(nested.join("tracked.txt"), b"modified user data\n").expect("nested edit");
+    std::fs::write(nested.join("untracked.txt"), b"untracked user data\n").expect("nested untracked file");
+    std::fs::create_dir(linked.join("cache")).expect("cache directory");
+    std::fs::write(linked.join("cache/data.bin"), b"ignored work\n").expect("cache file");
+    return NestedRepository { repo, linked, nested };
+}
+
+/// The place one audit line names for the saved copy of `path`,
+/// which the line writes as `<path> => <place>`.
+fn saved_place(line: &str, path: &str) -> PathBuf {
+    let marker: String = format!("\"{path} => ");
+    let start: usize = line.find(marker.as_str()).unwrap_or_else(|| panic!("no copy of {path} in {line}")) + marker.len();
+    let rest: &str = &line[start..];
+    let end: usize = rest.find('"').expect("a copy's place ends its entry");
+    return PathBuf::from(&rest[..end]);
+}
+
+/// The one audit line a save of a nested repository leaves,
+/// or a failure naming what was written instead.
+fn saved_nested_repository_line(lines: &[String]) -> String {
+    let matching: Vec<&String> = lines.iter().filter(|line| { return line.contains("\"outcome\":\"saved-nested-repository\""); }).collect();
+    assert_eq!(matching.len(), 1, "one saved-nested-repository line among {lines:?}");
+    return matching.first().expect("the saved line").to_string();
+}
+
+/// What:
+///  A clean with a second force deletes a nested repository whole,
+/// and every byte it holds is kept first.
+/// Why:
+///   The nested repository's modified tracked file and its untracked file are the person's work,
+///  which no other copy of the repository holds;
+///  refusing the clean would only move the same loss to `rm -rf`,
+///  so the repository is moved beside the audit log and the clean runs as typed.
+#[test]
+fn a_clean_that_would_delete_a_nested_repository_keeps_it_whole() {
+    let fixture: Fixture = fixture("discard-clean-nested-repository");
+    let found: NestedRepository = repository_with_a_nested_repository(&fixture);
+    // Real Git's own reading: the second force is what removes the nested repository, not the first.
+    let dry: Output = git(&fixture, found.linked.as_path(), &["clean", "-n", "-f", "-f", "-d", "-X"]);
+    assert!(
+        String::from_utf8_lossy(dry.stdout.as_slice()).contains("Would remove nested/"),
+        "{}",
+        String::from_utf8_lossy(dry.stdout.as_slice())
+    );
+    let before: usize = audit_lines_of(found.repo.as_path()).len();
+    let observed: Observed = run_wrapped(&fixture, found.linked.as_path(), &["clean", "-f", "-f", "-d", "-X"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    // Everything the person asked to delete is gone, the nested repository with it.
+    assert!(!found.linked.join("cache").exists(), "the clean left ignored work it deletes");
+    assert!(!found.nested.exists(), "the clean left the nested repository where Git deletes it");
+    let lines: Vec<String> = audit_lines_since(found.repo.as_path(), before);
+    let line: String = saved_nested_repository_line(lines.as_slice());
+    for field in ["\"form\":\"CleanIgnoredOnly\"", "\"worktree\":\"linked\""] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    // The place holds the work and the nested repository's own history, not only its files.
+    let place: PathBuf = saved_place(line.as_str(), "nested");
+    assert_eq!(
+        std::fs::read_to_string(place.join("tracked.txt")).expect("kept tracked file"),
+        "modified user data\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(place.join("untracked.txt")).expect("kept untracked file"),
+        "untracked user data\n"
+    );
+    assert!(place.join(".git").exists(), "the kept repository lost its own history");
+    // The notice names the repository and where it went, before Git runs.
+    let said: String = stderr_of(&observed);
+    let place_text: &str = place.to_str().expect("utf-8 fixture path");
+    assert!(said.contains("nested"), "{said}");
+    assert!(said.contains(place_text), "{said}");
+    remove(&fixture);
+}
+
+/// What:
+///  The same nested repository through a clean that also deletes untracked files is kept whole too.
+/// Why:
+///   `-x` asks the outer status,
+///  which reports the ignored nested repository as nothing at all,
+///  so the same work is invisible to it and the same loss follows a second force.
+#[test]
+fn a_clean_that_deletes_untracked_files_keeps_a_nested_repository_too() {
+    let fixture: Fixture = fixture("discard-clean-nested-repository-x");
+    let found: NestedRepository = repository_with_a_nested_repository(&fixture);
+    let before: usize = audit_lines_of(found.repo.as_path()).len();
+    let observed: Observed = run_wrapped(&fixture, found.linked.as_path(), &["clean", "-f", "-f", "-d", "-x"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert!(!found.nested.exists(), "the clean left the nested repository where Git deletes it");
+    let lines: Vec<String> = audit_lines_since(found.repo.as_path(), before);
+    let line: String = saved_nested_repository_line(lines.as_slice());
+    assert!(line.contains("\"form\":\"CleanIgnored\""), "{line}");
+    let place: PathBuf = saved_place(line.as_str(), "nested");
+    assert_eq!(
+        std::fs::read_to_string(place.join("tracked.txt")).expect("kept tracked file"),
+        "modified user data\n"
+    );
+    remove(&fixture);
+}
+
+/// What:
+///  One force keeps the nested repository where it is,
+/// which is Git's own answer,
+///  so the wrapper moves nothing and records the clean it always recorded.
+/// Why:
+///   A single `-f` is Git's own protection of a nested repository;
+///  a control that saved a copy here would prove the wrapper moved a repository Git keeps,
+///  and the person's clean would not have deleted anything of it.
+#[test]
+fn a_clean_with_one_force_keeps_a_nested_repository_without_a_copy() {
+    let fixture: Fixture = fixture("discard-clean-nested-repository-one-force");
+    let found: NestedRepository = repository_with_a_nested_repository(&fixture);
+    let before: usize = audit_lines_of(found.repo.as_path()).len();
+    let observed: Observed = run_wrapped(&fixture, found.linked.as_path(), &["clean", "-f", "-d", "-X"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert!(found.nested.join("untracked.txt").exists(), "one force must leave the nested repository alone");
+    assert!(!found.linked.join("cache").exists(), "the ignored work beside it is deleted");
+    let lines: Vec<String> = audit_lines_since(found.repo.as_path(), before);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    let line: &String = lines.first().expect("one line");
+    assert!(line.contains("\"outcome\":\"allowed\""), "{line}");
+    assert!(!line.contains("saved-nested-repository"), "{line}");
+    remove(&fixture);
+}
+
+/// What:
+///  The escape hatch still deletes a nested repository,
+/// so the person has a way to say they mean it.
+/// Why:
+///   Keeping a repository is worthless if nothing lets the person remove it later;
+///  the hatch is the documented way past every linked-worktree rule.
+#[test]
+fn the_escape_hatch_still_deletes_a_nested_repository() {
+    let fixture: Fixture = fixture("discard-clean-nested-repository-hatch");
+    let found: NestedRepository = repository_with_a_nested_repository(&fixture);
+    let before: usize = audit_lines_of(found.repo.as_path()).len();
+    let observed: Observed = run_wrapped(
+        &fixture,
+        found.linked.as_path(),
+        &["clean", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-f", "-d", "-X"],
+    );
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(!found.nested.exists(), "the hatch must let the clean delete the nested repository");
+    let lines: Vec<String> = audit_lines_since(found.repo.as_path(), before);
+    assert!(
+        lines.iter().all(|line| { return !line.contains("saved-nested-repository"); }),
+        "the hatch saved a copy nothing asked it to save: {lines:?}"
+    );
     remove(&fixture);
 }
 
@@ -950,11 +1183,12 @@ fn a_clean_with_an_exclusion_is_measured_with_that_exclusion() {
     std::fs::remove_file(linked.join("notes.txt")).expect("drop the untracked file");
     let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
     assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
-    // The ignored work the clean really would delete is still measured.
+    // The ignored work the same spelling deletes is no longer a reason to refuse it, so it runs and goes.
     keep_ignored_work(linked.as_path());
     let deleting: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "--force", "-X", "--exclude=notes.txt"]);
-    assert!(rejected_by_policy(&deleting), "{}", stderr_of(&deleting));
-    assert!(ignored_work_survives(linked.as_path()), "the ignored work went");
+    assert!(!rejected_by_policy(&deleting), "{}", stderr_of(&deleting));
+    assert_eq!(deleting.code, Some(0), "{}", stderr_of(&deleting));
+    assert!(!ignored_work_survives(linked.as_path()), "the ignored work stayed");
     remove(&fixture);
 }
 

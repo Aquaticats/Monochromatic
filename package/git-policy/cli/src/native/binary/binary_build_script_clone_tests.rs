@@ -71,6 +71,37 @@ fn checkout_with_out_dir(fixture: &Fixture, directory: &Path, out_dir: &Path, co
     return observe(&mut command, b"");
 }
 
+/// Run the wrapper's `git reset --hard HEAD` in `directory` with Cargo's `OUT_DIR` naming `out_dir`,
+///  the form that overwrites tracked files and is refused in a worktree holding uncommitted state.
+fn reset_hard_with_out_dir(fixture: &Fixture, directory: &Path, out_dir: &Path) -> Observed {
+    let mut command: Command = bounded(
+        fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(fixture).as_os_str(),
+    );
+    command
+        .env("OUT_DIR", out_dir.as_os_str())
+        .current_dir(directory)
+        .args(["reset", "--hard", "HEAD"]);
+    return observe(&mut command, b"");
+}
+
+/// What:
+///  A linked worktree of the build script's clone,
+///  checked out where `directory` says,
+///  holding an edit no person made.
+/// Why:
+///  A linked worktree keeps its Git directory inside the clone
+///  (`<clone>/.git/worktrees/<name>`)
+///  and its files wherever it was added,
+///  so the two can stand on opposite sides of the build script's directory.
+fn linked_worktree_of_the_clone(fixture: &Fixture, clone: &Path, directory: &Path) -> PathBuf {
+    let named: &str = directory.to_str().expect("fixture paths are UTF-8");
+    git(fixture, clone, &["worktree", "add", "--quiet", "--detach", named]);
+    std::fs::write(directory.join("tracked.txt"), b"edited where the person works\n").expect("edit");
+    return directory.to_path_buf();
+}
+
 /// Whether the wrapper itself rejected the command.
 fn rejected_by_policy(observed: &Observed) -> bool {
     return observed.code == Some(1) && stderr_of(observed).contains("\"policyId\":\"linked-worktree-only\"");
@@ -112,6 +143,53 @@ fn a_checkout_in_a_clone_beside_the_build_scripts_directory_is_refused() {
     assert_eq!(
         std::fs::read(clone.join("tracked.txt")).expect("the refused command changed nothing"),
         b"edited by the build step\n"
+    );
+    remove(&fixture);
+}
+
+/// What:
+///  A linked worktree of the build script's clone that stands outside the build script's directory keeps its guard.
+/// Why:
+///   The clone's Git directory stays inside that directory even when its linked worktree does not,
+///  so an exemption judged by the Git directory alone would let a form overwrite the person's work
+///  (`git reset --hard HEAD` here once replaced the edit with committed content and exited 0).
+#[test]
+fn a_discard_in_a_linked_worktree_outside_the_build_scripts_directory_is_refused() {
+    let fixture: Fixture = fixture("build-script-clone-linked-outside");
+    source_repository(&fixture);
+    let out_dir: PathBuf = fixture.root.join(OUT_DIR_TAIL);
+    let clone: PathBuf = edited_clone(&fixture, out_dir.as_path());
+    let outside: PathBuf = fixture.root.join("the-persons-worktree");
+    std::fs::create_dir(&outside).expect("where the person asked for the worktree");
+    let worktree: PathBuf = linked_worktree_of_the_clone(&fixture, clone.as_path(), outside.as_path());
+    let observed: Observed = reset_hard_with_out_dir(&fixture, worktree.as_path(), out_dir.as_path());
+    assert!(rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(1), "{}", stderr_of(&observed));
+    assert_eq!(
+        std::fs::read(worktree.join("tracked.txt")).expect("the refused command changed nothing"),
+        b"edited where the person works\n"
+    );
+    remove(&fixture);
+}
+
+/// The same linked worktree inside the build script's directory belongs to the build step,
+///  so the exemption still runs the command and Git carries the edit over.
+#[test]
+fn a_discard_in_a_linked_worktree_inside_the_build_scripts_directory_stays_exempt() {
+    let fixture: Fixture = fixture("build-script-clone-linked-inside");
+    source_repository(&fixture);
+    let out_dir: PathBuf = fixture.root.join(OUT_DIR_TAIL);
+    let clone: PathBuf = edited_clone(&fixture, out_dir.as_path());
+    let inside: PathBuf = out_dir.join("worktrees/second-build-step");
+    std::fs::create_dir_all(&inside).expect("the build script's own worktree directory");
+    let worktree: PathBuf = linked_worktree_of_the_clone(&fixture, clone.as_path(), inside.as_path());
+    let observed: Observed = reset_hard_with_out_dir(&fixture, worktree.as_path(), out_dir.as_path());
+    assert!(!rejected_by_policy(&observed), "{}", stderr_of(&observed));
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    // Git reached the command and wrote the committed content over the build step's own edit.
+    assert_eq!(
+        std::fs::read(worktree.join("tracked.txt")).expect("the exemption let the command run"),
+        b"one\n"
     );
     remove(&fixture);
 }

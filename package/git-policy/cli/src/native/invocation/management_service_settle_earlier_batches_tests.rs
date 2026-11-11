@@ -5,9 +5,12 @@
 //! and that nothing is changed while an earlier helper may run or start.
 
 use super::*;
+use crate::held_commit_record::{Holding, hold};
+use crate::owed_index_update;
 use crate::service_instance::instance_of;
-use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, write_intent};
-use crate::test_support::{REAL_GIT, fixture, isolated_overlay, remove};
+use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, write_intent, write_start};
+use crate::service_land_start::witness_of;
+use crate::test_support::{REAL_GIT, fixture, git, git_text, isolated_overlay, remove, repository};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt as _;
@@ -34,6 +37,86 @@ fn setup(name: &str) -> Setup {
     std::fs::create_dir_all(proc_root.join("net")).expect("net folder");
     std::fs::write(proc_root.join("net/unix"), "Num       RefCount Protocol Flags    Type St Inode Path\n").expect("an empty table");
     return Setup { state: root.join("state"), root, git_dir, proc_root };
+}
+
+/// One disposable world whose repository is real,
+/// because a held batch names commits that must exist,
+/// with the process table and the state folder beside it.
+fn setup_with_repository(name: &str) -> (Setup, PathBuf) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let proc_root: PathBuf = root.join("proc");
+    std::fs::create_dir_all(proc_root.join("net")).expect("net folder");
+    std::fs::write(proc_root.join("net/unix"), "Num       RefCount Protocol Flags    Type St Inode Path\n").expect("an empty table");
+    let git_dir: PathBuf = repo.join(".git");
+    return (Setup { state: root.join("state"), root, git_dir, proc_root }, repo);
+}
+
+/// The file the held commit changes.
+const HELD_FILE: &str = "held.txt";
+
+/// What:
+///  A batch whose commit a reference lock held off its branch,
+///  left in the world's earlier journal as a refused landing leaves it,
+///  with the branch still at the commit before it and the person's bytes in the worktree.
+/// Why:
+///  The command's own path over a held batch is what these controls judge,
+///  and it starts from the state a landing that met a lock writes:
+///  the commit on the batch's side reference,
+///  the intent,
+///  the index witness,
+///  the owed index record,
+///  and the held record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = heldBatchIn(journal, repo); // branch at base, worktree bytes kept
+/// ```
+fn held_batch_in(journal: &Path, repo: &Path) -> crate::held_commit_record::Held {
+    let git_dir: PathBuf = repo.join(".git");
+    let base: String = git_text(repo, &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join(HELD_FILE), b"the held edit\n").expect("the held edit");
+    git(repo, &["add", "--", HELD_FILE]);
+    git(repo, &["commit", "--quiet", "--message", "the held edit"]);
+    let held_commit: String = git_text(repo, &["rev-parse", "HEAD"]);
+    // The branch write was refused, so the commit is only on the batch's own side reference and the branch stayed where it was.
+    git(repo, &["update-ref", "--no-deref", crate::held_commit_settle::kept_reference(1).as_str(), held_commit.as_str()]);
+    git(repo, &["reset", "--hard", "--quiet", base.as_str()]);
+    // The person's worktree still holds the bytes the commit captured.
+    std::fs::write(repo.join(HELD_FILE), b"the held edit\n").expect("the edit stays in the worktree");
+    let intent: Intent = Intent {
+        seq: 1,
+        repository: repo.to_path_buf(),
+        common_dir: git_dir.clone(),
+        reference: String::from("refs/heads/main"),
+        old: base,
+        new: held_commit.clone(),
+        ids: vec![String::from("request-1")],
+        commits: vec![held_commit],
+        paths: vec![HELD_FILE.as_bytes().to_vec()],
+        derived: false,
+        cleanup: None,
+        index: git_dir.join("index"),
+        git_dir: git_dir.clone(),
+    };
+    write_intent(journal, &intent).expect("the intent");
+    write_start(journal, 1, &witness_of(intent.index.as_path()).expect("the index file")).expect("the witness");
+    // The landing writes the record of the index update it will owe before it moves the branch, so it is here whether or not the
+    //  branch write was refused.
+    owed_index_update::write(&owed_index_update::of_intent(&intent));
+    return hold(Holding {
+        journal,
+        repository: repo,
+        common_dir: git_dir.as_path(),
+        git_dir: git_dir.as_path(),
+        index: intent.index.as_path(),
+        reference: intent.reference.as_str(),
+        seq: 1,
+        intent: &intent,
+        locks: vec![git_dir.join("refs/heads/main.lock")],
+        reflog: b"commit: the held edit".as_slice(),
+    })
+    .expect("the held record");
 }
 
 impl Setup {
@@ -329,7 +412,7 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
     let ((single_code, _, single_err), _) = run(&world.request());
     assert_eq!(single_code, 1);
     assert!(single_err.contains("every worktree") && single_err.contains("systemctl --user stop cli-git.socket cli-git.service") && !single_err.contains(own_units.as_str()), "{single_err}");
-    run_process(&world, &[String::from("/p/cli-git-native"), String::from("--journal"), String::from("/nowhere/at/all")]);
+    run_process(&world, &[String::from("/p/cli-git-native"), String::from("--journal"), String::from("not/yet/there")]);
     let ((unsure_code, _, unsure_err), _) = run(&world.request());
     assert_eq!(unsure_code, 1);
     assert!(unsure_err.contains(own_units.as_str()) && unsure_err.contains("cli-git.socket cli-git.service"), "both sets of units, because the cause is not known: {unsure_err}");
@@ -360,9 +443,10 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
 ///  `--password`,
 /// a URL's credentials);
 /// the message says that they are not shown.
-/// Which programs hold the command back is
-///  not changed:
-/// a folder that exists holds nothing back.
+/// A folder the check cannot look up at all holds the command back;
+/// a word that is absolute and names a
+///  folder that is not there holds nothing back,
+/// because such a folder holds no batch of this worktree.
 #[test]
 fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_shows_no_other_argument() {
     let world: Setup = setup("settle-command-names-the-program");
@@ -370,7 +454,7 @@ fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_sho
     let words: Vec<String> = [
         "/usr/bin/unrelated-tool",
         "--journal",
-        "/gone/for/good",
+        "gone/for/good",
         "--remote",
         "https://user:s3cret@example.invalid/x",
         "--token",
@@ -385,7 +469,7 @@ fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_sho
     let ((code, stdout, stderr), before) = run(&world.request());
     assert_eq!((code, stdout.as_str(), before.as_str()), (1, "", ""));
     assert!(stderr.contains(crate::earlier_service_process_look::Hold::HelperUnsure.words()), "the reason's words stay: {stderr}");
-    for wanted in ["process 77", "`/usr/bin/unrelated-tool`", "`/gone/for/good`", "No such file or directory", "cannot be ruled out", "wait for process 77", "stop it", "again", COMMAND, "Nothing was changed", "other arguments are not shown"] {
+    for wanted in ["process 77", "`/usr/bin/unrelated-tool`", "`gone/for/good`", "No such file or directory", "cannot be ruled out", "wait for process 77", "stop it", "again", COMMAND, "Nothing was changed", "other arguments are not shown"] {
         assert!(stderr.contains(wanted), "{wanted}: {stderr}");
     }
     for secret in ["s3cret", "s3cret-token", "hunter2", "--token", "--password", "--remote", "example.invalid"] {
@@ -406,6 +490,11 @@ fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_sho
     let ((resolved_code, _, resolved_err), _) = run(&world.request());
     assert_eq!(resolved_code, 1, "the command goes on and Git gives no answer for the fixture's batch, which it names: {resolved_err}");
     assert!(!resolved_err.contains("process 77"), "{resolved_err}");
+    // A word that is absolute and names a folder that is not there names no folder that holds a batch of this worktree.
+    run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), world.root.join("gone/for/good").display().to_string()]);
+    let ((absent_code, _, absent_err), _) = run(&world.request());
+    assert_eq!(absent_code, 1, "the command goes on and Git gives no answer for the fixture's batch, which it names: {absent_err}");
+    assert!(absent_err.contains("Some batches were not settled") && !absent_err.contains("process 77") && !absent_err.contains("Nothing was changed"), "a folder that is not there holds nothing back: {absent_err}");
     assert_eq!(world.open_files(), 1);
     remove(world.root.as_path());
 }
@@ -418,7 +507,7 @@ fn the_held_message_agrees_in_number_with_the_count_of_open_batches() {
     for (count, wanted) in [(1_u64, "1 batch the earlier release's commit service left open for this worktree was not settled"), (2, "2 batches the earlier release's commit service left open for this worktree were not settled"), (3, "3 batches the earlier release's commit service left open for this worktree were not settled")] {
         let world: Setup = setup(format!("settle-command-number-{count}").as_str());
         world.leave_open_batches(count);
-        run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("/gone/for/good")]);
+        run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("gone/for/good")]);
         let ((code, _, stderr), _) = run(&world.request());
         assert_eq!(code, 1);
         assert!(stderr.starts_with(wanted), "{wanted}: {stderr}");
@@ -513,5 +602,38 @@ fn the_doctor_note_counts_the_batches_names_the_command_and_is_empty_otherwise()
     assert_eq!(earlier_batches_note(&Selection::Unresolved(String::from("x")), Some(world.state.as_path())), "");
     assert_eq!(earlier_batches_note(&Selection::Found(world.git_dir.clone()), None), "");
     assert_eq!(world.open_files(), 2);
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A held batch the command settles completely is named in its output,
+///  with the journal it was found in,
+///  and the command exits 0.
+/// Why:
+///  The command's whole answer is one line per batch of the recovery's report,
+///  so a batch missing from the report is printed nowhere:
+///  here the person would read the safety condition,
+///  then nothing at all,
+///  and exit 0 after their held commit was moved onto the branch and the index was updated.
+///  A retry cannot supply the missing line,
+///  because no batch stays open
+///  (a Kimi K3.1 Pro review of the jam-fix integration,
+/// its finding that a fully settled held batch is omitted from the recovery report).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [[code, stdout]] = run(request); expect([code, stdout]).toEqual([0, `finished batch 1 in ${journal}\n`]);
+/// ```
+#[test]
+fn a_held_batch_the_command_finishes_is_named_in_its_output() {
+    let (world, repo) = setup_with_repository("settle-command-held-finished");
+    let journal: PathBuf = world.state.join(DATA_FOLDER.earlier).join("service").join(world.instance());
+    std::fs::create_dir_all(journal.as_path()).expect("the earlier journal");
+    let held: crate::held_commit_record::Held = held_batch_in(journal.as_path(), repo.as_path());
+    let ((code, stdout, stderr), _before) = run(&world.request());
+    assert_eq!(stdout, format!("finished batch 1 in {}\n", journal.display()), "the batch the command finished is named");
+    assert_eq!((code, stderr.as_str()), (0, ""), "nothing was left undone");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]).trim(), held.new, "the held commit is on the branch");
+    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1"]), "", "the index caught up with the landing");
     remove(world.root.as_path());
 }

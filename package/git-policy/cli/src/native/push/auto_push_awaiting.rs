@@ -154,6 +154,7 @@ pub async fn push_once_awaiting(
     branch_ref: &str,
     landed_oid: &str,
     blocked: &[BlockedVerdict],
+    undecided: &[String],
     err: &mut (dyn Write + Send),
 ) -> Result<AutoPushResult, SingleFlightError> {
     let planned: Planned = plan_named_push_awaiting(git, branch_ref, err).await?;
@@ -161,8 +162,9 @@ pub async fn push_once_awaiting(
         Planned::Skip(result) => return Ok(result),
         Planned::Push { branch_ref: planned_ref, upstream, sent, set_upstream } => (planned_ref, upstream, sent, set_upstream),
     };
-    // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it.
-    let stop: WhereThePushStops = where_the_push_stops_awaiting(git, pushed_ref.as_str(), upstream.as_deref(), blocked).await;
+    // A post-commit verdict on the branch's way out decides whether this push may send the branch's tip or only the base below it,
+    //  and so does a commit whose own checks still run.
+    let stop: WhereThePushStops = where_the_push_stops_awaiting(git, pushed_ref.as_str(), upstream.as_deref(), blocked, undecided).await;
     let Some(source) = source_of(&stop, &sent, pushed_ref.as_str()) else {
         return Ok(held_back_result(pushed_ref.as_str(), &stop, err));
     };

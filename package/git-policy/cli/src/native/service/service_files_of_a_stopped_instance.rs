@@ -13,15 +13,23 @@
 //! its socket file and the records of its batches are leftovers nothing reads,
 //! and one state directory per removed worktree stayed for ever.
 //! The note and the socket file always go,
-//! because a file that stayed would count the instance again and the next sweep stop it again.
-//! The journal goes only when every entry in it is the record of a batch that landed:
-//! a commit that has not landed,
+//! because a file that stayed would count the instance again and the next sweep stop it again;
+//! they stay only beside a journal that is kept for the clients that may still read it,
+//! which a later sweep removes together with them.
+//! The journal goes only when every entry in it is the record of a batch that landed
+//! and no client of that batch can still read the record:
+//! a client whose answer was lost looks for the commit its request became in the record of its batch
+//! (`service_commit_looking_for_what_landed.rs`),
+//! so a record written within `A_FINISHED_RECORD_IS_READ` keeps the journal for the clients that can still read it.
+//! A commit that has not landed,
 //! a batch whose objects a scratch reference may hold,
 //! a record that was written and not published,
 //! a landing or withdrawal record,
 //! and any name this release does not explain keep the whole journal,
 //! which is then named to the person,
 //! because work they may still want is never discarded.
+//! A service that may still write keeps the journal and the files that name the instance,
+//! so a later sweep finishes then.
 //! Nothing here starts a unit,
 //! and nothing here asks a manager.
 //!
@@ -29,20 +37,22 @@
 //! ```ts
 //! recordWorktree(runtimeDir, instance, gitDir); // the note
 //! forgetStoppedInstance(runtimeDir, instance); // note and socket file
-//! removeJournalOfAStoppedInstance(stateDir, instance); // { journal, entry, reason } when it is kept
+//! removeJournalOfAStoppedInstance(stateDir, instance, serviceIsGone); // 'removed', or what kept it
 //! ```
 
 use crate::diagnostic_log::warn;
 use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::private_storage::create_private_directory_all;
-use crate::service_instance::socket_path;
+use crate::service_instance::{service_unit_instance, socket_path};
 use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
 use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::service_provision_host_and_manager::runtime_unit_dir;
 use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
+use crate::wait_ceilings::A_FINISHED_RECORD_IS_READ;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "serviceFilesOfAnInstance";
@@ -146,8 +156,59 @@ fn are_digits(text: &str) -> bool {
     return true;
 }
 
+/// What:
+///  What became of the journal of an instance whose units were stopped.
+/// Why:
+///   Two of the three answers ask different things of the caller:
+/// a journal that holds unresolved work is work a person may still want and is named to them with the file that holds it,
+/// while a journal that stays only because a client may still read it asks nothing of them,
+/// and the caller keeps the note and the socket file so a later sweep finishes the removal.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum JournalAfterStop {
+    /// Nothing of the journal is left.
+    Removed,
+    /// The journal holds something a person may still want,
+    /// and the caller names it to them.
+    HoldsWork(KeptJournal),
+    /// The journal stays because a client of its instance may still read it,
+    /// or because the service that writes it may still run,
+    /// and nothing in it is the person's business yet.
+    StillRead(KeptJournal),
+}
+
+/// What a kept journal keeps the journal for.
+enum Kept {
+    /// Something a person may still want.
+    Work(String, &'static str),
+    /// A finished batch a client of the instance may still read.
+    Read(String, &'static str),
+}
+
+/// Why a finished batch's record keeps the journal:
+/// the client of its request may still look for the commit it became.
+const A_LOST_ANSWER_MAY_READ_IT: &str = "a batch that landed too recently for every client of it to be gone";
+
+/// Whether a time is within `A_FINISHED_RECORD_IS_READ` of now,
+/// where a time that cannot be read counts as recent,
+/// because no age is proven and an unproven age never discards.
+fn is_within_the_time_a_client_looks(time: std::io::Result<SystemTime>) -> bool {
+    let Ok(modified) = time else { return true };
+    return match modified.elapsed() {
+        Ok(age) => age < A_FINISHED_RECORD_IS_READ,
+        // A time after now is a clock that moved, so no age is proven either.
+        Err(_in_the_future) => true,
+    };
+}
+
+/// The time a path was last written,
+/// and why it could not be read.
+fn modified_time_of(path: &Path) -> std::io::Result<SystemTime> {
+    let metadata = std::fs::metadata(path)?;
+    return metadata.modified();
+}
+
 /// Whether a file name is the record of a batch that landed,
-/// which a stopped instance's journal may lose.
+/// which a stopped instance's journal may lose once no client of it can still look.
 fn is_finished_memory(name: &str) -> bool {
     let Some((stem, extension)) = name.rsplit_once('.') else { return false };
     if !are_digits(stem) {
@@ -219,15 +280,20 @@ fn holds_nothing(folder: &Path) -> Result<bool, String> {
 /// every other name either holds a commit a person may still want
 /// or is a name this release does not explain,
 /// and guessing about one of those would discard work.
+/// A finish record is no use either,
+/// but only once every client of it is gone:
+/// a client whose answer was lost reads it to learn which commit its request became,
+/// so a journal written within `A_FINISHED_RECORD_IS_READ` is kept for the clients that can still read it,
+/// and one that holds work a person may want is kept for them however old it is.
 /// The answer comes from one listing,
 /// so a journal that grows while it is read is kept,
 /// not half-removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// keptEntryOf(journal) // { name, reason } or undefined
+/// keptEntryOf(journal) // { name, reason, forAReader } or undefined
 /// ```
-fn kept_entry_of(journal: &Path) -> Result<Option<(String, &'static str)>, String> {
+fn kept_entry_of(journal: &Path) -> Result<Option<Kept>, String> {
     let listing = match entries_of(journal) {
         Ok(listing) => listing,
         Err(reason) => {
@@ -237,6 +303,16 @@ fn kept_entry_of(journal: &Path) -> Result<Option<(String, &'static str)>, Strin
             }
             return Err(reason);
         }
+    };
+    // The folder's own time says when a record was last published into it, which is when a batch finished:
+    // a batch that began long ago and landed now leaves a record whose own time is old.
+    let folder_name: String = match journal.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => journal.display().to_string(),
+    };
+    let mut readable: Option<Kept> = match is_within_the_time_a_client_looks(modified_time_of(journal)) {
+        true => Some(Kept::Read(folder_name, A_LOST_ANSWER_MAY_READ_IT)),
+        false => None,
     };
     for listed in listing {
         let entry = match listed {
@@ -251,50 +327,67 @@ fn kept_entry_of(journal: &Path) -> Result<Option<(String, &'static str)>, Strin
         };
         if kind.is_dir() {
             if !holds_nothing(path.as_path())? {
-                return Ok(Some((name.clone(), reason_of_a_kept_folder(name.as_str()))));
+                return Ok(Some(Kept::Work(name.clone(), reason_of_a_kept_folder(name.as_str()))));
             }
             continue;
         }
         if is_finished_memory(name.as_str()) {
+            if is_within_the_time_a_client_looks(modified_time_of(path.as_path())) {
+                readable = Some(Kept::Read(name, A_LOST_ANSWER_MAY_READ_IT));
+            }
             continue;
         }
-        return Ok(Some((name.clone(), reason_of_a_kept_file(name.as_str()))));
+        return Ok(Some(Kept::Work(name.clone(), reason_of_a_kept_file(name.as_str()))));
     }
-    return Ok(None);
+    return Ok(readable);
 }
 
 /// What:
 ///  Removes the service journal of an instance whose units were stopped,
-///  when every entry in it is the record of a batch that landed,
-///  and says which entry kept it otherwise.
+///  when every entry in it is the record of a batch that landed that no client can still read,
+///  given that the service which writes it is gone,
+///  and says what kept it otherwise.
 /// Why:
 ///   Keeping those records left one state directory per removed worktree with up to `DONE_RETAINED` files in it,
 /// and nothing swept them;
-/// the note and the socket file are removed in the same step,
+/// the note and the socket file go with the journal,
 /// so no later survey asks this instance about its worktree.
 /// A journal that holds anything else is kept whole and reported,
-/// and a state directory that is not known removes nothing.
+/// a journal a client may still read is kept quietly for it,
+/// and a service that may still write keeps the journal and the files that name it,
+/// which a later sweep tries again.
+/// A state directory that is not known removes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// removeJournalOfAStoppedInstance(stateDir, instance); // { journal, entry, reason } when it is kept
+/// removeJournalOfAStoppedInstance(stateDir, instance, serviceIsGone) // 'removed' | { journal, entry, reason } | { keptForAReader: journal }
 /// ```
-pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: &str) -> Option<KeptJournal> {
+pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: &str, service_is_gone: bool) -> Option<JournalAfterStop> {
     let state: &Path = state_dir?;
     let journal: PathBuf = journal_of(state.join(SERVICE_UNIT.current).as_path(), instance);
-    let kept: KeptJournal = match kept_entry_of(journal.as_path()) {
+    // A service that may still run writes into the journal, so nothing about it is decided here.
+    if !service_is_gone {
+        return Some(JournalAfterStop::StillRead(KeptJournal {
+            journal,
+            entry: service_unit_instance(instance),
+            reason: String::from("the service that writes it may still be running"),
+        }));
+    }
+    return Some(match kept_entry_of(journal.as_path()) {
         Ok(None) => {
             if let Err(error) = std::fs::remove_dir_all(journal.as_path())
                 && error.kind() != std::io::ErrorKind::NotFound
             {
                 warn(TAG, format!("the journal of {instance} could not be removed ({error}), so it is left at {}", journal.display()).as_str());
+                JournalAfterStop::StillRead(KeptJournal { journal, entry: String::from("something this command could not remove"), reason: String::from("it could not be removed") })
+            } else {
+                JournalAfterStop::Removed
             }
-            return None;
         }
-        Ok(Some((entry, reason))) => KeptJournal { journal, entry, reason: String::from(reason) },
-        Err(reason) => KeptJournal { journal, entry: String::from("something this command could not read"), reason },
-    };
-    return Some(kept);
+        Ok(Some(Kept::Work(entry, reason))) => JournalAfterStop::HoldsWork(KeptJournal { journal, entry, reason: String::from(reason) }),
+        Ok(Some(Kept::Read(entry, reason))) => JournalAfterStop::StillRead(KeptJournal { journal, entry, reason: String::from(reason) }),
+        Err(reason) => JournalAfterStop::HoldsWork(KeptJournal { journal, entry: String::from("something this command could not read"), reason }),
+    });
 }
 
 /// What:

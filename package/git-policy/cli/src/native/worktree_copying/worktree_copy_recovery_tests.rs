@@ -681,18 +681,18 @@ fn pending_check_leaves_a_live_journal_and_recovers_a_dead_one() {
     let root: PathBuf = fixture("recovery-pending-check");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    recover_pending_worktree_copies(common.as_path(), &mut Vec::new()).expect("nothing pending");
+    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut Vec::new()).expect("nothing pending");
     assert!(!journal_root(common.as_path()).exists(), "the check creates no journal root");
     let snapshot: StagedSnapshot =
         stage_ignored_snapshot(&git_context(), source.as_path(), new_stage_container(topic.as_path()).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
     let live: PendingJournal = create_journal(common.as_path(), topic.as_path(), &snapshot).expect("journal of this process");
     let mut notices: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(common.as_path(), &mut notices).expect("a live owner's journal is skipped");
+    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut notices).expect("a live owner's journal is skipped");
     assert!(live.path.exists(), "a live owner keeps the journal for itself");
     assert!(notices.is_empty(), "{}", String::from_utf8_lossy(notices.as_slice()));
     assert!(Path::new(live.journal.stage_container.as_path()).exists(), "its stage stays");
     let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    recover_pending_worktree_copies(common.as_path(), &mut notices).expect("a dead owner's journal is recovered");
+    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut notices).expect("a dead owner's journal is recovered");
     assert!(!dead.path.exists());
     assert!(live.path.exists(), "the live journal is still whole after the dead one went");
     remove(root.as_path());
@@ -756,7 +756,7 @@ fn the_pending_check_reaps_abandoned_stages_only_without_a_live_owner() {
         std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
     }
     let mut notices: Vec<u8> = Vec::new();
-    recover_pending_worktree_copies(common.as_path(), &mut notices).expect("reaped");
+    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut notices).expect("reaped");
     assert!(live.container().exists(), "a live copy may still be staging");
     assert!(!dead.container().exists(), "a dead owner's stage is reaped");
     assert!(stage_claims_exist(common.as_path()).expect("claims"), "the live claim stays");
@@ -1118,5 +1118,76 @@ fn a_registration_under_a_path_that_is_not_text_is_read() {
         Registration::Registered,
         "the registration is read from the pointer Git wrote"
     );
+    remove(root.as_path());
+}
+
+/// A journal is one worktree's unfinished copy,
+/// so a command in another linked worktree of the repository leaves it whole and says whose command
+/// resumes it,
+/// and the worktree's own command resumes it.
+/// Why:
+///  Resuming installs the source's ignored state, which costs minutes for a large checkout;
+/// a command in another worktree paid for it silently before this
+/// (`doc/planning/cli-git-owed-copy-off-other-commands-path.md`).
+#[cfg(unix)]
+#[test]
+fn a_command_in_another_worktree_leaves_a_killed_copys_journal_to_the_worktree_it_fills() {
+    let root: PathBuf = fixture("recovery-journal-other-worktree");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    git(source.as_path(), &["worktree", "add", "--quiet", "-b", "other", root.join("other").to_str().expect("utf8")]);
+    let other: PathBuf = std::fs::canonicalize(root.join("other")).expect("canonical other");
+    let mut said: Vec<u8> = Vec::new();
+    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(other.as_path()), &git_context(), &mut said).expect("the pass");
+    let told: String = String::from_utf8_lossy(said.as_slice()).into_owned();
+    assert!(!topic.join("cache/data").exists(), "no command in another worktree installs into a worktree it does not run in");
+    assert!(told.contains("the first command run in that worktree makes it, and this command does not wait for it"), "{told}");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays for that worktree's own command");
+    assert!(Path::new(pending.journal.stage_container.as_path()).exists(), "and so does its stage");
+    // The worktree's own command resumes it, and the journal goes with the copy it finishes.
+    let mut resumed: Vec<u8> = Vec::new();
+    recover_pending_worktree_copies(common.as_path(), RecoveryDestinations::OnlyThisWorktree(topic.as_path()), &git_context(), &mut resumed).expect("the worktree's own command resumes it");
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("resumed copy"), b"payload");
+    assert!(!pending.path.exists(), "a finished copy takes its journal with it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A journal that a kill left beside the add's own claim is resumed,
+/// and the claim and its record go with it.
+/// Why:
+///   The copy releases its claim as soon as its journal names the stage,
+/// so a kill between the two leaves a claim naming a stage the journal also names;
+/// the journal's installation fills the worktree,
+/// and nothing else ever removed that claim,
+/// so the records of an add that finished stayed in the journal root for good.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = claimStageForAddAsOwing(...); stageIgnoredSnapshot(claim.container()); createJournal(claim.container());
+/// recover(common); expect(read(topic, 'cache/data')).toEqual('payload'); expect(claimsExist(common)).toBe(false);
+/// ```
+#[test]
+fn a_journal_resumed_settles_the_claim_that_names_its_stage() {
+    let root: PathBuf = fixture("recovery-claim-with-journal");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let owed = crate::worktree_add_binding::OwedCopy { source: source.clone(), selection: crate::worktree_add_binding::OwedSelection::MainCheckout };
+    let claim = crate::worktree_copy_stage_claim::claim_stage_for_add_as_owing(
+        common.as_path(),
+        topic.as_path(),
+        &dead_copy_owner(),
+        Some(&owed),
+    )
+    .expect("the add's claim");
+    let snapshot: StagedSnapshot = stage_ignored_snapshot(&git_context(), source.as_path(), claim.container(), &[], &CopySelection::Ignored).expect("staged");
+    let _journal = create_journal_for(common.as_path(), topic.as_path(), &snapshot, &dead_copy_owner()).expect("journal");
+    // The process dies here: the claim is neither released nor dropped cleanly.
+    std::mem::forget(claim);
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "the claim a kill left stands");
+    let _report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("the ignored file arrived"), b"payload");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the claim and its record go with the journal");
     remove(root.as_path());
 }
