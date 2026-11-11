@@ -193,19 +193,17 @@ await describe({
          */
         const { exited, } = await startDetachedWriter(root);
         /**
-         Failure raised at the short deadline.
+         Failure raised at the short deadline, and nothing when the call answered.
          */
-        const failure = await removeScratchRoot({
-          root,
-          deadlineMilliseconds: 20,
-        }).then(
-          function unexpected() {
-            return undefined;
-          },
-          function caught(error: unknown) {
-            return error;
-          },
-        );
+        let failure: unknown;
+        try {
+          await removeScratchRoot({
+            root,
+            deadlineMilliseconds: 20,
+          });
+        } catch (error: unknown) {
+          failure = error;
+        }
         expect(failure).toBeInstanceOf(Error);
         expect((failure as Error).message).toContain(root);
         expect((failure as Error).message).toContain('holds cwd');
