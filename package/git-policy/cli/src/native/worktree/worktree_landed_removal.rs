@@ -54,7 +54,8 @@
 //!  so movement alone read it as the branch's own work and the merge that brought main in took the worktree
 //!  (a cross-vendor review of the landed sweep,
 //!  round 208).
-//!  A branch moved onto a commit this one made is the mirror of that, and keeps the worktree:
+//!  A branch moved onto a commit this one made is the mirror of that,
+//!  and keeps the worktree:
 //!  Git records no owner of a commit,
 //!  and a branch moved onto a commit another branch holds below its own tip is no state this rule can see at all,
 //!  so a worktree it cannot prove it may remove stays.
@@ -101,6 +102,7 @@
 use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
+use crate::worktree_branch_reflog::{branch_made_at, branch_moved_onto};
 use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
@@ -271,41 +273,6 @@ fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Lan
     return Ok(found);
 }
 
-/// The commit the branch named by `reference` was made at,
-/// read from the oldest entry of its own reflog,
-/// or nothing when this repository keeps no reflog for it.
-/// Why:
-///  Every reflog line begins with the commit the reference named before the entry and the one it names after it,
-///  and the oldest line of a branch's reflog is the entry the branch was made in:
-///  `git worktree add -b` writes it as surely as `git branch` does.
-///  The line is read as bytes because a branch name's bytes are the person's,
-///  and its two commit fields are hexadecimal whatever they hold.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// branchMadeAt(commonDir, 'refs/heads/feature') // 'dfc6c4e...' | undefined
-/// ```
-fn branch_made_at(common_dir: &Path, reference: &str) -> Option<String> {
-    let path: PathBuf = common_dir.join("logs").join(reference);
-    let text: Vec<u8> = std::fs::read(path.as_path()).ok()?;
-    let oldest: &[u8] = text.split(is_line_end).next()?;
-    let made: &[u8] = oldest.split(is_space).nth(1)?;
-    return std::str::from_utf8(made).ok().map(str::to_owned);
-}
-
-/// Whether the byte ends a line of a reflog.
-/// Why:
-///  Named apart from the split that uses it,
-///  because a closure that captures nothing is what this codebase keeps out of its calls.
-fn is_line_end(byte: &u8) -> bool {
-    return *byte == b'\n';
-}
-
-/// Whether the byte separates two fields of a reflog line.
-fn is_space(byte: &u8) -> bool {
-    return *byte == b' ';
-}
-
 /// The reference a landing names,
 /// for the set of branches that were already contained in a head.
 fn reference_of(one: Landing) -> String {
@@ -331,62 +298,6 @@ fn holds_its_own_commits(common_dir: &Path, reference: &str, tip: &str) -> bool 
     return branch_made_at(common_dir, reference) != Some(tip.to_owned());
 }
 
-/// The commit a reflog line names as the value a reference had before it existed,
-/// which is what a branch created at a commit records.
-/// Why:
-///  Measured with Git 2.56 on a fixture:
-///  `git worktree add -b task-z` writes `0000...0000 <commit> ... branch: Created from HEAD`,
-///  and no branch ever pointed anywhere before that line.
-const NO_COMMIT: &str = "0000000000000000000000000000000000000000";
-
-/// The two commits one reflog line moves between,
-/// the one it moved from and the one it moved to,
-/// or nothing when the line holds no such pair.
-/// Why:
-///  Every line begins with those two fields as hexadecimal,
-///  and the rest of it is the person's name and words,
-///  which this reads no part of.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// movedBetween(line) // [old, next] | undefined
-/// ```
-fn moved_between(line: &[u8]) -> Option<(&[u8], &[u8])> {
-    let after_old: usize = line.iter().position(is_space)?;
-    let rest: &[u8] = line.get(after_old + 1..)?;
-    let after_next: usize = rest.iter().position(is_space)?;
-    return Some((line.get(..after_old)?, rest.get(..after_next)?));
-}
-
-/// Whether a branch's own reflog records a move onto `commit` from another commit,
-/// which is a commit some branch already held when this one took it.
-/// Why:
-///  A commit a branch creates is the new value of its own reflog line,
-///  and a commit it merely moved onto is the new value of a line the same way:
-///  Git records what a reference held, never where a commit came from.
-///  The one difference it does record is a branch's first line,
-///  which names no commit as the value before it,
-///  so a branch created at a commit proves nothing about who made that commit.
-///  A repository that keeps no reflog for the branch answers nothing,
-///  and the branch stays a candidate as it was before this rule.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// branchMovedOnto(commonDir, 'refs/heads/main', 'dfc6c4e...') // true when main's own reflog moved there
-/// ```
-fn branch_moved_onto(common_dir: &Path, reference: &str, commit: &str) -> bool {
-    let path: PathBuf = common_dir.join("logs").join(reference);
-    let Ok(text) = std::fs::read(path.as_path()) else { return false };
-    let wanted: &[u8] = commit.as_bytes();
-    for line in text.split(is_line_end) {
-        let Some((old, next)) = moved_between(line) else { continue };
-        if next == wanted && old != next && old != NO_COMMIT.as_bytes() {
-            return true;
-        }
-    }
-    return false;
-}
-
 /// Whether a branch this merge did not land on moved onto `tip`,
 /// which is a commit the branch named by `reference` did not make.
 /// Why:
@@ -406,12 +317,15 @@ fn branch_moved_onto(common_dir: &Path, reference: &str, commit: &str) -> bool {
 /// anotherBranchTookTheTip(landed, commonDir, 'refs/heads/task-z', 'dfc6c4e...', 'a1b2c3d...') // true when a branch moved onto another branch's commit
 /// ```
 fn another_branch_took_the_tip(landed: &[Landing], common_dir: &Path, reference: &str, tip: &str, landed_head: &str) -> bool {
-    return landed.iter().any(|other| {
-        return other.reference != reference
-            && other.tip == tip
-            && other.tip != landed_head
-            && branch_moved_onto(common_dir, other.reference.as_str(), tip);
-    });
+    for other in landed {
+        if other.reference == reference || other.tip != tip || other.tip == landed_head {
+            continue;
+        }
+        if branch_moved_onto(common_dir, other.reference.as_str(), tip) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -657,11 +571,13 @@ enum Examined {
 ///  so a worktree someone is still using is never the one that goes.
 ///  The list of registrations the sweep read at its start answers early,
 ///  and it is not what the removal rests on:
-///  what a removal deletes besides the files Git keeps is read again here, immediately before it runs,
+///  what a removal deletes besides the files Git keeps is read again here,
+///  immediately before it runs,
 ///  because a worktree a command adds inside this one while the sweep runs,
 ///  and a push failure recorded in this one's own Git directory,
 ///  appear only after that first reading
-///  (`nested_worktree_reason`, `snapshot_one`).
+///  (`nested_worktree_reason`,
+///  `snapshot_one`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -923,7 +923,8 @@ fn orphaned_notice_texts(landed: &Landed) -> Vec<String> {
 ///  holds it,
 /// and the edited and untracked files in it stay.
 /// Why:
-///  The registrations are read once, before the candidates are examined,
+///  The registrations are read once,
+///  before the candidates are examined,
 ///  and a command that adds a worktree inside a candidate while the sweep runs is not in that list.
 ///  The check that would have kept the candidate rests on that list alone,
 ///  and the ignored directory the nested checkout sits in is never read,
@@ -977,7 +978,8 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
 ///  An unshown push failure recorded after the sweep took its removal snapshot still reaches the person from the next
 ///  command.
 /// Why:
-///  The snapshot is taken once, before any candidate is examined,
+///  The snapshot is taken once,
+///  before any candidate is examined,
 ///  and the push service records a refused push in the candidate's own Git directory at any moment.
 ///  A record written after that one copy and before the removal was in no snapshot,
 ///  and the removal deleted its only copy with the Git directory
