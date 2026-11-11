@@ -10079,3 +10079,237 @@ and each shown to fail against the shape it replaces:
 - The review file and the probe sources are scratch;
   the probe patch of the wrapper is kept as
   `${HOME}/temp/agent/full-tokio/probe.patch`.
+
+## Step T13, the guards that keep blocked work off the runtime, 2026-11-10T15:21:49-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-t13-guards` in
+  `.claude/worktrees/pi-tokio-t13-guards`,
+  from main at `6ad29d302d`.
+  Not merged into main.
+- What this run was asked for:
+  the guards the step names (no `std::thread`,
+  no `std::process::Command` outside the guarded start,
+  no `thread::sleep`,
+  as source guards),
+  and the runtime's own rule behind them,
+  a check that fails when a synchronous storage read or a blocking wait is reachable from a task the runtime polls,
+  each shown failing first,
+  and what they find on main fixed.
+- What landed:
+  `source_guard/blocking_code_off_the_runtime_tests.rs` (the scan),
+  `source_guard/blocking_code_off_the_runtime_rules_tests.rs` (the eight rules and the exceptions),
+  and `source_guard/blocking_code_off_the_runtime_fixture_tests.rs` (the controls on fixture trees).
+  The scan reads the release sources the module tree reaches from `lib.rs` and `main.rs`,
+  splits each file into its functions,
+  and applies each rule in its own place:
+  the whole file,
+  the body of a function that builds or names a `Command`,
+  or the body of an `async fn` outside the closures handed to the blocking pool.
+- The reader of a file,
+  and why it is not a line count:
+  a body is found by its braces,
+  and the crate writes `format!("{{\"schemaVersion\":{SCHEMA_VERSION}")`,
+  `b"@{"`,
+  `'\u{8}'`,
+  `'"'` and a message string that continues over a line break.
+  Counting those as code ends a body early and loses every function after it,
+  so the scan counts braces outside comments,
+  strings,
+  character literals (including the `\u{...}` escape) and raw strings,
+  and takes the newline of a continued string as a line.
+  Four files of the crate failed a first version of this reader
+  (`command/branch_delete_audit.rs`,
+  `policy/diagnostics.rs`,
+  `policy/policy_events.rs`,
+  `repo_read/repo_read_refs.rs`),
+  and a file whose braces still do not balance is an error rather than a file the scan skips.
+  Every `.rs` file of the crate (1,779) balances under the reader's rules.
+- The eight rules:
+  `thread-start` (`thread::spawn`,
+  `thread::Builder`,
+  `thread::scope`,
+  `spawn_scoped`),
+  `blocking-sleep` (`thread::sleep`,
+  `park_timeout`,
+  `thread::park`),
+  `unretried-start` (a start of a `Command` in a function that builds one),
+  `unretried-built-start` (a start chained onto `git_command(...)`),
+  `storage-read-on-a-task` (a read,
+  write,
+  rename,
+  removal or sync of a file inside a task),
+  `blocking-wait-on-a-task` (`recv_timeout`,
+  a sleeping clock,
+  a futex wait,
+  a `Condvar`,
+  or a `.wait()` that is neither awaited nor a `select!` arm),
+  `plain-tokio-fs` (which panics where no thread can start) and
+  `block-in-place` (which panics on the current-thread runtime the system's refusals select).
+- What the guards found,
+  and what was fixed:
+  the findings below are named by the guard on the tree before the fix,
+  and gone from it after.
+  A call split over two lines answers on both of them,
+  so the guard names nine lines for the three starts it names this way,
+  and two for the LFS query's one.
+  The four unretried starts (`947297a8c7`):
+  the LFS query's `git` (`lfs/lfs_interactive.rs`),
+  the person's merge editor (`merge/merge_isolation_editor.rs`),
+  the process-identity inspector (`process/process_identity.rs`) and
+  the package repair's tool (`repair/package_repair_command.rs`,
+  which now awaits `spawn_retrying_without_blocking`).
+  The walk's two storage calls inside a task (`50aa12d788`,
+  `f0eefdfc8c`):
+  the split removal walks a stage on the blocking pool now
+  (`worktree_copying/worktree_copy_journal_removal.rs`),
+  and runs the walk in turn where the system refuses a thread,
+  as the control that runs the removal with no thread to start requires.
+  The removals of the directories above the split depth stay on the caller,
+  inside a helper the scan does not follow,
+  and the code says why:
+  they are a handful of known directories that hold nothing,
+  and the sweep that kills the copy at each `rmdir`
+  (`binary/binary_fault_trace_tests.rs`,
+  `copy_flow`)
+  traces the wrapper's own thread only,
+  so moving them would have traded a covered instruction for an uncovered one.
+- The exceptions,
+  and what each one is waiting for:
+  forty-five sites are listed in `ALLOWED` by file and rule,
+  each with the reason it stays and what removes it:
+  seventeen files start a thread the move has not converted (the watchers,
+  the reapers,
+  the guarded Markdown linter,
+  the scoped runner,
+  the review's contained thread,
+  and the bounded runtime build of open choice 9);
+  nineteen pauses still sleep on a synchronous clock (the landing loop's waits,
+  the index and reference lock waits,
+  the client's connects,
+  and the one pause the plan keeps in `push/start_retry.rs` for the forwarded command);
+  seven files of the merge's carry and second pass do one metadata look,
+  read or removal of a known small file inside a task;
+  and two files start a child on macOS or Windows only,
+  which the owner's "Ignore Win and mac until I say so."
+  keeps unconverted.
+  An entry whose code is gone fails the suite,
+  so the list shrinks as the move lands.
+- What the guards do not see:
+  they read one file at a time and follow no call at all,
+  so a call into a helper is found only where that helper does the blocking work,
+  in this file or another;
+  moving blocking work into a named function therefore hides it from the scan,
+  which is why the split removal's own comment says why its shallow removals stay;
+  a command built in one function and started in another is found only where the word `Command` reaches the second
+  one,
+  which is why the builder rule (`git_command`) exists beside it;
+  a `.wait()` that a `select!` arm or an `.await` follows is read as the project's awaited child wait,
+  so a blocking `std::process::Child::wait` written that way would not be seen;
+  and the code under `#[cfg(not(unix))]` and `#[cfg(target_os = "macos")]` is read as text like everything else,
+  but nothing of it is converted.
+- Not done,
+  and whose it is:
+  the step's removals (the hand D-Bus wire format and the `dbus_reply` fuzz target,
+  the `std::thread` helpers,
+  the poll constants) wait for their last caller,
+  which is the landing loop's own conversion,
+  and the mutation campaign is paused by the owner.
+  `native:perf` was not run:
+  nothing of this run is in a forwarded command's path,
+  and the four starts it changes are a merge editor,
+  an LFS query,
+  a process inspector and a package repair,
+  none of which a forwarded `git` call or a commit runs.
+- The run's own gates are in its report:
+  the guard's tests (19 of them) and the touched suites through `native:test:host`,
+  `native:test:binary:host` filtered to the LFS,
+  merge,
+  package-repair and worktree-copy controls,
+  and `native:clippy`.
+
+## The jam-fix integration merged into step T13's branch, 2026-11-10T20:22:02-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-t13-guards` in
+  `.claude/worktrees/pi-tokio-t13-guards`,
+  merged from
+  `integrate/git-policy-cli-jam-fixes-after-alpha-9`
+  (`5686c7bb29`).
+  Not merged into main.
+- What this run was asked for:
+  the coordinator's integration branch,
+  which holds every branch that merged cleanly for the next release,
+  conflicted with this one in a single file,
+  so this run resolved it,
+  rebuilt both test targets,
+  and re-ran the gates on the merged tree before committing the merge.
+- The one conflicted hunk,
+  and what both sides meant:
+  `lfs/lfs_interactive.rs` asked the plan's Git questions with
+  `git_command(...).output_retrying()` here (`947297a8c7`,
+  which made every child start go through the retried start),
+  and with `run_bounded_query` on the integration branch (`c284b4f885`,
+  which bounded the typed push's waits).
+  The merged line is the bounded query,
+  because that query starts its child with `spawn_retrying_without_blocking`
+  (`push/bounded_query.rs`,
+  `run_bounded_git_held`),
+  which is `retry_refused_start_awaiting_within` over the same
+  `START_RETRY_BUDGET` and the same `WouldBlock`-only schedule as
+  `output_retrying` uses,
+  on the runtime's timer rather than a sleeping thread.
+  Both intents therefore survive:
+  a question that never answers is stopped and named,
+  and a start the system refuses for lack of processes is tried again instead of
+  ending the push.
+  The `RetryStart` import this branch added for that line went with the call it served,
+  and a comment beside the query says where the retried start now happens.
+- One exception went with the merge:
+  `ALLOWED` no longer lists `commit/native_commit_waiting_notice.rs` for
+  `blocking-sleep`.
+  The integration branch's `0fe2277438` ("the wait that lasts says the kernel has
+  not released its step") took that pause off the notice thread,
+  and the wait it belongs to sleeps on the runtime's timer now
+  (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`).
+  That stale entry is the only failure the merge itself caused,
+  which is the list shrinking as the move lands:
+  the T13 section above counts 45 sites,
+  19 of them pauses,
+  where this branch landed 46 and 20 before the merge.
+  Its other entries still match,
+  and the merge adds no finding the list does not cover.
+- Two older guards were red on the merged tree,
+  each for a reason that stood on one branch alone:
+  the first is this branch's own,
+  which its filtered gate run did not reach;
+  the second came in with the integration branch.
+  `source_guard/standards_review_boundary_tests.rs` reads any file naming
+  `standards_review_run` as naming a service-only module,
+  and this branch's rules file names that module as data,
+  as one of the files whose thread the move has not converted,
+  so `may_name_service_modules` allows the rules of the blocking-code scan
+  for the same reason it already allows its own fixture controls.
+  `source_guard/service_lock_inventory_tests.rs` covers every `service_` file,
+  and the integration branch's `f725a7e90a` put a control's `Mutex` in
+  `service/service_fault_hooks_test_support.rs`,
+  which is declared under `#[cfg(test)]` in `service/service_fault.rs` and ships nothing;
+  that file joins `TEST_ONLY_SOURCES`,
+  which exists for exactly that shape and says why an inventory entry would be
+  the wrong answer.
+- Nothing else was resolved for this branch:
+  the merge's word-level second pass printed no notice,
+  so every other file in the merge is Git's own line merge of the two sides.
+- What was run:
+  `native:test:host -- --no-run`,
+  `native:test:binary:host -- --no-run` and
+  `native:clippy` on the merged tree,
+  then `native:test:host` filtered to
+  `lfs_interactive`,
+  `merge_isolation_editor`,
+  `process_identity`,
+  `package_repair_command`,
+  `source_guard`,
+  `worktree_copy_journal`,
+  `start_retry` and
+  `bounded_query`.

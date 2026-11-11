@@ -865,44 +865,184 @@ fn an_explicit_path_commit_of_an_unstaged_ignored_path_names_the_way_forward() {
     remove_settled(&fixture);
 }
 
-/// An element of an explicit path selection that matches nothing is the command line's refusal,
-/// not an engine failure:
+/// The bytes of a repository's real index,
+///  so a refusal can prove the index it never wrote is what it was.
+fn index_bytes(repo: &Path) -> Vec<u8> {
+    return std::fs::read(repo.join(".git").join("index")).expect("the real index");
+}
+
+/// An option written after `--` is a pathspec to Git,
+/// so the commit is refused as the caller's input error:
 /// exit `1`,
-/// a finding that names every such element and shows where its options belong,
-/// nothing landed and nothing staged,
-/// and the same paths land once the message is written before them.
-/// Why this matters:
-///  twenty-six stopped commits of 2026-11-10 were reported as `engine-failure` / `transaction-failed` with exit 2
-///  after the private `git add` refused the words of a message written after `--`
-///  (`doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`).
+/// a finding naming the token,
+/// and the remedy that options belong before the separator (issue 6283).
 #[test]
-fn an_explicit_path_commit_of_an_element_that_matches_nothing_names_where_the_options_belong() {
-    let fixture: Fixture = fixture("commit-unmatched-element");
+fn an_option_written_after_the_separator_is_refused_as_a_pathspec_that_matches_nothing() {
+    let fixture: Fixture = fixture("commit-option-after-separator");
     let repo: PathBuf = edited_repository(&fixture, "repo");
     let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let status_before: String = porcelain(&fixture, repo.as_path());
     let staged_before: String = git_text(&fixture, repo.as_path(), &["diff", "--cached", "--name-status"]);
-    // `-m` and the message come after `--`, so Git reads them as pathspecs, exactly as native Git reads them.
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--", "a.txt", "--message=second"]);
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("\"type\":\"core-finding\""), "{text}");
+    assert!(text.contains("explicit-path-commit/pathspec-matches-nothing"), "{text}");
+    assert!(
+        text.contains("pathspec '--message=second' did not match any files"),
+        "the token the caller wrote, named as native Git names it: {text}"
+    );
+    assert!(
+        text.contains("git commit --message <text> -- <paths>"),
+        "the remedy for an option written after the separator: {text}"
+    );
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert!(!text.contains("git add --update"), "the report names no step of the wrapper: {text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
+    assert_eq!(porcelain(&fixture, repo.as_path()), status_before, "nothing was staged: {text}");
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["diff", "--cached", "--name-status"]),
+        staged_before,
+        "the staged state the caller had is the one left: {text}"
+    );
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// Every one of the twenty stopped records of 2026-11-10 wrote the message after the paths,
+/// with the path still in the selection and a word of the message as an element of its own
+/// (`doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`),
+/// so this is that shape:
+/// exit `1`,
+/// a finding naming the token Git refused,
+/// the remedy that options belong before `--`,
+/// and neither the path nor the message staged (issue 6283).
+#[test]
+fn a_message_written_after_the_paths_is_refused_as_the_pathspec_it_became() {
+    let fixture: Fixture = fixture("commit-message-after-paths");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let status_before: String = porcelain(&fixture, repo.as_path());
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
     let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--", "a.txt", "-m", "one two"]);
     let text: String = stderr_of(&refused);
     assert_eq!(refused.code, Some(1), "{text}");
     assert!(text.contains("\"type\":\"core-finding\""), "{text}");
-    assert!(text.contains("explicit-path-commit/named-path-unmatched"), "{text}");
-    assert!(text.contains("[\\\"-m\\\",\\\"one two\\\"]"), "every element that matched nothing is named: {text}");
-    assert!(text.contains("this commit was not made and nothing was staged by it"), "{text}");
-    assert!(text.contains("git commit -m <message> -- <paths>"), "the way forward names the order: {text}");
+    assert!(text.contains("explicit-path-commit/pathspec-matches-nothing"), "{text}");
+    assert!(text.contains("pathspec '-m' did not match any files"), "the token Git refused: {text}");
+    assert!(text.contains("git commit --message <text> -- <paths>"), "the remedy: {text}");
     assert!(!text.contains("engine-failure"), "{text}");
-    assert!(!text.contains("transaction-failed"), "{text}");
-    assert!(!text.contains("git log --oneline -3"), "the transaction-failure hint: {text}");
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed");
-    assert_eq!(
-        git_text(&fixture, repo.as_path(), &["diff", "--cached", "--name-status"]),
-        staged_before,
-        "the refusal staged nothing"
-    );
+    assert!(!text.contains("git add --update"), "the report names no step of the wrapper: {text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
+    assert_eq!(porcelain(&fixture, repo.as_path()), status_before, "nothing was staged: {text}");
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
     assert_nothing_left(&fixture, repo.as_path());
-    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "-m", "one two", "--", "a.txt"]);
-    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
-    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "--name-only", "--format=", "HEAD"]), "a.txt\n");
+    remove_settled(&fixture);
+}
+
+/// A plain misspelled path is the same refusal,
+/// with no advice about the separator,
+/// because nothing in it starts with a hyphen.
+#[test]
+fn a_misspelled_path_is_refused_as_a_pathspec_that_matches_nothing() {
+    let fixture: Fixture = fixture("commit-misspelled-path");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=misspelled", "--", "nope.txt"]);
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("\"type\":\"core-finding\""), "{text}");
+    assert!(text.contains("explicit-path-commit/pathspec-matches-nothing"), "{text}");
+    assert!(text.contains("pathspec 'nope.txt' did not match any files"), "{text}");
+    assert!(!text.contains("options belong before"), "nothing here starts with a hyphen: {text}");
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// A magic pathspec Git answers for itself stays Git's answer:
+/// the wrapper predicts no match of its own,
+/// so a glob selector nothing matches is the same refusal,
+/// naming the selector exactly as the caller wrote it.
+#[test]
+fn a_magic_pathspec_that_matches_nothing_is_refused_as_the_same_input_error() {
+    let fixture: Fixture = fixture("commit-magic-matches-nothing");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=magic", "--", ":(glob)nothing/*"]);
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("explicit-path-commit/pathspec-matches-nothing"), "{text}");
+    assert!(text.contains("pathspec ':(glob)nothing/*' did not match any files"), "{text}");
+    assert!(!text.contains("options belong before"), "the selector does not start with a hyphen: {text}");
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// One good path and one that matches nothing lands nothing at all:
+/// the good path is staged into the private index before the bad one is refused,
+/// so this is the control that the refusal leaves the real index alone.
+#[test]
+fn one_path_that_matches_nothing_withholds_the_whole_commit() {
+    let fixture: Fixture = fixture("commit-mixed-paths");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let status_before: String = porcelain(&fixture, repo.as_path());
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=mix", "--", "a.txt", "nope.txt"]);
+    let text: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "{text}");
+    assert!(text.contains("pathspec 'nope.txt' did not match any files"), "{text}");
+    assert!(!text.contains("engine-failure"), "{text}");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), head_before, "nothing landed: {text}");
+    assert_eq!(porcelain(&fixture, repo.as_path()), status_before, "nothing was staged: {text}");
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// Another failure of the same staging start is not a pathspec that matches nothing,
+/// so it keeps the engine-failure report and exit `2` it had before issue 6283:
+/// here Git could not read the content its pathspec matched.
+#[test]
+fn a_staging_failure_that_is_not_a_pathspec_matching_nothing_stays_an_engine_failure() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture: Fixture = fixture("commit-unreadable-match");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let directory: PathBuf = repo.join("dir");
+    std::fs::create_dir(directory.as_path()).expect("dir");
+    let unreadable: PathBuf = directory.join("x.txt");
+    std::fs::write(unreadable.as_path(), b"x\n").expect("x");
+    git(&fixture, repo.as_path(), &["add", "--", "dir/x.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=dir", "--", "dir/x.txt"]);
+    std::fs::write(unreadable.as_path(), b"x\ny\n").expect("edit x");
+    let permitted = |mode: u32| {
+        let mut permissions = std::fs::metadata(unreadable.as_path()).expect("the file").permissions();
+        permissions.set_mode(mode);
+        std::fs::set_permissions(unreadable.as_path(), permissions).expect("the file's mode");
+    };
+    permitted(0o000);
+    let index_before: Vec<u8> = index_bytes(repo.as_path());
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=perm", "--", "dir"]);
+    let text: String = stderr_of(&refused);
+    // The mode is readable again before the fixture is removed, so no cleanup depends on it.
+    permitted(0o644);
+    assert_eq!(refused.code, Some(2), "{text}");
+    assert!(text.contains("\"type\":\"engine-failure\""), "{text}");
+    assert!(text.contains("\"code\":\"transaction-failed\""), "{text}");
+    assert!(text.contains("Permission denied"), "Git's own words for the failure: {text}");
+    assert!(!text.contains("pathspec-matches-nothing"), "{text}");
+    assert_eq!(index_bytes(repo.as_path()), index_before, "the real index is byte for byte what it was: {text}");
+    assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
 }
 
@@ -1055,10 +1195,10 @@ fn a_pathspec_mode_given_as_a_global_option_selects_what_native_git_selects() {
         let arguments: [&str; 6] = ["--noglob-pathspecs", "commit", "--quiet", "--message=x", "--", "*.txt"];
         let wrapped_ran: Observed = run_commit(&fixture, wrapped.as_path(), &arguments);
         let native_ran: Observed = run_direct(&fixture, native.as_path(), &arguments);
-        // The refusal is an engine failure of the private staging, exit status 2 after the finding sentence; native Git
-        // refuses the same pathspec with exit status 1 (`README.md` "Output and exit status").
-        assert_ne!(wrapped_ran.code, Some(0), "noglob-none: the wrapper refuses the pathspec");
-        assert_ne!(native_ran.code, Some(0), "the control: native Git refuses a literal pathspec that matches nothing");
+        // The refusal is the caller's input, exit status 1 like native Git's own refusal of the same pathspec, and the
+        // finding names the token it wrote (`README.md` "Output and exit status", issue 6283).
+        assert_eq!(wrapped_ran.code, Some(1), "noglob-none: {}", stderr_of(&wrapped_ran));
+        assert_eq!(native_ran.code, Some(1), "the control: native Git refuses a literal pathspec that matches nothing");
         assert!(stderr_of(&wrapped_ran).contains("pathspec '*.txt' did not match any files"), "noglob-none: {}", stderr_of(&wrapped_ran));
         assert_eq!(head_paths(&fixture, wrapped.as_path()), head_paths(&fixture, native.as_path()), "noglob-none: nothing lands");
         assert_eq!(porcelain(&fixture, wrapped.as_path()), porcelain(&fixture, native.as_path()), "noglob-none");

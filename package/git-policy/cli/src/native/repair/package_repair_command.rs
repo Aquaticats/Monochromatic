@@ -41,6 +41,8 @@ use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
 use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
 /// The clock that reads the signs of work of a process tree.
 use crate::push_progress::Clock;
+/// The start that rides out a refused start of a child.
+use crate::start_retry::spawn_retrying_without_blocking;
 /// The longest quiet gap of each tool,
 /// kept for the timing records.
 use crate::output_capture::Capture;
@@ -383,7 +385,7 @@ pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &
     for (name, value) in &command.set {
         starting.env(name, value);
     }
-    let mut child: OwnedChild = match starting.spawn() {
+    let mut child: OwnedChild = match spawn_retrying_without_blocking(&mut starting).await {
         Ok(running) => adopt(running),
         Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
     };

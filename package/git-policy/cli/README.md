@@ -260,10 +260,13 @@ Read-only commands,
    and lets Git's own fast-forward update move the checkout to it.
   Every staged entry,
   unstaged edit and untracked file that the merge does not change stays byte for byte as it was.
-  A merge that changes a path someone else has staged or modified,
-  or that conflicts,
-   is refused with the paths named and the ways forward,
-  and changes nothing.
+  A merge that changes a path someone else has staged or modified is completed,
+  and that work is carried across it (see "Carrying the person's own work").
+  A merge that conflicts over that work is refused,
+  with the conflicting paths named and the ways forward,
+  only when no resolution settles every one of them;
+  over a clean checkout a conflict is native Git's,
+  which stops and leaves its markers in the worktree.
   Shapes the wrapper cannot make exact (`--squash`,
   `--no-commit`,
   `-s`,
@@ -845,9 +848,12 @@ Read-only commands,
   What the command no longer does itself is delete the files:
      it renames the worktree's subvolume to `cli-git-deleting-<subvolume id>`
    beside the path you typed,
-     writes a record of it, tells the worktree's commit service, and returns;
+     writes a record of it,
+     tells the worktree's commit service,
+     and returns;
      that service deletes the
-   subvolume in its own time, normally within a second,
+   subvolume in its own time,
+   normally within a second,
      so a busy volume's btrfs transaction or cleaner does not hold your
    command.
      The path you named is gone the moment the command returns;
@@ -859,8 +865,10 @@ Read-only commands,
      which is every
    commit and every add,
      and the service says in `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
-   (a mount without `user_subvol_rm_allowed`, for one).
-     Nothing of yours is in it: a worktree is only removed
+   (a mount without `user_subvol_rm_allowed`,
+   for one).
+     Nothing of yours is in it:
+   a worktree is only removed
    after the wrapper proved it clean and unlocked.
   If the files are destroyed but the registration cannot be removed,
      the command fails with status 2 and a report that
@@ -2382,31 +2390,41 @@ when the index differs from `HEAD`,
 The wrapper completes that merge instead,
 when all of these hold:
 
-- the command is `git merge` with one commit-ish and only the options `-m`,
+- the command is `git merge` with one commit-ish and only the options the wrapper reads exactly,
+  each in the full spelling Git documents or its short one,
+  never an abbreviation:
+  `-m`/`--message` (a value after it,
+  or attached to it),
   `--no-edit`,
   `--ff`,
   `--no-ff`,
-   `-q`,
-  `-v`,
-  `--stat`,
-  `--summary` (Git's synonym for it),
-  `--no-stat`,
-  `--no-summary`,
-  `-n`,
+  `-q`/`--quiet`,
+  `-S`/`--gpg-sign` (with or without a key),
+  `--no-gpg-sign`,
+  `--stat`/`--summary` (Git's synonym for it),
+  `--no-stat`/`--no-summary`/`-n`,
   `--log`,
   `--no-log`,
-  `-S`,
-  `--gpg-sign`,
-  `--no-gpg-sign`,
-   `--no-verify`,
-  `--allow-unrelated-histories` and `--no-progress` (full spellings only);
+  `--allow-unrelated-histories`,
+  and the output-only options that leave the merge commit exactly as it would be without them,
+  which the isolated merge therefore does not carry:
+   `-v`/`--verbose`,
+  `--no-verbose`,
+  `--progress`,
+  `--no-progress`,
+  `--verify`,
+  `--no-verify`,
+  `--no-signoff`,
+  `--no-autostash` and `--no-verify-signatures`
+  (`is_ignorable` in `src/native/merge/merge_options.rs`;
+  `--log` or `--no-log` together with `-m` is native Git's);
 - `HEAD` is not already ahead of or equal to the merged commit
    (native Git fast-forwards and answers "Already up to date" by itself);
 - no merge,
   rebase,
   cherry-pick or revert is in progress,
-  and the settings `merge.autostash`,
-   `merge.verifySignatures` and `branch.<name>.mergeOptions` are unset;
+  neither `merge.autostash` nor `merge.verifySignatures` is true,
+  and no `branch.<name>.mergeOptions` is set;
 - the merge would not open an editor,
   unless the checkout holds the person's own work in the paths the merge changes:
   that merge is completed with the editor (see "The editor a carried merge opens").
@@ -2427,7 +2445,10 @@ That is Git's two-way update:
 The merge commit skips `pre-merge-commit`,
 `prepare-commit-msg` and `commit-msg`,
  like the merge the auto-push makes from objects;
- `post-merge` runs once.
+no hook runs around it at all,
+`post-merge` included,
+for the reason "Hooks" gives:
+every Git the wrapper starts runs with `core.hooksPath` at a directory that cannot exist.
 The branch reflog reads `merge <branch>: Fast-forward`.
 
 A merge that lands a branch also removes the worktrees that hold it.
@@ -2572,7 +2593,9 @@ A `git pull` that merges is completed the same way when the command line or the 
 or `--ff` or `--no-ff`) and every option
  and operand is one the wrapper reads exactly:
  the wrapper runs the pull's fetch,
- then the merge of `FETCH_HEAD` as a typed `git merge --no-edit FETCH_HEAD` would run.
+ then the merge of `FETCH_HEAD` through the path of a typed `git merge`
+ that carries the pull's own merge options,
+ so the editor opens on a terminal exactly where `git pull` opens it.
 When the pull the wrapper completes cannot move the working tree along,
 the report keeps Git's own words
 (`fatal: Cannot fast-forward your working tree.` and the `git reset --hard` it names)
@@ -2603,9 +2626,13 @@ or a lock nothing proves held):
  until `MERGE_LOCK_CEILING` (1 minute),
 whether its owner is proven alive or not
  (the line for an unproven owner says what is known and how to remove the lock if no program uses the repository);
- at the bound it names the holder and the merge is saved on a side ref,
-exits 0,
-and changes nothing in the checkout (see "A merge saved for a later command").
+ at the bound it names the holder and stops waiting:
+ a merge the wrapper completes is saved on `refs/cli-git/kept/<n>`,
+ exits 0 and changes nothing in the checkout
+ (see "A merge saved for a later command"),
+ and a merge native Git runs ends with Git's refusal,
+non-zero,
+with nothing changed.
 The notice names the merge,
 says it has changed nothing yet,
 names the lock and the holder with its proof
@@ -2686,6 +2713,10 @@ Each with its cause:
 - A merge whose commit cannot be kept on a side ref while the lock stays held:
   the command is refused with status 2,
   changes nothing and leaves the lock.
+  That is the outcome of a merge native Git runs,
+  which fails on the held lock;
+  a merge the wrapper completes is saved on a side ref and exits 0 instead,
+  as "A merge saved for a later command" says.
 - A branch that moved in twenty rounds in a row:
   the merge stops and changes nothing;
   run it again.
@@ -3013,22 +3044,22 @@ none is waited out or retried on the moved head yet:
   The decision comes from the paths the command names,
    before any private `git add` runs,
    so it no longer depends on the wording of a Git message (issue 6278).
-- A selected element that matches no file of the worktree and no entry of the commit's index.
-  Every element after `--` is a path,
-   so a message written after the paths is read as paths,
-   and the private `git add --update` refuses the whole selection.
+- A pathspec the command names that matches no path Git can stage.
+  Native Git keeps deciding which pathspecs are valid,
+   so the wrapper reports Git's own refusal instead of predicting a match:
+   a directory,
+   a pattern,
+   a magic selector and a literal name behave exactly as before.
   The commit is not made,
    nothing is staged by it,
-   and the finding `explicit-path-commit/named-path-unmatched`
-   names every element that matched nothing,
-   says that every element after `--` is a path and never an option,
-   and shows where the message belongs:
-   `git commit -m <message> -- <paths>` (`SPEC.md`,
-  "Core finding event").
-  Which elements matched nothing is Git's own answer over the private index,
-   asked only after the staging refused,
-   so a commit that stages its selection starts no Git for it
-   (`doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`).
+   the finding `explicit-path-commit/pathspec-matches-nothing` names every refused token as Git named it,
+   and a token that begins with a hyphen also says that options belong before `--`
+   (`git commit --message <text> -- <paths>`).
+  Every other failure of that staging start keeps its engine-failure report (`SPEC.md`,
+  "Core finding event";
+  issue 6283).
+  What the twenty stopped commits of 2026-11-10 recorded before this refusal stands in their
+  place is measured in `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`.
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
@@ -3042,7 +3073,10 @@ none is waited out or retried on the moved head yet:
   2026-11-03:
   "Warn and finish the merge (Recommended)");
   Git's "Committing is not possible because you have unmerged files" no longer ends it.
-  `git commit -a` over unmerged files commits their markers and warns for each file in the same words.
+  `git commit -a` over unmerged files commits their markers and warns for each file in the same words,
+  when the repository's commit-only policy is off:
+  with it on,
+  `-a` is refused before anything is committed (`commit-only/all-flag`).
 
 ### Output and exit status
 
