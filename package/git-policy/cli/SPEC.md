@@ -1295,6 +1295,75 @@ so the skip comes before any question about the reservation the destination answ
 no line says the worktree received no copy,
 and no record describes it as unfilled.
 
+The snapshot an add takes is usually one this repository's commit service made ahead of it
+(`src/native/worktree/worktree_snapshot_ahead.rs`):
+`BTRFS_IOC_SNAP_CREATE_V2` forces a btrfs transaction commit of the whole filesystem on the thread that calls it and
+waits for the source's writeback first,
+which took 5,413.0 ms at the median over the 402 adds of this repository's own timing log that recorded the step,
+so the call is the service's work and never the person's
+(`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+"Step 2" and "Step 3").
+The copies wait in `<git-dir>/monochromatic-git-policy-cli/ahead`,
+beside the work queue of the same repository,
+under names beginning `.cli-git-worktree-ahead-`
+that hold the first sixteen hexadecimal digits of the digest of the source root,
+the millisecond they were made in and a random identity:
+a name inside the Git directory is never untracked in any worktree of the repository,
+so no copy a person did not ask for appears in their tree,
+and the key keeps an add from claiming a copy of another worktree's root.
+A repository keeps three (`AHEAD_KEPT`).
+An add claims the newest one whose files still equal its source's index,
+by one rename from the pool folder to the stage name,
+and the walk of that claim is the walk the index step would make anyway:
+the fields it answers with are the fields the new index records,
+so a copy proven before it was claimed is never walked twice.
+A copy that fails the walk fell behind the index,
+which is what a commit or a checkout in the source does to it,
+and it is refused rather than installed:
+an index installed over files from an earlier instant would record stat data for bytes they do not hold,
+which Git would then report as clean.
+Such a name is handed to the service as a `subvolume-delete` work item and the next candidate is tried.
+An add removes the copies past the third and any older than ten minutes (`AHEAD_OLDEST`) the same way,
+so a repository whose adds stop does not pin the source's blocks.
+A source with uncommitted changes is never served this way:
+its snapshot carries its own index,
+which is one instant with its files,
+so that snapshot has to be taken on the add's own path.
+An add that claims nothing asks the service for one (`snapshot-ahead`) and waits for it,
+looking in the pool folder every 25 ms and saying on standard error once,
+after the standing notice's wait,
+what it waits for and until when.
+`SNAPSHOT_AHEAD_CEILING` ends that wait at 60 s,
+the owner's bound for an add,
+and the rung then ends:
+the stage is not taken,
+Git's own checkout makes the worktree,
+and the line that says why names the ceiling.
+Where no commit service can be started the add takes its own snapshot instead,
+which is the route every add had before the pool,
+and the timing record's `snapshotAhead` note says `no-service`.
+The ignored files the new worktree carries are the source's as of the moment the service made the copy,
+which is what a snapshot has always meant,
+and the source keeps every file written after it.
+The service's own step is one work item of kind `snapshot-ahead`
+(`src/native/worktree/worktree_snapshot_ahead_job.rs`):
+its `repository` is the worktree root to copy,
+its `git_dir` is that worktree's own Git directory,
+and its `parent` is the pool folder the add named.
+The handler refuses a record whose source is not the worktree its Git directory names (the main checkout's `.git` or
+the `gitdir` a linked worktree's own Git directory records),
+one whose folder is not the repository's own pool folder,
+and one whose source is not a btrfs subvolume,
+with the reason and without a retry,
+because nothing of those can pass by being tried again;
+it makes the folder when it is not there,
+makes no copy while the folder already holds three,
+and answers `done` for one copy it made.
+The drain runs this kind after a push and before the upkeep and every kind that frees space,
+awaited on a thread of the process's blocking pool,
+because it is the one item there that a person's command is waiting for and its ioctl waits for a commit of the whole
+filesystem.
+
 Leaving out of a snapshot:
 before the stage is made private and its stubs removed,
 the wrapper prunes a snapshot with the rule of `src/native/worktree_copying/worktree_copy_prune.rs`.
@@ -13305,6 +13374,8 @@ named
 `recordBinding`,
 `prepareTarget`,
 `takeSnapshot` with
+`snapshotAhead` (its part `snapshotAheadProof`),
+`snapshotAheadWait` and
 `snapshotIoctl`,
 `readOwnIndex`,
 `prune`,
@@ -13336,7 +13407,14 @@ threads overlap,
 so `work` is not part of the sum rule,
 and a name whose sum exceeds the step that waited for it
 is work that ran side by side.
-`notes` names the rung taken (`route`) and the cause when the add was not a snapshot (`slowRoute`).
+`notes` names the rung taken (`route`),
+the cause when the add was not a snapshot (`slowRoute`),
+and how the snapshot was found (`snapshotAhead`:
+`claimed`,
+`waited`,
+`timed-out`,
+`not-for-a-source-with-changes` or
+`no-service`).
 
 The completion marker (`markCompleteFile`) is written by rename without a flush to disk,
 by the owner's decision of

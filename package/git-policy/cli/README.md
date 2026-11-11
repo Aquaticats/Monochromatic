@@ -672,6 +672,40 @@ Read-only commands,
      a submodule
      and a changed `.gitattributes` file still send the add the slow way,
      and so does a dirty linked worktree.
+     When the source is clean and this repository's commit service runs,
+     that snapshot is the one the service made ahead
+     (`worktree_snapshot_ahead.rs`):
+     the wrapper keeps up to three copies of a worktree in
+     `<git-dir>/monochromatic-git-policy-cli/ahead`,
+     one add asks for the next one when it takes one,
+     and an add
+     takes the newest whose files still equal the source's index,
+     which is one rename rather than the btrfs call that
+     forces a transaction commit of the whole filesystem
+     (5,413.0 ms at the median on this volume).
+     A copy that fell behind
+     the index is refused and handed to the service for deletion,
+     and nothing of the source it copied is lost by
+     that:
+     it is a copy,
+     and the source was never written.
+     A source with uncommitted changes is never served this way,
+     because its
+     snapshot carries its own index,
+     which is one instant with its files,
+     so that snapshot has to be taken on the add's own path.
+     When
+     no copy comes within 60 s (`SNAPSHOT_AHEAD_CEILING`,
+     the time the owner allows an add),
+     the rung ends and Git's own
+     checkout makes the worktree,
+     and one line says so.
+     The ignored files the new worktree carries are the source's as of when the service made the
+     copy,
+     which is what "the moment of the add" means for a worktree served this way:
+     a file you write into an
+     ignored directory between the copy and the add is not in the new worktree,
+     and the source keeps it.
   2. Clones (`FICLONE`) of every tracked file of a clean worktree,
      with its index,
      on btrfs,
@@ -1034,6 +1068,35 @@ A worktree whose exclusive figure is small and whose total is large is one of ma
  removing it alone frees little,
  and removing all of them frees the generations they pinned.
 That is why the wrapper now removes them when their branches land.
+
+**The copies a repository keeps ahead of an add.**
+A repository whose commit service runs keeps up to three snapshots of a worktree waiting in
+ `<git-dir>/monochromatic-git-policy-cli/ahead`,
+ so that an add takes one instead of forcing a btrfs commit of the whole
+ filesystem on the person's thread.
+The names begin with `.cli-git-worktree-ahead-` and no Git command ever lists them,
+ because they are inside
+ the Git directory.
+An add removes what no add claimed for ten minutes,
+ and one nothing claimed yet is removed by the commit service as
+ the next add asks for a copy.
+To see them:
+
+```sh
+# the copies a commit service made ahead for this repository's adds
+ls --almost-all .git/monochromatic-git-policy-cli/ahead
+
+# what one of them holds, and what only it holds
+btrfs filesystem du --summarize .git/monochromatic-git-policy-cli/ahead/<name>
+```
+
+A copy that waits here pins the source's rewritten blocks the way a worktree's own snapshot does,
+ which is why it is
+ removed after ten minutes and why a repository keeps three at most.
+Removing one by hand is safe:
+ it is a copy,
+ and
+ `btrfs subvolume delete` on it takes nothing of the source away.
 
 ## Other processes changing files
 

@@ -46,6 +46,7 @@ struct Recorder {
     reviews: RefCell<Vec<String>>,
     trashes: RefCell<Vec<String>>,
     deletions: RefCell<Vec<String>>,
+    aheads: RefCell<Vec<String>>,
 }
 
 impl Recorder {
@@ -57,6 +58,7 @@ impl Recorder {
             reviews: RefCell::new(Vec::new()),
             trashes: RefCell::new(Vec::new()),
             deletions: RefCell::new(Vec::new()),
+            aheads: RefCell::new(Vec::new()),
         };
     }
 }
@@ -86,6 +88,13 @@ impl WorkHandlers for Recorder {
     /// so the record is that path rather than a commit id.
     fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
         self.deletions.borrow_mut().push(item.parent.clone());
+        return self.verdict.clone();
+    }
+
+    /// A snapshot ahead names the worktree root to copy,
+    /// so the record is that root rather than a commit id.
+    fn snapshot_ahead(&self, item: &WorkItem) -> Verdict {
+        self.aheads.borrow_mut().push(item.repository.display().to_string());
         return self.verdict.clone();
     }
 }
@@ -1407,6 +1416,44 @@ fn the_awaited_drain_deletes_a_removed_worktrees_subvolume() {
     assert!(
         !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
         "a drain that deletes a subvolume plans no retry: {:?}",
+        drained.changes
+    );
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The snapshot ahead a round claims runs the handler of its kind and is settled by its answer.
+/// Why:
+///   It is the one kind of work a person's own add waits for,
+/// so a round that forgets the step leaves the add waiting for a copy nothing makes
+///  and the claim taken,
+/// which no other control would see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drainPlannedWithAwaiting(dir, handlers, now, lease, TIMED, retrying); expect(asked).toEqual([worktree]); expect(names(DONE)).toEqual([id])
+/// ```
+#[test]
+fn the_awaited_drain_makes_a_snapshot_ahead() {
+    let repo: Repo = repo("work-awaited-snapshot-ahead");
+    let wanted: WorkItem = item(&repo, WorkKind::SnapshotAhead, OID, BRANCH);
+    enqueue_all(&repo, std::slice::from_ref(&wanted));
+    let recorder: Recorder = Recorder::answering(Verdict::Done);
+    let drained: Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+        repo.common.as_path(),
+        &recorder,
+        &ClaimTime::read(),
+        crate::service_work::CLAIM_LEASE,
+        Renewal::Timed,
+        &Retrying::none(),
+    ));
+    assert_eq!(recorder.aheads.borrow().as_slice(), [repo.worktree.display().to_string()], "the step asks its handler for the worktree the record names");
+    assert_eq!(names(&repo, DONE), vec![wanted.id()], "the snapshot ahead is settled as done");
+    assert_eq!(names(&repo, FAILED), Vec::<String>::new(), "no snapshot ahead is failed");
+    assert_eq!(claimed_ids(&repo), Vec::<String>::new(), "no snapshot ahead is left claimed");
+    assert!(
+        !drained.changes.iter().any(|change| { return matches!(change, crate::push_retry::RetryChange::Plan { .. }); }),
+        "a drain that makes a snapshot ahead plans no retry: {:?}",
         drained.changes
     );
     remove(repo.root.as_path());

@@ -117,16 +117,21 @@ fn nested_under(source_root: &Path, roots: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 /// What:
-///  Whether a path component begins the name of a private stage container.
+///  Whether a path component begins the name of a private stage container or of a snapshot the wrapper made ahead.
 /// Why:
-///   A path that goes through one is part of another copy's stage and is never staged.
+///   A path that goes through one is part of another copy's stage,
+/// or a whole copy of the source that no worktree owns yet,
+/// and is
+///  never staged:
+/// a snapshot ahead that the ignored state of one new worktree carried would be a second copy of the
+///  source inside a worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// component.startsWith(STAGE_PREFIX)
+/// component.startsWith(STAGE_PREFIX) || component.startsWith(AHEAD_PREFIX)
 /// ```
 fn starts_private_stage(component: &[u8]) -> bool {
-    return component.starts_with(STAGE_PREFIX.as_bytes());
+    return component.starts_with(STAGE_PREFIX.as_bytes()) || component.starts_with(crate::worktree_snapshot_ahead::AHEAD_PREFIX.as_bytes());
 }
 
 /// What:

@@ -373,6 +373,10 @@ pub mod service_work_settling_a_verdict;
 /// with the line the person reads for it.
 pub mod service_work_settling_with_words;
 
+/// The drain of the snapshots the commit service makes ahead of the next add,
+/// as one step of a round.
+pub mod service_work_drains_a_snapshot_ahead;
+
 /// The storage steps of one drain of work,
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;

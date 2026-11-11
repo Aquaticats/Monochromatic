@@ -31,7 +31,7 @@ use crate::work_item::{Claimed, WORK_DIRECTORY, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 /// The kinds of work the service runs itself.
-pub const SERVICE_KINDS: [WorkKind; 7] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete];
+pub const SERVICE_KINDS: [WorkKind; 8] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review, WorkKind::Trash, WorkKind::Prewarm, WorkKind::Relink, WorkKind::SubvolumeDelete, WorkKind::SnapshotAhead];
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
@@ -193,6 +193,27 @@ pub trait WorkHandlers {
     /// ```
     fn subvolume_delete_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(std::future::ready(self.subvolume_delete(item)));
+    }
+    /// Make a snapshot of a worktree ahead of the next add;
+    /// a handler that does not know it skips.
+    fn snapshot_ahead(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Skipped(String::from("this handler makes no snapshots ahead"));
+    }
+    /// The same snapshot,
+    /// awaited by a caller that is itself a task of the runtime.
+    /// Why:
+    ///   The ioctl waits for a btrfs transaction commit,
+    /// so it belongs on the blocking pool and never on a worker the
+    ///  runtime needs for the commits queued behind it;
+    /// a handler that knows nothing of the runtime keeps the synchronous one as its
+    ///  answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshotAheadAwaiting(item: WorkItem): Promise<Verdict>
+    /// ```
+    fn snapshot_ahead_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(std::future::ready(self.snapshot_ahead(item)));
     }
 }
 

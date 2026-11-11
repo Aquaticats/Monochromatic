@@ -104,6 +104,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
         let mut relinks: Vec<Claimed> = Vec::new();
         let mut deletions: Vec<Claimed> = Vec::new();
         let mut reviews: Vec<Claimed> = Vec::new();
+        let mut ahead: Vec<Claimed> = Vec::new();
         let mut upkeep: Vec<Claimed> = Vec::new();
         for item in acceptable {
             match item.item.kind {
@@ -113,6 +114,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 WorkKind::Relink => relinks.push(item),
                 WorkKind::SubvolumeDelete => deletions.push(item),
                 WorkKind::Review => reviews.push(item),
+                WorkKind::SnapshotAhead => ahead.push(item),
                 _ => upkeep.push(item),
             }
         }
@@ -181,6 +183,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 Some(back) => held = back,
                 None => break 'round,
             }
+        }
+        // A snapshot ahead is the one kind of work a person's own command waits for, so it runs before the upkeep
+        //  and before every kind that frees space.
+        match crate::service_work_drains_a_snapshot_ahead::drain_a_snapshot_ahead(held, work_dir.as_path(), ahead, handlers).await {
+            Some(back) => held = back,
+            None => break 'round,
         }
         let mut upkept: Vec<PathBuf> = Vec::new();
         let still_here: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), upkeep).await {
