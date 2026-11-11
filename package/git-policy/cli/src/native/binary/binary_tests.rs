@@ -398,6 +398,12 @@ mod worktree_dirty_snapshot;
 #[path = "binary_worktree_checkout_workers_tests.rs"]
 mod worktree_checkout_workers;
 
+/// The commit a reference lock holds in a linked worktree:
+/// a removal or a prune keeps it where Git cannot reach it,
+/// and a removal stops when no reference can hold it.
+#[path = "binary_worktree_removal_held_commit_tests.rs"]
+mod worktree_removal_held_commit;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;

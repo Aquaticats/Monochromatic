@@ -2898,8 +2898,25 @@ and the person is told,
 before Git runs,
 that the branch stays where it is because no command in a removed worktree can move it
 (`src/native/worktree/worktree_removal_held_commits.rs`).
+The question about that reference and its write run in the common Git directory,
+not in the worktree,
+because `git worktree prune` exists for the state a person leaves by deleting a checkout,
+and Git cannot answer a question asked in a directory that is not there.
 A kept reference that already names another commit is left alone and the person is told,
 and a removal Git then refuses leaves that reference naming the commit the batch still holds.
+When `refs/cli-git/kept/<batch>` cannot be written at all (a lock standing on it,
+or a reference directory that refuses the write),
+the commit is kept on `refs/cli-git/kept/<batch>-rescue` and the person is told that name,
+so the command still finishes;
+every such write is a create-only one,
+so no reference another command wrote is ever replaced.
+When neither name can be written,
+the command stops before Git runs,
+with status 2,
+saying which commit and branch are still held and where,
+that nothing was removed,
+that a `git gc --prune=now` run from another checkout would take those commits until the same command is run again,
+and which lock file stands there with the command that removes a lock nothing holds.
 
 A removal of a directory tree by the migration,
 the rollback and the worktree trash (`remove_tree`) opens every directory
