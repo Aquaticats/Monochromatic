@@ -338,10 +338,10 @@ fn start_the_loop(staged: &Stage) -> (tokio::sync::mpsc::UnboundedSender<Wake>, 
 /// Why:
 ///   The measured queue of `2026-11-11` held 22 records of one work directory
 /// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`),
-/// so eight worktrees of one repository is the shape of the queue at a size a measurement can run twice.
-const MEASURED_WORKTREES: usize = 8;
+/// so four worktrees of one repository keep that shape at a size a measurement can run twice on a loaded host.
+const MEASURED_WORKTREES: usize = 4;
 
-const MEASURED_ENTRIES: usize = 2_000;
+const MEASURED_ENTRIES: usize = 500;
 
 /// What:
 ///  Plant a trash below the worktree `worktree` and answer the manifest a leave-out would have written for it.
@@ -407,8 +407,9 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
     let mut worktrees: Vec<PathBuf> = Vec::new();
     for index in 0..MEASURED_WORKTREES {
         let name: String = format!("measured-{index}");
+        // The worktree Git makes sits beside the repository it was added from, so that is where the trash is planted.
         git(staged.repo.as_path(), &["worktree", "add", "--quiet", "--detach", name.as_str()]);
-        let worktree: PathBuf = staged.root.join(name.as_str());
+        let worktree: PathBuf = staged.repo.join(name.as_str());
         let manifest: crate::worktree_trash_manifest::TrashManifest = plant_trash(worktree.as_path(), trash_name_of(index).as_str(), MEASURED_ENTRIES);
         let item: WorkItem = WorkItem {
             kind: WorkKind::Trash,
@@ -443,8 +444,11 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
     let claimed_then: usize = state_directory(work.as_path(), crate::work_item::CLAIMED).read_dir().map_or(0, |listing| { return listing.flatten().count(); });
     assert!(wait_until(&|| { return settled(&staged_world(&staged, work.as_path()), DONE) >= MEASURED_WORKTREES; }), "every trash of the queue was emptied");
     let drained: Duration = begun.elapsed();
+    let begun_ms: u128 = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).map(|since| { return since.as_millis(); }).unwrap_or_default()
+        - drained.as_millis()
+        - push_wait.as_millis();
     println!(
-        "measure queue_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_ENTRIES} queue_ms={} push_wait_ms={} slow_records_pending_when_the_push_landed={pending_then} slow_records_claimed_when_the_push_landed={claimed_then}",
+        "measure queue_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_ENTRIES} queue_ms={} push_wait_ms={} begun_ms={begun_ms} slow_records_pending_when_the_push_landed={pending_then} slow_records_claimed_when_the_push_landed={claimed_then}",
         drained.as_millis(),
         push_wait.as_millis()
     );
@@ -460,4 +464,165 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
 /// for the counters of the measurement.
 fn staged_world(staged: &Stage, work: &Path) -> World {
     return World { root: staged.root.clone(), common: staged.repo.join(".git"), work: work.to_path_buf() };
+}
+
+/// How long the stand-in slow work of one item stays inside its hold.
+/// Why:
+///   The alpha.10 service the coordinator measured on `2026-11-11T10:38:00-05:00` held two reviews and four trashes
+/// claimed while a fresh commit's push sat pending for more than nine minutes,
+/// so a hold that outlasts any push by minutes is what the control needs.
+const HOLD: Duration = Duration::from_secs(20);
+
+/// The longest a push may take while slow work of another worktree runs.
+/// Why:
+///   A push to a bare remote in this fixture takes about 0.1 s,
+/// and the control asks for the order of magnitude, not for a latency budget:
+/// ten seconds is two orders of magnitude under the hold and far above what the push itself takes.
+const PUSH_BOUND: Duration = Duration::from_secs(10);
+
+/// What:
+///  Handlers whose review and trash work is held open for `HOLD`,
+/// and whose push is the real one.
+/// Why:
+///   The service the coordinator measured held a push behind a review and a trash that had nothing to do with it,
+/// and no fault hook of this release can hold a review open
+/// (`worktree_trash_dispose_awaiting.rs` is the one that can, and it holds a trash).
+/// The slow kinds answer the same four verdicts whatever runs them,
+/// so a stand-in that holds them open says what a slow review and a slow trash say about the push beside them,
+/// and the push itself is real Git against a real bare remote.
+struct StandIns {
+    /// The real handlers, which run the push.
+    real: GitHandlers,
+    /// How many slow items are inside their hold now.
+    inside: AtomicUsize,
+}
+
+impl StandIns {
+    /// The real push and a slow review and trash.
+    fn new() -> StandIns {
+        return StandIns { real: GitHandlers::new(git_context()), inside: AtomicUsize::new(0) };
+    }
+
+    /// What:
+    ///  Be inside one slow item's work for `HOLD`.
+    /// Why:
+    ///   A review of a landed commit and a trash of a removed worktree take minutes on this repository
+    /// (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`),
+    /// and what matters here is only that they are still running when the push is asked for.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// inside.fetchAdd(1); await sleep(HOLD); inside.fetchSub(1);
+    /// ```
+    async fn hold(&self) {
+        self.inside.fetch_add(1, Ordering::SeqCst);
+        tokio::time::sleep(HOLD).await;
+        self.inside.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl WorkHandlers for StandIns {
+    fn push(&self, items: &[WorkItem]) -> Verdict {
+        return self.real.push(items);
+    }
+
+    fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return self.real.push_awaiting(items);
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review_awaiting<'a>(&'a self, _item: &'a WorkItem) -> Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            self.hold().await;
+            return Verdict::Done;
+        });
+    }
+
+    fn trash(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn trash_awaiting<'a>(&'a self, _item: &'a WorkItem) -> Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            self.hold().await;
+            return Verdict::Done;
+        });
+    }
+}
+
+/// The record of `kind` for `staged`, naming the commit,
+/// which the service accepts whatever runs it.
+fn stand_in_record(staged: &Stage, kind: WorkKind, branch: &str) -> WorkItem {
+    return WorkItem {
+        kind,
+        repository: staged.repo.clone(),
+        git_dir: staged.repo.join(".git"),
+        branch_ref: branch.to_string(),
+        oid: staged.landed.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-11T10:29:00.000Z"),
+        tries: 0,
+    };
+}
+
+/// What:
+///  A push of a fresh commit goes out while a review and a trash of the same repository are claimed and running,
+/// so no person's backup waits for work that has nothing to do with it.
+/// Why:
+///   This is the state the coordinator measured on the installed `0.6.1-alpha.10` at `2026-11-11T10:38:00-05:00`:
+/// six slow records were claimed and running while
+/// `push-a52a4adaa8…` sat pending from `10:29` with a maintenance, a review and eight prewarms beside it,
+/// and `main` had to be pushed by hand.
+/// The two claim lists are what answers it: the round that answers the push's wake claims `PUSH_KINDS`
+/// alone, so what the lane holds is not in its way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// void lane(common); await inside(1); const began = now(); await round(common); expect(remoteTip()).toBe(landed); expect(now() - began).toBeLessThan(PUSH_BOUND); expect(inside(1)).toBe(true)
+/// ```
+#[test]
+fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
+    let staged: Stage = stage("side-by-side-push-beside-held-work");
+    let git_dir: PathBuf = staged.repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    let trash: WorkItem = stand_in_record(&staged, WorkKind::Trash, "refs/cli-git/trash");
+    let review: WorkItem = stand_in_record(&staged, WorkKind::Review, "refs/cli-git/review");
+    let maintenance: WorkItem = stand_in_record(&staged, WorkKind::Maintenance, "refs/cli-git/upkeep");
+    let push: WorkItem = stand_in_record(&staged, WorkKind::Push, BRANCH);
+    for item in [&trash, &review, &maintenance, &push] {
+        enqueue(work.as_path(), item).expect("the record is written");
+    }
+    let stand_ins: Arc<StandIns> = Arc::new(StandIns::new());
+    let lane_handlers: Arc<StandIns> = Arc::clone(&stand_ins);
+    let lane = async move { crate::service_work_slow_lane::drain_the_slow_work_awaiting(git_dir.as_path(), lane_handlers.as_ref()).await };
+    let running: tokio::task::JoinHandle<()> = crate::lazy_runtime::spawn_on_runtime(lane).expect("the runtime starts the lane");
+    assert!(wait_until(&|| { return stand_ins.inside.load(Ordering::SeqCst) > 0; }), "a slow item of the lane is running");
+    // The claims the lane holds are its own, and the push's round takes only the pushes.
+    assert!(wait_until(&|| { return claimed(&staged, WorkKind::Review) > 0; }), "the review waits claimed, as the measured service held it");
+    let asked: Instant = Instant::now();
+    let assignments: Vec<Assignment> = vec![Assignment::plain(staged.repo.join(".git"))];
+    let _waits: Vec<(PathBuf, Duration)> =
+        drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers: Arc::clone(&stand_ins), now: &ClaimTime::read(), host: &LARGE_HOST }).waits;
+    let waited: Duration = asked.elapsed();
+    assert_eq!(remote_tip(&staged), staged.landed, "the push landed while the slow work was still held");
+    assert!(waited < PUSH_BOUND, "the push waited {waited:?} behind slow work of the same repository");
+    assert!(stand_ins.inside.load(Ordering::SeqCst) > 0, "the slow work was still running when the push landed");
+    println!("measure push_beside_held_slow_work push_wait_ms={} hold_s={} slow_items_inside_when_it_landed={}", waited.as_millis(), HOLD.as_secs(), stand_ins.inside.load(Ordering::SeqCst));
+    assert!(wait_until(&|| { return running.is_finished(); }), "the lane ends when its holds do");
+    remove(staged.root.as_path());
+}
+
+/// How many records of `kind` are claimed in the stage's work directory.
+fn claimed(staged: &Stage, kind: WorkKind) -> usize {
+    let listing = state_directory(work_directory(staged.repo.join(".git").as_path()).as_path(), crate::work_item::CLAIMED);
+    return listing.read_dir().map_or(0, |entries| {
+        return entries.flatten().filter(|entry| { return entry.file_name().to_string_lossy().starts_with(kind.name()); }).count();
+    });
 }
