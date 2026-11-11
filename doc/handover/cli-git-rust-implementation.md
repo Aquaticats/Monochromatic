@@ -28,18 +28,25 @@ jams the wrapper causes under load,
 the tokio steps,
 and then the layout and TypeScript-port steps they unblock.
 
-Within the wrapper, jams come first.
+Within the wrapper,
+jams come first.
 The owner wrote on 2026-11-10:
 "Prioritize fixing the jams and release jam fixes asap."
 and "And you have 62 slots."
-(Neuralwatt 20, Neuralwatt flex 22, opencode-go 20;
-`start-pi-run-if-a-slot-is-free.ts` in the coordinator's scratch gives a run the first pool with room, in that order).
+(Neuralwatt 20,
+Neuralwatt flex 22,
+opencode-go 20;
+`start-pi-run-if-a-slot-is-free.ts` in the coordinator's scratch gives a run the first pool with room,
+in that order).
 So a release that carries a jam fix goes out on its own as soon as its gate passes,
 other wrapper branches wait for the release after it,
 and free slots take jam work first.
 On the word-level merge pass the owner wrote the same day:
-"there are still ways you haven't tried to make this happen less often, for example, using a better algorithm or something."
-The pass stays (`package/git-policy/cli/SPEC.md`, the owner's 2026-11-03 decision),
+"there are still ways you haven't tried to make this happen less often,
+for example,
+using a better algorithm or something."
+The pass stays (`package/git-policy/cli/SPEC.md`,
+the owner's 2026-11-03 decision),
 and an agent is measuring better algorithms against this repository's past merges.
 
 > References below this note that no longer resolve in the tree.
@@ -5955,6 +5962,36 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   not changed:
   treating ENOENT on an absolute word as "not this
   worktree's journal" (an earlier helper on another spelling of a not-yet-created journal could still adopt batches).
+  Changed on `fix/git-policy-cli-tests-that-fail-only-on-this-host`
+  (`d91bf2f6bc`)
+  after the release host gate of 2026-11-10 failed these three controls twice on this host
+  (`~/temp/agent/disk-usage-2026-11-10/release-alpha9-try3.log`,
+  `release-alpha9-try4.log`)
+  while its container passed them:
+  another session's program,
+  process 2835177,
+  ran a copy of this wrapper with `--journal` naming the folder
+  `/home/user/temp/agent/merge-commit-cost/repro-k5Lw47/journal`,
+  which had been removed with the rest of that folder,
+  so the look answered `Hold::HelperUnsure` and each settle control sat out its 60 s patience.
+  An absolute word whose folder is not there is now compared by the path it spells,
+  resolved as far as the file
+  system knows it,
+  with the worktree's earlier journals:
+  such a folder holds no batch of the worktree,
+  so a program that names one holds nothing back,
+  and a starting helper on another spelling of a not-yet-made journal still does.
+  Evidence:
+  with that guard removed the new control
+  `service::the_settle_command_is_not_held_by_an_unrelated_program_whose_journal_folder_is_gone` fails after its
+  patience,
+  naming the `/bin/sh` it started with a gone `--journal` word;
+  with it in place the five controls of that gate pass alone,
+  in their suites on this host and in the container gate.
+  The two askpass controls of the same gate failed on this host and passed in the container because they required
+  `GIT_ASKPASS` to be unset and that host carried it set;
+  they now name their recorder under both `GIT_ASKPASS` and `SSH_ASKPASS`,
+  so its empty log is the proof on every host (same commit).
   Running:
   the held message names the program,
   its command line (masked),
@@ -10631,15 +10668,19 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   2026-11-10,
   after the next alpha had waited a day on one flaky test of 7,192:
   "It's been a whole day and you still haven't released any of the jam fixes?"
-  and "Standing rule. Alphas don't even have to resolve all flakes."
+  and "Standing rule.
+  Alphas don't even have to resolve all flakes."
   A gate whose only failures are tests already known to fail intermittently does not hold an alpha;
   each such failure gets its own fix as follow-up work.
   The release's host gate (`bin/native-release-host-controls.ts`) refused the first `0.6.1-alpha.9` dispatch
   on nine failing tests outside its three btrfs controls;
-  since `50161f7161` it refuses only when a required control fails, is missing or did not run,
-  or the run timed out, was stopped or failed without naming a test,
+  since `50161f7161` it refuses only when a required control fails,
+  is missing or did not run,
+  or the run timed out,
+  was stopped or failed without naming a test,
   and prints other failing tests as notices above the pass.
-  Then: merge to main,
+  Then:
+  merge to main,
   `native:clippy` clean on main,
   `mise run //package/git-policy/cli:native:release` (dispatches the `crate-release` workflow;
   it refuses while origin lacks local main commits),
