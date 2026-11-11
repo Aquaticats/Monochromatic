@@ -5073,10 +5073,22 @@ the two readings are taken at different moments,
 so a repository that returns between them keeps its plan on the list even though the worker may already have
 removed the file,
 and the next drain that plans a try writes the file again.
+A file whose record cannot be read is kept and said,
+because a read that failed proves nothing about the plan inside it,
+while a file that was read and holds no plan is removed
+(`push_retry_store.rs`,
+`load_reporting`).
+A removal that fails is said in the service's own log,
+and the file stays:
+no later round tries that removal again,
+so a service started later finds the plan of a push that has landed and tries it once more.
 A start whose read of that journal gave no answer within its ceiling keeps both directories,
 writes the plans and notes it makes there,
 and reads both again after a pause,
 so the pushes an earlier service promised are tried without waiting for a start nothing requires to arrive.
+That pause doubles with each attempt whose job outlasted its ceiling,
+because such a job still holds a place of the blocking bound until the journal answers,
+while an attempt the pool gave no thread for promised that nothing ran and is made again at the same pause.
 
 #### Git steps, tools and checks end only on no progress
 
@@ -6090,6 +6102,22 @@ so:
   because the claim decides it:
   either the step will not run and changed nothing,
   or the pool ran it on another thread and whether it finished is not known.
+- a storage step of a drain awaits its place of that bound,
+  and its job,
+  no longer than the after-commit work's own state,
+  because a place is held by the job that took it until that job ends:
+  a read left behind in a job would otherwise leave the round waiting for a place nothing gives back,
+  so no later push or upkeep round would run and the service would never exit idle
+  (`a_storage_step_awaited_no_longer_than`);
+  the step that found no place ran nothing,
+  and it says so.
+- the read of the retry plan and of the watch at a service's start is bounded,
+  and a read that gave no answer is made again rather than given up on:
+  the plan's directory and the watch's directory are kept either way,
+  so a retry planned after the timeout is still kept for a restart,
+  and the pause before each new read grows
+  (`restored_within`,
+  `PushRetries::restore_came_to_nothing`).
 
 
 The owner,

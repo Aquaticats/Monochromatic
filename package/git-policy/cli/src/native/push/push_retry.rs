@@ -28,7 +28,8 @@
 //! so a round that reaches storage late cannot undo a later round's statement.
 //! A start whose read of the journal gave no answer keeps the list's directory,
 //! writes its own tries there,
-//! and reads the journal again after a pause.
+//! and reads the journal again after a pause that doubles with each read whose job outlasted its ceiling,
+//! because that read is still holding a place of the blocking bound.
 //! What a failed push's own words mean (whether it is final,
 //! whether it is counted)
 //! and the words the person reads are in `push_retry_failure.rs`;
@@ -409,6 +410,26 @@ impl PushRetries {
     /// never past the longest pause between two tries.
     pub fn restore_pause(&self) -> Duration {
         return pause_before(self.read_failures.max(1), self.first);
+    }
+
+    /// What:
+    ///  Note that a read of the journal outlasted its ceiling and gave no answer,
+    /// so it is owed again at the next pause.
+    /// Why:
+    ///   The read is tried again rather than given up on,
+    /// and that job is still holding a place of the blocking bound until the journal answers,
+    /// so a journal that stopped answering may not be read at the shortest pause for ever:
+    /// the pause grows as it does for a plan and the attempts thin out.
+    /// A job the system gave no thread for promises that nothing ran and holds no place,
+    /// so that answer does not come here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// retries.restoreCameToNothing(); // the next read is owed at pauseBefore(++readFailures, first)
+    /// ```
+    pub fn restore_came_to_nothing(&mut self) {
+        self.unread = true;
+        self.read_failures = self.read_failures.saturating_add(1);
     }
 
     /// What:
