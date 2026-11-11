@@ -207,6 +207,59 @@ export function isTransientQwenTokenPlanIndividualSettingsWriteFailure({
 }
 
 /**
+ Message fragments marking one settings write as deferred past the host's open
+ reload transaction rather than failed, each quoted from the tool that throws
+ it:
+
+ - `HMR transactions cannot be nested`: `@deepseek-ai/dsh-hmr` `runExclusive`
+   refuses the `@deepseek-ai/dsh-config-editor` `ConfigEditor.edit` write while
+   the calling chain already runs inside a reload transaction
+   (`dsh-hmr` `lib/index.js:749`). The refusing chain keeps that transaction's
+   async context for the rest of its life (2026-11-11: both mount writes of one
+   refresh refused together at 2026-11-11T15:54:00Z on the live web host), so an
+   in-chain retry can never land and the write must be re-rooted outside.
+
+ The plugin-manager composes this plugin inside exactly that transaction on
+ every `set_plugin`, `install_bundle`, and `set_bundle`
+ (`dsh-plugin-manager` `configure` → `runExclusive`), so this is the shape a
+ live re-trigger takes.
+ */
+export const QWEN_TOKEN_PLAN_INDIVIDUAL_SETTINGS_WRITE_DEFERRAL_MARKERS: readonly string[] = [
+  'HMR transactions cannot be nested',
+];
+
+/**
+ Whether one failed settings write is a deferral past the host's open reload
+ transaction, keyed on the message text of the throwing tool because
+ `@deepseek-ai/dsh-hmr` throws a plain `Error` with no class to discriminate on.
+
+ @param error - caught failure from `settings.update`
+
+ @returns whether the write is owed a retry from outside that transaction
+
+ @example
+ ```ts
+ isQwenTokenPlanIndividualSettingsWriteDeferral({
+   error: new Error('HMR transactions cannot be nested'),
+ });
+ ```
+ */
+export function isQwenTokenPlanIndividualSettingsWriteDeferral({
+  error,
+}: {
+  readonly error: unknown;
+}): boolean {
+  /**
+   Rendered failure text the markers are matched against.
+   */
+  const text = caughtValueText(error);
+  return QWEN_TOKEN_PLAN_INDIVIDUAL_SETTINGS_WRITE_DEFERRAL_MARKERS
+    .some(function byMarker(marker) {
+      return text.includes(marker);
+    });
+}
+
+/**
  Look the route's credentials service up through the caller's lookup,
  re-trying within the mount-race budget. The loader can register the service
  after this plugin's `apply` runs (`@deepseek-ai/dsh-llm-pi-ai` resolves the
@@ -410,8 +463,8 @@ export async function writeQwenTokenPlanIndividualRoute({
 
  @param settings - settings surface the route is written through
 
- @param getCredentials - lookup of the credentials service, consulted when the
- listing fetch runs instead of at plugin apply: the loader can register the
+ @param getCredentials - lookup of the credentials service, consulted when
+ the listing fetch runs instead of at plugin apply: the loader can register the
  service after this plugin's `apply`, and the shipped adapter resolves the
  same service per request the same lazy way. Omitting the lookup stands for a
  composition that mounts no credentials service and keeps the snapshot.
@@ -420,6 +473,13 @@ export async function writeQwenTokenPlanIndividualRoute({
 
  @param sleep - delay between retry attempts, forwarded to the route writes
  and the credentials lookup
+
+ @param onWriteDeferral - deferral sink for a settings write the host refused
+ while its reload transaction was still open: handed a retry that re-runs this
+ whole refresh, which the caller must invoke from a context outside that
+ transaction (the refusing chain keeps the transaction's context for good, so
+ an in-chain retry can never land). Omitting it treats such a refusal like any
+ other write failure and keeps the served snapshot.
 
  @example
  ```ts
@@ -437,11 +497,13 @@ export async function refreshQwenTokenPlanIndividualRoute({
   getCredentials,
   fetchListing = fetchQwenTokenPlanIndividualListing,
   sleep = wait,
+  onWriteDeferral,
 }: {
   readonly settings: QwenTokenPlanIndividualSettingsTarget;
   readonly getCredentials?: () => QwenTokenPlanIndividualCredentialsLookupResult;
   readonly fetchListing?: typeof fetchQwenTokenPlanIndividualListing;
   readonly sleep?: (ms: number) => Promise<unknown>;
+  readonly onWriteDeferral?: (retry: () => Promise<void>) => void;
 }): Promise<void> {
   /**
    Logger tagged with the function name.
@@ -450,6 +512,26 @@ export async function refreshQwenTokenPlanIndividualRoute({
     tag: refreshQwenTokenPlanIndividualRoute.name,
     l: qwenTokenPlanIndividualLogger,
   });
+  /**
+   Whole-mount retry handed to the deferral sink: one refresh re-runs the
+   snapshot write, the listing fetch, and the live write in their original
+   order, so a deferred run can never leave the older snapshot content landing
+   after the newer live listing. Each absent optional is re-passed as absent
+   rather than as `undefined`, so the re-run sees the same composition shape.
+   */
+  function retryRefresh(): Promise<void> {
+    return refreshQwenTokenPlanIndividualRoute({
+      settings,
+      fetchListing,
+      sleep,
+      ...(getCredentials === undefined
+        ? {}
+        : { getCredentials, }),
+      ...(onWriteDeferral === undefined
+        ? {}
+        : { onWriteDeferral, }),
+    },);
+  }
   try {
     await writeQwenTokenPlanIndividualRoute({
       settings,
@@ -457,6 +539,12 @@ export async function refreshQwenTokenPlanIndividualRoute({
       sleep,
     });
   } catch (error) {
+    if ((onWriteDeferral !== undefined) && isQwenTokenPlanIndividualSettingsWriteDeferral({ error },)) {
+      logger
+        .debug(`qwen-token-plan-individual snapshot route write deferred past the host's open reload transaction (${caughtValueText(error)}); the caller re-runs the mount refresh outside it`);
+      onWriteDeferral(retryRefresh);
+      return;
+    }
     logger
       .warn(`qwen-token-plan-individual snapshot route write could not complete (${caughtValueText(error)}); the live listing write still runs. The step reads the stored profile back and then merges, so either one failing lands here: a profile that does not activate the ${QWEN_TOKEN_PLAN_INDIVIDUAL_SETTINGS_NAMESPACE} entry, a home patch or command-line overlay that overrides its config, or a host shutdown during mount.`);
   }
@@ -513,6 +601,12 @@ export async function refreshQwenTokenPlanIndividualRoute({
           sleep,
         });
       } catch (error) {
+        if ((onWriteDeferral !== undefined) && isQwenTokenPlanIndividualSettingsWriteDeferral({ error },)) {
+          logger
+            .debug(`qwen-token-plan-individual live route write deferred past the host's open reload transaction (${caughtValueText(error)}); the caller re-runs the mount refresh outside it`);
+          onWriteDeferral(retryRefresh);
+          return;
+        }
         logger
           .warn(`qwen-token-plan-individual live route write could not complete (${caughtValueText(error)}); keeping the served snapshot. The step reads the stored profile back and then merges, so either one failing lands here: a profile that does not activate the ${QWEN_TOKEN_PLAN_INDIVIDUAL_SETTINGS_NAMESPACE} entry, a home patch or command-line overlay that overrides its config, or a host shutdown before the mount fetch resolved.`);
       }

@@ -7,6 +7,7 @@
 
 import type {
   Context,
+  EventsService,
 } from '@deepseek-ai/cordis';
 import type {
   SettingsForms,
@@ -76,7 +77,14 @@ export function apply(ctx: Context): void {
    keep the served snapshot instead of throwing. The credentials lookup is a
    thunk, not a capture, because the loader can register the credentials
    service after this `apply` runs; the refresh calls it when the listing
-   fetch is about to run.
+   fetch is about to run. A write refused by the host's open reload
+   transaction hands its retry here instead of failing: the plugin-manager
+   composes this plugin inside that transaction on every `set_plugin`,
+   `install_bundle`, and `set_bundle` (`dsh-plugin-manager` `configure` →
+   `hmr.runExclusive`), where `@deepseek-ai/dsh-hmr` refuses every settings
+   write as nested (`runExclusive`, `lib/index.js:749`) and the refusing chain
+   keeps the transaction's context for good, so the write must be re-run from
+   outside it.
    */
   void refreshQwenTokenPlanIndividualRoute({
     settings,
@@ -89,6 +97,30 @@ export function apply(ctx: Context): void {
       return credentials === undefined
         ? {}
         : { credentials, };
+    },
+    onWriteDeferral: function onWriteDeferral(retry: () => Promise<void>): void {
+      /**
+       Re-run the deferred mount refresh from the plugin-manager's settle
+       dispatch: `plugin-manager/changed` is emitted at the tail of `change()`,
+       outside the reload transaction (`dsh-plugin-manager` `lib/index.js:3185`,
+       typed at `lib/types/types.d.ts:392`), and a listener body runs in the
+       emit's own context, so the retried write lands instead of refusing
+       again. Registering on each deferral keeps the retry pending across an
+       operation whose own settle dispatch has already passed, draining at the
+       next one.
+       */
+      function runDeferredRetry(): void {
+        void retry();
+      }
+      /**
+       Event bus carrying the plugin-manager's settle dispatch; held so the
+       registration reads as one call step rather than a member chain.
+       */
+      const events: EventsService = ctx.events;
+      events.once(
+        'plugin-manager/changed',
+        runDeferredRetry,
+      );
     },
   },);
 }
