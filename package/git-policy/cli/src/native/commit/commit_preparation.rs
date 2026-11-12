@@ -251,7 +251,10 @@ pub fn run_native_commit_within(
             commit_arguments: request.commit_args,
             cadence,
             ceiling,
-            sink: Box::new(std::io::stderr()),
+            // The writer thread this sink belongs to is abandoned when a reader stops draining, so the sink is the
+            //  descriptor itself: `std::io::stderr()` is one lock for the whole process, and the commit's own reports
+            //  would wait behind a notice holding it (`standard_error_descriptor.rs`).
+            sink: Box::new(crate::standard_error_descriptor::StandardErrorDescriptor),
         },
     );
     let began: std::time::Instant = std::time::Instant::now();

@@ -224,18 +224,27 @@ fn announcement(quiet: bool, announce: Box<dyn FnMut(String) + Send>) -> Box<dyn
 fn say_nothing(_line: String) {}
 
 /// What:
-///  Write one notice line to the standard error.
+///  Write one notice line to the standard error,
+///  to the descriptor itself rather than through the handle the whole process shares.
 /// Why:
 ///   The add's own entry point hands this function to the notice,
 /// so the line and its failure are one place and no closure carries anything.
+/// `std::io::stderr()` is one handle behind one lock for the whole process,
+/// and a write through it holds that
+///  lock for as long as the write takes:
+/// a notice whose reader stopped draining would hold the stream the add
+///  writes its own reports to,
+/// and the add would wait behind its own notice
+/// (`standard_error_descriptor.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writeToStandardError = (line) => process.stderr.write(line + '\n');
+/// const writeToStandardError = (line) => fs.writeSync(2, line + '\n');
 /// ```
 fn write_to_standard_error(line: String) {
     // Terminal output error: a notice is advisory and must never fail the add it describes.
-    let _written = writeln!(std::io::stderr(), "{line}");
+    let mut stream: crate::standard_error_descriptor::StandardErrorDescriptor = crate::standard_error_descriptor::StandardErrorDescriptor;
+    let _written = writeln!(stream, "{line}");
 }
 
 /// What:
