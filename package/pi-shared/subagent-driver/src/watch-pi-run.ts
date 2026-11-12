@@ -30,7 +30,11 @@ import {
 } from './answer-a-model-error.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
-import { askAboutItsWork, } from './kept-while-work-runs.ts';
+import {
+  answeredItsWake,
+  askAboutItsWork,
+  type WorkWaitedFor,
+} from './kept-while-work-runs.ts';
 import type { WatchRequest, } from './watch-request.ts';
 
 /**
@@ -413,23 +417,31 @@ function idleLongEnough(watch: WatchRequest,): boolean {
 }
 
 /**
- Tells whether the run may end as one that came back with nothing to report: Pi has rested long enough, and no failure it settled
- on is still unanswered.
+ Tells whether the run may end as one that came back with nothing to report: Pi has rested long enough, no failure it settled on
+ is still unanswered, and no message the driver sent it is still owed a reply.
 
  A failure stays until a reply succeeds, so a prompt Pi only handled leaves the run ending on that failure rather than making it
- look like a run that finished its task with nothing to say.
+ look like a run that finished its task with nothing to say. A run the driver sent back to work it left is up until the reply to
+ that message settles: the message went a moment ago, and the silence before it is not the silence of a run with nothing left.
 
  @param watch - watch request
 
+ @param waited - where the driver stands with the work the run left running
+
  @returns whether nothing stands between the run and its end but the rest it has had
  */
-function mayEndIdle(watch: WatchRequest,): boolean {
+function mayEndIdle(watch: WatchRequest, waited: WorkWaitedFor,): boolean {
   /**
    The failure the run settled on, when nothing after it recovered.
    */
   const failure = watch.record
     .unrecoveredModelError();
-  return (!failure.failed) && idleLongEnough(watch,);
+  return (!failure.failed) && idleLongEnough(watch,)
+    && answeredItsWake({
+      waited,
+      settledNow: watch.record
+        .settledCount(),
+    },);
 }
 
 /**
@@ -502,7 +514,7 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       },);
     }
     // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
-    else if ((retry.owed === undefined) && (mayEndIdle(watch,))) {
+    else if ((retry.owed === undefined) && (mayEndIdle(watch, waited,))) {
       /**
        What the run left running, asked before it may end as a run that finished its turn: an agent that ended its turn while a
        build compiled is waiting for that build, so the run is kept, and sent back to it once it is over.
@@ -511,6 +523,11 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
         watch,
         waited,
       },);
+      if (asked === 'refused') {
+        // Pi would not take the message that sends the agent back to work it left, so the run cannot go on and must not read as
+        // one that finished.
+        return 'prompt-rejected';
+      }
       if (asked !== 'nothing') {
         continue;
       }

@@ -387,14 +387,18 @@ function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; 
 
  @param disposition - what Pi says it did with each prompt, or nothing when it says nothing about it
 
+ @param refuses - whether Pi refuses each prompt instead of taking it
+
  @returns the connection a watch reads
  */
 function answeringConnection({
   sent = [],
   disposition,
+  refuses = false,
 }: {
   readonly sent?: string[];
-  readonly disposition?: string
+  readonly disposition?: string;
+  readonly refuses?: boolean
 } = {},): ConnectionToPi {
   return {
     hasExited: () => false,
@@ -405,12 +409,58 @@ function answeringConnection({
     send: async function send({ command, }: CommandRequest,) {
       const { message } = command;
       sent.push((typeof message) === 'string' ? message : '',);
+      if (refuses) {
+        return {
+          ending: 'answered',
+          record: {
+            success: false,
+            error: 'refused',
+          },
+        };
+      }
       return {
         ending: 'answered',
         record: {
           success: true,
           data: disposition === undefined ? {} : { disposition, },
         },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
+ A connection whose every command is answered at once, and whose Pi then shows the reply it produced, which is what a run sent
+ back to work it can now read does.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, which the reply is observed on
+
+ @returns the connection a watch reads
+ */
+function connectionWhosePiReplies({
+  sent,
+  record,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      // Pi takes the message and starts a turn on it, which is a reply and the settle after it.
+      observeSuccessfulReply(record,);
+      return {
+        ending: 'answered',
+        record: { success: true, },
       };
     },
     shutDown: async () => ({ stopped: true, }),
@@ -822,7 +872,7 @@ await describe({
          */
         const work = ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'];
         const endReason = await watchUntilEnded({
-          connection: answeringConnection({ sent, },),
+          connection: connectionWhosePiReplies({ sent, record: run.record, },),
           record: run.record,
           options: optionsOf({ runFolder: run.runFolder, },),
           inbox: run.inbox,
@@ -832,7 +882,7 @@ await describe({
             return (looks <= 2) ? work : [];
           },
         },);
-        // The run was kept for as long as its work ran, and sent a message once it ended.
+        // The run was kept for as long as its work ran, sent a message once it ended, and ended after the reply to it.
         expect(endReason,).toBe('idle',);
         expect(sent.length,).toBe(1,);
         expect(sent[0],).toContain('proc_7adb (native-build-2) 486667 systemd-run --user --scope',);
@@ -872,6 +922,118 @@ await describe({
         expect(feed.some((entry,) => entry.kind === 'waiting'),).toBe(true,);
         // A run the wall clock ended while it waited for work did not end with nothing to do, and the feed says so.
         expect(String(feed.at(-1)?.problem,),).toContain('waited for the work it left running',);
+      },
+    },),
+    it({
+      name: 'does not end a run as idle before the agent answers the message that woke it, and ends it on the wall clock'
+        + ' instead',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which is the one that wakes the agent.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was asked about, which is how the test ends it after one look.
+         */
+        let looks = 0;
+        const endReason = await watchUntilEnded({
+          // Pi takes the message and says nothing more, which is the state a driver that ended a woken run as idle left it
+          // in: the agent's turn never opened, so the report it would have written was never read.
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS * 2,
+          },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
+          },
+        },);
+        // The message went, and the run stayed up after it rather than ending as one that had nothing left to do.
+        expect(sent.length,).toBe(1,);
+        expect(endReason,).toBe('wall-clock',);
+        /**
+         What the run's feed holds.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.success === true)),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'ends a run as idle when Pi handled the message that woke it without starting a turn',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which is the one that wakes the agent.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was asked about, which is how the test ends it after one look.
+         */
+        let looks = 0;
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({
+            sent,
+            disposition: 'handled',
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS * 2,
+          },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
+          },
+        },);
+        // Nothing was started, so nothing is owed a reply: waiting for one would keep the run up for no reason.
+        expect(sent.length,).toBe(1,);
+        expect(endReason,).toBe('idle',);
+      },
+    },),
+    it({
+      name: 'ends a run whose wake message Pi refused as one Pi refused a prompt, not as one that finished',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which is the one that wakes the agent.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was asked about, which is how the test ends it after one look.
+         */
+        let looks = 0;
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({
+            sent,
+            refuses: true,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS * 2,
+          },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 2),
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            return (looks <= 1) ? ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'] : [];
+          },
+        },);
+        // The agent was never told its work ended, so the run is not one that came back with nothing to say.
+        expect(sent.length,).toBe(1,);
+        expect(endReason,).toBe('prompt-rejected',);
+        /**
+         What the run's feed holds.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.find((entry,) => entry.kind === 'wake')?.success,).toBe(false,);
       },
     },),
     it({

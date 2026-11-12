@@ -12,6 +12,7 @@
 import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
 import type { CommandAnswer, } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
+import { fieldsOf, } from './read-pi-fields.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { wakeMessageOf, } from './work-the-run-left-running.ts';
 
@@ -23,7 +24,47 @@ export type WorkWaitedFor = {
    The lines that named the work when the driver began to wait, or nothing while it waits for none.
    */
   work?: readonly string[];
+
+  /**
+   How many settles Pi had produced when the driver last sent the agent back to its work, or nothing while no message is owed
+   a reply.
+
+   A settle, or a prompt Pi handled without starting a turn, is counted: what this waits for is Pi's answer to that message, and
+   the run has had neither since it was woken.
+   */
+  wokenAtSettle?: number;
 };
+
+/**
+ Tells whether the run has answered the message that last woke it.
+
+ A run whose agent was sent back to work it can now read is not a run that has finished its turn: the reply to that message, and
+ the settle after it, are what the driver is up. Counting from the settle before the message went means a fast reply satisfies
+ this at once, and no reply at all keeps the run up until its own wall clock ends it.
+
+ @param waited - where the driver stands with the work the run left, which carries the count the message went at
+
+ @param settledNow - how many settles Pi has produced
+
+ @returns whether any message the driver sent the agent has been answered
+
+ @example
+ ```ts
+ const free = answeredItsWake({ waited: {}, settledNow: 3, },);
+ ```
+ */
+export function answeredItsWake(
+  { waited, settledNow, }: {
+    readonly waited: WorkWaitedFor;
+    readonly settledNow: number
+  },
+): boolean {
+  /**
+   How many settles Pi had when the message went, or nothing when no message is owed a reply.
+   */
+  const { wokenAtSettle, } = waited;
+  return (wokenAtSettle === undefined) || (settledNow > wokenAtSettle);
+}
 
 /**
  What asking about the work answered.
@@ -37,6 +78,10 @@ export type WorkAsked =
    The work ended, so the agent was sent back to read it and the run goes on.
    */
     | 'resumed'
+  /**
+   The work ended and Pi refused the message that sends the agent back, so the run cannot go on.
+   */
+    | 'refused'
   /**
    Nothing runs, so nothing stands between the run and its end but the rest it has had.
    */
@@ -95,6 +140,11 @@ export async function askAboutItsWork({
    */
   const said = wakeMessageOf({ work: ended, },);
   /**
+   How many settles Pi had when that message went, which its own reply is counted from.
+   */
+  const settledBefore = watch.record
+    .settledCount();
+  /**
    Pi's answer, waited for within the run's own deadline.
    */
   const answer = await watch.connection
@@ -105,11 +155,16 @@ export async function askAboutItsWork({
       },
       deadline: watch.deadline,
     },);
+  /**
+   What Pi said it did with the message.
+   */
+  const disposition = dispositionOf(answer,);
   watch.record
     .note({
       kind: 'wake',
       work: ended,
       success: takenByPi(answer,),
+      disposition,
       error: outcomeTextOf(answer,),
       preview: preview({
         value: said,
@@ -117,7 +172,43 @@ export async function askAboutItsWork({
       },),
     },);
   delete waited.work;
+  // A message Pi refused woke nobody, so nothing is owed a reply and the run cannot go on: the agent was never told its work ended.
+  if ((answer.ending === 'answered') && (answer.record.success === false)) {
+    return 'refused';
+  }
+  // A message Pi took into a turn is answered by that turn, and the run stays up until its reply settles. A message Pi handled
+  // without starting a turn is never answered by one, so nothing is owed a reply.
+  if (takenByPi(answer,) && (disposition !== 'handled')) {
+    waited.wokenAtSettle = settledBefore;
+  }
   return 'resumed';
+}
+
+/**
+ What Pi said it did with a prompt.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @returns what Pi said, or nothing when Pi answered nothing
+
+ @example
+ ```ts
+ const disposition = dispositionOf({ ending: 'answered', record: { data: { disposition: 'handled' } }, },);
+ ```
+ */
+function dispositionOf(answer: CommandAnswer,): unknown {
+  if (answer.ending !== 'answered') {
+    return undefined;
+  }
+  /**
+   Pi's own record, which is what an answered wait carries.
+   */
+  const { record } = answer;
+  /**
+   What Pi did with the prompt.
+   */
+  const { disposition, } = fieldsOf(record.data,);
+  return disposition;
 }
 
 /**
