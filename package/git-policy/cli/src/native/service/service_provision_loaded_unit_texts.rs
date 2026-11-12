@@ -1,5 +1,7 @@
 //! What:
-//!  The record, per unit instance, of the two unit texts the service manager last read for it,
+//!  The record,
+//! per unit instance,
+//! of the two unit texts the service manager last read for it,
 //! kept beside the notes of the
 //!  worktrees,
 //! inside the directory the manager reads the wrapper's units from.

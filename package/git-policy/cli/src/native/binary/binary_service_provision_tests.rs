@@ -126,7 +126,9 @@ fn unique_name_return(serial: u32) -> Vec<u8> {
 /// What:
 ///  The unit name in a call's arguments:
 /// the first string,
-/// which is the unit of `GetUnit`, `StartUnit`, `StopUnit` and `ResetFailedUnit`.
+/// which is the unit of `GetUnit`,
+/// `StartUnit`,
+/// `StopUnit` and `ResetFailedUnit`.
 /// Why:
 ///  The stand-in answers whether it holds a unit and drops what it stops,
 /// so it has to read the name the way the manager does.

@@ -20,7 +20,8 @@
 //! `StartUnit`,
 //! `StopUnit` and the state query (`GetUnit`,
 //! then a property read) are needed.
-//! `Reload` is deliberately absent: it makes the manager re-read every unit it holds,
+//! `Reload` is deliberately absent:
+//! it makes the manager re-read every unit it holds,
 //! so its cost grows with
 //!  everything else the manager runs and it holds the manager's own event loop while it lasts
 //! (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).

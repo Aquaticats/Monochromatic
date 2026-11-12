@@ -414,7 +414,8 @@ fn only_the_wrappers_own_earlier_units_keep_an_installation_from_being_in_place(
 ///  The path in an earlier release's text is the one thing this release stops writing,
 /// and a manager that holds that text
 ///  would keep starting the program it names.
-/// The unload is what makes it read the file again, and it names this worktree's units alone.
+/// The unload is what makes it read the file again,
+/// and it names this worktree's units alone.
 #[test]
 fn a_unit_of_an_earlier_release_is_rewritten_and_started() {
     let machine: Machine = machine("provision-removed-lib");
@@ -467,9 +468,14 @@ fn a_unit_from_another_release_is_rewritten() {
 /// What:
 ///  A start the manager refuses leaves the unit files in place and no record of a manager that holds a stale unit.
 /// Why:
-///  The files are the texts the manager reads, and the record says only that nothing of this instance is held at another
-///  text, which is what a refused start leaves. The next command's own wait starts the socket, and a later provisioning
-///  unloads and starts again if the manager then holds an older text. Withdrawing the files would leave a machine whose
+///  The files are the texts the manager reads,
+/// and the record says only that nothing of this instance is held at another
+///  text,
+/// which is what a refused start leaves.
+/// The next command's own wait starts the socket,
+/// and a later provisioning
+///  unloads and starts again if the manager then holds an older text.
+/// Withdrawing the files would leave a machine whose
 ///  manager refuses every start with no unit file at all.
 #[test]
 fn a_refused_start_leaves_the_files_and_no_stale_unit() {
