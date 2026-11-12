@@ -726,7 +726,16 @@ console.log(JSON.stringify(record, null, 2))
 description = "Check the native UI declaration"
 # ui/annotation.slint holds only a global, which the viewer cannot check on its own; app.slint imports it,
 # so the first command checks it too.
-run = ["slint-viewer --check ui/app.slint", "slint-viewer --check ui/tree.slint", "slint-viewer --check ui/search.slint", "slint-viewer --check ui/find.slint", "slint-viewer --check ui/query-input.slint", "slint-viewer --check ui/divider.slint", "slint-viewer --check ui/hover.slint", "slint-viewer --check ui/references.slint"]
+run = [
+  "slint-viewer --check ui/app.slint",
+  "slint-viewer --check ui/tree.slint",
+  "slint-viewer --check ui/search.slint",
+  "slint-viewer --check ui/find.slint",
+  "slint-viewer --check ui/query-input.slint",
+  "slint-viewer --check ui/divider.slint",
+  "slint-viewer --check ui/hover.slint",
+  "slint-viewer --check ui/references.slint",
+]
 
 [tasks."lint:rustfmt"]
 description = "Check that application-owned Rust sources are formatted as cargo fmt writes them"
@@ -741,7 +750,12 @@ runCargo(['fmt', '--check'])
 # this package at error severity (monochromatic-lint.config.jsonc, block closure-check-ide). It needs the runtime and
 # notices artifacts that lint:clippy, which runs first, prepares; the host nightly with rustc-dev and cargo-dylint
 # are checked by the linter, which skips the package with a note when one is missing.
-run = ["mise run //package/ide/app:lint:clippy", "mise run //package/ide/app:lint:rustfmt", "mise run //:lint:monochromatic-lint -- package/ide/app", "mise run //package/ide/app:lint:slint"]
+run = [
+  "mise run //package/ide/app:lint:clippy",
+  "mise run //package/ide/app:lint:rustfmt",
+  "mise run //:lint:monochromatic-lint -- package/ide/app",
+  "mise run //package/ide/app:lint:slint",
+]
 
 [tasks."format:rust"]
 description = "Format application-owned Rust sources"
