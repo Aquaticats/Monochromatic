@@ -16611,15 +16611,16 @@ which is the entry a save must keep whole,
 and bounds a listing to one entry per such directory instead of one per file inside it.
 Asking Git about the written paths alone was measured and lost.
 In a worktree holding 23,683 tracked files,
-native Git took 62 ms for `reset --hard HEAD` and 31 ms for `checkout --force HEAD`;
+native Git took 62 to 64 ms for `reset --hard HEAD` and 31 to 35 ms for `checkout --force HEAD`;
 the guard of release 0.6.1-alpha.13,
 which asked about the written paths one argument list at a time,
-took 359 ms and 333 ms;
+took 359 to 378 ms and 333 to 351 ms;
 and the guard's two listings asked once each,
 with a second arm of the same binary as the control for run-to-run spread,
-took 142 ms and 109 ms,
-against 142 ms and 111 ms for the control.
+took 142 to 146 ms and 109 to 118 ms,
+against 142 to 151 ms and 111 to 119 ms for the control.
 Every arm ran nine times, interleaved round by round,
+in two measurement rounds,
 with a load average of 31 to 40 on eight CPUs
 (`native:build:release`,
 `pi-discard-guard-cont/cost.ts`).
