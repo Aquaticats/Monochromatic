@@ -88,7 +88,7 @@ pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> 
 fn outermost_asked(asked: &[Vec<u8>]) -> Vec<Vec<u8>> {
     let mut kept: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for path in asked {
-        let above: bool = asked.iter().any(|other| other.len() < path.len() && holds(other.as_slice(), path.as_slice()));
+        let above: bool = asked.iter().any(|other| return other.len() < path.len() && holds(other.as_slice(), path.as_slice()));
         if above {
             continue;
         }
@@ -115,7 +115,7 @@ fn outermost_entries(found: Vec<Vec<u8>>) -> Vec<String> {
     sorted.dedup();
     let mut kept: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for path in sorted {
-        if kept.iter().any(|outer| holds(outer.as_slice(), path.as_slice())) {
+        if kept.iter().any(|outer| return holds(outer.as_slice(), path.as_slice())) {
             continue;
         }
         kept.push(path);

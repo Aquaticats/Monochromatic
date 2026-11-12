@@ -927,16 +927,16 @@ fn a_tree_that_tracks_an_ignored_path_is_saved_in_a_clean_linked_worktree() {
                     pending.push(path);
                     continue;
                 }
-                found = found || std::fs::read(path.as_path()).is_ok_and(|bytes| bytes == b"SECRET=the person value\n");
+                found = found || std::fs::read(path.as_path()).is_ok_and(|bytes| return bytes == b"SECRET=the person value\n");
             }
         }
         assert!(found, "{values:?} left no copy of the ignored file");
         // A listing Git cannot read stops the command: what it would overwrite was never seen, so nothing may run.
         let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
         unreadable.in_the_way = Err(String::from("Git could not read the files this command writes over: fatal"));
-        let (outcome, _questions): (PolicyOutcome, Vec<String>) =
+        let (unread, _questions): (PolicyOutcome, Vec<String>) =
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable);
-        let PolicyOutcome::Findings(findings) = outcome else {
+        let PolicyOutcome::Findings(findings) = unread else {
             panic!("{values:?} ran without reading what it overwrites")
         };
         assert_eq!(findings[0].code, "linked-worktree-required", "{values:?}");

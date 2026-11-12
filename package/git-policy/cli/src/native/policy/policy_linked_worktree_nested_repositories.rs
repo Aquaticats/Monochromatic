@@ -225,7 +225,7 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     };
     // The names are printed relative to the directory the dry run started in, which is not the caller's own directory
     //  when Git runs the clean inside a `!` alias's shell, so that directory's own prefix is the one read here.
-    let command_prefix: Vec<u8> = prefix_of(&root, run_in.as_path(), location.prefix.as_slice());
+    let command_prefix: Vec<u8> = prefix_of(root, run_in.as_path(), location.prefix.as_slice());
     let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root, command_prefix.as_slice()) {
         Ok(found) => found,
         Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },

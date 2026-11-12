@@ -111,7 +111,7 @@ fn saved_copy_holds(repo: &Path, needle: &[u8]) -> bool {
                 pending.push(path);
                 continue;
             }
-            if std::fs::read(path.as_path()).is_ok_and(|bytes| bytes == needle) {
+            if std::fs::read(path.as_path()).is_ok_and(|bytes| return bytes == needle) {
                 return true;
             }
         }
@@ -121,7 +121,7 @@ fn saved_copy_holds(repo: &Path, needle: &[u8]) -> bool {
 
 /// Whether the person's bytes are at `relative` in the linked worktree.
 fn still_where_it_was(linked: &Path, relative: &str, needle: &[u8]) -> bool {
-    return std::fs::read(linked.join(relative)).is_ok_and(|bytes| bytes == needle);
+    return std::fs::read(linked.join(relative)).is_ok_and(|bytes| return bytes == needle);
 }
 
 /// Every form against a file the target tree writes,

@@ -20,7 +20,7 @@ use super::outermost_entries;
 #[test]
 fn only_the_outermost_entry_of_each_path_is_kept() {
     let found: [&[u8]; 4] = [b"a/b".as_slice(), b"a".as_slice(), b"ab".as_slice(), b"a/b".as_slice()];
-    let paths: Vec<Vec<u8>> = found.iter().map(|path| path.to_vec()).collect();
+    let paths: Vec<Vec<u8>> = found.iter().map(|path| return path.to_vec()).collect();
     assert_eq!(outermost_entries(paths), vec![String::from("a"), String::from("ab")]);
 }
 

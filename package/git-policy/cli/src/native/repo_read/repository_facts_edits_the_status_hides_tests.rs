@@ -25,9 +25,7 @@ use std::path::{Path, PathBuf};
 /// A provider for real Git after `-C <repository>`,
 ///  which is the same Git the wrapper runs a command against.
 fn facts_in(repository: &Path) -> GitFacts {
-    let mut prefix: Vec<OsString> = Vec::<OsString>::new();
-    prefix.push(OsString::from("-C"));
-    prefix.push(repository.as_os_str().to_os_string());
+    let prefix: Vec<OsString> = vec![OsString::from("-C"), repository.as_os_str().to_os_string()];
     return git_facts(Path::new(REAL_GIT), prefix.as_slice(), isolated_overlay().as_slice());
 }
 
@@ -125,18 +123,24 @@ fn a_marked_edit_is_named_and_an_unmarked_one_is_not() {
     // The status the guard asks is empty, so the edit would be lost without this reading.
     let status = crate::command_test_support::git_status(repository.as_path(), &["status", "--porcelain=v1", "--untracked-files=no"]);
     assert!(status.stdout.is_empty(), "the mark must hide the edit from the status: {status:?}");
-    let mut facts: GitFacts = facts_in(repository.as_path());
+    let mut marked_facts: GitFacts = facts_in(repository.as_path());
     assert_eq!(
-        edits_the_status_hides(&mut facts, repository.as_path()),
+        edits_the_status_hides(&mut marked_facts, repository.as_path()),
         Ok(vec![String::from("tracked.txt")])
     );
     // A marked path that still holds the index's bytes is no edit, so nothing is named.
     std::fs::write(repository.join("tracked.txt"), b"one\n").expect("the committed bytes");
-    let mut facts: GitFacts = facts_in(repository.as_path());
-    assert_eq!(edits_the_status_hides(&mut facts, repository.as_path()), Ok(Vec::<String>::new()));
+    let mut unchanged_facts: GitFacts = facts_in(repository.as_path());
+    assert_eq!(
+        edits_the_status_hides(&mut unchanged_facts, repository.as_path()),
+        Ok(Vec::<String>::new())
+    );
     // A touched path whose bytes are unchanged is no edit either: the bytes decide, not the clock.
     std::fs::write(repository.join("tracked.txt"), b"one\n").expect("the committed bytes again");
-    let mut facts: GitFacts = facts_in(repository.as_path());
-    assert_eq!(edits_the_status_hides(&mut facts, repository.as_path()), Ok(Vec::<String>::new()));
+    let mut touched_facts: GitFacts = facts_in(repository.as_path());
+    assert_eq!(
+        edits_the_status_hides(&mut touched_facts, repository.as_path()),
+        Ok(Vec::<String>::new())
+    );
     remove(root.as_path());
 }

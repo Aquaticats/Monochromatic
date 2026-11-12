@@ -102,9 +102,9 @@ fn marked_paths(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, String> {
         return Err(failed(&output, "the paths the index marks assume-unchanged"));
     }
     let mut marked: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for entry in output.stdout.split(|byte| *byte == 0) {
+    for entry in output.stdout.split(|byte| return *byte == 0) {
         // Each entry is `<tag> <path>`; a tag of one lower-case letter is the mark.
-        let Some(space) = entry.iter().position(|byte| *byte == b' ') else {
+        let Some(space) = entry.iter().position(|byte| return *byte == b' ') else {
             continue;
         };
         if !is_marked(&entry[..space]) {
@@ -185,7 +185,7 @@ fn marked_entries(facts: &mut GitFacts, marked: &[Vec<u8>]) -> Result<Vec<Marked
 /// ```
 fn parse_marked_entries(stdout: &[u8]) -> Vec<MarkedEntry> {
     let mut entries: Vec<MarkedEntry> = Vec::<MarkedEntry>::new();
-    let chunks: Vec<&[u8]> = stdout.split(|byte| *byte == 0).collect();
+    let chunks: Vec<&[u8]> = stdout.split(|byte| return *byte == 0).collect();
     for (index, chunk) in chunks.iter().enumerate() {
         // The first chunk is the first entry's header; every later one starts with the stat of the entry before it.
         let header: &[u8] = if index == 0 {
@@ -224,7 +224,7 @@ fn parse_marked_entries(stdout: &[u8]) -> Vec<MarkedEntry> {
 fn after_stat_lines(chunk: &[u8]) -> Option<&[u8]> {
     let mut rest: &[u8] = chunk;
     for _ in 0..STAT_LINES {
-        let newline: usize = rest.iter().position(|byte| *byte == b'\n')?;
+        let newline: usize = rest.iter().position(|byte| return *byte == b'\n')?;
         rest = &rest[newline + 1..];
     }
     return Some(rest);
@@ -253,8 +253,8 @@ const STAT_LINES: usize = 5;
 /// function entryOf(header: Buffer, stat: Buffer): MarkedEntry | undefined;
 /// ```
 fn entry_of(header: &[u8], stat: &[u8]) -> Option<MarkedEntry> {
-    let tab: usize = header.iter().position(|byte| *byte == b'\t')?;
-    let fields: Vec<&[u8]> = header[..tab].split(|byte| *byte == b' ').collect();
+    let tab: usize = header.iter().position(|byte| return *byte == b'\t')?;
+    let fields: Vec<&[u8]> = header[..tab].split(|byte| return *byte == b' ').collect();
     let [_tag, mode, object, stage] = fields.as_slice() else {
         return None;
     };
@@ -301,7 +301,7 @@ fn number_after(block: &[u8], label: &[u8]) -> Option<u64> {
 /// ```
 fn modified_after(block: &[u8], label: &[u8]) -> Option<(i64, i64)> {
     let at: usize = find(block, label)? + label.len();
-    let colon: usize = at + block[at..].iter().position(|byte| *byte == b':')?;
+    let colon: usize = at + block[at..].iter().position(|byte| return *byte == b':')?;
     let seconds: i64 = std::str::from_utf8(&block[at..colon]).ok()?.trim().parse::<i64>().ok()?;
     let mut end: usize = colon + 1;
     while end < block.len() && block[end].is_ascii_digit() {
@@ -326,7 +326,7 @@ fn find(block: &[u8], label: &[u8]) -> Option<usize> {
     if label.len() > block.len() {
         return None;
     }
-    return block.windows(label.len()).position(|window| window == label);
+    return block.windows(label.len()).position(|window| return window == label);
 }
 
 /// What:
@@ -443,7 +443,7 @@ fn relative_path(bytes: &[u8]) -> Option<PathBuf> {
 /// function modifiedOfMetadata(metadata): [number, number];
 /// ```
 fn modified_of_metadata(metadata: &std::fs::Metadata) -> (i64, i64) {
-    let since: std::time::Duration = match metadata.modified().ok().and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok()) {
+    let since: std::time::Duration = match metadata.modified().ok().and_then(|time| return time.duration_since(std::time::UNIX_EPOCH).ok()) {
         Some(found) => found,
         None => std::time::Duration::ZERO,
     };

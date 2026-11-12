@@ -129,6 +129,7 @@ fn a_clean_that_offers_no_menu_reaches_git_untouched() {
 ///  while a pathspec names a directory Git deletes without it:
 ///  `git clean -ffXi -- cache` offers the repository inside `cache`,
 ///  and a transform that waited for `-d` capped nothing and left it in the menu.
+#[test]
 fn an_interactive_clean_without_descent_asks_what_it_would_delete() {
     let found: Worktree = worktree("rule-interactive-nested-pathspec", true);
     let mut facts: ScriptedFacts = found.facts.clone();

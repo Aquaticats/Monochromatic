@@ -148,7 +148,7 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
     let parsed: ParsedOptions = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok()?;
     let names: Vec<&OsString> = positional_tokens(&parsed, region.len())
         .into_iter()
-        .filter_map(|index| region.get(index))
+        .filter_map(|index| return region.get(index))
         .collect();
     // Everything after `--` is a path, and the one word before it that is no option is the revision Git reads.
     if let Boundary::DashDash(boundary) = parsed.boundary {
@@ -166,13 +166,13 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         let revision: Option<OsString> = Some(names[0].clone());
         return Some(WrittenPaths::MatchingTree {
             revision,
-            pathspecs: names[1..].iter().map(|name| (*name).clone()).collect(),
+            pathspecs: names[1..].iter().map(|name| return (*name).clone()).collect(),
         });
     }
     if !is_enabled(&parsed, FORCE) {
         return None;
     }
-    return Some(WrittenPaths::Tree { revision: names.first().map(|name| (*name).clone()) });
+    return Some(WrittenPaths::Tree { revision: names.first().map(|name| return (*name).clone()) });
 }
 
 /// What:
@@ -236,7 +236,7 @@ fn restore_source(region: &[OsString]) -> Option<OsString> {
         }
         if written.len() > 1 && written[0] == b'-' {
             let cluster: &[u8] = &written[1..];
-            let position: usize = match cluster.iter().position(|byte| *byte == b's') {
+            let position: usize = match cluster.iter().position(|byte| return *byte == b's') {
                 Some(found) => found,
                 None => {
                     continue;
@@ -267,7 +267,7 @@ fn long_option_value(written: &[u8], name: &str) -> Option<OsString> {
     if !spells_long(written, name, crate::command_discard::RESTORE_LONG_OPTIONS) {
         return None;
     }
-    let equals: usize = written.iter().position(|byte| *byte == b'=')?;
+    let equals: usize = written.iter().position(|byte| return *byte == b'=')?;
     return Some(OsString::from(String::from_utf8_lossy(&written[equals + 1..]).into_owned()));
 }
 
@@ -284,7 +284,7 @@ fn long_option_value(written: &[u8], name: &str) -> Option<OsString> {
 /// ```
 fn option_takes_a_value(written: &[u8]) -> bool {
     let names: [&str; 2] = ["source", "conflict"];
-    return names.iter().any(|name| spells_long(written, name, crate::command_discard::RESTORE_LONG_OPTIONS));
+    return names.iter().any(|name| return spells_long(written, name, crate::command_discard::RESTORE_LONG_OPTIONS));
 }
 
 /// What:

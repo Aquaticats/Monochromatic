@@ -80,7 +80,7 @@ fn a_long_list_is_named_and_counted() {
         reason: String::from("a reason"),
         kind: FailureKind::Io,
     };
-    let requested: Vec<String> = ["a", "b", "c", "d", "e", "f", "g"].iter().map(|name| String::from(*name)).collect();
+    let requested: Vec<String> = ["a", "b", "c", "d", "e", "f", "g"].iter().map(|name| return String::from(*name)).collect();
     let message: String = overwritten_not_saved_message(NotSaved {
         failure: &failure,
         saved_root: std::path::Path::new("/r/.git/monochromatic-git-policy-cli/discarded"),

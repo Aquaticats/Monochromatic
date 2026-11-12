@@ -299,9 +299,9 @@ fn the_dry_run_query_carries_the_facts_and_no_menu() {
             vec!["--no-optional-locks", "clean", "-n", "-f", "-d", "-x", "-X", "--"],
         ),
     ] {
-        let region: Vec<std::ffi::OsString> = os_arguments(spelling.as_slice());
+        let written: Vec<std::ffi::OsString> = os_arguments(spelling.as_slice());
         let query: CleanDryRun =
-            clean_dry_run_arguments(&[], region.as_slice(), run_in).expect("the region parses");
+            clean_dry_run_arguments(&[], written.as_slice(), run_in).expect("the region parses");
         assert_eq!(query.run_in, PathBuf::from("/work/here"), "{spelling:?}");
         assert_eq!(query.arguments, os_arguments(expected.as_slice()), "{spelling:?}");
     }

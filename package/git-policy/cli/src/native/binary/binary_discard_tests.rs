@@ -1227,18 +1227,18 @@ fn a_forced_head_move_saves_an_ignored_file_the_target_branch_tracks() {
     // A target tree that tracks no ignored path leaves the worktree nothing to save, so the form runs with no line
     //  of its own.
     let quiet: Fixture = fixture("discard-forced-ignored-nothing");
-    let (repo, linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&quiet);
-    std::fs::remove_file(linked.join(".env")).expect("drop the ignored file");
-    let before: usize = audit_lines_of(repo.as_path()).len();
+    let (quiet_repo, quiet_linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&quiet);
+    std::fs::remove_file(quiet_linked.join(".env")).expect("drop the ignored file");
+    let before: usize = audit_lines_of(quiet_repo.as_path()).len();
     for arguments in [
         vec!["reset", "--hard", "side"],
         vec!["checkout", "--force", "tracks"],
     ] {
-        let observed: Observed = run_wrapped(&quiet, linked.as_path(), arguments.as_slice());
+        let observed: Observed = run_wrapped(&quiet, quiet_linked.as_path(), arguments.as_slice());
         assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
         assert!(!stderr_of(&observed).contains("saved your copy"), "{arguments:?}: {}", stderr_of(&observed));
     }
-    let lines: Vec<String> = audit_lines_since(repo.as_path(), before);
+    let lines: Vec<String> = audit_lines_since(quiet_repo.as_path(), before);
     assert!(
         lines.iter().all(|line| { return !line.contains("saved-overwritten"); }),
         "a worktree with nothing in the way recorded a save: {lines:?}"
