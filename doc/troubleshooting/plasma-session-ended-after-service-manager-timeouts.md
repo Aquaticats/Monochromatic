@@ -713,6 +713,20 @@ and one interruption of the manager's message processing is enough to reach the 
 The phase breakdown of a slow reload is still unmeasured;
 the original journal has no per-phase timings.
 
+The wrapper's own ceilings are sized for cold starts,
+not for reloads,
+which is what makes the tail reachable for it:
+`START_CEILING` is 60 seconds against 52 cold starts that greeted in at most 1041 ms,
+and `SERVICE_GREETING_SILENCE` is 3 seconds
+(`package/git-policy/cli/src/native/service/wait_ceilings.rs`).
+A whole-manager reload that lasts 3.2 seconds,
+which 40 of the 208 did,
+is already longer than the silence the
+wrapper reads as a service stopped inside its own process,
+and the incident's restart request came 3 seconds into a start the manager could not run.
+The ceilings are not wrong for the starts they were measured on;
+they are applied to a wait that includes a whole-manager reload.
+
 ### The incident window's log ordering
 
 Journal records that were produced during the incident window were written in one burst later:
