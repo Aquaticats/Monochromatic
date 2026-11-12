@@ -13038,7 +13038,9 @@ in its checked form, so every question a claim asks is asked of the tree that is
   and says nothing.
 - A commit that is handed a tree runs `refusal` on it,
   which is the same check a claim runs and is all reads,
-  then writes the ref store and the conclusion state into it as it does into a claimed member.
+  then writes the ref store into it as it does into a claimed member.
+  A commit that concludes something is never handed one: it carries the state a conclusion leaves,
+  which the landing that concludes compares at the path its own scratch tree holds.
   A tree this invocation refuses is released in the background and the commit takes the other routes.
 - The tree is renewed every `SCRATCH_REFRESH_EVERY` while the command that holds it lives,
   exactly as the commit's own scratch tree is,

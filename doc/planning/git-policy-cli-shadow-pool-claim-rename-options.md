@@ -938,7 +938,8 @@ runs in the lean member and lands both.
 ### What the hand-out costs
 
 Measured on this machine, after the change, with the harness of
-"Where the numbers come from" and the same disposable repository shape:
+"Where the numbers come from" and a disposable repository of sixty files rather than two hundred
+(a claim reads none of the worktree, and the smaller fixture is fewer calls the stalled device can hold past a commit's own ceiling):
 80 wrapped SSH-signed commits per arm, four arms alternating the two builds,
 so each build met the load twice and the spread of an unchanged build sits beside the difference.
 The host's load average was 149 to 168 over eight processors while these ran,
