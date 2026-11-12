@@ -17,7 +17,6 @@
 //! ```
 
 use super::{CapDecision, ONE_FORCE, keep_nested_repositories_out_of_an_interactive_menu};
-use crate::command_clean::UNREADABLE_CLEAN_DELETION;
 use crate::command_test_support::{fixture, git, git_output, os_arguments, remove};
 use crate::policy_test_support::{ScriptedFacts, linked_worktree, scripted_facts};
 use std::path::PathBuf;
@@ -126,12 +125,49 @@ fn a_clean_that_offers_no_menu_reaches_git_untouched() {
 }
 
 /// What:
+///  An interactive clean started in a subdirectory reads the names Git prints below that directory,
+///  so the menu it caps is the menu the person is looking at.
+/// Why:
+///  Git prints a removed path relative to the directory the clean runs in,
+///  with a `.` in front of one named from inside a directory it keeps,
+///  so a transform that read the name from the worktree root would cap nothing and the menu would offer the
+///  repository after all.
+#[test]
+fn an_interactive_clean_names_a_repository_below_the_command() {
+    let root: PathBuf = fixture("rule-interactive-nested-subdirectory");
+    let linked: PathBuf = root.join("linked");
+    let main: PathBuf = root.join("main");
+    std::fs::create_dir_all(linked.join("sub/container/nested/.git")).expect("a nested repository");
+    std::fs::write(linked.join("sub/container/nested/untracked.txt"), b"untracked user data\n").expect("its work");
+    std::fs::create_dir_all(main.join(".git")).expect("the common Git directory");
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.location = Ok(crate::repository_location::RepositoryLocation {
+        identity: crate::worktree_identity::WorktreeIdentity::LinkedWorktree {
+            common_dir: main.join(".git"),
+            git_dir: main.join(".git/worktrees/linked"),
+            worktree_root: linked.clone(),
+        },
+        prefix: b"sub/".to_vec(),
+    });
+    facts.clean_deletes = Ok(vec![b"Would remove ./container".to_vec()]);
+    match keep_nested_repositories_out_of_an_interactive_menu(
+        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
+        &mut facts,
+    ) {
+        CapDecision::Capped { repositories, .. } => assert_eq!(repositories, vec![b"sub/container/nested".to_vec()]),
+        CapDecision::Unchanged => panic!("the repository below the command was not found"),
+        CapDecision::Stopped { message } => panic!("the reading stopped: {message}"),
+    }
+    remove(root.as_path());
+}
+
+/// What:
 ///  A menu that would offer no repository is left alone,
 ///  and so is a clean Git itself refuses.
 /// Why:
 ///   A clean that deletes nothing of a repository needs no cap,
-///  and a clean Git refuses runs nothing at all,
-///  so Git's own refusal is the answer the person gets.
+///  and `-x` written with `-X` is the one region Git refuses before it reads anything,
+///  so Git's own refusal is the answer the person gets and no dry run is asked.
 #[test]
 fn nothing_to_keep_and_gits_own_refusal_leave_the_clean_alone() {
     let empty: Worktree = worktree("rule-interactive-nested-empty", false);
@@ -143,12 +179,39 @@ fn nothing_to_keep_and_gits_own_refusal_leave_the_clean_alone() {
     ));
     let found: Worktree = worktree("rule-interactive-nested-refused", true);
     let mut refused: ScriptedFacts = found.facts.clone();
-    refused.clean_deletes = Err(format!("{UNREADABLE_CLEAN_DELETION} fatal: options '-x' and '-X' cannot be used together"));
+    refused.clean_deletes = Err(String::from("a clean Git refuses itself must not be read"));
+    refused.asked.clear();
+    let both_modes: Vec<std::ffi::OsString> = os_arguments(&["clean", "-i", "-f", "-f", "-d", "-x", "-X"]);
     assert!(matches!(
-        keep_nested_repositories_out_of_an_interactive_menu(arguments.as_slice(), &mut refused),
+        keep_nested_repositories_out_of_an_interactive_menu(both_modes.as_slice(), &mut refused),
         CapDecision::Unchanged
     ));
+    assert!(refused.asked.is_empty(), "a clean Git refuses was read anyway: {:?}", refused.asked);
     remove(empty.root.as_path());
+    remove(found.root.as_path());
+}
+
+/// What:
+///  A dry run that failed stops the command with its own sentence,
+///  whatever words Git wrote on standard error.
+/// Why:
+///   A nonzero exit is no proof that the clean which runs afterwards refuses,
+///  and a repository the read could not see may be one the menu would have offered;
+///  a failed read followed by the clean deleted a repository no copy held.
+#[test]
+fn a_failed_reading_stops_the_command() {
+    let found: Worktree = worktree("rule-interactive-nested-failed", true);
+    let mut facts: ScriptedFacts = found.facts.clone();
+    let sentence: &str = "Git could not read what the clean would delete: fatal: transient dry-run read failure";
+    facts.clean_deletes = Err(String::from(sentence));
+    match keep_nested_repositories_out_of_an_interactive_menu(
+        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
+        &mut facts,
+    ) {
+        CapDecision::Stopped { message } => assert_eq!(message, sentence),
+        CapDecision::Unchanged => panic!("a failed reading was read as Git's refusal"),
+        CapDecision::Capped { .. } => panic!("a failed reading was capped"),
+    }
     remove(found.root.as_path());
 }
 

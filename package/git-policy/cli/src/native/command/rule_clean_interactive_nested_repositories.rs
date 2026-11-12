@@ -22,9 +22,8 @@
 //! // capped.arguments === ['clean', '-i', '-ffdX', '--no-force', '-f']
 //! ```
 
-/// The table and the readings of `git clean`,
-///  and the two sentences a failed reading is told apart by.
-use crate::command_clean::{CLEAN_TABLE, UNREADABLE_CLEAN_DELETION, clean_dry_run_arguments, parse_clean_region};
+/// The table and the readings of `git clean`.
+use crate::command_clean::{CLEAN_TABLE, clean_dry_run_arguments, parse_clean_region};
 /// Which nested Git repositories that reading says the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
 /// Git's own option grammar,
@@ -118,9 +117,13 @@ struct InteractiveClean {
 ///  because its menu cannot be asked before Git deletes;
 ///  a repository Git would keep at one force is one no menu may offer,
 ///  and the clean still runs every other thing the person asked for.
-///  A clean Git refuses deletes nothing and needs no cap,
-///  and a reading that never answered stops the command,
-///  because a repository it could not see may be one the menu would have offered.
+///  The one clean Git refuses itself,
+///  `-x` written with `-X`,
+///  is known from the region and deletes nothing,
+///  so it needs no cap.
+///  A dry run that did not answer stops the command,
+///  because a repository it could not see may be one the menu would have offered,
+///  and a nonzero exit is no proof that the clean which runs afterwards refuses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,22 +138,22 @@ pub fn keep_nested_repositories_out_of_an_interactive_menu(
     };
     let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(clean.query) {
         Ok(answer) => answer,
-        // Git refuses this clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
-        Err(message) if message.starts_with(UNREADABLE_CLEAN_DELETION) => return CapDecision::Unchanged,
-        // A reading that never answered, or one the wrapper ended, could hide a repository the menu would offer.
+        // What the clean would delete was not read, so a repository the menu would offer was not seen; a nonzero exit
+        //  is no proof that the clean refuses, so nothing is capped and the command stops.
         Err(message) => return CapDecision::Stopped { message },
     };
-    let root: std::path::PathBuf = match facts.location() {
+    let (root, prefix): (std::path::PathBuf, Vec<u8>) = match facts.location() {
         Ok(location) => match worktree_root(&location.identity) {
-            Some(found) => found.to_path_buf(),
+            Some(found) => (found.to_path_buf(), location.prefix),
             None => return CapDecision::Unchanged,
         },
         Err(_) => return CapDecision::Unchanged,
     };
-    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root.as_path()) {
-        Ok(found) => found,
-        Err(message) => return CapDecision::Stopped { message },
-    };
+    let repositories: Vec<Vec<u8>> =
+        match nested_repositories_the_clean_deletes(deleted.as_slice(), root.as_path(), prefix.as_slice()) {
+            Ok(found) => found,
+            Err(message) => return CapDecision::Stopped { message },
+        };
     if repositories.is_empty() {
         return CapDecision::Unchanged;
     }
@@ -187,6 +190,11 @@ fn plan_interactive_clean(arguments: &[OsString]) -> Option<InteractiveClean> {
     // A region Git refuses runs nothing, and one force keeps every nested repository by Git's own rule.
     let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
     let facts = parse_clean_region(region, &[]).ok()?;
+    // Git refuses `-x` together with `-X` before it reads anything, so this clean deletes nothing, offers no menu,
+    //  and runs Git's own refusal; no dry run is needed to know it.
+    if facts.both_ignored_modes {
+        return None;
+    }
     if !facts.interactive || !facts.descends || !facts.deletes_ignored || facts.forces < 2 {
         return None;
     }

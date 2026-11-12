@@ -15,6 +15,7 @@
 
 use super::{
     dry_run_lines_from_answer, nested_repositories_the_clean_deletes, removed_paths_from_dry_run,
+    repositories_beneath_within_a_ceiling,
 };
 use crate::command_test_support::{fixture, remove};
 use crate::git_metadata::MetadataOutput;
@@ -139,6 +140,7 @@ fn the_removed_paths_are_read_through_their_own_git_entry() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove nested/\n", "Would remove cache/\n", "Would remove vendor/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert_eq!(found, vec![line("nested")]);
@@ -162,6 +164,7 @@ fn a_repository_below_a_removed_directory_is_found() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove container/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert_eq!(
@@ -185,6 +188,7 @@ fn only_the_outermost_repository_is_returned() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove cache/\n", "Would remove cache/inner/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert_eq!(found, vec![line("cache")]);
@@ -204,6 +208,7 @@ fn a_link_to_a_repository_is_not_a_repository_the_clean_deletes() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove linked/\n", "Would remove linked/inner/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert!(found.is_empty(), "{found:?}");
@@ -219,10 +224,150 @@ fn a_removed_name_that_leaves_the_worktree_names_nothing() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove ../outside/\n", "Would remove /absolute/\n", "Would remove nested/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert_eq!(found, vec![line("nested")]);
     remove(root.as_path());
+}
+
+/// What:
+///  A pathspec may name a directory above the one the clean runs in,
+///  and a repository below that name is still one the clean deletes.
+/// Why:
+///  Git prints that path with the parent components that reach it from the command's directory,
+///  so a reader that refuses a parent component drops a name Git really printed,
+///  and the repository inside it is deleted unsaved.
+#[test]
+fn a_name_above_the_command_but_below_the_worktree_is_read() {
+    let root: PathBuf = fixture("clean-nested-above");
+    std::fs::create_dir_all(root.join("sub/kept")).expect("the command's directory");
+    std::fs::create_dir_all(root.join("other/nested/.git")).expect("a repository beside the command");
+    let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
+        lines(&["Would remove ../other/\n"]).as_slice(),
+        root.as_path(),
+        b"sub/",
+    )
+    .expect("a plain answer");
+    assert_eq!(found, vec![line("other/nested")]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A name that steps above the worktree names nothing,
+///  and a name below it is still read.
+/// Why:
+///  Git removes nothing outside the worktree,
+///  so a name that leaves it is no directory this policy may move,
+///  while one beside it is.
+#[test]
+fn a_name_that_steps_above_the_worktree_names_nothing() {
+    let root: PathBuf = fixture("clean-nested-above-root");
+    std::fs::create_dir_all(root.join("sub/nested/.git")).expect("a nested repository");
+    let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
+        lines(&["Would remove ../../outside/\n", "Would remove nested/\n"]).as_slice(),
+        root.as_path(),
+        b"sub/",
+    )
+    .expect("a plain answer");
+    assert_eq!(found, vec![line("sub/nested")]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A clean started in a subdirectory prints its paths below the command's own directory,
+///  and a repository below one of them is still found.
+/// Why:
+///  Git prints a removed path relative to the directory the command runs in
+///  (`relative_path` in `builtin/clean.c`'s print),
+///  with a `.` in front when the path is named from inside a directory it refuses to remove itself,
+///  so reading that name from the worktree root names a directory Git never looked at,
+///  and rejecting the `.` drops the only name that holds the repository.
+#[test]
+fn the_paths_a_subdirectory_clean_prints_are_read_below_the_command() {
+    let root: PathBuf = fixture("clean-nested-subdirectory");
+    std::fs::create_dir_all(root.join("sub/container/nested/.git")).expect("a nested repository");
+    let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
+        lines(&["Would refuse to remove current working directory\n", "Would remove ./container\n"]).as_slice(),
+        root.as_path(),
+        b"sub/",
+    )
+    .expect("a plain answer");
+    assert_eq!(found, vec![line("sub/container/nested")]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A bare repository is a repository Git's clean deletes whole,
+///  at the removed path and below one,
+///  and it is found although it holds no `.git` entry.
+/// Why:
+///  A bare repository keeps its history in the directory itself:
+///  `HEAD`,
+///  `objects` and `refs` are its markers,
+///  which is what Git's own `is_git_directory` reads,
+///  and a second `-f` deletes it as an ordinary ignored directory with every object it holds,
+///  so a walk that looks only for `.git` lets a clone nobody pushed lose everything.
+#[test]
+fn a_bare_repository_is_found_below_a_removed_path() {
+    let root: PathBuf = fixture("clean-nested-bare");
+    std::fs::create_dir_all(root.join("container/bare.git/objects")).expect("a bare repository's objects");
+    std::fs::create_dir_all(root.join("container/bare.git/refs")).expect("a bare repository's refs");
+    std::fs::write(root.join("container/bare.git/HEAD"), b"ref: refs/heads/inner\n").expect("a bare repository's head");
+    std::fs::create_dir_all(root.join("container/deeper/mirror.git/objects")).expect("a deeper bare repository");
+    std::fs::create_dir_all(root.join("container/deeper/mirror.git/refs")).expect("its refs");
+    std::fs::write(root.join("container/deeper/mirror.git/HEAD"), b"ref: refs/heads/inner\n").expect("its head");
+    std::fs::create_dir_all(root.join("container/plain/objects")).expect("a directory with one marker only");
+    let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
+        lines(&["Would remove container/\n"]).as_slice(),
+        root.as_path(),
+        b"",
+    )
+    .expect("a plain answer");
+    assert_eq!(
+        found,
+        vec![line("container/bare.git"), line("container/deeper/mirror.git")]
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A look inside a removed directory that gives no answer within its ceiling stops the clean,
+///  and the command does not wait for the mount.
+/// Why:
+///  A directory read or a metadata lookup on a mount whose server stopped answering never returns,
+///  and the wrapper must not hold the command for as long as that mount takes;
+///  the walk runs on an awaited thread,
+///  and a look that outlasts the ceiling names the directory instead.
+#[test]
+fn a_look_inside_that_does_not_answer_stops_the_clean() {
+    let root: PathBuf = fixture("clean-nested-slow-walk");
+    std::fs::create_dir_all(root.join("cache/held")).expect("a directory Git would remove");
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(100);
+    let started: std::time::Instant = std::time::Instant::now();
+    let failure: String = repositories_beneath_within_a_ceiling(
+        root.as_path(),
+        &[std::ffi::OsString::from("cache")],
+        ceiling,
+        a_look_that_does_not_answer,
+    )
+    .expect_err("a look that never answered");
+    let waited: std::time::Duration = started.elapsed();
+    assert!(waited < std::time::Duration::from_secs(2), "the clean waited {waited:?} for a look whose ceiling is {ceiling:?}");
+    assert!(failure.contains("cache"), "{failure}");
+    assert!(failure.contains("did not answer"), "{failure}");
+    assert!(failure.contains("not judged"), "{failure}");
+    remove(root.as_path());
+}
+
+/// A look that never gives an answer:
+///  the mount of the control that holds a walk past its ceiling.
+fn a_look_that_does_not_answer(
+    _worktree_root: &std::path::Path,
+    _start: &[std::ffi::OsString],
+) -> Result<Vec<Vec<std::ffi::OsString>>, String> {
+    std::thread::sleep(std::time::Duration::from_secs(30));
+    return Ok(Vec::<Vec<std::ffi::OsString>>::new());
 }
 
 /// What:
@@ -241,6 +386,7 @@ fn a_directory_the_wrapper_cannot_look_inside_stops_the_clean() {
     let failure: String = nested_repositories_the_clean_deletes(
         lines(&["Would remove cache/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect_err("a directory that cannot be read");
     std::fs::set_permissions(root.join("cache"), std::fs::Permissions::from_mode(0o700)).expect("free the cache");

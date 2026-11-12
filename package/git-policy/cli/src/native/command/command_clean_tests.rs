@@ -91,6 +91,39 @@ fn detects_deleting_forms() {
     }
 }
 
+/// What:
+///  The one clean Git refuses before it reads anything is `-x` together with `-X`,
+///  in every spelling and in either order.
+/// Why:
+///  A dry run of that region exits nonzero without naming a path,
+///  so a reader that takes every nonzero exit for Git's refusal deletes on a reading it never got;
+///  the region itself says Git will refuse,
+///  and no dry run is needed to know it.
+#[test]
+fn reports_the_one_region_git_refuses_itself() {
+    for values in [
+        vec!["-x", "-X"],
+        vec!["-X", "-x"],
+        vec!["-xX"],
+        vec!["-Xx"],
+        vec!["-ffd", "-x", "-X"],
+        vec!["-e", "notes.txt", "-xX"],
+    ] {
+        assert!(region(values.as_slice()).both_ignored_modes, "{values:?}");
+    }
+    for values in [
+        vec![],
+        vec!["-x"],
+        vec!["-X"],
+        vec!["-ffdX"],
+        vec!["-ffdx"],
+        vec!["-e", "-xX"],
+        vec!["--", "-xX"],
+    ] {
+        assert!(!region(values.as_slice()).both_ignored_modes, "{values:?}");
+    }
+}
+
 /// Interactive state is reported with Git's last-wins order;
 ///  it does not decide deletion.
 #[test]

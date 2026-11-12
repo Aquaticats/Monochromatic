@@ -20,7 +20,7 @@
 
 /// The builder of the clean's own dry run,
 ///  and the parsed facts that decide whether the question applies.
-use crate::command_clean::{UNREADABLE_CLEAN_DELETION, clean_dry_run_arguments, parse_clean_region};
+use crate::command_clean::{clean_dry_run_arguments, parse_clean_region};
 /// Which nested Git repositories that answer says the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
 /// The bound on the folder of saved copies applied after a save,
@@ -113,10 +113,14 @@ enum NestedRepositories {
 ///  Git itself says which paths the clean removes,
 ///  and the repository the clean deletes is the one below one of those paths,
 ///  found by looking inside the names Git printed and nowhere else.
-///  A clean whose dry run Git refuses deletes nothing,
-///  and Git then refuses the command itself in its own words.
-///  A clean whose dry run never answered was read by nobody,
-///  so it stops instead of running on a guess.
+///  The one clean Git refuses itself,
+///  `-x` written with `-X`,
+///  is known from the region before any reading:
+///  it deletes nothing,
+///  so Git's own refusal is the answer the person gets.
+///  A dry run that did not answer was read by nobody,
+///  and a nonzero exit is no proof that the clean which runs afterwards refuses,
+///  so that clean stops instead of running on a guess.
 ///  An interactive clean is not moved here at all:
 ///  its menu is answered after Git starts,
 ///  so the fixed transform keeps the repositories out of that menu by one force
@@ -142,6 +146,12 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     if !parsed.deletes_ignored || !parsed.descends || parsed.forces < 2 {
         return NestedRepositories::Nothing;
     }
+    // Git refuses `-x` together with `-X` before it reads anything (`cmd_clean`), so this clean deletes nothing and
+    //  Git's own refusal is the answer the person gets. A dry run would only say so with a nonzero exit, which is no
+    //  proof about the clean that runs afterwards.
+    if parsed.both_ignored_modes {
+        return NestedRepositories::Nothing;
+    }
     // A menu is answered after Git starts, so nothing here can ask the person first; the transform that runs the clean
     //  with one force keeps the repositories where they are instead of moving them before a decision.
     if parsed.interactive {
@@ -159,12 +169,11 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     };
     let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(as_typed) {
         Ok(answer) => answer,
-        // Git refuses this clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
-        Err(message) if message.starts_with(UNREADABLE_CLEAN_DELETION) => return NestedRepositories::Nothing,
-        // A reading that never answered could hide a repository, so the clean stops here.
+        // What the clean would delete was not read, so a repository it would delete was not seen; a nonzero exit is
+        //  no proof that the later clean refuses, and running on it deleted a repository no copy held.
         Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
     };
-    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root) {
+    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root, location.prefix.as_slice()) {
         Ok(found) => found,
         Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
     };
