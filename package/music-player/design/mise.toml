@@ -389,14 +389,20 @@ dir = "{{config_root}}"
 run = "node selected-search-question.mjs validate"
 
 [tasks."test:unit"]
-description = "Check the selected Fold Search artifact against its sanitized captures, then the package prose bans"
+description = "Check the selected Fold Search artifact against its sanitized captures, the offline review guards, then the package prose bans"
 dir = "{{config_root}}"
 run = [
   "node selected-search-question.mjs validate",
+  "node offline-review-guards-test.mjs",
   "node prose-dashes-test.mjs",
   "node prose-emphasis-test.mjs",
   "node crease-floor-question-test.mjs",
 ]
+
+[tasks."test:offline-review-guards"]
+description = "Replay the answers recorded from the patterns that guarded the offline review pages and their witness names"
+dir = "{{config_root}}"
+run = "node offline-review-guards-test.mjs"
 
 [tasks."test:prose:dashes"]
 description = "Hold the package's authored prose to the AGENTS.md ban on em and en dashes in prose"

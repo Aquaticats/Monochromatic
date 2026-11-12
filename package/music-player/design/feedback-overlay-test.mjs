@@ -83,6 +83,17 @@ copyFileSync(
   ),
   builder
 );
+// The builder imports the shared guards, so the disposable copy needs them beside it.
+copyFileSync(
+  join(
+    root,
+    'offline-review-guards.mjs'
+  ),
+  join(
+    fixture,
+    'offline-review-guards.mjs'
+  )
+);
 const mutation = process.argv[2];
 if ((mutation !== undefined) && (mutation !== 'without-exact-cohort')
   && (mutation !== 'without-hold')) {
@@ -305,24 +316,43 @@ try {
     templatePath,
     'utf8'
   );
-  writeFileSync(
-    templatePath,
-    template.replace(
+  // Pages the validate pass must refuse: one that states a second form, one that holds a ballot control.
+  function refusedPage({
+    change,
+    diagnostic
+  }) {
+    const changed = change(template);
+    if (changed === template) throw new Error(`Template mutation changed nothing: ${  diagnostic}`);
+    writeFileSync(
+      templatePath,
+      changed
+    );
+    if (invoke('build')
+      .status
+      !== 0) throw new Error(`Mutated template did not build: ${  diagnostic}`);
+    const run = invoke('validate');
+    writeFileSync(
+      templatePath,
+      template
+    );
+    if ((run.status === 0) || (!run.stderr
+      .includes(diagnostic))) throw new Error(`Mutated page was not rejected: ${  diagnostic}`);
+    positive();
+  }
+  refusedPage({
+    change: page => page.replace(
+      '<form id="review-form">',
+      '<form id="review-form"></form><form id="second-form">'
+    ),
+    diagnostic: 'not a policy ballot'
+  });
+  refusedPage({
+    change: page => page.replace(
       '<form id="review-form">',
       '<form id="review-form"><input type="radio" name="policy">'
-    )
-  );
-  if (invoke('build')
-    .status
-    !== 0) throw new Error('Ballot fixture did not build.');
-  const ballot = invoke('validate');
-  if ((ballot.status === 0) || (!ballot.stderr
-    .includes('not a policy ballot'))) throw new Error('Unexpected policy ballot accepted.');
-  writeFileSync(
-    templatePath,
-    template
-  );
-  positive();
+    ),
+    diagnostic: 'not a policy ballot'
+  });
   const output = join(
     fixture,
     'questions',

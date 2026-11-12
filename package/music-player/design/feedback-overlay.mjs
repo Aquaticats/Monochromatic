@@ -4,6 +4,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
+import { countTagOpenings } from './offline-review-guards.mjs';
 
 //region Exact inspected authored cohort, native holds cannot become lifecycle evidence
 const question = join(
@@ -217,7 +218,11 @@ if (process.argv[2] === 'build') {
   ]) {
     if (!html.includes(marker)) throw new Error(`Overlay review is missing ${  marker}`);
   }
-  if (((html.match(/<form\b/g) ?? []).length !== 1) ||
+  if ((countTagOpenings({
+    page: html,
+    tagName: 'form'
+  })
+    !== 1) ||
     /__FEEDBACK_OVERLAY_IMAGES__|<script\b[^>]*\bsrc=|<link\b[^>]*\bhref=|<img\b[^>]*\bsrc="https?:/i.test(html)
     ||
     /<input\b[^>]*\btype="radio"|<textarea\b(?:[^"'<>]|"[^"]*"|'[^']*')*?\srequired(?:\s|=|>)/i.test(html)) {
