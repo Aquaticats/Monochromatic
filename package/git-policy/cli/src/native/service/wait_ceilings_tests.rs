@@ -204,21 +204,23 @@ fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
 }
 
 /// What:
-///  The wait for a snapshot made ahead is the owner's 60 s bound for an add,
-/// and the snapshot rung names it.
+///  Every add takes its own snapshot and claims no copy the service made ahead,
+/// so no ceiling bounds a wait an add no longer makes.
 /// Why:
-///   The ceiling covers the whole wait for a btrfs call the add does not make itself,
-/// so it is the one number that
-///  decides when Git's own checkout makes the worktree instead;
-/// a ceiling that drifted from the owner's bound,
-/// or a
-///  rung that stopped taking it,
-/// would leave an add waiting with no end again.
+///   The copy a service made ahead of an add was open to the owner's veto,
+/// and when he was asked on 2026-11-11 to keep it or to take a fresh snapshot on every add he answered
+/// "Fresh snapshot every add".
+/// A ceiling that stayed here would bound a wait no code makes,
+/// which is what this control reported at the alpha.11 gate:
+/// it asserted that the snapshot rung names the ceiling, and the rung no longer takes one.
 #[test]
-fn the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add() {
-    assert_eq!(SNAPSHOT_AHEAD_CEILING, Duration::from_secs(60), "the owner, 2026-11-10: \"60s is fine for adding worktrees\"");
+fn an_add_takes_its_own_snapshot_and_waits_for_none_made_ahead() {
     let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");
-    assert!(rung.contains("SNAPSHOT_AHEAD_CEILING"), "the snapshot rung takes this ceiling");
+    assert!(rung.contains("take_snapshot("), "the snapshot rung takes the add's own snapshot");
+    assert!(!rung.contains("look_for_a_snapshot_ahead"), "the add claims no copy the service made ahead");
+    assert!(!rung.contains("SNAPSHOT_AHEAD_CEILING"), "nothing bounds a wait the add does not make");
+    let ceilings: &str = include_str!("wait_ceilings.rs");
+    assert!(!ceilings.contains("SNAPSHOT_AHEAD_CEILING"), "no ceiling of an add's wait for a copy made ahead is left to bound nothing");
 }
 
 /// The start of one repair tool is bounded by the wait a client grants a service's own start:

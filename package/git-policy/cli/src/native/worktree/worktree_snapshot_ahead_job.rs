@@ -12,10 +12,9 @@
 //! because a thread asleep in the ioctl
 //!  keeps the process from exiting,
 //! so the call lives here,
-//! in the service,
-//! and the add waits for the answer
-//!  instead (`worktree_snapshot_ahead.rs`,
-//! `SNAPSHOT_AHEAD_CEILING`).
+//! in the service.
+//! An add no longer waits for such a copy: the owner answered "Fresh snapshot every add" on 2026-11-11, so every add
+//!  takes its own snapshot and this job runs only for a record an earlier release queued.
 //! The service makes one entry at a time and stops when the folder already
 //!  holds what an add keeps (`AHEAD_KEPT`),
 //! so a burst of requests cannot fill the volume with copies of one tree.
