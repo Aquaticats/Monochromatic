@@ -545,17 +545,17 @@ fn the_awaited_landing_question_answers_what_the_synchronous_one_answers() {
     .expect("the record reads");
     let base: String = head_of(repo.as_path());
     let synchronous_off: bool = super::landed_below(&context, &held, &intent, base.as_str());
-    let awaited_off: bool = crate::lazy_runtime::run_on_runtime(super::landed_below_awaiting(&context, &held, &intent, base.as_str())).expect("the runtime");
+    let awaited_off: bool = crate::lazy_runtime::run_on_runtime(super::awaiting::landed_below_awaiting(&context, &held, &intent, base.as_str())).expect("the runtime");
     assert!(!synchronous_off, "the batch's commit is not below the branch it was taken off");
     assert_eq!(synchronous_off, awaited_off, "the awaited face answers the same about a branch the batch is not on");
     git(repo.as_path(), &["update-ref", "--no-deref", "refs/heads/main", held.new.as_str(), base.as_str()]);
     let synchronous_on: bool = super::landed_below(&context, &held, &intent, held.new.as_str());
-    let awaited_on: bool = crate::lazy_runtime::run_on_runtime(super::landed_below_awaiting(&context, &held, &intent, held.new.as_str())).expect("the runtime");
+    let awaited_on: bool = crate::lazy_runtime::run_on_runtime(super::awaiting::landed_below_awaiting(&context, &held, &intent, held.new.as_str())).expect("the runtime");
     assert!(synchronous_on, "the batch's commit is the branch");
     assert_eq!(synchronous_on, awaited_on, "the awaited face answers the same about a branch the batch is on");
     let unknown: String = String::from("0000000000000000000000000000000000000000");
     let synchronous_unknown: bool = super::landed_below(&context, &held, &intent, unknown.as_str());
-    let awaited_unknown: bool = crate::lazy_runtime::run_on_runtime(super::landed_below_awaiting(&context, &held, &intent, unknown.as_str())).expect("the runtime");
+    let awaited_unknown: bool = crate::lazy_runtime::run_on_runtime(super::awaiting::landed_below_awaiting(&context, &held, &intent, unknown.as_str())).expect("the runtime");
     assert!(!synchronous_unknown, "a branch Git cannot answer for is no landing");
     assert_eq!(synchronous_unknown, awaited_unknown, "the awaited face answers the same about a branch Git cannot answer for");
     remove(root.as_path());
@@ -616,12 +616,12 @@ fn the_awaited_branch_write_answers_what_the_synchronous_one_answers() {
 /// ```ts
 /// const describes = (look) => look.kind;
 /// ```
-fn describes(look: &super::IntentLook) -> &'static str {
+fn describes(look: &super::awaiting::IntentLook) -> &'static str {
     return match look {
-        super::IntentLook::Found(_) => "found",
-        super::IntentLook::Absent => "absent",
-        super::IntentLook::Damaged(_) => "damaged",
-        super::IntentLook::NoAnswer => "no answer",
+        super::awaiting::IntentLook::Found(_) => "found",
+        super::awaiting::IntentLook::Absent => "absent",
+        super::awaiting::IntentLook::Damaged(_) => "damaged",
+        super::awaiting::IntentLook::NoAnswer => "no answer",
     };
 }
 
@@ -705,7 +705,7 @@ fn a_record_that_gives_no_answer_holds_no_worker_and_is_not_an_absent_one() {
     let read_began: std::time::Instant = std::time::Instant::now();
     let reading = {
         let journal: PathBuf = held.journal.clone();
-        runtime.spawn(async move { return super::intent_within(SHORT_CEILING, journal.as_path(), 1).await; })
+        runtime.spawn(async move { return super::awaiting::intent_within(SHORT_CEILING, journal.as_path(), 1).await; })
     };
     let began: std::time::Instant = std::time::Instant::now();
     while !ticked.load(std::sync::atomic::Ordering::SeqCst) && began.elapsed() < THE_PATIENCE {
@@ -716,21 +716,21 @@ fn a_record_that_gives_no_answer_holds_no_worker_and_is_not_an_absent_one() {
     //  first, and the read the pool abandoned is ended by the writer so no thread of the process stays in it.
     std::thread::sleep(PAST_THE_CEILING);
     release_the_pipe(open.as_path());
-    let answered: super::IntentLook = runtime.block_on(async { return reading.await.expect("the read task ends"); });
+    let answered: super::awaiting::IntentLook = runtime.block_on(async { return reading.await.expect("the read task ends"); });
     // The read's own time is what the ceiling bounds: the rest of this control's reads take as long as the host makes them.
     assert!(read_began.elapsed() < THE_PATIENCE, "the read ended at its ceiling and never waited on the file without end: {} ms", read_began.elapsed().as_millis());
     assert!(ran_beside, "the task beside a record that gives no answer still runs, so no worker is held by that read");
-    assert!(matches!(answered, super::IntentLook::NoAnswer), "a look that gave nothing in time is not the answer that no record is there");
-    let finished: Option<crate::service_journal::Intent> = runtime.block_on(async { return super::finished_awaiting(held.journal.as_path(), 1).await; });
+    assert!(matches!(answered, super::awaiting::IntentLook::NoAnswer), "a look that gave nothing in time is not the answer that no record is there");
+    let finished: Option<crate::service_journal::Intent> = runtime.block_on(async { return super::awaiting::finished_awaiting(held.journal.as_path(), 1).await; });
     assert!(finished.is_none(), "a batch that wrote no finished record answers nothing");
     // A record this build cannot read is told apart from one that is not there, and the look the settlement will ask is the one
     //  with the shipped ceiling.
     // The pipe goes before the record is written: a write to a pipe nothing reads waits for ever.
     std::fs::remove_file(open.as_path()).expect("the pipe the stalled read was let go on");
     std::fs::write(open.as_path(), b"seq=1\nrepos").expect("a record this build cannot read");
-    let damaged: super::IntentLook = runtime.block_on(async { return super::intent_awaiting(held.journal.as_path(), 1).await; });
+    let damaged: super::awaiting::IntentLook = runtime.block_on(async { return super::awaiting::intent_awaiting(held.journal.as_path(), 1).await; });
     match damaged {
-        super::IntentLook::Damaged(why) => assert!(why.contains("cannot be read"), "the answer names what it could not read: {why}"),
+        super::awaiting::IntentLook::Damaged(why) => assert!(why.contains("cannot be read"), "the answer names what it could not read: {why}"),
         other => panic!("a record this build cannot read is answered as damaged, and never as one that is not there: {}", describes(&other)),
     }
     let intent: crate::service_journal::Intent = crate::service_journal::Intent {
@@ -750,9 +750,9 @@ fn a_record_that_gives_no_answer_holds_no_worker_and_is_not_an_absent_one() {
         git_dir: repo.join(".git"),
     };
     write_intent(held.journal.as_path(), &intent).expect("the record is written again");
-    let found: super::IntentLook = runtime.block_on(async { return super::intent_awaiting(held.journal.as_path(), 1).await; });
+    let found: super::awaiting::IntentLook = runtime.block_on(async { return super::awaiting::intent_awaiting(held.journal.as_path(), 1).await; });
     match found {
-        super::IntentLook::Found(read) => assert_eq!(read.seq, 1, "the look answers the batch it was asked about"),
+        super::awaiting::IntentLook::Found(read) => assert_eq!(read.seq, 1, "the look answers the batch it was asked about"),
         other => panic!("a readable record is answered as one the batch holds: {}", describes(&other)),
     }
     let _context = context;

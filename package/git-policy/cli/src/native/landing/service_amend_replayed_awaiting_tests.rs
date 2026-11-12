@@ -3,7 +3,8 @@
 //! and the object is written inside a task where the
 //!  synchronous face is refused.
 
-use super::{AmendedCommit, BuildSite, amended_fields, amended_fields_awaiting, rebuilt_onto, rebuilt_onto_awaiting, stored_commit_fields};
+use super::awaited::{amended_fields_awaiting, rebuilt_onto_awaiting};
+use super::{AmendedCommit, BuildSite, amended_fields, rebuilt_onto, stored_commit_fields};
 use crate::command_commit::parse_commit_region;
 use crate::commit_transaction::CommitInvocation;
 use crate::config_schema::CliGitConfig;
