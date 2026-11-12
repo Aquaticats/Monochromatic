@@ -211,18 +211,69 @@ Nothing may hide it, filter it or change the unit's out-of-memory policy to avoi
 - The same workaround,
   labelled as one with its removal condition,
   in `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`.
+- A second note to round 284's agent alone,
+  after 09:55:
+  the issue number,
+  the reading of `fs/seq_file.c`,
+  and that a control measures growth by `memory.peak` under a generous cap and never ends in a kill for memory.
+  Its brief already gave it the 4G floor and an 8G cap for the measurement on this machine.
+
+#### What bounds the read, and what is covered until the fix is installed
+
+- The kernel's `fs/seq_file.c` at tag `v7.3`
+  (copy at `~/temp/agent/kernel-seq-file/seq_file.v7.3.c`;
+  the machine runs 7.3.3 of a patched build,
+  so this is the upstream reading):
+  `seq_buf_alloc` allocates with `kvmalloc(size, GFP_KERNEL_ACCOUNT)` and refuses a size above `MAX_RW_COUNT`;
+  `seq_read_iter`,
+  when a record does not fit,
+  frees the buffer,
+  doubles the size and builds the record again.
+  So the size a reader asks for bounds nothing,
+  one reader holds one buffer at a time,
+  the largest buffer is 1 GiB,
+  and past it the read fails with `ENOMEM`.
+- That fits the measurement:
+  this session's own probe scope,
+  capped at 4G,
+  peaked at 580087808 bytes within twelve seconds
+  (`MemoryPeak` of `coordinator-probe-recover-hang.scope`),
+  a 512 MiB buffer and little else,
+  and the read had not returned.
+  Whether the record fits in 512 MiB or needs the 1 GiB buffer is not measured;
+  round 284's brief has that measurement under an 8G cap.
+- So the 4G of the workaround covers three such reads at once in one scope.
+  It is a bound from source,
+  not from a run to completion.
+- Every user service and scope with a memory cap,
+  read at 09:53 (`systemctl --user show '*.service' '*.scope'`):
+  the only cap under 4G is `claude-cpu-watch.service` at 256 MB,
+  whose source runs no Git and reads no descriptor record.
+  The commit-service units have no cap;
+  the `pi-*` units have 6 GiB or more,
+  the other session's `pi-optique-measure-old-commit-parser-1` among them.
+- Not covered until the fix is installed:
+  a scope an agent of another session caps under 4G and runs a wrapper in,
+  and the time the scan takes with no cap at all.
+- At 09:54:51 `fsnotifier` (PID 178989) still held the descriptor,
+  its link text `anon_inode:inotify`,
+  read with `readlink`.
 
 #### Next
 
 - When round 284 ends:
   read its report,
-  have qwen4 review it,
   merge with `Closes #6287`,
   and release it in the first alpha it can go in,
   ahead of the queue if pass 17 has already merged.
-- After the install:
-  run the reviewer's command in a 512 MB scope as the check at the user boundary,
-  then remove the workaround from the rules doc.
+  A qwen4 review starts alongside and does not hold the release.
+- The check at the user boundary after the install,
+  with its control first:
+  confirm by `readlink` that the watcher still holds its inotify descriptor;
+  run the holder scan with 0.6.1-alpha.13 under a large cap and read the peak;
+  then run the same command with the new release in a 512 MB scope.
+  A pass with the IDE closed proves nothing.
+- Then remove the workaround from the rules doc.
 
 ### The first hourly pass after the restart: pass 17 started, what the reload's own commit printed (2026-11-12T09:05:26-05:00)
 
