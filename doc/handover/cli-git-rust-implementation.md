@@ -372,6 +372,201 @@ and `monochromatic-lint` with `--max-warnings 0` reports nothing in the changed 
 or in `SPEC.md`.
 The package-wide `monochromatic-lint` run still fails on findings in
 `worktree_copying` and `worktree` files this branch did not touch.
+### A qwen review of the commit-argument fixes run through the built wrapper: where the options end and which spelling Git reads (2026-11-11T20:32:02-05:00)
+
+Branch `fix/git-policy-cli-commit-options-end-of-options-and-abbreviated-only`,
+from `949f007f47` on the jam-fix integration.
+The report is
+`~/temp/agent/qwen-trials/qwen-review-commit-message-options-as-git-reads-them/review.md`,
+and `~/temp/agent/qwen-trials/review-trial-scoring.md` records that its F1 and F3 never
+reached a fix agent:
+the branch before this one fixed the findings Kimi's review made,
+which did not include these.
+Each of the four findings the brief names was re-run on this branch before anything was
+changed,
+through the built wrapper `target/debug/monochromatic-git-policy-cli`,
+in a disposable repository under a disposable `HOME` and `XDG_RUNTIME_DIR`,
+with that repository's commit service started by hand from the same binary,
+and beside each repository a twin made and driven by `/usr/bin/git`
+for the answer real Git gives.
+Script and logs:
+`~/temp/agent/git-policy-cli-repro/reproduce.ts`,
+`before.log` (this branch's reading) and `after.log` (with the fixes).
+The owner's standing words behind it are "Commits should never fail."
+and "never discard user data".
+Measured:
+the before log's 12 command lines differed from real Git in three of them,
+and the after log's 14 all matched.
+
+#### A path after `--end-of-options` that spells a value option was dropped from the commit (F1, reproduced)
+
+`git commit -m msg --end-of-options -m x`,
+in a repository whose files `-m` and `x` both carry edits,
+exited 0 and committed `x` alone:
+`HEAD:-m` stayed at its base content and `status` showed ` M -m`.
+Real Git committed both.
+The region's reading stopped only at `--`,
+so it read the path `x` as the value of the path `-m` before it,
+kept it out of the pathspec removal,
+and handed the real commit `-m msg --end-of-options x`.
+The facts side already read `--end-of-options` as a boundary
+(`Boundary::EndOfOptions` in `command_options.rs`),
+so only the transform disagreed.
+`boundary_index` and `value_positions` now end at either token,
+and the four transforms that ask where the options end ask that one function:
+the pathspec removal,
+the selection removal,
+`normalise_commit_args` and `without_all_flag`.
+
+#### An abbreviated `--only` survived where the exact spelling was removed (F3, reproduced)
+
+`git commit --on a.txt -m msg` exited 128 with
+`fatal: No paths with --include/--only does not make sense.`
+and left `a.txt` modified;
+real Git committed it.
+`--on` is `--only` to Git and the removal compared `-o` and `--only` exactly,
+so the real commit received `--on -m msg` with no paths.
+`--o`,
+the shortest spelling Git accepts,
+was the same,
+and so was `-om`,
+where the letter sits in a cluster beside `-m`.
+The removal now resolves the token through Git's own table,
+and `cluster_without_letters` takes `-o` out of a cluster
+as the selection removal already took `-i` and `-p` out of one.
+
+#### The two findings that share a fixed cause (F4 and F5, not reproduced here)
+
+Both ran on this branch and neither reproduced:
+`git commit --pathspec-fr f --pathspec-file-nul -m msg` committed both paths the NUL list
+named,
+and `git commit --pathspec-fr f1 --pathspec-from-file f2 -m msg` committed only `b.txt`
+and left `a.txt` modified,
+exactly as real Git did.
+The branch's earlier fix (`6c2ee317e6`) routes both pathspec-file rows through
+`long_option_names`,
+so the abbreviation leaves with its value and no spelling of it reaches the real commit.
+
+#### The other places that read the commit region by spelling
+
+- `signs_commit` chooses a stop's words,
+  and it compared exact spellings with no value positions:
+  `git commit -m -S` claimed the commit signs,
+  `-S` after `--end-of-options` did too,
+  and `--gpg-s` was not seen.
+  It now reads value positions,
+  either end of the options,
+  and Git's own row for `gpg-sign`.
+- The line a moved branch rebuilds (`service_commit_line_reissued.rs`) compared exact
+  spellings of the options it must not repeat,
+  so `--reuse-mess` stayed beside the `-F` the rebuild adds,
+  which native Git refuses,
+  and `--fixu=reword:` was not seen as the one fixup whose commit is the branch's tree.
+  It also read `--fixup reword:<commit>` as the plain fixup,
+  because it looked for `reword:` only after `=`;
+  measured against Git 2.56.0,
+  the detached spelling makes the same empty commit as the attached one.
+  It now reads every spelling,
+  and the value attached or detached.
+- `signing_option` decided which key a signed amend is made again with,
+  and it accepted the exact `-S...` prefix only:
+  `--gpg-sign=KEY` and `--gpg-s=KEY` named no key,
+  so the commit that landed was signed with the default key,
+  and `-qSKEY` was missed too.
+  `git commit-tree` does take `--gpg-sign[=key]`
+  (`OPTION_STRING` with `PARSE_OPT_OPTARG`,
+  `builtin/commit-tree.c`),
+  so the old note that a long option is not a spelling it takes settled nothing.
+  The reading now follows Git and hands `commit-tree` the `-S[key]` form it takes.
+- A value on a flag stayed Git's refusal rather than becoming a commit:
+  `--only=a.txt`,
+  `--all=x` and `--pathspec-file-nul=x` are left in place,
+  and the wrapper and real Git both answer
+  ``error: option `only' takes no value`` with exit 129.
+  `long_option_state` answers the state a spelling names,
+  so a transform asks either "asked for" or "asked for or taken back".
+- `parse_service_commit`,
+  `with_fixed_message` and `opens_editor` keep their exact tables on
+  purpose:
+  an option they do not know,
+  or an abbreviation of one,
+  sends the commit to native Git,
+  refuses the rebuild,
+  or counts as a possible editor.
+  Each errs toward doing more rather than less,
+  so none of them changes what lands,
+  and
+  they stay.
+
+#### Controls
+
+Each control was written and run before its fix,
+and each failed on this branch's reading:
+
+- `commit::commit_args::tests::an_end_of_options_ends_the_option_region_as_the_separator_does`
+  failed with `left: None  right: Some(2)`.
+- `commit::commit_args::tests::an_abbreviated_only_leaves_where_git_reads_it`
+  failed with `left: ["--on", "-m", "msg"]  right: ["-m", "msg"]`.
+- `commit::native_commit_waiting_notice::tests::a_signature_is_read_in_option_position_in_every_spelling_git_reads`
+  failed with `assertion failed: !signs_commit(None, &words(&["-m", "-S"]))`.
+- `landing::service_commit_line_reissued::tests::a_rebuilt_line_reads_its_region_as_git_reads_it`
+  failed with `["--reuse-mess", "HEAD"] kept ["--reuse-mess", "HEAD"]`.
+- `landing::service_amend_replayed::tests::the_signing_option_of_a_command_line_is_the_key_it_names`
+  failed against the old reading with `left: None  right: Some("-S")` for `--gpg-sign`.
+  The first attempt to run it caught a visibility error in the import instead,
+  so the
+  failing run was made by putting the old `signing_option` body back after the fix was
+  committed,
+  running the one control,
+  and restoring the file.
+- Two binary controls run the two named lines against native Git and then against the
+  wrapper:
+  `commit::a_path_after_the_end_of_options_that_spells_a_value_option_is_committed` and
+  `commit::an_abbreviated_only_commits_the_named_path`.
+  Their failing-first evidence is the before log,
+  where the same two lines landed the wrong content through the same binary.
+
+The adversarial cases run beside them:
+files named `-m`,
+`-o`,
+`--all`,
+`-amhello`,
+`--` and `--end-of-options`,
+`--end-of-options` before and after `--` (`-- --end-of-options x` and
+`--end-of-options -- x`),
+an ambiguous abbreviation (`--pat`),
+and a value on a flag (`--only=a.txt`).
+The wrapper refuses the last two exactly as Git does and commits the paths in the others,
+and `--o`,
+`-om` and `-v -om` all commit the path the person named.
+
+Checks on the branch:
+`native:test:host` over `commit_args`,
+`native_commit_waiting_notice`,
+`service_commit_line_reissued`,
+`service_amend_replayed` and `service_commit_args` is
+66 run and 66 passed;
+over `commit::`,
+`command::`,
+`service_commit_line_reissued` and `service_commit_args`
+it is 792 run and 792 passed;
+`native:test:binary:host` over the two new controls is 2 run and 2 passed,
+and over the three controls that read these same lines
+(a commit that reuses another commit,
+a reword fixup and a signed amend on a branch that
+moved) is 3 run and 3 passed;
+`native:clippy` finishes with no finding;
+and `lint:monochromatic-lint` with `--max-warnings 0` reports nothing in the changed files,
+after its own `--fix` put the doc breaks where it asks for them.
+
+The shared question of whether a short-cluster letter carries its value moved to
+`commit_args_reading::short_letter_takes_a_value`,
+which the cluster walk,
+the signing notice and the amend replay now all ask.
+The key reading itself lives in `service_amend_replayed_signing.rs`,
+beside the file that signs the commit again,
+because `service_amend_replayed.rs` passed the package's 300-code-line limit with it.
+
 ### A second Kimi K3.1 Pro review of the commit-argument fixes: two defects, both reproduced and fixed, and a third of the same kind (2026-11-11T18:28:31-05:00)
 
 Branch `fix/git-policy-cli-kimi-findings-commit-message-options-round-210-findings`,
