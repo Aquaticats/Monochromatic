@@ -130,7 +130,8 @@ fn write_the_start_record_of_a_batch(job: TheStartRecordOfABatch) -> std::io::Re
 /// as a job of the blocking pool,
 /// awaited no longer than `JOURNAL_WRITE_CEILING`.
 /// Why:
-///   The completion of a batch is a rename, a flush of the journal directory and two records taken away,
+///   The completion of a batch is a rename,
+/// a flush of the journal directory and two records taken away,
 /// and each waits in the kernel on a disk that stopped answering;
 /// a task that made them would hold a worker the runtime needs.
 /// The landing's deferral travels into the job and its syncs travel back,
@@ -179,7 +180,8 @@ fn mark_the_batch_done(job: TheCompletionOfABatch) -> (std::io::Result<()>, What
 /// as a job of the blocking pool,
 /// awaited no longer than `JOURNAL_WRITE_CEILING`.
 /// Why:
-///   The record is a file of the journal, and a removal waits in the kernel on a disk that stopped answering.
+///   The record is a file of the journal,
+/// and a removal waits in the kernel on a disk that stopped answering.
 /// The synchronous face answers nothing whether the removal worked or not,
 /// because a record left behind is one the next landing of that number replaces,
 /// so this face answers nothing either.

@@ -119,7 +119,8 @@ pub fn witness_of(index: &Path) -> std::io::Result<IndexWitness> {
 ///   The look opens the index file and reads its end,
 /// which waits in the kernel on a disk or a mount that stopped answering;
 /// a task that made it would hold a worker the runtime needs.
-/// A job the system gave no thread, or one that gave no answer in time,
+/// A job the system gave no thread,
+/// or one that gave no answer in time,
 /// is answered as a look that cannot be made,
 /// which the caller already has an answer for:
 /// a record that is not written,
