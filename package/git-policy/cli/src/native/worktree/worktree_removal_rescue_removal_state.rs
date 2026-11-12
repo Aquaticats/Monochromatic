@@ -69,7 +69,10 @@ fn attempt_may_be_running(snapshot: &Path) -> bool {
 /// a file that cannot be understood counts as running.
 fn attempt_file_may_be_running(path: &Path) -> bool {
     let Ok(pid) = name_of(path).parse::<i64>() else { return false };
-    let Ok(recorded) = std::fs::read_to_string(path) else { return true };
+    // A plain file, so a name that holds a named pipe counts as a command that may still be running rather than a wait
+    //  with no end.
+    let Ok(bytes) = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT) else { return true };
+    let Ok(recorded) = String::from_utf8(bytes) else { return true };
     if recorded.is_empty() {
         // Being written.
         return true;
@@ -88,7 +91,7 @@ fn attempt_file_may_be_running(path: &Path) -> bool {
 /// nothing when the Git directory does not say.
 pub(super) fn checkout_present(git_dir: &Path) -> Option<bool> {
     // Git writes this file itself, as the bytes of the checkout's `.git`, so it is read as bytes and never as text.
-    let bytes: Vec<u8> = std::fs::read(git_dir.join("gitdir")).ok()?;
+    let bytes: Vec<u8> = crate::plain_file::read_plain_file(git_dir.join("gitdir").as_path(), crate::plain_file::SMALL_FILE_LIMIT).ok()?;
     // Git ends the file with one line break, and a checkout's path may hold one of its own:
     //  stopping at the first one examines a directory the path only begins with.
     let recorded: &[u8] = bytes.strip_suffix(b"\n".as_slice()).unwrap_or(bytes.as_slice());

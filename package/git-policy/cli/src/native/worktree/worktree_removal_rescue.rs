@@ -44,6 +44,7 @@
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::diagnostic_log::debug;
+use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::process_identity::current_birth_identity;
 use crate::path_bytes_in_records as path_bytes;
@@ -100,7 +101,10 @@ fn save_once(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// because whoever shows or finishes it was
 ///  quicker than the copy and there is nothing left to keep.
 fn copy_into(directory: &Path, name: &str, source: &Path) -> std::io::Result<bool> {
-    let bytes: Vec<u8> = match std::fs::read(source) {
+    // Read as a plain file: a record's name sits in a worktree's own Git directory, and a named pipe planted there would
+    // hold the command that copies it for ever. A record that is not a plain file is one that cannot be copied, which the
+    // caller reports and which keeps the worktree it belongs to (`plain_file.rs`).
+    let bytes: Vec<u8> = match read_plain_file(source, SMALL_FILE_LIMIT) {
         Ok(read) => read,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(error),
@@ -161,7 +165,8 @@ fn locate_push_record(work_directory: &Path, name: &str) -> std::io::Result<Opti
                     None => continue,
                 }
             };
-            match std::fs::read(path) {
+            // A plain file, so a name that holds a named pipe is a record that cannot be read rather than a wait with no end.
+            match read_plain_file(path.as_path(), SMALL_FILE_LIMIT) {
                 Ok(bytes) => return Ok(Some((state, bytes))),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 Err(error) => return Err(error),
@@ -326,11 +331,13 @@ pub fn settle_removals(common_dir: &Path) -> Vec<String> {
     let Ok(listing) = std::fs::read_dir(common_dir.join(SNAPSHOT_DIRECTORY)) else { return problems };
     for entry in listing.flatten() {
         let snapshot: PathBuf = entry.path();
-        let Ok(named) = std::fs::read_to_string(snapshot.join(GIT_DIR_FILE)) else {
+        // A plain file, so a name that holds a named pipe is a snapshot left to the next settle rather than a wait with no end.
+        let Ok(recorded) = read_plain_file(snapshot.join(GIT_DIR_FILE).as_path(), SMALL_FILE_LIMIT) else {
             // A snapshot being written has no name yet; one that never got it is not worth keeping once it is old, but a
             //  concurrent writer may be at it, so it is left to the next settle.
             continue;
         };
+        let Ok(named) = String::from_utf8(recorded) else { continue };
         let Some(git_dir) = named_git_dir(named.as_str()) else { continue };
         match removal_of(git_dir.as_path(), snapshot.as_path()) {
             Removal::Undecided => {}

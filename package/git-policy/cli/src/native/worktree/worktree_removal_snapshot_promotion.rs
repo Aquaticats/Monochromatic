@@ -61,6 +61,24 @@ pub(crate) fn name_of(path: &Path) -> String {
     };
 }
 
+/// What:
+///  The text of one record of a snapshot,
+///  read as a plain file.
+/// Why:
+///  A record's name sits beside a checkout and may hold a named pipe,
+///  and an open that waited for a writer there would hold the command that settles the snapshot for ever;
+///  a record that is not text is one this command cannot promote,
+///  which the caller reports.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// savedRecordText(path) // string; throws
+/// ```
+fn saved_record_text(path: &Path) -> std::io::Result<String> {
+    let bytes: Vec<u8> = crate::plain_file::read_plain_file(path, crate::plain_file::SMALL_FILE_LIMIT)?;
+    return String::from_utf8(bytes).map_err(std::io::Error::other);
+}
+
 /// Moves one saved notice to the notices any worktree shows;
 /// a notice another command already moved is not a failure.
 pub(crate) fn promote_notice(orphans: &Path, path: &Path) -> std::io::Result<()> {
@@ -104,7 +122,8 @@ pub(crate) fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<Str
         }
     }
     for path in files_of(snapshot.join(WORK).as_path()) {
-        let text: String = match std::fs::read_to_string(path.as_path()) {
+        // A plain file, so a name that holds a named pipe is a record that cannot be read rather than a wait with no end.
+        let text: String = match saved_record_text(path.as_path()) {
             Ok(read) => read,
             // Another command promoted it first.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
