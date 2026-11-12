@@ -171,6 +171,11 @@ move its durable facts to their canonical doc and delete it from this page.
   The second was still running at 16:45:40 and faces the same.
   `/var/home` read 2138 MiB free at 16:43:15 and 1 MiB at 16:45:40: something was still writing to it; what, is not established.
   After the restart the drive needs some room made by other means before a prune can work.
+  Read at 17:05:22: the second prune ended with the same two errors (on `overlay-images` and `overlay-layers`),
+  and `/var/home` then read 43 GiB free, 98% used.
+  Whether that room came from images the prune did remove before it failed or from the owner's side is not established.
+  With room there, the prune the owner chose can be run again; it was not run again before the restart,
+  so as not to have a storage change under way when the machine goes down.
 - The wind-down commit `dbc00b10dc` was on the remote's `main` at 16:45:25
   (the wrapper's first try answered "The commit service could not finish this commit, so it was not made";
   a try with real Git directly was stopped by the repository's own guard and not worked around; the second try through the wrapper landed, and an explicit push published it).
