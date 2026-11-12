@@ -174,8 +174,16 @@ pub struct RefreshOptions<'a> {
     pub hash_length: Option<usize>,
 }
 
-/// Whether a file's present stat equals what an entry recorded (the device is not compared:
+/// What:
+///  Whether a file's present stat equals what an entry recorded (the device is not compared:
 /// a subvolume has its own).
+/// Why:
+///   A recorded nanosecond count of zero is what a Git built without nanosecond support wrote for a time it could not
+///  express,
+/// so it matches any present count;
+/// this is Git's own reading of such an entry,
+/// and it is not a proof
+///  that the file holds the bytes the entry names (`matches_stored_exactly` is that proof).
 pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
     return now.size == stored.size
         && now.ino == stored.ino
@@ -353,7 +361,10 @@ impl StatLookup for StatOfTree<'_> {
 /// What:
 ///  Whether an entry still agrees with the trees the checkout was copied from.
 /// Why:
-///   The rewrite trusts an entry's stored fields only for a file that is still the one the copy was made from.
+///   The rewrite trusts an entry's stored fields only for a file that is still the one the copy was made from,
+/// which an
+///  entry that recorded no nanoseconds cannot prove;
+/// such an entry keeps its fields and Git hashes its file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -398,13 +409,20 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
 /// Whether some reference tree has the file `path` as the entry `stored` records;
 /// with no reference tree,
 /// every entry agrees.
+///
+/// A reference tree proves which bytes the copy was made from only where the entry recorded its times to the
+///  nanosecond:
+/// an entry that recorded none keeps its own fields,
+/// which no longer match the copy,
+/// so Git hashes the file
+///  instead of trusting fields nothing proved.
 fn agrees_with_a_reference(references: &[PathBuf], path: &[u8], stored: &StoredStat) -> bool {
     if references.is_empty() {
         return true;
     }
     for reference in references {
         if let Some(now) = stat_fields(reference.as_path(), path)
-            && matches_stored(&now, stored)
+            && matches_stored_exactly(&now, stored)
         {
             return true;
         }

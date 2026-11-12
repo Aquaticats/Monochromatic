@@ -19,7 +19,7 @@ use crate::fs_beneath_directory_chain::DirectoryChain;
 use crate::repo_read_index::IndexEntry;
 use crate::repo_read_layout::ObjectFormat;
 use crate::subvolume_index::StatFields;
-use crate::subvolume_index_files::{fields_of, matches_stored};
+use crate::subvolume_index_files::{fields_of, matches_stored_exactly};
 use crate::worktree_clean_content::{ContentJudge, ConversionEnvironment, Place};
 use crate::worktree_clean_stat_verdicts::{CleanRefusal, StatEntry, StatVerdict, changed_file, file_changed, metadata_verdict, stat_finding};
 use std::ffi::OsStr;
@@ -203,6 +203,12 @@ pub fn tree_fields_by_content(target: &ContentTarget<'_>, entries: &[StatEntry],
 /// so its bytes are the entry's,
 /// and a
 ///  checkout whose index is as new as its files costs nothing here.
+/// An entry that recorded no nanoseconds is not such data:
+/// zero is what a Git built without
+///  nanosecond support wrote for a time it could not express,
+/// and it matches any present count,
+/// so that
+///  entry's file is read like any other unproven one.
 /// A file the worktree does not hold,
 /// or a path whose
 ///  directories a link replaced,
@@ -236,8 +242,9 @@ pub fn paths_whose_content_differs(target: &ContentTarget<'_>, entries: &[StatEn
         let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { continue };
         // Git's own check cannot tell an edit from a file whose size, times and inode it recorded, so the recorded
         //  stat data is compared the strict way here: a file that is not the one the entry recorded is read, and one
-        //  that is its own to the nanosecond is believed whatever Git calls a racy entry.
-        if matches_stored(&fields_of(&metadata), &entry.stored) {
+        //  that is its own to the nanosecond is believed whatever Git calls a racy entry. An entry that recorded no
+        //  nanoseconds proves nothing about the bytes, because zero matches any present count, so its file is read too.
+        if matches_stored_exactly(&fields_of(&metadata), &entry.stored) {
             continue;
         }
         let place: Place<'_> = Place { directory, parents, name: name.as_os_str() };
