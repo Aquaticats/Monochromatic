@@ -300,7 +300,22 @@ fn both_faces_answer_one_thing_about_an_index_that_moved_after_the_copy() {
     //  what a writer that replaced the index leaves.
     let captured: IndexWitness = witness_of(owing.index.as_path()).expect("the live index is witnessed");
     let landed: String = git_text(owing.repo.as_path(), &["rev-parse", format!("{}:{THE_OWED_PATH}", owing.new).as_str()]);
-    git(owing.repo.as_path(), &["update-index", "--cacheinfo", format!("100644,{landed},{THE_OWED_PATH}").as_str()]);
+    // Each commit's own index already holds what landed there, so the rule about a copy that holds the entry the landing replaced
+    //  leaves this path alone and cannot answer for it: the only rule that can leave it out is the one about an index that moved
+    //  after the copy, which is what this control is about.
+    for copy in [copy_sync.as_path(), copy_awaited.as_path()] {
+        std::process::Command::new(crate::test_support::REAL_GIT)
+            .current_dir(owing.repo.as_path())
+            .env("GIT_INDEX_FILE", copy)
+            .args(["update-index", "--cacheinfo", format!("100644,{landed},{THE_OWED_PATH}").as_str()])
+            .output()
+            .expect("Git sets the copy's entry");
+    }
+    // Another command staged its own content in the live index after the copy was made: the live index moved.
+    let staged: PathBuf = owing.root.join("staged-after-the-copy.txt");
+    std::fs::write(staged.as_path(), b"what another command staged after the copy\n").expect("the content another command staged");
+    let theirs: String = git_text(owing.repo.as_path(), &["hash-object", "-w", "--", staged.to_str().expect("a text path")]);
+    git(owing.repo.as_path(), &["update-index", "--cacheinfo", format!("100644,{theirs},{THE_OWED_PATH}").as_str()]);
     let mut note: Option<String> = None;
     let left: Vec<String> = exclude_with_note(
         &git_context(),
