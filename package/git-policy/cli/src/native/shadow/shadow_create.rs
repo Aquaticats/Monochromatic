@@ -529,6 +529,30 @@ pub struct ShadowTree {
 }
 
 /// What:
+///  Whether the worktree holds the state a conclusion leaves,
+///  which is the state a commit may conclude.
+/// Why:
+///   The landing that concludes compares what Git removed in the shadow with the copy of those files,
+///  and it reads the shadow at the path the commit's own scratch tree holds,
+///  so the hand-out is bounded by the presence of the state itself and not by the caller's wish to carry it:
+///  every explicit-path commit asks to carry it, and almost none of them has any
+///  (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
+///  "The design the owner's decision made").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const conclusionStatePresent = (gitDir) => REMOVED_CONCLUSION_FILES.some((name) => exists(join(gitDir, name)));
+/// ```
+fn conclusion_state_present(git_dir: &Path) -> bool {
+    for name in crate::conclusion_cleanup::REMOVED_CONCLUSION_FILES {
+        if git_dir.join(name).exists() {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Whether this attempt may ask the service for a drawn shadow.
 /// Why:
 ///   Three cases the hand-out cannot serve, each of which keeps the commit on the path it knows:
@@ -598,7 +622,8 @@ pub fn take_or_create_shadow(
     //       this invocation refuses is handed back and the commit takes the pool's member or makes its own: nothing about
     //       the question can fail a commit.
     clock.next("shadow hand-out");
-    let asked: Option<PathBuf> = match may_be_handed_a_tree(&template, carry_conclusion) {
+    let concludes: bool = carry_conclusion && conclusion_state_present(capture.layout.git_dir.as_path());
+    let asked: Option<PathBuf> = match may_be_handed_a_tree(&template, concludes) {
         true => crate::service_client_shadow_hand_out::ask_for_a_drawn_shadow(service, &template, transaction_directory),
         false => None,
     };
