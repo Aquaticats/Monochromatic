@@ -119,7 +119,7 @@ fn seed_of_flags(flags: IndexFlags) -> PrivateIndexSeed {
     return match flags {
         IndexFlags::Plain => PrivateIndexSeed::Copy,
         IndexFlags::IntentToAdd(paths) => PrivateIndexSeed::CopyWithIntentToAdd(paths),
-        IndexFlags::Marked | IndexFlags::Unreadable => PrivateIndexSeed::Base,
+        IndexFlags::Marked(_) | IndexFlags::Unreadable => PrivateIndexSeed::Base,
     };
 }
 

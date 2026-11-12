@@ -34,20 +34,57 @@ fn read(repo: &Path) -> IndexFlags {
     return read_index_flags(bytes.as_slice());
 }
 
-/// What real Git says:
-/// whether any entry is tagged assume-unchanged (lower case) or skip-worktree (`S`).
-fn git_says_marked(repo: &Path) -> bool {
+/// What:
+///  What real Git says the marks hide:
+///  `git ls-files -v` tags a skip-worktree entry with `S` and an assume-unchanged one with a lower-case
+///  letter,
+/// and prints the mark before the path.
+/// Why:
+///   The reader's own answer is the two path lists,
+/// so Git's listing is the oracle for which paths they name and not only whether there are any.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hidden = gitHidden(repo); // { skipWorktree: string[]; assumeUnchanged: string[] }
+/// ```
+fn git_says_hidden(repo: &Path) -> MarkedPaths {
     let listing: String = git_text(repo, &["ls-files", "-v"]);
-    return listing.lines().any(|line| {
-        return line.chars().next().is_some_and(|tag| { return tag.is_ascii_lowercase() || tag == 'S'; });
-    });
+    let mut hidden: MarkedPaths = MarkedPaths { skip_worktree: Vec::new(), assume_unchanged: Vec::new() };
+    for line in listing.lines() {
+        let Some(tag) = line.chars().next() else { continue };
+        let Some(path) = line.strip_prefix(tag).and_then(|rest| { return rest.strip_prefix(' '); }) else { continue };
+        if tag == 'S' {
+            hidden.skip_worktree.push(path.as_bytes().to_vec());
+        } else if tag.is_ascii_lowercase() {
+            hidden.assume_unchanged.push(path.as_bytes().to_vec());
+        }
+    }
+    return hidden;
 }
 
-/// The reader and Git agree on the expected answer for the repository's index.
+/// What:
+///  The reader and Git agree on the expected answer for the repository's index,
+///  path for path.
+/// Why:
+///   The scenario sets what it says it sets,
+/// and a reader that reported the wrong path would send the staging to the wrong entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assertAgrees(repo, expectedMarked);
+/// ```
 fn assert_agrees(repo: &Path, expected_marked: bool) {
-    assert_eq!(git_says_marked(repo), expected_marked, "the scenario sets what it says it sets");
-    let expected: IndexFlags = if expected_marked { IndexFlags::Marked } else { IndexFlags::Plain };
-    assert_eq!(read(repo), expected);
+    let hidden: MarkedPaths = git_says_hidden(repo);
+    let git_marked: bool = !hidden.skip_worktree.is_empty() || !hidden.assume_unchanged.is_empty();
+    assert_eq!(git_marked, expected_marked, "the scenario sets what it says it sets");
+    match read(repo) {
+        IndexFlags::Marked(marks) => {
+            assert!(expected_marked, "an unmarked index must be plain");
+            assert_eq!(marks.skip_worktree, hidden.skip_worktree, "the skip-worktree paths Git lists");
+            assert_eq!(marks.assume_unchanged, hidden.assume_unchanged, "the assume-unchanged paths Git lists");
+        }
+        other => assert_eq!(other, IndexFlags::Plain, "the reader's answer for an unmarked index"),
+    }
 }
 
 /// An index with no mark is plain,

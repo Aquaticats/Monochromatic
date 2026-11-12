@@ -325,6 +325,12 @@ fn prepare_guarded_command<F: RepositoryFacts>(
 /// A region Git's table refuses is not known to be a
 ///   dry run,
 /// so it is treated as a real commit and Git itself rejects it.
+///  A line Git refuses on its own terms is not carried out at all:
+/// the whole line reaches Git,
+/// which answers it in its own
+///  words and status and makes no commit,
+/// so a command line Git refuses can never become a commit here
+///  (`refused_by_git`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -343,7 +349,7 @@ fn run_commit_if_real<F: RepositoryFacts>(
         Ok(found) => found,
         Err(_) => return None,
     };
-    if region.dry_run {
+    if region.dry_run || crate::command_commit::refused_by_git(&region) {
         return None;
     }
     let context = checks.facts.transaction_context();

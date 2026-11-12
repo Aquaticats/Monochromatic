@@ -122,6 +122,76 @@ pub struct CommitRegion {
 }
 
 /// What:
+///  Whether Git refuses this command line itself,
+/// before it looks at the index, the worktree or any path.
+/// Why:
+///   `git commit` answers a line that names two selection controls,
+/// or a path beside `-a`,
+/// or an include selection with
+///  no path,
+/// or `--pathspec-file-nul` without its file,
+/// with a refusal of its own and makes no commit;
+///  the wrapper read the line as a selection to carry out and made the commit Git refuses.
+///  Reading the line is the wrapper's part,
+/// because it must decide before it acts;
+///  the words and the exit status stay Git's,
+/// because a line refused here is handed to Git whole
+///  (`wrapped_command.rs`, `run_commit_if_real`).
+///
+/// The rules, from Git 2.56.0's `builtin/commit.c`:
+///
+/// - `parse_and_validate_options` lets a line name at most one of `-i/--include`,
+///   `-o/--only`,
+///   `-a/--all` and `--interactive/-p/--patch`, and `git commit -i -a` dies
+///   (`die_for_incompatible_opt4`, line 1385);
+/// - the same function refuses a path beside `-a` (line 1419);
+/// - `prepare_index` refuses `--pathspec-from-file` beside `--interactive/-p/--patch`,
+///   beside `-a` and beside a path,
+///   and `--pathspec-file-nul` without `--pathspec-from-file` (lines 373-390);
+/// - the same function refuses an `--include` selection and an `-o/--only` one that name no path
+///   (line 389),
+///   where an amend and an allow-empty commit are the exceptions Git states,
+///   and where the paths a pathspec file names do not count.
+///   That last rule is read here only for a line with no path and no pathspec file,
+///   because the count comes from the file's content and the file is read later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = region.refusedByGit(); // Git's own parse-time refusals
+/// ```
+pub fn refused_by_git(region: &CommitRegion) -> bool {
+    let interactive: bool = region.interactive || region.patch;
+    let controls: usize = usize::from(region.include)
+        + usize::from(region.only == Some(true))
+        + usize::from(region.all)
+        + usize::from(interactive);
+    if controls > 1 {
+        return true;
+    }
+    if region.all && !region.pathspecs.is_empty() {
+        return true;
+    }
+    let from_file: bool = region.pathspec_from_file.is_some();
+    if from_file && (interactive || region.all || !region.pathspecs.is_empty()) {
+        return true;
+    }
+    if !from_file && region.pathspec_file_nul {
+        return true;
+    }
+    // Git dies on a fixup suboption it does not know, before it reaches any of the rules above.
+    if region.fixup == Some(FixupKind::UnknownSuboption) {
+        return true;
+    }
+    if from_file || !region.pathspecs.is_empty() {
+        return false;
+    }
+    // `!pathspec.nr && (also || (only && !allow_empty && (!amend || (fixup_message && strcmp(fixup_prefix, "amend")))))`
+    let fixup_prefix_is_amend: bool = matches!(region.fixup, Some(FixupKind::Amend | FixupKind::Reword));
+    let only_without_paths: bool = region.only == Some(true) && !region.allow_empty && (!region.amend || (region.fixup.is_some() && !fixup_prefix_is_amend));
+    return region.include || only_without_paths;
+}
+
+/// What:
 ///  Classify a `--fixup` value by its leading letters.
 ///  `&[u8]` borrows the value bytes.
 /// Why:

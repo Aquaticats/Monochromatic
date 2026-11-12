@@ -58,6 +58,12 @@ use crate::commit_index_stat_refresh::{StatRefresh, refresh_stat_data_when_stale
 /// Which paths this commit stages from the worktree,
 /// so their recorded stat data cannot cost the scratch commit a read.
 use crate::commit_index_stat_staleness::WorktreeStaging;
+/// What the real index's marks hide from Git's own staging,
+/// which this commit's staging must not take either.
+use crate::index_flags::{IndexFlags, read_index_flags};
+/// A path's bytes as an argument,
+/// for a name that is not text.
+use crate::path_bytes::os_from_path_bytes;
 pub use crate::commit_index_selection::{IndexSelection, prepare_interactive_selection};
 /// `OsStr`/`OsString` are borrowed/owned operating-system text.
 use std::ffi::{OsStr, OsString};
@@ -320,7 +326,8 @@ fn stage_into_the_private_index(
         // additions they name have to be carried, or a force-added ignored file the selection names stays out of the
         // commit where native Git records it (`commit_index_copying.rs`).
         if seed == PrivateIndexSeed::Copy && index_equals_base(context, cwd, indexes, selection.base_revision) {
-            return crate::commit_selection_staging::add_selected_paths(context, cwd, indexes, selection);
+            crate::commit_selection_staging::add_selected_paths(context, cwd, indexes, selection)?;
+            return leave_the_marked_paths_as_they_were(context, cwd, indexes, selection, index.bytes());
         }
         let mut read_tree: Vec<String> = vec![String::from("read-tree")];
         if seed != PrivateIndexSeed::Base {
@@ -336,7 +343,58 @@ fn stage_into_the_private_index(
         )?;
         carry_selected_staged_additions(context, cwd, indexes, selection)?;
     }
-    return crate::commit_selection_staging::add_selected_paths(context, cwd, indexes, selection);
+    crate::commit_selection_staging::add_selected_paths(context, cwd, indexes, selection)?;
+    return leave_the_marked_paths_as_they_were(context, cwd, indexes, selection, index.bytes());
+}
+
+/// What:
+///  Puts back the entry of every path the real index's marks hide from Git's own staging.
+/// Why:
+///   Measured against Git 2.56.0,
+/// `git commit -am x` over an edited skip-worktree file records no change for it,
+///  `git commit -m x -- <a skip-worktree path>` records nothing at all (exit 1,
+/// "no changes added to commit"),
+/// and `-a` leaves an assume-unchanged entry alone too,
+///  because Git's own `add_files_to_cache` skips a marked entry.
+///  The wrapper's private index is seeded from the base and carries no mark,
+///  so its staging took those files and the commit recorded bytes Git would not;
+///  this puts each of them back to the entry the base holds,
+/// which is the entry Git leaves in place.
+///  A path the person staged inside a marked entry keeps that change in the real index,
+/// which the landing leaves as it is;
+/// `-a` beside such a change is the one shape this leaves to the wrapper's own answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hidden = readIndexFlags(realIndex).marked; await git(['--literal-pathspecs', 'reset', '-q', base, '--', ...hidden]);
+/// ```
+fn leave_the_marked_paths_as_they_were(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    selection: &IndexSelection,
+    real_index: &[u8],
+) -> Result<(), SelectionStagingFailure> {
+    let IndexFlags::Marked(marks) = read_index_flags(real_index) else { return Ok(()) };
+    let mut hidden: Vec<Vec<u8>> = marks.skip_worktree;
+    if selection.stage_tracked_changes {
+        hidden.extend(marks.assume_unchanged);
+    }
+    if hidden.is_empty() {
+        return Ok(());
+    }
+    let mut arguments: Vec<OsString> = vec![
+        OsString::from("--literal-pathspecs"),
+        OsString::from("reset"),
+        OsString::from("--quiet"),
+        OsString::from(selection.base_revision),
+        OsString::from("--"),
+    ];
+    for path in hidden {
+        arguments.push(os_from_path_bytes(path.as_slice()));
+    }
+    private_git(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), arguments.as_slice())?;
+    return Ok(());
 }
 
 /// What:

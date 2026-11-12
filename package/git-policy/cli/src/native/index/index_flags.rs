@@ -1,6 +1,7 @@
 //! What:
 //!  A read of the per-entry flags of an index file that decide whether the index may seed an explicit-path commit:
 //!  whether any entry is marked assume-unchanged or skip-worktree,
+//!  which those paths are,
 //!  and which entries are marked intent-to-add.
 //! Why:
 //!  A private index copied from the real index and reset to the base keeps those marks,
@@ -82,8 +83,9 @@ pub enum IndexFlags {
     /// whose paths are given in index order.
     IntentToAdd(Vec<Vec<u8>>),
     /// At least one entry is marked assume-unchanged or skip-worktree,
-    /// which a copy may not carry.
-    Marked,
+    /// which a copy may not carry,
+    /// with the paths those marks hide from Git's own staging.
+    Marked(MarkedPaths),
     /// The file is not an index this reader fully understands (an unknown version,
     /// a split index,
     /// a layout that does
@@ -92,10 +94,36 @@ pub enum IndexFlags {
     Unreadable,
 }
 
+/// What:
+///  The paths an index marks so that Git's own staging of `-a` or of a named path leaves them alone.
+/// Why:
+///  `git commit -a` and `git commit -- <path>` skip a skip-worktree entry and, for `-a`,
+///  an assume-unchanged one,
+///  measured against Git 2.56.0;
+///  the wrapper's private index is seeded from the base and holds no mark,
+///  so its staging took those files
+///  and the commit recorded bytes Git would not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type MarkedPaths = { skipWorktree: Uint8Array[]; assumeUnchanged: Uint8Array[] };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MarkedPaths {
+    /// The paths whose entry is marked skip-worktree,
+    /// in the order the index holds them.
+    pub skip_worktree: Vec<Vec<u8>>,
+    /// The paths whose entry is marked assume-unchanged,
+    /// in the order the index holds them.
+    pub assume_unchanged: Vec<Vec<u8>>,
+}
+
 /// What a scan of every entry of one index file found.
 struct Marks {
-    /// Whether an entry is marked assume-unchanged or skip-worktree.
-    hidden: bool,
+    /// The paths marked skip-worktree.
+    skip_worktree: Vec<Vec<u8>>,
+    /// The paths marked assume-unchanged.
+    assume_unchanged: Vec<Vec<u8>>,
     /// The paths whose entry is marked intent-to-add,
     /// in the order the index holds them.
     intent_to_add: Vec<Vec<u8>>,
@@ -157,7 +185,7 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<Marks> {
         return None;
     }
     let count: u32 = be32(bytes, 8)?;
-    let mut marks: Marks = Marks { hidden: false, intent_to_add: Vec::new() };
+    let mut marks: Marks = Marks { skip_worktree: Vec::new(), assume_unchanged: Vec::new(), intent_to_add: Vec::new() };
     let mut at: usize = HEADER_LENGTH;
     // The name of the entry before, which a version 4 entry is written against.
     let mut earlier: Vec<u8> = Vec::new();
@@ -167,20 +195,16 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<Marks> {
         // carries them, the extended flags. The padding below is counted from the entry's own start, so every one of
         // those bytes is part of it.
         let mut head: usize = STAT_LENGTH + name_length + 2;
-        if flags & ASSUME_VALID != 0 {
-            marks.hidden = true;
-        }
+        let assume_unchanged: bool = flags & ASSUME_VALID != 0;
         let mut extended: u16 = 0;
         if flags & EXTENDED != 0 {
             if version < 3 {
                 return None;
             }
             extended = be16(bytes, at.checked_add(head)?)?;
-            if extended & SKIP_WORKTREE != 0 {
-                marks.hidden = true;
-            }
             head += 2;
         }
+        let skip_worktree: bool = extended & SKIP_WORKTREE != 0;
         let wants_name: bool = extended & INTENT_TO_ADD != 0;
         let name_start: usize = at.checked_add(head)?;
         if version == 4 {
@@ -189,11 +213,24 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<Marks> {
             if wants_name {
                 marks.intent_to_add.push(name.clone());
             }
+            if skip_worktree {
+                marks.skip_worktree.push(name.clone());
+            }
+            if assume_unchanged {
+                marks.assume_unchanged.push(name.clone());
+            }
             earlier = name;
         } else {
             let terminator: usize = first_index_of_byte(bytes.get(name_start..end)?, 0)?;
+            let name: Vec<u8> = bytes.get(name_start..name_start.checked_add(terminator)?)?.to_vec();
             if wants_name {
-                marks.intent_to_add.push(bytes.get(name_start..name_start.checked_add(terminator)?)?.to_vec());
+                marks.intent_to_add.push(name.clone());
+            }
+            if skip_worktree {
+                marks.skip_worktree.push(name.clone());
+            }
+            if assume_unchanged {
+                marks.assume_unchanged.push(name);
             }
             // An entry is padded with one to eight NULs to a multiple of eight bytes from its own start.
             at = at.checked_add((head + terminator + 8) & !7)?;
@@ -232,8 +269,9 @@ fn scan_entries(bytes: &[u8], name_length: usize) -> Option<Marks> {
 pub fn read_index_flags(bytes: &[u8]) -> IndexFlags {
     for name_length in OBJECT_NAME_LENGTHS {
         match scan_entries(bytes, name_length) {
-            // A hidden entry sends the whole commit to the slower build, so its paths are not needed.
-            Some(marks) if marks.hidden => return IndexFlags::Marked,
+            Some(marks) if !marks.skip_worktree.is_empty() || !marks.assume_unchanged.is_empty() => {
+                return IndexFlags::Marked(MarkedPaths { skip_worktree: marks.skip_worktree, assume_unchanged: marks.assume_unchanged });
+            }
             Some(marks) if !marks.intent_to_add.is_empty() => return IndexFlags::IntentToAdd(marks.intent_to_add),
             Some(_) => return IndexFlags::Plain,
             None => {}
