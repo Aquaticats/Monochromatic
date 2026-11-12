@@ -513,14 +513,29 @@ fn settle_unreadable_unfilled_records(common_dir: &Path, notices: &mut Vec<Strin
 /// const destination = journalOf({ root, record })?.destinationRoot ?? destinationRecordOf(claimBeside({ root, record }));
 /// ```
 fn destination_of_the_copy(root: &Path, record: &Path) -> Option<PathBuf> {
-    let identifier: Option<&str> = record.file_name()?.to_str()?.strip_suffix(".unfilled");
-    let identifier: String = identifier?.to_string();
-    let journal: PathBuf = root.join(format!("{identifier}.json"));
-    if let Ok(bytes) = std::fs::read(journal.as_path())
-        && let Ok(text) = String::from_utf8(bytes)
-        && let Ok(found) = parse_journal_reading(text.as_str(), journal.as_path(), root)
-    {
-        return Some(found.destination_root);
+    // The record's name is `<identifier>.unfilled`, and its copy's journal is `<identifier>.<owner>.json`: the owner token
+    // sits between them, so the identifier is the prefix a journal of this copy starts with.
+    let identifier: String = record.file_name()?.to_str()?.strip_suffix(".unfilled")?.to_string();
+    let prefix: String = format!("{identifier}.");
+    let listing = match std::fs::read_dir(root) {
+        Ok(listing) => listing,
+        Err(_unreadable) => return destination_record_of(root.join(format!("{identifier}.stage")).as_path()),
+    };
+    let mut journals: Vec<PathBuf> = Vec::new();
+    for listed in listing.flatten() {
+        let path: PathBuf = listed.path();
+        let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        if name.starts_with(prefix.as_str()) && name.ends_with(".json") {
+            journals.push(path);
+        }
+    }
+    journals.sort_by(|left, right| { return crate::worktree_copy_selection::js_order(&left.to_string_lossy(), &right.to_string_lossy()); });
+    for journal in journals {
+        let Ok(bytes) = std::fs::read(journal.as_path()) else { continue };
+        let Ok(text) = String::from_utf8(bytes) else { continue };
+        if let Ok(found) = parse_journal_reading(text.as_str(), journal.as_path(), root) {
+            return Some(found.destination_root);
+        }
     }
     return destination_record_of(root.join(format!("{identifier}.stage")).as_path());
 }
