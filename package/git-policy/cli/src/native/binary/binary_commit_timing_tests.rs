@@ -211,7 +211,17 @@ fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::O
 }
 
 /// The phases the record counts as disjoint stretches of the command.
-const DISJOINT: [&str; 9] = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"];
+const DISJOINT: [&str; 10] = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "closingMs", "otherMs"];
+
+/// What:
+///  How much of a wrapped commit's time may go unnamed, in milliseconds.
+/// Why:
+///  The record exists to split a slow commit, and time no phase covers cannot be split;
+///  the figure is the work of the command after its last phase, which the closing phase states, so the remainder is the
+///  rounding of the figures and the clock read between two edges.
+///  On this machine a wait no phase covered reached eight and fourteen seconds
+///  (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`), which is what this tolerance refuses.
+const UNNAMED_TOLERANCE_MS: u64 = 250;
 
 /// An ordinary commit appends one record to the repository and gets one line from the service,
 /// and neither the terminal nor the
@@ -297,6 +307,39 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     let everything: String = std::fs::read_to_string(&places.log).expect("log") + &std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("record");
     assert!(!everything.contains(MESSAGE), "the commit's text is in a log");
     assert!(!everything.contains(address), "the committer's address is in a log");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  An ordinary wrapped commit's record names the whole of its time:
+///  the phases it states account for the total, and what they leave is inside a stated tolerance.
+/// Why:
+///  A record whose remainder is large cannot say which phase spent a slow commit's time,
+///  which is what it is written for;
+///  the phases used to leave the push's own records and the command's unwinding unnamed, and on this machine those reached
+///  seconds with no control failing (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
+#[test]
+fn the_phases_account_for_the_whole_of_a_wrapped_commit() {
+    let fixture: Fixture = fixture("timing-accounting");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-accounting-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let found: Vec<serde_json::Value> = records(&repo);
+    assert_eq!(found.len(), 1, "one record for one commit: {found:?}");
+    let record: &serde_json::Value = &found[0];
+    println!("TIMING RECORD: {record}");
+    assert_eq!(record["outcome"], "landed");
+    // The two edges of the closing phase are the last phase of the command and the record's own write, so it states a time.
+    assert!(number(record, "closingMs") < number(record, "totalMs"), "the closing stretch lies inside the total: {record}");
+    let phases: u64 = DISJOINT.iter().map(|field| { return number(record, field); }).sum();
+    let slack: u64 = u64::try_from(DISJOINT.len()).expect("a small count");
+    assert!(phases <= number(record, "totalMs") && number(record, "totalMs") - phases < slack, "the phases and the remainder add up to the total: {record}");
+    let unnamed: u64 = number(record, "otherMs");
+    assert!(unnamed <= UNNAMED_TOLERANCE_MS, "no wait of this commit is outside a named phase: unnamed {unnamed} ms, tolerance {UNNAMED_TOLERANCE_MS} ms, {record}");
     remove_settled(&fixture);
 }
 

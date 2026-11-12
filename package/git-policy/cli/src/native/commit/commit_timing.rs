@@ -214,6 +214,42 @@ struct Place {
     instance: String,
 }
 
+/// What:
+///  How much of a command's total the record's phases name,
+///  and how much they leave unnamed.
+/// Why:
+///   A reader of a slow commit asks which phase spent the time;
+///  a remainder that is not small says the record cannot answer,
+///  and those are the two figures that say so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Accounting = { named: number; unnamed: number };
+/// ```
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Accounting {
+    /// Time the phases' names cover.
+    pub named: Duration,
+    /// Time no phase covers.
+    pub unnamed: Duration,
+}
+
+impl Accounting {
+    /// What:
+    ///  Whether the record accounts for its own total within the tolerance a control states.
+    /// Why:
+    ///  The tolerance belongs to the control,
+    ///  because only the control knows what its own fixture's remaining file work costs.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// accounting.within(TOLERANCE)
+    /// ```
+    pub fn within(&self, tolerance: Duration) -> bool {
+        return self.unnamed <= tolerance;
+    }
+}
+
 /// The whole milliseconds of a duration.
 fn whole_milliseconds(elapsed: Duration) -> u128 {
     return elapsed.as_millis();
@@ -390,8 +426,19 @@ pub struct CommitTiming {
     pub after_landing: Duration,
     /// The post-commit gate.
     pub gate: Duration,
-    /// Leaving the push and the upkeep for the service and waking it.
+    /// Leaving the push and the upkeep for the service and waking it,
+    /// with the queue's own records of that push made and its held record promoted.
     pub handoff: Duration,
+    /// What:
+    ///  What the command spent after its last phase:
+    /// returning from the commit and letting go of everything it held.
+    /// Why:
+    ///  The record's total is read when the record is written,
+    ///  which is after the command has unwound,
+    ///  so without this field that stretch was reported as time no phase covers,
+    ///  and on a machine where one file call takes a second it reached eight and fourteen seconds
+    ///  (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
+    pub closing: Duration,
     /// The longest quiet gap of every Git step and tool this command ran,
     /// by step name,
     /// taken from the ledger when the record
@@ -426,6 +473,13 @@ pub struct CommitTiming {
     ///  A build that no seam closed is closed when the record is written,
     ///  so its time is never counted as time no phase covers.
     build_began: Option<Instant>,
+    /// When the closing stretch began,
+    /// while the command is ending.
+    /// Why:
+    ///  The end of the work is the last phase edge,
+    ///  and the record is written after the command has unwound,
+    ///  so the stretch between them is measured here rather than counted as time no phase covers.
+    closing_began: Option<Instant>,
     /// Every Git step this command started,
     /// each with its program and subcommand,
     /// when it began (from the command's start) and how
@@ -464,6 +518,7 @@ impl CommitTiming {
             after_landing: Duration::ZERO,
             gate: Duration::ZERO,
             handoff: Duration::ZERO,
+            closing: Duration::ZERO,
             quiet: Vec::new(),
             outside: OutsideThePhases::default(),
             prepare_parts: Vec::new(),
@@ -471,6 +526,7 @@ impl CommitTiming {
             build_parts: Vec::new(),
             build_parts_dropped: 0,
             build_began: None,
+            closing_began: None,
             route: Duration::ZERO,
             steps: Vec::new(),
             steps_dropped: 0,
@@ -551,9 +607,72 @@ impl CommitTiming {
         self.build += began.elapsed();
     }
 
+    /// What:
+    ///  Starts the clock of the stretch after the command's last phase,
+    ///  once.
+    /// Why:
+    ///  Every wait a commit makes must be inside a named phase,
+    ///  and the command's own unwinding is a wait like any other:
+    ///  the record's total is read after it,
+    ///  so naming it is what keeps the record's remainder at zero near the end of the command.
+    ///  A command that stopped inside a phase never begins this stretch and states no closing time.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// if (timing.closingBegan === undefined) timing.closingBegan = now();
+    /// ```
+    pub fn begin_closing(&mut self) {
+        if self.closing_began.is_none() {
+            self.closing_began = Some(Instant::now());
+        }
+    }
+
+    /// What:
+    ///  Adds the closing stretch to its phase and forgets its clock,
+    ///  so the record states it once.
+    /// Why:
+    ///   The record's writer is the last place that can close it:
+    ///  the command that stopped inside a phase never began the closing stretch,
+    ///  and a record written twice must not count the stretch twice.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// timing.closeTheClosing();
+    /// ```
+    pub fn close_the_closing(&mut self) {
+        let Some(began) = self.closing_began.take() else { return };
+        self.closing += began.elapsed();
+    }
+
+    /// What:
+    ///  How the phases account for the command's total:
+    ///  the time their names cover and the time no name covers.
+    /// Why:
+    ///  A record whose remainder is large cannot split a slow commit,
+    ///  which is the one thing it is written for;
+    ///  the control that reads a real commit's record states a tolerance
+    ///  and fails when the remainder passes it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const { named, unnamed } = timing.accounting(total);
+    /// ```
+    pub fn accounting(&self, total: Duration) -> Accounting {
+        let unnamed: Duration = self.other(total);
+        return Accounting { named: total.saturating_sub(unnamed), unnamed };
+    }
+
     /// What the phases leave uncovered out of `total`.
     fn other(&self, total: Duration) -> Duration {
-        let covered: Duration = self.route + self.prepare + self.build + self.provision + self.submit.total + self.after_landing + self.gate + self.handoff;
+        let covered: Duration = self.route
+            + self.prepare
+            + self.build
+            + self.provision
+            + self.submit.total
+            + self.after_landing
+            + self.gate
+            + self.handoff
+            + self.closing;
         return total.saturating_sub(covered);
     }
 
@@ -584,7 +703,7 @@ impl CommitTiming {
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
              \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
-             \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"otherMs\":{},\
+             \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"closingMs\":{},\"otherMs\":{},\
              \"scratchRemovalMs\":{},\"removalsThatDidNotFinish\":{},\"stderrMs\":{},\
              \"prepareParts\":{},\"preparePartsDropped\":{},\
              \"longestQuietMs\":{},\"quietMs\":{},\"steps\":{},\"stepsDropped\":{},\"landing\":{}}}\n",
@@ -624,6 +743,7 @@ impl CommitTiming {
             self.after_landing.as_millis(),
             self.gate.as_millis(),
             self.handoff.as_millis(),
+            self.closing.as_millis(),
             self.other(total).as_millis(),
             self.outside.scratch_removal.as_millis(),
             self.outside.removals_that_did_not_finish,
@@ -660,6 +780,8 @@ impl CommitTiming {
         let mut with_quiet: CommitTiming = self.clone();
         // A build no seam closed is the phase the command ended in, so its time is stated here rather than left to the remainder.
         with_quiet.close_an_open_build();
+        // The stretch after the last phase is closed here, and the total is read after it, so it is a named phase too.
+        with_quiet.close_the_closing();
         with_quiet.quiet = drain();
         (with_quiet.steps, with_quiet.steps_dropped) = drain_steps(self.began);
         with_quiet.index_builds = drain_index_builds();

@@ -262,7 +262,9 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         Err(stop) => {
             // A stop inside the build phase leaves it before its figure is taken, and the record must still state what the build spent.
             timing.close_an_open_build();
-            return report_stop(stop, timing);
+            let stopped: CommitEnding = report_stop(stop, timing);
+            timing.begin_closing();
+            return stopped;
         }
     };
     // A test kills the wrapper here: the commit is on the branch and answered, and everything the command still owes (the
@@ -279,7 +281,13 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         return CommitEnding { code: served.result.exit_code };
     };
     timing.outcome = "landed";
-    return post_commit(command, &handoff, landed.as_str(), timing);
+    let landed_ending: CommitEnding = post_commit(command, &handoff, landed.as_str(), timing);
+    // What: Everything the commit still holds is let go inside a phase of its own.
+    // Why:  The record's total is read when the record is written, which is after this frame's own values are dropped; without
+    //       this edge that stretch is time no phase covers, and on a machine where one file call takes a second it reached
+    //       eight and fourteen seconds (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
+    timing.begin_closing();
+    return landed_ending;
 }
 
 /// What:
@@ -320,13 +328,24 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         // The verdict keeps the gate's own words: the next push of this branch stops before this commit, and every command says
         //  why until the commit is off the branch's way out. A verdict that could not be kept is said here, with what it means.
         let said: String = blocked_reason(gate.events.as_slice());
-        if let Some(unkept) = forget_the_push(handoff, landed, if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() }) {
-            write_stderr(format!("{unkept}\n").as_str());
+        // What: Taking the push's record back is part of the hand-over, so its time is the hand-off phase's.
+        // Why:  It writes the gate's refusal beside the record, and on this machine one such write can take a second; no other
+        //       phase names that time, and the record must account for its own total.
+        let taking_back: Instant = Instant::now();
+        let unkept: Option<String> = forget_the_push(handoff, landed, if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() });
+        timing.handoff += taking_back.elapsed();
+        if let Some(kept) = unkept {
+            write_stderr(format!("{kept}\n").as_str());
         }
         return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
     }
-    // The gate approved the backup: the push the service held for this commit becomes runnable, and the hand-off below wakes it.
-    if let Err(failure) = promote_the_push(handoff, landed) {
+    // What: The push the gate approved becomes runnable inside the hand-off phase.
+    // Why:  Promoting it renames the record the service held and writes the verdict that approved it; those are the hand-over's
+    //       own file work, and the one wait of a commit that used to be named by no phase.
+    let promoting: Instant = Instant::now();
+    let promoted = promote_the_push(handoff, landed);
+    timing.handoff += promoting.elapsed();
+    if let Err(failure) = promoted {
         write_stderr(format!("{}\n", render(&failure)).as_str());
     }
     // A test kills the wrapper here: the push record is runnable and nothing has been woken for it yet, so the service finds it

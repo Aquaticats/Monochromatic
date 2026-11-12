@@ -17,7 +17,7 @@
 //! ```
 
 /// The record and its writer.
-use super::{CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
+use super::{Accounting, CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
 /// The reason one commit did not land,
 /// which the controls state and read back.
 use crate::commit_stop_reason::CommitStopReason;
@@ -43,8 +43,10 @@ const ANSWER_WAIT_MS: u64 = 29;
 const AFTER_LANDING_MS: u64 = 31;
 const GATE_MS: u64 = 37;
 const HANDOFF_MS: u64 = 41;
+/// Time the controls say the command spent after its last phase.
+const CLOSING_MS: u64 = 43;
 /// Time the controls leave to no phase.
-const UNCOVERED_MS: u64 = 43;
+const UNCOVERED_MS: u64 = 47;
 
 /// The status the controls' failing step exited with.
 /// It is Git's own status for a refusal,
@@ -133,6 +135,7 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
     timing.after_landing = Duration::from_millis(AFTER_LANDING_MS);
     timing.gate = Duration::from_millis(GATE_MS);
     timing.handoff = Duration::from_millis(HANDOFF_MS);
+    timing.closing = Duration::from_millis(CLOSING_MS);
     timing.prepare_parts = vec![
         PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
         PreparePart { name: String::from("capture"), took: Duration::from_millis(CAPTURE_MS) },
@@ -150,7 +153,7 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
         removals_that_did_not_finish: REMOVALS_THAT_DID_NOT_FINISH,
         standard_error: Duration::from_millis(STANDARD_ERROR_MS),
     };
-    let covered: Duration = timing.route + timing.prepare + timing.build + timing.provision + timing.submit.total + timing.after_landing + timing.gate + timing.handoff;
+    let covered: Duration = timing.route + timing.prepare + timing.build + timing.provision + timing.submit.total + timing.after_landing + timing.gate + timing.handoff + timing.closing;
     return (timing, covered);
 }
 
@@ -199,6 +202,7 @@ fn the_line_states_each_phase_and_what_reached_the_service() {
     assert_eq!(value["afterLandingMs"], AFTER_LANDING_MS);
     assert_eq!(value["gateMs"], GATE_MS);
     assert_eq!(value["handoffMs"], HANDOFF_MS);
+    assert_eq!(value["closingMs"], CLOSING_MS);
     assert!(value["startMillis"].as_u64().is_some_and(|stamp| { return stamp > 0; }), "{value}");
     remove(root.as_path());
 }
@@ -226,7 +230,7 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     assert_eq!(value["buildParts"]["shadow links"]["ms"], SHADOW_LINKS_MS);
     assert_eq!(value["buildParts"]["shadow links"]["calls"], 1);
     assert_eq!(value["buildPartsDropped"], BUILD_PARTS_DROPPED);
-    let phases: u64 = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"]
+    let phases: u64 = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "closingMs", "otherMs"]
         .iter()
         .map(|name| { return value[*name].as_u64().expect("a number"); })
         .sum();
@@ -237,6 +241,63 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     let short: serde_json::Value = parsed(timing.line(covered.saturating_sub(Duration::from_millis(1)), 0).as_str());
     assert_eq!(short["otherMs"], 0);
     remove(root.as_path());
+}
+
+/// The tolerance the controls here state for time no phase covers, in milliseconds:
+/// wide enough for the rounding of each figure and the clock read between two edges,
+/// and narrow enough that a wait of a second fails.
+const UNNAMED_TOLERANCE_MS: u64 = 50;
+
+/// How long a control leaves between the closing phase's two edges.
+const CLOSING_SLEEP_MS: u64 = 5;
+
+/// What:
+///  Time that no phase covers makes the record fail the tolerance a control states,
+///  and the same time inside a named phase passes it.
+/// Why:
+///  The record exists to split a slow commit;
+///  a remainer that is not small says it cannot, and before this control that figure could reach seconds with nothing failing
+///  (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
+///  The second half of the control is the repair: a wait that a phase names is accounted for.
+#[test]
+fn an_unnamed_wait_passes_no_tolerance() {
+    let root: PathBuf = fixture("timing-unnamed");
+    let (timing, covered) = filled(root.as_path());
+    let tolerance: Duration = Duration::from_millis(UNNAMED_TOLERANCE_MS);
+    // The phases the controls fill leave only the stated remainder unnamed.
+    let spelled: Duration = covered + Duration::from_millis(UNCOVERED_MS);
+    let account: Accounting = timing.accounting(spelled);
+    assert_eq!(account.named, covered);
+    assert_eq!(account.unnamed, Duration::from_millis(UNCOVERED_MS));
+    assert!(account.within(tolerance), "the controls' own remainder passes a tolerance that covers it: {account:?}");
+    assert!(!account.within(Duration::from_millis(UNCOVERED_MS - 1)), "a tolerance narrower than the remainder fails it");
+    // Eight seconds that no phase names: the record cannot say where they went, and the control says so.
+    let slow: Duration = spelled + Duration::from_secs(8);
+    let hidden: Accounting = timing.accounting(slow);
+    assert_eq!(hidden.unnamed, Duration::from_millis(UNCOVERED_MS) + Duration::from_secs(8));
+    assert!(!hidden.within(tolerance), "a wait of seconds with no phase to hold it fails the tolerance: {hidden:?}");
+    // The same eight seconds inside a named phase are accounted for.
+    let mut named: CommitTiming = timing.clone();
+    named.closing += Duration::from_secs(8);
+    let accounted: Accounting = named.accounting(slow);
+    assert_eq!(accounted.unnamed, Duration::from_millis(UNCOVERED_MS), "the wait the closing phase holds is named: {accounted:?}");
+    assert!(accounted.within(tolerance), "{accounted:?}");
+    remove(root.as_path());
+}
+
+/// What the closing phase measures:
+/// the stretch between the command's last phase and the record's own write,
+/// once.
+#[test]
+fn the_closing_stretch_is_a_named_phase() {
+    let mut timing: CommitTiming = CommitTiming::start();
+    timing.begin_closing();
+    std::thread::sleep(Duration::from_millis(CLOSING_SLEEP_MS));
+    timing.close_the_closing();
+    assert!(timing.closing >= Duration::from_millis(CLOSING_SLEEP_MS), "the stretch is measured: {:?}", timing.closing);
+    let once: Duration = timing.closing;
+    timing.close_the_closing();
+    assert_eq!(timing.closing, once, "the clock is taken by the first close, so a second states nothing more");
 }
 
 /// A branch name with a quote,
