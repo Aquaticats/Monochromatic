@@ -148,8 +148,22 @@ pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener>
         Ok(meta) => meta.file_type().is_socket(),
         Err(_missing) => false,
     };
-    let refused: bool = matches!(UnixStream::connect(path), Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused);
-    if !is_socket || !refused {
+    // What: A socket file is taken over when nothing greets on it: a connection refused, or accepted and answered with nothing in
+    //       the time a greeting takes.
+    // Why:  A killed service leaves a socket that refuses, and a service that is exiting keeps listening while it finishes
+    //       (measured 2026-11-12: an instance that was stopped 287 ms after it started kept its address for 33 s, and a commit
+    //       waited 37 s on it). The second kind answers neither, and waiting for it to close is a wait on a process that is
+    //       already leaving. Unlinking the name is safe whoever holds it: the old instance keeps its own socket until it ends,
+    //       and every new connection comes here.
+    let replaced: bool = match UnixStream::connect(path) {
+        Err(error) => error.kind() == std::io::ErrorKind::ConnectionRefused,
+        Ok(stream) => {
+            let _patience = stream.set_read_timeout(Some(crate::service_server_start_by_the_wrapper::GREETING_READ));
+            let mut reader = std::io::BufReader::new(stream);
+            !matches!(crate::service_client_listen_and_ask_to_retire::listen(&mut reader), crate::service_client_listen_and_ask_to_retire::Heard::Message(crate::service_protocol::ServiceMessage::Welcome { .. }))
+        }
+    };
+    if !is_socket || !replaced {
         return Err(first);
     }
     std::fs::remove_file(path)?;

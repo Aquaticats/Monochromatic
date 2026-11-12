@@ -1160,3 +1160,58 @@ the cgroup is the one thing the base cannot give and the cost is bounded and off
 the path a commit waits on. It should be switchable off without changing
 anything a person can observe besides the cgroup, which is what its two tests
 assert.
+
+## What is built in this branch, and what is not
+
+Built, with a commit each:
+
+- the base: the wrapper starts the server
+  (`service_server_start_by_the_wrapper.rs`),
+  detached in its own session
+  (`service_server_start_spawns_a_detached_process.rs`),
+  named by a note with its process birth identity
+  (`service_server_pid_note_of_an_instance.rs`),
+  its output in one capped file
+  (`service_server_log_file_of_an_instance.rs`),
+  its address and note made and removed around its life
+  (`service_server_files_of_a_running_instance.rs`),
+  in a folder only this account may enter
+  (`service_socket_directory_only_this_account_may_open.rs`);
+- the route, the commit's start and the client's wait rewritten on that base
+  (`service_route.rs`, `service_commit_starts_the_server.rs`,
+  `service_client_settings_and_watches.rs`,
+  `service_client_reach_service.rs`);
+- the unit templates, the provisioning, the record of the unit texts, the
+  earlier single service's retirement, the two-runtime-directory refusal, the
+  D-Bus client and the zbus dependency, the manager watch and its repairs, and
+  the four user-boundary controls whose subject they were: all gone;
+- the real Git recorded in a note beside the sockets instead of in a unit file;
+- the sweep of removed worktrees and the removal hook ask a service to leave
+  over its own address and prove it gone by its note;
+- the journal keeps every service line beside the file
+  (`journald_native.rs`, its sink asks the journal's socket when that socket
+  exists and writes the same line to the file);
+- a bind takes an address over from a socket that accepts and greets nothing,
+  which is a service that is exiting;
+- `SPEC.md` and `README.md` rewritten where they described socket activation,
+  the units, the manager watch, the reload and the unit-file record, and two
+  source guards rewritten: no release code writes a unit, and none names a
+  manager member.
+
+Not built, and open:
+
+- part 4's enhancement (a transient scope through `systemd-run`, with Bazel's
+  probe and plain-exec fallback) is designed here and not written;
+- the low-memory idle exit of part 3 is designed and not written;
+- the container proof of part 6 (an image with no systemd, no D-Bus and no
+  `XDG_RUNTIME_DIR`) was not run;
+- the times of part 7 were not measured;
+- `service stop` does not exist, so a person cannot ask a worktree's service to
+  leave by hand, and the push deadline advice still names the manager's
+  `set-environment`;
+- a service of a newer release still honours a retire from an older client, so
+  an older client can retire a healthy newer service rather than be served by
+  it;
+- the old `source_guard` list of manager members is now empty, but the
+  `mise.toml` tasks and `bin/` tooling still use this host's manager for the
+  package's own gates, which is the developers' harness and not the release.
