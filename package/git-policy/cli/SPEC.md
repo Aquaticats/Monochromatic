@@ -5906,6 +5906,23 @@ The line goes straight to the diagnostics rather than through the blocking pool,
 because the refusal means no task may be reachable;
 it is one line per step.
 
+Two questions about the process's workers are read as one
+(`the_worker_answers` in `src/native/foundation/lazy_runtime.rs`):
+whether a task can run now,
+and whether a build that outlasted `BUILD_DEADLINE` is still on its way.
+Asked one after the other they can describe two moments,
+and a build that arrived between them answered both with the worse one:
+a caller that cannot do its work without a worker gave up while one was there,
+and the commit service ended with status 4 in the middle of a start
+(the review of 2026-11-12T09:34-05:00,
+its first finding).
+The runtime such a build finished with is handed over in one moment with the caller's last read of its channel and
+its closing of it (`THE_HANDOFF_OF_A_LATE_RUNTIME`):
+a send that landed between them succeeded into a channel that was then dropped,
+and the process believed for the rest of its life that a build was still coming,
+so every task that cannot do without a worker spent the whole patience before it gave up
+(the same review's second finding).
+
 The read of a step that is ended at its ceiling ends with the step,
 not with the last program that holds its pipes open.
 A step's output is read whole through two pipes
