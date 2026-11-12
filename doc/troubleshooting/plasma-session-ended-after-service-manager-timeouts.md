@@ -5,12 +5,12 @@
 The user returned from sleeping to what looked like the lock screen.
 After entering the desktop,
 the applications from the previous session were gone.
-The logs establish loss of the graphical session after a Git-wrapper-requested service-manager reload,
+The logs establish loss of the graphical session after a service-manager reload requested by the Git wrapper,
 with no recorded GPU reset in the incident window.
 A disposable container reproduced the same subscription-timeout diagnostic,
 followed by termination of an unrelated service and its dependent target.
 The reason the original reload took 139770 ms remains unknown.
-The wrapper defect is tracked in [GitHub issue 6286].
+The wrapper defect is tracked in [GitHub issue 6286][].
 
 ## Symptom and recorded sequence
 
@@ -420,7 +420,7 @@ and no desktop configuration or running workload was changed during this investi
   That narrow result does not establish that no related report exists.
 - No source fix was prototyped or deployed.
 
-[GitHub issue 6286] records the wrapper defect,
+[GitHub issue 6286][] records the wrapper defect,
 the incident evidence,
 the controlled reproduction,
 and the remaining unknowns.
