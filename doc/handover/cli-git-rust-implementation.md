@@ -199,6 +199,25 @@ Eleven older local branches also hold commits the remote lacks and were left alo
 - Everything under `~/temp/agent`: the audit reports and their reproductions, the digests, the reviews, the briefs,
   the run folders with the final reports of the twenty-nine ended runs, and the Pi sessions under `~/.pi`.
 
+#### State at 03:45, when the owner was told the restart is safe
+
+- No agent, launcher or release unit is running.
+  Of the ten agents, five ended by themselves after the note, and the coordinating session stopped the other five at 03:43:20:
+  the discard guard, the fast-forward carry, the push notices, the second merge, and the add that does not wait for its repair.
+  All ten are unfinished and are continued from their branches.
+- Every branch of this session's agents is on the remote; `push-branches-the-remote-lacks.ts` lists only the eleven older branches.
+- Uncommitted files are saved as commits on the remote under three labels:
+  `refs/rescue/2026-11-12T0335/` (the killed tokio agent),
+  `refs/rescue/2026-11-12T0336/` (thirty-eight other worktrees, the main checkout's five files of other sessions among them),
+  and `refs/rescue/2026-11-12T0344/` (what three of the stopped agents had not committed).
+- Not saved anywhere but this disk:
+  two external worktrees whose staging the wrapper refused (`/var/home/user/worktrees/translation-repair` and `verify-coverage`, two files each);
+  two review worktrees skipped for their size (`pi-kimi-review-suite-only-failures-of-the-alpha-11-gate-round-231`, 17,540 untracked files,
+  and `pi-alpha-10-audit-commit-keeps-non-utf-8-bytes`, 403);
+  the eleven older branches; and everything under `~/temp/agent` and `~/.pi`.
+- Seven worktrees of ended runs disappeared between 03:26 and 03:43 (126 worktrees, then 119).
+  Their branches are on the remote. What removed them was not looked into.
+
 #### After the restart, in this order
 
 1.  Issue 6286 first, one agent alone: the wrapper never asks the user manager for a manager-wide reload.
