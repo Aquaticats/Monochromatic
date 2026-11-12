@@ -69,11 +69,19 @@ pub fn nanoseconds_to_time(nanoseconds: i128) -> SystemTime {
     return if nanoseconds >= 0 { SystemTime::UNIX_EPOCH + Duration::from_nanos(magnitude) } else { SystemTime::UNIX_EPOCH - Duration::from_nanos(magnitude) };
 }
 
+/// How many bytes of the system's own counters this reads.
+/// Why:
+///  `/proc/stat` holds one line per processor,
+///  so its length is the number of processors the machine has:
+///  this host's was 4,639 bytes on 2026-11-12,
+///  and 4 MiB leaves room for thousands of them.
+const SYSTEM_STAT_BYTES_AT_MOST: u64 = 4 << 20;
+
 /// When the machine booted:
 /// the `btime` line of `/proc/stat`,
 /// in whole seconds since the epoch.
 pub fn boot_time() -> Option<SystemTime> {
-    let text: String = std::fs::read_to_string("/proc/stat").ok()?;
+    let text: String = crate::plain_file::read_plain_text_at(Path::new("/proc/stat"), SYSTEM_STAT_BYTES_AT_MOST).ok()?;
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("btime ")
             && let Ok(seconds) = rest.trim().parse::<u64>()

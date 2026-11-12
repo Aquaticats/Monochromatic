@@ -961,6 +961,9 @@ One,
 that a ratio of 8.6 should read 8.7,
 compared a different pair of versions from the one meant;
 the text now names the pair.
+The remaining four were matters of wording:
+three are reworded,
+and one sat in a line of the draft reply that had already been removed.
 
 The sections "Answered here before asking upstream" and everything dated after that commit were not part of that review.
 

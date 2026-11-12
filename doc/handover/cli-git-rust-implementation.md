@@ -135,6 +135,334 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A typed push of a branch that was not checked out published a merge labelled with the checked-out branch (2026-11-12T12:00:10-05:00)
+
+#### The eleven local-only branches are on the remote
+
+- The push of the owner's answer "Push them as they are (Recommended)" ended with every branch reported `pushed`
+  (log `~/temp/agent/gate/push-local-only-branches-2026-11-12T1200.log`):
+  nine as new branches,
+  `research/depot-platform-buildkit-20261018` as a fast-forward (`b0e3247a27..249f9101c1`),
+  and `feat/cli-git-worktree-copy` through a merge the wrapper made.
+- The helper was run without branch names, so it also pushed two agent branches that had appeared since the dry run
+  (`fix/git-policy-cli-lfs-url-is-shown-and-only-a-recognised-secret-in-it-is-masked`,
+  `perf/git-policy-cli-commit-does-not-list-every-reference-on-the-path-it-waits-on`),
+  each as a new branch.
+
+#### What the wrapper did with `feat/cli-git-worktree-copy`
+
+- The command, run in the main checkout with `main` checked out, installed release 0.6.1-alpha.15:
+  `git push origin refs/heads/feat/cli-git-worktree-copy:refs/heads/feat/cli-git-worktree-copy`.
+- The local branch (tip `a1bb316fd0`, 38 commits the remote lacked) and the remote's branch (tip `24081fafdb`) had diverged.
+  The dry run's line "remote at 24081fafdb" was read by this session as a fast-forward; it was not one.
+- The wrapper made and published the merge `e063401eef` (parents `a1bb316fd0` and `24081fafdb`), with the message
+  "Merge origin/feat/cli-git-worktree-copy into main",
+  "Created by monochromatic-git-policy-cli push because origin/feat/cli-git-worktree-copy advanced after the commit landed.",
+  "Published to origin/feat/cli-git-worktree-copy.",
+  and printed "origin/feat/cli-git-worktree-copy had new commits, so the merge e063401eef... of main and origin/...".
+- Nothing was lost: both earlier tips are ancestors of the merge.
+  `main` and the checkout did not change (`git status --short` showed the same five files as before; `main`'s tip was this session's next commit).
+- What is wrong:
+  the commit and the line name `main`, the branch that was checked out, where the pushed branch is meant;
+  "advanced after the commit landed" describes the automatic push after a commit, and no commit was involved;
+  the local `feat/cli-git-worktree-copy` still points at `a1bb316fd0`, behind the merge published for it;
+  and the code (`src/native/push/auto_push_reconcile_awaiting.rs`, lines 226 to 258 at `13cb122151`)
+  calls `advance_local_branch_awaiting` with `plan.branch_ref`, the checked-out branch.
+  Why `main` stayed where it was is not established.
+- A comment on the commit corrects its message (GitHub commit comment 209612270).
+  The history itself is left as it is.
+
+#### The owner on it
+
+- Typed while this was being routed, between 12:00:11 and 12:04:49:
+  "Yes the wrapper is supposed to do auto merge, but it should definitely have done it better."
+- So the merge is wanted, also for a push a person typed and for a branch that is not checked out.
+  What changes is how it is done:
+  the names, the local branch advanced to the merge published for it and no other branch ever,
+  the wording, a branch checked out in another worktree, and what else "better" asks for on that path.
+- Brief: `~/temp/agent/pi-runs/push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch-prompt.md`, round 305.
+
+#### Round 305, from the answers of 11:58:45 and this
+
+- `lfs-push-programs-are-held-in-memory-and-never-written`
+  (on `fix/git-policy-cli-lfs-push-uploads-every-object-the-remote-lacks`, `9e23c2623e`).
+- `removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes` (on `main`).
+- `kept-references-are-pruned-by-size-and-age-by-the-wrapper-itself` (on `main`).
+- `push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch` (on `main`).
+- Each brief states that the build volume had 111 GiB free at 11:58 and that a build tree takes about 8 GiB.
+  The package launcher holds each start while less than 100 GiB are free.
+- The audit `kimi-audit-alpha-14-push-and-auto-push-1` was told of the sighting and that it is known
+  (`~/temp/agent/notes-to-send/2026-11-12T1210-a-typed-push-of-a-branch-not-checked-out-published-a-merge-named-after-the-checked-out-branch.md`,
+  sent 12:04:49; the file's name carries a time that ran ahead of the clock).
+
+#### Integration pass 18, for 0.6.1-alpha.16, started 12:06:32 (round 306)
+
+- Brief: `~/temp/agent/pi-runs/integration-pass-18-for-alpha-16-prompt.md`;
+  branch `integrate/git-policy-cli-pass-18-for-alpha-16` on `main`;
+  notes and report under `~/temp/agent/integration-pass-18/`.
+- Nine branches, in this order:
+  late runtime `df38f33b4f`,
+  push notices `9da2d237ed`,
+  commit that concludes a merge `9bc31c8912`,
+  landing `d62b91889f` (two conflicts; a build straight after it),
+  removal fixes `f941f71d77`,
+  copy record `aba9bce1d4`,
+  add without waiting for its repair `9e1b450341`,
+  package repair `e12196309f` (one conflict; brings `a31ce6ee1d` and `9478219b1d`),
+  commit handed its shadow `3a4949f5ed` (last, taken out again when its `HOME` test needs design work).
+- Reviews of some of the nine are still running; a review does not hold an alpha.
+  A finding that arrives after the pass goes into the release after it.
+- Left out on purpose:
+  the LFS branches, the discard and abort guards being reworked, the fast-forward carry, the second merge,
+  the commit-path branches of rounds 296 and 297,
+  `fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it` (`af735d6330`, which goes onto the fix for issue 6286),
+  the fix for issue 6286 itself (round 301, still running: whichever of the two is ready first is merged first),
+  and `fix/cargo-shadow-lean-deadline-ends-a-pass-and-a-pass-keeps-up` (`743059e153`, another package with a release of its own).
+
+#### The hourly pass after 12:00
+
+- No Pi run ended between 11:10 and 11:46 (`runs-that-ended-since.ts`).
+- Culled: none.
+  The three redirected agents were still making turns or inside a bounded test of their own at 11:45
+  (`clean-counts-...-1` had been silent 2452 s inside a `timeout 3000` test run).
+- Started: round 305 (four runs) and round 306 (pass 18).
+- Free space: 107 GiB at 12:04:49.
+  With five starts at about 8 GiB each the launcher's 100 GiB gate decides how many come up now.
+
+### The owner's answers of 2026-11-12T11:58:45-05:00, through the question tool: removal and ignored files, a kept commit, the LFS record, local-only branches
+
+The dialog was opened after 11:46:35 and the answers were read at 11:58:45.
+Each pick is quoted as the owner gave it.
+
+#### Worktree removal and ignored files (item 1.2 of the consolidated list)
+
+- Asked:
+  an unforced `git worktree remove`, and the automatic removal of a worktree whose branch has landed,
+  delete files that exist only in that worktree and that Git ignores, as real Git does,
+  and remove a worktree while a process works inside it;
+  which behaviour is wanted under the rule restated at 10:33.
+- The owner: "Delete ignored, spare busy (Recommended)".
+- So:
+  ignored files are deleted as real Git does and each deletion is logged
+  (the same answer as "Keep allow and log" for `git clean -fX`);
+  a worktree with a live process inside is refused, naming the process, with a `--no-enforce-*` opt-out.
+- Not answered by this pick:
+  the unforced removal that deletes a nested worktree with its untracked file.
+  The restated rule decides it (an untracked file is a person's data: refuse, name it, opt-out),
+  adopted here, open to veto.
+
+#### A commit the commit service still holds when its worktree is removed
+
+- Asked:
+  whether the reference `refs/cli-git/kept/...`, written to keep such a commit before the removal,
+  is a saved copy the restated rule rules out.
+- The owner, in their own words: "Keep the reference, auto prune by size and age."
+- So:
+  the reference stays as built, and the wrapper prunes `refs/cli-git/kept/` by itself, by size and by age.
+  The owner named no values;
+  the agent that builds the pruning proposes them from a measurement of this repository's kept references,
+  and the values are put to the owner before a release carries them.
+
+#### The LFS push fix and its record file
+
+- Asked:
+  what may happen to `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND`,
+  which the fix writes into `push-programs.json` in the repository's Git directory.
+- The owner: "Memory only (Recommended)".
+- So:
+  the two command lines go to the commit service with each request and are held in memory, never written;
+  a push the service must retry after its own restart, without them,
+  stops with a message that says what to run.
+
+#### Branches that exist only on this machine (item 1.4)
+
+- The owner: "Push them as they are (Recommended)".
+- The dry run of `~/temp/agent/scratch-scripts/push-branches-the-remote-lacks.ts` at about 11:59 named exactly eleven
+  (log `~/temp/agent/gate/branches-the-remote-lacks-2026-11-12T1159.log`):
+  `e2e-trace-diagnosis-20261101`,
+  `feat/cli-git-worktree-copy` (38 commits past the remote's copy),
+  `issue-150-isolated-dts`,
+  `research/depot-platform-buildkit-20261018`,
+  `research/depot-runtime-base-20261018`,
+  `research/depot-runtime-orchestration-20261018`,
+  `research/depot-sdk-custom-runtime-20261018`,
+  `spike/linter-closure-static`,
+  `translation-repair-prerebase-backup`,
+  `trial/depot-logger-remainder-20261016`,
+  `trial/depot-pi-host-20261016`.
+- The push, never forced, was started at about 12:00
+  (log `~/temp/agent/gate/push-local-only-branches-2026-11-12T1200.log`);
+  its result is in the section
+  "A typed push of a branch that was not checked out published a merge labelled with the checked-out branch".
+
+#### The cleaning of unused worktrees, ended
+
+- The unit `clean-build-trees-of-unused-pi-worktrees-1138` ended before 11:49:32.
+  Two of the sixty-eight worktrees held a build tree:
+  `pi-mode-a-person-set-survives-a-merge-that-changes-the-file` ("Removed 4610 files, 5.4GiB total")
+  and `pi-review-findings-removal-with-a-nested-subvolume-round-231` ("Removed 6724 files, 6.7GiB total").
+  The other sixty-six gave back about 500 bytes each.
+- Free space after it: 113 GiB at 11:49:32, 111 GiB at 11:58:45.
+
+### Free space falls while the build-folder cleaner removes nothing; relink notices; four digested runs (2026-11-12T11:44:02-05:00)
+
+#### Free space on the build volume
+
+- Readings of `df` on `/var/mnt/encrypted`, in GiB:
+  147 at 11:08:50,
+  119 at 11:33:04,
+  116 at 11:36:03,
+  115 at 11:37:54,
+  112 at 11:41:15 and at 11:42:26,
+  114 at 11:44:02.
+  The fall is not steady:
+  28 GiB in the first 24 minutes,
+  5 GiB in the 11 minutes after that.
+- The floor recorded in this handover is 80 GiB (under it nothing is started).
+  The package launcher holds a new run while less than 100 GiB are free
+  (`FREE_SPACE_FLOOR_BYTES` in `package/pi-shared/subagent-driver/src/free-space-floor.ts`).
+  The older scratch launcher was not read for a floor;
+  the runs it still holds back are reviews for the qwen4 pool,
+  no more than three.
+- Where the space is:
+  in the build trees of the runs working now.
+  Thirty-four agent worktrees were in use at 11:38
+  (a live unit named after the worktree, or a process whose working directory is inside it),
+  thirteen of them with five or more processes.
+  One such tree measured 8.0 and 8.4 GiB on 2026-11-11.
+- What was tried and gave nothing back:
+  sixty-eight agent worktrees that no unit and no process uses were cleaned with `cargo clean`
+  (unit `clean-build-trees-of-unused-pi-worktrees-1138`,
+  the unedited scratch helper `clean-build-trees-of-paused-agents.ts`,
+  log `~/temp/agent/gate/clean-build-trees-2026-11-12T1138.log`);
+  every line read so far says "Removed 2 files" of about 500 bytes,
+  so none held a build tree.
+  The list came from `~/temp/agent/scratch-scripts/list-agent-worktrees-that-no-unit-and-no-process-uses.ts`
+  (log `~/temp/agent/gate/agent-worktrees-in-use-2026-11-12T1138.log`).
+- Not on this volume:
+  container storage is under `/var/home/user/.local/share/containers/storage` (`podman info`),
+  on the home volume, which had 280.68 GiB free at 11:35:19.
+  `podman system df` there: 1744 images, 256 in use, 231.2 GB, of which 221.1 GB reclaimable.
+  Nothing was pruned.
+- `agent-worktrees-in-use` also shows `pi-base-check-snapshot-origin` with seven processes and no unit:
+  left alone, its owner was not established.
+
+#### The build-folder cleaner was working, not stalled, and its pass removed nothing
+
+- At 11:33 `journalctl --user --unit=cargo-shadow-lean.service` showed no entry since before 10:30,
+  which read as a stall.
+  It was one pass, from 08:58:06 to 11:35:19, that writes its whole report when it ends:
+  every line carries the stamp 11:35:19.
+- systemd's line for the pass:
+  "Consumed 23min 10.886s CPU time over 2h 38min 12.722s wall clock time, 4G memory peak, 34.4M memory swap peak."
+  The unit's `MemoryMax` is 4G, so the pass reached its cap.
+- The pass's own report:
+  "older-compiler sweep: 55586 of 55586 profile directories read; removed 0 units and 0 incremental directories (0.00 GiB)",
+  "listed 55586 profile directories in 44 s",
+  "size caps: removed 0 units and 0 incremental directories (0.00 GiB)",
+  "free space on host build base (/var/mnt/encrypted/cargo-build): 251.05 GiB before, 116.89 GiB after, -134.16 GiB changed".
+- Every "left alone ... unknown layout" line is printed twice.
+- The unit restarted itself as written (`NRestarts=14`, `Result=success`).
+  It was not restarted or reloaded by hand.
+- This is a defect of ours:
+  a pass of two hours and thirty-eight minutes that reaches its memory cap and removes nothing
+  does not keep up with builds that took 134 GiB meanwhile,
+  and it is silent for the whole pass.
+  The measurements went to the running agent
+  `cargo-shadow-lean-keeps-what-its-check-refused-and-never-waits-on-a-fifo-1`
+  (`~/temp/agent/notes-to-send/2026-11-12T1145-a-lean-pass-took-two-hours-thirty-eight-minutes-and-removed-nothing.md`,
+  sent 11:44:02),
+  with the question what has to change for the volume not to fill
+  when every tree belongs to a working run
+  (a smaller tree per run, trees shared between runs of one base commit, or a tree removed when its run ends).
+
+#### Eight worktrees "not relinked after 3 tries", told to whoever commits next
+
+- The commit of `13cb122151` in the main checkout at 11:32:13 printed eight notices,
+  one for each of eight worktrees added between 11:08 and 11:23
+  (four of the ten Kimi audits, one Sonnet audit, one review, two fix agents):
+  "the package state of <worktree> was not relinked after 3 tries,
+  so its links still name the checkout it was copied from",
+  followed by two commands "to finish it by hand".
+- Against the requirements:
+  the wrapper cleans up after itself;
+  here it asks a person to finish its work,
+  in a command about something else,
+  and says a count of tries where it owes the reason each try failed.
+- At 11:23:33 a `git worktree add` started at 11:17 was 339 seconds old, with `cargo` children;
+  the bound for an add is sixty seconds.
+- Both went to the agent whose task is the repair an add starts,
+  `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried-1`
+  (`~/temp/agent/notes-to-send/2026-11-12T1133-eight-new-worktrees-were-not-relinked-after-three-tries.md`,
+  sent 11:33:04).
+  The two commands of the notice were not run against any agent's worktree.
+
+#### Digest of two fixes and two reviews (`~/temp/agent/digest-2026-11-12T1112-fixes-and-reviews/digest.md`)
+
+A Sonnet subagent's second pass over four ended runs, merge results against `main` at `8cabbf38fb`.
+It built and ran nothing itself.
+None of the four branches is in `main` or in 0.6.1-alpha.15.
+
+- No finding in the four runs loses data.
+- LFS push, `fix/git-policy-cli-lfs-push-uploads-every-object-the-remote-lacks` (`9e23c2623e`):
+  held, not ready.
+  Its commit `a723733c55` writes a record `push-programs.json` into the repository's Git directory on every commit,
+  carrying `PATH`, `GIT_EXEC_PATH`, `GIT_SSH`, `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` verbatim
+  (`service/service_client_program_search.rs:88,119,155`, called from `service/service_client.rs:158`).
+  The last two are whole command lines and can hold a credential;
+  the review showed both land in the file, with fake values, through the built wrapper (file mode 600).
+  The record is never removed and a typed `git push` never refreshes it.
+  The remedy text at `lfs/lfs_pre_push.rs:384` is wrong (it says a push by hand records the list; only a commit does).
+  No such record exists in this repository's Git directories (names checked, never contents).
+  The branch also carries seven earlier unmerged LFS upload-plan commits,
+  so taking those without the record means reverting `a723733c55`.
+- Correction of this session's own wording:
+  the note to that review quoted a rule "a secret is never printed and never written where another program can read it".
+  The second half is this session's wording, not a recorded decision
+  (`rg` for it in this handover, `AGENTS.md` and the driver's docs found nothing).
+  The recorded rule is that secrets are never printed or committed.
+  So whether, and how, the two command-line variables may reach a file is a question for the owner,
+  asked together with whether a typed push refreshes the record;
+  the wrong remedy text needs no question.
+- Package repair, `fix/git-policy-cli-package-repair-never-waits-on-a-reader-of-its-messages-that-has-stalled` (`e12196309f`):
+  the held `git worktree add` on a full, stalled standard-error pipe is reproduced through the built wrapper
+  (the test failed first at 30.022 s; with the fix the add ends in 5237 ms).
+  A second stalled write, of the report line, was reproduced after the fix and deliberately left;
+  its agent asks whether the add's whole standard-error output should be bounded at its owner.
+  Ready after one conflict in `service/wait_ceilings_tests.rs`
+  (keep `main`'s replacement test and the branch's new one).
+  It brings two earlier unmerged commits, `a31ce6ee1d` and `9478219b1d`,
+  and with them the open veto on `ToolStart::LetGoWithoutAnAnswer`.
+- Late runtime, `fix/git-policy-cli-service-checks-its-runtime-again-before-it-gives-up-on-a-late-one` (`df38f33b4f`):
+  merges cleanly.
+  Limit: its controls drove a seam in the library and never went through the service binary, which its brief required.
+  Status 4 can still occur after the sixty seconds of patience.
+  Its commit `f7c9ec4a87` fails on purpose (the guard shown red).
+- Landing, `fix/git-policy-cli-landing-keeps-the-built-commit-when-a-keep-or-a-lock-is-refused` (`d62b91889f`):
+  its review found no defect, but read about two fifths of a 3927-line diff and ran nothing through a wrapper.
+  Two conflicting files (`worktree_removal_held_commits.rs` and its tests).
+  The digest infers from `rg`, without a build, that the merged tree does not compile
+  until `main`'s `keep_this_commit` is moved onto the branch's `keep_on_a_side_ref`:
+  the integration verifies this with a trial build.
+- For the owner, from the digest:
+  the landing branch (and an older form already on `main`, `ce414de363`) keeps a held commit
+  on a `refs/cli-git/kept/...` reference before a worktree removal runs.
+  Is that the saved copy the rule restated at 10:33 rules out?
+  It does not hold the branch, since the older form is on `main`.
+- In the four sessions:
+  one wrapper line in a run's command (the false "interrupted removal ... cannot be finished" line, in a `git status` of about 25 s),
+  no "Waiting for the commit service" lines,
+  no wrapper under a cap below 4G.
+
+#### What follows
+
+- The hourly pass after 12:00 culls first and starts nothing unless the launcher's 100 GiB is there.
+- The next integration (pass 18) takes, with the limits stated here:
+  the late-runtime fix, the package repair (one conflict), the landing branch (two conflicts, trial build),
+  and the branches already listed as ready (push notices `9da2d237ed`, cargo-shadow lean `743059e153`,
+  commit-concludes `9bc31c8912`).
+  The LFS branch stays out.
+
 ### Pass 17 merged into `main` for 0.6.1-alpha.14 (2026-11-12T10:52:40-05:00)
 
 - Integration pass 17 ended at 10:51:25 with its report
@@ -213,6 +541,258 @@ move its durable facts to their canonical doc and delete it from this page.
   audits by Sonnet and Kimi side by side,
   briefed with what is already known and in work,
   and with the rule on destructive commands as the owner restated it today.
+
+#### 0.6.1-alpha.15 published, installed and checked at the user boundary: issue 6287 is closed in the installed release (2026-11-12T11:31:22-05:00)
+
+- Published 11:29:21,
+  eight minutes and seven seconds after the dispatch.
+  The release's commit on `main` is `42535bf679`;
+  the local `main` was fast-forwarded to it.
+- Installed 11:30:22.
+  The install's own sample commit took 2,250 ms.
+  The global tool entry moved from alpha.14 to alpha.15.
+  The user manager recorded no reload between 11:29:00 and 11:30:47:
+  the first install of the day without one
+  (alpha.14 already names a link in the unit text,
+  so a newer release changes no text).
+- Only the newest release is on disk
+  (`~/.local/share/monochromatic-dev/toolchain/cargo-monochromatic-git-policy-cli/` holds `0.6.1-alpha.15` and `current`),
+  so no older wrapper could be run beside it as a control.
+- The check,
+  with `~/temp/agent/scratch-scripts/merge-with-a-held-index-lock-in-a-fixture.ts`
+  (a fast-forward merge in a disposable repository with its own `HOME` and `XDG_RUNTIME_DIR`,
+  `index.lock` held open for eight seconds by the script's own process,
+  each run in a service unit of its own;
+  log `~/temp/agent/gate/check-6287-alpha-15.log`):
+  - The control first:
+    the IDE had been restarted since the morning;
+    its watcher now runs as PID 2807684,
+    and descriptor 3 of it reads `anon_inode:inotify` by `readlink`,
+    before and after.
+    How many watches it holds now is not known,
+    since learning that is the read the defect was.
+  - Capped at 4G:
+    exit 0,
+    merged,
+    7.73 s,
+    memory peak 50.2 MB.
+    The wrapper named the holder
+    ("waiting for PID ... (sleep), which holds .../index.lock (proven by an open descriptor)"),
+    so the scan for a holder ran.
+  - Capped at 512 MB,
+    the cap under which the wrapper was killed at 09:40:23:
+    unit result `success`,
+    merged,
+    8.17 s of unit runtime,
+    memory peak 43.3 MB.
+  - The "before" on this machine is the fix's author's own run at about 11:00 against the morning's watcher:
+    53.75 s and a peak of 887,349,248 bytes with the installed alpha.13.
+- What still has the defect:
+  a wrapper built from a branch that does not hold `afc0545123`,
+  and a commit service of an older release that is still running for some agent's worktree.
+  The workaround in `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md` was rewritten to say exactly that,
+  with the command that tells a branch which side it is on;
+  it is removed when no branch in work is older than that commit.
+
+#### 0.6.1-alpha.15 dispatched with the fix for issue 6287, and the first batches through the package's launcher (2026-11-12T11:23:33-05:00)
+
+- The fix was merged into `main` with `--no-ff` as `afc0545123` at 11:19:04,
+  with `Closes #6287`;
+  the handover commit after it (`8cabbf38fb`) was on the remote before the dispatch.
+- Dispatched 11:21:14,
+  workflow run 43257717414,
+  from 0.6.1-alpha.14 to 0.6.1-alpha.15.
+  A waiter unit watches it.
+  Nothing is committed to `main` until it is published;
+  this section is committed after that.
+- Round 304,
+  a qwen4 review of the fix,
+  started through the package's launcher at 11:23:18.
+  The first try wrote no brief:
+  this session's helper takes the range from the merge base with `main`,
+  and for a branch already merged that range is empty.
+  The brief was written with the range from where the branch left `main` (`0811ce06bd`).
+  The same holds for every review of a branch after its merge.
+- Round 303 (the reference listing on the commit path) was started through the package's launcher at 11:17:13.
+  Six minutes later its run had not begun:
+  the launcher was still inside `git worktree add`,
+  339 seconds old,
+  with `cargo` children,
+  that is,
+  in the repair of package-manager state.
+  Its output file was empty all that time;
+  the launcher says nothing while an add runs.
+  An add of over five minutes,
+  against the bound of sixty seconds,
+  with about forty agents working;
+  one more sighting for the agents on worktree add.
+- All ten Kimi audits were making turns at 11:18:15.
+
+#### The fix for issue 6287 is finished, merges cleanly, and goes out as 0.6.1-alpha.15 (2026-11-12T11:18:42-05:00)
+
+The agent of round 284 ended at 11:18:05 after 217 turns,
+with seven commits on `fix/git-policy-cli-descriptor-scan-never-reads-a-record-whose-size-another-process-decides`,
+tip `564011eb5e`,
+on the remote.
+Its report,
+read whole by this session:
+`~/temp/agent/final-reports-2026-11-12T1112/descriptor-scan.md`.
+
+- The fix:
+  one function every scan goes through (`src/native/process/descriptor_record.rs`).
+  It reads a descriptor's link text first;
+  a text that is not a path,
+  and `anon_inode:`,
+  are answered without opening the record;
+  a record that is opened is taken up to 4 KiB;
+  the scan has a ceiling of two seconds,
+  and a scan that stops there says it did not finish,
+  which every caller already reads as "may be held".
+  Six other whole-file reads under `/proc` are bounded.
+- Why reading the link text cannot wait:
+  `proc_pid_readlink` calls `d_path`,
+  which answers from the directory cache with no call into the target's file system;
+  cited from the kernel's source at tag `v7.3`,
+  each link confirmed in a browser.
+  Not shown by a run against a stalled FUSE mount:
+  the package has no such fixture.
+- Measured with a fixture of its own:
+  a record costs about 144 bytes per watch and the kernel charges the next power of two above it;
+  256,000 watches made one read cost 1,281 ms and 67 MB.
+- Measured on this machine against the IDE's watcher,
+  a merge with `index.lock` held eight seconds by the agent's own process:
+  the installed alpha.13,
+  53.75 s with a scope peak of 887,349,248 bytes,
+  and a repeat still waiting in `inotify_show_fdinfo` after 140 s;
+  the fix,
+  7.72 s with a peak of 6 to 34 MB.
+  So the record needs the kernel's largest buffer,
+  and the 4G floor of the workaround was enough.
+- Two of the package's own controls went from 163 s and 171 s to 0.14 s and 0.27 s.
+- A fact that explains more than the kill:
+  the kernel prints an inotify descriptor's record under the group's mutex,
+  the one the holder's own add and remove of watches take.
+  Readers of that record wait on each other,
+  and the IDE's watcher waits on them.
+  Every wrapper command that scanned for a holder was in that queue.
+- Left by the author for a reviewer:
+  a descriptor whose link text is a path still has its record read
+  (no file type reachable through a path prints a list,
+  and the 4 KiB take bounds what the wrapper holds,
+  not what the kernel builds);
+  tests were shown failing by restoring the defect,
+  not by session order;
+  the container gate and the whole suite were not run.
+
+The trial merge into `main` at 11:18:29 was clean.
+It is merged with `Closes #6287` and released as 0.6.1-alpha.15 without waiting for a review
+(alphas do not wait for one;
+this is the jam the owner asked to be fixed first).
+A qwen4 review follows through the package's launcher.
+
+After the install,
+the check at the user boundary,
+with its control first:
+`readlink` shows the watcher still holds its inotify descriptor;
+then a merge with a held `index.lock`,
+in a fixture with its own `HOME` and `XDG_RUNTIME_DIR`,
+in a scope capped at 512 MB,
+with the installed alpha.15.
+Then the workaround leaves the rules every brief carries.
+
+A hazard seen in passing,
+in the scratch listing of landed worktrees
+(`~/temp/agent/pi-runs/remove-landed-agent-worktrees.ts`,
+run without `--remove`,
+log `~/temp/agent/gate/list-landed-worktrees-2026-11-12T1110.log`):
+of ninety-six agent worktrees it calls two safe,
+and one of the two is `pi-kimi-audit-alpha-14-discarding-commands`,
+an audit that had been started two minutes earlier and whose unit was not up yet when it looked.
+Its `--remove` was not run and is not to be run from that list.
+The others are kept for uncommitted paths,
+or for a handful of ignored files that are local tool configuration,
+which that script cannot tell from a person's.
+So no space comes from there;
+free space is watched,
+and the build trees are the cleaner's.
+
+#### The slow commits are one child, `git for-each-ref`, that real Git answers in 15 to 37 ms (2026-11-12T11:15:55-05:00)
+
+The digest of the two commit-path runs:
+`~/temp/agent/digest-2026-11-12T1054-commit-path/digest.md`,
+read against `main` at `5c4c0bcc7b`.
+
+What is measured:
+
+- In each slow commit's timing record,
+  the list `steps` names one child that takes almost all of the build step:
+  `git for-each-ref`,
+  26,357 ms (11:10:59),
+  14,898 ms (11:11:21),
+  3,786 ms (11:10:58),
+  13,906 ms (11:13:01,
+  in a commit of 99,371 ms whose submit step took 58,950 ms and whose gate held a `git rev-list` of 24,140 ms),
+  and 13,909 ms in the commit of 09:13:13 under alpha.13.
+  The brief of round 288 had said no named span was over 33 ms;
+  it had read the wrong list,
+  and it had guessed a merge commit:
+  the commit of 09:13:13 has one parent and one path.
+- Real Git,
+  same repository,
+  the wrapper's exact query
+  (`/usr/bin/git for-each-ref --format='%(refname)%00%(objectname)%00%(symref)'`),
+  run by this session at 11:15:55:
+  198,135 bytes for 1,991 references in 15 ms,
+  and again in 37 ms.
+  1,982 references are packed and 18 are loose.
+- Round 288's agent could not reproduce the 14 seconds in a quiet clone:
+  twenty-two paired runs,
+  the wrapper about half a second over real Git,
+  a difference smaller than the wrapper's own spread;
+  two wrapper runs stalled (12,159 ms with a `git read-tree` of 11.3 s,
+  and 8,523 ms).
+  Its report puts the time down to a busy machine without showing it,
+  and two of its medians are miscalculated.
+  The child of 09:13 was writing output all along:
+  its longest quiet gap was 853 ms.
+
+What is not known:
+why a query of tens of milliseconds takes seconds as a child of a commit.
+The candidates are the child's own reads on a disk under pressure,
+or the child blocked on a pipe the service reads slowly
+(198 KB is more than a pipe holds),
+or a slow start.
+The slow commits of 11:10 to 11:13 fall in the minutes when thirteen worktrees were being added.
+
+Round 303,
+started through the package's launcher:
+`commit-does-not-list-every-reference-on-the-path-it-waits-on`,
+on round 288's branch `9bc31c8912`
+(which merges cleanly and adds `childrenMs` to the record):
+why a commit lists every reference at all,
+which cause a trace shows,
+and the listing,
+the gate's `git rev-list` and the stalled `git read-tree` taken off the path a person waits on,
+with a test that a commit's cost does not grow with the number of references.
+
+The other run of that digest,
+`fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it` (`af735d6330`):
+not mergeable as it stands.
+It conflicts with `main` in `service_provision.rs` and its tests,
+where pass 17's `01d6e891ed` lets a manager call that timed out go on
+and this branch makes the same case fail with new words;
+round 301 is resolving that same ground for the reload fix,
+so this branch waits for round 301 and is then brought onto its result.
+Its fifty-minute test run ended at its own bound with no summary:
+fourteen failures,
+all in lock-holder paths,
+each of 200 seconds or more
+(issue 6287 again).
+Sightings in it for the removal agents:
+a `git worktree remove` of 76,701 ms with no output,
+and two `git worktree add` of about sixty seconds.
+One message of the branch sends a person to `git monochromatic-git-policy-cli service status`,
+which prints a circular sentence when no service is up.
 
 #### The hourly pass at 11:10: commits under alpha.14 are slow in their build step, the fix for issue 6286 is finished and conflicts with `main`, the package's launcher is merged (2026-11-12T11:13:43-05:00)
 
