@@ -11834,6 +11834,34 @@ written 2026-11-04):
   is a reachability root for any collector that reads references after it exists;
   a collector that took its snapshot of the
   references before it was created and sweeps afterwards is not stopped by it.
+  The landing writes that reference itself for a commit Git built
+  (`src/native/landing/side_reference_written_here.rs`):
+  the name is the wrapper's own,
+  a number below a directory the wrapper makes,
+  never packed,
+  never symbolic,
+  and never given a reflog,
+  because the write this replaces passes `core.logAllRefUpdates=false`,
+  so the write is a directory,
+  an exclusive lock file,
+  the object name and a rename,
+  with the mark `core.lockfilePid` asks for beside the lock,
+  all in the worktree's own Git directory,
+  where a per-worktree reference lives
+  (measured on Git 2.56.0:
+  in a linked worktree `update-ref` writes
+  `.git/worktrees/<id>/refs/worktree/cli-git-service/<batch>`,
+  and `git rev-parse --git-path` names the same file).
+  Git writes it instead wherever its write would differ:
+  a reference store `core.fsync` flushes,
+  a `core.sharedRepository` repository,
+  a `core.lockfilePid` value that is not a plain boolean,
+  a storage that is not plain files,
+  and a configuration the landing read with the caller's global options,
+  which proves nothing about the store.
+  A write this landing makes has no step to end and no ceiling to keep,
+  and a reference it cannot write is Git's,
+  worded by Git.
 
 When real Git builds the commit,
 it runs in the scratch repository after policy evaluation settles,
