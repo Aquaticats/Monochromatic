@@ -238,6 +238,80 @@ fn the_caller_can_switch_the_upload_off_for_one_push() {
     remove_settled(&fixture);
 }
 
+/// What:
+///  The caller's switch given through the environment disables the upload for one push,
+/// exactly as the `-c` spelling does.
+/// Why:
+///   Both spellings set the same Git configuration,
+/// and a wrapper that read only `-c` ran the upload the caller had
+///  disabled:
+/// a failing upload then stopped a push real Git would have published.
+#[test]
+fn the_caller_can_switch_the_upload_off_through_a_configuration_the_environment_names() {
+    let fixture: Fixture = fixture("lfs-push-disabled-config-env");
+    let world: World = world(&fixture, true, Some(9));
+    let mut command = wrapped_commit(
+        &fixture,
+        world.repo.as_path(),
+        &["--config-env=hook.cli-git-lfs-pre-push.enabled=SWITCH_VALUE", "push", "origin", "main"],
+    );
+    command.env("SWITCH_VALUE", "false");
+    let pushed: Observed = observe(&mut command, b"");
+    assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
+    assert!(runs(&world).is_empty(), "{:?}", runs(&world));
+    assert_ne!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A newer command-line setting wins over the same key in an inherited `GIT_CONFIG_PARAMETERS`,
+/// in both spellings,
+/// as it does in real Git.
+/// Why:
+///   The upload child inherits the parameters and is given the caller's pairs beside them;
+/// Git reads the parameters last,
+/// so an
+///  inherited entry decided which server the object went to while the ref went to the one the caller selected.
+#[test]
+fn an_inherited_command_scope_does_not_override_the_callers_newer_setting() {
+    const NEW_URL: &str = "https://new.invalid/lfs";
+    const OLD_URL: &str = "https://old.invalid/lfs";
+    for (case, selection, variable) in [
+        ("dash-c", vec![String::from("-c"), format!("lfs.url={NEW_URL}")], None),
+        ("config-env", vec![String::from("--config-env=lfs.url=PUSH_URL")], Some(("PUSH_URL", NEW_URL))),
+    ] {
+        let fixture: Fixture = fixture(format!("lfs-push-inherited-{case}").as_str());
+        let world: World = world(&fixture, true, None);
+        executable(fixture.root.join("bin/git-lfs").as_path(), url_recording_source(world.record.as_path()).as_bytes());
+        let mut arguments: Vec<&str> = selection.iter().map(String::as_str).collect();
+        arguments.extend(["push", "origin", "main"]);
+        let mut command = wrapped_commit(&fixture, world.repo.as_path(), arguments.as_slice());
+        command.env("GIT_CONFIG_PARAMETERS", format!("'lfs.url'='{OLD_URL}'"));
+        if let Some((name, value)) = variable {
+            command.env(name, value);
+        }
+        let pushed: Observed = observe(&mut command, b"");
+        let stderr: String = stderr_of(&pushed);
+        assert_eq!(pushed.code, Some(0), "{case}: {stderr}");
+        let recorded: String = std::fs::read_to_string(world.record.as_path()).unwrap_or_default();
+        assert!(recorded.contains(&format!("lfs-url={NEW_URL}")), "{case}: the upload child reads the caller's newer setting: {recorded}");
+        assert_ne!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{case}: {stderr}");
+        remove_settled(&fixture);
+    }
+}
+
+/// A stand-in `git-lfs` that records its arguments and the `lfs.url` real Git answers for the environment it was given,
+/// then succeeds.
+/// Why:
+///  The setting is what decides which server the object travels to,
+/// and the child's own answer is the only evidence of it.
+fn url_recording_source(record: &Path) -> String {
+    return format!(
+        "#!/bin/sh\n{{ printf 'arguments=%s\\n' \"$*\"; printf 'lfs-url=%s\\n' \"$({REAL_GIT} config --get lfs.url)\"; }} >> '{record}'\nexit 0\n",
+        record = record.display()
+    );
+}
+
 /// `git lfs install` in an account writes the filter to the global file;
 /// that alone must not turn every repository
 ///  into an LFS repository,

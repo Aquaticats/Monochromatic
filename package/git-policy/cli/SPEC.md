@@ -9767,9 +9767,10 @@ The step:
   `-C` cannot make the file that was checked differ from the file that runs).
   It runs in the directory a `-C`
   option selects and receives the global options as Git would pass them:
-  `-c` pairs and `--config-env` pairs as `GIT_CONFIG_COUNT` variables
-  after any pairs already set and after the pair the wrapper adds for its own lock ownership,
-  so a caller's setting of the same key still wins,
+  `-c` pairs and `--config-env` pairs appended to `GIT_CONFIG_PARAMETERS`
+  after the value the invocation inherited,
+  which is where Git puts its own command-line settings and reads them after the numbered pairs,
+  so a caller's newer setting wins over an inherited parameter and over a `GIT_CONFIG_COUNT` pair,
   `--git-dir`,
   `--work-tree` and `--namespace` as their variables.
   A `--config-env` whose variable is unset,
@@ -9941,7 +9942,9 @@ The step:
   `--dry-run`,
   `GIT_LFS_SKIP_PUSH` set to a true value,
   and
-  `-c hook.cli-git-lfs-pre-push.enabled=false` among the global options or in `GIT_CONFIG_COUNT` pairs (the switch an
+  `-c hook.cli-git-lfs-pre-push.enabled=false` among the global options,
+  the same setting named with `--config-env` and a variable holding `false`,
+  or either pair in `GIT_CONFIG_COUNT` (the switch an
   earlier version used for its hook) skip the upload and the pre-check.
   A repository or account configuration file
   is not read for that switch,

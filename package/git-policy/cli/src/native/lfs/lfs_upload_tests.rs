@@ -126,7 +126,7 @@ fn the_program_is_the_one_the_callers_path_finds_first() {
 }
 
 /// The global options travel to the child:
-/// `-c` as configuration pairs after the ones already set,
+/// `-c` settings as the entries Git appends to `GIT_CONFIG_PARAMETERS`,
 /// the repository
 ///  options as their variables.
 #[test]
@@ -139,11 +139,7 @@ fn the_global_options_reach_the_child() {
     assert_eq!(code, None);
     let seen: String = std::fs::read_to_string(&record).expect("record");
     for expected in [
-        "GIT_CONFIG_COUNT=2",
-        "GIT_CONFIG_KEY_0=lfs.url",
-        "GIT_CONFIG_VALUE_0=http://example.invalid/x",
-        "GIT_CONFIG_KEY_1=flag",
-        "GIT_CONFIG_VALUE_1=true",
+        "GIT_CONFIG_PARAMETERS='lfs.url'='http://example.invalid/x' 'flag'='true'",
         "GIT_DIR=/g",
         "GIT_WORK_TREE=/w",
     ] {
@@ -199,15 +195,14 @@ fn upload_environment(root: &std::path::Path, variables: &[(&str, &str)]) -> (Pa
 /// What:
 ///  The caller's `-c` pairs reach the child beside the pair the wrapper adds for its own lock ownership.
 /// Why:
-///   The invocation's overlay appends `core.lockfilePid` in the next numbered slot,
-/// and a caller's pair numbered before it took that slot and was overwritten,
-/// so `-c remote.origin.pushurl=...`
-///  never reached `git-lfs`
+///   The invocation's overlay adds `core.lockfilePid` as a numbered pair,
+/// and a caller's pair numbered into that same list lost to an
+///  inherited parameter,
+/// so `-c remote.origin.pushurl=...` never reached `git-lfs`
 /// and the object of the pushed pointer travelled to the fetch remote.
-/// The numbered configuration stays contiguous,
-/// the wrapper's own pair first and the caller's
-///  after it,
-/// so a caller's setting of the same key still wins as it does in Git.
+/// The caller's pair now travels where Git puts one,
+///  in the parameters read after every numbered pair,
+/// so it decides.
 #[test]
 fn the_callers_pairs_survive_the_pair_the_wrapper_adds_for_itself() {
     let root = fixture("lfs-upload-prefix-beside-overlay");
@@ -229,11 +224,10 @@ fn the_callers_pairs_survive_the_pair_the_wrapper_adds_for_itself() {
     );
     assert_eq!(code, None, "{}", String::from_utf8_lossy(diagnostics.as_slice()));
     let mut expected: Vec<String> = vec![
-        String::from("GIT_CONFIG_COUNT=2"),
+        String::from("GIT_CONFIG_COUNT=1"),
         String::from("GIT_CONFIG_KEY_0=core.lockfilePid"),
         String::from("GIT_CONFIG_VALUE_0=true"),
-        String::from("GIT_CONFIG_KEY_1=lfs.url"),
-        String::from("GIT_CONFIG_VALUE_1=http://example.invalid/x"),
+        String::from("GIT_CONFIG_PARAMETERS='lfs.url'='http://example.invalid/x'"),
     ];
     expected.sort();
     assert_eq!(recorded_configuration(record.as_path()), expected);
@@ -241,12 +235,49 @@ fn the_callers_pairs_survive_the_pair_the_wrapper_adds_for_itself() {
 }
 
 /// What:
+///  A caller's newer setting reaches the child after the same key in an inherited `GIT_CONFIG_PARAMETERS`,
+/// in both spellings,
+/// so the newer setting is the one Git reads last.
+/// Why:
+///   Git appends a command-line setting after the parameters it inherited;
+/// a child given the caller's pair only as a numbered one
+///  read the inherited setting instead,
+/// and the upload of a pushed pointer travelled to the server the caller had replaced.
+#[test]
+fn an_inherited_command_scope_does_not_override_the_callers_newer_setting() {
+    const INHERITED: (&str, &str) = ("GIT_CONFIG_PARAMETERS", "'lfs.url'='http://old.invalid/lfs'");
+    const EXPECTED: &str = "GIT_CONFIG_PARAMETERS='lfs.url'='http://old.invalid/lfs' 'lfs.url'='http://new.invalid/lfs'";
+    for (case, prefix) in [
+        ("dash-c", vec!["-c", "lfs.url=http://new.invalid/lfs"]),
+        ("config-env", vec!["--config-env=lfs.url=POLICY_PUSH_URL"]),
+    ] {
+        let root = fixture(format!("lfs-upload-inherited-{case}").as_str());
+        let record: PathBuf = root.join("record.txt");
+        configuration_stand_in(root.join("bin").as_path(), record.as_path());
+        let (real_git, environment) = upload_environment(root.as_path(), &[INHERITED, ("POLICY_PUSH_URL", "http://new.invalid/lfs")]);
+        let mut diagnostics: Vec<u8> = Vec::new();
+        let code = run_upload_interactive(
+            &plan(),
+            words(prefix.as_slice()).as_slice(),
+            root.as_path(),
+            real_git.as_path(),
+            environment.as_slice(),
+            &[],
+            &mut diagnostics,
+        );
+        assert_eq!(code, None, "{case}: {}", String::from_utf8_lossy(diagnostics.as_slice()));
+        assert_eq!(recorded_configuration(record.as_path()), vec![String::from(EXPECTED)], "{case}");
+        remove(root.as_path());
+    }
+}
+
+/// What:
 ///  A configuration the caller names through the environment reaches the child as the pair it sets,
 /// in both spellings
 ///  Git accepts.
 /// Why:
-///   `git-lfs` reads Git's configuration through the numbered variables only,
-/// so a `--config-env` that is not translated there is a
+///   `git-lfs` reads Git's configuration through `git config`,
+/// so a `--config-env` that is not carried there is a
 ///  setting the upload never sees;
 /// a push URL given that way sent the object to the fetch remote while the ref went to the push remote.
 #[test]
@@ -271,11 +302,9 @@ fn a_configuration_from_the_environment_reaches_the_child_in_both_spellings() {
             &mut diagnostics,
         );
         assert_eq!(code, None, "{prefix:?}: {}", String::from_utf8_lossy(diagnostics.as_slice()));
-        let mut expected: Vec<String> = vec![
-            String::from("GIT_CONFIG_COUNT=1"),
-            String::from("GIT_CONFIG_KEY_0=remote.origin.pushurl"),
-            String::from("GIT_CONFIG_VALUE_0=http://example.invalid/from-environment"),
-        ];
+        let mut expected: Vec<String> = vec![String::from(
+            "GIT_CONFIG_PARAMETERS='remote.origin.pushurl'='http://example.invalid/from-environment'",
+        )];
         expected.sort();
         assert_eq!(recorded_configuration(record.as_path()), expected, "{prefix:?}");
     }
