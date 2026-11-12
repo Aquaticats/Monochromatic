@@ -135,6 +135,39 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The wrapper's own work queue in this repository: deletions pending for an hour, 341 relinks given up (2026-11-11T23:50:19-05:00)
+
+Checking whether the changeover audit's second finding had happened here
+(it had not: no `subvolume-delete` record is among the given-up ones)
+showed what else the queue under `.git/monochromatic-git-policy-cli/work` holds
+(`node ${HOME}/temp/agent/scratch-scripts/failed-work-records-by-kind-and-hour.ts <git dir>`, 23:49):
+
+- `pending`: eight `subvolume-delete` records, for eight `cli-git-deleting-<number>` subvolumes
+  that have stood under `.claude/worktrees/` since between 22:10 and 22:52.
+  The wrapper says of such a deletion "normally within a second".
+  The records were each rewritten between 23:11 and 23:45, so something touches them without finishing them.
+- `claimed`: twenty-four `trash` records, all taken at 23:48 by one claimant.
+- `failed`, the records the service gave up on: 555,
+  of them 341 `relink` (all from 2026-11-11, between 6 and 40 an hour since 07:00),
+  84 `push` and 80 `review` (mostly from the first days of November), 28 `trash`, 12 `prewarm`, 10 `maintenance`.
+  `done` holds 7,651 records and not one `relink`.
+
+Every relink of a new worktree's package state is failing on its first try and is then given up (`"tries":0`).
+The service's line for the newest one ends mid-sentence:
+"could not be relinked: pnpm: exit status 1: package/dsh-plugin/cost-dismissal/node_modules/zod\". The link at \"/var/".
+Agents do not notice, because the launcher runs its own `pnpm install`.
+
+Where each went:
+
+- The pending deletions, with the counts, to the round 267 agent by note (23:50),
+  as a live state that may be the missing wake its task is about; it reads the queue and the service journal read only.
+- The relinks to a new agent, round 268 (23:50:19),
+  `relink-of-a-new-worktree-does-not-fail-on-pnpm-and-is-not-given-up`, from `main`:
+  the cause in pnpm, the cut message, a retry with a bound, and what becomes of the 341.
+- The eight pending deletions are left in place for that hour as evidence.
+  If free space (170 GiB at 23:50) is under 120 GiB at the next pass,
+  the coordinator deletes them with `btrfs subvolume delete`, which is what the wrapper itself would do.
+
 ### The changeover audit: a removal lost through the built wrapper, a record the older service fails for good, and a retry nobody wakes (2026-11-11T23:47:05-05:00)
 
 Kimi's audit of the changeover and leftovers ended after 62 minutes
