@@ -26,9 +26,12 @@
 //! so the staging copy is dropped and the build keeps everything it made.
 //! The staging directory,
 //! the clean's target directory and the marker beside them are names of this job's own,
-//! and the marker holding this job's own text is what proves a directory at one of them is its leftover:
+//! and a marker this job wrote for that very build directory is what proves a directory at one of
+//! them is its leftover:
 //! anything at those names without that proof is somebody's work and is never removed,
 //! so a workspace whose usual names are taken is filled under names of this run's own.
+//! A marker a copy carried from another worktree names another build directory,
+//! so no add believes it and the repair it would have skipped runs again.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -169,16 +172,107 @@ fn marker_of(staging: &Path) -> PathBuf {
 /// beside the staging directory.
 const MARKER_SUFFIX: &str = ".owner";
 
-/// The text a marker carries,
-/// so a person who finds one knows which program wrote it and what it claims.
-pub(crate) const MARKER_TEXT: &[u8] = b"monochromatic-git-policy-cli's Cargo prewarm job wrote this file. \
-The directory whose name is this file's name without '.owner' is its staging copy, \
-and the '.target' directory beside it is the target its clean deletes from. \
-Both are the wrapper's own and are removed or published when the filling ends.\n";
+/// What the marker's JSON names this repair as,
+/// so a marker another repair wrote is never read as this job's claim.
+const CARGO_PREWARM_REPAIR: &str = "cargo-prewarm";
 
 /// What:
-///  Whether a marker is this job's:
-/// the exact text its own filling wrote,
+///  The lead every marker of this job starts with.
+/// Why:
+///   The name is a convention anyone can type,
+/// so one read has to tell this job's claim from a person's note:
+/// the lead says which program and which repair wrote the file,
+/// and the JSON after it says which build directory it staged and which add began it.
+/// A person who finds one reads what it claims in the file itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MARKER_LEAD = "monochromatic-git-policy-cli's Cargo prewarm job wrote this file. This line and the JSON after it say which repair began, for which build directory, and in which add: ";
+/// ```
+const MARKER_LEAD: &str = "monochromatic-git-policy-cli's Cargo prewarm job wrote this file. \
+This line and the JSON after it say which repair began, for which build directory, and in which add: ";
+
+/// What:
+///  The most bytes a marker of this job can hold.
+/// Why:
+///   A marker names one build directory and one add's identity,
+/// and the longest path the kernel accepts is half this,
+/// so a larger file at that name is somebody's and is never read whole or removed.
+const MARKER_LIMIT: u64 = 8192;
+
+/// What:
+///  What a marker of this job says,
+/// so a reader can place it.
+/// Why:
+///   Three facts make a marker placeable:
+/// which repair it began,
+/// which build directory it staged,
+/// and which add began it.
+/// A file that says fewer is not this job's claim on any name,
+/// and a claim on another build directory came here inside a copy of that worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheMarker = { repair: string; to: string; begunBy: string };
+/// ```
+struct TheMarker {
+    /// The build directory whose staging name the marker claims.
+    to: PathBuf,
+    /// The add that began the filling, as its process and the moment it asked.
+    begun_by: String,
+}
+
+/// What:
+///  What stands at a marker name,
+///  as far as one build directory can tell.
+/// Why:
+///   These are the answers an add or a filling acts on:
+/// nothing,
+/// this job's claim on this very build directory,
+/// this job's claim on another one,
+/// or a file this job never wrote.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum TheMarkerThere {
+    /// Nothing is at the name.
+    Nothing,
+    /// This job wrote it for this very build directory.
+    ForThisBuildDirectory,
+    /// This job wrote it for another build directory,
+    /// which a copy of that worktree carried here.
+    ForAnotherBuildDirectory,
+    /// Somebody else's file:
+    /// a link,
+    /// a pipe,
+    /// a file too large for a marker,
+    /// or text this job did not write.
+    SomebodyElses,
+}
+
+/// What:
+///  The bytes of one marker.
+/// Why:
+///   The claim is written whole by one exclusive write,
+/// so a file at that name either holds this job's JSON or is somebody else's,
+/// and a reader that knows the lead can place it without asking anything else.
+///
+/// # Errors
+///
+/// A build directory whose path is not UTF-8,
+/// which no marker could name back.
+fn marker_text(to: &Path, begun_by: &str) -> Result<Vec<u8>, String> {
+    let Some(named) = to.to_str() else {
+        return Err(format!("{} is not valid UTF-8, so no marker can name the build directory it takes", to.display()));
+    };
+    let claimed: String = serde_json::json!({ "repair": CARGO_PREWARM_REPAIR, "to": named, "begunBy": begun_by }).to_string();
+    let mut text: Vec<u8> = Vec::with_capacity(MARKER_LEAD.len() + claimed.len() + 1);
+    text.extend_from_slice(MARKER_LEAD.as_bytes());
+    text.extend_from_slice(claimed.as_bytes());
+    text.push(b'\n');
+    return Ok(text);
+}
+
+/// What:
+///  What stands at a marker name,
 /// read only from a name that holds a regular file,
 /// through an open that cannot wait.
 /// Why:
@@ -197,11 +291,83 @@ Both are the wrapper's own and are removed or published when the filling ends.\n
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const markerClaims = (marker) => readRegularFile(marker, MARKER_TEXT.length + 1)?.equals(MARKER_TEXT) ?? false;
+/// const theMarkerThere = (marker, destination) => place(readRegularFile(marker, MARKER_LIMIT), destination);
 /// ```
-fn marker_claims(marker: &Path) -> bool {
-    let limit: u64 = (MARKER_TEXT.len() as u64).saturating_add(1);
-    return matches!(crate::private_storage::read_regular_file(marker, limit), Ok(text) if text == MARKER_TEXT);
+fn the_marker_there(marker: &Path, destination: &Path) -> TheMarkerThere {
+    let text: Vec<u8> = match crate::private_storage::read_regular_file(marker, MARKER_LIMIT) {
+        Ok(text) => text,
+        Err(crate::private_storage::ReadRefusal::Missing) => return TheMarkerThere::Nothing,
+        // A link, a pipe, a directory, or a file larger than any marker of this job: somebody's, and never removed.
+        Err(_) => return TheMarkerThere::SomebodyElses,
+    };
+    let Some(claimed) = text.strip_prefix(MARKER_LEAD.as_bytes()) else { return TheMarkerThere::SomebodyElses };
+    let Ok(parsed) = serde_json::from_slice::<serde_json::Value>(claimed) else { return TheMarkerThere::SomebodyElses };
+    let (Some(repair), Some(to), Some(begun_by)) = (
+        parsed.get("repair").and_then(serde_json::Value::as_str),
+        parsed.get("to").and_then(serde_json::Value::as_str),
+        parsed.get("begunBy").and_then(serde_json::Value::as_str),
+    ) else {
+        return TheMarkerThere::SomebodyElses;
+    };
+    if repair != CARGO_PREWARM_REPAIR || begun_by.is_empty() {
+        return TheMarkerThere::SomebodyElses;
+    }
+    return if Path::new(to) == destination { TheMarkerThere::ForThisBuildDirectory } else { TheMarkerThere::ForAnotherBuildDirectory };
+}
+
+/// What:
+///  Whether the marker at this name claims this very build directory.
+/// Why:
+///   A marker another worktree's copy carried here names a build directory that is not this one,
+/// so it proves nothing about the names beside this one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const markerClaims = (marker, destination) => theMarkerThere(marker, destination) === 'forThisBuildDirectory';
+/// ```
+fn marker_claims(marker: &Path, destination: &Path) -> bool {
+    return the_marker_there(marker, destination) == TheMarkerThere::ForThisBuildDirectory;
+}
+
+/// What:
+///  This add's name for itself,
+/// as its process and the moment it asked.
+/// Why:
+///   A marker says which add began the filling,
+/// so an add reads a marker a copy carried from another worktree as one begun by a process that
+/// is not this one,
+/// and a kill at any instruction leaves the marker naming the add that will not finish it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thisAddsNameForItself = () => `${process.pid}-${nanos().toString(16)}`;
+/// ```
+fn this_adds_name_for_itself() -> String {
+    let since_the_epoch: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default();
+    return format!("{}-{:x}", std::process::id(), since_the_epoch.as_nanos());
+}
+
+/// What:
+///  Remove a marker this job wrote,
+///  and say why when it cannot.
+/// Why:
+///   The caller asks this only after `the_marker_there` placed the file as this job's own,
+/// so a person's note at the name is never removed here.
+/// A marker that cannot be taken back leaves the names claimed by what this add cannot place,
+/// so the state stays where it is and the add cleans it there.
+///
+/// # Errors
+///
+/// A marker that cannot be removed.
+fn take_the_marker_back(marker: &Path) -> Result<(), String> {
+    return match std::fs::remove_file(marker) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "{} could not be taken back ({error}), so the copied build state is left where it is; run `cargo clean --offline --package <member>` in the worktree instead",
+            marker.display()
+        )),
+    };
 }
 
 /// What:
@@ -234,8 +400,10 @@ struct TheNames {
 /// and names of this run's own when another file or directory holds the usual ones.
 /// Why:
 ///   The usual name is where a killed filling's leftovers sit,
-/// and only the marker this job wrote proves they are its own,
+/// and only a marker this job wrote for this very build directory proves they are its own,
 /// so nothing at those names is removed without that proof and the filling still happens.
+/// A marker a copy carried from another worktree names a build directory that is not this one,
+/// so it is taken back and the usual names are claimed for this fill.
 /// Two fillings of one workspace can run at once when a worktree is removed and added again at the
 /// same path while its first record is still queued,
 /// and then the second one removes the first one's staging copy and the first one reports a failure;
@@ -253,17 +421,23 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
     let usual: PathBuf = staging_of(destination);
     let usual_target: PathBuf = target_of(usual.as_path());
     let marker: PathBuf = marker_of(usual.as_path());
-    if marker_claims(marker.as_path()) {
+    let standing: TheMarkerThere = the_marker_there(marker.as_path(), destination);
+    if standing == TheMarkerThere::ForThisBuildDirectory {
         // An earlier filling of this same workspace was interrupted, so what it left under these names is this job's.
         remove_if_any(usual.as_path())?;
         remove_if_any(usual_target.as_path())?;
         return Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker) });
     }
+    if standing == TheMarkerThere::ForAnotherBuildDirectory {
+        // A copy carried another worktree's claim here, and it says nothing about this one's names, so it goes and this
+        //  fill claims them.
+        take_the_marker_back(marker.as_path())?;
+    }
     if usual.exists() || usual_target.exists() || marker.exists() {
         // Somebody else's file or directory holds one of the names, so this run stages under names of its own.
         return Ok(names_of_this_runs_own(usual.as_path()));
     }
-    return match write_marker(marker.as_path())? {
+    return match write_marker(marker.as_path(), destination)? {
         TheMarkersAnswer::WrittenByThisRun => Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker) }),
         // Another command has the name: what is there is not this run's to remove, and this run stages
         //  under names of its own.
@@ -332,7 +506,8 @@ enum TheMarkersAnswer {
 
 /// What:
 ///  Write the marker that claims the two names of one workspace,
-/// and say whether it is this run's.
+///  naming the build directory it stages and the add that began it,
+///  and say whether it is this run's.
 /// Why:
 ///   An exclusive write makes two fillings of one workspace agree on one marker instead of replacing
 /// each other's,
@@ -340,13 +515,17 @@ enum TheMarkersAnswer {
 /// `AlreadyExists` means another command's file is at that name,
 /// which may be a person's own note,
 /// so this run neither treats it as its claim nor removes it later.
+/// The marker names what it claims,
+/// so a copy that carries it into another worktree cannot read it as a claim on the names beside
+/// that copy's build directory.
 ///
 /// # Errors
 ///
 /// A marker that cannot be written,
-/// because what the names might hold can then no longer be told from somebody's work.
-fn write_marker(marker: &Path) -> Result<TheMarkersAnswer, String> {
-    return match crate::private_storage::write_private_file_unsynced(marker, MARKER_TEXT) {
+/// and a build directory whose path no marker can name.
+fn write_marker(marker: &Path, destination: &Path) -> Result<TheMarkersAnswer, String> {
+    let text: Vec<u8> = marker_text(destination, this_adds_name_for_itself().as_str())?;
+    return match crate::private_storage::write_private_file_unsynced(marker, text.as_slice()) {
         Ok(()) => Ok(TheMarkersAnswer::WrittenByThisRun),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(TheMarkersAnswer::WrittenByAnother),
         Err(error) => Err(format!("{} could not be written, so nothing of this workspace was filled ({error})", marker.display())),
@@ -564,7 +743,7 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
     let names: TheNames = match entry.staged_in.as_ref() {
         // The add moved the worktree's own copied state aside before it answered, so there is nothing to clone: the state to
         //  clean is already there.
-        Some(staging) => match staged_names(staging)? {
+        Some(staging) => match staged_names(staging, entry.to.as_path())? {
             Some(names) => names,
             None => return Ok(Filled::Kept),
         },
@@ -588,13 +767,13 @@ async fn fill_one(fill: &Fill, entry: &PrewarmEntry) -> Result<Filled, String> {
 ///
 /// # Errors
 ///
-/// A staging name this job's own marker does not claim.
-fn staged_names(staging: &Path) -> Result<Option<TheNames>, String> {
+/// A staging name this job's own marker for this very build directory does not claim.
+fn staged_names(staging: &Path, destination: &Path) -> Result<Option<TheNames>, String> {
     if !staging.exists() {
         return Ok(None);
     }
     let marker: PathBuf = marker_of(staging);
-    if !marker_claims(marker.as_path()) {
+    if !marker_claims(marker.as_path(), destination) {
         return Err(format!("{} holds what no filling of this job staged, so it is left exactly as it is found", staging.display()));
     }
     let target: PathBuf = target_of(staging);
@@ -617,24 +796,57 @@ fn staged_names(staging: &Path) -> Result<Option<TheNames>, String> {
 /// and this job cleans the state and publishes it back where nothing has rebuilt yet.
 /// The marker is written first,
 /// so a kill between the two leaves a name this job proves is its own.
+/// A marker already standing at the name is believed only when this add can place it and the state
+/// it claims is already out of the worktree:
+/// one written for another build directory came here inside a copy and claims nothing here,
+/// and one written for this build directory whose staging name is empty is a marker whose rename
+/// never happened,
+/// so the repair runs again instead of being skipped.
 ///
 /// # Errors
 ///
-/// A staging name another file or directory holds,
+/// A staging name somebody else's file or directory holds,
 /// and a state that cannot be moved.
 pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<&Path>) -> Result<Staged, String> {
-    if !destination.exists() {
-        return Ok(Staged::Nothing);
-    }
     // The staging name sits beside the build directory it takes, so the rename stays inside the worktree's own subvolume:
     // btrfs refuses to rename a directory out of a subvolume, and a worktree of this repository is one.
     let staging: PathBuf = staging_of(destination);
     let marker: PathBuf = marker_of(staging.as_path());
-    if marker_claims(marker.as_path()) {
-        // A killed add left the names it claimed; the state is already out of the worktree.
-        return Ok(if staging.exists() { Staged::Staged(staging) } else { Staged::Nothing });
+    let standing: TheMarkerThere = the_marker_there(marker.as_path(), destination);
+    if standing == TheMarkerThere::SomebodyElses {
+        return Err(format!(
+            "{} already holds something this wrapper did not stage, so the copied build state is left where it is; the worktree's first build would reuse it, so run `cargo clean --offline --package <member>` in {} instead",
+            staging.display(),
+            destination.display()
+        ));
+    }
+    // This job's marker for this very build directory, with the staging copy it names standing beside it, is the one proof
+    //  an add can read: the state is already out of the worktree, and the filling's clean is what completes the repair.
+    if standing == TheMarkerThere::ForThisBuildDirectory && staging.exists() {
+        return Ok(Staged::Staged(staging));
+    }
+    if standing != TheMarkerThere::Nothing {
+        // A marker this add cannot place as finished: the add that wrote it was killed before the rename that moves the state
+        //  aside, or before a filling published, and a copy may have carried it here from another worktree. The repair runs
+        //  again rather than being skipped, and the marker goes so this add claims the name itself.
+        take_the_marker_back(marker.as_path())?;
+        if staging.exists() {
+            // A copy carried the state another worktree had staged. Where this worktree also has a build directory, that copy
+            //  is the older copy of the same tree and goes, so this worktree's own state is what the filling cleans; where it
+            //  has none, the carried state is the only copy and is cleaned and published itself.
+            if !destination.exists() {
+                claim_the_staging_names(marker.as_path(), destination, git_dir)?;
+                return Ok(Staged::Staged(staging));
+            }
+            remove_if_any(staging.as_path())?;
+        }
+    }
+    if !destination.exists() {
+        return Ok(Staged::Nothing);
     }
     if staging.exists() || marker.exists() {
+        // A name nothing here claimed stands beside the build directory: it may be somebody's directory or a file this job never
+        //  wrote, and a rename would replace an empty directory of theirs without a word.
         return Err(format!(
             "{} already holds something this wrapper did not stage, so the copied build state is left where it is; the worktree's first build would reuse it, so run `cargo clean --offline --package <member>` in {} instead",
             staging.display(),
@@ -643,21 +855,7 @@ pub(crate) fn stage_the_worktrees_own_state(destination: &Path, git_dir: Option<
     }
     // The staging name and the target directory its clean uses stand inside the worktree, so the repository's own exclude file
     // names them and no `git status` or `git add -A` of the person's sees them.
-    if let Some(directory) = git_dir
-        && let Err(reason) = exclude_the_staging_names(directory)
-    {
-        return Err(format!("{reason}, so the copied build state stays where it is; run `cargo clean --offline --package <member>` in the worktree instead"));
-    }
-    match write_marker(marker.as_path())? {
-        TheMarkersAnswer::WrittenByThisRun => {}
-        TheMarkersAnswer::WrittenByAnother => {
-            return Err(format!(
-                "{} was taken by another writer, so the copied build state is left where it is; run `cargo clean --offline --package <member>` in {} instead",
-                marker.display(),
-                destination.display()
-            ));
-        }
-    }
+    claim_the_staging_names(marker.as_path(), destination, git_dir)?;
     return match std::fs::rename(destination, staging.as_path()) {
         Ok(()) => Ok(Staged::Staged(staging)),
         Err(error) => {
@@ -721,6 +919,41 @@ pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
     };
 }
 
+/// What:
+///  Claim the staging name of one build directory for this add:
+/// name the repository's exclude patterns for the staging names,
+/// then put this add's marker beside the staging name in one exclusive write.
+/// Why:
+///   The staging name sits inside the worktree beside the build directory it takes,
+/// because btrfs refuses a rename of a directory out of a worktree that is a subvolume,
+/// so without the exclude file the person's `git status` would show it and a `git add -A` would
+///  stage a copy of the build directory.
+/// The marker is what proves the names are this job's own,
+/// and this one names the build directory and the add that claimed them,
+/// so a copy that carries it into another worktree is not read as a claim on that worktree's names.
+/// A name another writer takes between this add's look and its write is theirs,
+/// so nothing is written there and the state stays where it is for the add's own clean.
+///
+/// # Errors
+///
+/// A Git directory the patterns cannot be named in,
+/// and a marker another writer took.
+fn claim_the_staging_names(marker: &Path, destination: &Path, git_dir: Option<&Path>) -> Result<(), String> {
+    if let Some(directory) = git_dir
+        && let Err(reason) = exclude_the_staging_names(directory)
+    {
+        return Err(format!("{reason}, so the copied build state stays where it is; run `cargo clean --offline --package <member>` in the worktree instead"));
+    }
+    return match write_marker(marker, destination)? {
+        TheMarkersAnswer::WrittenByThisRun => Ok(()),
+        TheMarkersAnswer::WrittenByAnother => Err(format!(
+            "{} was taken by another writer, so the copied build state is left where it is; run `cargo clean --offline --package <member>` in {} instead",
+            marker.display(),
+            destination.display()
+        )),
+    };
+}
+
 /// What a staging step came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Staged {
@@ -733,17 +966,19 @@ pub(crate) enum Staged {
 /// What:
 ///  Remove the staging copy, its target directory and the marker a filling of this workspace left behind
 ///  when it was killed after it published,
-/// and nothing at all when this job's own marker is not there.
+/// and nothing at all when this job's own marker for this very build directory is not there.
 /// Why:
 ///   A publish is one rename that leaves no trace of the filling that made it,
 /// so a kill between the publish and the giving back of the names strands an empty directory and its marker for ever:
 /// every later filling of that workspace answers `Filled::Kept` at the destination and never looks at the names again.
 /// The marker is what proves the names are this job's own,
-/// so anything else standing there is somebody's work and stays.
+/// and it proves that only for the build directory it names:
+/// one a copy carried from another worktree names a build directory that is not this one,
+/// so a filling here never gives back what it names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const giveBackWhatAKilledFillingLeft = (destination) => { const staging = stagingOf(destination); const marker = markerOf(staging); if (!markerClaims(marker)) return; removeIfAny(staging); removeIfAny(targetOf(staging)); removeFileIfPresent(marker); };
+/// const giveBackWhatAKilledFillingLeft = (destination) => { const staging = stagingOf(destination); const marker = markerOf(staging); if (!markerClaims(marker, destination)) return; removeIfAny(staging); removeIfAny(targetOf(staging)); removeFileIfPresent(marker); };
 /// ```
 fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
     let staging: PathBuf = match entry.staged_in.as_ref() {
@@ -751,7 +986,7 @@ fn give_back_what_a_killed_filling_left(entry: &PrewarmEntry) {
         None => staging_of(entry.to.as_path()),
     };
     let marker: PathBuf = marker_of(staging.as_path());
-    if !marker_claims(marker.as_path()) {
+    if !marker_claims(marker.as_path(), entry.to.as_path()) {
         return;
     }
     let names: TheNames = TheNames { staging: staging.clone(), target: target_of(staging.as_path()), marker: Some(marker) };

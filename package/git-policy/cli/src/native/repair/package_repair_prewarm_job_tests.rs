@@ -95,7 +95,7 @@ fn a_failed_clean_leaves_no_staging_directory_and_no_destination() {
     std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     let staged: PathBuf = staging_of(entry.to.as_path());
     std::fs::create_dir_all(staged.join("left-by-a-killed-run")).expect("a staging directory an earlier run left");
-    super::write_marker(super::marker_of(staged.as_path()).as_path()).expect("the marker an earlier run left");
+    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path()).expect("the marker an earlier run left");
     let failed: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &entry);
     assert!(failed.is_err(), "a clean that could not run is reported: {failed:?}");
     assert!(!staged.exists(), "the staging directory this job's marker claims is removed");
@@ -127,7 +127,7 @@ fn a_filling_killed_after_it_published_leaves_nothing_of_its_own() {
     std::fs::write(entry.to.join("kept"), b"a build's own artifact").expect("the file");
     let staged: PathBuf = staging_of(entry.to.as_path());
     std::fs::create_dir_all(staged.as_path()).expect("the staging directory the publish left empty");
-    super::write_marker(super::marker_of(staged.as_path()).as_path()).expect("the marker the killed filling wrote first");
+    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path()).expect("the marker the killed filling wrote first");
     let filled: Filled = super::fill_one_in_a_control(&fill_of_nowhere(), &entry).expect("a filled destination is kept");
     assert_eq!(filled, Filled::Kept, "the worktree keeps what the build made");
     assert_eq!(std::fs::read(entry.to.join("kept")).expect("the file"), b"a build's own artifact");
@@ -255,6 +255,109 @@ fn a_worktree_with_no_build_state_has_nothing_to_move_aside() {
     assert_eq!(staged, Staged::Nothing);
     assert!(!staging_of(entry.to.as_path()).exists(), "and no staging directory is made");
     assert!(!git_directory.join("info/exclude").exists(), "and no exclude file is written for a worktree with nothing to stage");
+    remove(root.as_path());
+}
+
+/// What:
+///  A marker a copy carried from another worktree claims nothing here:
+///  the add stages the state it copied and hands it over to the filling,
+///  so the new worktree is never left holding build state no repair will clean.
+/// Why:
+///   The ignored-state copy carries the staging name and the marker from the source worktree,
+///  so a worktree added from one whose add was killed wakes up with a marker for a build directory
+///  that is not here.
+///  A marker an add cannot place means the repair is done again, never skipped:
+///  a skip leaves the copy's artifacts where a build calls them fresh and names nothing that would
+///  clean them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeMarker(carried); expect(stageTheWorktreesOwnState(destination)).toEqual({ staged: staging })
+/// ```
+#[test]
+fn a_marker_a_copy_carried_from_another_worktree_never_skips_the_repair() {
+    let root: PathBuf = fixture("prewarm-carried-marker");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    // What the copy carried: the source's build state under the worktree's build directory name, and the marker its
+    //  killed add wrote before the rename that never happened.
+    std::fs::create_dir_all(entry.to.join("debug")).expect("the copied build state");
+    std::fs::write(entry.to.join("debug/copied"), b"the source's state\n").expect("a file of the copy");
+    let staging: PathBuf = staging_of(entry.to.as_path());
+    let marker: PathBuf = super::marker_of(staging.as_path());
+    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build")).expect("the marker the source worktree's killed add left");
+    assert!(!staging.exists(), "the copy carried the marker and the build state, and no staging directory");
+    let git_directory: PathBuf = root.join("git-directory");
+    let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the carried marker is placed and the repair runs");
+    assert_eq!(staged, Staged::Staged(staging.clone()), "the copied state is staged instead of skipped");
+    assert!(!entry.to.exists(), "and the worktree holds no build directory a build would call fresh");
+    assert!(staging.join("debug/copied").is_file(), "the copied state waits at the staging name for the filling's clean");
+    assert!(super::marker_claims(marker.as_path(), entry.to.as_path()), "the carried marker is replaced by this add's claim on this build directory");
+    remove(root.as_path());
+}
+
+/// What:
+///  A copy that carried another worktree's staged state as well as its build state is repaired
+///  over this worktree's own state:
+///  the carried staging copy goes,
+///  and the build directory the copy carried is staged for the filling's clean.
+/// Why:
+///   Two directories at the names of one build directory come from one source worktree:
+///  the state its add moved aside, and the state a build made there afterwards.
+///  Both name the source's paths, so the newer one is what a clean has to remove before a build can
+///  trust anything here,
+///  and the older copy is a directory of this job's own that nothing else will ever read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeMarker(carriedForAnotherWorktree); mkdirSync(staging); expect(stageTheWorktreesOwnState(destination)).toEqual({ staged: staging }); expect(staging/debug/copied).toExist()
+/// ```
+#[test]
+fn a_staged_copy_a_copy_carried_is_replaced_by_the_state_this_worktree_holds() {
+    let root: PathBuf = fixture("prewarm-carried-staging");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.to.join("debug")).expect("the copied build state");
+    std::fs::write(entry.to.join("debug/built"), b"the newer state of the same tree\n").expect("a file of the copy");
+    let staging: PathBuf = staging_of(entry.to.as_path());
+    std::fs::create_dir_all(staging.join("debug")).expect("the staging copy the source worktree's add made");
+    std::fs::write(staging.join("debug/copied"), b"the older state of the same tree\n").expect("a file of the carried staging copy");
+    let marker: PathBuf = super::marker_of(staging.as_path());
+    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build")).expect("the source worktree's marker, carried here by the copy");
+    let git_directory: PathBuf = root.join("git-directory");
+    let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the carried names are taken back and this worktree's state is staged");
+    assert_eq!(staged, Staged::Staged(staging.clone()), "this worktree's own copied state is staged");
+    assert!(staging.join("debug/built").is_file(), "the newer state of the tree is what the filling cleans");
+    assert!(!staging.join("debug/copied").exists(), "and the older carried copy of it is gone");
+    assert!(super::marker_claims(marker.as_path(), entry.to.as_path()), "under this add's claim on this build directory");
+    remove(root.as_path());
+}
+
+/// What:
+///  A marker of this very build directory whose rename never happened stages the state again.
+/// Why:
+///   A kill between the marker's write and the rename leaves the marker and the build state, and
+///  no staging directory, which is the state a second add of the same worktree inherits.
+///  Believing that marker would leave the state where a build trusts it and record nothing about it,
+///  so the repair runs again instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeMarker(forThisWorktree); expect(stageTheWorktreesOwnState(destination)).toEqual({ staged: staging })
+/// ```
+#[test]
+fn a_marker_whose_rename_never_happened_stages_the_state_again() {
+    let root: PathBuf = fixture("prewarm-marker-without-a-rename");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.to.join("debug")).expect("the copied build state");
+    std::fs::write(entry.to.join("debug/copied"), b"the source's state\n").expect("a file of the copy");
+    let staging: PathBuf = staging_of(entry.to.as_path());
+    let marker: PathBuf = super::marker_of(staging.as_path());
+    super::write_marker(marker.as_path(), entry.to.as_path()).expect("the marker this worktree's killed add wrote before its rename");
+    assert!(!staging.exists(), "the kill left the marker and no staging directory");
+    let git_directory: PathBuf = root.join("git-directory");
+    let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the state is staged again");
+    assert_eq!(staged, Staged::Staged(staging.clone()), "the state is staged again rather than skipped");
+    assert!(!entry.to.exists(), "and it is out of the build directory a build would trust");
+    assert!(super::marker_claims(marker.as_path(), entry.to.as_path()), "this add's claim replaces the killed add's marker");
     remove(root.as_path());
 }
 
