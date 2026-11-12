@@ -135,6 +135,63 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A typed push of a branch that was not checked out published a merge labelled with the checked-out branch (2026-11-12T12:00:10-05:00)
+
+#### The eleven local-only branches are on the remote
+
+- The push of the owner's answer "Push them as they are (Recommended)" ended with every branch reported `pushed`
+  (log `~/temp/agent/gate/push-local-only-branches-2026-11-12T1200.log`):
+  nine as new branches,
+  `research/depot-platform-buildkit-20261018` as a fast-forward (`b0e3247a27..249f9101c1`),
+  and `feat/cli-git-worktree-copy` through a merge the wrapper made.
+- The helper was run without branch names, so it also pushed two agent branches that had appeared since the dry run
+  (`fix/git-policy-cli-lfs-url-is-shown-and-only-a-recognised-secret-in-it-is-masked`,
+  `perf/git-policy-cli-commit-does-not-list-every-reference-on-the-path-it-waits-on`),
+  each as a new branch.
+
+#### What the wrapper did with `feat/cli-git-worktree-copy`
+
+- The command, run in the main checkout with `main` checked out, installed release 0.6.1-alpha.15:
+  `git push origin refs/heads/feat/cli-git-worktree-copy:refs/heads/feat/cli-git-worktree-copy`.
+- The local branch (tip `a1bb316fd0`, 38 commits the remote lacked) and the remote's branch (tip `24081fafdb`) had diverged.
+  The dry run's line "remote at 24081fafdb" was read by this session as a fast-forward; it was not one.
+- The wrapper made and published the merge `e063401eef` (parents `a1bb316fd0` and `24081fafdb`), with the message
+  "Merge origin/feat/cli-git-worktree-copy into main",
+  "Created by monochromatic-git-policy-cli push because origin/feat/cli-git-worktree-copy advanced after the commit landed.",
+  "Published to origin/feat/cli-git-worktree-copy.",
+  and printed "origin/feat/cli-git-worktree-copy had new commits, so the merge e063401eef... of main and origin/...".
+- Nothing was lost: both earlier tips are ancestors of the merge.
+  `main` and the checkout did not change (`git status --short` showed the same five files as before; `main`'s tip was this session's next commit).
+- What is wrong:
+  the commit and the line name `main`, the branch that was checked out, where the pushed branch is meant;
+  "advanced after the commit landed" describes the automatic push after a commit, and no commit was involved;
+  the local `feat/cli-git-worktree-copy` still points at `a1bb316fd0`, behind the merge published for it;
+  and the code (`src/native/push/auto_push_reconcile_awaiting.rs`, lines 226 to 258 at `13cb122151`)
+  calls `advance_local_branch_awaiting` with `plan.branch_ref`, the checked-out branch.
+  Why `main` stayed where it was is not established.
+- A comment on the commit corrects its message (GitHub commit comment 209612270).
+  The history itself is left as it is.
+
+#### The owner on it
+
+- Typed while this was being routed, at about 12:06:
+  "Yes the wrapper is supposed to do auto merge, but it should definitely have done it better."
+- So the merge is wanted, also for a push a person typed and for a branch that is not checked out.
+  What changes is how it is done:
+  the names, the local branch advanced to the merge published for it and no other branch ever,
+  the wording, a branch checked out in another worktree, and what else "better" asks for on that path.
+- Brief: `~/temp/agent/pi-runs/push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch-prompt.md`, round 305.
+
+#### Round 305, from the answers of 11:58:45 and this
+
+- `lfs-push-programs-are-held-in-memory-and-never-written`
+  (on `fix/git-policy-cli-lfs-push-uploads-every-object-the-remote-lacks`, `9e23c2623e`).
+- `removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes` (on `main`).
+- `kept-references-are-pruned-by-size-and-age-by-the-wrapper-itself` (on `main`).
+- `push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch` (on `main`).
+- Each brief states that the build volume had 111 GiB free at 11:58 and that a build tree takes about 8 GiB.
+  The package launcher holds each start while less than 100 GiB are free.
+
 ### The owner's answers of 2026-11-12T11:58:45-05:00, through the question tool: removal and ignored files, a kept commit, the LFS record, local-only branches
 
 The dialog was opened after 11:46:35 and the answers were read at 11:58:45.
@@ -198,7 +255,8 @@ Each pick is quoted as the owner gave it.
   `trial/depot-pi-host-20261016`.
 - The push, never forced, was started at about 12:00
   (log `~/temp/agent/gate/push-local-only-branches-2026-11-12T1200.log`);
-  its result is recorded when it ends.
+  its result is in the section
+  "A typed push of a branch that was not checked out published a merge labelled with the checked-out branch".
 
 #### The cleaning of unused worktrees, ended
 
