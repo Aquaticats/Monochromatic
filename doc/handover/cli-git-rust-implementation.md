@@ -214,6 +214,139 @@ move its durable facts to their canonical doc and delete it from this page.
   briefed with what is already known and in work,
   and with the rule on destructive commands as the owner restated it today.
 
+#### The hourly pass at 11:10: commits under alpha.14 are slow in their build step, the fix for issue 6286 is finished and conflicts with `main`, the package's launcher is merged (2026-11-12T11:13:43-05:00)
+
+State at 11:10:45:
+145 GiB free;
+twenty-five runs of this session alive,
+three of another's;
+nothing culled or reframed in this pass.
+
+Commits under 0.6.1-alpha.14 in this repository,
+eleven records between 11:02:52 and 11:11:21,
+all landed:
+median 3,553 ms,
+ninetieth percentile 12,312 ms,
+largest 28,201 ms.
+Under alpha.13 the median was 825 ms.
+By step:
+
+- One commit (the first after the install,
+  main checkout,
+  11:03:34) waited 10,717 ms for its service to start:
+  the restart of issue 6286's sequence.
+- Four commits spent their time in the step that builds the commit (`buildMs`):
+  26,568 of 28,201 ms (main checkout, 11:10:59),
+  15,012 of 18,154 ms (an agent's worktree, 11:11:21),
+  5,094 of 6,002 ms (main checkout, 11:04:42),
+  3,870 of 6,125 ms (an agent's worktree, 11:10:58).
+  One more spent 6,829 of 7,165 ms in `prepareMs` (11:10:29).
+- The two largest fall in the minutes in which thirteen audits were started,
+  each adding a worktree and copying about a hundred thousand ignored entries.
+  That is an observation of times,
+  not a measured cause;
+  and slower under the machine's pressure is the wrapper's defect to measure against real Git under the same pressure,
+  not an excuse.
+  The agent of round 288 looked at exactly this step for the 14.6 s commit of 09:13;
+  its digest is being written,
+  and what to start follows from it.
+- The inference of 11:03:22,
+  that every worktree whose service predates the install would restart its service and reload the manager,
+  did not hold:
+  four agents' worktrees committed between 11:03:39 and 11:08:17 with no start wait,
+  and the manager recorded no reload after 11:03:22.
+
+Ended since 10:51:30,
+each by its own stop with a report:
+
+- The agent for issue 6286 (`a7e3fcfe58`,
+  11:03:11).
+  Its report,
+  read whole by this session
+  (`~/temp/agent/final-reports-2026-11-12T1112/reload-agent.md`):
+  the client has no `Reload` call at all and a guard fails if one comes back;
+  the unit text names a link,
+  so an upgrade,
+  a downgrade and two releases in turn change no text;
+  a unit the manager holds at an older text is dropped,
+  not reloaded;
+  the three-second greeting rule is gone.
+  Proved in a container with an unrelated bus service bound to a target:
+  seven to nine reloads over the steps on the code of that morning,
+  the unrelated service ended at a reload and stayed ended;
+  none on the fix,
+  the service kept its name.
+  Reload time measured at about 0.26 ms per loaded unit plus 50 ms,
+  with a generator's whole running time inside the reload;
+  the incident's 139,770 ms is not explained by unit count.
+  Its own gaps:
+  tests were changed after the code,
+  and the container proof is unreliable on a loaded machine at high unit counts.
+  It also wrote eleven points for the agent that removes the manager as a dependency.
+- It does not merge into `main`:
+  six files conflict,
+  because pass 17 brought in a neighbouring fix
+  (`01d6e891ed`,
+  "a release change moves a program link and asks the manager nothing",
+  and `5464c7ed70`),
+  so `main` has a program link of its own and still has the reload.
+  Round 301,
+  started 11:13:
+  `reload-fix-brought-onto-main-where-a-program-link-already-is`,
+  on the fix's branch:
+  merge `main`,
+  keep one mechanism,
+  prove it in the container for a machine seeded by alpha.13's template and by alpha.14's.
+  Round 302:
+  a qwen4 review of the fix as its author left it.
+  The release that carries it follows that agent's branch.
+- The package launcher's continuation (`db2935e02f`,
+  11:09:31).
+  Its report,
+  read whole
+  (`~/temp/agent/final-reports-2026-11-12T1112/subagent-driver.md`):
+  a real run was started through the package's own batch command and ended cleanly;
+  a start that waits for a slot now prints a `WAITING:` line as it happens;
+  the qwen4 pool is gated at the pool table's 18;
+  a run that ends its turn with work of its own running is kept and woken,
+  with the test that was owed
+  (and a defect in the first run's version of it,
+  which would have cut every wake off one poll later,
+  fixed);
+  the fix-brief command refuses to write over a file,
+  takes each fix run's name from the caller and refuses a doubled branch segment;
+  three scratch helpers are ported
+  (`list-running-pi-runs-with-their-turns`,
+  `list-runs-that-ended-since`,
+  `wait-for-a-unit-to-become-active`).
+  Not ported:
+  three of the six functions its brief named,
+  and the note and rescue helpers.
+  Its trial merge into `main` was clean
+  (only `package/pi-shared/subagent-driver` and five files of the settled-notification plugin),
+  and it is being merged at 11:13.
+  From the next batch on,
+  batches start through
+  `mise run //package/pi-shared/subagent-driver:start-a-batch-in-its-own-unit -- --batch-file=<absolute path>`,
+  run from the checkout;
+  the scratch launcher is no longer used for new batches.
+  The reviews already queued behind the scratch gate stay where they are.
+- Two fixes and two reviews
+  (package repair's stalled reader,
+  the service's late runtime at `df38f33b4f`,
+  the reviews of the LFS push and of the landing branch):
+  a Sonnet digest is being written in `~/temp/agent/digest-2026-11-12T1112-fixes-and-reviews/`,
+  the LFS branch's file of environment values first.
+
+Runs with a quiet feed at 11:10:45,
+not stopped,
+to be looked at if still quiet at the next pass:
+the fast-forward carry (939 s),
+the tokio landing (938 s),
+the landed-removal second pass (598 s),
+the scratch-reference commit (531 s),
+the clean agent (437 s).
+
 #### The audits of 0.6.1-alpha.14 started, and free space (2026-11-12T11:09:51-05:00)
 
 - Ten Kimi audits,
