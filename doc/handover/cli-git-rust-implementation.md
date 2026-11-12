@@ -135,6 +135,136 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Five more audits of alpha.12 read and routed, and round 271 started (2026-11-12T00:46:13-05:00)
+
+Free space on `/var/mnt/encrypted` is 179 GiB,
+up from 156 GiB at 00:19:
+the unit `coordinator-clean-build-trees-of-ended-agents-0021` ran `cargo clean` in the worktrees of agents whose unit had ended
+(log `~/temp/agent/clean-build-trees-of-ended-agents-2026-11-12T0021.log`).
+
+#### What arrived
+
+Two digests and two Sonnet audits.
+Each digest checked every "reproduced" against the run's own session.
+
+- `~/temp/agent/digest-2026-11-11T2350/digest.md`:
+  the Kimi audits of LFS, the commit path, and merge and pull;
+  three qwen4 reviews;
+  the tracking-repair and the wg work agents.
+- `~/temp/agent/digest-2026-11-12T0020/digest.md`:
+  the Kimi audit of the discarding commands,
+  two qwen4 reviews,
+  and four work agents (the launcher package, removal while linking, the tokio owed index, clean inside a shell alias).
+- `~/temp/agent/sonnet-audits/alpha-12-commit-landing-service-push-and-changeover/report.md`,
+  saved from the audit's final message.
+- `~/temp/agent/sonnet-audits/alpha-12-merge-discarding-commands-lfs-and-package-repair/report.md`,
+  saved the same way.
+
+A third digest is being written for ten runs that ended between 00:18 and 00:40
+(`~/temp/agent/digest-2026-11-12T0045/digest.md`),
+among them the last three Kimi audits (commit service landing, worktree add, worktree remove and landed sweep).
+
+#### Findings sent to agents already in that code
+
+Each went as an inbox note, and each recipient's unit was active when the note was delivered.
+
+- Merge audit, late bytes of a writer that cannot be inspected are unlinked,
+  and a private file comes back 0644 at a merge-deleted path:
+  to `review-findings-merge-asides-round-208-findings-1`.
+- Merge audit, a merge waits up to sixty seconds for a live holder of the index,
+  and a capture reference is never retried:
+  to `review-findings-merge-keeps-a-fifo-at-an-assume-unchanged-path-2`.
+- LFS audit, secrets in a URL's path or query reach the output of a typed push,
+  a lowercase path secret survives the mask,
+  and a stopped upload leaves a detached helper:
+  to `review-findings-lfs-output-masks-every-secret-1`.
+- Commit-path audit, preparation over the five-second budget
+  (third run: real Git 8.7 ms against the wrapper 10,016 ms, 8,594 ms of it in the scratch preparation):
+  to `review-findings-commits-within-5-s-round-208-findings-1`.
+- Sweep review, held records that cannot be parsed are dropped without a word
+  (`worktree_removal_held_commits.rs:319`, by reading only):
+  to `review-findings-landed-sweep-keeps-a-worktree-reset-onto-another-branch-1`.
+- Discard audit, four findings in the abort code
+  (an abort word of another operation, a staged resolution whose file was deleted,
+  `ORIG_HEAD` moved by `reset HEAD^`, a conflict file that keeps growing):
+  to `abort-and-skip-save-what-they-discard-second-pass-1`,
+  which already owns `--skip`.
+
+#### Round 271: six agents for findings no running agent owned
+
+Started 00:41 through the unedited scratch starter, unit `launch-agents-batch-round-271`.
+Verify each start by its feed, not by the launcher's line.
+
+- `lfs-push-uploads-every-object-the-remote-lacks` (base `main`):
+  a push after `git remote set-url`, and under `remote.<name>.mirror=2`,
+  publishes pointers without their objects and exits 0.
+- `commit-records-the-bytes-git-records-and-refuses-what-git-refuses`
+  (base the commit-options branch `e68caf343b`):
+  abbreviated `--only` and `--include` fail where Git commits,
+  a non-UTF-8 identity is rewritten to U+FFFD,
+  a trailing no-break space is trimmed,
+  and several commands Git refuses make a commit.
+- `service-round-waves-keep-the-housekeeping-bound-and-settle-each-item-when-it-ends` (base `main`):
+  the waves of alpha.12 dropped the per-item housekeeping bound,
+  leave prewarm outside the place kept free,
+  settle every push of a wave only after the slowest,
+  and let a panic in one item strand its siblings.
+- `tracking-repair-second-pass-shown-through-the-wrapper-and-the-held-record-gaps` (base `6944a6aa3c`):
+  the first pass ran nothing through a built wrapper and left two gaps open by name.
+- `pooled-shadow-store-commit-does-not-fail-on-what-stands-at-git-lfs` (base `5d7b8b2b63`):
+  a non-directory at `.git/lfs`, or its removal mid-commit, fails a commit.
+- `commit-is-made-when-the-service-stops-reading-or-answering` (base `main`):
+  a commit against a stopped service fails after 10.1 s in one audit
+  and blocks in the request write in the other.
+
+#### Decided while the owner is away, open to veto
+
+- The LFS mask hides every part of a URL that can carry a secret (user information, path, query, fragment)
+  until the open question in `SPEC.md` about the whole path is answered otherwise.
+  Reason: the rule is never to print a secret, and it has no exception for the path.
+- When a held record of a candidate worktree cannot be read,
+  the landed sweep keeps the commit by another proof or leaves that worktree alone, and says which record.
+  Reason: "never discard user data".
+- After a push that succeeds, the tracking repair creates an absent remote-tracking reference where real Git would,
+  and its messages name the true cause.
+  Reason: the present message blames a lock that does not exist.
+- A commit is made when the service stops reading or answering, by a path that needs no service.
+  Reason: "Commits should never fail."; real Git, with no service at all, makes the commit.
+  The agent designs how a stopped service that wakes is kept from making the same commit twice.
+- `fix/wg-lifecycle-branch-made-fit-to-merge` (tip `cd83212379`) is not merged.
+  Its agent calls it fit to merge,
+  but its five privileged tasks never ran, the route test's fix was only read,
+  and it brings ninety-five files of network policy.
+  It waits for the owner.
+
+#### For the owner's return, added
+
+- Two audits contest "Allow and log" (2026-11-10) for `git clean -fX` and `-fx`:
+  both deleted the only copy of an ignored file with no saved copy.
+- Both audits show forced tree writes (`reset --hard <rev>`, `checkout -f`, path checkout, `restore --source`)
+  overwriting an untracked file the target tracks; `SPEC.md:16111-16113` records the tracked-only check as designed.
+- A mistyped `rset --hard` under `help.autocorrect=immediate` runs unguarded (`SPEC.md:16074` records the forwarding).
+- "Never cut a branch write" leaves `git merge --ff-only`, `git-lfs` and `index.lock` behind for good
+  when an LFS server never answers a download (Sonnet F13).
+- "Stop only on no progress" lets a server that sends one byte every few seconds hold a typed push without end (Sonnet F14).
+- Two merges that real Git completes are refused to protect ignored content (Sonnet F07); the trade is not recorded.
+- Several commands Git refuses make a commit through the wrapper (Sonnet finding 8);
+  the commit agent of round 271 checks each against the documents first.
+
+#### The launcher package cannot start every run yet
+
+`fix/pi-shared-subagent-driver-tests-pass-after-the-two-branches-met` (tip `4e9914dc5c`) is, by its agent's own words,
+"Not yet fit to merge":
+its new start check runs `pi --help` with a sixty-second bound,
+and under load that command took about ninety-five seconds, so the check refused the one real start.
+Its four tasks last ran one commit before the tip.
+The scratch starter stays in use until a follow-up agent has shown one real start from a batch unit.
+
+#### A coordinator slip caught before it left
+
+Three notes were written with a time fifteen minutes ahead of the clock; the stamps were corrected before delivery.
+Read `date --iso-8601=seconds` before every stamp.
+
 ### A launcher's line misread, the review of the ceiling fix, and build trees of ended agents cleaned (2026-11-12T00:22:00-05:00)
 
 #### A slip caught in two minutes
