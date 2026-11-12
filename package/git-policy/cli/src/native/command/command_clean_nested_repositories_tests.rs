@@ -15,6 +15,7 @@
 
 use super::{
     dry_run_lines_from_answer, nested_repositories_the_clean_deletes, removed_paths_from_dry_run,
+    repositories_beneath_within_a_ceiling,
 };
 use crate::command_test_support::{fixture, remove};
 use crate::git_metadata::MetadataOutput;
@@ -279,9 +280,9 @@ fn a_name_that_steps_above_the_worktree_names_nothing() {
 /// Why:
 ///  Git prints a removed path relative to the directory the command runs in
 ///  (`relative_path` in `builtin/clean.c`'s print),
-///  with a ledot when the path is named from inside a directory it refuses to remove itself,
+///  with a `.` in front when the path is named from inside a directory it refuses to remove itself,
 ///  so reading that name from the worktree root names a directory Git never looked at,
-///  and rejecting the ledot drops the only name that holds the repository.
+///  and rejecting the `.` drops the only name that holds the repository.
 #[test]
 fn the_paths_a_subdirectory_clean_prints_are_read_below_the_command() {
     let root: PathBuf = fixture("clean-nested-subdirectory");
@@ -294,6 +295,76 @@ fn the_paths_a_subdirectory_clean_prints_are_read_below_the_command() {
     .expect("a plain answer");
     assert_eq!(found, vec![line("sub/container/nested")]);
     remove(root.as_path());
+}
+
+/// What:
+///  A bare repository is a repository Git's clean deletes whole,
+///  at the removed path and below one,
+///  and it is found although it holds no `.git` entry.
+/// Why:
+///  A bare repository keeps its history in the directory itself (`HEAD`, `objects`, `refs`),
+///  which is what Git's own `is_git_directory` reads,
+///  and a second `-f` deletes it as an ordinary ignored directory with every object it holds,
+///  so a walk that looks only for `.git` lets a clone nobody pushed lose everything.
+#[test]
+fn a_bare_repository_is_found_below_a_removed_path() {
+    let root: PathBuf = fixture("clean-nested-bare");
+    std::fs::create_dir_all(root.join("container/bare.git/objects")).expect("a bare repository's objects");
+    std::fs::create_dir_all(root.join("container/bare.git/refs")).expect("a bare repository's refs");
+    std::fs::write(root.join("container/bare.git/HEAD"), b"ref: refs/heads/inner\n").expect("a bare repository's head");
+    std::fs::create_dir_all(root.join("container/deeper/mirror.git/objects")).expect("a deeper bare repository");
+    std::fs::create_dir_all(root.join("container/deeper/mirror.git/refs")).expect("its refs");
+    std::fs::write(root.join("container/deeper/mirror.git/HEAD"), b"ref: refs/heads/inner\n").expect("its head");
+    std::fs::create_dir_all(root.join("container/plain/objects")).expect("a directory with one marker only");
+    let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
+        lines(&["Would remove container/\n"]).as_slice(),
+        root.as_path(),
+        b"",
+    )
+    .expect("a plain answer");
+    assert_eq!(
+        found,
+        vec![line("container/bare.git"), line("container/deeper/mirror.git")]
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A look inside a removed directory that gives no answer within its ceiling stops the clean,
+///  and the command does not wait for the mount.
+/// Why:
+///  A directory read or a metadata lookup on a mount whose server stopped answering never returns,
+///  and the wrapper must not hold the command for as long as that mount takes;
+///  the walk runs on an awaited thread, and a look that outlasts the ceiling names the directory instead.
+#[test]
+fn a_look_inside_that_does_not_answer_stops_the_clean() {
+    let root: PathBuf = fixture("clean-nested-slow-walk");
+    std::fs::create_dir_all(root.join("cache/held")).expect("a directory Git would remove");
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(100);
+    let started: std::time::Instant = std::time::Instant::now();
+    let failure: String = repositories_beneath_within_a_ceiling(
+        root.as_path(),
+        &[std::ffi::OsString::from("cache")],
+        ceiling,
+        a_look_that_does_not_answer,
+    )
+    .expect_err("a look that never answered");
+    let waited: std::time::Duration = started.elapsed();
+    assert!(waited < std::time::Duration::from_secs(2), "the clean waited {waited:?} for a look whose ceiling is {ceiling:?}");
+    assert!(failure.contains("cache"), "{failure}");
+    assert!(failure.contains("did not answer"), "{failure}");
+    assert!(failure.contains("not judged"), "{failure}");
+    remove(root.as_path());
+}
+
+/// A look that never gives an answer:
+///  the mount of the control that holds a walk past its ceiling.
+fn a_look_that_does_not_answer(
+    _worktree_root: &std::path::Path,
+    _start: &[std::ffi::OsString],
+) -> Result<Vec<Vec<std::ffi::OsString>>, String> {
+    std::thread::sleep(std::time::Duration::from_secs(30));
+    return Ok(Vec::<Vec<std::ffi::OsString>>::new());
 }
 
 /// What:

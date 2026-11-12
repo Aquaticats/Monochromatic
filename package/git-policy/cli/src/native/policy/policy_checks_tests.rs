@@ -18,7 +18,6 @@
 ///  the engine types it returns and the scripted facts.
 use super::{ShippedChecks, shipped_checks};
 use crate::candidate_prediction::CandidateRequest;
-use crate::command_clean::UNREADABLE_CLEAN_DELETION;
 use crate::command_test_support::os_arguments;
 use crate::diagnostics::EngineFailureCode;
 use crate::policy_content::LifecycleContent;
@@ -1019,24 +1018,45 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
 /// What:
 ///  linked-worktree-only:
 ///  a clean with a second force asks Git what it would delete,
-///  stops when that reading never answered,
+///  stops when that reading failed or never answered,
 ///  and asks nothing for one force or for an interactive clean.
 /// Why:
-///   A reading that never answered could hide a repository the clean would delete,
+///   A reading that failed could hide a repository the clean would delete,
+///  and a nonzero exit is no proof that the clean which runs afterwards refuses,
 ///  so the clean stops rather than running on a guess;
+///  the one clean Git refuses itself is known from its region before any reading;
 ///  one force is Git's own protection of every nested repository,
 ///  and an interactive clean is answered after Git starts,
 ///  so its repositories are kept out of that menu by the fixed transform instead of being moved before it.
 #[test]
 fn a_clean_with_a_second_force_asks_what_git_would_delete() {
     let two_forces: Vec<&str> = vec!["clean", "-f", "-f", "-d", "-X"];
-    // Git refuses the clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
+    // The one clean Git refuses itself is known from the region: it deletes nothing, and Git's own words answer it.
+    let refused_region: Vec<&str> = vec!["clean", "-f", "-f", "-d", "-x", "-X"];
     let mut refused: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-    refused.clean_deletes = Err(format!("{UNREADABLE_CLEAN_DELETION} fatal: options '-x' and '-X' cannot be used together"));
+    refused.clean_deletes = Err(String::from("a clean Git refuses itself must not be read"));
     let (refused_outcome, refused_questions): (PolicyOutcome, Vec<String>) =
-        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), refused);
+        pre_forward(PolicyId::LinkedWorktreeOnly, refused_region.as_slice(), refused);
     assert_eq!(refused_outcome, clean(), "{refused_questions:?}");
-    // A reading that never answered is not a refusal: the clean stops rather than deleting a repository it could not see.
+    assert!(
+        refused_questions
+            .iter()
+            .all(|question| { return !question.starts_with("clean-would-delete:"); }),
+        "{refused_questions:?}"
+    );
+    // A dry run that failed for any other reason is not a refusal: Git's own words on a failed read do not prove that
+    //  the clean which runs afterwards refuses, so the clean stops and names what was not read.
+    let failed_text: &str = "Git could not read what the clean would delete: fatal: transient dry-run read failure";
+    let mut failed: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    failed.clean_deletes = Err(String::from(failed_text));
+    let (failed_outcome, failed_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), failed);
+    assert_eq!(
+        failed_outcome,
+        one("linked-worktree-required", failed_text),
+        "{failed_questions:?}"
+    );
+    // A reading that never answered is not a refusal either.
     let unanswered_text: &str =
         "Git never answered what the clean would delete: the read ended without an exit status, so the clean was not judged";
     let mut unanswered: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);

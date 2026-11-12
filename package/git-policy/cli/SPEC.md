@@ -15964,18 +15964,34 @@ One force never removes a nested repository,
 so a clean with one force asks nothing about them.
 Git names the paths itself:
 the typed clean's `--dry-run` names each path Git would remove,
-and every one of those names is read as a path,
-because Git writes the trailing slash of a directory it names at the top level and leaves it off one it names from
+and every one of those names is read as a path.
+A name is relative to the directory the clean runs in,
+not to the worktree top level,
+so Git's own `--show-prefix` for that invocation is written before it:
+a `.` component is dropped,
+a parent component steps up the components already read,
+and a name that steps above the worktree names nothing,
+because Git removes nothing there.
+Git writes the trailing slash of a directory it names at the top level and leaves it off one it names from
 inside a directory that survives (`remove_dirs` prints both),
 so the spelling says nothing.
 A name that is a file holds no repository below it.
-Each removed path is then read for the directories below it that hold a `.git` entry,
-whether that entry is a directory or a file,
-which is what Git itself counts as a repository (`is_nonbare_repository_dir`).
+Each removed path is then read for the directories below it that are a repository of their own:
+one holding a `.git` entry,
+whether that entry is a directory or a file
+(`is_nonbare_repository_dir`),
+or a bare repository,
+which is a directory holding a `HEAD` file,
+an `objects` directory and a `refs` directory
+(`is_git_directory`),
+because a second `-f` deletes a bare repository as an ordinary ignored directory and no answer of Git's names it.
 The wrapper walks only the paths Git named,
 never the worktree,
 and it opens no directory below a repository it found,
 because moving that one takes everything inside it.
+The look inside those paths runs on an awaited thread for no longer than the read ceiling a Git query has,
+because a directory read or a metadata lookup on a mount whose server stopped answering never returns;
+a look that gives no answer in that time stops the command and names the directory.
 Git's one-force answer is no list of the same repositories and is not read:
 at one force the directory walk skips every nested repository itself (`DIR_SKIP_NESTED_GIT`),
 without a word,
@@ -16018,11 +16034,13 @@ the menu then offers exactly what the clean deletes,
 and the notice names the repository that stayed,
 the same clean without `-i` (which saves it whole first) and the escape hatch (which deletes it with the rest).
 The pair is not written where the person asked for the worktree enforcement to be skipped.
-A dry run that never answered,
-which is one that ended without an exit status,
-stops the command instead of reading as Git's refusal of the clean,
-because a refusal deletes nothing while a read that never answered says nothing at all;
-Git's own refusal of the clean still lets it run and Git says why.
+A dry run that did not answer stops the command instead of reading as Git's refusal of the clean:
+a nonzero exit is no proof that the clean which runs afterwards refuses,
+and a failed read followed by that clean deleted a repository no copy held.
+The one clean Git refuses itself is the one that writes `-x` together with `-X`,
+which `cmd_clean` refuses before it reads anything;
+that region says so before any reading,
+so that clean runs and Git's own refusal answers the person.
 The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.

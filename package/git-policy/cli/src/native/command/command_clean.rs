@@ -49,14 +49,14 @@ pub const CLEAN_DELETION_FACT: &str = "what the clean would delete";
 /// The words that begin a failed reading of a clean's own dry run.
 /// Why:
 ///  The message is this crate's own,
-/// so the caller that must tell Git's refusal of the clean from a reading that never answered matches its start.
+///  and it names the reading the person can run again;
+///  a failed reading is never Git's refusal of the clean, so no caller classifies by these words.
 pub const UNREADABLE_CLEAN_DELETION: &str = "Git could not read what the clean would delete:";
 
 /// The words that begin the reading of a clean's own dry run that never answered.
 /// Why:
-///  Git's refusal of the clean deletes nothing and is Git's own answer to the person,
-///  while a read that ended without an exit status says nothing about what the clean would delete;
-///  the two sentences differ so the caller can let the first run and stop the second.
+///  A read that ended without an exit status says nothing about what the clean would delete;
+///  the two sentences differ so the person can tell which kind of failed reading stopped the command.
 pub const CLEAN_READ_NEVER_ANSWERED: &str = "Git never answered what the clean would delete:";
 
 /// `-n`,
@@ -141,6 +141,10 @@ pub struct CleanRegion {
     pub deletes_ignored: bool,
     /// The clean deletes ignored files and nothing else (`-X` without `-x`).
     pub ignored_only: bool,
+    /// The clean asks for `-x` and `-X` together,
+    ///  which Git refuses before it reads anything and therefore deletes nothing.
+    ///  The wrapper says so itself instead of reading a dry run's silence as a refusal.
+    pub both_ignored_modes: bool,
     /// The clean descends into untracked directories (`-d`).
     pub descends: bool,
     /// How many `-f`/`--force` were written;
@@ -201,6 +205,7 @@ pub fn parse_clean_region(
         interactive: is_enabled(&parsed, INTERACTIVE),
         deletes_ignored: include_ignored || ignored_only,
         ignored_only: ignored_only && !include_ignored,
+        both_ignored_modes: include_ignored && ignored_only,
         descends: is_enabled(&parsed, DIRECTORIES),
         forces,
         exclusions,
