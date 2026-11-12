@@ -192,19 +192,26 @@ pub fn record_refusal(work_dir: &Path, id: &str, reason: &str) -> bool {
 /// Why:
 ///   The promotion is the producer's approval,
 /// so a record that is not there is no approval and the caller says so.
+/// The rename is tried before anything is created:
+/// the service made the record it is promoting, so the state directories are there,
+/// and creating seven of them on every commit cost a dozen metadata calls on a machine where one of those can take a second
+/// (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// promote(workDir, id) // rename held/<id> to pending/<id>
 /// ```
 pub fn promote(work_dir: &Path, id: &str) -> bool {
+    let held: PathBuf = state_directory(work_dir, HELD).join(id);
+    let pending: PathBuf = state_directory(work_dir, PENDING).join(id);
+    if std::fs::rename(&held, &pending).is_ok() {
+        return true;
+    }
+    // A work tree the queue has never used has nowhere to move the record into: the states are made and the rename tried again.
     if !create_states(work_dir) {
         return false;
     }
-    if std::fs::rename(state_directory(work_dir, HELD).join(id), state_directory(work_dir, PENDING).join(id)).is_err() {
-        return false;
-    }
-    return true;
+    return std::fs::rename(&held, &pending).is_ok();
 }
 
 /// The state directory of the blocked verdicts.

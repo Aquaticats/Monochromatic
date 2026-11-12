@@ -120,6 +120,65 @@ fn a_settled_push_is_not_held_again() {
     remove(root.as_path());
 }
 
+/// What:
+///  The work tree itself,
+///  made to refuse every new name.
+/// Why:
+///   A promotion needs one rename inside `held` and `pending`, which both exist;
+///  what it must not need is a directory made under the work tree, and a work tree this user may not make a name in is that
+///  requirement made visible.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const closed = chmod(work, 0o500);
+/// ```
+#[cfg(unix)]
+fn a_work_directory_that_takes_no_new_name(work: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(work, std::fs::Permissions::from_mode(0o500)).expect("a work tree no name can be made in");
+    return work.to_path_buf();
+}
+
+/// What a promotion does:
+///  it moves the held record with its one rename and makes none of the queue's directories.
+/// Why:
+///  The service made the record, so its directories are there; making seven of them on every commit cost a dozen metadata calls
+/// on a machine where one of those can take a second
+/// (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
+/// The work tree here refuses every new name, so a promotion that creates anything answers that it moved nothing.
+#[test]
+#[cfg(unix)]
+fn a_promotion_moves_the_record_without_making_a_directory() {
+    let root: PathBuf = fixture("work-item-holding-promotion-makes-nothing");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the push is held while the gate decides");
+    // The queue the service runs has a pending directory already: it moves records through it as pushes are claimed.
+    create_private_directory_all(state_directory(work.as_path(), PENDING).as_path()).expect("the pending directory the queue keeps");
+    let closed: PathBuf = a_work_directory_that_takes_no_new_name(work.as_path());
+    assert!(promote(work.as_path(), item.id().as_str()), "the one rename the promotion needs is a rename");
+    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "the record is where a round finds it");
+    restore_owner_access(closed.as_path());
+    remove(root.as_path());
+}
+
+/// What a promotion into a work tree that has no states does:
+///  it makes them and moves the record.
+/// Why:
+///  A work tree whose queue was swept, or one this release has never used, still has a held record to release:
+/// the cheap path must not be the only path.
+#[test]
+fn a_promotion_into_a_work_tree_without_states_makes_them() {
+    let root: PathBuf = fixture("work-item-holding-promotion-makes-states");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the push is held while the gate decides");
+    assert!(!state_directory(work.as_path(), PENDING).exists(), "a hold makes the held directory alone, so the queue has no states yet");
+    assert!(promote(work.as_path(), item.id().as_str()), "the record is moved once there is somewhere to move it to");
+    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "the record is where a round finds it");
+    remove(root.as_path());
+}
+
 /// What a refusal that is written does:
 /// keeps the verdict with the gate's words,
 /// gives the held record up,
