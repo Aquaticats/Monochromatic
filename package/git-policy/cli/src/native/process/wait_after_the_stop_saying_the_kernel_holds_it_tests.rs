@@ -17,7 +17,7 @@
 
 use super::*;
 use crate::child_awaited_through_a_pidfd::adopt;
-use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::wait_until_it_exits_the_stop_or_the_ceiling;
+use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::{Ceilings, wait_until_it_exits_the_stop_or_the_ceiling};
 use crate::forwarding::ChildOutcome;
 use crate::lazy_runtime::run_on_runtime;
 use crate::native_commit_waiting_notice::{NativeCommitNotice, NoticeStart, refuse_the_next_notice_thread};
@@ -83,11 +83,13 @@ fn until_the_text(read: &dyn Fn() -> String, bound: Duration, needle: &str) -> S
 /// Why:
 ///   Every control here runs the same wait with the same words,
 ///  and differs only in what the kernel answers and in how the reader behaves.
-fn says_while_the_wait_lasts(lines: Option<&SyncSender<String>>, again_every: Duration, step: std::process::Child, read: &dyn Fn() -> String) -> String {
+fn says_while_the_wait_lasts(lines: Option<&SyncSender<String>>, step: std::process::Child, read: &dyn Fn() -> String) -> String {
     let the_lines: &SyncSender<String> = lines.expect("the notice's writer thread runs");
-    let words: HeldStepWords<'_> = HeldStepWords { lines: the_lines, again_every };
+    // The two bounds a control pays: the ceiling comes at once, and the bound a step the kernel holds is waited for
+    //  is short, so a control never waits the five minutes the shipped bound allows.
+    let ceilings: Ceilings = Ceilings { usually: Duration::from_millis(300), while_the_kernel_holds_it: Duration::from_millis(600) };
     let (outcome, a_stop): (ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) =
-        run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Duration::from_millis(300), "a step", Some(words)))
+        run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", Some(the_lines)))
             .expect("the runtime")
             .expect("the wait answers");
     assert_eq!(outcome, ChildOutcome::Signaled(libc::SIGKILL), "the ceiling ended the step the wait owns");
@@ -163,7 +165,7 @@ fn a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step()
         std::thread::sleep(A_HOLD_BOUND);
         the_controls_window::let_the_reap_go();
     });
-    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), cadence.interval, step, &|| { return sink.text(); });
+    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| { return sink.text(); });
     release.join().expect("the control's thread");
     let _facts = notice.finish();
     assert!(
@@ -174,20 +176,23 @@ fn a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step()
 }
 
 /// What:
-///  The line is said again for as long as the wait lasts.
+///  The line is said once,
+///  however long the wait lasts.
 /// Why:
-///   A person who reads the line once and then a silent terminal reads the silence as a hang,
-///  and the owner asked for the wait to be said
-///  (2026-11-10,
-///  "Keep waiting and say so"),
-///  so the command says it once and again while it keeps waiting.
+///   A person who met the same sentence three times in one failed commit read nothing new the second time
+///  (2026-11-11,
+///  a commit the installed wrapper failed in a disk wait),
+///  and the command has already said how long the step lasted before it stopped it:
+///  one stop is one sentence.
+///  The wait here outlasts several notice intervals,
+///  so a line said again would be counted again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // theKernelHolds(pid); againEvery = 200; holdTheReap(1500); expect(count(text, 'has not released')).toBeGreaterThan(1)
+/// // theKernelHolds(pid); holdTheReap(1500); expect(count(text, 'has not released')).toBe(1)
 /// ```
 #[test]
-fn the_line_is_said_again_for_as_long_as_the_wait_lasts() {
+fn the_line_is_said_once_however_long_the_wait_lasts() {
     let _look_window = the_look_controls::take_the_window();
     let _reap_window = the_controls_window::take_the_window();
     let sink: SharedSink = SharedSink::default();
@@ -206,11 +211,11 @@ fn the_line_is_said_again_for_as_long_as_the_wait_lasts() {
         std::thread::sleep(A_HOLD_BOUND);
         the_controls_window::let_the_reap_go();
     });
-    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), cadence.interval, step, &|| { return sink.text(); });
+    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| { return sink.text(); });
     release.join().expect("the control's thread");
     let _facts = notice.finish();
     let times: usize = said.matches("has not released").count();
-    assert!(times >= 2, "a wait that outlasted two notice intervals said the kernel holds the step {times} time(s): {said:?}");
+    assert_eq!(times, 1, "a wait that outlasted several notice intervals said the kernel holds the step {times} time(s): {said:?}");
 }
 
 /// What:
@@ -250,7 +255,7 @@ fn a_look_that_could_not_be_made_is_made_again() {
         std::thread::sleep(A_HOLD_BOUND);
         the_controls_window::let_the_reap_go();
     });
-    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), cadence.interval, step, &|| { return sink.text(); });
+    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| { return sink.text(); });
     release.join().expect("the control's thread");
     let _facts = notice.finish();
     assert!(
@@ -317,7 +322,7 @@ fn a_line_the_writer_could_not_take_is_said_again_when_it_can() {
         }
     };
     // Far longer than the wait lasts, so a line that waited for the next interval never arrives in it.
-    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), Duration::from_secs(30), step, &read);
+    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &read);
     release.join().expect("the control's thread");
     let _facts = notice.finish();
     assert!(
@@ -353,21 +358,29 @@ fn a_helper_held_below_the_step_is_the_process_the_line_names() {
         ceiling: Duration::from_millis(300),
         sink: Box::new(sink.clone()),
     });
-    let step: std::process::Child = sleeping_step();
-    let mut helper: std::process::Child = std::process::Command::new("sleep").arg("120").spawn().expect("a helper");
+    // The step starts a helper of its own and prints its number, so the helper a control holds is really below the step:
+    //  a control marks a process the look found and never adds one
+    //  (`scratch_step_look_below_control_window.rs`).
+    let mut command: std::process::Command = std::process::Command::new("sh");
+    command.arg("-c").arg("sleep 600 & echo $!; wait").stdout(std::process::Stdio::piped());
+    let mut step: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("a step with a helper");
+    let helper_number: i32 = {
+        use std::io::{BufRead, BufReader};
+        let printed = step.stdout.take().expect("the helper's number");
+        let mut line: String = String::new();
+        BufReader::new(printed).read_line(&mut line).expect("a number");
+        line.trim().parse::<i32>().expect("a process number")
+    };
     let step_number: i32 = number_of(&step);
-    let helper_number: i32 = number_of(&helper);
     the_look_controls::the_kernel_holds(helper_number, "ssh-keygen");
     the_controls_window::hold_the_reap();
     let release = std::thread::spawn(|| {
         std::thread::sleep(A_HOLD_BOUND);
         the_controls_window::let_the_reap_go();
     });
-    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), cadence.interval, step, &|| { return sink.text(); });
+    let said: String = says_while_the_wait_lasts(notice.lines_for_the_wait(), step, &|| { return sink.text(); });
     release.join().expect("the control's thread");
     let _facts = notice.finish();
-    helper.kill().expect("cleanup");
-    helper.wait().expect("reaped");
     assert!(
         said.contains(format!("(process {helper_number})").as_str()) && said.contains("ssh-keygen"),
         "the line did not name the program the kernel is holding: {said:?}"

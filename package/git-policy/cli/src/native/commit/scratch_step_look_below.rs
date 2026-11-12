@@ -119,11 +119,37 @@ pub(crate) fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
 fn the_state_a_control_states(found: &mut Vec<(i32, ProcessUse)>, step: i32, held: (i32, String)) {
     let (number, name) = held;
     let stated: ProcessUse = ProcessUse { name, started: 0, state: 'D', cpu: Duration::ZERO };
+    // What: A control marks a process the look found, and never adds one.
+    // Why:  A control's words are the kernel's answer about a process of the step's own tree,
+    //       and a process a control named that no look found is not one this step started:
+    //       a plant that added it would let one control's statement into another test's look.
     match found.iter().position(|entry| { return entry.0 == number; }) {
         Some(at) => found[at] = (number, stated),
         None if number == step => found.insert(0, (number, stated)),
-        None => found.push((number, stated)),
+        None => {}
     }
+}
+
+/// What:
+///  The process the kernel holds in a disk wait,
+///  below a step,
+///  read in one look.
+/// Why:
+///  A ceiling that comes for a step the kernel holds must stand aside instead of ending it,
+///  and a step inside an uninterruptible call is the one fact that tells those two apart.
+///  The look is the one the notice also makes,
+///  and a control may state its answer
+///  (`the_controls_window`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = theKernelHoldsTheStep(pid); // { number, name } | undefined
+/// ```
+pub(crate) fn the_kernel_holds_the_step(step: u32) -> Option<crate::scratch_step_held_by_the_kernel::HeldProgram> {
+    let number: i32 = i32::try_from(step).ok()?;
+    let below: Vec<(i32, ProcessUse)> = look_below(number)?;
+    let (found, used) = the_process_the_kernel_holds(below.as_slice())?;
+    return Some(crate::scratch_step_held_by_the_kernel::HeldProgram { number: *found, name: used.name.clone() });
 }
 
 /// The number of one member of a tree.

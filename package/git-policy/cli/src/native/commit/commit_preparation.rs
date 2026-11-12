@@ -257,16 +257,15 @@ pub fn run_native_commit_within(
     let began: std::time::Instant = std::time::Instant::now();
     // Two enforcers of one ceiling: the notice's thread, which prints the lines and ends the step through the descriptor
     //  taken at its start, and the wait that owns the child, which needs no thread and no number a reuse can reach.
-    // The wait also says why it still lasts when the kernel has not released the step, through the notice's writer thread:
-    //  a notice thread the system refused says nothing at all, and the wait is the one that keeps waiting.
-    let mut duty: crate::signal_relay::CeilingDuty<'_> = crate::signal_relay::CeilingDuty {
+    // A step the kernel holds in a disk wait is slow and not stuck, so both stand aside for it and the wait that owns the
+    //  child is the one that waits and says so (`wait_ceilings::SCRATCH_COMMIT_STEP_STALL_CEILING`).
+    let duty: crate::signal_relay::CeilingDuty<'_> = crate::signal_relay::CeilingDuty {
         told: notice.step_number(),
-        bound: notice.ceiling_that_applies(),
-        while_held: None,
+        bound: notice
+            .ceiling_that_applies()
+            .map(crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::Ceilings::of),
+        while_held: notice.lines_for_the_wait(),
     };
-    if let Some(lines) = notice.lines_for_the_wait() {
-        duty.while_held = Some(crate::wait_after_the_stop_saying_the_kernel_holds_it::HeldStepWords { lines, again_every: cadence.interval });
-    }
     let finished = run_guarded_child(&mut command, duty);
     // The step's own figure is the child alone. The notice's own end is reported beside it in `scratchSteps`, and the time
     // the signing program ran below the step is there too, so a long step names no work the person's terminal did and no
@@ -281,17 +280,25 @@ pub fn run_native_commit_within(
         facts.stopped_after = Some(stop.waited);
         facts.below_unlisted = !stop.below_listed;
         facts.below_unended = stop.below_unended;
+        // A notice thread the system refused leaves no record of a ceiling that stood aside, and the wait that
+        //  enforced it names the bound here, so the words still say the step was waited for.
+        facts.stall_ceiling = facts.stall_ceiling.or(stop.stall_ceiling);
     }
     let stopped_after: Option<std::time::Duration> = facts.stopped_after;
     let below_unlisted: bool = facts.below_unlisted;
     let below_unended: u32 = facts.below_unended;
+    // What: The bound the step was ended at.
+    // Why:  A step the kernel held ran under the longer bound the package measured,
+    //       and the stop's words must name the bound that ended it and never the one it passed.
+    let bound_that_ended_it: std::time::Duration = facts.stall_ceiling.unwrap_or(ceiling);
+    let waited_while_the_kernel_held_it: bool = facts.stall_ceiling.is_some();
     crate::scratch_commit_step::note_scratch_step(facts);
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
-        crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());
+        crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), bound_that_ended_it.as_millis()).as_str());
         // A step the ceiling ended never exited by itself, so the note carries its name and no status.
         crate::git_step_failure::note_failed_step(step.as_str(), None);
-        let stop: crate::scratch_step_stop_words::ScratchStepStop = crate::scratch_step_stop_words::ScratchStepStop { waited, ceiling, signs, below_unlisted, below_unended };
+        let stop: crate::scratch_step_stop_words::ScratchStepStop = crate::scratch_step_stop_words::ScratchStepStop { waited, ceiling: bound_that_ended_it, signs, below_unlisted, below_unended, waited_while_the_kernel_held_it };
         return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(stop))));
     }
     let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = match finished {

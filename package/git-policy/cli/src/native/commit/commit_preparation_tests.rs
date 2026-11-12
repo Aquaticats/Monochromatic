@@ -785,3 +785,229 @@ fn a_scratch_commit_whose_notice_thread_was_refused_is_stopped_at_its_ceiling() 
     assert_eq!(git_text(fixture.repo.as_path(), &["for-each-ref"]), refs_before);
     remove(root.as_path());
 }
+
+/// The ceiling a control gives a scratch step it means to outlast:
+/// short enough that a loaded host still reaches it.
+const A_CEILING_A_STEP_OUTLASTS: std::time::Duration = std::time::Duration::from_millis(300);
+
+/// The bound a control plants for a step the kernel holds,
+/// and the longest a control waits for the step to be ended at it.
+/// Longer than the bound and far under the five minutes the shipped bound allows.
+const A_STALL_BOUND: std::time::Duration = std::time::Duration::from_millis(1_200);
+
+/// How long a control waits for a stand-in signer to name itself in the file it writes.
+const A_SIGNER_STARTS: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// What:
+///  A stand-in signing program that writes its own process number and then takes its time.
+/// Why:
+///   No run on this host can put a process into uninterruptible sleep (`BOX`),
+///  and a control of a scratch step that outlasts its ceiling needs a program below the step that is slow:
+///  the signer is the one program the step starts that the commit's own configuration can replace.
+///  What a control states is the kernel's answer about this program,
+///  and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const { fixture, globalArgs, commitArgs, numberFile } = aSignerThatReportsItself(root, 2);
+/// ```
+#[cfg(unix)]
+fn a_signer_that_reports_itself(root: &Path, seconds: &str) -> (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) {
+    let fixture: Fixture = prepared_fixture(root);
+    let signer: PathBuf = root.join("slow-signer");
+    let number_file: PathBuf = root.join("signer-number");
+    let script: String = format!(
+        "#!/bin/sh\necho $$ > '{}'\ncat > /dev/null\nsleep {seconds}\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nstand-in\\n-----END PGP SIGNATURE-----\\n'\n",
+        number_file.display()
+    );
+    crate::test_support::executable(signer.as_path(), script.as_bytes());
+    let global_args: Vec<OsString> = vec![
+        OsString::from("-c"),
+        OsString::from(format!("gpg.program={}", signer.display())),
+        OsString::from("-c"),
+        OsString::from("user.signingkey=fixture"),
+    ];
+    let commit_args: Vec<OsString> = vec![OsString::from("-S"), OsString::from("--message=x")];
+    return (fixture, global_args, commit_args, number_file);
+}
+
+/// The process number a stand-in signer wrote,
+/// waited for no longer than `bound`,
+/// so a signer that never started fails the control instead of hanging it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const number = theNumberIn(file, 20_000);
+/// ```
+#[cfg(unix)]
+fn the_number_in(file: &Path, bound: std::time::Duration) -> i32 {
+    let deadline: std::time::Instant = std::time::Instant::now() + bound;
+    loop {
+        if let Ok(text) = std::fs::read_to_string(file)
+            && let Ok(number) = text.trim().parse::<i32>()
+        {
+            return number;
+        }
+        assert!(std::time::Instant::now() < deadline, "the stand-in signer never wrote its number to {}", file.display());
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// What:
+///  A commit whose scratch step outlasts its ceiling while the kernel holds the program below it lands,
+///  and the branch it prepared holds exactly one commit.
+/// Why:
+///   On 2026-11-11 an ordinary commit failed this way and the same command succeeded eleven seconds later:
+///  the step was slow,
+///  not stuck,
+///  and the ceiling ended a commit that would have landed.
+///  The control states the kernel's answer about the signer,
+///  which is the whole of what a stalled disk gives the step,
+///  and the commit,
+///  the signer and the shadow repository are real.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const { fixture, ... } = aSignerThatReportsItself(root, 2); theKernelHolds(number); const code = runNativeCommitWithin({ ceiling: 300 }); expect(code).toBe(0); expect(shadowCount(`${base}..HEAD`)).toBe(1)
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_scratch_commit_the_kernel_holds_past_its_ceiling_lands_exactly_one_commit() {
+    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = crate::native_commit_waiting_notice::the_controls_window::take_the_window();
+    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND * 10);
+    let root: PathBuf = fixture("commit-preparation-a-disk-wait");
+    let (fixture, global_args, commit_args, number_file): (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) =
+        a_signer_that_reports_itself(root.as_path(), "2");
+    let base: String = git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]);
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    let planting = {
+        let watched: PathBuf = number_file.clone();
+        std::thread::spawn(move || {
+            let number: i32 = the_number_in(watched.as_path(), A_SIGNER_STARTS);
+            crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "gpg");
+        })
+    };
+    let outcome: Result<i32, PreparationError> = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, A_CEILING_A_STEP_OUTLASTS);
+    planting.join().expect("the control's thread");
+    assert_eq!(outcome.expect("a commit whose step the kernel held past its ceiling lands"), 0);
+    let shadow: String = format!("--git-dir={}", fixture.shadow.display());
+    let made: String = git_text(fixture.repo.as_path(), &[shadow.as_str(), "rev-list", "--count", format!("{base}..HEAD").as_str()]);
+    assert_eq!(made.trim(), "1", "the commit was made once and not twice");
+    assert_eq!(git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]).trim(), base, "the person's branch is where it was");
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit whose scratch step the kernel never releases is ended at the bound it is waited for,
+///  and the words say the step was already waited for before it was stopped.
+/// Why:
+///   A step nothing will release still ends the command,
+///  never the other way round;
+///  the bound a control plants is a second,
+///  so a step ended at its ceiling instead of the bound fails this control by time alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const began = now(); const outcome = runNativeCommitWithin({ ceiling: 300 }); expect(began.elapsed() >= 1_200).toBe(true); expect(outcome.message).toContain('held it in a disk wait')
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message() {
+    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = crate::native_commit_waiting_notice::the_controls_window::take_the_window();
+    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
+    let root: PathBuf = fixture("commit-preparation-never-released");
+    let (fixture, global_args, commit_args, number_file): (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) =
+        a_signer_that_reports_itself(root.as_path(), "600");
+    let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    let planting = {
+        let watched: PathBuf = number_file.clone();
+        std::thread::spawn(move || {
+            let number: i32 = the_number_in(watched.as_path(), A_SIGNER_STARTS);
+            crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "gpg");
+        })
+    };
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcome: Result<i32, PreparationError> = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, A_CEILING_A_STEP_OUTLASTS);
+    let lasted: std::time::Duration = began.elapsed();
+    planting.join().expect("the control's thread");
+    let Err(PreparationError::Git(GitFailure(said))) = outcome else {
+        panic!("a step the kernel never released was not turned into a stop: {outcome:?}");
+    };
+    assert!(lasted >= A_STALL_BOUND, "the step was ended at its ceiling instead of the bound it is waited for: {lasted:?}");
+    assert!(lasted < std::time::Duration::from_secs(20), "the bound did not end the step: {lasted:?}");
+    assert!(said.contains("was stopped after") && said.contains("nothing was committed"), "{said}");
+    assert!(said.contains("held it in a disk wait"), "the words do not say the step was already waited for: {said}");
+    assert_eq!(git_text(fixture.repo.as_path(), &["for-each-ref"]), refs_before, "the person's refs are as they were");
+    remove(root.as_path());
+}
+
+/// What:
+///  A stop of a step the kernel held says it was already waited for,
+///  even when the system refused the notice's thread.
+/// Why:
+///   The bound the step ran under is the wait's own when no notice thread kept it,
+///  and a stop that named the shorter ceiling would say the wrapper ended a step at a bound it had
+///  already passed.
+///  The refusal is the system's answer at a process's thread limit,
+///  and a control plants it, as the ceiling's own controls do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // refuseTheNextNoticeThread(); plantTheStallCeiling(1_200); const outcome = runNativeCommitWithin({ ceiling: 300 }); expect(outcome.message).toContain('held it in a disk wait')
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_scratch_commit_whose_notice_thread_was_refused_still_says_the_step_was_waited_for() {
+    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = crate::native_commit_waiting_notice::the_controls_window::take_the_window();
+    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND);
+    crate::native_commit_waiting_notice::refuse_the_next_notice_thread(1);
+    let root: PathBuf = fixture("commit-preparation-refused-and-held");
+    let (fixture, global_args, commit_args, number_file): (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) =
+        a_signer_that_reports_itself(root.as_path(), "600");
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    let planting = {
+        let watched: PathBuf = number_file.clone();
+        std::thread::spawn(move || {
+            let number: i32 = the_number_in(watched.as_path(), A_SIGNER_STARTS);
+            crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "gpg");
+        })
+    };
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcome: Result<i32, PreparationError> = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, A_CEILING_A_STEP_OUTLASTS);
+    let lasted: std::time::Duration = began.elapsed();
+    planting.join().expect("the control's thread");
+    let Err(PreparationError::Git(GitFailure(said))) = outcome else {
+        panic!("a step the kernel never released was not turned into a stop: {outcome:?}");
+    };
+    assert!(lasted >= A_STALL_BOUND, "the step was ended at its ceiling instead of the bound it is waited for: {lasted:?}");
+    assert!(said.contains("held it in a disk wait"), "a stop with no notice thread does not say the step was waited for: {said}");
+    remove(root.as_path());
+}
