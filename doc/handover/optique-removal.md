@@ -708,9 +708,10 @@ What was established that day:
   whose context names `node:util` `parseArgs` adoption and Valibot,
   and no performance reason.
   The measurement therefore bears on none of the reasons that decision records.
-- For the consumers this handover lists,
-  which pass a handful of tokens,
-  the measured cost of an Optique parse of three tokens was 0.52 to 0.74 ms on every version.
+- An Optique parse of three tokens cost 0.52 to 0.74 ms on every version measured,
+  and each positional token before a `--` adds about 0.18 ms on 1.3.6.
+  Which of the consumers this handover lists pass many such tokens was not checked;
+  the section "Existing consumer constraints" names forwarding ones.
 
 Open,
 and the owner's to decide:

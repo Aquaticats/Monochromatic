@@ -111,7 +111,9 @@ Its changelog entry in upstream `CHANGES.md` reads:
 so callbacks used for side effects may run fewer times."
 
 No written branch or backport policy was found.
-A search of upstream's Markdown files outside the changelog for `maintenance`,
+A search of upstream's Markdown files,
+leaving out the changelog and its fragments,
+for `maintenance`,
 `backport`,
 `patch release` and `cherry` returned two unrelated lines in `docs/cookbook.md` and `docs/why.md`.
 The split between patch and minor work is therefore upstream's practice as shown by these two issues,
@@ -163,7 +165,11 @@ So a build with the structural change was on both registries within minutes of t
 There is no build named alpha or beta.
 A search of upstream's README files and `docs/` for `unstable`,
 `pre-release`,
-`@dev` and `dist-tag` found no instructions for installing these builds;
+`@dev`,
+`dist-tag`,
+`--tag dev`,
+`dev build`,
+`nightly` and `canary` found no instructions for installing these builds;
 the only hits describe a semantic-version value parser.
 
 ## Question 2: where the cost came from, and why tests did not catch it
@@ -297,11 +303,15 @@ for `performance`,
 `benchmark`,
 `levenshtein`,
 `overhead` and `latency` returns nothing about parse cost before [issue 988][].
-This project did not report it either:
-`gh issue list --repo dahlia/optique --state all --author Aquaticat` returns no issue.
-This project measured the cost on 2026-07-15,
-replaced the parser the same day,
-and recorded the finding only in its own commit messages.
+No report from this project is on upstream's tracker:
+`gh issue list --repo dahlia/optique --state all --author Aquaticat` returns no issue,
+and a search of upstream's issues for `Monochromatic` returns only the maintainer's own four.
+Whether anyone told upstream by another channel is not in the record.
+This project measured the cost on 2026-07-15 and replaced the parser the same day.
+It recorded the finding in its commit messages and,
+from 2026-08-14,
+in `doc/handover/cli-git-cac-migration.md`;
+no file under `doc/troubleshooting/` described it until 2026-11-12.
 
 Upstream found it by reading this repository.
 The maintainer opened issues 988,
@@ -418,6 +428,16 @@ A search of `README.md`,
 `speed`,
 `slow`,
 `benchmark` and `efficient` returned no line.
+The same search for `type-safe`,
+a term those files must contain,
+matched in `README.md`,
+`docs/why.md` and `docs/index.md`,
+so the search can see a stated goal when one is there.
+Both packages describe themselves as "Type-safe combinatorial command-line interface parser",
+the repository as "Type-safe combinatorial CLI parser for TypeScript",
+and its topics are `cli`,
+`getopt`,
+`parser-combinators` and `typescript`.
 Across all of `docs/`,
 `performance`,
 `performant` and `benchmark` occur on six lines,

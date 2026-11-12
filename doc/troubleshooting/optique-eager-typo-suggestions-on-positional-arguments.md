@@ -5,11 +5,12 @@ Status,
 upstream fixed this in two steps.
 `@optique/core` 1.3.2 removed most of the cost,
 and a change merged for 1.4.0 removes the rest of the suggestion work.
-No package in this repository is exposed to the slow form any more:
-the lockfile resolves 1.3.6,
-and the one consumer that passed many positional tokens,
+No package in this repository can meet the slowest form any more:
+`pnpm-lock.yaml` resolves `@optique/core` 1.3.6 and no other version.
+The consumer where the cost was measured,
 the TypeScript Git policy wrapper,
 was deleted on 2026-10-13 (`642b6d72cb`).
+Whether another consumer passes many positional tokens before a `--` was not checked.
 This document stays as the record of the cause,
 the measurements,
 and what works around it on each version.
@@ -406,8 +407,21 @@ over two rounds:
 - `1.4.0-dev.2971`:
    73.7 to 80.5 ms
 
-After `--` the option parsers stop considering tokens,
+After `--` an option parser returns a fixed failure before it looks at the token,
 so the search in step 2 is never reached.
+[`packages/core/src/primitives.ts` lines 987 to 993 at 1.1.1][after separator]:
+
+```ts
+// packages/core/src/primitives.ts at tag 1.1.1
+      if (context.optionsTerminated) {
+        return {
+          success: false,
+          consumed: 0,
+          error: options.errors?.optionsTerminated ??
+            message`No more options can be parsed.`,
+        };
+```
+
 On this input the pre-release took about twice as long as 1.1.1 and 1.3.6 in both rounds.
 Two rounds are too few to call that a regression;
 it is recorded because the ranges do not overlap.
@@ -621,6 +635,8 @@ Not fileable as written:
 it needs the owner's review,
 edit and AI-assistance disclosure,
 per upstream's policy.
+An AI session wrote every line of it and no person has reviewed it;
+it speaks for nobody until the owner makes it theirs.
 
 ~~~md
 Thanks for the pointer. I reran the old parser from the parent of this commit against several versions. One parse of
@@ -649,15 +665,16 @@ A standalone script (only `@optique/core`) that shows the same effect is in
 `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md` in this repository.
 
 For context: the parser we replaced Optique with here was a different parser with bugs of its own and has since been
-deleted, so our old 4.24 s and 0.89 s compared two different things. We also never reported this to you, which we
-should have.
+deleted, so our old 4.24 s and 0.89 s compared two different things.
 
-(Measured and drafted with AI assistance; reviewed by me.)
+[Owner: add here, in your own words, anything you want to say about the cost not having been reported upstream in
+July, and the disclosure of AI assistance that upstream's policy asks for.]
 ~~~
 
 [object loop]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/constructs.ts#L5869-L5884
 [no-match 1.1.1]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/primitives.ts#L1232-L1271
 [search 1.1.1]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/suggestion.ts#L165-L186
+[after separator]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/primitives.ts#L987-L993
 [no-match 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/primitives.ts#L1302-L1347
 [search 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/suggestion.ts#L184-L192
 [deferred failure]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/internal/failure.ts#L16-L39
