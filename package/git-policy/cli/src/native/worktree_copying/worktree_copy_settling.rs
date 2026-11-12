@@ -236,9 +236,15 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
         )?;
         // An entry the source gained after the listing was never in the manifest, so the stage cannot hold it and the pass
         //  that ends the settling is the one that says which they are: the caller names them, because a worktree short of what
-        //  its source held must not look whole.
+        //  its source held must not look whole. An entry this pass left in its source because it would not settle is no entry
+        //  the source gained, and it is named once, as one that kept changing.
         if differences.gone.is_empty() && differences.changed.is_empty() {
-            return Ok(Settled { entries, stamps, unsettled, uncopiable, appeared: differences.appeared, gone: gone_count });
+            let appeared: Vec<Vec<u8>> = differences
+                .appeared
+                .into_iter()
+                .filter(|path: &Vec<u8>| return !unsettled.contains(path))
+                .collect();
+            return Ok(Settled { entries, stamps, unsettled, uncopiable, appeared, gone: gone_count });
         }
         // An entry the source removed has no stage file to keep and nothing to install; a name that now holds a socket,
         // a named pipe or a device node is the entry the person is told a worktree cannot hold.

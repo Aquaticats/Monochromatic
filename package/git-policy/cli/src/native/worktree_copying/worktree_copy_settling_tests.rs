@@ -269,6 +269,7 @@ fn a_file_that_keeps_changing_is_left_in_its_source_and_named() {
     let (held, root, source, stage, entries) = two_ignored_files("settling-keeps-changing", KEEPS_CHANGING);
     let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("an entry that will not settle is no failure");
     assert_eq!(settled.unsettled, vec![b"cache/a.txt".to_vec()], "the entry its neighbour kept rewriting is named");
+    assert!(settled.appeared.is_empty(), "the entry this pass left in its source is named once, as one that kept changing, not as one the source gained: {:?}", settled.appeared);
     assert!(!stage.join("cache/a.txt").exists(), "it is not in the stage");
     assert!(source.join("cache/a.txt").is_file(), "its only copy stays in the source, untouched");
     assert_eq!(std::fs::read(stage.join("cache/b.txt")).expect("b staged"), std::fs::read(source.join("cache/b.txt")).expect("b in the source"), "the entry that settled is staged with the source's bytes");
@@ -359,6 +360,7 @@ fn a_changed_file_below_a_read_only_directory_is_copied_again() {
     assert_eq!(settled.entries.len(), 3, "every entry of the manifest is staged: {:?}", settled.entries);
     assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a staged a"), b"rewritten once\n", "the stage holds the bytes the source has now");
     assert_eq!(mode_of(stage.join("cache").as_path()), READ_ONLY_DIRECTORY, "the staged directory keeps the source's retained mode once the retry is done");
+    assert!(settled.appeared.is_empty(), "the entry settled at its second copy, so nothing of it looks like an entry the source gained: {:?}", settled.appeared);
     assert!(source.join("cache/a.txt").is_file(), "the source keeps its own file");
     drop(held);
     remove(root.as_path());
