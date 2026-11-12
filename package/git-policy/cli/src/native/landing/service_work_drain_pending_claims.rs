@@ -9,7 +9,8 @@
 //! and it answers when to look at this directory again:
 //!  the earliest of the housekeeping it left for a later look and the end of the earliest claim still held here,
 //! so a lane that keeps a claim
-//!  (a retryable answer, or a settling step that could not run) is left with a wake for it.
+//!  (a retryable answer,
+//! or a settling step that could not run) is left with a wake for it.
 //! Inside one kind the items of different worktrees run beside each other and one worktree's items keep their turn
 //! (`service_work_items_side_by_side.rs`),
 //! and the pushes of different branches of the repository run beside each other.
@@ -156,7 +157,8 @@ fn may_start_housekeeping(slice: &HousekeepingOfOneRound, started: &mut bool) ->
 }
 
 /// What:
-///  The items of one housekeeping step this round may start, in the order they were claimed,
+///  The items of one housekeeping step this round may start,
+/// in the order they were claimed,
 ///  and the ones it leaves for a later round.
 /// Why:
 ///   A step runs its items as one batch of waves (`service_work_items_side_by_side.rs`),
@@ -529,11 +531,13 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
 }
 
 /// What:
-///  A wait that has already run out, as the pause a look that left housekeeping for a later look takes.
+///  A wait that has already run out,
+/// as the pause a look that left housekeeping for a later look takes.
 /// Why:
 ///   A claim already past its lease that the taking back could not move answers a wait of no time at all,
 /// and a look that came back at once would spin the service on the same claim.
-/// The pause is the one such a look already waits, so nothing is looked at later than that.
+/// The pause is the one such a look already waits,
+/// so nothing is looked at later than that.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

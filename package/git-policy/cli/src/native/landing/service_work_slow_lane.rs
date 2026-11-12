@@ -29,8 +29,10 @@
 //! The claims are the drain's own:
 //! the lane claims `SLOW_KINDS` and the round claims `PUSH_KINDS`,
 //! so the two never take each other's records and no lock is needed.
-//! A claim the lane keeps (a retryable answer, or a settling step that could not run) is looked at again by the lane at the
-//! moment its lease runs out, so the retry the answer promised needs no other request and no periodic poll.
+//! A claim the lane keeps (a retryable answer,
+//! or a settling step that could not run) is looked at again by the lane at the
+//! moment its lease runs out,
+//! so the retry the answer promised needs no other request and no periodic poll.
 //! What a person waits for is kept free of the lane's queue as well:
 //! every storage step of these kinds asks through the gate that leaves one blocking place to the round
 //! (`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`).
@@ -196,7 +198,8 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 /// for the directory itself and for the common directory of a bare repository,
 /// as the round runs the pushes,
 /// and answer how soon it asks to be looked at again:
-/// the pause a look that left housekeeping asked for, or the end of the earliest claim it keeps.
+/// the pause a look that left housekeeping asked for,
+/// or the end of the earliest claim it keeps.
 /// Why:
 ///   The records of a bare repository's worktrees sit in its common directory's work directory,
 /// and the round reaches that directory too (`drain_common_records_planned_awaiting`),

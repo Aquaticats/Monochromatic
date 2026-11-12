@@ -566,7 +566,8 @@ fn world_with_a_removal(name: &str, id: u64) -> (World, String) {
 /// class Said { subvolumeDelete(item) { return this.said(this.asked.increment()) } }
 /// ```
 struct Said {
-    /// What the delete says, by the attempt's number counting from one.
+    /// What the delete says,
+    /// by the attempt's number counting from one.
     said: Box<dyn Fn(u32) -> Verdict + Send + Sync>,
     /// How many times the delete was asked.
     asked: Arc<AtomicU32>,
@@ -623,7 +624,8 @@ fn tries_of_the_claimed_record(world: &World) -> u32 {
 /// The service's own words promise it is tried again when its claim runs out,
 /// so the look that keeps the claim answers the moment it ends,
 /// and the look at that moment takes the claim back,
-/// claims the record again with one more try, and runs it.
+/// claims the record again with one more try,
+/// and runs it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -671,7 +673,9 @@ fn a_slow_item_that_answers_a_retryable_answer_is_tried_again_when_its_claim_run
 /// The file where the `done` directory must be makes every settlement fail,
 /// which is the state a step that cannot be run leaves.
 /// The look answers the claim's end,
-/// and the look at that moment takes the claim back, claims the record with one more try, and runs it again.
+/// and the look at that moment takes the claim back,
+/// claims the record with one more try,
+/// and runs it again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -752,7 +756,8 @@ fn the_lanes_look_at_a_bare_repositorys_common_records_answers_the_end_of_a_clai
 /// as the look of the lane does,
 /// so the loop that serves the pushes is left with a wake for it.
 /// Why:
-///   A control of the rule, not of a defect:
+///   A control of the rule,
+/// not of a defect:
 /// the round already read the claim ends itself after its drain,
 /// and this holds that answer still when the drain became the one place that makes it,
 /// so the loop that serves the pushes cannot lose the wake for a claim the drain kept.
