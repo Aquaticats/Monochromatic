@@ -214,6 +214,64 @@ move its durable facts to their canonical doc and delete it from this page.
   briefed with what is already known and in work,
   and with the rule on destructive commands as the owner restated it today.
 
+#### Four more reviews digested and routed, rounds 298 and 299 (2026-11-12T11:08:00-05:00)
+
+`~/temp/agent/digest-2026-11-12T1054-reviews/digest.md`,
+read against `main` at `dc3ae6c1bb`.
+No review recommends saving a copy,
+so none is against the rule as restated today.
+
+- Push notices (`9da2d237ed`):
+  nothing to fix.
+  For the next integration pass,
+  where it meets `main` in nine files.
+- cargo-shadow lean (`743059e153`):
+  nothing to fix before merging;
+  five findings,
+  all in `main` too
+  (an entry the identity check refused is deleted by the next pass's emptying of the trash;
+  a FIFO at a fingerprint or lock path blocks a pass without end;
+  the container removal loop does not look at the deadline).
+  Round 299:
+  `cargo-shadow-lean-keeps-what-its-check-refused-and-never-waits-on-a-fifo`.
+- The copy record that cannot be read (`aba9bce1d4`):
+  fix first.
+  A stage's claim is moved aside and written again with nothing between the two steps,
+  and a reap in that gap deletes the stage and a person's file in it
+  (new with the branch;
+  shown in a library harness,
+  not through the wrapper).
+  The review did not read `6de98e7fbb` to any purpose and ran none of the controls it changed.
+  Both went to round 294's agent for the snapshot proof as a note at 11:07,
+  since the finding is that proof being skipped.
+- Worktree add without waiting (`9e1b450341`):
+  fix first.
+  A marker an add carries makes a later add skip the Cargo repair and say nothing
+  (new with the branch).
+  Round 299:
+  `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried`,
+  which also measures the add that still takes over sixty seconds when no service answers,
+  for a decision not yet taken.
+- Round 298,
+  started 10:55:03:
+  qwen4 reviews of `fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it` (`af735d6330`)
+  and `perf/git-policy-cli-commit-that-concludes-a-merge-is-built-within-five-seconds-of-real-git` (`9bc31c8912`),
+  queued behind the gate of four.
+  A digest of both runs is being written in `~/temp/agent/digest-2026-11-12T1054-commit-path/`.
+
+For the pass after pass 17,
+as it stands:
+push notices,
+cargo-shadow lean,
+the landing branch (`d62b91889f`,
+review running),
+the removal fixes (`f941f71d77`,
+review queued,
+one conflict to resolve);
+then,
+after their fixes,
+the copy record and worktree add without waiting.
+
 ### The owner: "Remove systemd as a hard dependency. Bazel doesn't need it." (2026-11-12, about 10:40; round 297 started 10:41:51)
 
 Two messages of the owner,
