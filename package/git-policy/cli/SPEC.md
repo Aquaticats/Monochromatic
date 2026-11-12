@@ -12343,6 +12343,17 @@ while a link that reaches nothing makes the filter fail,
 and the commit with it.
 The store is made after its link,
 so a store another command removes during the creation is made again rather than left as a name nothing reaches.
+That step is the last a creation makes,
+and a store another command removes after it,
+before the commit's filter writes,
+leaves the link reaching nothing:
+the commit then fails where real Git's own filter would have made the directory again,
+and no step of the wrapper can close that window,
+because a link cannot make the directory it names.
+The shadow's store link is what a filter of a wrapped commit writes through only when that commit both stages
+tracked changes at commit time (`--all`) and is built by real Git (an editor, a signature, a hook):
+the staging of every other shape runs in the real repository,
+where `git-lfs` writes into the real store.
 What the repository holds at that name is the person's, in every form,
 and the creation never replaces,
 moves or deletes it:
