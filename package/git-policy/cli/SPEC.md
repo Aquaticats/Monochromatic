@@ -3239,7 +3239,12 @@ the report names that path and says to move it out,
 to delete it with
 `btrfs subvolume delete`,
 or to unmount it.
-A boundary that appears after that first pass is refused again at the directory where it is met.
+A boundary that appears after that first pass is refused again at the directory where it is met,
+named with the same ways forward,
+and a directory whose listing was removed and that the kernel then refuses as not empty is
+looked at again through the descriptor the removal still holds,
+so the reason names that boundary or the entries that appeared in it,
+which are left where they are because the removal deletes only what it listed.
 The settlement of a destination the wrapper made as an empty subvolume removes it only while the name still leads to the
 object created (identity recorded right after the creation) and the object is empty;
 a replacement is kept with a warning

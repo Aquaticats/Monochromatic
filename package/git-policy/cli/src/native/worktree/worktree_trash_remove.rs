@@ -20,6 +20,12 @@
 //!  before one entry is unlinked,
 //! so the ordinary directories beside it are still there when the reason comes back and the person
 //!  decides what happens to the tree.
+//! A boundary that appears after that pass is refused again at the directory where it is met:
+//! the listing of a directory is
+//!  read once,
+//! so the kernel's `Directory not empty` on a directory whose listing was removed is answered with what stands
+//!  there now,
+//! named with the ways forward (`subvolume_remove_walk.rs`).
 //! The one directory of another device that is no boundary is the stand-in btrfs shows where a snapshot left a nested
 //!  subvolume out:
 //! it holds nothing and belongs to the tree being removed,
@@ -35,7 +41,7 @@
 //! ```
 
 use crate::fs_beneath::{ObjectId, device_of, handle_path, identity_at, identity_of, open_directory_at, remove_at};
-use crate::subvolume_remove_walk::verify_below;
+use crate::subvolume_remove_walk::{refused_as_not_empty, refused_because_not_empty, verify_below};
 use crate::worktree_path_failure_message::path_failure;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -250,6 +256,8 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
                 let next: Frame = enter(&frame.dir, entry.as_os_str(), device, Describe::new(top.as_path(), shown.as_slice()).with_entry(entry.as_os_str()))?;
                 shown.push(entry);
                 stack.push(next);
+                #[cfg(test)]
+                crate::subvolume_remove_listing_test_support::after_listing(Describe::new(top.as_path(), shown.as_slice()).path().as_path());
             }
             Some((entry, false)) => match remove_at(&frame.dir, entry.as_os_str(), false) {
                 Ok(()) => {}
@@ -265,6 +273,11 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
                 match remove_at(holder, done.name.as_os_str(), true) {
                     Ok(()) => {}
                     Err(error) if is_gone(&error) => {}
+                    // A directory that was listed and emptied is not the directory the kernel was asked to remove when it is not
+                    //  empty there, so the reason says what stands there now rather than the kernel's words alone.
+                    Err(error) if refused_as_not_empty(&error) => {
+                        return Err(refused_because_not_empty(&done.dir, Describe::new(top.as_path(), shown.as_slice()).path().as_path(), top.as_path()).to_string());
+                    }
                     Err(error) => return Err(format!("{} cannot be removed ({error})", Describe::new(top.as_path(), shown.as_slice()).path().display())),
                 }
                 shown.pop();
