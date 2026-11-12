@@ -200,6 +200,53 @@ The first two qwen4 reviews under the new rule ended within about forty-five min
   and reads Kimi's review of the same commit when it appears.
   Weighed as worth an agent at once: reproduced, loses a person's work, and in the installed release.
 
+Round 250 (`fix/git-policy-cli-abort-and-skip-save-what-they-discard-second-pass`, from the tip of round 248)
+closes the five things round 248 left open, each measured against the wrapper built from its own worktree:
+
+- `--skip` (`rebase`, `cherry-pick`, `revert`, `am`, and `am --skip` ending an apply-backend rebase) dropped the hand
+  resolution of the conflict it stopped at, with no copy and no audit line, and was not a guarded form at all. It is one
+  now, saved the way an abort is saved, and it runs in the main worktree as well as a linked one: the copy is the
+  protection, and only a copy that cannot be made refuses.
+- Content that stands only in the index is copied from the index itself (`checkout-index` into
+  `discarded/<time>/index-stage-0/`, named `<path> (index-stage-0)`), so the abort goes on; only a copy Git cannot write
+  refuses. The conflict-side forms drop nothing that stands only in the index: measured, `checkout --ours/--theirs`,
+  `checkout <rev> -- <path>`, `restore --theirs` and `restore --staged --worktree` touch the conflicted path's own
+  stages and the worktree file, and the worktree file is what the carve-out already copies.
+- An untracked file at a path the restored tree tracks makes Git refuse the abort, so the wrapper now refuses first,
+  naming the file, saying Git will not restore that tree while it is there, and giving the way forward; no copy is made.
+  A skip's reset writes that tree silently, so the same file is copied there instead.
+- Each saved source is compared with its copy once more immediately before the command starts
+  (in the plain and the coordinated forward, and before the process becomes Git), and whatever changed is copied again
+  into `later-<n>` beside the first copy; three rounds bound it, and a file that never holds still is refused and named.
+- The growing-file loss of round 248 is the same case: the copy still stops at the size it opened, and the source it
+  changed under is copied again within that bound instead of refusing the abort.
+
+The window that remains is the instant between that last comparison and Git's own reset; `SPEC.md`
+("The comparison immediately before Git starts") and the notice a person reads say so in plain words.
+
+Two audits of 0.6.1-alpha.12 arrived while round 250 worked, and every one of their findings in this code is measured
+against the wrapper built from round 250's own worktree:
+
+- The audit's `skip_commands_discard_hand_resolutions.ts` prints "No defect observed" for `rebase`, `cherry-pick`,
+  `revert` and `am --skip`, and its `discard_skip_forms.ts` (with `MODE=worktree` and `MODE=staged`) prints `HELD`.
+  The unrelated edit the second audit widened the finding with is copied too: the skip's listing is every uncommitted
+  tracked change, and a staged resolution beside a later worktree edit is copied from the index as well.
+- `repro_am_abort_during_rebase_apply.ts` and
+  `repro_rebase_abort_while_a_merge_waits_inside_an_edit_stop.ts` keep the hand resolution and the unstaged edit in
+  every combination they try, where native Git loses them: the per-command liveness of round 248 answers the
+  operation-equality finding, and three binary tests now hold it.
+- `repro_staged_resolution_deleted_before_merge_abort.ts` keeps the staged text in both cases, and
+  `discard_abort_probes.ts` prints `ok` for every probe: staged-only content, staged plus a later worktree edit, and the
+  untracked file in the way.
+- `repro_orig_head_moved_by_reset_hides_ignored_file.ts` refuses the abort and keeps the ignored file with `ORIG_HEAD`
+  moved and unmoved, because a rebase's abort reads `rebase-merge/orig-head`.
+- The continually growing conflict file no longer holds a conflict-side command: the copy stops at the size it opened,
+  is kept, and the notice says the file was still being written (a unit test drives it through the copy loop's own
+  pause).
+
+Open for the coordinating session: nothing in this code; the `btrfs_the_snapshot_created_before_its_record_is_removed`
+control still fails on this host, unrelated.
+
 The gate of `7e3b74281a` ended at 20:34 with `gate-exit-status=1` before it ran a test:
 the `native_binary` test target did not compile
 (`binary_worktree_removal_held_commit_tests.rs:200`, a `String` where `Held.reference` is a `RefName`).

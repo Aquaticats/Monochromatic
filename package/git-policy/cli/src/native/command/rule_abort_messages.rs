@@ -20,7 +20,7 @@ use crate::conflict_side_source::FailureKind;
 use crate::conflict_sides::SavedCopy;
 use crate::rule_abort_operation::{AbortOperation, OperationEnd, operation_name};
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// What:
 ///  The command an operation's abort is spelled with.
@@ -59,30 +59,11 @@ pub fn abort_command_text(operation: AbortOperation, ends: OperationEnd) -> &'st
 /// ```
 fn what_the_command_does(command: &str, ends: OperationEnd, word: &str) -> String {
     return match ends {
-        OperationEnd::Abort => format!("{command} runs now and restores the state before the {word}."),
-        OperationEnd::Skip => format!("{command} runs now and goes on with the next commit or patch, without the one it stopped at."),
+        // The command is described as standing behind the comparison the notice just named, never as already running:
+        //  a source that keeps changing stops it there, and the words must still be true then.
+        OperationEnd::Abort => format!("{command} restores the state before the {word} once that comparison is done."),
+        OperationEnd::Skip => format!("{command} goes on with the next commit or patch once that comparison is done, without the one it stopped at."),
     };
-}
-
-/// What:
-///  The directory this invocation's copies went into,
-///  or nothing when no copy has a place.
-/// Why:
-///   The notice shows one directory and the names below it,
-///  instead of repeating a long absolute path once per file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function copiesDirectory(copies: SavedCopy[]): PathBuf | undefined;
-/// ```
-fn copies_directory(copies: &[SavedCopy]) -> Option<PathBuf> {
-    for copy in copies {
-        let Some(place) = copy.saved_to.as_deref() else {
-            continue;
-        };
-        return place.parent().map(Path::to_path_buf);
-    }
-    return None;
 }
 
 /// What:
@@ -100,16 +81,20 @@ fn copies_directory(copies: &[SavedCopy]) -> Option<PathBuf> {
 /// ```ts
 /// function savedBeforeTheCommandNotice({ operation, ends, inProgress, copies }): string;
 /// ```
-pub fn saved_before_the_command_notice(operation: AbortOperation, ends: OperationEnd, in_progress: AbortOperation, copies: &[SavedCopy]) -> String {
+pub fn saved_before_the_command_notice(
+    operation: AbortOperation,
+    ends: OperationEnd,
+    in_progress: AbortOperation,
+    copies: &[SavedCopy],
+    directory: &Path,
+) -> String {
     let command: &str = abort_command_text(operation, ends);
     let word: &str = operation_name(in_progress);
     let mut text: String = format!(
         "monochromatic-git-policy-cli: this worktree holds changes besides the {word} in progress, and {command} discards them; the wrapper saved them \
          first, so nothing you wrote before that is lost.\n"
     );
-    if let Some(directory) = copies_directory(copies) {
-        text.push_str(format!("  copies are under {}\n", directory.display()).as_str());
-    }
+    text.push_str(format!("  copies are under {}\n", directory.display()).as_str());
     let mut named: usize = 0;
     let mut more: usize = 0;
     for copy in copies {

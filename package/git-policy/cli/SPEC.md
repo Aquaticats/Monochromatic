@@ -15747,8 +15747,11 @@ mixed and default modes,
 `rm` and `mv` with force,
 `checkout-index` with force,
 every `read-tree` form Git accepts,
-and the abort forms of `merge`,
+the abort forms of `merge`,
 `rebase`,
+`cherry-pick`,
+`revert` and `am`,
+and the `--skip` forms of `rebase`,
 `cherry-pick`,
 `revert` and `am`.
 Read-tree is read from its own option table,
@@ -16169,11 +16172,17 @@ what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
 
-#### The abort forms while their operation waits
+#### The abort and skip forms while their operation waits
 
 An operation that stopped with conflicts makes `git status` report its own state,
 so the rule above refused every abort form for exactly as long as it was the command a person needs:
 in a linked worktree a conflicted merge could be finished but not aborted without the hatch.
+`git rebase --skip` and its siblings are here for the same reason and a second one:
+they drop the commit or patch the operation stopped at and go on,
+so they discard the hand resolution of its conflict just as the abort does
+(measured with Git 2.56.0 for every form,
+including `git am --skip` ending a rebase that applies patches),
+and before this rule they were not guarded at all.
 The abort forms are decided instead by the state the command's own implementation reads,
 from the worktree's Git directory,
 read in one start of Git that asks `rev-parse --path-format=absolute --git-path` for
@@ -16204,6 +16213,14 @@ and refuses an `am` in progress;
 and each aborts a pick or a revert alike;
 `git am --abort` needs `rebase-apply` in either of its two modes,
 so it also ends a rebase that applies patches.
+The `--skip` forms are live on the same state,
+because they end the same operation:
+`git rebase --skip` needs the rebase's state,
+`git cherry-pick --skip` and `git revert --skip` the pick's,
+and `git am --skip` the apply backend's in either mode.
+`git merge` has no `--skip`,
+and a region that spells one is left to Git,
+which refuses it.
 A state of another kind does not make a form live:
 Git refuses it
 (`There is no merge to abort (MERGE_HEAD missing)`,
@@ -16218,6 +16235,10 @@ the work that is not the operation's own is copied first and the command runs
 then allow",
 2026-11-02,
 which the conflicted-path carve-out below already follows).
+A skip is decided the same way and runs wherever it is,
+in the main worktree and in a linked one:
+the copy is the protection,
+and a refusal is only for the case where no copy can be made.
 Where the answer cannot be read,
 the rejection above stands,
 which loses nothing.
@@ -16241,15 +16262,23 @@ every uncommitted tracked change is named
 because those aborts return with a hard reset that keeps nothing.
 A listing that fails is a rejection,
 never an empty list.
-A listed path that the worktree no longer holds while the index does is content the abort would drop,
+A listed path whose index holds a whole entry is content the command would drop,
 because the abort resets the index too,
-and no worktree file can be copied for it:
-the two listings that name it are `git ls-files --stage -z` (a stage-zero entry) and
-`git ls-files --deleted -z` (no file in the worktree),
-each read over the listed paths with `:(top,literal)` names,
-and the command is rejected naming every such path,
-saying the content stands only in the index and giving `git restore --worktree -- <path>` and
-`git show :<path> > <file>` as the ways to keep it.
+and no copy of a worktree file holds it whatever that file says:
+a resolution staged and then edited again leaves two things a person made,
+and the abort drops the staged one.
+The listing is `git ls-files --stage -z` over the listed paths with `:(top,literal)` names,
+read over the one listing that already named the path,
+and it keeps stage zero only:
+an unresolved conflict's own stages are the operation's state and not the person's work.
+That content is copied from the index itself,
+because a copy makes the command safe:
+`git checkout-index --stdin -z --prefix=<folder>/<index-stage-0>/` writes exactly the blob the index held,
+the copied path is named `<path> (index-stage-0)` in the notice and the record,
+and only a copy Git cannot write refuses the command,
+with Git's own reason.
+A path the worktree lost is named once, by its staged copy alone:
+the notice drops the "nothing to copy" line when the index's copy of the same path is listed.
 The copies are written by the same saver,
 into the same `monochromatic-git-policy-cli/discarded/<UTC time>/` folder,
 with the same bound,
@@ -16258,6 +16287,7 @@ the folder and each copy before Git runs;
 a path with nothing to copy is named as such,
 and a copy that cannot be written rejects the command with the reason.
 The record is `saved-abort` with the copies when something was saved,
+`saved-skip` when the command was a `--skip`,
 and `allowed` with `dirty` null when the operation's own state was all there was.
 
 The ignored-file question a hard reset gets is asked here too,
@@ -16281,13 +16311,73 @@ because the ignored-file refusal it earns must not read as clean.
 An ignored file at one of those paths keeps the rejection and is named,
 as for a forced `checkout` and a hard `reset`.
 
-The main worktree and a directory outside a worktree keep the rejection,
+A skip writes back the tree of the commit it stopped at,
+which is `HEAD`,
+measured with Git 2.56.0:
+an ignored file at a path `HEAD` tracks is replaced by the tree's content,
+and one at a path only the operation's original head tracks survives the skip.
+
+An untracked file at a path the restored tree tracks is where Git's own reset refuses the abort,
+naming the files
+(`The following untracked working tree files would be overwritten by reset`,
+`Untracked working tree file 'victim.txt' would be overwritten by merge`),
+measured with Git 2.56.0 for every abort form,
+an untracked file whose content is the tree's own included:
+nothing is lost,
+Git does not abort,
+so no copy is owed and no notice may claim the abort runs.
+The question is `git ls-files --others --exclude-standard -z` over the restored tree's paths
+(`repository_facts_untracked_files.rs`),
+and the rejection names each file,
+says Git will not restore that tree while it is there,
+and gives moving the file out of the way or deleting it as the ways forward.
+A skip is the other case:
+its reset writes that same tree without a word
+(measured: `git reset --hard` replaces an untracked file at a tracked path silently),
+so the untracked file is the person's own work the skip would discard and it is copied with the rest,
+not refused.
+
+The main worktree and a directory outside a worktree keep the rejection for an abort,
 because the rule above refuses a form there always;
 `git merge --quit` and its siblings stop the operation and keep the index and files
 (measured in every stopped state, a hand resolution kept in all of them),
 and the hatch runs the abort anyway.
+A skip is not refused there, because its copy protects what the refusal would:
+the copy is the protection, and only the case where no copy can be made refuses.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no copy either.
+
+#### The comparison immediately before Git starts
+
+The copy is made when the policy decides,
+and Git discards later,
+so a file can be written in between and go with no copy.
+One comparison narrows that window to the instant before the command starts:
+each saved source is compared with the copy that was made of it,
+by the object,
+size,
+both times and mode the copy proved,
+and whatever no longer matches is copied again
+(`abort_save.rs`).
+A source that changed is copied into a numbered folder beside the first copy
+(`again-<n>` from the first save,
+`later-<n>` from this comparison),
+so a copy is never overwritten and the person is told of both.
+A path the worktree held no file at is a source too:
+a file that appeared there is work the command would discard, and it is copied.
+The comparison runs where the wrapper starts the command the person typed,
+in the same process that made the copies,
+and the plan it needs is taken once,
+so a start the system refused and the wrapper repeats does not compare twice.
+A source that changed again while it was being copied is copied again,
+up to three rounds;
+a source that keeps changing through them refuses the command,
+which names the file and the copies already made,
+because a file another program writes in a loop must not hold the abort for good.
+The copies of content that stands only in the index are not compared again:
+they are the blobs the index held,
+copied by Git itself,
+and the index's later entries are not what the abort would have discarded.
 
 #### The window between the measurement and the command
 
@@ -16311,6 +16401,10 @@ A write that lands inside that window is not seen,
 and nothing in the wrapper can close it:
 only the process that changes files can decide,
 against the state it is about to change.
+For the abort and skip forms the window is the instant between that last comparison and Git's own reset,
+which is as small as a separate process can make it and is still not zero:
+a write that lands after it is discarded while the copy holds the version before,
+and the notice says so in plain words before the command runs.
 
 Where Git itself has such a check,
 the wrapper hands the decision to Git instead of measuring,
@@ -16618,6 +16712,16 @@ monochromatic-git-policy-cli: saved your copy of a.rs to
 
 A conflicted path with no file in the worktree has nothing to copy:
 the wrapper says so in one line and allows the command.
+A file another program is still writing is copied up to the size it had when the copy opened it,
+that copy is kept,
+and the wrapper says so before Git runs:
+
+```text
+monochromatic-git-policy-cli: a.rs was still being written while the wrapper copied it, so the copy holds what stood when the wrapper opened the file and nothing written after that. This command runs now, and a write that lands after the copy is not saved. Keep it another way if the later bytes matter.
+```
+
+The copy loop reads at most that size,
+so a writer that never stops cannot hold the command for good.
 If a copy cannot be written (a full disk,
 a refused permission,
 a place that is not a directory,
@@ -16764,7 +16868,8 @@ with `schemaVersion`,
 `hatch`,
 `logged`,
 `saved-conflict`,
-`saved-nested-repository` or `saved-abort`),
+`saved-nested-repository`,
+`saved-abort` or `saved-skip`),
 `dirty`,
 `cwd` and `arguments`.
 Each path and argument this line names is written beside its text as its bytes
@@ -16779,7 +16884,8 @@ A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
 and so do a `saved-nested-repository` line,
 whose places hold the repositories a clean would have deleted,
-and a `saved-abort` line.
+a `saved-abort` line,
+and a `saved-skip` line.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,

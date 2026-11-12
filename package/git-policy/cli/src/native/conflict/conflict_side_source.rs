@@ -273,6 +273,29 @@ fn link_unchanged(located: &Located, before: &std::fs::Metadata, target: &Path) 
     return read == target;
 }
 
+/// What:
+///  What a copy leaves behind when its source changes while it is being read.
+/// Why:
+///   The abort family copies such a source again and refuses when it will not hold still,
+///  because the command it protects discards the file;
+///  a conflict-side command replaces a half-resolved file the person asked Git to take a side of,
+///  and a writer that never stops must not hold that command for good either,
+///  so the bytes the source held when the copy opened it are kept and the notice says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WhenTheSourceChanges = 'remove' | 'keep';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WhenTheSourceChanges {
+    /// The copy is removed and the caller is told:
+    ///  it may copy the source again or refuse the command.
+    Remove,
+    /// The copy is kept as the bytes the source held when it was opened,
+    ///  and the caller says the source was still being written.
+    Keep,
+}
+
 /// A failure inside the copy:
 /// the system's own,
 /// or one that already says what happened.
@@ -363,9 +386,15 @@ fn copy_stream(located: &Located, from: &mut File, to: &mut File, before: Stamp,
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copyEntry(located: Located, metadata: Metadata, destination: string, between: () => void): void;
+/// function copyEntry({ located, metadata, destination, between, whenTheSourceChanges }): Stamp;
 /// ```
-fn copy_entry(located: &Located, metadata: &std::fs::Metadata, destination: &Path, between: &mut dyn FnMut()) -> Result<Stamp, CopyError> {
+fn copy_entry(
+    located: &Located,
+    metadata: &std::fs::Metadata,
+    destination: &Path,
+    between: &mut dyn FnMut(),
+    when_the_source_changes: WhenTheSourceChanges,
+) -> Result<Stamp, CopyError> {
     let shown: String = String::from_utf8_lossy(located.relative.as_slice()).into_owned();
     let mut from: File = open_file_at(&located.parent, located.name.as_os_str())?;
     let opened: std::fs::Metadata = from.metadata()?;
@@ -379,7 +408,9 @@ fn copy_entry(located: &Located, metadata: &std::fs::Metadata, destination: &Pat
     let mut to: File = std::fs::OpenOptions::new().write(true).create_new(true).mode_600().open(destination)?;
     let streamed: Result<(), CopyError> = copy_stream(located, &mut from, &mut to, before, between);
     if streamed.is_err() {
-        let _removed = std::fs::remove_file(destination);
+        if when_the_source_changes == WhenTheSourceChanges::Remove {
+            let _removed = std::fs::remove_file(destination);
+        }
         return Err(streamed.err().unwrap_or(CopyError::Failed(changed(located, "could not be copied"))));
     }
     return Ok(before);
@@ -401,15 +432,20 @@ fn copy_entry(located: &Located, metadata: &std::fs::Metadata, destination: &Pat
 ///  still lead,
 /// without a link,
 /// to the object that was read;
-/// any difference removes the copy and fails,
-/// because a stale or
-///  torn copy would pass for the file Git then replaces.
+/// any difference is a failure,
+/// because a stale or torn copy would pass for the file Git then replaces;
+/// `when_the_source_changes` says whether that copy is removed or kept as the bytes the source held.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copyLocated(located: Located, destination: string, between: () => void): Stamp;
+/// function copyLocated({ located, destination, between, whenTheSourceChanges }): Stamp;
 /// ```
-pub fn copy_located(located: &Located, destination: &Path, between: &mut dyn FnMut()) -> Result<Stamp, SaveFailure> {
+pub fn copy_located(
+    located: &Located,
+    destination: &Path,
+    between: &mut dyn FnMut(),
+    when_the_source_changes: WhenTheSourceChanges,
+) -> Result<Stamp, SaveFailure> {
     let shown: String = String::from_utf8_lossy(located.relative.as_slice()).into_owned();
     let metadata: std::fs::Metadata = match entry_metadata_at(&located.parent, located.name.as_os_str()) {
         Ok(found) => found,
@@ -421,7 +457,7 @@ pub fn copy_located(located: &Located, destination: &Path, between: &mut dyn FnM
     if !metadata.file_type().is_file() {
         return Err(SaveFailure::io(shown, String::from("it is neither a file nor a symbolic link")));
     }
-    return match copy_entry(located, &metadata, destination, between) {
+    return match copy_entry(located, &metadata, destination, between, when_the_source_changes) {
         Ok(stamp) => Ok(stamp),
         Err(CopyError::System(error)) => Err(io_failure(&shown, &error)),
         Err(CopyError::Failed(failure)) => Err(failure),

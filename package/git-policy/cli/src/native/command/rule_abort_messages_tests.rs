@@ -20,6 +20,11 @@ use crate::rule_abort_operation::{AbortOperation, OperationEnd};
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
 use std::path::PathBuf;
 
+/// The folder every copy of these controls is in.
+fn folder() -> std::path::PathBuf {
+    return PathBuf::from("/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-10T10-00-00");
+}
+
 /// A saved copy at a place under one directory.
 fn saved(path: &str, place: &str) -> SavedCopy {
     return SavedCopy {
@@ -57,11 +62,11 @@ fn the_notice_names_the_directory_each_copy_and_the_command() {
         saved("a.txt", "/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-10T10-00-00/a.txt"),
         saved("b/c.txt", "/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-10T10-00-00/b/c.txt"),
     ];
-    let notice: String = saved_before_the_command_notice(AbortOperation::Merge, OperationEnd::Abort, AbortOperation::Merge, copies.as_slice());
+    let notice: String = saved_before_the_command_notice(AbortOperation::Merge, OperationEnd::Abort, AbortOperation::Merge, copies.as_slice(), folder().as_path());
     assert!(notice.contains("copies are under /repo/.git/monochromatic-git-policy-cli/discarded/2026-11-10T10-00-00"), "{notice}");
     assert!(notice.contains("a.txt => "), "{notice}");
     assert!(notice.contains("b/c.txt => "), "{notice}");
-    assert!(notice.contains("git merge --abort runs now"), "{notice}");
+    assert!(notice.contains("git merge --abort restores the state before the merge"), "{notice}");
     assert!(notice.contains("before the merge"), "{notice}");
     // The long directory is not repeated for the second copy.
     assert_eq!(notice.matches("discarded/2026-11-10T10-00-00/b/c.txt").count(), 1, "{notice}");
@@ -76,9 +81,9 @@ fn the_notice_names_the_directory_each_copy_and_the_command() {
 #[test]
 fn a_skip_says_the_operation_goes_on() {
     let copies: Vec<SavedCopy> = vec![saved("a.txt", "/repo/.git/discarded/2026-11-10T10-00-00/a.txt")];
-    let notice: String = saved_before_the_command_notice(AbortOperation::Rebase, OperationEnd::Skip, AbortOperation::Rebase, copies.as_slice());
+    let notice: String = saved_before_the_command_notice(AbortOperation::Rebase, OperationEnd::Skip, AbortOperation::Rebase, copies.as_slice(), folder().as_path());
     assert!(notice.contains("git rebase --skip discards them"), "{notice}");
-    assert!(notice.contains("git rebase --skip runs now and goes on with the next commit or patch"), "{notice}");
+    assert!(notice.contains("git rebase --skip goes on with the next commit or patch"), "{notice}");
     assert!(!notice.contains("restores the state before"), "{notice}");
 }
 
@@ -86,10 +91,10 @@ fn a_skip_says_the_operation_goes_on() {
 #[test]
 fn a_deleted_path_says_there_was_nothing_to_copy() {
     let copies: Vec<SavedCopy> = vec![SavedCopy { path: String::from("gone.txt"), saved_to: None }];
-    let notice: String = saved_before_the_command_notice(AbortOperation::Rebase, OperationEnd::Abort, AbortOperation::Rebase, copies.as_slice());
+    let notice: String = saved_before_the_command_notice(AbortOperation::Rebase, OperationEnd::Abort, AbortOperation::Rebase, copies.as_slice(), folder().as_path());
     assert!(notice.contains("gone.txt was not in the worktree, so there was nothing to copy"), "{notice}");
-    assert!(notice.contains("git rebase --abort runs now"), "{notice}");
-    assert!(!notice.contains("copies are under"), "{notice}");
+    assert!(notice.contains("git rebase --abort restores the state before the rebase"), "{notice}");
+    assert!(notice.contains("copies are under"), "the folder the command's copies are in is named: {notice}");
 }
 
 /// Past the shared number of names the notice counts the rest instead of listing them.
@@ -99,7 +104,7 @@ fn the_notice_counts_the_paths_beyond_the_shared_number() {
     for number in 0..=SHARED_PATHS_NAMED {
         copies.push(saved(format!("f{number}.txt").as_str(), format!("/repo/discarded/2026-11-10T10-00-00/f{number}.txt").as_str()));
     }
-    let notice: String = saved_before_the_command_notice(AbortOperation::Am, OperationEnd::Abort, AbortOperation::Am, copies.as_slice());
+    let notice: String = saved_before_the_command_notice(AbortOperation::Am, OperationEnd::Abort, AbortOperation::Am, copies.as_slice(), folder().as_path());
     assert!(notice.contains("and 1 more in the same directory"), "{notice}");
     assert!(!notice.contains(&format!("f{SHARED_PATHS_NAMED}.txt")), "{notice}");
 }
@@ -141,9 +146,9 @@ fn the_refused_save_names_the_command_the_operation_and_the_reason() {
 #[test]
 fn an_am_abort_that_ends_a_rebase_names_the_rebase() {
     let copies: Vec<SavedCopy> = vec![saved("a.txt", "/repo/.git/discarded/2026-11-10T10-00-00/a.txt")];
-    let notice: String = saved_before_the_command_notice(AbortOperation::Am, OperationEnd::Abort, AbortOperation::Rebase, copies.as_slice());
+    let notice: String = saved_before_the_command_notice(AbortOperation::Am, OperationEnd::Abort, AbortOperation::Rebase, copies.as_slice(), folder().as_path());
     assert!(notice.contains("besides the rebase in progress"), "{notice}");
-    assert!(notice.contains("git am --abort runs now"), "{notice}");
+    assert!(notice.contains("git am --abort restores the state before the rebase"), "{notice}");
     assert!(notice.contains("before the rebase"), "{notice}");
     assert!(!notice.contains("the am in progress"), "{notice}");
     let text: String = copy_failed_text(

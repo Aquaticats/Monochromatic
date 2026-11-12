@@ -65,7 +65,7 @@ fn every_guarded_form_is_listed_once() {
     let mut seen: Vec<usize> = GuardedCommand::ALL.iter().map(|command| { return index_of(*command); }).collect();
     seen.sort_unstable();
     seen.dedup();
-    let forms: usize = index_of(GuardedCommand::AbortAm) + 1;
+    let forms: usize = index_of(GuardedCommand::SkipAm) + 1;
     let expected: Vec<usize> = (0..forms).collect();
     assert_eq!(seen, expected, "GuardedCommand::ALL must hold each of the {forms} forms once");
 }

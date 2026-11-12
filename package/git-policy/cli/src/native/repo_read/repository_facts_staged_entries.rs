@@ -1,16 +1,18 @@
 //! What:
-//!  The listed paths whose only content is the index,
-//!  because the worktree no longer holds a file at them.
+//!  The listed paths whose staged content an abort would discard,
+//!  whether or not the worktree still holds a file at them.
 //! Why:
 //!  An abort resets the index as well as the worktree,
-//!  so a path the worktree lost while the index kept its staged content is work an
-//!  abort would discard.
+//!  so the content the index holds at a listed path is work it discards.
 //!  The save step copies worktree files and nothing else,
 //!  and a path with no worktree file was reported as having nothing to copy,
 //!  which read as clean for content that stood only in the index.
-//!  Two Git listings answer it:
-//!  `git ls-files --stage -z` names the paths with an index entry,
-//!  and `git ls-files --deleted -z` the paths whose worktree file is gone.
+//!  A file the worktree still holds is no better off when it differs from the index:
+//!  a resolution staged and then edited again leaves two things a person made,
+//!  and the abort drops the staged one whatever the worktree holds.
+//!  `git ls-files --stage -z` names the paths whose index entry is whole (stage 0),
+//!  which is the entry a reset drops;
+//!  an unresolved conflict's own stages are the operation's state and not the person's work.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,8 +25,6 @@ use crate::repository_facts::GitFacts;
 /// The captured-query runner's output type,
 ///  the path of raw Git bytes and its reading.
 use crate::git_metadata::{MetadataOutput, path_from_git_bytes};
-/// The reading of one `-z` listing of paths.
-use crate::rule_worktree_dirty::nul_separated_paths;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 
@@ -136,30 +136,29 @@ fn listing(facts: &mut GitFacts, option: &str, paths: &[Vec<u8>], subject: &str)
 }
 
 /// What:
-///  The paths whose index entry holds content while the worktree holds no file at the path.
+///  The paths whose index holds a whole entry (stage 0),
+///  among the ones the caller already found the abort would discard.
 /// Why:
-///   The abort resets the index too,
-///  so that content is discarded,
-///  and the save step cannot copy it from a worktree file that is not there:
-///  the guard refuses the command naming these paths instead.
+///   Those entries are the content a reset drops,
+///  and no copy of a worktree file holds them:
+///  the save step copies each of them from the index itself.
 ///  The answer is one settled order and each path once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// indexOnlyPaths(facts, paths) => present ∩ missing;
+/// stagedEntries(facts, listedPaths) => listedPaths with a stage-zero entry;
 /// ```
-pub(super) fn index_only_paths(facts: &mut GitFacts, paths: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, String> {
+pub(super) fn staged_entries(facts: &mut GitFacts, paths: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, String> {
     if paths.is_empty() {
         return Ok(Vec::<Vec<u8>>::new());
     }
     let staged: MetadataOutput = listing(facts, "--stage", paths, "the index's entries")?;
-    let deleted: MetadataOutput = listing(facts, "--deleted", paths, "the files the worktree no longer holds")?;
     let present: BTreeSet<Vec<u8>> = staged_paths(staged.stdout.as_slice()).into_iter().collect();
-    let missing: BTreeSet<Vec<u8>> = nul_separated_paths(deleted.stdout.as_slice()).into_iter().collect();
-    return Ok(present.intersection(&missing).cloned().collect());
+    let listed: BTreeSet<Vec<u8>> = paths.iter().cloned().collect();
+    return Ok(present.intersection(&listed).cloned().collect());
 }
 
-/// The listings and their readings.
+/// The listing and its reading.
 #[cfg(test)]
-#[path = "repository_facts_index_only_paths_tests.rs"]
+#[path = "repository_facts_staged_entries_tests.rs"]
 mod tests;

@@ -17,7 +17,7 @@
 
 use super::{
     Operation, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, literal_path, operation_in_progress,
-    save_copies, saved_notice, stamp,
+    save_copies, save_copies_watching, saved_notice, stamp, still_being_written_note,
 };
 use crate::conflict_side_decision::{magic_name, magic_on_conflicted};
 use crate::repo_read_index::IndexEntry;
@@ -153,7 +153,7 @@ fn a_copy_keeps_content_mode_and_link_target() {
     std::os::unix::fs::symlink("target/elsewhere", root.join("link")).expect("link");
     let paths: Vec<Vec<u8>> = vec![b"a.rs".to_vec(), b"sub/b.rs".to_vec(), b"link".to_vec(), b"gone.rs".to_vec()];
     let milliseconds: i64 = 1_793_628_067_000;
-    let copies: Vec<SavedCopy> = save_copies(root.as_path(), common.as_path(), paths.as_slice(), milliseconds).expect("saved");
+    let copies: Vec<SavedCopy> = save_copies(root.as_path(), common.as_path(), paths.as_slice(), milliseconds).expect("saved").copies;
     let directory: PathBuf = common.join("monochromatic-git-policy-cli/discarded").join(stamp(milliseconds));
     assert_eq!(stamp(milliseconds), "2026-11-02T14-01-07");
     assert_eq!(copies[0].saved_to, Some(directory.join("a.rs")));
@@ -168,15 +168,45 @@ fn a_copy_keeps_content_mode_and_link_target() {
     remove(base.as_path());
 }
 
+/// A file another program keeps writing does not hold the command:
+///  the copy is what the file held when it was opened, it is kept, and the caller is told the source moved on.
+#[test]
+fn a_source_that_keeps_growing_is_copied_once_and_named() {
+    let (base, root, common) = tree("sides-growing");
+    let content: Vec<u8> = (0..300_000_u32).map(|each| { return u8::try_from(each % 251).expect("fits"); }).collect();
+    std::fs::write(root.join("a.rs"), content.as_slice()).expect("a");
+    let mut appended: usize = 0;
+    // A writer that appends after every chunk the copy writes, bounded so this control cannot run away.
+    let mut writer = || {
+        if appended >= 20 {
+            return;
+        }
+        appended += 1;
+        let mut file = std::fs::OpenOptions::new().append(true).open(root.join("a.rs")).expect("open");
+        std::io::Write::write_all(&mut file, b"x").expect("append");
+    };
+    let saved = save_copies_watching(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], 1_793_628_067_000, &mut writer)
+        .expect("a writer that keeps adding does not refuse the command");
+    assert_eq!(saved.still_being_written, vec![String::from("a.rs")], "the source that moved on is named: {saved:?}");
+    let place: &Path = saved.copies[0].saved_to.as_deref().expect("a copy");
+    let kept: Vec<u8> = std::fs::read(place).expect("the copy is kept");
+    assert_eq!(kept.len(), content.len(), "the copy holds the bytes the file had when it was opened");
+    assert!(appended < 20, "the copy read the size it opened and did not chase the writer: {appended} appends");
+    let notice: String = format!("{}{}", saved_notice(saved.copies.as_slice()), still_being_written_note(saved.still_being_written.as_slice()));
+    assert!(notice.contains("was still being written while the wrapper copied it"), "{notice}");
+    assert!(notice.contains("a write that lands after the copy is not saved"), "{notice}");
+    remove(base.as_path());
+}
+
 /// A second invocation in the same second gets its own directory and never overwrites the first copy.
 #[test]
 fn a_second_save_in_the_same_second_keeps_the_first() {
     let (base, root, common) = tree("sides-twice");
     std::fs::write(root.join("a.rs"), b"first\n").expect("a");
     let milliseconds: i64 = 1_793_628_067_000;
-    let first = save_copies(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], milliseconds).expect("first");
+    let first = save_copies(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], milliseconds).expect("first").copies;
     std::fs::write(root.join("a.rs"), b"second\n").expect("a");
-    let second = save_copies(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], milliseconds).expect("second");
+    let second = save_copies(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], milliseconds).expect("second").copies;
     assert_ne!(first[0].saved_to, second[0].saved_to);
     assert_eq!(std::fs::read(first[0].saved_to.as_ref().expect("first place")).expect("first copy"), b"first\n");
     assert_eq!(std::fs::read(second[0].saved_to.as_ref().expect("second place")).expect("second copy"), b"second\n");

@@ -1,9 +1,9 @@
 //! What:
-//!  The two listings that name a path whose content the index holds while the worktree does not,
-//!  and the reading that intersects them.
+//!  The listing that names a path whose index holds a whole entry,
+//!  and the reading that keeps only the paths the caller already listed.
 //! Why:
 //!  A save step that reads only worktree files reports such a path as having nothing to copy,
-//!  and the abort that follows would then discard it unsaved.
+//!  and the abort that follows would then discard the staged content unsaved.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

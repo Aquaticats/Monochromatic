@@ -30,7 +30,8 @@
 //! // 'left-to-git' | { kind: 'allowed', notice, copies } | { kind: 'copy-failed', text }
 //! ```
 
-use crate::abort_save::{plan_the_last_chance, save_before_the_command};
+use crate::abort_save::save_before_the_command;
+use crate::abort_save_again::plan_the_last_chance;
 use crate::conflict_side_guard::prune_after_save;
 use crate::conflict_sides::{SaveFailure, SavedCopy};
 use crate::discarded_prune::Limits;
@@ -138,24 +139,26 @@ pub fn judge_abort_discard(
     milliseconds: i64,
     limits: Limits,
 ) -> AbortVerdict {
-    // Every other guarded form deletes or overwrites by itself, and this carve-out is only about the forms that end an operation.
+    // Every other guarded form deletes or overwrites by itself,
+    //  and this carve-out is only about the forms that end an operation.
     let Some((operation, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command) else {
         return AbortVerdict::NotApplicable;
     };
     let discard: AbortDiscard = match facts.abort_discard(command) {
         Ok(answer) => answer,
-        // The state files or the listings could not be read: the usual rejection stands, and nothing is saved or let go.
+        // The state files or the listings could not be read: the usual rejection stands,
+        //  and nothing is saved or let go.
         Err(_message) => return AbortVerdict::NotApplicable,
     };
-    let AbortDiscard::Waiting { in_progress, ends: measured_ends, restored, index_only, paths } = discard else {
+    let AbortDiscard::Waiting { in_progress, ends: measured_ends, restored, staged, paths } = discard else {
         return AbortVerdict::LeftToGit;
     };
     debug_assert!(measured_ends == ends, "the reading of what this form ends is the same one the guard is judging");
     let Some((root, common)) = places(identity) else {
         return AbortVerdict::NotApplicable;
     };
-    // An ignored file at a path the restored tree tracks is where a person keeps their environment and their local secrets,
-    //  and the abort writes that tree back: it is rejected naming the paths, before anything is copied or changed.
+    // An ignored file at a path the restored tree tracks is where a person keeps their environment and their local
+    //  secrets, and the command writes that tree back: it is rejected naming the paths, before anything is copied.
     let revision: Option<&std::ffi::OsStr> = Some(restored.as_os_str());
     match facts.ignored_files_the_tree_tracks(revision) {
         Ok(shared) if !shared.is_empty() => {
@@ -195,27 +198,58 @@ pub fn judge_abort_discard(
             ));
         }
     }
-    if discarded.is_empty() && index_only.is_empty() {
+    if discarded.is_empty() && staged.is_empty() {
         // Only the operation's own state is there, which is what the command is for.
         return AbortVerdict::Allowed { notice: String::new(), copies: Vec::<SavedCopy>::new() };
     }
-    // Content the worktree no longer holds and the index does is copied from the index itself,
-    //  beside the worktree copies and named for the stage it came from: a refusal here would stop a command
+    // The content a whole index entry holds is copied from the index itself,
+    //  beside the worktree copies and named for the stage it came from:
+    //  a worktree file that differs from it does not hold it, and a refusal here would stop a command
     //  whose content a copy makes safe.
     let git: GitContext = facts.transaction_context();
-    match save_before_the_command(root, common, &git, discarded.as_slice(), index_only.as_slice(), milliseconds) {
+    match save_before_the_command(root, common, &git, discarded.as_slice(), staged.as_slice(), milliseconds) {
         Ok(saved) => {
             if let Some(plan) = saved.plan.clone() {
                 plan_the_last_chance(plan);
             }
             let unpruned: String = prune_after_save(common, saved.copies.as_slice(), milliseconds, limits);
+            let shown: Vec<SavedCopy> = copies_the_notice_names(saved.copies.as_slice(), staged.as_slice());
             return AbortVerdict::Allowed {
-                notice: format!("{}{unpruned}", saved_before_the_command_notice(operation, ends, in_progress, saved.copies.as_slice())),
+                notice: format!(
+                    "{}{unpruned}",
+                    saved_before_the_command_notice(operation, ends, in_progress, shown.as_slice(), saved.directory.as_path())
+                ),
                 copies: saved.copies,
             };
         }
         Err(failure) => return AbortVerdict::CopyFailed(copy_failed(operation, ends, in_progress, &failure)),
     }
+}
+
+/// What:
+///  The copies the notice names,
+///  without the "nothing to copy" line of a worktree path whose content the index holds.
+/// Why:
+///   A path the command's own reset took out of the worktree has no worktree copy,
+///  and the staged copy of that path is what the person keeps;
+///  naming the path as having nothing to copy beside its own copy would read as a loss that did not happen.
+///   A worktree file that differs from its staged content is named on both lines,
+///  because those are two different things the person made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shown = copiesTheNoticeNames({ copies, stagedPaths });
+/// ```
+fn copies_the_notice_names(copies: &[SavedCopy], staged: &[Vec<u8>]) -> Vec<SavedCopy> {
+    let mut shown: Vec<SavedCopy> = Vec::<SavedCopy>::with_capacity(copies.len());
+    for copy in copies {
+        let staged_copy_exists: bool = staged.iter().any(|path| { return copy.path == String::from_utf8_lossy(path.as_slice()); });
+        if copy.saved_to.is_none() && staged_copy_exists {
+            continue;
+        }
+        shown.push(copy.clone());
+    }
+    return shown;
 }
 
 /// The verdict and the copies for one abort form.

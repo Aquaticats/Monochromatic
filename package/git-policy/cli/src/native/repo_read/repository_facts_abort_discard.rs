@@ -63,10 +63,11 @@ pub enum AbortDiscard {
         ///  a name Git resolves,
         ///  or the commit read from the record Git wrote.
         restored: OsString,
-        /// The listed paths the worktree no longer holds while the index does:
-        ///  the abort resets the index too,
-        ///  so their content would be discarded where no worktree file can be copied.
-        index_only: Vec<Vec<u8>>,
+        /// The listed paths whose index holds a whole entry:
+        ///  the command resets the index too,
+        ///  so the content staged there is discarded whatever the worktree holds,
+        ///  and it is copied from the index itself.
+        staged: Vec<Vec<u8>>,
         /// The repository-relative paths,
         ///  in a settled order and each once.
         paths: Vec<Vec<u8>>,
@@ -466,11 +467,13 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
     };
     let first: MetadataOutput = facts.query(queries[0].clone(), "the paths this command would discard")?;
     let second: MetadataOutput = facts.query(queries[1].clone(), "the staged paths this command would discard")?;
-    let paths: Vec<Vec<u8>> = both_listings(listed_paths(&first)?, listed_paths(&second)?);
-    // A path the worktree lost while the index kept its content is work this abort would discard,
-    //  and no worktree file can be copied for it: the guard refuses the command instead.
-    let index_only: Vec<Vec<u8>> = crate::repository_facts_index_only_paths::index_only_paths(facts, paths.as_slice())?;
-    return Ok(AbortDiscard::Waiting { in_progress: in_progress_operation(aborted, state), ends, restored, index_only, paths });
+    let worktree_paths: Vec<Vec<u8>> = listed_paths(&first)?;
+    let index_paths: Vec<Vec<u8>> = listed_paths(&second)?;
+    let paths: Vec<Vec<u8>> = both_listings(worktree_paths, index_paths.clone());
+    // The content a whole index entry holds is work the command would discard,
+    //  and no worktree file holds it: each of those paths is copied from the index itself.
+    let staged: Vec<Vec<u8>> = crate::repository_facts_staged_entries::staged_entries(facts, index_paths.as_slice())?;
+    return Ok(AbortDiscard::Waiting { in_progress: in_progress_operation(aborted, state), ends, restored, staged, paths });
 }
 
 /// The queries,

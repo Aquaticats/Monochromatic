@@ -65,7 +65,7 @@ fn waiting(operation: AbortOperation, paths: Vec<Vec<u8>>) -> AbortDiscard {
         in_progress: operation,
         ends: OperationEnd::Abort,
         restored: OsString::from("HEAD"),
-        index_only: Vec::new(),
+        staged: Vec::new(),
         paths,
     };
 }
@@ -77,19 +77,19 @@ fn skipping(operation: AbortOperation, paths: Vec<Vec<u8>>) -> AbortDiscard {
         in_progress: operation,
         ends: OperationEnd::Skip,
         restored: OsString::from("HEAD"),
-        index_only: Vec::new(),
+        staged: Vec::new(),
         paths,
     };
 }
 
-/// A waiting abort whose worktree no longer holds a file the index still holds at `index_only`.
-fn waiting_with_index_only(operation: AbortOperation, index_only: Vec<Vec<u8>>) -> AbortDiscard {
+/// A waiting abort whose index holds content at `staged` that the abort would discard.
+fn waiting_with_staged(operation: AbortOperation, staged: Vec<Vec<u8>>) -> AbortDiscard {
     return AbortDiscard::Waiting {
         in_progress: operation,
         ends: OperationEnd::Abort,
         restored: OsString::from("HEAD"),
-        index_only: index_only.clone(),
-        paths: index_only,
+        staged: staged.clone(),
+        paths: staged,
     };
 }
 
@@ -250,7 +250,7 @@ fn the_ignored_file_question_reads_the_restored_revision() {
         in_progress: AbortOperation::Rebase,
         ends: OperationEnd::Abort,
         restored: OsString::from(record),
-        index_only: Vec::<Vec<u8>>::new(),
+        staged: Vec::<Vec<u8>>::new(),
         paths: Vec::<Vec<u8>>::new(),
     });
     facts.ignored_and_tracked = Ok(Vec::<String>::new());
@@ -265,15 +265,15 @@ fn the_ignored_file_question_reads_the_restored_revision() {
     );
 }
 
-/// Content that stands only in the index is copied from the index itself,
+/// Content the index holds is copied from the index itself,
 ///  so a command whose content a copy makes safe goes on.
 ///  This fixture holds no index, so Git cannot write the copy:
-///  that is the one case that still refuses, and the refusal names the path.
+///  that is the one case that still refuses, and the refusal names the reason.
 #[test]
-fn content_the_worktree_lost_is_refused_only_when_the_index_cannot_be_read() {
+fn staged_content_is_refused_only_when_the_index_cannot_be_read() {
     let scene: Scene = Scene::new("index-only");
     let mut facts: ScriptedFacts = scripted_facts();
-    facts.abort_discard = Ok(waiting_with_index_only(AbortOperation::Merge, vec![b"new.txt".to_vec()]));
+    facts.abort_discard = Ok(waiting_with_staged(AbortOperation::Merge, vec![b"new.txt".to_vec()]));
     facts.ignored_and_tracked = Ok(Vec::<String>::new());
     match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge, &scene.identity(), 0, limits()) {
         AbortVerdict::CopyFailed(text) => {

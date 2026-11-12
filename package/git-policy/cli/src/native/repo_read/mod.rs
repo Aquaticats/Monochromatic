@@ -44,9 +44,9 @@ pub mod repository_facts_ignored_files;
 ///  read beside the provider so its interface file stays within its line bound.
 pub mod repository_facts_untracked_files;
 
-/// The listed paths whose only content is the index,
+/// The listed paths whose staged content an abort would discard,
 ///  read beside the provider so its interface file stays within its line bound.
-pub mod repository_facts_index_only_paths;
+pub mod repository_facts_staged_entries;
 
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;

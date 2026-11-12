@@ -21,7 +21,7 @@
 /// Import the sibling modules the decision combines.
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
 /// The last comparison of a saved file, made immediately before Git starts.
-use crate::abort_save::save_again_before_the_command;
+use crate::abort_save_again::save_again_before_the_command;
 use crate::announced_query::printable_after;
 #[cfg(unix)]
 use crate::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};

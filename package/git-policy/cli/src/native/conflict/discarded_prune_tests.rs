@@ -219,7 +219,7 @@ fn the_copy_just_saved_survives_a_pass_that_would_otherwise_remove_it() {
     std::fs::create_dir_all(&common).expect("common directory");
     std::fs::write(root.join("a.rs"), "hand edited\n").expect("worktree file");
     let long_ago: i64 = NOW - 60 * DAY;
-    let copies = save_copies(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], long_ago).expect("saved");
+    let copies = save_copies(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], long_ago).expect("saved").copies;
     let saved_root: PathBuf = common.join(SAVED_DIRECTORY);
     let place: &Path = copies[0].saved_to.as_deref().expect("copied");
     let name: String = directory_name_of(saved_root.as_path(), place).expect("under the folder");
@@ -265,7 +265,9 @@ fn a_writer_saving_during_a_pass_loses_no_copy() {
         let writer = scope.spawn(|| {
             let mut made: Vec<PathBuf> = Vec::new();
             for number in 0..saves {
-                let copies = save_copies(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], now + i64::try_from(number).unwrap_or(0)).expect("saved");
+                let copies = save_copies(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], now + i64::try_from(number).unwrap_or(0))
+                    .expect("saved")
+                    .copies;
                 made.push(copies[0].saved_to.clone().expect("copied"));
             }
             return made;

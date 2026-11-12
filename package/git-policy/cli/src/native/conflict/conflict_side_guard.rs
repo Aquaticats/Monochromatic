@@ -33,7 +33,7 @@ use crate::conflict_side_decision::magic_on_conflicted;
 use crate::conflict_side_modes::{MODE_OPTIONS, MODE_VARIABLES, magic_note, mode_note, modes_in_effect};
 use crate::conflict_sides::{
     FailureKind, Operation, SAVED_DIRECTORY, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, operation_in_progress,
-    save_copies, saved_notice,
+    save_copies, saved_notice, still_being_written_note,
 };
 use crate::diagnostic_log::debug;
 use crate::discarded_prune::{Limits, Problem, directory_name_of, prune};
@@ -259,9 +259,18 @@ pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], millis
         }
         SideDecision::Allow(paths) => {
             match save_copies(layout.worktree_root.as_path(), layout.common_dir.as_path(), paths.as_slice(), milliseconds) {
-                Ok(copies) => {
-                    let unpruned: String = prune_after_save(layout.common_dir.as_path(), copies.as_slice(), milliseconds, limits);
-                    return SideVerdict::Allowed { notice: format!("{}{unpruned}", saved_notice(copies.as_slice())), copies };
+                Ok(saved) => {
+                    let unpruned: String = prune_after_save(layout.common_dir.as_path(), saved.copies.as_slice(), milliseconds, limits);
+                    // A copy whose source was still being written is kept and named as such, and the command runs:
+                    //  a writer that never stops must not hold the command the person asked for.
+                    return SideVerdict::Allowed {
+                        notice: format!(
+                            "{}{unpruned}{}",
+                            saved_notice(saved.copies.as_slice()),
+                            still_being_written_note(saved.still_being_written.as_slice())
+                        ),
+                        copies: saved.copies,
+                    };
                 }
                 Err(failure) => {
                     debug(TAG, &format!("copy failed during {operation:?}, command rejected: {failure:?}"));

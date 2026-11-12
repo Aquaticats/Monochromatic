@@ -10,7 +10,7 @@
 //! // expect(locate(root, 'a.rs')).toBeDefined(); expect(locate(root, 'gone.rs')).toBeUndefined();
 //! ```
 
-use super::{FailureKind, SaveFailure, copy_located, locate};
+use super::{FailureKind, SaveFailure, WhenTheSourceChanges, copy_located, locate};
 use crate::test_support::{fixture, remove};
 
 /// A file that is there is found and copied whole;
@@ -20,9 +20,55 @@ fn a_present_file_is_located_and_copied() {
     let base = fixture("source-present");
     std::fs::write(base.join("a.rs"), b"half \xff resolved\n").expect("a");
     let located = locate(base.as_path(), b"a.rs").expect("lookup").expect("present");
-    copy_located(&located, base.join("copy").as_path(), &mut || {}).expect("copy");
+    copy_located(&located, base.join("copy").as_path(), &mut || {}, WhenTheSourceChanges::Remove).expect("copy");
     assert_eq!(std::fs::read(base.join("copy")).expect("copy"), b"half \xff resolved\n");
     assert!(locate(base.as_path(), b"gone.rs").expect("lookup").is_none());
+    remove(base.as_path());
+}
+
+/// A copy that meets a writer is kept when the caller asks for the bytes the source held,
+///  and the same copy is removed when the caller would rather copy again.
+#[test]
+fn a_changed_source_leaves_its_copy_behind_only_when_the_caller_keeps_it() {
+    let base = fixture("source-kept");
+    let content: Vec<u8> = large_source(base.as_path());
+    let located = locate(base.as_path(), b"a.rs").expect("lookup").expect("present");
+    let mut appended: bool = false;
+    let failure: SaveFailure = copy_located(
+        &located,
+        base.join("kept").as_path(),
+        &mut || {
+            if appended {
+                return;
+            }
+            appended = true;
+            let mut file = std::fs::OpenOptions::new().append(true).open(base.join("a.rs")).expect("open");
+            std::io::Write::write_all(&mut file, b"one more line\n").expect("append");
+        },
+        WhenTheSourceChanges::Keep,
+    )
+    .expect_err("a source that grew while it was copied");
+    assert_eq!(failure.kind, FailureKind::Changed, "{failure:?}");
+    let kept: Vec<u8> = std::fs::read(base.join("kept")).expect("the copy the caller kept");
+    assert_eq!(kept.len(), content.len(), "the copy holds what the file held when it was opened");
+    // The same source with the other answer leaves nothing behind.
+    let mut appended_again: bool = false;
+    let removed: SaveFailure = copy_located(
+        &located,
+        base.join("removed").as_path(),
+        &mut || {
+            if appended_again {
+                return;
+            }
+            appended_again = true;
+            let mut file = std::fs::OpenOptions::new().append(true).open(base.join("a.rs")).expect("open");
+            std::io::Write::write_all(&mut file, b"another line\n").expect("append");
+        },
+        WhenTheSourceChanges::Remove,
+    )
+    .expect_err("a source that grew while it was copied again");
+    assert_eq!(removed.kind, FailureKind::Changed, "{removed:?}");
+    assert!(!base.join("removed").exists(), "the copy is removed when the caller would copy again");
     remove(base.as_path());
 }
 
@@ -60,12 +106,17 @@ fn an_ancestor_that_is_a_link_or_a_file_is_a_failure_naming_it() {
 fn copy_while_changing(base: &std::path::Path, path: &str, change: &dyn Fn()) -> Result<(), SaveFailure> {
     let located = locate(base, path.as_bytes()).expect("lookup").expect("present");
     let mut changed: bool = false;
-    return copy_located(&located, base.join("copy").as_path(), &mut || {
-        if !changed {
-            changed = true;
-            change();
-        }
-    })
+    return copy_located(
+        &located,
+        base.join("copy").as_path(),
+        &mut || {
+            if !changed {
+                changed = true;
+                change();
+            }
+        },
+        WhenTheSourceChanges::Remove,
+    )
     .map(|_stamp| ());
 }
 
@@ -155,13 +206,18 @@ fn a_source_that_keeps_growing_is_read_only_to_the_size_it_was_opened_at() {
     //  so a copy that read to the end of a growing file would reach that bound
     //  instead of the size the file had when it was opened.
     let writer_bound: usize = 10_000;
-    let error: SaveFailure = copy_located(&located, base.join("copy").as_path(), &mut || {
-        if appended < writer_bound {
-            let mut file = std::fs::OpenOptions::new().append(true).open(base.join("a.rs")).expect("open");
-            std::io::Write::write_all(&mut file, b"x").expect("append");
-            appended += 1;
-        }
-    })
+    let error: SaveFailure = copy_located(
+        &located,
+        base.join("copy").as_path(),
+        &mut || {
+            if appended < writer_bound {
+                let mut file = std::fs::OpenOptions::new().append(true).open(base.join("a.rs")).expect("open");
+                std::io::Write::write_all(&mut file, b"x").expect("append");
+                appended += 1;
+            }
+        },
+        WhenTheSourceChanges::Remove,
+    )
     .expect_err("a source that grew while it was copied");
     assert_eq!(error.kind, FailureKind::Changed, "{error:?}");
     assert!(

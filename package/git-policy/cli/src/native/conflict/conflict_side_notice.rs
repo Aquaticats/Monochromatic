@@ -52,6 +52,35 @@ pub fn saved_notice(copies: &[SavedCopy]) -> String {
 }
 
 /// What:
+///  The sentence that says which copies hold what stood when the wrapper opened the file,
+///  because another program was writing it.
+/// Why:
+///   A copy of a file a writer is still adding to can never be the whole of it,
+///  so the wrapper copies what the file held when it opened it and lets the command run;
+///  a person who needs the later bytes must be told they are not in the copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stillBeingWrittenNote(['a.rs']);
+/// ```
+pub fn still_being_written_note(paths: &[String]) -> String {
+    if paths.is_empty() {
+        return String::new();
+    }
+    let named: String = paths.join(", ");
+    let (verb, pronoun): (&str, &str) = if paths.len() == 1 {
+        ("was still being written while the wrapper copied it", "it")
+    } else {
+        ("were still being written while the wrapper copied them", "them")
+    };
+    return format!(
+        "monochromatic-git-policy-cli: {named} {verb}, so the copy holds what stood when the wrapper opened the file and nothing written \
+         after that. This command runs now, and a write that lands after the copy is not saved. Keep {pronoun} another way if the later \
+         bytes matter.\n"
+    );
+}
+
+/// What:
 ///  The sentence a rejection gets when the command qualified for a conflict side but some paths were not conflicted.
 /// Why:
 ///   The person is told what is allowed and which paths to leave out.
