@@ -397,7 +397,8 @@ fn a_collapsed_untracked_directory_is_carried_only_when_all_of_it_is() {
     remove(root.as_path());
 }
 
-/// The bytes the fixture commits, and the same-length bytes an edit puts in their place.
+/// The bytes the fixture commits,
+/// and the same-length bytes an edit puts in their place.
 const COMMITTED: &[u8] = b"first\n";
 const EDITED: &[u8] = b"other\n";
 

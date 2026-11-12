@@ -151,7 +151,8 @@ pub(crate) fn hide_an_edit(repo: &Path, relative: &str, original: &[u8], edited:
 /// What:
 ///  The index `index` as a Git built without nanosecond support writes it:
 /// every entry's change and modification
-///  nanoseconds zero, and the checksum recomputed over the new bytes.
+///  nanoseconds zero,
+/// and the checksum recomputed over the new bytes.
 /// Why:
 ///   Zero is how such a Git records a time it cannot express,
 /// and the comparison of recorded stat data reads zero
