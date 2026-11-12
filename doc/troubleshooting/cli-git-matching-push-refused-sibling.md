@@ -62,12 +62,39 @@ never read from the aggregated status:
 `package/git-policy/cli/src/native/push/matching_push_delivered_the_recorded_branch.rs`
 reads the URLs the push went to with `git remote get-url --push --all <remote>`,
 asks each of them `git ls-remote --refs <url> refs/heads/<name>`,
-and reports the push as published only when every one of them names the commit it sent,
+and reports the push as published only when every one of them holds the commit it sent,
 so no retry is planned.
 The service journal now names each refused ref from Git's own line for it.
 
+## The ref a client moved past the commit is still that commit's arrival
+
+The first delivery proof demanded that the ref name the commit itself.
+Two ordinary sources of a ref that holds the commit as an ancestor broke it:
+
+- Another client of the remote pushes between this push and the question.
+  The local branch stays behind,
+  so every later matching push of it is refused for that same ref,
+  and the retry plan repeated the refusal for as long as the service ran.
+- A commit lands on the recorded branch after the service fixed the commit its push may send.
+  A matching push names no refspec and so sends the branch's own tip,
+  which is a child of that commit.
+
+Both left the person a record saying the remote might not have the commit about a commit the remote
+had (`a_matching_push_whose_remote_moved_past_the_commit_leaves_no_record_and_no_plan`,
+`a_matching_push_whose_remote_moved_past_the_commit_still_proves_the_delivery`,
+`a_matching_push_whose_branch_moved_past_the_captured_commit_still_proves_the_delivery`).
+The proof asks whether the ref holds the commit,
+not whether it names it:
+`git merge-base --is-ancestor <sent> <the ref's object>` answers,
+and an object this repository has never fetched is first fetched from that same push URL into the
+reconcile's private ref (`refs/cli-git/auto-push/fetch-<pid>`,
+`auto_push_reconcile_basics_and_limits.rs`).
+That fetch writes no `FETCH_HEAD`,
+which every fetch in a repository shares and another command's `git pull` reads.
+
 A push URL that cannot be asked,
-or that names another object,
+that cannot be fetched,
+or whose ref holds neither the commit nor a commit that contains it,
 proves nothing and leaves the push the failure it was.
 A push remote that is a URL rather than a name the repository holds
 (`branch.<name>.pushRemote` or `remote.pushDefault`)
@@ -128,8 +155,11 @@ so the spread of every arm is reported rather than one figure per arm.
 The question costs one `remote get-url --push --all` and one `ls-remote` per push URL,
 on a push that already failed,
 and each is bounded by the push's own stall window.
+A ref whose object this repository does not hold costs one fetch of that ref as well,
+which transfers only what the repository lacks and is held to the same window.
 A push URL that answers with an error,
-or that names another object,
+that cannot be fetched,
+or whose ref holds neither the commit nor a commit that contains it,
 also proves nothing.
 A remote the repository does not name is asked as the URL the push went to,
 so a misspelled remote name costs one question that fails and proves nothing.
