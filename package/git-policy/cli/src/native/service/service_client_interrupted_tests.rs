@@ -108,7 +108,8 @@ fn a_stop_wakes_the_read_the_wait_is_inside() {
 ///  and one the terminal raised keeps none.
 /// Why:
 ///  The record's `sender` is the only fact that separates a keyboard's interrupt from the stop a caller sends at its own
-///  bound, so a control states both and reads them back:
+///  bound,
+/// so a control states both and reads them back:
 ///  a number the wrapper guessed would make the two look alike.
 ///
 /// In TS you'd write (pseudocode):

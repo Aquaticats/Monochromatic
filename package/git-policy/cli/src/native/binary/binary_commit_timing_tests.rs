@@ -1588,7 +1588,8 @@ enum StandInAnswer {
     /// Answer a commit with the failure code given,
     /// which is the answer a real service gives without landing anything.
     Fail(git_policy_cli::service_protocol::FailureCode),
-    /// Answer a commit with nothing, so its client waits,
+    /// Answer a commit with nothing,
+    /// so its client waits,
     /// and answer a withdrawal that it will never land.
     Hold,
 }
@@ -1629,7 +1630,8 @@ impl Drop for StandIn {
     }
 }
 
-/// `StandIn`: binds the address,
+/// `StandIn`:
+/// binds the address,
 /// then greets and answers on a thread of its own.
 fn stand_in(places: &Places, saw: &Path, answer: StandInAnswer) -> StandIn {
     use std::io::{BufRead as _, BufReader, Write as _};
@@ -1768,7 +1770,9 @@ fn a_commit_nothing_answers_states_the_bound_that_ran_out() {
 ///  and seven records of one release were read as if a person had stopped them:
 ///  who sent the signal is the one fact that separates the two,
 ///  and it is in the kernel's own report of the signal.
-///  The stand-in holds the commit, so the stop arrives where a real one would: while the command waits.
+///  The stand-in holds the commit,
+/// so the stop arrives where a real one would:
+/// while the command waits.
 #[test]
 fn a_commit_the_person_stops_states_the_signal_and_who_sent_it() {
     let fixture: Fixture = fixture("timing-signal");
@@ -1809,13 +1813,16 @@ fn a_commit_the_person_stops_states_the_signal_and_who_sent_it() {
 ///  everything that was staged is still staged,
 ///  and nothing lands later by itself.
 /// Why:
-///  This is the one cause a record cannot name, because the process that writes the record is the one that was killed:
+///  This is the one cause a record cannot name,
+/// because the process that writes the record is the one that was killed:
 ///  a caller that gives up on a slow commit kills it exactly this way,
 ///  and the owner's rule is that such a commit ends as one of two things and nothing else.
 ///  The client used to survive as an orphan whose request landed from the snapshot taken at its start;
 ///  since `65cc3dddd6` the service drops a request whose connection closed before it landed,
 ///  and this control reads the whole of that promise from outside:
-///  the branch did not move, the index still holds the change, and the service says it dropped the request.
+///  the branch did not move,
+/// the index still holds the change,
+/// and the service says it dropped the request.
 #[test]
 fn a_commit_whose_client_is_killed_while_it_waits_is_not_made() {
     let fixture: Fixture = fixture("timing-client-killed");

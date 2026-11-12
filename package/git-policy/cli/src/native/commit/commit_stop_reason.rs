@@ -154,8 +154,8 @@ pub struct CommitStopReason {
     /// The status that step exited with;
     /// absent when the step never exited by itself.
     status: Option<i32>,
-    /// The signal the person sent to stop the command;
-    /// absent unless the person stopped it.
+    /// The signal that stopped the command;
+    /// absent unless a signal did.
     signal: Option<i32>,
     /// The process that sent that signal,
     /// where the kernel said which one did;
@@ -266,11 +266,26 @@ impl CommitStopReason {
             members.push(format!("\"reason\":{}", quote(reason)));
         }
         if !self.ruled_out.is_empty() {
-            let routes: Vec<String> = self.ruled_out.iter().map(|route| { return quote(route); }).collect();
+            let routes: Vec<String> = self.ruled_out.iter().map(quote_route).collect();
             members.push(format!("\"ruledOut\":[{}]", routes.join(",")));
         }
         return format!("{{{}}}", members.join(","));
     }
+}
+
+/// One route of the list an `unidentified` reason was checked against,
+/// as a JSON string.
+/// Why:
+///  The names are this crate's own literals,
+///  and `quote` escapes them for the line;
+///  a named function keeps the map from a closure that captures nothing (`rust/avoidable-closure`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const quoteRoute = (route: string) => JSON.stringify(route);
+/// ```
+fn quote_route(route: &&'static str) -> String {
+    return quote(route);
 }
 
 /// What:

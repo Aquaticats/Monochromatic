@@ -95,7 +95,8 @@ pub struct CommitEnding {
     ///  and the record of the commit is written between the two:
     ///  the command's own end used to raise the signal inside the report,
     ///  so a commit the person interrupted wrote no record at all,
-    ///  and no record of 1,792 has ever said `client-signal` (`SPEC.md`, "The commit protocol").
+    ///  and no record of 1,792 has ever said `client-signal` (`SPEC.md`,
+    /// "The commit protocol").
     ///  The ending carries the signal so the raise happens after the record is on disk.
     pub signal: Option<i32>,
 }

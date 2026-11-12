@@ -506,64 +506,10 @@ pub fn path_text(path: &Path) -> String {
     return path.display().to_string();
 }
 
-/// What:
-///  The failure as the timing record names it,
-///  in one word that says what stopped the commit.
-/// Why:
-///  A client that watched the commit stop knows what stopped it,
-///  and the record used to say `unidentified` for every one of these:
-///  a service of another release that would not exit,
-///  a service manager that answered nothing,
-///  a service that refused the request.
-///  Eight of 136 commits in three hours of one release stopped,
-///  and seven of those named nothing a reader could act on,
-///  while the person had been told the cause in words.
-///  The word is a literal of this crate,
-///  so the record still carries no path and no message,
-///  and the words each failure renders stay the person's to read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// failureCode(failure) // 'refused' | 'other-release' | ...
-/// ```
-pub fn failure_code(failure: &ClientFailure) -> &'static str {
-    return match failure {
-        ClientFailure::DidNotStart => "did-not-start",
-        ClientFailure::NothingAnswered { .. } => "nothing-answered",
-        ClientFailure::NoActivation(_) => "no-activation",
-        ClientFailure::OtherAccount => "other-account",
-        ClientFailure::MayNotHaveLanded => "may-not-have-landed",
-        ClientFailure::NoCommonVersion => "no-common-version",
-        ClientFailure::OtherRelease => "other-release",
-        ClientFailure::RepositoryFull(_) => "repository-full",
-        ClientFailure::RepositoryReadOnly(_) => "repository-read-only",
-        ClientFailure::PermissionDenied(_) => "permission-denied",
-        ClientFailure::RepositoryFrozen(_) => "repository-frozen",
-        ClientFailure::BranchKeepsChanging { .. } => "branch-keeps-changing",
-        ClientFailure::BranchMoved { .. } => "branch-moved",
-        ClientFailure::ConclusionStateChanged { .. } => "conclusion-state-changed",
-        ClientFailure::BranchMovedMessageSaved { .. } => "branch-moved-message-saved",
-        ClientFailure::BranchSwitched { .. } => "branch-switched",
-        ClientFailure::ServiceSilent => "service-silent",
-        ClientFailure::ServiceSilentAfterPreparing { .. } => "service-silent-after-preparing",
-        ClientFailure::StillWithService { .. } => "still-with-service",
-        ClientFailure::WithdrawalUnconfirmed { .. } => "withdrawal-unconfirmed",
-        ClientFailure::Interrupted { .. } => "interrupted",
-        ClientFailure::InterruptedNotKnown { .. } => "interrupted-not-known",
-        ClientFailure::StepTooSlow => "step-too-slow",
-        ClientFailure::Refused => "refused",
-        ClientFailure::IndexInUse(_) => "index-in-use",
-        ClientFailure::ReferenceLocked { .. } => "reference-locked",
-        ClientFailure::Unavailable => "unavailable",
-        ClientFailure::ProgramMissing(_) => "program-missing",
-        ClientFailure::CouldNotStart(_) => "could-not-start",
-        ClientFailure::SocketPathTooLong { .. } => "socket-path-too-long",
-        ClientFailure::ServiceElsewhere { .. } => "service-elsewhere",
-        ClientFailure::UnitInTheWay(_) => "unit-in-the-way",
-        ClientFailure::WorkNotHandedOver(_) => "work-not-handed-over",
-        ClientFailure::ContentPruned => "content-pruned",
-    };
-}
+/// The word a failure goes by in the timing record is declared beside this file
+/// (`service_messages_of_a_failure.rs`),
+/// because the rendering of every failure is at its line bound.
+pub use crate::service_messages_of_a_failure::failure_code;
 
 
 /// Message controls stay out of the release executable.

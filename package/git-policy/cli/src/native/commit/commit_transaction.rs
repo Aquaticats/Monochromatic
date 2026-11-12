@@ -169,7 +169,8 @@ pub fn failed(message: String) -> TransactionStop {
 }
 
 /// What:
-///  A stop the command decided, from the failure whose words the person reads.
+///  A stop the command decided,
+/// from the failure whose words the person reads.
 /// Why:
 ///  Every place that ends a commit with a `ClientFailure` builds it this way,
 ///  so the failure reaches both ends of the command:

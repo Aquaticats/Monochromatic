@@ -64,6 +64,10 @@ pub mod service_claim_watch;
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 
+/// The word each failure of a commit goes by in the timing record,
+/// declared beside the renderings because they are at their line bound.
+pub mod service_messages_of_a_failure;
+
 /// The words for a start that cannot come at all,
 /// because the address cannot exist or the manager made the service listen elsewhere.
 pub mod service_messages_of_a_start_that_cannot_come;

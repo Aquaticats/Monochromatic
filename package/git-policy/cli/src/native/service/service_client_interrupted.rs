@@ -103,7 +103,8 @@ extern "C" fn note_the_stop(signal: std::os::raw::c_int, info: *mut libc::siginf
 /// Why:
 ///  Two agents on one repository stop each other's commits with `SIGTERM` at their own bounds,
 ///  and a record that says only "signal 15" cannot tell a person's Ctrl-C from a tool's bound:
-///  the sender is the difference, and it is the one fact that says whose bound it was.
+///  the sender is the difference,
+/// and it is the one fact that says whose bound it was.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -121,8 +122,11 @@ pub(crate) fn stop_sender() -> Option<i32> {
 ///  The process that sent a signal,
 ///  where the kernel says which one did.
 /// Why:
-///  `si_pid` is defined for the signals a process sends (`kill`, `sigqueue`, `tkill`);
-///  a terminal's interrupt, a kernel fault signal and a timer carry no sender,
+///  `si_pid` is defined for the signals a process sends (`kill`,
+/// `sigqueue`,
+/// `tkill`);
+///  a terminal's interrupt,
+/// a kernel fault signal and a timer carry no sender,
 ///  and the kernel's own definition of who sent it is the only honest answer.
 ///
 /// In TS you'd write (pseudocode):
