@@ -24,6 +24,9 @@
 //!  job the system refuses a thread for ends the round rather than the set.
 //! The renewal is stopped by a wait of the runtime,
 //! so nothing this file starts is left running behind it.
+//!  A round also starts housekeeping for no longer than the caller's bound,
+//! and leaves the rest of it to a later round
+//!  (`housekeeping_of_one_round.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,33 +35,80 @@
 
 use super::service_work_handlers_replanning_and_acceptance::*;
 use super::service_work_settling_a_verdict::settle_after_the_push;
-use crate::service_work_storage_awaited::{
-    acceptable_awaiting, claim_all_awaiting, settle_all_awaiting, still_held_awaiting,
-};
+use crate::housekeeping_of_one_round::{HousekeepingOfOneRound, LOOK_AGAIN_AFTER_DEFERRING};
+use crate::service_work_storage_awaited::{acceptable_awaiting, claim_all_awaiting, settle_all_awaiting, still_held_awaiting};
 use crate::journald_native::Priority;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
 use crate::service_work_drain_deletes_subvolumes::delete_subvolumes_awaiting;
 use crate::service_work_settling_with_words::settle_with_the_words;
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
-use crate::work_item::{Claimed, DONE, FAILED, WorkItem, WorkKind};
+use crate::work_item::{Claimed, DONE, FAILED, PENDING, WorkItem, WorkKind};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// What:
-///  Claims and runs every pending item of one work directory until none is left;
-/// the claims held are renewed every third of
-/// `lease`,
-/// so that none of them looks abandoned to another instance while it waits or runs.
+///  The identity of a claimed item,
+/// for the one line that names the housekeeping a round left for a later one.
 /// Why:
-///   See the module description.
-/// A directory that cannot be listed ends the round where it is,
-/// as before,
-/// and the records it holds keep their lease.
+///  A named function keeps the line that builds the list to the words that describe it,
+/// and the drain reads it once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning)
+/// const idOf = (item: Claimed) => item.id;
+/// ```
+fn id_of_claimed(item: &Claimed) -> String {
+    return item.id.clone();
+}
+
+/// What:
+///  Whether this round may start the housekeeping item it is holding:
+/// its slice still has room,
+/// or no housekeeping of this round has started yet.
+/// Why:
+///   The bound is about how much housekeeping a round starts,
+/// so the first item of a round always starts.
+/// A round that could spend its whole slice on the listing,
+/// the settling of the claims it refused and the steps of the kinds before this one would otherwise leave every item for a
+///  later round that would spend its slice the same way,
+/// so a repository's trash would be left to a round that never comes and the loop of later rounds would spin.
+fn may_start_housekeeping(slice: &HousekeepingOfOneRound, started: &mut bool) -> bool {
+    if *started && slice.spent() {
+        return false;
+    }
+    *started = true;
+    return true;
+}
+
+/// What:
+///  Claims and runs every pending item of one work directory of the kinds `kinds` names,
+/// until none is left;
+/// the claims held are renewed every third of `lease`,
+/// so that none of them looks abandoned to another instance while it waits or runs.
+/// Why:
+///   See the module description.
+/// The kinds are the caller's:
+/// the round that holds the service claims `PUSH_KINDS` alone,
+/// so a step that can take minutes never holds a person's push,
+/// the slow lane claims `SLOW_KINDS`
+///  (`landing/service_work_slow_lane.rs`),
+/// and a drain outside the service claims every kind (`SERVICE_KINDS`),
+///  because nothing else would run them there.
+/// A directory that cannot be listed ends the round where it is,
+/// as before,
+/// and the records it holds keep their lease.
+///  A round starts housekeeping only while `housekeeping` has room,
+/// and answers how soon to look at this directory
+///  again when it left some for a later round.
+/// An item that has started is never interrupted:
+/// the answer says what a round may start,
+///  not how long one step of it may last
+/// (`housekeeping_of_one_round.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning, kinds, housekeeping) // Duration | undefined
 /// ```
 pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     git_dir: &Path,
@@ -66,10 +116,17 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     lease: Duration,
     renewal: Renewal<'_>,
     replanning: &mut Replanning,
-) {
+    kinds: &'static [WorkKind],
+    housekeeping: Duration,
+) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
     let (the_claims, renewer) = held_claims(work_dir.as_path());
     let mut held: HeldClaims = the_claims;
+    // The housekeeping this round may still start, and what it left for a later round.
+    let slice: HousekeepingOfOneRound = HousekeepingOfOneRound::starting_now(housekeeping);
+    let mut housekeeping_has_started: bool = false;
+    let mut left_for_a_later_round: Vec<Claimed> = Vec::new();
+    let mut look_again: Option<Duration> = None;
     let renewing: ClaimRenewal = match renewal {
         Renewal::Timed => ClaimRenewal::start(renewer, renewal_interval(lease)),
         Renewal::Driven(driver) => ClaimRenewal::driven(renewer, driver),
@@ -79,7 +136,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
     'round: loop {
         // One listing of `pending` for the whole round: each claim of it carries the reading of the moment it is taken, not of
         //  the start of the round, which a long round makes most of a lease old.
-        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path()).await {
+        let claimed: Vec<Claimed> = match claim_all_awaiting(work_dir.as_path(), kinds).await {
             Ok(taken) => taken,
             Err(reason) => {
                 crate::service_error!("{reason}");
@@ -199,6 +256,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             None => break 'round,
         };
         for item in still_here {
+            // The person's push is the backup and the upkeep is what keeps the repository cheap to read, so a round that has
+            //  spent its housekeeping ends here and the rest waits for a later round, named below.
+            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
+                left_for_a_later_round.push(item);
+                continue;
+            }
             if !upkept.contains(&item.item.repository) {
                 upkept.push(item.item.repository.clone());
                 let upkeep_began: Instant = Instant::now();
@@ -242,35 +305,20 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             None => break 'round,
         };
         for item in prewarmed {
+            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
+                left_for_a_later_round.push(item);
+                continue;
+            }
             let verdict: Verdict = handlers.prewarm_awaiting(&item.item).await;
             match settle_with_the_words(held, work_dir.as_path(), item, verdict, "prewarm").await {
                 Some(back) => held = back,
                 None => break 'round,
             }
         }
-        // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
-        //  nothing else names, and it frees everything the worktree held.
-        match delete_subvolumes_awaiting(held, work_dir.as_path(), deletions, handlers).await {
-            Some(back) => held = back,
-            None => break 'round,
-        }
-        // The left-out files of a snapshot-made worktree are emptied after the person's backup and the upkeep, before the shadow
-        //  reviews: freeing them is a bounded, local job.
-        let trashed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), trashes).await {
-            Some((back, mine)) => {
-                held = back;
-                mine
-            }
-            None => break 'round,
-        };
-        for item in trashed {
-            let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "trash").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
-        }
-        // Reviews go last: a push is the person's backup, a review is a shadow record, and each is bounded by its budget.
+        // The review of a commit runs before the steps that free space: it is bounded by its own ceiling (`REVIEW_CEILING`), it
+        //  decides nothing about any push, and on 2026-11-11 two reviews stayed claimed for a quarter of an hour while the round
+        //  emptied the trashes of removed worktrees ahead of them, one of which can run for many minutes
+        //  (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
         let reviewed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), reviews).await {
             Some((back, mine)) => {
                 held = back;
@@ -289,7 +337,60 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => break 'round,
             }
         }
+        // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
+        //  nothing else names, and it frees everything the worktree held.
+        // The whole deletion step of this round is one call, so a round with no housekeeping left defers the step itself rather
+        //  than start it and leave its records claimed. A step with nothing in it neither starts nor spends the round's first
+        //  start: it is the items that are housekeeping and not the kinds.
+        if !deletions.is_empty() {
+            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
+                left_for_a_later_round.append(&mut deletions);
+            } else {
+                match delete_subvolumes_awaiting(held, work_dir.as_path(), deletions, handlers).await {
+                    Some(back) => held = back,
+                    None => break 'round,
+                }
+            }
+        }
+        // The left-out files of a snapshot-made worktree are emptied last: freeing them is a local job nothing waits for, and a
+        //  trash of a removed worktree can take minutes (`worktree_trash_dispose.rs`).
+        let trashed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), trashes).await {
+            Some((back, mine)) => {
+                held = back;
+                mine
+            }
+            None => break 'round,
+        };
+        for item in trashed {
+            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
+                left_for_a_later_round.push(item);
+                continue;
+            }
+            let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
+            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "trash").await {
+                Some(back) => held = back,
+                None => break 'round,
+            }
+        }
+        // The housekeeping this round did not start goes back to `pending` for a later round, named here once, so a person
+        //  reading the journal sees where their trash went and the service says when it looks again.
+        if !left_for_a_later_round.is_empty() {
+            let names: Vec<String> = left_for_a_later_round.iter().map(id_of_claimed).collect();
+            crate::service_log!(
+                "the round leaves {} housekeeping items of {} for a later round, because it spent {} ms of its {} ms on housekeeping: {}",
+                names.len(),
+                git_dir.display(),
+                slice.spent_ms(),
+                slice.bound().as_millis(),
+                names.join(", ")
+            );
+            // A set the system refused a thread for cannot be handed back, and the records it held keep their lease.
+            let _settled: Option<HeldClaims> = settle_all_awaiting(held, work_dir.as_path(), std::mem::take(&mut left_for_a_later_round), PENDING).await;
+            look_again = Some(LOOK_AGAIN_AFTER_DEFERRING);
+            break 'round;
+        }
     }
     // The renewal is stopped and waited for here, so a drain that returns leaves no task renaming a claim behind it.
     renewing.stop_awaiting().await;
+    return look_again;
 }

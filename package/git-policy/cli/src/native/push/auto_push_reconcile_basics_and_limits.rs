@@ -54,6 +54,16 @@ pub const RECONCILE_LINE_PREFIX: &str = "monochromatic-git-policy-cli: auto-push
 /// wrong advice and is not printed.
 pub const RECONCILE_FAILED_PREFIX: &str = "monochromatic-git-policy-cli: auto-push: not published: ";
 
+/// What:
+///  The start of every line a push report adds under this label.
+/// Why:
+///   The reconcile loop and the route that hands it a failed push word their lines once,
+/// so neither can print a prefix the other does not.
+///
+pub fn run_line_prefix(label: &str) -> String {
+    return format!("monochromatic-git-policy-cli: {label}: ");
+}
+
 /// How many times the remote tip is fetched,
 /// merged and pushed before the push is reported as failed.
 pub const MAX_RECONCILE_ATTEMPTS: u32 = 10;

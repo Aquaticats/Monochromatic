@@ -38,6 +38,35 @@
 //! so a wait on a server
 //!       that says nothing shows nothing in the process;
 //! only the connection's state shows it.
+//!  Measured on 2026-11-11,
+//! which decided what a tree with a connection open may count as work:
+//! the helper that speaks HTTP for a push,
+//! `git remote-http` and `git-remote-http`,
+//! was charged one processor tick every three seconds while it polled a server that had taken the
+//!  connection and never answered,
+//! and moved not one byte.
+//! A clock that counts those ticks as work never reaches its connected window:
+//! the service's push to such a server ran for 290 to 330 seconds with a 150 second window
+//! (the audit's F8),
+//! and a tree of one holder that only ticks never ended at all.
+//!  So while a connection is open,
+//! neither the processor time nor the bytes of the process that holds it are work:
+//! that process polls the socket and prints its own account of waiting.
+//! Measured the same day,
+//! which decided the bytes too:
+//! `git-lfs` writes fourteen bytes of its upload meter to its standard error about every ten seconds
+//! while it waits,
+//! and each of those lines reset the window,
+//! so an upload that stayed on one connection was not ended in more than 260 seconds.
+//! What that process really sends is on the connection,
+//! whose carried bytes are counted here,
+//! and the work of every process that holds no connection is still work:
+//! the pack a push is making,
+//! the delta search,
+//! the listing of what to send.
+//!  A socket carries no progress on the look that first sees it,
+//! because its counters then stand for this side's handshake and request,
+//! never for an answer from the remote.
 //!  What each costs:
 //! bytes miss work that moves none;
 //! processor time makes a process that spins or polls look alive,
@@ -58,17 +87,19 @@
 //!  `ESTABLISHED` (read from the kernel's socket diagnostics,
 //! `tcp_sockets.rs`) has a remote that has not closed it,
 //! and a tree
-//!  with such a socket is waited for,
-//! however long it shows nothing.
+//!  with such a socket is waited for while it works.
 //! The owner's answer "Wait while connected (Recommended)"
-//!  (2026-11-03) is the rule;
-//! the rest is pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`,
+//!  (2026-11-03) was replaced the same day by "Bound it,
+//! keep retrying":
+//!  a connection that stays open with nothing moving for `CONNECTED_PUSH_QUIET_WINDOW` ends the run as a stall,
+//! and the
+//!  service's retry plan keeps the push and tries it again.
+//! The rest is pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`,
 //! which the coordinator made
 //!  under the owner's delegation ("Pick options as if I had picked them",
 //! 2026-11-03) and the owner may veto:
-//! no stall window
-//!  for a connected push,
-//! no ceiling for any push,
+//! no ceiling
+//!  for a run that shows progress,
 //! no low-speed abort.
 //!  What the code cannot observe:
 //! a peer that vanished without a reset leaves the socket `ESTABLISHED` until TCP gives up
@@ -87,17 +118,20 @@
 
 /// The patience a clock keeps,
 /// and what a stop reports.
-use crate::bounded_push::{StopCause, StopReport};
+use crate::bounded_push::{StopCause, StopReport, StopWindow};
 /// Whether a control holds a limit for an ordering it needs first.
 use crate::push_limit_held_for_an_ordering::limit_has_passed;
 use crate::push_deadline_and_patience_settings::Patience;
 /// The processes below the push,
 /// and the identity of each.
 use crate::process_tree::{TreeMember, descendants_of, member_of};
+/// What one look at one process found,
+/// and the identities a look at a tree's sockets works with.
+pub use crate::push_progress_signs::{Signs, holds_no_socket, inodes_of, start_time_of};
 /// The connected sockets of the machine with their byte counts,
 /// and the sockets a process holds.
 use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
-use crate::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
+use crate::tcp_sockets::{ESTABLISHED, established_sockets};
 /// What each process of the tree was last seen to have moved.
 use std::collections::HashMap;
 /// Time spans and the monotonic clock.
@@ -247,6 +281,11 @@ pub struct Meter {
     socket_moved: u64,
     /// Whether the last sample found a process of the tree holding a connected socket.
     connected: bool,
+    /// Every process of the tree that has been seen to hold a connected socket,
+    /// by its number and start time:
+    /// the helpers that speak to the remote,
+    /// whose own bytes and processor time are not work.
+    holders: Vec<(i32, u64)>,
     /// How many times a sample listed the processes of the whole machine to find the tree;
     /// a stand-in for the cost of a
     ///  sample,
@@ -263,6 +302,9 @@ pub struct WaitReport {
     pub silent: Duration,
     /// How long the push has run.
     pub elapsed: Duration,
+    /// The connected window the run will be stopped by if it stays silent,
+    /// so the line a person reads names the limit that will end it.
+    pub window: Duration,
 }
 
 impl Meter {
@@ -305,14 +347,23 @@ impl Meter {
     }
 
     /// Take one look at the connected sockets of the tree:
-    /// true when a socket carried bytes since the last look.
+    /// true when a socket it has seen before carried bytes since the last look,
+    /// and records the processes that hold them.
+    /// Why a socket seen for the first time is kept apart:
+    ///   Its counters stand for the handshake and the request this side wrote,
+    /// not for an answer from the remote,
+    /// so a client that goes on reconnecting would reset the wait for its remote for good.
+    /// Why the processes that held one are remembered for the life of the clock:
+    ///   A look that cannot read the kernel's socket list answers nothing about who holds what,
+    /// and a holder whose own meter counted again on such a look would reset the window:
+    /// under load those looks fail now and then,
+    /// and the window would then never be reached.
+    /// Each holder is remembered by its number and start time,
+    /// so a number the kernel reuses is not taken for the process that held a connection before.
     fn observe_sockets(&mut self, members: &[TreeMember]) -> bool {
-        let mut held: Vec<u64> = Vec::new();
-        for member in members {
-            held.extend(socket_inodes_of(member.pid));
-        }
+        let held: Vec<(i32, Vec<u64>)> = members.iter().map(inodes_of).collect();
         self.connected = false;
-        if held.is_empty() {
+        if held.iter().all(holds_no_socket) {
             return false;
         }
         let Some(connected) = established_sockets() else {
@@ -320,13 +371,29 @@ impl Meter {
         };
         let mut progressed: bool = false;
         for socket in connected {
-            if socket.state != ESTABLISHED || !held.contains(&socket.inode) {
+            if socket.state != ESTABLISHED {
+                continue;
+            }
+            let mut carried_by_a_holder: bool = false;
+            for (pid, inodes) in &held {
+                if inodes.contains(&socket.inode) {
+                    carried_by_a_holder = true;
+                    let holder: (i32, u64) = (*pid, start_time_of(members, *pid));
+                    if !self.holders.contains(&holder) {
+                        self.holders.push(holder);
+                    }
+                }
+            }
+            if !carried_by_a_holder {
                 continue;
             }
             self.connected = true;
             let total: u64 = socket.bytes_acked.saturating_add(socket.bytes_received);
-            let before: u64 = self.sockets.insert(socket.inode, total).unwrap_or(0);
-            let carried: u64 = total.saturating_sub(before);
+            let seen_before: Option<u64> = self.sockets.insert(socket.inode, total);
+            let carried: u64 = match seen_before {
+                Some(before) => total.saturating_sub(before),
+                None => 0,
+            };
             self.socket_moved = self.socket_moved.saturating_add(carried);
             if carried > 0 {
                 progressed = true;
@@ -335,14 +402,25 @@ impl Meter {
         return progressed;
     }
 
-    /// Take one look at one process:
-    /// true when it moved bytes or used processor time since the last look,
-    /// or is at work now.
-    fn observe(&mut self, key: (i32, u64), bytes: u64, ticks: u64, working: bool) -> bool {
+    /// What:
+    ///  Take one look at one process,
+    /// and say which of its signs changed:
+    /// bytes moved,
+    /// or processor time used or a task at work.
+    /// Why:
+    ///   The two are kept apart because they say different things about a process that holds the connection:
+    /// its processor time is a poll of the socket,
+    /// and its bytes are its own account of waiting (`Meter::look`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// { moved: bytes > before, busy: ticks > ticksBefore || working }
+    /// ```
+    fn observe(&mut self, key: (i32, u64), bytes: u64, ticks: u64, working: bool) -> Signs {
         let (bytes_before, ticks_before): (u64, u64) = self.seen.insert(key, (bytes, ticks)).unwrap_or((0, 0));
         let moved_now: u64 = bytes.saturating_sub(bytes_before);
         self.moved = self.moved.saturating_add(moved_now);
-        return moved_now > 0 || ticks > ticks_before || working;
+        return Signs { moved: moved_now > 0, busy: ticks > ticks_before || working };
     }
 
     /// Read the counters and the states of the root and everything below it;
@@ -366,15 +444,32 @@ impl Meter {
         return self.look(root, false);
     }
 
-    /// One look at the root,
+    /// What:
+    ///  One look at the root,
     /// and at everything below it when `whole_tree` asks for it.
+    /// Why the sockets are looked at first:
+    ///   The holders of the connections are known from this look then,
+    /// and a holder's own processor time is what a helper that polls its silent socket spends,
+    /// never work the remote sees.
+    /// Every byte the tree moves is work,
+    /// and so is the processor time of every process that does not hold a connection:
+    /// the pack a push is making,
+    /// a delta search,
+    /// the listing of what to send.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// progressed = observeSockets(members); for (const member of members) { const s = observe(member); if (s.moved || (s.busy && !holders.includes(member.pid))) progressed = true; }
+    /// ```
     fn look(&mut self, root: i32, whole_tree: bool) -> bool {
         let mut members: Vec<TreeMember> = member_of(root).into_iter().collect();
         if whole_tree {
             self.scans += 1;
             members.extend(descendants_of(root));
         }
-        let mut progressed: bool = false;
+        // The connected sockets count too: `libcurl` moves the bytes of an HTTP push with `send` and `recv`, which `rchar` and
+        //  `wchar` do not see.
+        let mut progressed: bool = self.observe_sockets(members.as_slice());
         for member in &members {
             let bytes: Option<u64> = bytes_moved_by(member.pid);
             let activity: Option<(u64, bool)> = activity_of(member.pid);
@@ -382,14 +477,12 @@ impl Meter {
                 continue;
             }
             let (ticks, working): (u64, bool) = activity.unwrap_or((0, false));
-            if self.observe((member.pid, member.started), bytes.unwrap_or(0), ticks, working) {
+            let signs: Signs = self.observe((member.pid, member.started), bytes.unwrap_or(0), ticks, working);
+            // A process that holds the connection reports its own wait while it waits, and what it writes about itself is no
+            //  work the remote sees; everything it really sends shows on the socket's own counters, which are counted above.
+            if (signs.moved || signs.busy) && !self.holders.contains(&(member.pid, member.started)) {
                 progressed = true;
             }
-        }
-        // The connected sockets count too: `libcurl` moves the bytes of an HTTP push with `send` and `recv`, which `rchar` and
-        //  `wchar` do not see.
-        if self.observe_sockets(members.as_slice()) {
-            progressed = true;
         }
         return progressed;
     }
@@ -526,9 +619,14 @@ impl Clock {
     }
 
     /// The report of a stop now,
-    /// for the limit that was hit.
-    fn report(&self, limit: Duration, now: Instant) -> StopReport {
-        return StopReport { limit, moved: self.meter.as_ref().map_or(0, Meter::moved), elapsed: now.duration_since(self.started) };
+    /// for the window that was hit and the limit it carries.
+    fn report(&self, window: StopWindow, limit: Duration, now: Instant) -> StopReport {
+        return StopReport {
+            window,
+            limit,
+            moved: self.meter.as_ref().map_or(0, Meter::moved),
+            elapsed: now.duration_since(self.started),
+        };
     }
 
     /// Whether the child must be stopped now,
@@ -557,12 +655,12 @@ impl Clock {
                 let since: Instant = *self.waiting_since.get_or_insert(now);
                 self.last_progress = now;
                 if self.waited.is_none() && now.duration_since(since) >= stall {
-                    self.waited = Some(WaitReport { silent: now.duration_since(since), elapsed });
+                    self.waited = Some(WaitReport { silent: now.duration_since(since), elapsed, window: self.connected_window });
                 }
                 // The owner, 2026-11-03: "Bound it, keep retrying". A connection that stays open and silent for the connected
                 //  window ends the push as a stall; the service's retry plan keeps the push and tries it again.
                 if now.duration_since(since) >= self.connected_window {
-                    return Some(StopCause::Stalled(self.report(self.connected_window, now)));
+                    return Some(StopCause::Stalled(self.report(StopWindow::Connected, self.connected_window, now)));
                 }
             } else {
                 self.waiting_since = None;
@@ -570,7 +668,7 @@ impl Clock {
             self.next_sample = now + SAMPLE_INTERVAL;
         }
         if now.duration_since(self.last_progress) >= stall {
-            return Some(StopCause::Stalled(self.report(stall, now)));
+            return Some(StopCause::Stalled(self.report(StopWindow::Stall, stall, now)));
         }
         return None;
     }

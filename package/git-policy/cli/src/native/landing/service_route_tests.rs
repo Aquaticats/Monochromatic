@@ -199,6 +199,49 @@ fn the_worktree_git_directory_keeps_a_path_that_is_not_text() {
     remove(root.as_path());
 }
 
+/// What:
+///  The worktree's Git directory asked of Git keeps a trailing space or line feed that is part of the directory's name.
+/// Why:
+///   An answer that is a pathname loses only Git's one terminator,
+///  so taking every ASCII whitespace byte after it read a directory named `metadata `,
+///  or one whose name ends in a line feed,
+///  as `metadata`,
+///  the route then named a directory that does not exist,
+/// and the commit had no instance to hand its work to.
+#[test]
+fn the_worktree_git_directory_keeps_a_trailing_space_or_line_feed() {
+    let root: PathBuf = fixture("route-git-dir-trailing-whitespace");
+    for (label, name) in [("space", "metadata "), ("line-feed", "metadata\n")] {
+        let worktree: PathBuf = root.join(format!("worktree-{label}"));
+        std::fs::create_dir(worktree.as_path()).expect("worktree directory");
+        let metadata: PathBuf = root.join(name);
+        crate::test_support::git(
+            root.as_path(),
+            &[
+                "init",
+                "--quiet",
+                "--initial-branch=main",
+                "--separate-git-dir",
+                metadata.to_str().expect("UTF-8 fixture name"),
+                worktree.to_str().expect("UTF-8 fixture path"),
+            ],
+        );
+        let context: GitContext = GitContext {
+            real_git: PathBuf::from(GIT),
+            overlay: crate::test_support::isolated_overlay(),
+            global_prefix: vec![std::ffi::OsString::from("--git-dir"), metadata.clone().into_os_string()],
+            common_dir: None,
+        };
+        // Git answers the real path of a directory that `--separate-git-dir` named.
+        assert_eq!(
+            worktree_git_dir(&context, root.as_path()),
+            Some(std::fs::canonicalize(metadata.as_path()).expect("the directory Git made")),
+            "{label}: the Git directory keeps every byte of its name"
+        );
+    }
+    remove(root.as_path());
+}
+
 /// The status of a worktree whose Git directory cannot be resolved says the cause,
 /// and does not connect to any socket.
 #[test]

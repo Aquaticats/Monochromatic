@@ -46,6 +46,25 @@ fn a_step_is_recorded_only_on_a_thread_with_a_board_and_only_while_it_runs() {
     });
 }
 
+/// The words of the write a client's own request is inside name the command and what the write does,
+/// and no moment:
+/// the client says them once the person's wait has mattered,
+/// so a moment taken when the write began would be false by then.
+#[test]
+fn the_words_of_the_write_a_request_is_inside_carry_no_moment() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let record: Arc<LandingBoard> = board_stuck_after(NEVER);
+        use_on_this_thread(Arc::clone(&record));
+        assert_eq!(record.begin_group(ids(&["mine"]).as_slice()), GroupAdmission::default());
+        let _detail = detail(String::from("it moves refs/heads/main to abc"));
+        let _step = enter_step(String::from("git update-ref --stdin in /repo"));
+        let (_key, words): (String, String) = record.inside_notice("mine").expect("the request is in the group and a write runs");
+        assert!(words.contains("git update-ref --stdin") && words.contains("refs/heads/main"), "{words}");
+        assert!(words.contains("never ends a write"), "the words say why it matters: {words}");
+        assert!(!words.contains("ago"), "no moment is named: {words}");
+    });
+}
+
 /// A step younger than the threshold is not described:
 /// only a write that has outlasted what writes take is stuck.
 #[test]
@@ -240,11 +259,12 @@ fn record_landed(journal: &std::path::Path, seq: u64, id: &str) {
         seq,
         repository: std::path::PathBuf::from("/repo"),
         common_dir: std::path::PathBuf::from("/repo/.git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: "0".repeat(40),
         new: "1".repeat(40),
         ids: vec![String::from(id)],
         commits: vec!["1".repeat(40)],
+        holders: vec![String::new()],
         paths: Vec::new(),
         derived: false,
         cleanup: None,
@@ -512,6 +532,55 @@ fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
         assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
         assert!(matches!(record.withdraw_early("after"), EarlyAnswer::Withdrawn(_)));
     });
+}
+
+/// How long a control gives the board to answer about a record it must not read:
+/// far above the read of a small file,
+/// and as long as a client waits before it gives up on the service (`HEARTBEAT_SILENCE`).
+#[cfg(unix)]
+const TIME_TO_ANSWER_ABOUT_A_RECORD: Duration = Duration::from_secs(5);
+
+/// What:
+///  A record that is not a regular file is answered without being read.
+/// Why:
+///  The beat of every waiting client asks this board what the landing thread is inside,
+/// and the question opens the step record,
+///  so a named pipe at that name would make the open wait for a writer that never comes:
+/// the client then hears nothing for the five seconds it allows (`HEARTBEAT_SILENCE`),
+///  sends the commit again,
+/// and may report it failed although it landed.
+///  Nothing but this process writes these records,
+/// so a pipe at one of their names is another program's,
+///  and it names no write the landing thread is inside.
+#[cfg(unix)]
+#[test]
+fn a_step_record_that_is_a_named_pipe_is_not_read() {
+    use std::os::unix::ffi::OsStrExt as _;
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let record: Arc<LandingBoard> = board();
+    let step: std::path::PathBuf = record.directory.join(STEP_FILE);
+    let named: std::ffi::CString = std::ffi::CString::new(step.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    // SAFETY: `named` is a NUL-terminated path that outlives the call, and the mode is the record's own.
+    assert_eq!(unsafe { libc::mkfifo(named.as_ptr(), 0o600) }, 0, "a named pipe where the step record belongs");
+    let (answered, heard) = std::sync::mpsc::channel::<Option<String>>();
+    let asking = std::thread::spawn(move || {
+        let _sent = answered.send(record.describe());
+    });
+    let waited: Result<Option<String>, std::sync::mpsc::RecvTimeoutError> = heard.recv_timeout(TIME_TO_ANSWER_ABOUT_A_RECORD);
+    // The pipe is let go of whatever the answer was, so a failing run leaves no thread behind: a write with no reader fails at
+    //  once, and a reader that opened it reads the end of its file.
+    {
+        use std::io::Write as _;
+        let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
+        options.write(true).custom_flags(libc::O_NONBLOCK);
+        if let Ok(mut half) = options.open(step.as_path()) {
+            let _written = half.write_all(b"");
+        }
+    }
+    let _removed = std::fs::remove_file(step.as_path());
+    let said: Option<String> = waited.expect("the board answers about a record it does not read without waiting for a writer");
+    asking.join().expect("the asking thread ends");
+    assert_eq!(said, None, "a pipe names no write the landing thread is inside");
 }
 
 /// How long the landing thread,

@@ -35,9 +35,12 @@
 /// The private names a take leaves,
 /// which say whether an unfinished merge names one.
 use crate::merge_isolation_kept_copies::{KeptCopy, forget_the_copy, keep_the_copy, kept_copies};
-use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys};
+/// The lines a copy earns,
+/// which say what stands at its path and what ends it.
+use crate::merge_isolation_kept_copies_words::{say_the_copy_stays, say_the_copy_stays_because};
+use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys, stale_carry_names_of};
 /// Reading the bytes of a file through Git.
-use crate::merge_isolation_take_asides::{raw_bytes_of_awaiting, the_file_form_of_awaiting};
+use crate::merge_isolation_take_asides::{may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
 /// The person's own work a merge captured,
 /// which holds the bytes of a path the take of a carry moved aside.
 use crate::merge_isolation_carry_parts::Capture;
@@ -216,6 +219,46 @@ async fn the_file_holds_them_awaiting(context: &GitContext, root: &Path, locatio
     return raw_bytes_of_awaiting(context, root, location).await.as_deref() == Some(held.as_str());
 }
 
+/// What:
+///  Whether the two entries carry the same permissions,
+/// so the file at the path is the copy in everything a copy holds.
+/// Why:
+///   One run of bytes is not one file:
+/// a copy that is executable where its path is not is the only executable
+///  copy of those bytes,
+/// and removing it loses the person's mode
+/// (`SPEC.md`, the copy whose bytes the file at its path holds again).
+///  A symbolic link's permissions are the platform's and say nothing about the link,
+/// so two links holding one target are one entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thePermissionsAreTheCopies = (location, aside) => isLink(location) ? isLink(aside) : mode(location) === mode(aside);
+/// ```
+fn the_permissions_are_the_copies(location: &Path, aside: &Path) -> bool {
+    let Ok(here) = std::fs::symlink_metadata(location) else { return false };
+    let Ok(there) = std::fs::symlink_metadata(aside) else { return false };
+    if here.file_type().is_symlink() && there.file_type().is_symlink() {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        return here.permissions().mode() & PERMISSION_BITS == there.permissions().mode() & PERMISSION_BITS;
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        let _ = (here, there);
+        return true;
+    }
+}
+
+/// The permission bits a copy carries,
+/// which are every bit a person can see and set on an entry.
+#[cfg(unix)]
+const PERMISSION_BITS: u32 = 0o777;
+
 /// What one decision about a kept copy came to.
 ///
 /// In TS you'd write (pseudocode):
@@ -234,6 +277,10 @@ enum Fate {
     /// Nothing proves an end,
     /// so the copy stays and is named.
     Kept,
+    /// The bytes at the path are the copy's own,
+    /// and something else the copy holds is not at the path,
+    /// so the copy stays and is named with the reason.
+    KeptBecause(&'static str),
 }
 
 /// What:
@@ -261,11 +308,11 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
     capture: Option<&Capture>,
     live: &[String],
     out: &mut W,
-) {
+) -> bool {
     if std::fs::symlink_metadata(copy.aside.as_path()).is_err() {
         // The copy is gone, so nothing names it any more.
         forget_the_copy(git_dir, copy.aside.as_path());
-        return;
+        return false;
     }
     let free: bool = std::fs::symlink_metadata(copy.location.as_path()).is_err();
     let named: bool = an_unfinished_merge_names_it_of(aside, live);
@@ -280,7 +327,17 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
     let fate: Fate = if free && (named || (keyless && held.is_some())) {
         Fate::PutBack
     } else if !free && the_file_holds_them_awaiting(context, root, copy.location.as_path(), copy.aside.as_path()).await {
-        Fate::TheFileHoldsThem
+        // One run of bytes is not one file: the entries differ in their permissions, which Git does not record outside the
+        //  executable bit, or a program still holds the copy open, and a write through that descriptor lands in the file an
+        //  unlink would leave with no name at all. Both are the person's, so the copy goes only when neither holds.
+        let permissions_differ: bool = !the_permissions_are_the_copies(copy.location.as_path(), copy.aside.as_path());
+        if !permissions_differ && may_remove_the_copy_awaiting(context, root, copy.aside.as_path()).await {
+            Fate::TheFileHoldsThem
+        } else if permissions_differ {
+            Fate::KeptBecause("the two entries do not have the same permissions")
+        } else {
+            Fate::KeptBecause("a program still holds the copy open")
+        }
     } else if let Some(Held::BranchCommit(object)) = held {
         Fate::GitHoldsThem(object)
     } else {
@@ -288,16 +345,19 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
     };
     match fate {
         Fate::PutBack => return put_the_copy_back(git_dir, copy, named, out),
-        Fate::TheFileHoldsThem => return remove_the_copy_because_the_file_holds_it(git_dir, copy, out),
-        Fate::GitHoldsThem(object) => return remove_the_copy_because_git_holds_it(git_dir, copy, object.as_str(), out),
-        Fate::Kept => {
+        Fate::TheFileHoldsThem => remove_the_copy_because_the_file_holds_it(git_dir, copy, out),
+        Fate::GitHoldsThem(object) => remove_the_copy_because_git_holds_it(git_dir, copy, object.as_str(), out),
+        Fate::Kept | Fate::KeptBecause(_) => {
             // The copy is recorded, so the next command that runs the recovery decides it again even though no later merge
             //  touches its path.
             keep_the_copy(git_dir, copy.location.as_path(), copy.aside.as_path());
-            say_the_copy_stays(out, copy, named);
+            match fate {
+                Fate::KeptBecause(why) => say_the_copy_stays_because(out, copy, why),
+                _ => say_the_copy_stays(out, copy, named),
+            }
         }
     }
-    return;
+    return false;
 }
 
 /// What:
@@ -312,7 +372,7 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
 /// ```ts
 /// if (renameNoReplace(aside, location)) { forget(gitDir, aside); say(`put back ${location}`); } else sayTheCopyStays(...);
 /// ```
-fn put_the_copy_back<W: Write + ?Sized>(git_dir: &Path, copy: &KeptCopy, named: bool, out: &mut W) {
+fn put_the_copy_back<W: Write + ?Sized>(git_dir: &Path, copy: &KeptCopy, named: bool, out: &mut W) -> bool {
     match rename_noreplace(copy.aside.as_path(), copy.location.as_path()) {
         Ok(()) => {
             forget_the_copy(git_dir, copy.aside.as_path());
@@ -324,9 +384,13 @@ fn put_the_copy_back<W: Write + ?Sized>(git_dir: &Path, copy: &KeptCopy, named: 
                 )
                 .as_bytes(),
             );
+            return true;
         }
         // The path was taken between the reading and the rename, so both stay and the copy is named.
-        Err(_taken) => say_the_copy_stays(out, copy, named),
+        Err(_taken) => {
+            say_the_copy_stays(out, copy, named);
+            return false;
+        }
     }
 }
 
@@ -414,46 +478,9 @@ fn remove_the_copy_because_git_holds_it<W: Write + ?Sized>(git_dir: &Path, copy:
 }
 
 /// What:
-///  Say that a copy stays,
-///  where it is,
-///  what the path holds,
-///  and what ends it.
-/// Why:
-///   The person is the only one who can judge bytes nothing else holds,
-/// so the line names the copy,
-///  the path it belongs to,
-///  the two commands that end it,
-/// and the end a later command performs by itself.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// say(`${aside} holds a copy of ${location} ...; mv -- ${aside} ${location} puts it back, rm -- ${aside} drops it, and a later command removes it once ${location} holds its bytes`);
-/// ```
-fn say_the_copy_stays<W: Write + ?Sized>(out: &mut W, copy: &KeptCopy, named: bool) {
-    let whose: &str = if named {
-        "A merge in this worktree that has not finished set it aside for"
-    } else {
-        "A merge set it aside for"
-    };
-    let _said = out.write_all(
-        format!(
-            "monochromatic-git-policy-cli: {} holds a copy of a file, and {} holds something else, so the copy stays where it is and \
-             nothing of yours was removed. {whose} that path. `mv -- {} {}` puts the copy back in the checkout, `rm -- {}` drops the \
-             copy, and a later command removes the copy by itself once {} holds its bytes again.\n",
-            copy.aside.display(),
-            copy.location.display(),
-            copy.aside.display(),
-            copy.location.display(),
-            copy.aside.display(),
-            copy.location.display()
-        )
-        .as_bytes(),
-    );
-}
-
-/// What:
 ///  Decide every copy a merge kept in this worktree,
-///  for a command that runs the recovery.
+///  for a command that runs the recovery,
+///  and leave alone every copy a merge that still runs owns.
 /// Why:
 ///   A copy is left beside a path one merge touched,
 /// and a later merge that touches another path says nothing
@@ -461,12 +488,19 @@ fn say_the_copy_stays<W: Write + ?Sized>(out: &mut W, copy: &KeptCopy, named: bo
 /// so without this step the copy is a file no command ends
 ///  (`merge-carry-review-round-2-findings-1`,
 /// its first finding).
+///  The copies of a merge whose process still runs are not this command's to decide:
+/// that merge kept them because
+///  a path it is still writing was in the way,
+/// and putting one back under it makes Git refuse the checkout the merge was about to
+///  make,
+/// so a command that has nothing to do with that merge would fail it (the owner's "Agents should never
+///  wait on each other on commits or merges", and `SPEC.md`, the record of a merge whose owner still runs).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await sweepKeptCopiesAwaiting(place, stderr);
+/// await sweepKeptCopiesAwaiting(place, runningKeys, stderr);
 /// ```
-pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &RecoveryPlace, out: &mut W) {
+pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &RecoveryPlace, running: &[String], out: &mut W) {
     let copies: Vec<KeptCopy> = kept_copies(place.git_dir.as_path());
     if copies.is_empty() {
         return;
@@ -480,6 +514,10 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &Recove
             if aside.path == copy.aside {
                 named = Some(aside);
             }
+        }
+        // A merge that still runs decides its own copies when it finishes them; a command beside it only reads.
+        if an_unfinished_merge_names_it_of(named.as_ref(), running) {
+            continue;
         }
         settle_kept_copy_awaiting(&place.git, place.cwd.as_path(), place.git_dir.as_path(), &copy, named.as_ref(), None, None, live.as_slice(), out).await;
     }
@@ -505,15 +543,28 @@ pub(crate) async fn settle_the_asides_of_a_merge_awaiting<W: Write + ?Sized>(
     git_dir: &Path,
     changes: &[Change],
     capture: Option<&Capture>,
+    transaction_id: &str,
     out: &mut W,
-) {
+) -> Vec<PathBuf> {
     let live: Vec<String> = live_merge_keys(git_dir);
+    // The paths a copy went back to, which now hold the file the merge judged there: a rename leaves that file's identity as it
+    //  was and changes only its change time, so a caller that judges those paths against an older reading must read them again.
+    let mut put_back: Vec<PathBuf> = Vec::new();
     for change in changes {
         let location: PathBuf = worktree_path(root, change.path.as_slice());
+        // The bytes a killed carry had written under their own name are a temporary of the placing, made again by the next
+        //  command and held in the object store either way, so a name nothing is waiting on goes before the copy beside it is
+        //  decided: otherwise a finished merge leaves an untracked file in the worktree for good (`SPEC.md`, no half-applied
+        //  result).
+        for stale in stale_carry_names_of(location.as_path(), live.as_slice(), transaction_id) {
+            let _removed = std::fs::remove_file(stale.as_path());
+        }
         for aside in asides_of(location.as_path()) {
             let copy: KeptCopy = KeptCopy { location: location.clone(), aside: aside.path.clone() };
-            settle_kept_copy_awaiting(context, root, git_dir, &copy, Some(&aside), Some(change), capture, live.as_slice(), out).await;
+            if settle_kept_copy_awaiting(context, root, git_dir, &copy, Some(&aside), Some(change), capture, live.as_slice(), out).await {
+                put_back.push(location.clone());
+            }
         }
     }
-    return;
+    return put_back;
 }

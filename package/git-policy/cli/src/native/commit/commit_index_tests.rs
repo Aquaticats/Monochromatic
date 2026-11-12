@@ -49,7 +49,7 @@ fn selection<'a>(
 
 /// Runs initialization of the private index with the real index of the repository.
 fn initialize(repo: &Path, indexes: &CaptureIndexes, choice: &IndexSelection) {
-    initialize_commit_index(&git_context(), repo, repo.join(".git").join("index").as_path(), indexes, choice)
+    initialize_commit_index(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), indexes, choice)
         .expect("initialize");
 }
 
@@ -362,7 +362,7 @@ fn index_with_tracked_staging_survives_the_callers_conflicting_glob_modes() {
     let mut inherited: GitContext = git_context();
     inherited.overlay.push((OsString::from("GIT_GLOB_PATHSPECS"), OsString::from("1")));
     inherited.overlay.push((OsString::from("GIT_NOGLOB_PATHSPECS"), OsString::from("1")));
-    initialize_commit_index(&inherited, repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &choice)
+    initialize_commit_index(&inherited, repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &choice)
         .expect("the tracked staging start survives the caller's modes");
     assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
     remove(root.as_path());
@@ -383,6 +383,69 @@ fn include_stages_the_named_path_into_the_copy_only() {
     initialize(&repo, &indexes, &choice);
     assert_eq!(changed(&repo, &indexes, &base), vec![b"b.txt".to_vec()]);
     assert_eq!(std::fs::read(repo.join(".git").join("index")).expect("index"), real_before);
+    remove(root.as_path());
+}
+
+/// An exclusion subtracts the exact file it names from the commit's selection,
+/// exactly as native Git takes no path from `a.txt ':(exclude)a.txt'`.
+#[test]
+fn an_exclusion_removes_the_exact_path_it_names() {
+    let root: PathBuf = fixture("commit-index-exclude-exact");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+    let pathspecs: Vec<OsString> = vec![OsString::from("a.txt"), OsString::from(":(exclude)a.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    assert_eq!(changed(&repo, &indexes, &base), Vec::<Vec<u8>>::new());
+    remove(root.as_path());
+}
+
+/// An exclusion narrows the exact files the caller named and never widens the selection to a path nobody named:
+/// `a.txt b.txt ':(exclude)b.txt'` stages the edit of `a.txt` alone.
+#[test]
+fn an_exclusion_narrows_the_exact_paths_without_staging_another() {
+    let root: PathBuf = fixture("commit-index-exclude-narrows");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+    let pathspecs: Vec<OsString> = vec![OsString::from("a.txt"), OsString::from("b.txt"), OsString::from(":(exclude)b.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
+    remove(root.as_path());
+}
+
+/// A selection of nothing but exclusions keeps native Git's reading of it:
+/// every path except those,
+/// with no positive element to narrow it.
+#[test]
+fn a_selection_of_exclusions_alone_stages_every_other_path() {
+    let root: PathBuf = fixture("commit-index-exclude-alone");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+    let pathspecs: Vec<OsString> = vec![OsString::from(":(exclude)b.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
+    remove(root.as_path());
+}
+
+/// A directory element and an exclusion are one selection:
+/// the tracked paths below the directory,
+/// minus the excluded one.
+#[test]
+fn an_exclusion_inside_a_directory_selection_is_honoured() {
+    let root: PathBuf = fixture("commit-index-exclude-directory");
+    let (repo, indexes, _initial) = committed_repository(root.as_path());
+    std::fs::create_dir(repo.join("dir")).expect("dir");
+    std::fs::write(repo.join("dir").join("c.txt"), "c\n").expect("c");
+    git(repo.as_path(), &["add", "--", "dir/c.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=directory"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join("dir").join("c.txt"), "changed\n").expect("change c");
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    let pathspecs: Vec<OsString> = vec![OsString::from("dir"), OsString::from(":(exclude)dir/c.txt")];
+    initialize(&repo, &indexes, &selection(TransactionMode::ExplicitPath, &pathspecs, &base));
+    assert_eq!(changed(&repo, &indexes, &base), Vec::<Vec<u8>>::new());
     remove(root.as_path());
 }
 
@@ -552,7 +615,7 @@ fn differential_state(root: &Path, stage: &[&str]) -> (PathBuf, CaptureIndexes, 
 
 /// Initializes the private index for one selection and returns the tree written from it.
 fn native_tree(repo: &Path, indexes: &CaptureIndexes, choice: &IndexSelection) -> String {
-    initialize_commit_index(&git_context(), repo, repo.join(".git").join("index").as_path(), indexes, choice)
+    initialize_commit_index(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), indexes, choice)
         .expect("initialize");
     return write_private_tree(
         &git_context(),
@@ -811,5 +874,95 @@ fn a_retry_index_is_exactly_the_tree_and_a_real_index_that_cannot_seed_it_is_not
         .output()
         .expect("write-tree runs");
     assert_eq!(String::from_utf8_lossy(&again.stdout).trim(), first);
+    remove(root.as_path());
+}
+
+/// What:
+///  The repository a worktree the variables select holds,
+///  with a tracked `build/keep.txt`,
+///  the untracked `build/scratch.txt` beside it,
+///  and the untracked `plain.txt` at its top.
+/// Why:
+///  One directory selection and one exact path are the two classifications a relative pathspec takes,
+///  and both are read from the worktree the command works on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(repo, 'build/keep.txt'), 'base\n'); git(['add', '--', 'build/keep.txt']); git(['commit', '--message=base']); writeFileSync(join(repo, 'build/scratch.txt'), 'no\n');
+/// ```
+fn worktree_the_variables_select(root: &Path) -> (PathBuf, PathBuf, CaptureIndexes, String) {
+    let repo: PathBuf = repository(root, "repo");
+    std::fs::create_dir(repo.join("build")).expect("build");
+    std::fs::write(repo.join("build/keep.txt"), "base\n").expect("keep");
+    git(repo.as_path(), &["add", "--", "build/keep.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join("build/keep.txt"), "changed\n").expect("edit keep");
+    std::fs::write(repo.join("build/scratch.txt"), "must stay untracked\n").expect("scratch");
+    std::fs::write(repo.join("plain.txt"), "plain\n").expect("plain");
+    let outside: PathBuf = root.join("outside");
+    std::fs::create_dir(outside.as_path()).expect("a directory outside the worktree");
+    let indexes: CaptureIndexes = CaptureIndexes {
+        captured_index: repo.join(".git").join("captured.index"),
+        commit_index: repo.join(".git").join("commit.index"),
+        object_directory: repo.join(".git").join("objects"),
+    };
+    return (repo, outside, indexes, base);
+}
+
+/// What:
+///  The context whose Git children read the worktree the variables name,
+///  from a directory outside it.
+/// Why:
+///  The pathspec base is Git's own answer for the invocation,
+///  so a control hands it that answer and gives the staging's Git children the variables a shell would.
+fn context_naming_the_worktree(repo: &Path) -> GitContext {
+    let mut context: GitContext = git_context();
+    context.overlay.push((OsString::from("GIT_DIR"), repo.join(".git").into_os_string()));
+    context.overlay.push((OsString::from("GIT_WORK_TREE"), repo.as_os_str().to_os_string()));
+    return context;
+}
+
+/// What:
+///  An exact path of a worktree the variables select is staged as the file it is,
+///  from a directory outside that worktree that holds nothing at the name.
+/// Why:
+///  Git reads a relative pathspec from the selected worktree's top when the command runs outside it,
+///  and a reader that asked the invocation directory took the name for a pattern
+///  and left the staging to `git add --update`,
+/// which refuses a path nothing tracked and ends the commit
+/// (`pathspec_base`).
+#[test]
+fn an_exact_file_of_a_worktree_the_variables_select_is_staged_from_its_top() {
+    let root: PathBuf = fixture("commit-index-variables-select-plain-file");
+    let (repo, outside, indexes, base) = worktree_the_variables_select(root.as_path());
+    let context: GitContext = context_naming_the_worktree(repo.as_path());
+    let specs: Vec<OsString> = vec![OsString::from("plain.txt")];
+    let choice: IndexSelection<'_> = selection(TransactionMode::ExplicitPath, specs.as_slice(), base.as_str());
+    initialize_commit_index(&context, outside.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &choice)
+        .expect("the exact file of the selected worktree is staged");
+    assert_eq!(changed(repo.as_path(), &indexes, base.as_str()), vec![b"plain.txt".to_vec()]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory of a worktree the variables select stages the tracked paths it matches and no file nothing staged,
+///  from a directory outside that worktree that holds an unrelated file of the directory's own name.
+/// Why:
+///   Native Git commits the tracked and already-staged paths a directory matches,
+///  and a reader that asked the invocation directory found that unrelated file,
+/// took the directory for an exact path,
+///  and staged every untracked file below it into the commit.
+#[test]
+fn a_directory_of_a_worktree_the_variables_select_stages_no_untracked_file() {
+    let root: PathBuf = fixture("commit-index-variables-select-directory");
+    let (repo, outside, indexes, base) = worktree_the_variables_select(root.as_path());
+    std::fs::write(outside.join("build"), "an unrelated same-named file\n").expect("the file that misclassifies the selection");
+    let context: GitContext = context_naming_the_worktree(repo.as_path());
+    let specs: Vec<OsString> = vec![OsString::from("build")];
+    let choice: IndexSelection<'_> = selection(TransactionMode::ExplicitPath, specs.as_slice(), base.as_str());
+    initialize_commit_index(&context, outside.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &choice)
+        .expect("the directory of the selected worktree is staged");
+    assert_eq!(changed(repo.as_path(), &indexes, base.as_str()), vec![b"build/keep.txt".to_vec()], "the tracked file it changed and no untracked file");
     remove(root.as_path());
 }

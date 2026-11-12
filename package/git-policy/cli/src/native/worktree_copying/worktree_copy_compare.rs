@@ -245,13 +245,14 @@ pub fn entry_matches_stamped(
 fn walk_source_pruned(
     (source_root, selected_roots, excluded_source_roots, prune): (PathBuf, Vec<Vec<u8>>, Vec<PathBuf>, Prune),
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
-    let mut unreadable: Vec<Vec<u8>> = Vec::new();
+    let mut left_out: crate::worktree_copy_manifest::LeftOut = crate::worktree_copy_manifest::LeftOut::default();
     return collect_pruned_manifest(
         source_root.as_path(),
         selected_roots.as_slice(),
         excluded_source_roots.as_slice(),
         prune,
-        &mut unreadable,
+        &mut left_out,
+        &crate::worktree_copy_ceiling::CopyCeiling::unbounded(),
     );
 }
 

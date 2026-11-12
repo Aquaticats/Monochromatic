@@ -13,7 +13,7 @@ use crate::auto_push_reconcile_merge_commit::{common_dir_of, common_dir_of_await
 use crate::auto_push_reconcile_merge_commit::PushRunner;
 use crate::merge_second_pass::GitRunner;
 use crate::merge_second_pass::tests::await_it;
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{fixture, git, git_output, remove};
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -104,6 +104,16 @@ fn text_of(directory: &Path, arguments: &[&str]) -> String {
         .to_owned();
 }
 
+/// What:
+///  The commit the branch of the repository under test names now,
+///  which is what the service fixes before it reads the worktree's verdicts.
+/// Why:
+///  A reconcile is told the commit its push was allowed to send,
+///  so a control states that commit the way the service's push does.
+fn tip_of_local(s: &Scenario) -> String {
+    return text_of(&s.local, &["rev-parse", "HEAD"]);
+}
+
 /// Create the remote with `a.txt` and `b.txt`,
 /// the repository under test and the other clone.
 fn scenario(name: &str) -> Scenario {
@@ -186,7 +196,7 @@ fn commit_local(scenario: &Scenario, file: &str, text: &str) -> String {
 /// Push `main` of the repository under test the way the service does and capture the text it prints.
 fn run(scenario: &Scenario, landed: &str) -> (AutoPushResult, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &mut err).expect("auto-push");
+    let result = push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &[], &mut err).expect("auto-push");
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
@@ -195,7 +205,7 @@ fn run(scenario: &Scenario, landed: &str) -> (AutoPushResult, String) {
 /// even compute its merge ends with.
 fn run_error(scenario: &Scenario, landed: &str) -> SingleFlightError {
     let mut err: Vec<u8> = Vec::new();
-    return push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &mut err).expect_err("the failure is returned");
+    return push_once(&push_git(&scenario.local), "refs/heads/main", landed, &[], &[], &mut err).expect_err("the failure is returned");
 }
 
 /// What a consumer of the worktree can observe:
@@ -329,7 +339,7 @@ fn the_reconcile_fetch_sets_no_low_speed_abort() {
     let mut coordinator = push_git(&s.local);
     coordinator.real_git = stand_in;
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&coordinator, "refs/heads/main", &landed, &[], &mut err).expect("auto-push");
+    let result = push_once(&coordinator, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(&err));
     assert_eq!(
         std::fs::read_to_string(&record).expect("the fetch ran"),
@@ -586,7 +596,7 @@ fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
         " ! [rejected]        main -> main (non-fast-forward)"
     ));
     assert_eq!(
-        reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", refused.clone())
+        reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), refused.clone())
             .expect("reconcile"),
         refused
     );
@@ -595,7 +605,7 @@ fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
         output: " ! [rejected] v1 -> v1".to_owned(),
     };
     assert_eq!(
-        reconcile_divergent_push(&push_git(&s.local), "refs/tags/v1", stale.clone())
+        reconcile_divergent_push(&push_git(&s.local), "refs/tags/v1", &tip_of_local(&s), stale.clone())
             .expect("reconcile"),
         stale,
         "a ref that is not a branch has no upstream to merge"
@@ -786,7 +796,7 @@ fn a_rejection_while_the_remote_is_behind_is_returned_unchanged() {
         exit_code: 1,
         output: " ! [rejected]        main -> main (fetch first)".to_owned(),
     };
-    let returned = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", rejected.clone())
+    let returned = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), rejected.clone())
         .expect("reconcile");
     assert_eq!(returned, rejected);
     assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before);
@@ -1962,6 +1972,106 @@ fn an_adjacent_edit_is_merged_by_word_published_and_listed() {
     remove(&s.root);
 }
 
+/// What:
+///  A resolvable merge whose answer is larger than the push report's output cap is still merged and published.
+/// Why:
+///  The reconcile's commands are judged with `MAX_PUSH_OUTPUT`,
+///  and that ceiling was raised only for `cat-file`,
+///  so `merge-file --stdout` kept the push report's 4 MiB although the pass takes stages at 8 MiB
+///  and its answer is those stages and the settled text around them.
+///  A resolvable file past the cap put the whole merge back as a conflict,
+///  and nothing was pushed
+///  (cross-vendor review of round 133,
+///  finding 4).
+#[test]
+fn a_word_merged_answer_bigger_than_the_push_output_cap_is_published() {
+    let s = scenario("ar-word-large");
+    // The answer holds the shared text around the one conflict, so shared text past the cap makes the answer larger than
+    // the cap; the margin is the region, the marker lines and the text the push reports around them.
+    let shared: usize = usize::try_from(crate::bounded_push::MAX_PUSH_OUTPUT).expect("the cap is a size") + 512 * 1024;
+    let mut base: String = String::new();
+    while base.len() <= shared {
+        base.push_str(format!("a line of the shared text {}\n", base.len()).as_str());
+    }
+    let tail: &str = "alpha one\n";
+    base.push_str(tail);
+    assert!(
+        u64::try_from(base.len()).expect("the fixture's size") < crate::merge_second_pass::LARGEST_STAGE_BYTES,
+        "the fixture is a stage the pass takes"
+    );
+    let both: &str = base.strip_suffix(tail).expect("the tail is there");
+    // The base reaches both clones first, so the local commit changes a path Git knows.
+    advance_remote(&s, "big.md", base.as_str());
+    git(&s.local, &["pull", "--quiet", "--ff-only"]);
+    advance_remote(&s, "big.md", format!("{both}ALPHA one\n").as_str());
+    let landed: String = commit_local(&s, "big.md", format!("{both}alpha uno\n").as_str());
+    let (result, err) = run(&s, &landed);
+    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    let published: String = text_of(&s.remote, &["show", "main:big.md"]);
+    assert!(published.starts_with(both), "the shared text is published whole: {} bytes", published.len());
+    assert!(published.trim_end().ends_with("ALPHA uno"), "the merged line is the word merge of both edits");
+    assert!(err.contains("word-level merge") && err.contains("big.md"), "{err}");
+    remove(&s.root);
+}
+
+/// The most bytes the kernel takes as one argument,
+/// `MAX_ARG_STRLEN` in Linux,
+/// which is how the merge commit's message reached `git commit-tree` before it went on the standard input.
+const KERNEL_ARGUMENT_BYTES: usize = 32 * 4096;
+
+/// What:
+///  A merge of many small regions is word-merged and published,
+///  one region per conflict,
+///  where every region is a pair of word edits,
+///  and its commit message lists every part.
+/// Why:
+///  The line merge's regions are cut out of its answer and placed by their stages,
+///  and a merge of hundreds of one-line regions is the shape that exercises both for every region;
+///  the message that lists them is what the kernel refused as one argument,
+///  so the merge failed its commit with "Argument list too long" although every region had resolved
+///  (cross-vendor review of round 198,
+///  finding 2,
+///  whose answer of a hundred and three thousand regions is past the answer ceiling and is measured by
+///  `the_line_merges_answer_ceiling_covers_a_measured_many_region_answer` instead of by a push).
+#[test]
+fn a_merge_of_many_small_regions_is_word_merged_and_published() {
+    let s: Scenario = scenario("ar-word-many-regions");
+    // One independently resolvable word edit per conflict on each side, and one shared line between two conflicts,
+    // which is what makes a conflict every other line rather than one large region.
+    const CONFLICTS: usize = 700;
+    let padding: String = "b".repeat(50);
+    let (mut base, mut ours, mut theirs) = (String::new(), String::new(), String::new());
+    for index in 0..CONFLICTS {
+        if index > 0 {
+            let separator: String = format!("s{index}\n");
+            base.push_str(separator.as_str());
+            ours.push_str(separator.as_str());
+            theirs.push_str(separator.as_str());
+        }
+        base.push_str(format!("alpha one {index} {padding}\n").as_str());
+        ours.push_str(format!("alpha uno {index} {padding}\n").as_str());
+        theirs.push_str(format!("ALPHA one {index} {padding}\n").as_str());
+    }
+    // The base reaches both clones first, so the local commit changes a path Git knows.
+    advance_remote(&s, "many.txt", base.as_str());
+    git(&s.local, &["pull", "--quiet", "--ff-only"]);
+    advance_remote(&s, "many.txt", theirs.as_str());
+    let landed: String = commit_local(&s, "many.txt", ours.as_str());
+    let (result, err) = run(&s, &landed);
+    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    let published: String = text_of(&s.remote, &["show", "main:many.txt"]);
+    // Every conflict is one word of the first side's line and one of the second side's, so the merge is both edits.
+    assert_eq!(published.matches("ALPHA uno ").count(), CONFLICTS, "every region is the word merge of its two edits");
+    assert!(!published.contains("alpha one ") && !published.contains("alpha uno ") && !published.contains("ALPHA one "), "no line of a side is left unmerged");
+    // The merge commit lists every part, and the list is past what the kernel takes as one argument, so the message
+    // could not have been a `-m` argument of the commit.
+    let message: String = text_of(&s.remote, &["log", "--max-count=1", "--format=%B", "main"]);
+    assert_eq!(message.matches("word-level merge: many.txt: part ").count(), CONFLICTS, "the merge commit lists every part");
+    assert!(message.len() > KERNEL_ARGUMENT_BYTES, "the message is past one argument: {} bytes against {KERNEL_ARGUMENT_BYTES}", message.len());
+    assert!(err.contains("word-level merge") && err.contains("many.txt"), "{err}");
+    remove(&s.root);
+}
+
 /// Sections appended at one point by both sides stay a conflict:
 /// nothing is published and the paths are named.
 #[test]
@@ -2057,7 +2167,7 @@ fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
     let mut git = push_git(&s.local);
     git.real_git = context.real_git.clone();
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&git, "refs/heads/main", &landed, &[], &mut err).expect("auto-push");
+    let result = push_once(&git, "refs/heads/main", &landed, &[], &[], &mut err).expect("auto-push");
     assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{}", String::from_utf8_lossy(&err));
     let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
     let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
@@ -2475,7 +2585,7 @@ fn the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does() {
     };
     let remote_before: String = text_of(&s.remote, &["rev-parse", "main"]);
     let refused = crate::lazy_runtime::run_on_runtime(async {
-        return reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", rejected.clone());
+        return reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), rejected.clone());
     })
     .expect("the runtime runs the work");
     let refusal: String = match refused {
@@ -2487,6 +2597,7 @@ fn the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does() {
     let attempt: PushAttempt = await_it(crate::auto_push_reconcile_awaiting::reconcile_divergent_push_awaiting(
         &push_git(&s.local),
         "refs/heads/main",
+        &tip_of_local(&s),
         rejected,
     ))
     .expect("git");
@@ -2636,5 +2747,44 @@ fn a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_i
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), landed, "the branch did not move");
     assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the worktree was not touched");
     assert_eq!(text_of(&s.local, &["for-each-ref", "refs/cli-git"]), "", "no private fetch ref was left");
+    remove(&s.root);
+}
+
+/// Whether `ancestor` is one of `descendant`'s own commits.
+fn holds_commit(s: &Scenario, ancestor: &str, descendant: &str) -> bool {
+    return git_output(&s.local, &["merge-base", "--is-ancestor", ancestor, descendant]).status.success();
+}
+
+/// What:
+///  A merge the reconcile publishes carries the commit the push was allowed to send,
+///  and never a commit that landed after the push read the worktree's verdicts.
+/// Why:
+///   The branch can move between the reading that fixes the commit a push may send and the reconcile that publishes a
+///  merge above it,
+///  and a merge made from the branch's reference would publish the newer commit before its own gate answered,
+///  which a refusal written afterwards could not take back.
+/// The merge is made from the fixed commit,
+///  so the newer commit goes out with its own push once its gate has answered,
+///  and the branch that moved is left where it is with the report saying why.
+#[test]
+fn a_commit_that_lands_after_the_reading_is_not_published_by_the_reconcile() {
+    let s = scenario("ar-commit-after-the-reading");
+    advance_remote(&s, "a.txt", "remote\n");
+    let pinned = commit_local(&s, "b.txt", "local\n");
+    // A commit whose own gate still runs lands on the branch after the push read the worktree; it is newer than the commit that
+    //  reading fixed.
+    let racing = commit_local(&s, "b.txt", "racing\n");
+    assert_ne!(racing, pinned);
+    let rejected = PushAttempt {
+        exit_code: 1,
+        output: String::from(" ! [rejected]        main -> main (fetch first)"),
+    };
+    let attempt: PushAttempt = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", pinned.as_str(), rejected)
+        .expect("the reconcile runs");
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    let published: String = text_of(&s.remote, &["rev-parse", "main"]);
+    assert!(holds_commit(&s, pinned.as_str(), published.as_str()), "the commit the push was allowed to send is published: {}", attempt.output);
+    assert!(!holds_commit(&s, racing.as_str(), published.as_str()), "BUG: the merge published the commit whose own gate had not answered");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), racing, "the branch that moved is left where it is");
     remove(&s.root);
 }

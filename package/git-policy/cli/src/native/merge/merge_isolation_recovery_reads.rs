@@ -148,3 +148,105 @@ pub async fn paths_the_branch_does_not_hold_awaiting(
     }
     return Ok(found);
 }
+
+/// What:
+///  Whether every path that stands in the way of a saved merge holds a file whose bytes are neither side's,
+///  which is
+///  the person's own edit and nothing a merge wrote.
+/// Why:
+///   A merge saved behind a live `index.lock` never began,
+/// and where the person's own edits stand in its paths it cannot
+///  be installed without writing over bytes only they hold.
+///  A directory in the way,
+/// or a file whose bytes are one side's and whose mode differs,
+/// is not that:
+/// both are
+///  read as they always were,
+/// and the refusal that keeps the record stands.
+///  So the answer decides between settling the record with its ref
+/// named and refusing,
+/// and it is read from the same judgements the
+///  decision already has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function thePathsHoldOnlyThePersonsOwnBytes({ place, root, changes, judgements }): Promise<boolean>; // every Foreign path a file whose file form neither side has
+/// ```
+pub async fn the_paths_hold_only_the_persons_own_bytes_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    changes: &[Change],
+    judgements: &[Judged],
+) -> bool {
+    let mut found_one: bool = false;
+    for (change, judged) in changes.iter().zip(judgements.iter()) {
+        if judged.standing != Standing::Foreign {
+            continue;
+        }
+        // A directory or another entry has no bytes of its own to judge, and a mode of the person's over a side's bytes is not an
+        //  edit this answer covers.
+        let Some(content) = judged.content.as_deref() else { return false };
+        for side in [change.old_oid.as_str(), change.new_oid.as_str()] {
+            if crate::merge_isolation_take_asides::the_file_form_of_awaiting(&place.git, root, change.path.as_slice(), side)
+                .await
+                .as_deref()
+                == Some(content)
+            {
+                return false;
+            }
+        }
+        found_one = true;
+    }
+    return found_one;
+}
+
+/// What:
+///  Whether the capture a saved merge keeps holds the bytes and the mode of every file that stands in its way,
+///  so the
+///  merge can be installed over them and carry them back.
+/// Why:
+///   A merge saved behind a live `index.lock` never began,
+/// and the person's own edits may stand in its paths.
+///  Installing
+///  the merge takes each of those files aside and removes the aside once the merge's content is in place,
+/// which
+///  loses their bytes unless the capture already holds them.
+/// The capture holds what the file held when the merge was saved,
+///  so the bytes and the executable bit the file has now are compared with it:
+/// a file newer than the capture,
+/// or one whose
+///  mode they changed since,
+/// is not covered and the record settles without installing anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theCaptureHoldsThem = (intent, changes, judgements) => everyForeignPathHasContentAndModeIn(intent.carried);
+/// ```
+pub fn the_capture_holds_every_file_in_the_way(intent: &crate::merge_isolation_journal::MergeIntent, changes: &[Change], judgements: &[Judged]) -> bool {
+    let Some(capture) = intent.carried.as_ref() else { return false };
+    let mut found_one: bool = false;
+    for (change, judged) in changes.iter().zip(judgements.iter()) {
+        if judged.standing != Standing::Foreign {
+            continue;
+        }
+        let mut named: Option<&crate::merge_isolation_carry_parts::CapturedPath> = None;
+        for candidate in &capture.paths {
+            if candidate.path == change.path {
+                named = Some(candidate);
+            }
+        }
+        let Some(entry) = named else { return false };
+        let Some(file) = entry.worktree.as_ref() else { return false };
+        if judged.content.as_deref() != Some(file.blob.as_str()) {
+            return false;
+        }
+        // A mode the person set after the merge was saved is theirs too, and only the capture's copy of it is kept.
+        if let Some(identity) = judged.identity
+            && (identity.mode & 0o111 != 0) != (file.mode == "100755")
+        {
+            return false;
+        }
+        found_one = true;
+    }
+    return found_one;
+}

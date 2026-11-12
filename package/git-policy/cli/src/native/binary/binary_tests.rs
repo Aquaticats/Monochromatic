@@ -260,6 +260,12 @@ mod merge_carries_edits;
 #[path = "binary_merge_carries_edits_kill_tests.rs"]
 mod merge_carries_edits_kill;
 
+/// Another command landing a commit on the branch while a landed merge still carries:
+/// the later commit stands,
+/// and the person's work is merged onto the branch as it is now.
+#[path = "binary_merge_carries_edits_moved_tests.rs"]
+mod merge_carries_edits_moved;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.
@@ -296,6 +302,12 @@ mod pull_isolation;
 /// A merge that waits for a held `index.lock` and lands on a branch that moved underneath it.
 #[path = "binary_merge_never_fails_tests.rs"]
 mod merge_never_fails;
+
+/// The lines a merge prints about a path it kept whole,
+/// and the commands in them,
+/// run as the person's shell reads them.
+#[path = "binary_merge_notice_tests.rs"]
+mod merge_notice;
 
 /// Real commits through the transaction:
 /// landing,
@@ -398,6 +410,12 @@ mod worktree_dirty_snapshot;
 #[path = "binary_worktree_checkout_workers_tests.rs"]
 mod worktree_checkout_workers;
 
+/// The commit a reference lock holds in a linked worktree:
+/// a removal or a prune keeps it where Git cannot reach it,
+/// and a removal stops when no reference can hold it.
+#[path = "binary_worktree_removal_held_commit_tests.rs"]
+mod worktree_removal_held_commit;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
@@ -438,6 +456,13 @@ mod push_scope;
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
+
+/// The configuration of a push,
+/// given on its command line,
+/// reaches the real `git-lfs` upload,
+/// so an object reaches the remote the ref is published to.
+#[path = "binary_lfs_command_scope_tests.rs"]
+mod lfs_command_scope;
 
 /// Traditional hooks never run through the wrapper,
 /// and `git monochromatic-git-policy-cli doctor` explains the Git LFS shims.
@@ -654,6 +679,18 @@ mod service_landing_state;
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
 
+/// The abort forms while the operation they undo waits for its conflicts:
+/// what runs,
+/// what is saved first,
+/// and what is left to Git.
+#[path = "binary_abort_during_an_operation_tests.rs"]
+mod abort_during_an_operation;
+
+/// The rerere cache a concluded merge leaves behind,
+/// compared with real Git.
+#[path = "binary_merge_rr_cleanup_tests.rs"]
+mod merge_rr_cleanup;
+
 /// The timing record of a wrapped commit and the service's log lines,
 /// which split a slow commit by phase.
 #[path = "binary_commit_timing_tests.rs"]
@@ -669,11 +706,29 @@ mod service_lane;
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
 
+/// The pool of finished shadow repositories of a worktree Git no longer lists:
+/// a wrapped command removes it,
+/// and one of a worktree Git lists never.
+#[path = "binary_shadow_pool_tests.rs"]
+mod shadow_pool;
+
+/// A pooled shadow member the commit refuses:
+/// nothing on the terminal,
+/// and the refusal named in the commit's own timing record.
+#[path = "binary_shadow_pool_refusal_tests.rs"]
+mod shadow_pool_refusal;
+
 /// The ends of the waits on the commit path:
 /// a commit withdrawn at its bound never lands,
 /// not even after a restart of the service.
 #[path = "binary_service_withdraw_tests.rs"]
 mod service_withdraw;
+
+/// A commit service whose runtime build outlasted its deadline:
+/// the commit lands through it,
+/// and its log names the stand-in.
+#[path = "binary_service_late_runtime_build_tests.rs"]
+mod service_late_runtime_build;
 
 /// The client's wait for the commit service:
 /// heartbeats,

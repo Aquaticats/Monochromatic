@@ -24,7 +24,7 @@ use super::{Gone, GoneBecause, Mounts, NothingIsMounted, Proof, TheMountTable, g
 use crate::claim_time::ClaimTime;
 use crate::push_retry::{RetryChange, Retrying};
 use crate::service_claim_renewal_running::Renewal;
-use crate::service_work::Verdict;
+use crate::service_work::{SERVICE_KINDS, Verdict};
 use crate::service_work_drains_awaiting::drain_planned_with_awaiting;
 use crate::test_support::{fixture, remove};
 use crate::work_item::{WorkItem, WorkKind};
@@ -182,6 +182,7 @@ fn a_deleted_repository_ends_its_plans() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &retrying_for(git_dir.as_path(), worktree.as_path()),
+        &SERVICE_KINDS,
     ));
     assert!(
         !drained.changes.iter().any(|change| return matches!(change, RetryChange::Plan { .. })),
@@ -190,7 +191,7 @@ fn a_deleted_repository_ends_its_plans() {
     );
     assert_eq!(drained.changes.len(), 1, "one change, and it drops the branch: {:?}", drained.changes);
     assert!(
-        matches!(&drained.changes[0], RetryChange::Forget { git_dir: named, branch_ref } if named.as_path() == git_dir.as_path() && branch_ref == BRANCH),
+        matches!(&drained.changes[0], RetryChange::Forget { git_dir: named, branch_ref, .. } if named.as_path() == git_dir.as_path() && branch_ref == BRANCH),
         "the plan of the branch ends where it was kept: {:?}",
         drained.changes
     );
@@ -217,6 +218,7 @@ fn a_path_behind_an_unmounted_mount_point_keeps_its_plans() {
         crate::service_work::CLAIM_LEASE,
         Renewal::Timed,
         &retrying_for(git_dir.as_path(), root.join("drive/repository").as_path()),
+        &SERVICE_KINDS,
     ));
     assert!(
         !drained.changes.iter().any(|change| return matches!(change, RetryChange::Forget { .. })),
@@ -304,5 +306,69 @@ fn a_git_directory_that_moved_away_from_its_worktree_may_return() {
         Proof::MayReturn(super::MayReturn { nearest: worktree.clone() }),
         "the worktree is still there, so the repository was not deleted"
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A repository renamed away and back before the change lands keeps the push plan its drain ended,
+///  even though the round took that plan out of the running service's schedule to hand it to the drain.
+/// Why:
+///   The proof that ends a plan is a reading of the filesystem,
+///  and what it asks for is applied after that reading:
+///  a repository that is back by then is reachable,
+///  so its plan is not a try that can never run,
+///  and dropping it leaves the repository's only scheduled backup gone.
+/// The plan the drain ended is the one the round removed before the drain ran,
+///  so keeping it means putting that plan back:
+///  a control that schedules a plan of its own hides the loss,
+///  because nothing then removes the plan the running service holds.
+#[test]
+fn a_repository_renamed_back_before_the_change_lands_keeps_its_plans() {
+    let root: PathBuf = fixture("unreachable-renamed-back");
+    let holder: PathBuf = root.join("work");
+    let repository: PathBuf = holder.join("repository-a");
+    let moved: PathBuf = holder.join("repository-away");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory");
+    std::fs::write(holder.join("kept.txt"), "another entry").expect("an entry beside it");
+    let plans: PathBuf = root.join("plans");
+    std::fs::create_dir_all(plans.as_path()).expect("the plan directory");
+    let mut retries: crate::push_retry::PushRetries = crate::push_retry::PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    let stored: Retrying = retrying_for(git_dir.as_path(), repository.as_path());
+    for due in &stored.due {
+        let _pause: Duration = retries.schedule(git_dir.as_path(), &due.item, 1, std::time::Instant::now());
+    }
+    // The round of the service's work takes the due plan out of the schedule before it drains the directory, and hands the plan
+    //  to the worker; the plan the drain ends is therefore this one, and it is the one the repository's return must keep
+    //  (`service_work_run_round.rs`, `plan_the_round`).
+    let taken: Vec<crate::push_retry::Due> = retries.take_due(git_dir.as_path(), std::time::Instant::now() + FIRST_PAUSE + Duration::from_secs(1));
+    assert_eq!(taken.len(), 1, "the due plan left the running service's schedule, as it does before a round's drain");
+    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: taken, plans: Some(plans.clone()) };
+
+    std::fs::rename(repository.as_path(), moved.as_path()).expect("the whole repository is renamed, not deleted");
+    let drained: crate::service_work::Drained = crate::merge_second_pass::tests::await_it(drain_planned_with_awaiting(
+        git_dir.as_path(),
+        &Quiet,
+        &ClaimTime::read(),
+        crate::service_work::CLAIM_LEASE,
+        Renewal::Timed,
+        &retrying,
+        &SERVICE_KINDS,
+    ));
+    assert!(
+        matches!(&drained.changes[0], RetryChange::Forget { .. }),
+        "the drain proves the path gone while the repository is away: {:?}",
+        drained.changes
+    );
+
+    std::fs::rename(moved.as_path(), repository.as_path()).expect("the repository is renamed back");
+    retries.apply(drained.changes);
+
+    assert!(
+        retries.next_wait(git_dir.as_path(), std::time::Instant::now()).is_some(),
+        "the running service still has a wait for the repository whose plan its drain ended on a reading that went stale"
+    );
+    let due: Vec<crate::push_retry::Due> = retries.take_due(git_dir.as_path(), std::time::Instant::now() + FIRST_PAUSE + Duration::from_secs(1));
+    assert_eq!(due.len(), 1, "the repository is back, so its one scheduled push stays");
     remove(root.as_path());
 }

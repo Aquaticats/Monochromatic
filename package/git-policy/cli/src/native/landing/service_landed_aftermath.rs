@@ -50,6 +50,7 @@ use crate::transaction_git::GitContext;
 use crate::service_handoff::ServiceHandoff;
 /// How to reach the service.
 use crate::service_client::ClientConfig;
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 /// The events the result carries.
 /// A diagnostics line.
 use crate::diagnostic_log::warn;
@@ -126,7 +127,13 @@ pub(crate) fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
         ),
     );
     let handoff: ServiceHandoff = ServiceHandoff {
-        config: input.config,
+        // What: The work after a landing is woken with the hand-over's own greeting bound, never with the wait the commit's own
+        //       request is granted.
+        // Why:  The push and upkeep records are written before the wake, and the service that answered this commit is running, so
+        //       a greeting that does not come within that bound is a service that stopped after answering: the commit landed, and
+        //       its command must not hold the person for a start it does not need (`wait_ceilings.rs`,
+        //       `HAND_OVER_GREETING_WAIT`).
+        config: ClientConfig { start_wait: HAND_OVER_GREETING_WAIT, start_ceiling: HAND_OVER_GREETING_WAIT, ..input.config },
         repository: input.ready.repository.clone(),
         git_dir: input.native_inputs.capture.layout.git_dir.clone(),
         reference: input.ready.reference.clone(),
@@ -183,9 +190,14 @@ pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: L
         let ending: ServiceCommit = the_held_ending(placed.invocation.context, placed.invocation.cwd, &held);
         return Ok(ending);
     }
+    // A commit the person interrupted is not made, and the command ends as the signal ends it: the words say what became of the
+    //  commit, and the shell reports the death an interrupted native Git reports (`commit_command.rs`, `report_stop`).
+    if let crate::service_messages::ClientFailure::Interrupted { signal, .. } = failure {
+        return Err(TransactionStop::EndedBySignal { signal, message: render(&failure) });
+    }
     let worded: Option<ClientFailure> = match failure {
         // The one silence that could not state a fact reads the branch once and states what it shows.
-        ClientFailure::ServiceSilent => the_silent_service_after_a_prepare(placed.invocation.context, placed.invocation.cwd, placed.ready.reference.as_str(), placed.commit),
+        ClientFailure::ServiceSilent => the_silent_service_after_a_prepare(placed.invocation.context, placed.invocation.cwd, &placed.ready.reference, placed.commit),
         other => Some(other),
     };
     let Some(reported) = worded else {
@@ -242,6 +254,7 @@ fn report_after_a_landing(reported: Result<(), TransactionStop>) {
         TransactionStop::NativeExit(code) => warn("serviceCommit", format!("the commit landed and the work after it exited {code}").as_str()),
         TransactionStop::Message(words) => warn("serviceCommit", format!("the commit landed and the work after it failed: {words}").as_str()),
         TransactionStop::Failed { code, message } => warn("serviceCommit", format!("the commit landed and the work after it failed ({code:?}): {message}").as_str()),
+        TransactionStop::EndedBySignal { signal, .. } => warn("serviceCommit", format!("the commit landed and the work after it was interrupted by signal {signal}").as_str()),
     };
 }
 

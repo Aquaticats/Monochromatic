@@ -261,6 +261,43 @@ for a removal that finished and for one that was refused
 The same measurements after that change held no place in 80,000 removals,
 and the control's two counts held in every one of 360,000 rounds across six measurements at once.
 
+## Why the cut-short control waited a ceiling
+
+A cross-vendor review of the integration branch reported that the cut-short control
+(`a_sweep_cut_short_empties_the_stale_entries_over_later_sweeps`)
+failed while the product was right.
+Reproduced on 2026-11-11T08:19:00-05:00 against `82829a1696`,
+with `strace --inject=unlinkat:delay_enter=250ms` around the real test run in a throwaway scope:
+each of the three stale trees then needs about 500 ms of removal work,
+while the helper waited only about 120 ms,
+seven attempts and six looks of 20 ms,
+so it stopped before the removals its own sweeps had cut short finished on their threads.
+The control failed in 4.167 s with
+`every stale tree went over the later sweeps, though only 0 of their removals finished inside a sweep`,
+and the same reproduction passed in 2.565 s after the fix.
+
+The cause was the helper's patience:
+a number of looks is not a span of time,
+because a removal a one-microsecond ceiling cut short finishes when the device finishes and not when the next look comes.
+The helper now waits `SWEEP_UNTIL_PATIENCE`,
+which is `SCRATCH_REMOVAL_CEILING`,
+the ceiling the product itself gives one removal before it leaves that entry to a later sweep,
+and looks every `SWEEP_UNTIL_LOOK`,
+20 ms.
+Nothing waits forever:
+a sweep that never empties the place ends at that ceiling,
+and the assertion names what stayed.
+The control for it is
+`the_sweep_helper_waits_for_a_removal_that_finishes_after_the_sweep_that_started_it`,
+which hands the helper a sweep whose removal finishes on a thread 400 ms later through the `Sweep` seam.
+It failed before the fix with
+`every stale tree went once the removal its sweep cut short finished on its thread, though only 0 of their removals finished inside a sweep`,
+and it passes after it.
+Limit:
+the helper's patience is one removal ceiling for the whole wait,
+so a device that delays a single removal past 30 s still fails the control,
+which is the intended outcome rather than a wait without a bound.
+
 ## Controls
 
 Each production site has a child-process control (`binary_markdown_tests.rs`,

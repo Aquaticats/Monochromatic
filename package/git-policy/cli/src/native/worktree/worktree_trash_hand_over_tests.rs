@@ -11,7 +11,7 @@ use crate::service_route::Route;
 use crate::service_server::Bind;
 use crate::service_work::{Verdict, work_directory};
 use crate::test_support::{fixture, git_context, remove};
-use crate::work_item::{DONE, PENDING, WorkItem, WorkKind, state_directory};
+use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, state_directory};
 use crate::worktree_trash::{PendingTrash, TRASH_PARENT, TRASH_REFERENCE, TrashManifest, empty_trash, entry_name};
 use std::path::{Path, PathBuf};
 
@@ -104,6 +104,37 @@ fn a_hand_over_with_no_service_leaves_the_trash_and_its_record_under_the_common_
     assert_eq!(item.branch_ref, TRASH_REFERENCE);
     assert_eq!(item.oid, name);
     assert_eq!(item.parent, manifest.encode(), "the record carries the identities the leave-out wrote");
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash whose record the service gave up on is not handed to a service again,
+///  and the answer names the record that holds the failure.
+/// Why:
+///   The id of a record is the trash's name,
+/// so offering the same trash again finds the settled record and writes nothing;
+/// waking a
+///  service for it would tell the service about work it never claims,
+/// and the person would be told the trash
+///  empties when only they can remove it.
+#[test]
+fn a_trash_whose_record_the_service_gave_up_on_is_not_handed_over_again() {
+    let name: String = "5".repeat(40);
+    let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-given-up", name.as_str(), 1);
+    let pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
+    crate::worktree_trash::record_the_trash(&pending).expect("the record the add writes before it returns");
+    let item: WorkItem = record_of(common.as_path(), &manifest);
+    let waiting: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING).join(item.id());
+    let failed: PathBuf = state_directory(work_directory(common.as_path()).as_path(), FAILED).join(item.id());
+    std::fs::rename(waiting.as_path(), failed.as_path()).expect("the service gave up on it");
+    let mut notices: Vec<u8> = Vec::new();
+    let reason: String = hand_over_with(&git_context(), &pending, &mut notices, &reach(&no_service, &nothing_to_set_up)).expect_err("a record the service gave up on is reported, never swallowed");
+    assert!(reason.contains("gave up"), "the reason says the service gave up on the record: {reason}");
+    assert!(reason.contains(failed.display().to_string().as_str()), "the reason names the record that holds the failure: {reason}");
+    assert!(reason.contains("only you will remove them"), "the reason says who removes the trash: {reason}");
+    assert!(!reason.contains("no commit service can be started from this session"), "no service was woken for a record it never claims: {reason}");
+    assert!(!waiting.exists() && failed.is_file(), "the settled record stays where it is");
+    assert!(worktree.join(TRASH_PARENT).join(&name).join("d0/payload/credentials").is_file(), "the trash stays where the leave-out put it");
     remove(root.as_path());
 }
 

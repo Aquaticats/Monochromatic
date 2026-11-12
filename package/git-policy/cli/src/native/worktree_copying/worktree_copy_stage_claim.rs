@@ -257,10 +257,16 @@ impl StageClaim {
 
     pub fn record_binding(&self, binding: &Binding) -> Result<(), WorktreeCopyError> {
         let Some(record) = self.destination_record.as_deref() else { return Ok(()) };
-        write_atomic(record, binding.encode().as_bytes(), "destination record")?;
-        if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(raw_failure_of)?;
-        }
+        // The copy the add owes is a line of the record this write replaces, so it is read out and written again: a
+        // record that lost it would name a worktree no later command could fill.
+        let owed: Option<crate::worktree_add_binding::OwedCopy> = match std::fs::read_to_string(record) {
+            Ok(text) => crate::worktree_add_binding::owed_copy_of(text.as_str()),
+            Err(_unreadable) => None,
+        };
+        // Published whole by one rename and flushed by nobody: this write waited 2.7 to 3.4 seconds of a loaded add
+        // (measured 2026-11-11), a kill keeps it in the page cache, and a record a power cut takes back only makes a later
+        // command keep and report the objects it names, which is the safe direction.
+        write_atomic_unsynced(record, crate::worktree_add_binding::registered_record_with(binding, owed.as_ref(), None).as_bytes(), "destination record")?;
         return Ok(());
     }
 
@@ -409,6 +415,41 @@ pub fn claim_stage_for(
     destination_root: &Path,
     owner: &CopyOwner,
 ) -> Result<StageClaim, WorktreeCopyError> {
+    return claim_stage_for_writing(common_dir, destination_root, owner, RecordWrite::Durable);
+}
+
+/// What:
+///  Whether a record this module publishes is flushed to disk before the call returns.
+/// Why:
+///   A copy's claim names a stage holding what the copy took from the source,
+/// which no later command can make again for nothing,
+///  so it is flushed;
+/// an add's records name work that is redone from the source or only reported,
+/// and a kill keeps every byte  of them in the page cache,
+/// so flushing them only makes the add wait for the disk (see [`StageClaim`]).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RecordWrite = 'durable' | 'unflushed';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RecordWrite {
+    /// The file and the directory that holds it are flushed:
+    /// a power cut finds the claim.
+    Durable,
+    /// Neither is flushed:
+    /// the rename publishes the claim whole,
+    /// and the filesystem makes it durable with its next commit.
+    Unflushed,
+}
+
+/// `claim_stage_for` with the flushing its caller needs.
+fn claim_stage_for_writing(
+    common_dir: &Path,
+    destination_root: &Path,
+    owner: &CopyOwner,
+    write: RecordWrite,
+) -> Result<StageClaim, WorktreeCopyError> {
     let root: PathBuf = ensure_journal_root(common_dir)?;
     let container: PathBuf = new_stage_container(destination_root)?;
     let identifier: String = container
@@ -419,8 +460,43 @@ pub fn claim_stage_for(
         .to_string();
     let path: PathBuf = root.join(format!("{identifier}{CLAIM_SUFFIX}"));
     let text: String = claim_text(container.as_path(), owner);
-    write_atomic(path.as_path(), text.as_bytes(), "stage claim")?;
+    // `match` on the flushing the caller asked for: the two writers differ in nothing else.
+    match write {
+        RecordWrite::Durable => write_atomic(path.as_path(), text.as_bytes(), "stage claim")?,
+        RecordWrite::Unflushed => write_atomic_unsynced(path.as_path(), text.as_bytes(), "stage claim")?,
+    }
     return Ok(StageClaim { path, container, destination_record: None });
+}
+
+/// What:
+///  The claim that names one stage container,
+/// with the destination record beside it,
+/// or nothing when no claim names it any more.
+/// Why:
+///   A copy's journal names the stage it fills and the claim the add wrote names it too,
+/// and a kill between the journal's creation and the claim's release leaves both;
+/// the journal's recovery settles the claim through this lookup,
+/// so a copy finished later leaves no claim and no record behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claim = claimNamingStage(commonDir, container); // undefined when no claim names it
+/// ```
+pub fn claim_naming_stage(common_dir: &Path, container: &Path) -> Option<StageClaim> {
+    let name: &str = container.file_name()?.to_str()?;
+    let identifier: &str = name.strip_prefix(STAGE_PREFIX)?;
+    if identifier.is_empty() {
+        return None;
+    }
+    let path: PathBuf = journal_root(common_dir).join(format!("{identifier}{CLAIM_SUFFIX}"));
+    // An absent claim is no claim: the add released it before its journal, which is the state a finished copy leaves.
+    std::fs::symlink_metadata(path.as_path()).ok()?;
+    let record: PathBuf = path.with_extension(&DESTINATION_SUFFIX[1..]);
+    let record_stands: Option<&Path> = match std::fs::symlink_metadata(record.as_path()) {
+        Ok(_) => Some(record.as_path()),
+        Err(_) => None,
+    };
+    return StageClaim::adopted(path.as_path(), container, record_stands);
 }
 
 pub(crate) const DESTINATION_SUFFIX: &str = ".add";
@@ -499,9 +575,13 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
 /// const claim = await claimStageForAddAsOwing({ commonDir, destinationRoot, owner, owed });
 /// ```
 pub fn claim_stage_for_add_as_owing(common_dir: &Path, destination_root: &Path, owner: &CopyOwner, owed: Option<&OwedCopy>) -> Result<StageClaim, WorktreeCopyError> {
-    let mut claim: StageClaim = claim_stage_for(common_dir, destination_root, owner)?;
+    // Neither record is flushed: a `git worktree add` waited 15 to 44 seconds for these two writes under load (a loaded
+    // host of 2026-11-11, `recordDestination` in the add timing record), and a kill keeps both in the page cache. What a
+    // power cut can take away is the report of an interrupted add and the name of a stage nothing else removes, and the
+    // next command answers a missing record at once (`settle_interrupted_add`) rather than losing anything of the person's.
+    let mut claim: StageClaim = claim_stage_for_writing(common_dir, destination_root, owner, RecordWrite::Unflushed)?;
     let record: PathBuf = claim.path.with_extension(&DESTINATION_SUFFIX[1..]);
-    write_atomic(record.as_path(), planned_record_with(destination_root, owed, None).as_bytes(), "destination record")?;
+    write_atomic_unsynced(record.as_path(), planned_record_with(destination_root, owed, None).as_bytes(), "destination record")?;
     claim.destination_record = Some(record);
     return Ok(claim);
 }

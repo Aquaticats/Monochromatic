@@ -31,6 +31,27 @@ pub enum Bind {
 }
 
 /// What:
+///  The address a service is asked at,
+/// as the text a person can act on.
+/// Why:
+///  A notice and a failure name the address,
+/// which is the one fact that tells two worktrees' services apart;
+/// an abstract name has no path a person can look at,
+/// so it is said to be a name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// addressText({ path: '/run/user/1000/monochromatic-git-policy-cli/abc.sock' }) // that path
+/// ```
+pub fn address_text(address: &Bind) -> String {
+    return match address {
+        Bind::Abstract(name) => format!("the name {name}"),
+        Bind::Path(path) => path.display().to_string(),
+        Bind::Inherited => String::from("the one this service was started with"),
+    };
+}
+
+/// What:
 ///  Opens the listening socket.
 /// Why:
 ///   Socket activation hands over a bound socket,
@@ -134,3 +155,8 @@ pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener>
     std::fs::remove_file(path)?;
     return UnixListener::bind(path);
 }
+
+/// Controls of the address text stay out of the release executable.
+#[cfg(test)]
+#[path = "service_server_socket_binding_tests.rs"]
+mod tests;

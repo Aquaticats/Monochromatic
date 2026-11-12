@@ -25,6 +25,7 @@
 //! ```
 
 use crate::global_arguments::takes_value;
+use crate::worktree_identity::{WorktreeIdentity, git_directory, worktree_root};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
@@ -67,12 +68,18 @@ fn inline_value(token: &[u8], spelling: &str) -> Option<OsString> {
 ///  as `--git-dir <absolute>` and `--work-tree <absolute>`,
 ///  or nothing when the prefix names no repository.
 /// Why:
-///   A commit's own Git children run in `directory`,
-///  the directory the caller's `-C` chain reached,
+///   A commit's own Git children run somewhere other than the caller's directory,
 ///  and a request that keeps none of the caller's other options still needs the repository the caller named.
 ///  The last `--git-dir` (or `--bare`) wins and so does the last `--work-tree`,
 ///  as with Git,
-///  and both are read from `directory` because Git resolves them after its last `-C`.
+///  and both are read from the directory the `-C` chain ends in,
+///  because Git resolves them after its last `-C`.
+///  `directory` must therefore be the directory the command runs in,
+///  before any `-C`:
+///  handing this function a directory Git discovered instead applies the chain a second time
+///  and names a repository that does not exist
+///  (`of_identity`,
+///  which is what a rule that starts Git elsewhere wants).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -174,6 +181,31 @@ pub fn of_paths(git_dir: &Path, work_tree: &Path) -> Vec<OsString> {
         OsString::from(WORK_TREE),
         work_tree.as_os_str().to_os_string(),
     ];
+}
+
+/// What:
+///  The repository a located invocation is in,
+///  as `--git-dir <absolute>` and `--work-tree <absolute>`,
+///  or nothing for a plain `<worktree>/.git` layout Git finds by itself
+///  and for an invocation in no work tree.
+/// Why:
+///   A rule that starts Git somewhere other than the caller's own directory cannot re-read the caller's options:
+///  Git resolves a relative `--git-dir` after its last `-C`,
+///  so resolving that value again from a directory Git discovered applies the directory change a second time
+///  and names another repository.
+///  The location Git answered already holds both directory names,
+///  resolved once,
+///  so this names the repository the command line selected without re-deriving it from tokens whose reading is Git's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ofIdentity = (identity) => 'worktreeRoot' in identity ? ofPaths(identity.gitDir, identity.worktreeRoot) : [];
+/// ```
+pub fn of_identity(identity: &WorktreeIdentity) -> Vec<OsString> {
+    let (Some(git_dir), Some(work_tree)) = (git_directory(identity), worktree_root(identity)) else {
+        return Vec::new();
+    };
+    return of_paths(git_dir, work_tree);
 }
 
 /// What:
