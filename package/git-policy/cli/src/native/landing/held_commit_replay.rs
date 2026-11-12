@@ -97,7 +97,7 @@ fn current_value(git: &GitContext, held: &Held) -> Option<String> {
 /// ```ts
 /// await currentValueAwaiting(git, held) // '' when the ref is missing, undefined when Git gave no answer
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the commit path calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the settlement face waits for the finish awaited faces (doc/planning/git-policy-cli-full-tokio.md)"))]
 async fn current_value_awaiting(git: &GitContext, held: &Held) -> Option<String> {
     return current_value_answered(run_git_awaiting(git, &current_value_request(held)).await);
 }
@@ -546,7 +546,7 @@ pub(crate) fn value_now(git: &GitContext, held: &Held) -> Option<String> {
 /// ```ts
 /// await valueNowAwaiting(git, held)
 /// ```
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the commit path calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the settlement face waits for the finish awaited faces (doc/planning/git-policy-cli-full-tokio.md)"))]
 pub(crate) async fn value_now_awaiting(git: &GitContext, held: &Held) -> Option<String> {
     return current_value_awaiting(git, held).await;
 }
