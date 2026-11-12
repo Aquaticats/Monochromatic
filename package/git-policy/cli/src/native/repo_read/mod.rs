@@ -40,6 +40,10 @@ pub mod repository_facts_staged_selection;
 ///  read beside the provider so its interface file stays within its line bound.
 pub mod repository_facts_ignored_files;
 
+/// The listed paths whose only content is the index,
+///  read beside the provider so its interface file stays within its line bound.
+pub mod repository_facts_index_only_paths;
+
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;
 

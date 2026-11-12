@@ -36,26 +36,34 @@
 /// import { resolveForwardedCommand, Route } from './forwarded_command.ts';
 /// import { decideGuardedWord } from '../command/rule_linked_worktree.ts';
 /// ```
+use crate::external_git_command::alias_run_directory;
 use crate::forwarded_command::{ResolvedCommand, Route, resolve_forwarded_command};
 use crate::git_builtins::is_git_builtin;
-use crate::global_arguments::command_tokens;
+use crate::global_arguments::{GlobalLayout, command_tokens, global_layout};
 use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_guarded_word};
 /// The transaction Git context the resolver asks for an alias.
 use crate::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
+/// `PathBuf` is an owned filesystem path of raw bytes.
+use std::path::PathBuf;
 
 /// What:
-///  The guard's decision and the arguments it decided about.
+///  The guard's decision,
+///  the arguments it decided about and,
+///  for a `!` alias,
+///  the directory its shell runs in.
 ///  A `struct` is a record with named fields.
 /// Why:
 ///   A caller that records what it decided has to name the command Git will run,
 /// which for an alias is the
-///  expansion and not the alias name.
+///  expansion and not the alias name,
+///  and a caller that resolves a relative path of that command needs the directory Git
+///  starts its shell in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type GuardedForwarded = { decision: LinkedWorktreeDecision; args: string[] };
+/// type GuardedForwarded = { decision: LinkedWorktreeDecision; args: string[]; shellDirectory?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GuardedForwarded {
@@ -65,6 +73,17 @@ pub struct GuardedForwarded {
     ///  the caller's own,
     ///  or the alias expansion the wrapper forwards.
     pub arguments: Vec<OsString>,
+    /// What:
+    ///  The directory Git runs the shell of a `!` alias in,
+    ///  when the decision is about the command that shell runs;
+    ///  nothing for a direct command,
+    ///  an ordinary alias and every pass.
+    /// Why:
+    ///   Git changes to the top of the working tree before it starts such a shell
+    ///  (`git.c:388` to `git.c:407`),
+    ///  so a relative path the command inside it names is read from there,
+    ///  never from the caller's `-C` chain.
+    pub shell_directory: Option<PathBuf>,
 }
 
 /// What:
@@ -92,6 +111,7 @@ pub fn decide_guarded_forwarded(
         return GuardedForwarded {
             decision: LinkedWorktreeDecision::Pass,
             arguments: arguments.to_vec(),
+            shell_directory: None,
         };
     };
     // `.as_encoded_bytes()` lends the raw bytes of the word.
@@ -99,6 +119,7 @@ pub fn decide_guarded_forwarded(
         return GuardedForwarded {
             decision: decide_guarded_word(word.as_encoded_bytes(), region),
             arguments: arguments.to_vec(),
+            shell_directory: None,
         };
     }
     // The word names no built-in, so Git looks it up as an alias, and an undefined name is left to Git.
@@ -112,29 +133,64 @@ pub fn decide_guarded_forwarded(
             return GuardedForwarded {
                 decision: LinkedWorktreeDecision::Pass,
                 arguments: arguments.to_vec(),
+                shell_directory: None,
             };
         };
         let Some((shell_word, shell_region)) = command_tokens(shell_command.as_slice()) else {
             return GuardedForwarded {
                 decision: LinkedWorktreeDecision::Pass,
                 arguments: arguments.to_vec(),
+                shell_directory: None,
             };
         };
         return GuardedForwarded {
             decision: decide_guarded_word(shell_word.as_encoded_bytes(), shell_region),
             arguments: arguments.to_vec(),
+            // The command the shell runs is read from the directory Git put the shell in, not from the caller's.
+            shell_directory: shell_run_directory(context, arguments),
         };
     }
     if resolved.route != Route::Alias || resolved.subcommand.is_none() {
         return GuardedForwarded {
             decision: LinkedWorktreeDecision::Pass,
             arguments: arguments.to_vec(),
+            shell_directory: None,
         };
     }
     return GuardedForwarded {
         decision: decide_guarded_word(resolved.word(), resolved.region()),
         arguments: resolved.arguments,
+        shell_directory: None,
     };
+}
+
+/// What:
+///  The directory Git runs the shell of a `!` alias in,
+///  asked of Git with the caller's own global options.
+///  `&[OsString]` borrows the caller's whole argument vector;
+///  `Option<PathBuf>` is that directory,
+///  and nothing when it cannot be named.
+/// Why:
+///   Git changes to the top of the working tree before it starts such a shell
+///  (`git.c:388` to `git.c:407`),
+///  so the same relative path names one file in the caller's directory
+///  and another in the shell's.
+///  `alias_run_directory` is the one answer to that question in this crate,
+///  the same one the search for an installed `git-<word>` uses,
+///  so a path read here cannot land somewhere Git never goes.
+///  This asks Git only for an alias whose shell runs one plain Git command,
+///  and a caller that gets nothing falls back to the directory the caller's options reach,
+///  which is where Git runs every other command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shellRunDirectory = (globals, start) => aliasRunDirectory({ globals, start });
+/// ```
+fn shell_run_directory(context: &GitContext, arguments: &[OsString]) -> Option<PathBuf> {
+    let layout: GlobalLayout = global_layout(arguments);
+    let globals: &[OsString] = &arguments[..layout.prefix_len];
+    let start: PathBuf = std::env::current_dir().ok()?;
+    return alias_run_directory(context, globals, Some(start.as_path()));
 }
 
 /// Alias resolution,
