@@ -59,10 +59,10 @@ pub mod command_run_directory;
 ///  and the one place a form is let through.
 pub mod policy_linked_worktree_nested_repositories;
 
-/// Keeping every worktree entry a form would overwrite,
-///  whole,
-///  before Git runs.
-pub mod policy_linked_worktree_saved_overwrite;
+/// Every worktree entry a form would write over or delete,
+///  which nothing else holds,
+///  refused before Git runs.
+pub mod policy_linked_worktree_refused_overwrite;
 
 /// What a lifecycle offers content policies,
 ///  and its candidates once prepared.

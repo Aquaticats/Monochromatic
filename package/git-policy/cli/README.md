@@ -2410,23 +2410,33 @@ The rule is:
   and a person who means it can still write `git checkout --overwrite-ignore <branch>`.
 - A forced `git checkout -f`,
   a forced `git switch -f`, a `git reset --hard`,
-  a path `git checkout <revision> -- <path>` and a `git restore --source=<revision> <path>` override that
-  token or write files whatever the status says,
-  so in a linked worktree those forms ask Git which paths they write before they run and keep every entry
-  the worktree holds there that Git did not put there:
+  `git reset --merge`,
+  `git reset --keep`,
+  a path `git checkout <revision> -- <path>`,
+  a `git restore --source=<revision> <path>`,
+  and a `git read-tree -m -u` or `git read-tree --reset -u` override that token or write files whatever the
+  status says,
+  so in a linked worktree those forms ask Git which paths they write, and what the worktree holds there,
+  before they run.
+  A file Git did not put there is refused:
   an untracked file,
   an ignored file,
-  a directory, and with it the work inside a nested repository.
-  Each one is copied or moved whole to
-  `.git/monochromatic-git-policy-cli/discarded/<stamp>/<path>`, a line names the entry and the copy, and
-  the form runs as you typed it;
-  `git restore --source=<revision> -- .env` and `git checkout <revision> -- .env` therefore end the same
-  way, with your file saved and the command run.
-  The only refusal there is a copy that cannot be made, and it names what stopped it.
+  a directory and the work inside a nested repository at its path,
+  and an edit to a path you marked with `git update-index --assume-unchanged`,
+  because those forms lose it whatever the mark says.
+  The refusal names each entry (five, then a count),
+  says that nothing else holds them,
+  that nothing in the worktree was changed,
+  and the exact command with `--no-enforce-worktree` that runs the form as real Git runs it,
+  with no copy kept.
+  The owner's answer of 2026-11-12T10:35:07 decided this ("Refuse with opt-out"),
+  replacing the copy-and-run answer of the day before.
+  `reset --merge` and `reset --keep` refuse only the entries Git writes over there: it refuses an untracked
+  file itself and writes over the ignored one, so only the ignored entries are asked about.
+  `read-tree --reset -u` writes over an untracked file as well and asks about both,
+  while `read-tree -m -u` and `read-tree --prefix=<directory>/ -u` refuse an untracked one themselves.
   A worktree that holds untracked files elsewhere, off the paths the form writes, is untouched by this.
-  The tracked state of the worktree is still what makes the worktree clean or dirty,
-  and an edit to a path you marked with `git update-index --assume-unchanged` counts, because those forms
-  overwrite it whatever the mark says.
+  The tracked state of the worktree is still what makes the worktree clean or dirty.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
    Git sees an initial checkout there (`is_index_unborn` in `read-cache.c`,
@@ -2573,8 +2583,13 @@ Every rejection names the form,
  the alternative that fits the most likely intent,
  and the deliberate way to discard anyway.
 The deliberate way is always the same:
- save a copy (`git diff > backup.patch`) and pass `--no-enforce-worktree` directly after the subcommand.
-`git apply backup.patch` brings the edits back.
+ pass `--no-enforce-worktree` directly after the subcommand,
+ and the command runs exactly as real Git runs it,
+ with no copy kept by the wrapper.
+The refusal ran before Git did, so your work is still where you left it when the text prints;
+if you want a copy before deciding, take one that holds what is at stake,
+because a patch from `git diff` holds no untracked file,
+no ignored file and no edit the index marks `assume-unchanged`.
 
 During a merge,
 a rebase,
@@ -2766,8 +2781,8 @@ the highest is
 The rotated files are kept up to 32 MiB together,
 oldest removed first,
 and
- a rotated file with a `saved-conflict`,
-`saved-nested-repository` or `saved-overwritten` line whose copy still exists is never removed,
+ a rotated file with a `saved-conflict` or `saved-nested-repository` line whose copy still exists is never
+removed,
 which can take the log past 32 MiB.
  The reading of a rotated file to see whether it names a copy happens on a thread of its own,
 never on the command's path.
@@ -2824,7 +2839,7 @@ Each alternative is run through the built executable by `src/native/binary/binar
    `--ours` or `--theirs` (reverting files):
    `git diff -- <path>` and `git show HEAD:<path>` compare,
    `git worktree add <path> <branch>` opens another branch,
-   or save a patch and use the hatch.
+   or copy the file elsewhere (`cp -- <path> <a directory outside the worktree>`) and use the hatch.
 - `git checkout <branch>` and `git switch <branch>` while the worktree is dirty,
    and `git switch --force`:
    commit with explicit paths first,
@@ -2845,6 +2860,9 @@ Each alternative is run through the built executable by `src/native/binary/binar
    `git read-tree --dry-run` with the same arguments shows what the read would change without writing anything,
    `git ls-tree` and `git cat-file` read a tree without touching the index,
    or replace the index in a clean linked worktree.
+  With `-u` the form writes worktree files, so it is refused while a file Git did not put there stands at a
+  path one of the trees it names holds (`--prefix` shifts those paths below the directory it names),
+  and the refusal names the file.
 - `git merge --abort`,
    `git rebase --abort`,
    `git cherry-pick --abort`,

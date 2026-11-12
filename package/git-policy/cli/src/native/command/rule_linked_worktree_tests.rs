@@ -277,7 +277,9 @@ fn every_text_names_the_loss_an_alternative_and_the_hatch() {
         assert!(outside.contains("-C <linked-worktree-root>"), "{command:?}");
         for text in [&main, &dirty] {
             assert!(text.contains("--no-enforce-worktree"), "{command:?}: {text}");
-            assert!(text.contains("git diff > backup.patch"), "{command:?}: {text}");
+            // The refusal ran before Git did, so the advice never asks for a copy `git diff` makes:
+            //  that patch holds no untracked file, no ignored file and no edit behind `assume-unchanged`.
+            assert!(!text.contains("git diff > backup.patch"), "{command:?} advises a patch that saves nothing: {text}");
             assert!(text.contains(" (allowed)") || text.contains("git commit --message")
                 || text.contains("git rm <destination>") || text.contains("git rebase --continue")
                 || text.contains("--continue") || text.contains("git diff -- <path>"),
@@ -296,7 +298,7 @@ fn each_intent_gets_its_own_alternative() {
     assert!(unstage.contains("git diff --cached --name-only"));
     let revert = main_worktree_message(GuardedCommand::RestoreWorktree);
     assert!(revert.contains("git show HEAD:<path>"));
-    assert!(revert.contains("git diff -- <path> > backup.patch"));
+    assert!(revert.contains("cp -- <path> <a directory outside the worktree>"));
     assert!(main_worktree_message(GuardedCommand::ResetHard).contains("git reset --soft <commit>"));
     assert!(main_worktree_message(GuardedCommand::Stash).contains("git worktree add -b <branch> <path>"));
     assert!(main_worktree_message(GuardedCommand::StashDrop).contains("git stash branch <branch>"));
@@ -358,7 +360,6 @@ fn the_readme_documents_what_the_texts_recommend() {
         );
         assert!(readme.contains(phrase), "{command:?}: README lacks {phrase}");
     }
-    assert!(readme.contains("git diff > backup.patch"));
     assert!(readme.contains("--no-enforce-worktree"));
 }
 

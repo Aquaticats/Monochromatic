@@ -16189,15 +16189,22 @@ like `-u` without `-m`,
 `--reset` or `--prefix`,
 is the refusal and passes.
 A `read-tree` with `-u` writes worktree files,
-and no written path is read for it,
-so the file it writes over is decided by the status question alone
-and an ignored file in the way is not saved:
-`git read-tree -m -u HEAD other` over an ignored `b.txt` that `other` tracks exits 0 with the
-file replaced, in native Git and through the wrapper
-(measured on this host with Git 2.56.0,
-2026-11-12).
-An untracked file in the same place is refused by Git itself,
-which is the one case this leaves safe.
+and the paths it writes are read like the other written paths
+(see "The paths a form writes" below):
+every path of every tree the form names,
+each below the directory `--prefix` puts it in.
+Which entries it writes over depends on the mode,
+measured on this host with native Git 2.56.0:
+`read-tree --reset -u other` replaces an untracked `b.txt` at exit 0,
+while `read-tree -m -u HEAD other` refuses one
+(`error: Untracked working tree file 'b.txt' would be overwritten by merge.`, exit 128)
+and writes over the ignored one at exit 0.
+The reset form therefore asks about every entry at those paths,
+and the merge and prefix forms about the ignored ones alone:
+asking about the untracked ones as well would refuse a command Git refuses itself,
+and name a loss that does not happen.
+`read-tree -u other` without `-m`, `--reset` or `--prefix` is Git's own refusal and writes nothing,
+as is a form that names no tree, so neither is read.
 This is the known hole of this reading.
 The word this reading reads is the word Git will run.
 An ordinary alias (`alias.<name>`,
@@ -16367,17 +16374,27 @@ would overwrite or delete whatever Git's status calls the file
 an untracked file,
 an ignored file,
 and the work inside a nested repository at such a path are all work a person made.
-Every one of them is copied or moved aside first,
-named,
-and the command runs as typed
-(`policy/policy_linked_worktree_saved_overwrite.rs`);
-a refusal would only send the person to move the file by hand,
-and a clean worktree that merely holds untracked files elsewhere is neither stopped nor slowed:
+Every one of them is refused,
+and the refusal names each entry (five of them, then a count),
+says in one sentence why the command would lose them,
+says that nothing in the worktree changed,
+and gives the exact command with `--no-enforce-worktree` directly after the subcommand,
+which runs the form exactly as real Git runs it and keeps no copy
+(`policy/policy_linked_worktree_refused_overwrite.rs`,
+`command/rule_linked_worktree_refused_overwrite_messages.rs`).
+The owner's answer of 2026-11-12T10:35:07 chose "Refuse with opt-out",
+replacing the "ship as built" answer of 10:27:45 for this guard
+(`doc/handover/cli-git-rust-implementation.md`, the section of about 10:33):
+a command that could destroy a person's data is refused and names what it would destroy,
+and the guard's option runs it as real Git would,
+with no copy.
+A worktree that holds nothing at those paths is neither stopped nor slowed:
 the listing is one pass over the worktree,
 and an entry off the written paths is dropped in the wrapper's own process
-before anything is copied or named.
-The one refusal this reading has is a copy that cannot be made,
-and it names what stopped it.
+before anything is refused.
+A listing Git cannot read is a refusal too,
+never a clean answer:
+what the command would overwrite was never seen.
 A `clean` counts untracked files as well,
 and keeps its own recorded answer for the files it deletes.
 An ignored file is not a reason to refuse a clean in a linked worktree,
@@ -16590,8 +16607,11 @@ and `--merge` and `--keep` refuse an untracked one
 (`Untracked working tree file 'b.txt' would be overwritten` and exit 128)
 while writing over the one their ignore rules cover, with exit 0.
 The merge and keep modes are therefore asked about the ignored entries alone;
-asking about the untracked ones as well would copy a file Git keeps and say a loss happened that
-did not.
+asking about the untracked ones as well would refuse a command over a file Git keeps and say a loss
+happened that did not.
+`read-tree --reset -u` writes over an untracked file as well, so it asks about every entry at the
+paths of the trees it names and about the ignored ones alone in its other forms
+(`command/command_written_paths.rs`, the read-tree paragraph above).
 a `checkout <revision> -- <paths>` and a `restore` with a source write the tree paths their own
 pathspecs reach,
 which Git matches itself;
@@ -16607,7 +16627,7 @@ each asked once per command,
 with each answer intersected against the written paths in the wrapper's own process
 (`repo_read/repository_facts_paths_in_the_way.rs`).
 `--directory` names a directory the worktree holds whole as one entry (`nested/`),
-which is the entry a save must keep whole,
+which is the entry a refusal must name,
 and bounds a listing to one entry per such directory instead of one per file inside it.
 Asking Git about the written paths alone was measured and lost.
 In a worktree holding 23,683 tracked files,
@@ -16647,27 +16667,19 @@ which only `switch` and `checkout` read as the previous branch,
 is read as `@{-1}` before the tree is listed,
 because no other Git command resolves `-` and the tree would otherwise be read as `HEAD`'s;
 `@{-N}` is resolved by Git itself wherever an object name is read.
-Each entry found is kept before Git starts:
-a file or a symbolic link is copied,
-because the command may still refuse it and the worktree must stay as it was when it does,
-and a directory is moved whole,
-because nothing copies a nested repository's history cheaply and a rename keeps every byte.
-The copies live where the package's other copies live,
-`<common git dir>/monochromatic-git-policy-cli/discarded/<stamp>/<path below the worktree>`,
-under the age and size limits those copies already have,
-and the notice names each entry and its place before Git runs;
-the audit line carries `outcome` `saved-overwritten` with one `copies` entry per saved path.
-The ignored file those forms replace is therefore saved and the form runs,
-which is the same answer `checkout <rev> -- <path>` gives for the same bytes:
-before this reading existed the pair refused,
-and a refusal sends the person to move the file by hand while the copy keeps them.
-The one refusal is a copy that cannot be made,
-and it names the entries,
-the failure and the place the copies go,
-and leaves the worktree exactly as it was.
-A listing Git cannot read is that refusal too,
-never a clean answer:
-what the command would overwrite was never seen.
+Each entry found is refused before Git starts:
+the command does not run,
+the worktree is exactly as it was when the message prints,
+and the audit line carries `outcome` `rejected`.
+The refusal names the form,
+each entry (up to five, then `and N more`),
+one sentence saying that Git did not put them in the worktree so the repository holds no copy,
+that nothing in the worktree changed,
+and the exact command with `--no-enforce-worktree` directly after the subcommand,
+each word of the form quoted for a shell,
+which runs the form exactly as real Git runs it.
+The ignored file those forms would replace is therefore refused and named,
+which is the same answer `checkout <rev> -- <path>` gives for the same bytes.
 A status Git cannot read is a `fact-unavailable` finding,
 never a clean worktree.
 Repositories under an allowlisted tool cache are exempt.
@@ -16856,9 +16868,9 @@ or that holds no commit id,
 is a rejection and never a quiet fall back to `HEAD`,
 because the ignored-file refusal it earns must not read as clean.
 An ignored file at one of those paths keeps the rejection and is named;
-the forced `checkout` and the hard `reset` that this reading was modelled on now save such a file
-and run instead (see "A forced `checkout -f`" above),
-and moving the abort forms the same way belongs to the run that owns them.
+the forced `checkout` and the hard `reset` that this reading was modelled on now refuse such a file
+and name it instead (see "A forced `checkout -f`" above),
+which is the same answer the abort forms give.
 
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
@@ -17373,12 +17385,10 @@ so the line cannot know whether Git ran the deletion or refused it:
 and each leaves the same line as the deletion that ran.
 The field says that in words a reader cannot take for the result,
 where `outcome` alone said `logged` for both.
-A `saved-overwritten` line names each entry the command would have written over and the place its
-copy is,
-written `<path> => <place>`,
-so a reader sees what was kept and where it went;
-its `dirty` is what the status question answered,
-which is `false` for a clean worktree and `null` for a form that asks no status question.
+A `rejected` line for one of those forms carries `dirty` as what the status question answered,
+which is `false` for a clean worktree,
+and the words the person reads are on standard error,
+not in the record.
 The line also has `time` (the ISO form),
 `level` (`warn` for `rejected`),
 `release` and `gitDir` (the invocation's own Git directory,

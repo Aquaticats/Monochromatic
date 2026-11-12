@@ -1,8 +1,8 @@
 //! What:
 //!  The audits' two matrices, kept:
 //!  every discarding form against every kind of file in the way,
-//!  wrapped and direct,
-//!  with what must survive.
+//!  refused rather than saved,
+//!  and the same form under the guard's own opt-out beside real Git.
 //! Why:
 //!  Two independent audits of 0.6.1-alpha.12 found the same hole from two directions:
 //!  the guard decided from a status that names none of the files these forms overwrite,
@@ -10,20 +10,28 @@
 //!  an `assume-unchanged` mark were all lost with no refusal and no copy.
 //!  A matrix is the only shape that keeps every form covered while the code beneath changes:
 //!  each row says what real Git does to the file (the positive control, without which a
-//!  passing row proves nothing) and what the wrapper leaves behind.
+//!  passing row proves nothing),
+//!  that the wrapper refuses while the file stands there,
+//!  and that the same command with `--no-enforce-worktree` leaves the worktree and the index
+//!  exactly as real Git leaves them.
 //!  `skip-worktree` is beside the marks because it must stay the one case Git itself keeps.
 //!  The file in the way is untracked, ignored, a file where the target needs a directory,
 //!  and a nested repository's own work.
-//!  `clean` has no row here: its deletion of untracked and ignored files runs and is logged
-//!  by the owner's answer, so the promise in these rows is not the one it keeps;
+//!  `read-tree` has rows of its own:
+//!  with `-m -u` it writes over an ignored file at exit 0,
+//!  and with `--reset -u` it writes over an untracked one as well,
+//!  which is the hole the reading of written paths closes.
+//!  `clean` has no row here: its deletion of ignored files runs and is logged by the owner's
+//!  answer, so the promise in these rows is not the one it keeps;
 //!  its nested repositories and its pathspec forms are covered by the `discard::` controls.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // every form x every kind of file in the way: wrapped and direct, what survives
+//! // every form x every kind of file in the way: refused, then the opt-out beside real Git
 //! ```
 
-use super::support::{Fixture, Observed, fixture, git, remove, repository, run_direct, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, fixture, git, porcelain, remove, repository, run_direct, run_wrapped, stderr_of};
+use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -44,7 +52,7 @@ enum InTheWay {
     Repository,
 }
 
-/// The forms the untracked matrix runs,
+/// The forms the matrices run,
 /// each as the audit wrote it.
 fn forms() -> Vec<Vec<&'static str>> {
     return vec![
@@ -58,6 +66,7 @@ fn forms() -> Vec<Vec<&'static str>> {
         vec!["checkout", "other", "--", "b.txt"],
         vec!["restore", "--source=other", "--", "b.txt"],
         vec!["read-tree", "-m", "-u", "HEAD", "other"],
+        vec!["read-tree", "--reset", "-u", "other"],
     ];
 }
 
@@ -72,6 +81,12 @@ fn prepared(name: &str, shape: InTheWay) -> (Fixture, PathBuf, PathBuf) {
     if matches!(shape, InTheWay::File) {
         std::fs::write(repo.join("b.txt"), b"tracked on other\n").expect("tracked file");
         git(&fixture, repo.as_path(), &["add", "--", "b.txt"]);
+    } else if matches!(shape, InTheWay::Repository) {
+        // The nested repository's own edited file stands at the path the target tree writes,
+        // so Git writes over the person's edit and the row measures a loss that happens.
+        std::fs::create_dir_all(repo.join("b.txt")).expect("directory on the branch");
+        std::fs::write(repo.join("b.txt/tracked.txt"), b"tracked on other\n").expect("tracked file");
+        git(&fixture, repo.as_path(), &["add", "--", "b.txt/tracked.txt"]);
     } else {
         std::fs::create_dir_all(repo.join("b.txt")).expect("directory on the branch");
         std::fs::write(repo.join("b.txt/inner.txt"), b"tracked on other\n").expect("tracked file");
@@ -103,16 +118,59 @@ fn prepared(name: &str, shape: InTheWay) -> (Fixture, PathBuf, PathBuf) {
     return (fixture, repo, linked);
 }
 
-/// Every file below the saved copies,
-/// which is where the wrapper keeps what it moved or copied aside.
-fn saved_dir() -> &'static str {
-    return "monochromatic-git-policy-cli/discarded";
+/// Every entry of a worktree, as `<kind> <path> <content>`,
+/// in one stable order,
+/// with every `.git` entry left out:
+/// a Git directory names absolute paths and commit times each fixture spells differently,
+/// and it is not the person's worktree.
+fn worktree_state(root: &Path) -> Vec<String> {
+    let mut found: Vec<String> = Vec::<String>::new();
+    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if entry.file_name() == OsStr::new(".git") {
+                continue;
+            }
+            let path: PathBuf = entry.path();
+            let shown: String = path.strip_prefix(root).unwrap_or(path.as_path()).display().to_string();
+            let Ok(metadata) = std::fs::symlink_metadata(path.as_path()) else {
+                continue;
+            };
+            if metadata.file_type().is_symlink() {
+                let target: PathBuf = std::fs::read_link(path.as_path()).unwrap_or_default();
+                found.push(format!("link {shown} {}", target.display()));
+                continue;
+            }
+            if metadata.is_dir() {
+                found.push(format!("dir {shown}"));
+                pending.push(path);
+                continue;
+            }
+            let content: Vec<u8> = std::fs::read(path.as_path()).unwrap_or_default();
+            found.push(format!(
+                "file {shown} {}",
+                content.iter().map(|byte| return format!("{byte:02x}")).collect::<String>()
+            ));
+        }
+    }
+    found.sort();
+    return found;
 }
 
-/// Whether the person's bytes are somewhere below the saved copies of `repo`.
-fn saved_copy_holds(repo: &Path, needle: &[u8]) -> bool {
-    let root: PathBuf = repo.join(".git").join(saved_dir());
-    let mut pending: Vec<PathBuf> = vec![root];
+/// What one arm of one row left behind:
+/// its exit status, its worktree bytes and the index Git reports.
+fn state_after(fixture: &Fixture, linked: &Path, observed: &Observed) -> (Option<i32>, Vec<String>, String) {
+    return (observed.code, worktree_state(linked), porcelain(fixture, linked));
+}
+
+/// Every file the wrapper keeps below its discarded copies,
+/// which a refusal must leave empty.
+fn saved_files(repo: &Path) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::<PathBuf>::new();
+    let mut pending: Vec<PathBuf> = vec![repo.join(".git").join("monochromatic-git-policy-cli").join("discarded")];
     while let Some(directory) = pending.pop() {
         let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
             continue;
@@ -123,12 +181,17 @@ fn saved_copy_holds(repo: &Path, needle: &[u8]) -> bool {
                 pending.push(path);
                 continue;
             }
-            if std::fs::read(path.as_path()).is_ok_and(|bytes| return bytes == needle) {
-                return true;
-            }
+            found.push(path);
         }
     }
-    return false;
+    return found;
+}
+
+/// Whether the wrapper itself refused the command,
+/// rather than letting Git answer for it.
+fn refused_by_the_guard(observed: &Observed) -> bool {
+    let said: String = stderr_of(observed);
+    return said.contains("\"policyId\":\"linked-worktree-only\"") && said.contains("\"type\":\"finding\"");
 }
 
 /// Whether the person's bytes are at `relative` in the linked worktree.
@@ -136,116 +199,118 @@ fn still_where_it_was(linked: &Path, relative: &str, needle: &[u8]) -> bool {
     return std::fs::read(linked.join(relative)).is_ok_and(|bytes| return bytes == needle);
 }
 
-/// Every form against a file the target tree writes,
-/// in every shape the audits used:
-/// the wrapper lets the command run and the person's work is either still there or saved,
-/// while real Git loses it,
-/// which is what makes each row a measurement.
-#[test]
-fn every_form_over_an_untracked_file_keeps_or_saves_it() {
-    for (number, shape) in [InTheWay::File, InTheWay::FileWhereADirectoryMustGo, InTheWay::Repository]
-        .into_iter()
-        .enumerate()
-    {
-        // A shape whose every row was refused by Git would prove nothing, so the count is checked at the end.
-        let mut measured: usize = 0;
-        for (index, arguments) in forms().into_iter().enumerate() {
-            let label: String = format!("discard-matrix-{number}-{index}");
-            // The positive control first: this form over this shape destroys the work in real Git.
-            let (control, control_repo, control_linked): (Fixture, PathBuf, PathBuf) = prepared(label.as_str(), shape);
-            let direct: Observed = run_direct(&control, control_linked.as_path(), arguments.as_slice());
-            let lost_by_git: bool =
-                !still_where_it_was(control_linked.as_path(), "b.txt", PRECIOUS) && !saved_copy_holds(control_repo.as_path(), PRECIOUS);
-            remove(&control);
-            // The wrapper's own run of the same form over the same shape.
-            let (wrapped_fixture, repo, linked): (Fixture, PathBuf, PathBuf) =
-                prepared(format!("{label}-wrapped").as_str(), shape);
-            let observed: Observed = run_wrapped(&wrapped_fixture, linked.as_path(), arguments.as_slice());
-            let kept: bool = still_where_it_was(linked.as_path(), "b.txt", PRECIOUS)
-                || still_where_it_was(linked.as_path(), "b.txt/tracked.txt", PRECIOUS)
-                || saved_copy_holds(repo.as_path(), PRECIOUS);
-            if lost_by_git {
-                measured += 1;
-                // The wrapper saves what the form would destroy and lets it run; a refusal would only send the
-                //  person to move the file by hand.
-                assert_eq!(observed.code, Some(0), "{arguments:?} over {label} refused: {}", stderr_of(&observed));
-                assert!(kept, "{arguments:?} over {label} lost the person's work: {}", stderr_of(&observed));
-            }
-            // A form Git refuses for its own reason changes nothing either, so nothing may be lost there.
+/// Whether the person's bytes are anywhere the form would have kept them:
+/// at `b.txt` or inside the nested repository below it.
+fn the_work_is_there(linked: &Path) -> bool {
+    return still_where_it_was(linked, "b.txt", PRECIOUS) || still_where_it_was(linked, "b.txt/tracked.txt", PRECIOUS);
+}
+
+/// The same command with the guard's own opt-out directly after the subcommand,
+/// which is where the wrapper looks for it.
+fn with_the_hatch(arguments: &[&str]) -> Vec<String> {
+    let mut hatched: Vec<String> = vec![String::from(arguments[0]), String::from(WORKTREE_ENFORCEMENT_ESCAPE_HATCH)];
+    for argument in arguments.iter().skip(1) {
+        hatched.push(String::from(*argument));
+    }
+    return hatched;
+}
+
+/// Run one form with the opt-out and keep the words alive for the call.
+fn run_hatched(fixture: &Fixture, linked: &Path, arguments: &[&str]) -> Observed {
+    let owned: Vec<String> = with_the_hatch(arguments);
+    let words: Vec<&str> = owned.iter().map(|word| return word.as_str()).collect::<Vec<&str>>();
+    return run_wrapped(fixture, linked, words.as_slice());
+}
+
+/// What one row found in real Git:
+/// whether the person's bytes were lost,
+/// and the state that arm left.
+struct Control {
+    /// Whether the bytes were gone after real Git ran.
+    lost: bool,
+    /// The exit status and the state the direct run left,
+    ///  which the opt-out arm must reproduce.
+    state: (Option<i32>, Vec<String>, String),
+}
+
+/// What real Git does with one form over one shape,
+/// measured before the wrapper is asked about it.
+fn control(name: &str, shape: InTheWay, arguments: &[&str]) -> Control {
+    let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = prepared(name, shape);
+    let observed: Observed = run_direct(&fixture, linked.as_path(), arguments);
+    let found: Control = Control {
+        lost: !the_work_is_there(linked.as_path()),
+        state: state_after(&fixture, linked.as_path(), &observed),
+    };
+    remove(&fixture);
+    return found;
+}
+
+/// Every row of one shape:
+/// the wrapper refuses while the person's bytes stand in the way and nothing is written,
+/// a run it let through loses nothing,
+/// and the same command with the opt-out leaves exactly what real Git leaves.
+fn run_shape(shape: InTheWay, label_of_shape: &str) {
+    let mut refused: usize = 0;
+    let mut lost_by_git: usize = 0;
+    for (index, arguments) in forms().into_iter().enumerate() {
+        let label: String = format!("discard-matrix-{label_of_shape}-{index}");
+        let measured: Control = control(format!("{label}-direct").as_str(), shape, arguments.as_slice());
+        if measured.lost {
+            lost_by_git += 1;
+        }
+        let (wrapped_fixture, repo, linked): (Fixture, PathBuf, PathBuf) = prepared(format!("{label}-wrapped").as_str(), shape);
+        let before: Vec<String> = worktree_state(linked.as_path());
+        let observed: Observed = run_wrapped(&wrapped_fixture, linked.as_path(), arguments.as_slice());
+        if refused_by_the_guard(&observed) {
+            refused += 1;
+            let said: String = stderr_of(&observed);
+            assert!(said.contains("b.txt"), "{arguments:?} over {label} refused without naming b.txt: {said}");
+            assert!(said.contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH), "{arguments:?} over {label}: {said}");
+            assert!(said.contains("Nothing in your worktree was changed"), "{arguments:?} over {label}: {said}");
+            assert_eq!(worktree_state(linked.as_path()), before, "{arguments:?} over {label} wrote something before refusing");
+            assert!(the_work_is_there(linked.as_path()), "{arguments:?} over {label} lost the person's work while refusing");
+            assert!(saved_files(repo.as_path()).is_empty(), "{arguments:?} over {label} kept a copy the owner's answer refuses");
+            // The same command under the opt-out runs exactly as real Git runs it.
+            let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
+                prepared(format!("{label}-hatch").as_str(), shape);
+            let passed: Observed = run_hatched(&hatch_fixture, hatch_linked.as_path(), arguments.as_slice());
+            assert_eq!(
+                state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+                measured.state,
+                "{arguments:?} over {label} under the opt-out differs from real Git"
+            );
+            assert!(!refused_by_the_guard(&passed), "{arguments:?} over {label} was refused under its own opt-out: {}", stderr_of(&passed));
+            remove(&hatch_fixture);
+        } else {
+            // A form the wrapper let through loses nothing: Git either keeps the entry itself or refuses the form.
             assert!(
-                kept || observed.code != Some(0),
-                "{arguments:?} over {label} exited 0 and lost the person's work: {}",
+                the_work_is_there(linked.as_path()),
+                "{arguments:?} over {label} exited without a refusal and lost the person's work: {}",
                 stderr_of(&observed)
             );
-            remove(&wrapped_fixture);
-            let _ = direct;
         }
-        assert!(measured > 0, "no form of shape {number} destroys the person's work in real Git, so this matrix proves nothing");
-    }
-}
-
-/// The forms the marked matrix runs,
-/// including a forced form spelled with the shortest abbreviation Git's own table accepts:
-/// a reading that carried its own minimum length read `--f` as no force at all.
-fn marked_forms() -> Vec<Vec<&'static str>> {
-    return vec![
-        vec!["reset", "--hard"],
-        vec!["reset", "--hard", "HEAD"],
-        vec!["reset", "--merge"],
-        vec!["checkout", "--force"],
-        vec!["checkout", "--force", "other"],
-        vec!["checkout", "--", "a.txt"],
-        vec!["checkout", "HEAD", "--", "."],
-        vec!["restore", "."],
-        vec!["restore", "--source=other", "."],
-        vec!["switch", "--discard-changes", "other"],
-        vec!["switch", "other"],
-        vec!["checkout", "other"],
-        vec!["stash"],
-        vec!["stash", "push", "--include-untracked"],
-        vec!["read-tree", "--reset", "-u", "HEAD"],
-        vec!["checkout-index", "-f", "-a"],
-        vec!["checkout-index", "--f", "-a"],
-        vec!["rm", "-f", "a.txt"],
-        vec!["rm", "--f", "a.txt"],
-        vec!["mv", "--f", "a.txt", "b.txt"],
-    ];
-}
-
-/// A forced form over the ignored file the target tree tracks is never the file's loss:
-/// the wrapper either saves it and runs, or lets Git refuse the switch in its own words.
-/// The positive control is the same form over the same shape in real Git,
-/// which writes over the file without a word.
-///  `read-tree` has no row here:
-///  with `-u` it writes worktree files and the guard asks no written path for it,
-///  so a `read-tree -m -u HEAD other` over an ignored file still loses it
-///  (`SPEC.md`, the discarding-commands section, says so and why).
-#[test]
-fn an_ignored_file_in_the_way_is_never_lost() {
-    let mut measured: usize = 0;
-    for (index, arguments) in forms().into_iter().enumerate() {
-        if arguments.first() == Some(&"read-tree") {
-            continue;
-        }
-        let label: String = format!("discard-ignored-{index}");
-        let (control, control_repo, control_linked): (Fixture, PathBuf, PathBuf) =
-            prepared(label.as_str(), InTheWay::Ignored);
-        let _direct: Observed = run_direct(&control, control_linked.as_path(), arguments.as_slice());
-        let lost_by_git: bool = !still_where_it_was(control_linked.as_path(), "b.txt", PRECIOUS)
-            && !saved_copy_holds(control_repo.as_path(), PRECIOUS);
-        remove(&control);
-        let (wrapped_fixture, repo, linked): (Fixture, PathBuf, PathBuf) =
-            prepared(format!("{label}-wrapped").as_str(), InTheWay::Ignored);
-        let observed: Observed = run_wrapped(&wrapped_fixture, linked.as_path(), arguments.as_slice());
-        let kept: bool =
-            still_where_it_was(linked.as_path(), "b.txt", PRECIOUS) || saved_copy_holds(repo.as_path(), PRECIOUS);
-        if lost_by_git {
-            measured += 1;
-        }
-        assert!(kept, "{arguments:?} over {label} lost the ignored file: {}", stderr_of(&observed));
         remove(&wrapped_fixture);
     }
-    assert!(measured > 0, "no form of this matrix writes over the ignored file in real Git, so it proves nothing");
+    assert!(refused > 0, "no form of shape {label_of_shape} is refused, so this matrix proves nothing");
+    assert!(lost_by_git > 0, "no form of shape {label_of_shape} loses the person's work in real Git, so this matrix proves nothing");
+}
+
+/// Every form over a file Git did not put in the worktree:
+/// the wrapper refuses and names it,
+/// and the opt-out runs the form exactly as real Git runs it.
+#[test]
+fn every_form_over_an_untracked_file_is_refused_and_the_opt_out_runs_it() {
+    run_shape(InTheWay::File, "file");
+    run_shape(InTheWay::FileWhereADirectoryMustGo, "file-where-a-directory-must-go");
+    run_shape(InTheWay::Repository, "nested-repository");
+}
+
+/// The same forms over an ignored file the target tree tracks,
+/// which is where a person keeps their environment and their local secrets.
+#[test]
+fn every_form_over_an_ignored_file_is_refused_and_the_opt_out_runs_it() {
+    run_shape(InTheWay::Ignored, "ignored");
 }
 
 /// The edit a person made,
@@ -271,14 +336,58 @@ fn marked(name: &str, mark: Option<&str>) -> (Fixture, PathBuf, PathBuf) {
     return (fixture, repo, linked);
 }
 
+/// The forms the marked matrix runs,
+/// including a forced form spelled with the shortest abbreviation Git's own table accepts:
+/// a reading that carried its own minimum length read `--f` as no force at all.
+fn marked_forms() -> Vec<Vec<&'static str>> {
+    return vec![
+        vec!["reset", "--hard"],
+        vec!["reset", "--hard", "HEAD"],
+        vec!["reset", "--merge"],
+        vec!["checkout", "--force"],
+        vec!["checkout", "--force", "other"],
+        vec!["checkout", "--", "a.txt"],
+        vec!["checkout", "HEAD", "--", "."],
+        vec!["restore", "."],
+        vec!["restore", "--source=other", "."],
+        vec!["switch", "--discard-changes", "other"],
+        vec!["switch", "other"],
+        vec!["checkout", "other"],
+        vec!["read-tree", "--reset", "-u", "HEAD"],
+        vec!["checkout-index", "-f", "-a"],
+        vec!["checkout-index", "--f", "-a"],
+        vec!["rm", "-f", "a.txt"],
+        vec!["rm", "--f", "a.txt"],
+        vec!["mv", "--f", "a.txt", "b.txt"],
+    ];
+}
+
+/// The forms whose opt-out is compared with real Git over the marked edit.
+/// Why:
+///   The comparison starts four more fixtures per row,
+///  so it names the forms that cover a tree write,
+///  a path write,
+///  a force written short,
+///  and the `read-tree` form the hole was in.
+fn marked_parity_forms() -> Vec<Vec<&'static str>> {
+    return vec![
+        vec!["reset", "--hard"],
+        vec!["checkout", "--", "a.txt"],
+        vec!["rm", "--f", "a.txt"],
+        vec!["read-tree", "--reset", "-u", "HEAD"],
+    ];
+}
+
 /// An edit behind the `assume-unchanged` mark gets exactly what the same edit gets without it:
-/// every form refuses,
-/// and the edit is still there.
+/// every form is refused while the edit stands,
+/// the edit is still there,
+/// and the opt-out runs the form as real Git runs it.
 ///  `skip-worktree` is the control on the other side:
 ///  Git keeps that file,
 ///  so a form over it must not be refused for it.
 #[test]
 fn a_marked_edit_is_treated_as_the_edit_it_is() {
+    let parity: Vec<Vec<&'static str>> = marked_parity_forms();
     for (index, arguments) in marked_forms().into_iter().enumerate() {
         for mark in ["assume-unchanged", "skip-worktree"] {
             let label: String = format!("discard-marked-{mark}-{index}");
@@ -292,16 +401,178 @@ fn a_marked_edit_is_treated_as_the_edit_it_is() {
                 "{arguments:?} with {mark} exited 0 and lost the edit: {}",
                 stderr_of(&observed)
             );
-            if mark == "assume-unchanged" {
-                // The same form over the same edit with no mark, so the two answers are one rule.
-                let (plain, _plain_repo, plain_linked): (Fixture, PathBuf, PathBuf) =
-                    marked(format!("{label}-plain").as_str(), None);
-                let unmarked: Observed = run_wrapped(&plain, plain_linked.as_path(), arguments.as_slice());
-                assert_ne!(unmarked.code, Some(0), "the control needs an unmarked edit to be refused: {arguments:?}");
-                assert_ne!(observed.code, Some(0), "{arguments:?} with the mark ran where the unmarked edit is refused");
-                remove(&plain);
+            remove(&fixture);
+            if mark != "assume-unchanged" || !parity.contains(&arguments) {
+                continue;
             }
+            // The same form over the same edit with no mark, so the two answers are one rule.
+            let (plain, _plain_repo, plain_linked): (Fixture, PathBuf, PathBuf) =
+                marked(format!("{label}-plain").as_str(), None);
+            let unmarked: Observed = run_wrapped(&plain, plain_linked.as_path(), arguments.as_slice());
+            assert_ne!(unmarked.code, Some(0), "the control needs an unmarked edit to be refused: {arguments:?}");
+            assert_ne!(observed.code, Some(0), "{arguments:?} with the mark ran where the unmarked edit is refused");
+            // The opt-out runs it and leaves what real Git leaves over the same marked edit.
+            let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
+                marked(format!("{label}-hatch").as_str(), Some(mark));
+            let passed: Observed = run_hatched(&hatch_fixture, hatch_linked.as_path(), arguments.as_slice());
+            let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
+                marked(format!("{label}-direct").as_str(), Some(mark));
+            let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), arguments.as_slice());
+            assert_eq!(
+                state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+                state_after(&direct_fixture, direct_linked.as_path(), &direct),
+                "{arguments:?} under the opt-out differs from real Git"
+            );
+            remove(&direct_fixture);
+            remove(&hatch_fixture);
+            remove(&plain);
+        }
+    }
+}
+
+/// A mistyped word Git would correct into a discarding command never runs:
+/// the wrapper forwards the call with autocorrection off,
+/// Git prints its own error and suggestion,
+/// and the edit is still there.
+#[test]
+fn a_mistyped_word_is_never_corrected_into_a_discarding_form() {
+    let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = marked("discard-autocorrect", None);
+    git(&fixture, linked.as_path(), &["config", "help.autocorrect", "immediate"]);
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rset", "--hard"]);
+    assert_ne!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(still_where_it_was(linked.as_path(), "a.txt", EDIT), "the mistyped hard reset lost the edit");
+    assert!(stderr_of(&observed).contains("rset"), "{}", stderr_of(&observed));
+    // The same mistyped word in real Git runs the command it guessed, which is the loss this row prevents.
+    let replacement: Observed = run_direct(&fixture, linked.as_path(), &["-c", "help.autocorrect=immediate", "rset", "--hard"]);
+    assert_eq!(replacement.code, Some(0), "the control needs real Git to correct the word: {}", stderr_of(&replacement));
+    assert!(!still_where_it_was(linked.as_path(), "a.txt", EDIT), "the control needs real Git to lose the edit");
+    remove(&fixture);
+}
+
+/// A clean that deletes only ignored files is the owner's own answer of 2026-11-10:
+/// it deletes, exits 0 and leaves one line,
+/// with no refusal and no copy.
+#[test]
+fn a_clean_of_ignored_files_deletes_and_leaves_one_line() {
+    for (index, arguments) in [vec!["clean", "-fX"], vec!["clean", "-fX", "-d"], vec!["clean", "-fx"]].into_iter().enumerate() {
+        let label: String = format!("discard-clean-ignored-{index}");
+        let fixture: Fixture = fixture(label.as_str());
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        std::fs::write(repo.join(".gitignore"), b"ignored.txt\n").expect("ignore rules");
+        std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+        git(&fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+        let linked: PathBuf = fixture.root.join("linked");
+        git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+        std::fs::write(linked.join("ignored.txt"), b"IGNORED\n").expect("ignored file");
+        let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
+        let before: usize = std::fs::read_to_string(audit.as_path()).map(|text| return text.lines().count()).unwrap_or(0);
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(!refused_by_the_guard(&observed), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(!linked.join("ignored.txt").exists(), "{arguments:?} left the ignored file");
+        assert!(saved_files(repo.as_path()).is_empty(), "{arguments:?} kept a copy the owner's answer refuses");
+        let text: String = std::fs::read_to_string(audit.as_path()).unwrap_or_default();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), before + 1, "{arguments:?} left {} lines: {text}", lines.len().saturating_sub(before));
+        assert!(lines.last().unwrap_or(&"").contains("\"outcome\":\"allowed\""), "{arguments:?}: {text}");
+        remove(&fixture);
+    }
+}
+
+/// The same clean without `-x` or `-X` keeps the ignored file, as it always did.
+#[test]
+fn a_clean_without_the_ignored_modes_keeps_an_ignored_file() {
+    let fixture: Fixture = fixture("discard-clean-keeps-ignored");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b"ignored.txt\n").expect("ignore rules");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitignore"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ignore"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("ignored.txt"), b"IGNORED\n").expect("ignored file");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fd"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(linked.join("ignored.txt").exists(), "{}", stderr_of(&observed));
+    remove(&fixture);
+}
+
+/// `read-tree -m -u` writes over an ignored file at exit 0 and `--reset -u` writes over an
+/// untracked one too,
+/// so both are refused with the file named while it stands there,
+/// and the opt-out leaves exactly what real Git leaves.
+#[test]
+fn read_tree_in_every_writing_form_is_refused_with_the_file_named() {
+    for (index, arguments) in [
+        vec!["read-tree", "-m", "-u", "HEAD", "other"],
+        vec!["read-tree", "-m", "-u", "other"],
+        vec!["read-tree", "--reset", "-u", "other"],
+        vec!["read-tree", "--prefix=sub/", "-u", "other"],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        for (shape, shape_name) in [(InTheWay::Ignored, "ignored"), (InTheWay::File, "untracked")] {
+            let label: String = format!("discard-read-tree-{index}-{shape_name}");
+            let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = prepared(label.as_str(), shape);
+            put_the_file_under_the_prefix(linked.as_path(), arguments.as_slice());
+            let before: Vec<String> = worktree_state(linked.as_path());
+            let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+            if refused_by_the_guard(&observed) {
+                assert!(
+                    stderr_of(&observed).contains("b.txt"),
+                    "{arguments:?} over {label} refused without naming the file: {}",
+                    stderr_of(&observed)
+                );
+                assert_eq!(worktree_state(linked.as_path()), before, "{arguments:?} over {label} wrote something");
+            } else {
+                assert!(
+                    still_where_it_was(linked.as_path(), the_persons_path(arguments.as_slice()), PRECIOUS),
+                    "{arguments:?} over {label} exited {:?} and lost the person's work, left in {}: {}",
+                    observed.code,
+                    fixture.root.display(),
+                    stderr_of(&observed)
+                );
+            }
+            let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
+                prepared(format!("{label}-hatch").as_str(), shape);
+            put_the_file_under_the_prefix(hatch_linked.as_path(), arguments.as_slice());
+            let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
+                prepared(format!("{label}-direct").as_str(), shape);
+            put_the_file_under_the_prefix(direct_linked.as_path(), arguments.as_slice());
+            let passed: Observed = run_hatched(&hatch_fixture, hatch_linked.as_path(), arguments.as_slice());
+            let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), arguments.as_slice());
+            assert_eq!(
+                state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+                state_after(&direct_fixture, direct_linked.as_path(), &direct),
+                "{arguments:?} over {label} under the opt-out differs from real Git"
+            );
+            remove(&direct_fixture);
+            remove(&hatch_fixture);
             remove(&fixture);
         }
     }
+}
+
+/// The path the person's file stands at for one `read-tree` form:
+/// below the directory a `--prefix` names,
+/// and at the tree's own path otherwise.
+fn the_persons_path(arguments: &[&str]) -> &'static str {
+    return if arguments.iter().any(|word| return word.starts_with("--prefix")) {
+        "sub/b.txt"
+    } else {
+        "b.txt"
+    };
+}
+
+/// A `--prefix` form writes below the directory it names,
+/// so the entry in its way is put there,
+/// at the path the tree's own name lands on.
+fn put_the_file_under_the_prefix(linked: &Path, arguments: &[&str]) {
+    if !arguments.iter().any(|word| return word.starts_with("--prefix")) {
+        return;
+    }
+    std::fs::create_dir_all(linked.join("sub")).expect("the directory the prefix writes into");
+    std::fs::remove_file(linked.join("b.txt")).expect("the file at the tree's own path");
+    std::fs::write(linked.join("sub/b.txt"), PRECIOUS).expect("the person's file under the prefix");
 }

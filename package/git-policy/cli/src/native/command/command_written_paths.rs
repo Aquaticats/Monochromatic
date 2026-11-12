@@ -20,11 +20,15 @@
 //! ```
 
 use crate::command_checkout_table::{CHECKOUT_TABLE, FORCE, SWITCH_TABLE};
-use crate::command_discard::{restores_index_only, spells_long};
+use crate::command_discard::{
+    READ_TREE_DEBUG_UNPACK, READ_TREE_DRY_RUN, READ_TREE_MERGE, READ_TREE_PREFIX, READ_TREE_RESET, READ_TREE_TABLE,
+    READ_TREE_UPDATE, restores_index_only, spells_long,
+};
 /// Git's own option grammar, for where a region's options end and its paths begin.
 use crate::command_options::{Boundary, DEFAULT_MODE, ParsedOptions, parse_options};
-/// The token indices that are positionals rather than options.
-use crate::command_options_query::{is_enabled, positional_tokens};
+/// The token indices that are positionals rather than options,
+///  and the exact bytes of an option's value.
+use crate::command_options_query::{is_enabled, positional_tokens, value_bytes};
 use crate::command_reset::{RESET_TABLE, ResetMode, parse_reset_region};
 /// The forms the linked-worktree policy guards.
 use crate::rule_linked_worktree::GuardedCommand;
@@ -100,6 +104,18 @@ pub enum WrittenPaths {
         ///  and nothing for every path of the index.
         pathspecs: Vec<OsString>,
     },
+    /// The paths of every tree a `git read-tree -u` names,
+    ///  each below the prefix the form writes them under.
+    ReadTree {
+        /// The trees the form names,
+        ///  whose merged paths it writes into the worktree.
+        revisions: Vec<OsString>,
+        /// The directory the trees land in,
+        ///  when the form writes one with `--prefix`.
+        prefix: Option<OsString>,
+        /// Which entries at those paths Git writes over.
+        entries: WrittenEntries,
+    },
 }
 
 impl WrittenPaths {
@@ -120,6 +136,8 @@ impl WrittenPaths {
             WrittenPaths::Tree { entries: WrittenEntries::OnlyIgnored, .. } => "tree-of-ignored-entries",
             WrittenPaths::MatchingTree { .. } => "matching-tree",
             WrittenPaths::Index { .. } => "index",
+            WrittenPaths::ReadTree { entries: WrittenEntries::EveryEntry, .. } => "read-tree-trees",
+            WrittenPaths::ReadTree { entries: WrittenEntries::OnlyIgnored, .. } => "read-tree-trees-of-ignored-entries",
         };
     }
 }
@@ -133,13 +151,16 @@ impl WrittenPaths {
 ///  a `clean` deletes what Git's own dry run names,
 ///  and a `rm` and a `mv` reach only paths their index already holds,
 ///  so none of those is read here.
-///  A `read-tree` with `-u` writes worktree files and is not read here either:
-///  an ignored file in the way of `read-tree -m -u` is the one known loss
-///  (`SPEC.md`, the discarding-commands section).
 ///  A hard reset writes over every entry at the tree's paths;
 ///  `reset --merge` and `reset --keep` write the tree too,
 ///  but refuse an untracked entry and write over an ignored one,
 ///  so their reading asks about the ignored entries alone.
+///  A `read-tree -u` writes the paths of every tree it names,
+///  below the directory `--prefix` puts them in,
+///  and which entries it writes over depends on the mode it carries:
+///  `--reset` writes over an untracked file as well,
+///  while `-m` alone refuses one and writes over an ignored one
+///  (`SPEC.md`, the discarding-commands section, holds both measurements).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,8 +189,68 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<Wri
             });
         }
         GuardedCommand::RestoreWorktree => return restore_written_paths(region),
+        GuardedCommand::ReadTree => return read_tree_written_paths(region),
         _ => return None,
     }
+}
+
+/// What:
+///  The paths a `git read-tree` form writes into the worktree,
+///  which are the paths of every tree it names,
+///  each below the directory its `--prefix` puts it in.
+/// Why:
+///   Git writes no worktree file without `-u`,
+///  and refuses `-u` unless the form also carries `-m`,
+///  `--reset` or `--prefix`,
+///  so only those forms write anything here.
+///  Every path a merge can write comes from one of the trees it names,
+///  so asking each of them is the whole set.
+///  Measured on this host with native Git 2.56.0:
+///  `--reset -u` writes over an untracked file at such a path and exits 0,
+///  while `-m -u` and `--prefix` refuse an untracked one in Git's own words
+///  and write over the one their ignore rules cover,
+///  which is why only the reset form asks about the untracked entries too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readTreeWrittenPaths(region: string[]): WrittenPaths | undefined;
+/// ```
+fn read_tree_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
+    let parsed: ParsedOptions = parse_options(region, READ_TREE_TABLE, DEFAULT_MODE, &[]).ok()?;
+    // A dry run and `--debug-unpack` write no worktree file at all.
+    if !is_enabled(&parsed, READ_TREE_UPDATE)
+        || is_enabled(&parsed, READ_TREE_DRY_RUN)
+        || is_enabled(&parsed, READ_TREE_DEBUG_UNPACK)
+    {
+        return None;
+    }
+    let reset: bool = is_enabled(&parsed, READ_TREE_RESET);
+    // A region Git refuses writes nothing; Git says so itself.
+    if !reset && !is_enabled(&parsed, READ_TREE_MERGE) && !is_enabled(&parsed, READ_TREE_PREFIX) {
+        return None;
+    }
+    let mut revisions: Vec<OsString> = Vec::<OsString>::new();
+    for index in positional_tokens(&parsed, region.len()) {
+        if let Some(token) = region.get(index) {
+            revisions.push(token.clone());
+        }
+    }
+    if revisions.is_empty() {
+        return None;
+    }
+    let mut prefix: Option<OsString> = None;
+    for occurrence in &parsed.occurrences {
+        if occurrence.id == READ_TREE_PREFIX
+            && let Some(value) = occurrence.value
+        {
+            prefix = Some(OsString::from(String::from_utf8_lossy(value_bytes(region, value)).into_owned()));
+        }
+    }
+    return Some(WrittenPaths::ReadTree {
+        revisions,
+        prefix,
+        entries: if reset { WrittenEntries::EveryEntry } else { WrittenEntries::OnlyIgnored },
+    });
 }
 
 /// What:

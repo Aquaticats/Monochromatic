@@ -26,33 +26,35 @@ use crate::command_written_paths::WrittenPaths;
 /// The captured-query runner's output type,
 ///  and the NUL-separated reading of an answer.
 use crate::git_metadata::MetadataOutput;
-use crate::rule_worktree_dirty::{nul_separated_paths, with_ancestors};
+use crate::rule_worktree_dirty::nul_separated_paths;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
 use std::ffi::{OsStr, OsString};
 
 /// What:
-///  Every path the form writes,
-///  each with each directory on the way to it.
+///  Every path at which the form writes a file,
 ///  `Result<Vec<Vec<u8>>, String>` is "the paths,
 ///  or why Git could not give one".
 /// Why:
 ///   A query that failed says nothing,
 ///  and a safety check must never read a failure as "nothing is written".
+///  The directories on the way to a path are not listed:
+///  Git creates the ones it needs,
+///  so a directory there loses nothing,
+///  while a file at one of those paths would lose its bytes and is found as the entry above the
+///  written path
+///  (`repository_facts_paths_in_the_way.rs` says how).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function pathsTheTreeWrites(facts, written): Promise<Buffer[]>; // throws
 /// ```
 pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths) -> Result<Vec<Vec<u8>>, String> {
-    let paths: Vec<Vec<u8>> = match written {
-        WrittenPaths::Tree { revision, .. } => tree_paths(facts, revision.as_deref(), &[])?,
-        WrittenPaths::MatchingTree { revision, pathspecs } => tree_paths(facts, revision.as_deref(), pathspecs.as_slice())?,
-        WrittenPaths::Index { pathspecs } => index_paths(facts, pathspecs.as_slice())?,
+    return match written {
+        WrittenPaths::Tree { revision, .. } => tree_paths(facts, revision.as_deref(), &[]),
+        WrittenPaths::MatchingTree { revision, pathspecs } => tree_paths(facts, revision.as_deref(), pathspecs.as_slice()),
+        WrittenPaths::Index { pathspecs } => index_paths(facts, pathspecs.as_slice()),
+        WrittenPaths::ReadTree { revisions, prefix, .. } => read_tree_paths(facts, revisions.as_slice(), prefix.as_deref()),
     };
-    if paths.is_empty() {
-        return Ok(paths);
-    }
-    return Ok(with_ancestors(paths.as_slice()));
 }
 
 /// What:
@@ -72,10 +74,6 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
 /// function treePaths(facts, revision: string | undefined, pathspecs: string[]): Promise<Buffer[]>; // throws
 /// ```
 fn tree_paths(facts: &mut GitFacts, revision: Option<&OsStr>, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
-    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
-    for token in ["--no-optional-locks", "ls-tree", "-r", "-z", "--name-only"] {
-        arguments.push(OsString::from(token));
-    }
     // `-` is the previous branch only to `switch` and `checkout`, so it is read as the expression Git resolves
     //  wherever an object name is read; `@{-N}` needs no such reading.
     let named: OsString = match revision {
@@ -85,7 +83,73 @@ fn tree_paths(facts: &mut GitFacts, revision: Option<&OsStr>, pathspecs: &[OsStr
         },
         None => OsString::from("HEAD"),
     };
-    arguments.push(named);
+    return paths_of_a_named_tree(facts, named.as_os_str(), pathspecs);
+}
+
+/// What:
+///  The paths of every tree a `git read-tree` form names,
+///  each below the directory its `--prefix` writes it in.
+///  `&[OsString]` borrows the names the form carries and the prefix it may name.
+/// Why:
+///   Every path a merge or a reset can write comes from one of the trees it names,
+///  and `--prefix` moves each of them below a directory the form names,
+///  which is where the worktree entry Git writes over really stands.
+///  A revision here is read as Git reads a tree name:
+///  `-` is no previous branch to `read-tree`, so it is not read as one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readTreePaths(facts, ['HEAD', 'other'], 'sub/') ==> ['sub/a.txt', 'sub/b.txt']
+/// ```
+fn read_tree_paths(facts: &mut GitFacts, revisions: &[OsString], prefix: Option<&OsStr>) -> Result<Vec<Vec<u8>>, String> {
+    let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for revision in revisions {
+        for path in paths_of_a_named_tree(facts, revision.as_os_str(), &[])? {
+            paths.push(under_the_prefix(path, prefix));
+        }
+    }
+    return Ok(paths);
+}
+
+/// What:
+///  One path as the form writes it:
+///  below the prefix when it names one,
+///  and unchanged when it names none.
+/// Why:
+///  `read-tree --prefix=sub/ -u other` writes `other`'s `a.txt` at `sub/a.txt`,
+///  so the entry in the way is the one below the prefix, not the tree's own path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const underThePrefix = (path, prefix) => prefix ? Buffer.concat([prefix, path]) : path;
+/// ```
+fn under_the_prefix(path: Vec<u8>, prefix: Option<&OsStr>) -> Vec<u8> {
+    let Some(named) = prefix else {
+        return path;
+    };
+    let mut shifted: Vec<u8> = named.as_encoded_bytes().to_vec();
+    shifted.extend(path);
+    return shifted;
+}
+
+/// What:
+///  The paths of one named tree that the given pathspecs match,
+///  or every path of it when there are none,
+///  read with `git ls-tree -r -z --name-only`.
+/// Why:
+///   The name is already resolved to what Git reads,
+///  and a query that could not run at all is a failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pathsOfANamedTree(facts, 'other', ['b.txt']): Promise<Buffer[]>; // throws
+/// ```
+fn paths_of_a_named_tree(facts: &mut GitFacts, named: &OsStr, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
+    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
+    for token in ["--no-optional-locks", "ls-tree", "-r", "-z", "--name-only"] {
+        arguments.push(OsString::from(token));
+    }
+    arguments.push(named.to_os_string());
     if !pathspecs.is_empty() {
         arguments.push(OsString::from("--"));
         arguments.extend(pathspecs.iter().cloned());

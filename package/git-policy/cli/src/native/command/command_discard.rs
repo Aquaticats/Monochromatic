@@ -41,10 +41,22 @@ use std::ffi::OsString;
 
 /// The `--dry-run` row of `git read-tree`:
 /// it writes neither the index nor the worktree.
-const DRY_RUN: u16 = 1;
+pub const READ_TREE_DRY_RUN: u16 = 1;
 /// The `--debug-unpack` row of `git read-tree`:
 /// Git prints the unpacked entries and returns before the index is written.
-const DEBUG_UNPACK: u16 = 2;
+pub const READ_TREE_DEBUG_UNPACK: u16 = 2;
+/// The `-m` row of `git read-tree`:
+/// the merge that may write worktree files and, with one tree, reads the index against it.
+pub const READ_TREE_MERGE: u16 = 3;
+/// The `--reset` row of `git read-tree`:
+/// the one-way read that writes over the worktree entries in its way.
+pub const READ_TREE_RESET: u16 = 4;
+/// The `-u` row of `git read-tree`:
+/// the option that makes any of them write worktree files at all.
+pub const READ_TREE_UPDATE: u16 = 5;
+/// The `--prefix` row of `git read-tree`:
+/// the tree it reads lands below the prefix it names.
+pub const READ_TREE_PREFIX: u16 = 6;
 
 /// What:
 ///  What a region can do to uncommitted state.
@@ -263,11 +275,18 @@ pub const RESTORE_LONG_OPTIONS: &[&str] = &[
     "pathspec-file-nul",
 ];
 
-/// The long option names of each command that reads `--abort`.
+/// The shortest spelling of `--abort` Git accepts:
+/// `--ab`.
 /// Why:
-///   A command's own table decides which abbreviation of `--abort` it accepts,
-///  and the five commands do not name their other options alike.
-pub const ABORT_LONG_OPTIONS: &[&str] = &["abort", "autostash", "allow-empty", "allow-empty-message", "apply", "autosquash", "append"];
+///   Every command that reads `--abort` (`merge`,
+/// `rebase`,
+/// `cherry-pick`,
+/// `revert` and `am`) accepts that prefix,
+///  and no one of them names another long option starting with `ab`,
+///  so the two-figure prefix after the dashes is where their tables stop being ambiguous
+///  (measured on this host with Git 2.56.0:
+///  each takes `--ab` and refuses `--a` as ambiguous, 2026-11-12).
+pub const SHORTEST_ABORT: usize = 4;
 
 /// What:
 ///  Whether a token spells the long option `wanted` by a spelling Git accepts for the command whose
@@ -454,17 +473,17 @@ pub const READ_TREE_TABLE: &[OptionSpec] = &[
     row(UNREAD, None, Some("index-output"), Arity::Required, false),
     row(UNREAD, None, Some("empty"), Arity::None, true),
     row(UNREAD, Some(b'v'), Some("verbose"), Arity::None, true),
-    row(UNREAD, Some(b'm'), None, Arity::None, true),
+    row(READ_TREE_MERGE, Some(b'm'), None, Arity::None, true),
     row(UNREAD, None, Some("trivial"), Arity::None, true),
     row(UNREAD, None, Some("aggressive"), Arity::None, true),
-    row(UNREAD, None, Some("reset"), Arity::None, true),
-    row(UNREAD, None, Some("prefix"), Arity::Required, false),
-    row(UNREAD, Some(b'u'), None, Arity::None, true),
+    row(READ_TREE_RESET, None, Some("reset"), Arity::None, true),
+    row(READ_TREE_PREFIX, None, Some("prefix"), Arity::Required, false),
+    row(READ_TREE_UPDATE, Some(b'u'), None, Arity::None, true),
     row(UNREAD, None, Some("exclude-per-directory"), Arity::Required, false),
     row(UNREAD, Some(b'i'), None, Arity::None, true),
-    row(DRY_RUN, Some(b'n'), Some("dry-run"), Arity::None, true),
+    row(READ_TREE_DRY_RUN, Some(b'n'), Some("dry-run"), Arity::None, true),
     row(UNREAD, None, Some("no-sparse-checkout"), Arity::None, true),
-    row(DEBUG_UNPACK, None, Some("debug-unpack"), Arity::None, true),
+    row(READ_TREE_DEBUG_UNPACK, None, Some("debug-unpack"), Arity::None, true),
     row(UNREAD, None, Some("recurse-submodules"), Arity::Optional, true),
     row(UNREAD, Some(b'q'), Some("quiet"), Arity::None, true),
 ];
@@ -488,10 +507,31 @@ pub const READ_TREE_TABLE: &[OptionSpec] = &[
 /// ```
 pub fn read_tree_discard(region: &[OsString]) -> Result<Discard, OptionError> {
     let parsed: ParsedOptions = parse_options(region, READ_TREE_TABLE, DEFAULT_MODE, &[])?;
-    if is_enabled(&parsed, DRY_RUN) || is_enabled(&parsed, DEBUG_UNPACK) {
+    if is_enabled(&parsed, READ_TREE_DRY_RUN) || is_enabled(&parsed, READ_TREE_DEBUG_UNPACK) {
         return Ok(Discard::Harmless);
     }
     return Ok(Discard::Overwrites);
+}
+
+/// What:
+///  Whether a token spells the long option `wanted` by any abbreviation of at least `shortest` characters,
+/// with or without an `=value`.
+/// Why:
+///   The five commands that read `--abort` all take `--ab` and refuse anything shorter,
+///  so the reading is that shortest spelling and not a per-command sibling table;
+///  `spells_long` above answers the force spelling,
+///  whose shortest form each command's own table decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function spellsLongFrom(token: string, wanted: string, shortest: number): boolean;
+/// ```
+fn spells_long_from(token: &[u8], wanted: &str, shortest: usize) -> bool {
+    if !token.starts_with(b"--") {
+        return false;
+    }
+    let name: &[u8] = token.split(is_equals).next().unwrap_or_default();
+    return name.len() >= shortest && wanted.as_bytes().starts_with(&name[b"--".len()..]);
 }
 
 /// What:
@@ -512,7 +552,7 @@ pub fn read_tree_discard(region: &[OsString]) -> Result<Discard, OptionError> {
 /// ```
 pub fn abort_discard(region: &[OsString]) -> Discard {
     for token in options_of(region) {
-        if spells_long(token, "abort", ABORT_LONG_OPTIONS) {
+        if spells_long_from(token, "abort", SHORTEST_ABORT) {
             return Discard::Overwrites;
         }
     }

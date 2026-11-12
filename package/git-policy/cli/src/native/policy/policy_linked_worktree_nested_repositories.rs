@@ -1,6 +1,6 @@
 //! What:
 //!  Keeping every nested Git repository a clean in a linked worktree would delete,
-//!  and the one place a discarding form is let through or stopped.
+//!  and the one place a discarding form is refused or let through.
 //! Why:
 //!  Git's clean with a second `-f` removes a nested repository whole,
 //!  with its own history and its uncommitted files,
@@ -33,9 +33,11 @@ use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies}
 use crate::discarded_prune::Limits;
 /// The move of a nested repository the clean would delete.
 use crate::discarded_nested_repository::set_nested_repositories_aside;
-/// Keeping every entry a form would overwrite,
-///  and the one refusal such a save has.
-use crate::policy_linked_worktree_saved_overwrite::{Overwritten, SaveRequest, keep_what_the_form_would_overwrite};
+/// Every worktree entry a form would write over or delete,
+///  which nothing else holds.
+use crate::policy_linked_worktree_refused_overwrite::{WrittenOverRequest, entries_a_form_would_write_over};
+/// The refusal that names those entries and the option that runs the command anyway.
+use crate::rule_linked_worktree_refused_overwrite_messages::{Overwritten, overwritten_refusal_message};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
@@ -295,47 +297,45 @@ pub(crate) struct AllowedForm<'a> {
 }
 
 /// What:
-///  Let one form run,
-/// keeping every nested repository a clean would delete first,
+///  Refuse a form that writes over an entry nothing else holds,
+///  keep every nested repository a clean would delete,
 ///  and leave the one audit line that says what happened.
 /// Why:
-///   The clean forms are the only ones whose second force removes another repository;
-///  every other form reaches the same allowed line it always left,
-///  and a refused save stops the command before Git starts,
-///  with the worktree exactly as it was.
+///  The entries a forced tree write or a path form would lose are refused before Git starts,
+///  and the refusal names them and the option that runs the command as Git runs it;
+///  the clean forms are the only ones whose second force removes another repository,
+///  and that one is moved aside and the clean runs as typed,
+///  so every other form reaches the same allowed line it always left,
+///  and a refusal stops the command with the worktree exactly as it was.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function allowADiscardingForm(form: AllowedForm): PolicyOutcome;
 /// ```
 pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
-    let milliseconds: i64 = now_milliseconds();
-    // Every form that writes a tree or a path of one keeps what stands in its way before Git runs.
-    let overlap: Overwritten = keep_what_the_form_would_overwrite(SaveRequest {
+    // Every form that writes a tree or a path of one is refused while an entry nothing else holds stands in its way.
+    let in_the_way: Vec<String> = match entries_a_form_would_write_over(WrittenOverRequest {
         facts: form.facts,
         command: form.command,
-        location: form.location,
         region: form.region,
-        limits: form.discarded_limits,
-        milliseconds,
-    });
-    match overlap {
-        Overwritten::Nothing => {}
-        Overwritten::Saved { copies, notice } => {
-            form.notices.push(notice);
-            record_audit_with_copies(
-                &form.location.identity,
-                form.command,
-                AuditOutcome::SavedOverwritten,
-                form.seen,
-                form.dirty,
-                places_of(copies.as_slice()).as_slice(),
-            );
-            return clean();
+    }) {
+        Ok(found) => found,
+        // A listing Git could not read says nothing about what the command writes over, so it stops the command.
+        Err(message) => {
+            record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, form.dirty);
+            return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
         }
-        Overwritten::Refused { message, copies } => {
-            return refuse_a_stopped_save(form.location, form.command, form.seen, &message, copies.as_slice());
-        }
+    };
+    if !in_the_way.is_empty() {
+        record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, form.dirty);
+        return rejected(
+            LINKED_WORKTREE_REQUIRED_CODE,
+            overwritten_refusal_message(Overwritten {
+                command: form.command,
+                region: form.region,
+                paths: in_the_way.as_slice(),
+            }),
+        );
     }
     if matches!(form.command, GuardedCommand::CleanIgnored | GuardedCommand::CleanIgnoredOnly) {
         match keep_the_nested_repositories_a_clean_would_delete(

@@ -3,11 +3,11 @@
 //!  the forms that write none,
 //!  and every spelling a path form reaches through.
 //! Why:
-//!  A saved copy is one part of the guard's answer to an untracked file in the way,
-//!  and the paths it saves come from this reading:
+//!  A refusal is the guard's answer to an untracked file in the way,
+//!  and the entries it names come from this reading:
 //!  a spelling read here as "the whole tree" after a form Git would write only one path for
-//!  would save files the command never touches,
-//!  and a spelling read as "nothing" is a file lost with no copy.
+//!  would refuse a command over files it never touches,
+//!  and a spelling read as "nothing" is a file lost with no refusal.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -48,6 +48,51 @@ fn matching(revision: Option<&str>, pathspecs: &[&str]) -> Option<WrittenPaths> 
         revision: revision.map(OsString::from),
         pathspecs: words(pathspecs),
     });
+}
+
+/// The paths of every tree a `git read-tree` form names,
+/// below the directory it writes them under,
+/// and which entries at them it writes over.
+fn read_tree(revisions: &[&str], prefix: Option<&str>, entries: WrittenEntries) -> Option<WrittenPaths> {
+    return Some(WrittenPaths::ReadTree {
+        revisions: words(revisions),
+        prefix: prefix.map(OsString::from),
+        entries,
+    });
+}
+
+/// A `read-tree` writes the paths of every tree it names,
+/// below the directory `--prefix` puts them in,
+/// and writes over the untracked entries too only in the reset form:
+/// measured on this host with native Git 2.56.0,
+/// `--reset -u` replaces an untracked file at such a path and exits 0,
+/// while `-m -u` refuses one and writes over the ignored one.
+#[test]
+fn a_read_tree_writes_the_trees_it_names_below_its_prefix() {
+    for (values, expected) in [
+        (vec!["-m", "-u", "HEAD", "other"], read_tree(&["HEAD", "other"], None, WrittenEntries::OnlyIgnored)),
+        (vec!["-m", "-u", "other"], read_tree(&["other"], None, WrittenEntries::OnlyIgnored)),
+        (vec!["--reset", "-u", "other"], read_tree(&["other"], None, WrittenEntries::EveryEntry)),
+        (vec!["--res", "-u", "other"], read_tree(&["other"], None, WrittenEntries::EveryEntry)),
+        (vec!["--prefix=sub/", "-u", "other"], read_tree(&["other"], Some("sub/"), WrittenEntries::OnlyIgnored)),
+        (vec!["--prefix", "sub/", "-u", "other"], read_tree(&["other"], Some("sub/"), WrittenEntries::OnlyIgnored)),
+        // No `-u` writes no worktree file, and a form Git refuses writes none either.
+        (vec!["-m", "HEAD"], None),
+        (vec!["--reset", "HEAD"], None),
+        (vec!["-u", "other"], None),
+        // A dry run and `--debug-unpack` return before anything is written.
+        (vec!["-n", "-m", "-u", "other"], None),
+        (vec!["--dry-run", "--reset", "-u", "other"], None),
+        (vec!["--debug-unpack", "-m", "-u", "other"], None),
+        // Git refuses a form with no tree to read.
+        (vec!["-u", "--reset"], None),
+    ] {
+        assert_eq!(
+            written_paths(GuardedCommand::ReadTree, words(values.as_slice()).as_slice()),
+            expected,
+            "{values:?}"
+        );
+    }
 }
 
 /// A hard reset writes the named tree whole,
@@ -135,7 +180,7 @@ fn a_restore_writes_the_paths_it_names_over() {
     }
 }
 
-/// Every other guarded form writes no tree path this save keeps,
+/// Every other guarded form writes no tree path this question is asked about,
 /// because Git itself refuses over a file it did not put there.
 #[test]
 fn the_other_forms_write_no_tree_path() {
@@ -147,7 +192,6 @@ fn the_other_forms_write_no_tree_path() {
         GuardedCommand::Remove,
         GuardedCommand::Move,
         GuardedCommand::CheckoutIndex,
-        GuardedCommand::ReadTree,
         GuardedCommand::Stash,
     ] {
         assert_eq!(written_paths(command, words(&["--force", "other"]).as_slice()), None, "{command:?}");

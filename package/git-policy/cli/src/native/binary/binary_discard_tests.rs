@@ -94,6 +94,26 @@ fn every_discarding_form_is_rejected_in_the_main_worktree() {
     remove(&fixture);
 }
 
+/// What:
+///  The same words with the guard's own opt-out directly after the subcommand,
+///  which is where the wrapper looks for it.
+/// Why:
+///  A refusal names that option,
+///  and a control that runs the named command proves the documented way past a refusal works.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hatched = (args) => [args[0], '--no-enforce-worktree', ...args.slice(1)];
+/// ```
+fn run_with_the_hatch(fixture: &Fixture, directory: &std::path::Path, arguments: &[&str]) -> Observed {
+    let mut words: Vec<String> = vec![String::from(arguments[0]), String::from(WORKTREE_ENFORCEMENT_ESCAPE_HATCH)];
+    for argument in arguments.iter().skip(1) {
+        words.push(String::from(*argument));
+    }
+    let borrowed: Vec<&str> = words.iter().map(|word| return word.as_str()).collect::<Vec<&str>>();
+    return run_wrapped(fixture, directory, borrowed.as_slice());
+}
+
 /// The invocations that carry the hatch for one guarded form,
 /// each written as the caller types it after `git`.
 /// A `match` must name every variant,
@@ -597,14 +617,6 @@ fn saved_place(line: &str, path: &str) -> PathBuf {
 fn saved_nested_repository_line(lines: &[String]) -> String {
     let matching: Vec<&String> = lines.iter().filter(|line| { return line.contains("\"outcome\":\"saved-nested-repository\""); }).collect();
     assert_eq!(matching.len(), 1, "one saved-nested-repository line among {lines:?}");
-    return matching.first().expect("the saved line").to_string();
-}
-
-/// The one audit line a save of an overwritten entry leaves,
-/// or a failure naming what was written instead.
-fn saved_overwritten_line(lines: &[String]) -> String {
-    let matching: Vec<&String> = lines.iter().filter(|line| { return line.contains("\"outcome\":\"saved-overwritten\""); }).collect();
-    assert_eq!(matching.len(), 1, "one saved-overwritten line among {lines:?}");
     return matching.first().expect("the saved line").to_string();
 }
 
@@ -1182,11 +1194,10 @@ fn repository_that_tracks_an_ignored_file(fixture: &Fixture) -> (PathBuf, PathBu
 /// A forced `checkout`,
 /// a forced `switch` and a hard `reset` replace an ignored file the target tree tracks,
 /// and the ignored file is where a person keeps their environment and their local secrets,
-/// so the guard copies it first,
-/// names the copy,
-/// and lets the form run.
+/// so the guard refuses them and names the file,
+/// and the guard's own opt-out runs the form as real Git runs it.
 #[test]
-fn a_forced_head_move_saves_an_ignored_file_the_target_branch_tracks() {
+fn a_forced_head_move_refuses_an_ignored_file_the_target_branch_tracks() {
     let person_value: &[u8] = b"SECRET=the person value\n";
     for (number, arguments) in [
         (1, vec!["checkout", "--force", "tracks"]),
@@ -1197,20 +1208,24 @@ fn a_forced_head_move_saves_an_ignored_file_the_target_branch_tracks() {
         let (repo, linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&fixture);
         let before: usize = audit_lines_of(repo.as_path()).len();
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(rejected_by_policy(&observed), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(stderr_of(&observed).contains("`.env`"), "{arguments:?}: {}", stderr_of(&observed));
+        assert_eq!(
+            std::fs::read(linked.join(".env")).expect("ignored file"),
+            person_value,
+            "{arguments:?} changed the file it refused"
+        );
+        let lines: Vec<String> = audit_lines_since(repo.as_path(), before);
+        assert_eq!(lines.len(), 1, "{arguments:?} wrote {lines:?}");
+        assert!(lines[0].contains("\"outcome\":\"rejected\""), "{arguments:?}: {lines:?}");
+        // The opt-out runs the form and writes the target tree, which is what real Git does here.
+        let passed: Observed = run_with_the_hatch(&fixture, linked.as_path(), arguments.as_slice());
+        assert_eq!(passed.code, Some(0), "{arguments:?} under the opt-out: {}", stderr_of(&passed));
         assert_eq!(
             std::fs::read(linked.join(".env")).expect("ignored file"),
             b"the tracked version\n",
-            "{arguments:?} did not write the target tree"
+            "{arguments:?} under the opt-out did not write the target tree"
         );
-        let line: String = saved_overwritten_line(audit_lines_since(repo.as_path(), before).as_slice());
-        let place: PathBuf = saved_place(line.as_str(), ".env");
-        assert_eq!(
-            std::fs::read(place.as_path()).expect("the kept file"),
-            person_value,
-            "{arguments:?} kept a file that is not the person's"
-        );
-        assert!(stderr_of(&observed).contains("saved your copy of .env"), "{arguments:?}: {}", stderr_of(&observed));
         remove(&fixture);
     }
     // What real Git does with the same command, so the loss the guard saves is measured and not presumed.
@@ -1224,8 +1239,7 @@ fn a_forced_head_move_saves_an_ignored_file_the_target_branch_tracks() {
         "real Git kept the ignored file, so this control proves nothing"
     );
     remove(&control);
-    // A target tree that tracks no ignored path leaves the worktree nothing to save, so the form runs with no line
-    //  of its own.
+    // A target tree that tracks no entry the worktree holds leaves nothing in the way, so the form runs.
     let quiet: Fixture = fixture("discard-forced-ignored-nothing");
     let (quiet_repo, quiet_linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&quiet);
     std::fs::remove_file(quiet_linked.join(".env")).expect("drop the ignored file");
@@ -1236,12 +1250,12 @@ fn a_forced_head_move_saves_an_ignored_file_the_target_branch_tracks() {
     ] {
         let observed: Observed = run_wrapped(&quiet, quiet_linked.as_path(), arguments.as_slice());
         assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
-        assert!(!stderr_of(&observed).contains("saved your copy"), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(!rejected_by_policy(&observed), "{arguments:?}: {}", stderr_of(&observed));
     }
     let lines: Vec<String> = audit_lines_since(quiet_repo.as_path(), before);
     assert!(
-        lines.iter().all(|line| { return !line.contains("saved-overwritten"); }),
-        "a worktree with nothing in the way recorded a save: {lines:?}"
+        lines.iter().all(|line| { return line.contains("\"outcome\":\"allowed\""); }),
+        "a worktree with nothing in the way recorded something else: {lines:?}"
     );
     remove(&quiet);
 }
@@ -1840,35 +1854,35 @@ fn repository_whose_target_needs_a_directory(fixture: &Fixture) -> (PathBuf, Pat
     return (repo, linked);
 }
 
-/// A forced form whose target needs a directory where the worktree has an ignored file copies that file first
-/// and the form runs,
-/// because a refusal would only send the person to move it by hand.
+/// A forced form whose target needs a directory where the worktree has an ignored file is refused and names the
+/// file,
+/// and the opt-out runs the form as real Git runs it,
+/// which replaces the file with the directory the target holds.
 #[test]
-fn a_forced_form_saves_an_ignored_file_where_the_target_needs_a_directory() {
+fn a_forced_form_refuses_an_ignored_file_where_the_target_needs_a_directory() {
     for (number, arguments) in [
         (1, vec!["reset", "--hard", "tracks"]),
         (2, vec!["checkout", "--force", "tracks"]),
         (3, vec!["switch", "--force", "tracks"]),
     ] {
         let fixture: Fixture = fixture(format!("discard-ignored-ancestor-{number}").as_str());
-        let (repo, linked): (PathBuf, PathBuf) = repository_whose_target_needs_a_directory(&fixture);
-        let before: usize = audit_lines_of(repo.as_path()).len();
+        let (_repo, linked): (PathBuf, PathBuf) = repository_whose_target_needs_a_directory(&fixture);
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(rejected_by_policy(&observed), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(stderr_of(&observed).contains("`private`"), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(stderr_of(&observed).contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH), "{arguments:?}: {}", stderr_of(&observed));
+        assert_eq!(
+            std::fs::read(linked.join("private")).expect("the person's file"),
+            b"the person file\n",
+            "{arguments:?} changed the file it refused"
+        );
+        let passed: Observed = run_with_the_hatch(&fixture, linked.as_path(), arguments.as_slice());
+        assert_eq!(passed.code, Some(0), "{arguments:?} under the opt-out: {}", stderr_of(&passed));
         assert_eq!(
             std::fs::read(linked.join("private/config.txt")).expect("tracked file"),
             b"the tracked version\n",
-            "{arguments:?} did not write the target tree"
+            "{arguments:?} under the opt-out did not write the target tree"
         );
-        assert!(stderr_of(&observed).contains("private"), "{arguments:?}: {}", stderr_of(&observed));
-        let line: String = saved_overwritten_line(audit_lines_since(repo.as_path(), before).as_slice());
-        let place: PathBuf = saved_place(line.as_str(), "private");
-        assert_eq!(
-            std::fs::read(place.as_path()).expect("the kept file"),
-            b"the person file\n",
-            "{arguments:?} kept a file that is not the person's"
-        );
-        assert!(stderr_of(&observed).contains(place.display().to_string().as_str()), "{arguments:?}: {}", stderr_of(&observed));
         remove(&fixture);
     }
     // Real Git removes the file to make the directory, so the save is measured against a loss that happens.
@@ -1887,9 +1901,9 @@ fn a_forced_form_saves_an_ignored_file_where_the_target_needs_a_directory() {
     remove(&control);
 }
 
-/// A forced switch to the previous branch saves an ignored file that branch tracks,
+/// A forced switch to the previous branch refuses an ignored file that branch tracks,
 /// in both shorthands Git reads for it,
-/// and the switch runs.
+/// and the opt-out runs the switch.
 fn fixture_whose_previous_branch_tracks_an_ignored_file(name: &str) -> (Fixture, PathBuf, PathBuf) {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
@@ -1908,9 +1922,9 @@ fn fixture_whose_previous_branch_tracks_an_ignored_file(name: &str) -> (Fixture,
 }
 
 #[test]
-fn a_forced_switch_to_the_previous_branch_saves_an_ignored_file() {
+fn a_forced_switch_to_the_previous_branch_refuses_an_ignored_file() {
     for (number, expression) in [(1, "-"), (2, "@{-1}")] {
-        let (fixture, repo, linked): (Fixture, PathBuf, PathBuf) =
+        let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) =
             fixture_whose_previous_branch_tracks_an_ignored_file(format!("discard-previous-branch-{number}").as_str());
         // The named expression is the previous branch, and `-` is Git's own shorthand for it in a switch.
         let resolved: Output = git(&fixture, linked.as_path(), &["rev-parse", "--symbolic-full-name", "@{-1}"]);
@@ -1919,23 +1933,23 @@ fn a_forced_switch_to_the_previous_branch_saves_an_ignored_file() {
             "refs/heads/tracks",
             "the control needs the previous-branch expression to name the branch"
         );
-        let before: usize = audit_lines_of(repo.as_path()).len();
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["switch", "--force", expression]);
-        assert_eq!(observed.code, Some(0), "{expression}: {}", stderr_of(&observed));
+        assert!(rejected_by_policy(&observed), "{expression}: {}", stderr_of(&observed));
+        assert!(stderr_of(&observed).contains("`.env`"), "{expression}: {}", stderr_of(&observed));
+        assert_eq!(
+            std::fs::read(linked.join(".env")).expect("ignored file"),
+            b"SECRET=the person value\n",
+            "switch --force {expression} changed the file it refused"
+        );
+        assert_eq!(branch_of(&fixture, linked.as_path()), "side", "switch --force {expression} moved HEAD");
+        let passed: Observed = run_with_the_hatch(&fixture, linked.as_path(), &["switch", "--force", expression]);
+        assert_eq!(passed.code, Some(0), "{expression} under the opt-out: {}", stderr_of(&passed));
         assert_eq!(
             std::fs::read(linked.join(".env")).expect("ignored file"),
             b"the tracked version\n",
-            "switch --force {expression} did not write the target tree"
+            "switch --force {expression} under the opt-out did not write the target tree"
         );
-        let line: String = saved_overwritten_line(audit_lines_since(repo.as_path(), before).as_slice());
-        let place: PathBuf = saved_place(line.as_str(), ".env");
-        assert_eq!(
-            std::fs::read(place.as_path()).expect("the kept file"),
-            b"SECRET=the person value\n",
-            "switch --force {expression} kept a file that is not the person's"
-        );
-        assert!(stderr_of(&observed).contains(".env"), "{expression}: {}", stderr_of(&observed));
-        assert_eq!(branch_of(&fixture, linked.as_path()), "tracks", "switch --force {expression} moved HEAD");
+        assert_eq!(branch_of(&fixture, linked.as_path()), "tracks", "{expression} under the opt-out did not move HEAD");
         remove(&fixture);
     }
 }
@@ -2031,33 +2045,33 @@ fn repository_whose_target_replaces_a_directory(fixture: &Fixture) -> (PathBuf, 
     return (repo, linked);
 }
 
-/// A forced form whose target holds a regular file where the worktree keeps an ignored directory moves that
-/// directory aside whole and the form runs.
+/// A forced form whose target holds a regular file where the worktree keeps an ignored directory refuses,
+/// names the directory,
+/// and the opt-out runs the form as real Git runs it.
 #[test]
-fn a_forced_form_saves_an_ignored_directory_the_target_replaces_with_a_file() {
+fn a_forced_form_refuses_an_ignored_directory_the_target_replaces_with_a_file() {
     for (number, arguments) in [
         (1, vec!["reset", "--hard", "tracks"]),
         (2, vec!["checkout", "--force", "tracks"]),
         (3, vec!["switch", "--force", "tracks"]),
     ] {
         let fixture: Fixture = fixture(format!("discard-ignored-inside-replaced-{number}").as_str());
-        let (repo, linked): (PathBuf, PathBuf) = repository_whose_target_replaces_a_directory(&fixture);
-        let before: usize = audit_lines_of(repo.as_path()).len();
+        let (_repo, linked): (PathBuf, PathBuf) = repository_whose_target_replaces_a_directory(&fixture);
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(rejected_by_policy(&observed), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(stderr_of(&observed).contains("private"), "{arguments:?}: {}", stderr_of(&observed));
+        assert_eq!(
+            std::fs::read(linked.join("private/secret.txt")).expect("the person's file"),
+            b"the person secret\n",
+            "{arguments:?} changed the directory it refused"
+        );
+        let passed: Observed = run_with_the_hatch(&fixture, linked.as_path(), arguments.as_slice());
+        assert_eq!(passed.code, Some(0), "{arguments:?} under the opt-out: {}", stderr_of(&passed));
         assert_eq!(
             std::fs::read(linked.join("private")).expect("tracked file"),
             b"the tracked version\n",
-            "{arguments:?} did not write the target tree"
+            "{arguments:?} under the opt-out did not write the target tree"
         );
-        let line: String = saved_overwritten_line(audit_lines_since(repo.as_path(), before).as_slice());
-        let place: PathBuf = saved_place(line.as_str(), "private");
-        assert_eq!(
-            std::fs::read(place.join("secret.txt")).expect("the kept file"),
-            b"the person secret\n",
-            "{arguments:?} kept a directory without the person's file"
-        );
-        assert!(stderr_of(&observed).contains("private"), "{arguments:?}: {}", stderr_of(&observed));
         remove(&fixture);
     }
     // Real Git replaces the directory with the tracked file, so the save is measured against a loss that happens.

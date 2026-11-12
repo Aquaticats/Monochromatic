@@ -27,9 +27,23 @@ use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
 use std::ffi::OsStr;
 use std::path::Path;
 
-/// The sentence every text ends with:
-/// the one deliberate way to discard work anyway.
-pub(crate) const HATCH_ADVICE: &str = "If you have decided to discard the work on purpose, save a copy first (git diff > backup.patch) and pass --no-enforce-worktree directly after the subcommand, for example git restore --no-enforce-worktree -- <path>.";
+/// What:
+///  The sentence every text ends with:
+///  the one deliberate way past the refusal.
+/// Why:
+///   The work is still where the person left it, because the refusal ran before Git did,
+///  so the advice names only the option and where it goes.
+///  It never advises a copy `git diff` makes:
+///  a `git diff > backup.patch` holds no untracked file,
+///  no ignored file and no edit the index hides behind `assume-unchanged`,
+///  which are three of the entries these refusals name,
+///  and advice that saves nothing is worse than none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const HATCH_ADVICE = '... pass --no-enforce-worktree directly after the subcommand, for example git restore --no-enforce-worktree -- <path>.';
+/// ```
+pub(crate) const HATCH_ADVICE: &str = "Nothing was run or changed, so your work is where you left it. If you have decided to discard it on purpose, pass --no-enforce-worktree directly after the subcommand, for example git restore --no-enforce-worktree -- <path>.";
 
 /// What:
 ///  How a text names the guarded form,
@@ -93,12 +107,12 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
         GuardedCommand::RestoreWorktree => return (
             "git restore",
             "it overwrites files with committed content, so your edits to them are gone",
-            "To compare with the committed version, use git diff -- <path> or git show HEAD:<path>. To revert a file you are sure about, save a patch first (git diff -- <path> > backup.patch) and then use the hatch below. For a fresh copy of the committed files, create a linked worktree (git worktree add <path> HEAD).",
+            "To compare with the committed version, use git diff -- <path> or git show HEAD:<path>. To keep the file as it is now, copy it elsewhere first (cp -- <path> <a directory outside the worktree>), because a patch from git diff holds no untracked file, no ignored file and no edit the index marks assume-unchanged; then use the hatch below. For a fresh copy of the committed files, create a linked worktree (git worktree add <path> HEAD).",
         ),
         GuardedCommand::CheckoutPaths => return (
             "git checkout with paths, --force, --patch, --ours or --theirs",
             "it overwrites files with other content, so your edits to them are gone",
-            "To compare with the committed version, use git diff -- <path> or git show HEAD:<path>. To revert a file you are sure about, save a patch first (git diff -- <path> > backup.patch) and then use the hatch below. For another branch's files, open that branch in a linked worktree (git worktree add <path> <branch>).",
+            "To compare with the committed version, use git diff -- <path> or git show HEAD:<path>. To keep the file as it is now, copy it elsewhere first (cp -- <path> <a directory outside the worktree>), because a patch from git diff holds no untracked file, no ignored file and no edit the index marks assume-unchanged; then use the hatch below. For another branch's files, open that branch in a linked worktree (git worktree add <path> <branch>).",
         ),
         GuardedCommand::CheckoutMove => return (
             "git checkout <branch>",
@@ -118,7 +132,7 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
         GuardedCommand::Remove => return (
             "git rm --force",
             "it deletes files even when they hold uncommitted changes",
-            "git rm <path> without --force removes an unmodified file and refuses a modified one. To stop tracking a file and keep it on disk, use git rm --cached <path> (allowed). To delete a modified file on purpose, save a patch first and use the hatch below.",
+            "git rm <path> without --force removes an unmodified file and refuses a modified one. To stop tracking a file and keep it on disk, use git rm --cached <path> (allowed). To delete a modified file on purpose, copy it elsewhere first (cp -- <path> <a directory outside the worktree>) and use the hatch below.",
         ),
         GuardedCommand::Move => return (
             "git mv --force",

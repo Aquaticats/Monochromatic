@@ -151,9 +151,9 @@ pub mod rule_linked_worktree_messages;
 /// and the rejection when it could not be moved there.
 pub mod rule_linked_worktree_nested_repository_messages;
 
-/// The notice that names the copy of each entry a form would overwrite,
-///  and the rejection when a copy could not be made.
-pub mod rule_linked_worktree_saved_overwrite_messages;
+/// The refusal of a form that would write over an entry nothing else holds,
+///  its entries, and the option that runs the command anyway.
+pub mod rule_linked_worktree_refused_overwrite_messages;
 
 /// Which tree paths one guarded form writes into the worktree,
 ///  read from the form's own words.

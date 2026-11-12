@@ -301,9 +301,11 @@ pub fn apply_fixed_transforms(
         ArgumentRewrite::Rewritten(rewritten) => rewritten,
         ArgumentRewrite::Unchanged => commit.arguments,
     };
+    // A person who asked for the worktree enforcement to be skipped gets the command real Git runs, so the token
+    //  that makes Git itself refuse an ignored file in the way is not added for that call.
     let after_ignored: Vec<OsString> = match keep_ignored_files(after_status.as_slice()) {
-        ArgumentRewrite::Rewritten(rewritten) => rewritten,
-        ArgumentRewrite::Unchanged => after_status,
+        ArgumentRewrite::Rewritten(rewritten) if !worktree_escaped => rewritten,
+        ArgumentRewrite::Rewritten(_) | ArgumentRewrite::Unchanged => after_status,
     };
     // An interactive clean cannot be asked what it will delete, so a nested repository it would offer is kept out of the
     //  menu by one force, unless the person asked for the worktree enforcement to be skipped.
