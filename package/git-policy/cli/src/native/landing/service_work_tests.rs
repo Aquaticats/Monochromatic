@@ -953,6 +953,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
         common.as_path(),
         &lane_handlers,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+        crate::service_work::CLAIM_LEASE,
     ));
     let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
@@ -1621,6 +1622,7 @@ fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
         looked_again = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
             repo.common.as_path(),
             &recorder,
+            &ClaimTime::read(),
             CLAIM_LEASE,
             Renewal::Timed,
             &mut replanning,
@@ -1663,6 +1665,7 @@ fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
     let looked_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
         repo.common.as_path(),
         &recorder,
+        &ClaimTime::read(),
         CLAIM_LEASE,
         Renewal::Timed,
         &mut replanning,
