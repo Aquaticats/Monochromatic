@@ -187,6 +187,47 @@ never fails because provisioning is slow), and alpha.12 from pass 15.
 Decided under the owner's delegation; for the owner's return: whether the toolchain should keep the previous release of the wrapper
 so that a bad release can be undone.
 
+The first two qwen4 reviews under the new rule ended within about forty-five minutes, each with its `review.md`
+(`~/temp/agent/qwen-trials/qwen-review-<name>/`):
+
+- `merge-commit-landing-in-a-busy-checkout` (`64fdb815c1`): "No concrete defects found", with its evidence per fix.
+- `merge-abort-is-allowed-during-a-merge` (`5588dc50f1`, released in alpha.11): four data-loss findings, each said reproduced.
+  An abort whose form does not match the waiting operation runs with no copy saved
+  (`git rebase --abort` during a `--rebase-merges` merge step, `git am --abort` during an apply-backend rebase),
+  and the ignored-file check reads `ORIG_HEAD` where three of the four abort forms restore another revision.
+  Before that change every abort was refused while an operation waited, so these losses are new with alpha.11.
+  Round 248 (`fix/git-policy-cli-review-findings-abort-saves-a-copy-before-every-abort`, from `main`) reproduces and fixes them,
+  and reads Kimi's review of the same commit when it appears.
+  Weighed as worth an agent at once: reproduced, loses a person's work, and in the installed release.
+
+The gate of `7e3b74281a` ended at 20:34 with `gate-exit-status=1` before it ran a test:
+the `native_binary` test target did not compile
+(`binary_worktree_removal_held_commit_tests.rs:200`, a `String` where `Held.reference` is a `RefName`).
+Pass 14 had compiled the library tests only (`--lib --no-run`); the gate builds every target.
+Fixed on `main` in `08ece74c5e` (the same form as line 139 of that file; `native:test:binary:host -- --no-run` compiles, 7 min 14 s cold).
+The gate was started again at 20:45:45 on `08ece74c5e`
+(unit and log `gpc-gate-wrapper-next-alpha-on-08ece74c5e-20261111T204545-0500`), with a bounded wait on its verdict.
+Pass 15 has a note to merge `main` again and to compile the binary-level tests as well as the library's.
+The released 0.6.1-alpha.11 binary is unaffected: the break was in test code only.
+
+alpha.11's commits read again at 20:47 (all 41 since the install): 36 landed, median 13,782 ms, ninetieth percentile 36,420,
+34 over 5 s; `provisionMs` over a second in 13; not landed: the scratch ceiling once, the 20 s provision ceiling twice
+(both in the first ten minutes, none since), and two refused by a policy finding (`explicit-path-commit`), which is the wrapper working.
+By window: 01:02 to 01:12Z 17 commits, median 14,619; 01:12 to 01:30Z 15, median 15,200; 01:30 to 01:50Z 9, median 8,634.
+Landed commits by phase, median and ninetieth percentile:
+alpha.10 from 23:00 to 00:51Z (138): total 1,965/11,358, prepare 551/4,138, submit 207/1,232;
+alpha.10 with the gate running, 00:51 to 01:02Z (7): total 4,569/85,550, prepare 2,541/10,568, submit 1,096/76,159;
+alpha.11 from 01:12Z (23): total 14,397/39,598, prepare 3,490/28,643, submit 2,641/9,032, provision 0/8,761.
+On alpha.11 the phases' medians add to about 6.6 s against a median total of 14.4 s:
+some wait is in no reported phase. The load differed between the windows (two gate runs and a seven-minute compile during alpha.11's),
+so the release is not yet shown to be the cause.
+Round 249 (`perf/git-policy-cli-alpha-11-against-alpha-10-where-a-commits-time-goes`, from `main`) settles that:
+both binaries (alpha.10 downloaded from its GitHub release) on one disposable repository, alternating under the same load,
+with the spread of repeated runs; then where the time goes and which change brought it; and the timing line made to account for its own total.
+
+Pools at 20:17 (the package's count): qwen plan DeepSeek 18 of 18, DeepSeek flex 13 of 20, Kimi flex 17 of 20, qwen4 10 of 18
+(three reviews running and others waiting on the scratch gate's four).
+
 A worktree add on alpha.11, for pass 15's own worktree: started about 20:09:40, the folder was there at 20:12,
 and at 20:16 the add was still running `cargo clean --offline --package ...` and `cargo metadata` for the new worktree
 (the package repair, inline in the add), six and a half minutes in.
