@@ -749,3 +749,74 @@ fn a_child_that_was_let_go_and_did_not_come_up_is_stopped_and_said_to_be_stopped
     assert!(!ran.exists(), "the child that was held after it was let go never reached the tool's own exec");
     remove(&root);
 }
+
+/// The bound the audit of 0.6.1-alpha.12 used to reach a start's timeout while its blocking job still ran.
+const AUDIT_START_BOUND: Duration = Duration::from_millis(50);
+
+/// The delay the audit of 0.6.1-alpha.12 put between a successful start and the end of its job.
+const AUDIT_HOLD_AFTER_THE_START: Duration = Duration::from_millis(250);
+
+/// Whether the kernel has released this number:
+/// a child that was collected leaves no entry, while a zombie still has one.
+fn is_collected_soon(pid: i32) -> bool {
+    let waiting_since: Instant = Instant::now();
+    let listed: PathBuf = PathBuf::from(format!("/proc/{pid}/stat"));
+    while listed.exists() {
+        if waiting_since.elapsed() > Duration::from_secs(10) {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    return true;
+}
+
+/// What:
+///  A start that hands its child over after the bound leaves nothing running,
+///  is collected,
+///  and its answer never promises that nothing ran while the tool could have.
+/// Why:
+///  The audit of 0.6.1-alpha.12 (`kimi-audit-alpha-12-package-repair-on-add-and-commit`) put a delay between a
+///  successful start and the end of the blocking job,
+/// with the 50 ms start bound the controls reach:
+/// the answer then said that nothing of the tool ran,
+///  and the tool wrote its marker a second later with no owner.
+///  Whoever gives up on a start still owns whatever that start produces,
+/// so the child is held behind the gate until the run
+///  decides,
+/// the job's value owns the child whenever the run stops waiting for it,
+/// and the one answer that cannot promise the tool never
+///  ran says it was stopped instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdAfterTheStart(250); const run = await runToolReapingStartedWithin(tool, command, limits, 50, reap);
+/// expect(run.end.reason).not.toContain('nothing of it ran'); expect(await collected(child)).toBe(true); await sleep(1_200);
+/// expect(await exists(marker)).toBe(false);
+/// ```
+#[test]
+fn a_child_handed_over_after_the_bound_is_stopped_collected_and_never_promised_unrun() {
+    let root: PathBuf = fixture("runs-audit-hand-over-after-the-bound");
+    let program: PathBuf = root.join("tool");
+    let marker: PathBuf = root.join("survived");
+    let recorded: PathBuf = root.join("pid");
+    // The audit's fixture: the tool records its own number and writes a marker a second after it starts.
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\nprintf '%s\\n' \"$$\" > '{}'\nsleep 1\n: > '{}'\nexec sleep {SLOW_SECONDS}\n", recorded.display(), marker.display()).as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    crate::package_repair_start::HOLD_AFTER_THE_START.with(|seam| seam.set(Some(AUDIT_HOLD_AFTER_THE_START)));
+    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: ROOMY }, AUDIT_START_BOUND, &reap_within_stop_grace))
+        .expect("the runtime runs the tool");
+    crate::package_repair_start::HOLD_AFTER_THE_START.with(|seam| seam.set(None));
+    let ToolEnd::Failed(text) = &run.end else { panic!("a start that gave no answer is a failure of the start, not {:?}", run.end) };
+    assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
+    assert!(!text.contains("nothing of it ran"), "the answer promises that nothing ran about a child it let go: {text}");
+    let pid: i32 = read_a_pid_within(recorded.as_path());
+    assert!(is_collected_soon(pid), "the child {pid} the start handed over was left running or uncollected");
+    // The marker is what the tool writes a second after it starts, which is long after the answer: a child that was
+    // stopped never reaches it, and one that was left running does.
+    std::thread::sleep(Duration::from_millis(1_200));
+    assert!(!marker.exists(), "the tool wrote after the start was answered, so the child was left running");
+    remove(&root);
+}

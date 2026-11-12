@@ -50,6 +50,10 @@ use tokio::net::unix::pipe::Receiver;
 /// The one byte the run writes when the child may go on to its own `exec`.
 const THE_RUN_LETS_THE_CHILD_GO: u8 = b'g';
 
+/// The one byte the run writes when the child will not be let go,
+/// so a child still waiting leaves before its own `exec` at once.
+const THE_RUN_GIVES_UP: u8 = b'x';
+
 /// How many bytes the child writes to say which process it is:
 /// its own number,
 /// in a form both sides of the fork read the same way.
@@ -196,8 +200,17 @@ pub(crate) async fn start_within(ceiling: Duration, mut command: Command) -> Too
     the_childs_start.arms(&mut command);
     // The job is no part of the runtime's workers, and the value it returns is the child: a child nothing takes is kept
     // by `AChildNotYetTaken` until the run's answer, and stopped when that answer is given without it.
+    // A control holds the job after a successful start, which is the interval the audit of 0.6.1-alpha.12 forced: the
+    // child exists and the run is still waiting for the value that owns it.
+    #[cfg(test)]
+    let held_after_the_start: Option<Duration> = HOLD_AFTER_THE_START.with(std::cell::Cell::get);
+    #[cfg(not(test))]
+    let held_after_the_start: Option<Duration> = None;
     let dispatched = run_blocking_job(move || -> std::io::Result<AChildNotYetTaken> {
         let started: Child = command.spawn_retrying()?;
+        if let Some(held) = held_after_the_start {
+            std::thread::sleep(held);
+        }
         return Ok(AChildNotYetTaken::new(started));
     });
     let mut job = std::pin::pin!(dispatched);
@@ -253,11 +266,11 @@ pub(crate) async fn start_within(ceiling: Duration, mut command: Command) -> Too
 /// so the run decides whether the tool ever
 ///  runs,
 /// and a tool the run gave up on never ran at all.
-///  The run's ends are the only copies its two pipes have on its side,
-/// so closing them is what ends a child that waited:
-/// every end the
-///  child holds is closed in it by the kernel at its own `exec`,
-/// and otherwise when this gate is dropped.
+///  The run's ends are its two pipes' only copies on its side,
+/// so a byte this gate writes says whether the child may go,
+///  and closing them is what ends a child that waited:
+/// every end the child holds is closed in it by the kernel at its own
+///  `exec`, and otherwise when this gate is dropped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -272,6 +285,26 @@ struct TheStartGate {
     /// its own number,
     /// and the descriptor the kernel made for it at that moment.
     reported: Option<TheReportedChild>,
+}
+
+impl Drop for TheStartGate {
+    /// What:
+    ///  Say that the child will not be let go, and then close the run's ends of the gate.
+    /// Why:
+    ///  The end of the gate is what ends a waiting child,
+    /// and a copy of its write end that a fork of another start inherited delays that end until that process reaches
+    ///  its own `exec`;
+    /// one byte the child reads as anything but the word to go ends it at once,
+    /// and a child that was already let go read
+    ///  its byte before this one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// [Symbol.dispose]() { this.release.write('x'); }
+    /// ```
+    fn drop(&mut self) {
+        let _told: std::io::Result<()> = self.release.write_all(&[THE_RUN_GIVES_UP]);
+    }
 }
 
 /// The child that reported itself at the gate.
@@ -541,4 +574,13 @@ thread_local! {
     /// A control holds the child after the run let it go and before its own `exec` for this long,
     /// which makes a start whose own `exec` does not answer.
     pub(crate) static HOLD_AFTER_THE_LET_GO: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control holds the job that started the child for this long after a successful start,
+    /// which is the interval between the start and the run's answer,
+    /// and the one the audit of
+    ///  0.6.1-alpha.12 forced.
+    pub(crate) static HOLD_AFTER_THE_START: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
 }
