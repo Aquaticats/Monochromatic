@@ -197,6 +197,24 @@ pub(crate) fn object_of_a_record_name(name: &str) -> Option<&str> {
     return is_object_name(object_name).then_some(object_name);
 }
 
+/// What:
+///  Whether a record's file name says the work it records is emptying a trash.
+/// Why:
+///  One listing of a state directory holds every kind of work,
+///  and a reader that wants one kind must not open all of them:
+///  the name carries the kind before the object
+///  (`WorkItem::id`), so the name answers before any bytes are read
+///  (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesATrash = (name) => name.startsWith('trash-');
+/// ```
+pub(crate) fn names_a_trash_record(name: &str) -> bool {
+    let kind: String = format!("{}-", WorkKind::Trash.name());
+    return name.strip_prefix(kind.as_str()).is_some_and(|rest| { return !rest.is_empty(); });
+}
+
 /// The id-name rules are controlled in the test module.
 #[cfg(test)]
 #[path = "work_item_ids_and_names_tests.rs"]

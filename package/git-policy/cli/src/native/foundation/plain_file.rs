@@ -138,6 +138,8 @@ pub fn open_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
 /// function readPlainFileWith(path, limit, links) { const file = openedPlain(path, links); ...; }
 /// ```
 fn read_plain_file_with(path: &Path, limit: u64, links: Links) -> std::io::Result<Vec<u8>> {
+    #[cfg(test)]
+    note_a_read(path);
     let file: std::fs::File = opened_plain(path, links)?;
     let mut bytes: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
@@ -244,6 +246,39 @@ pub fn write_plain_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write as _;
     let mut file: std::fs::File = opened_for_writing(path)?;
     return file.write_all(bytes);
+}
+
+// What: The plain files this thread has read, and the writer that records them.
+// Why:  A control says how many files a step opens, which is the cost that a machine under I/O pressure makes a person wait
+//       for; a step that reads a queue of thousands of records to use one of them shows here
+//       (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`). The record is per thread, so controls that
+//       nextest runs beside each other do not see one another's reads.
+#[cfg(test)]
+thread_local! {
+    /// The paths read on this thread since the last control took them.
+    static READS: std::cell::RefCell<Vec<std::path::PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Records one read of the thread's own list, which the controls read.
+#[cfg(test)]
+fn note_a_read(path: &Path) {
+    READS.with(|reads| { reads.borrow_mut().push(path.to_path_buf()); });
+}
+
+/// What:
+///  The plain files this thread has read since the last call,
+///  taken and forgotten.
+/// Why:
+///  A control asks what a step it is about to run opens,
+///  so the list starts empty at the question rather than at the start of the test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const paths = takeReads();
+/// ```
+#[cfg(test)]
+pub(crate) fn take_reads() -> Vec<std::path::PathBuf> {
+    return READS.with(|reads| { return std::mem::take(&mut *reads.borrow_mut()); });
 }
 
 /// Plain-file controls stay out of the release executable.
