@@ -691,7 +691,10 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     if sink().on_stream() {
         return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut StreamWriter::stderr());
     }
-    return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr());
+    // Any other stream (a terminal, a file, a FIFO) is written by a thread of its own, for the same reason: a landing that
+    //  waited for its own log's reader was held 7.35 seconds by a full FIFO on 2026-11-12, and the journal's disk was the busy
+    // one while that day's commits took 56 to 199 seconds (`service_log_lines_off_the_calling_thread.rs`).
+    return if crate::service_log_lines_off_the_calling_thread::hand(text.as_str()) { Delivery::Stderr } else { Delivery::Dropped };
 }
 
 /// What:
