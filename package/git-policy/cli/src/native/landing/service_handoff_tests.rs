@@ -48,7 +48,7 @@ fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
     let mut expected: Vec<String> = HANDED_OVER
         .iter()
         .map(|kind| {
-            return WorkItem { kind: *kind, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: handoff.reference.text().expect("a branch name that is text").to_string(), oid: String::from(OID), parent: String::from(PARENT), created: String::new(), tries: 0 }.id();
+            return WorkItem { kind: *kind, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: handoff.reference.text().expect("a branch name that is text").to_string(), oid: String::from(OID), parent: String::from(PARENT), created: String::new(), tries: 0 , transport: false}.id();
         })
         .collect();
     expected.sort();
@@ -169,9 +169,12 @@ fn the_wake_message_carries_the_key_to_the_service() {
     let lines: Vec<String> = received.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
     assert_eq!(lines.len(), 2);
     match crate::service_protocol::decode_client(lines[0].trim_end()) {
-        Ok(crate::service_protocol::ClientMessage::Work { review_key, git_dir }) => {
+        Ok(crate::service_protocol::ClientMessage::Work { review_key, git_dir, push_programs }) => {
             assert_eq!(review_key, Some(key));
             assert_eq!(git_dir, config.git_dir);
+            // The records this wake is about are the commit's upkeep and review; a push of a landed commit comes from the
+            //  landing, which holds the request's programs itself.
+            assert!(push_programs.is_empty(), "no push record was announced by this wake");
         }
         other => panic!("not a work message: {other:?}"),
     }

@@ -597,6 +597,15 @@ mod push_failure;
 #[path = "binary_push_queued_after_a_killed_wrapper_tests.rs"]
 mod push_queued_after_a_killed_wrapper;
 
+/// The programs and transport settings of the command that asked for a push,
+/// held only in the memory of the commit service that runs it:
+/// nothing of them on any disk,
+/// a push that uses its own command's settings,
+/// a push a restarted service stops with the command that sends it,
+/// and the record of an unreleased branch removed.
+#[path = "binary_push_programs_held_in_memory_tests.rs"]
+mod push_programs_held_in_memory;
+
 /// A held push whose commit a later push of the branch carried to the remote:
 /// the record is settled on Git's proof,
 /// so no command says the opposite of `git status`.

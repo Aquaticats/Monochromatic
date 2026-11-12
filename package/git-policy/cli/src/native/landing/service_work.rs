@@ -336,8 +336,9 @@ impl GitHandlers {
     #[cfg(test)]
     fn push_git(&self, item: &WorkItem) -> PushGit {
         let cwd: PathBuf = item.repository.clone();
+        let programs: Option<crate::service_push_programs_held_in_memory::PushPrograms> = crate::service_push_programs_held_in_memory::held(item.git_dir.as_path(), item.id().as_str());
         let (inherited, overlay): (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) =
-            self.push_environment_of(item.git_dir.as_path());
+            self.push_environment_of(programs.as_ref());
         return PushGit {
             real_git: self.context.real_git.clone(),
             lfs: read_config_snapshot(&self.context, cwd.as_path()).as_ref().is_none_or(uses_lfs),
@@ -359,8 +360,9 @@ impl GitHandlers {
     /// ```
     async fn push_git_awaiting(&self, item: &WorkItem) -> PushGit {
         let cwd: PathBuf = item.repository.clone();
+        let programs: Option<crate::service_push_programs_held_in_memory::PushPrograms> = crate::service_push_programs_held_in_memory::held(item.git_dir.as_path(), item.id().as_str());
         let (inherited, overlay): (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) =
-            self.push_environment_of(item.git_dir.as_path());
+            self.push_environment_of(programs.as_ref());
         return PushGit {
             real_git: self.context.real_git.clone(),
             lfs: read_config_snapshot_awaiting(&self.context, cwd.as_path()).await.as_ref().is_none_or(uses_lfs),
@@ -373,22 +375,29 @@ impl GitHandlers {
     ///  The environment every Git child of a push receives,
     ///  built where the two faces of the push share it.
     /// Why:
-    ///   The shell's list is laid over the service's own,
+    ///   The list of the command that asked for the push is laid over the service's own,
     /// because the service takes the environment the user manager started it
     ///  with,
     /// which the person committing can neither see nor change
     /// (`service_work_push_environment`).
+    /// The values are this service's memory, never a file:
+    /// a service that restarted holds none,
+    /// and the push either says whose list it searched or stops
+    /// (`push_without_its_transport`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const [inherited, overlay] = pushEnvironmentOf(item.gitDir);
+    /// const [inherited, overlay] = pushEnvironmentOf(programsOf(item));
     /// ```
-    fn push_environment_of(&self, git_dir: &Path) -> (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) {
+    fn push_environment_of(
+        &self,
+        programs: Option<&crate::service_push_programs_held_in_memory::PushPrograms>,
+    ) -> (Vec<(std::ffi::OsString, std::ffi::OsString)>, Vec<(std::ffi::OsString, std::ffi::OsString)>) {
         #[cfg(test)]
         let extra: &[(std::ffi::OsString, std::ffi::OsString)] = self.push_environment.as_slice();
         #[cfg(not(test))]
         let extra: &[(std::ffi::OsString, std::ffi::OsString)] = &[];
-        return crate::service_work_push_environment::push_environment_of(extra, git_dir);
+        return crate::service_work_push_environment::push_environment_of(extra, programs);
     }
 }
 
@@ -450,6 +459,13 @@ impl WorkHandlers for GitHandlers {
         return Box::pin(async move {
         let Some(newest) = items.last() else { return Verdict::Done };
         let git: PushGit = self.push_git_awaiting(newest).await;
+        // What: A push whose command chose its transport stops here when this service no longer holds that choice.
+        // Why:  Those settings live only in the memory of the service that received them, so a service that was started again has
+        //  none; running the push through the manager's environment would speak a transport nobody asked for, which may also lack
+        //  the credentials the chosen way needs. Nothing was sent, so the person is told why and given the command that pushes.
+        if newest.transport && crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str()).is_none() {
+            return Verdict::Skipped(crate::push_without_its_transport::words(&git, newest).await);
+        }
         // The commit this push may send is fixed before the worktree's records are read. Every commit's record is written before its
         //  branch moves, so every commit of the branch at this reading has a record in the reading, while a commit that lands after
         //  it has none; sending the branch's reference instead would publish that later commit before its own gate answered, and that

@@ -28,6 +28,26 @@ use crate::work_item::{Claimed, DONE, FAILED};
 use std::path::Path;
 
 /// What:
+///  Gives up the programs and transport settings each record of this push held,
+///  because none of those records can run that push again.
+/// Why:
+///   The values live only in this service's memory (`service_push_programs_held_in_memory`),
+/// and one of them can hold a password:
+/// a push that was made, that failed for good, or that had nothing to push keeps none of them.
+/// A record the service will try again keeps them,
+/// which is why only the verdicts that end a record call this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const forgetTheProgramsOf = (members) => members.forEach((member) => forget(member.item.gitDir, member.item.id()));
+/// ```
+fn forget_the_programs_of(members: &[Claimed]) {
+    for member in members {
+        crate::service_push_programs_held_in_memory::forget(member.item.git_dir.as_path(), member.item.id().as_str());
+    }
+}
+
+/// What:
 ///  What one push's verdict does to its records and to the retry plan.
 /// Why:
 ///   The four verdicts differ only in what they leave for the person and in what the plan keeps,
@@ -55,6 +75,7 @@ pub(super) async fn settle_after_the_push(
     let settling: Vec<Claimed> = members.to_vec();
     match verdict {
         Verdict::Done => {
+            forget_the_programs_of(members);
             // A push of the branch went through, so an earlier failure to push it is no longer true.
             if let Some(latest) = newest {
                 clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
@@ -88,6 +109,7 @@ pub(super) async fn settle_after_the_push(
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
         Verdict::Failed(text) => {
+            forget_the_programs_of(members);
             // The record goes before the items settle, so an item in `failed` always has its record.
             if let Some(latest) = newest
                 && let Err(reason) = record_push_failure_awaiting(
@@ -114,6 +136,7 @@ pub(super) async fn settle_after_the_push(
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
         Verdict::Skipped(text) => {
+            forget_the_programs_of(members);
             // Nothing was pushed, so an earlier failure of the branch is still true and stays. A skip with words leaves
             //  its own record before the items settle; one that could not be recorded settles as failed, so no item
             //  is done without the person having been told.

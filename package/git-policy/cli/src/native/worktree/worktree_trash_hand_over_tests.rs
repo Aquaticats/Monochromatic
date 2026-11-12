@@ -164,7 +164,7 @@ fn a_routine_hand_over_wakes_the_service_and_says_nothing() {
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
     hand_over_with(&git_context(), &pending, &mut notices, &reach(&router, &nothing_to_set_up)).expect("handed over");
     let heard: Vec<String> = service.finish();
-    let work: String = encode_client(&ClientMessage::Work { git_dir: common.clone(), review_key: None });
+    let work: String = encode_client(&ClientMessage::Work { git_dir: common.clone(), review_key: None , push_programs: Vec::new()});
     assert!(heard.contains(&work), "the service was woken for the common directory: {heard:?}");
     assert!(worktree.join(TRASH_PARENT).join(&name).join("d0").is_dir(), "the add returns without emptying anything");
     assert_eq!(notices, Vec::<u8>::new(), "a trash the add made itself is said by its note alone: {:?}", String::from_utf8_lossy(notices.as_slice()));

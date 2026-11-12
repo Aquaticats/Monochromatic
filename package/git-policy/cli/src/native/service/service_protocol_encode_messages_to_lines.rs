@@ -184,13 +184,25 @@ pub fn encode_client(message: &ClientMessage) -> String {
             path_bytes::write_field(&mut fields, "repository", repository.as_path());
             Value::Object(fields).to_string()
         }
-        ClientMessage::Work { git_dir, review_key } => {
+        ClientMessage::Work { git_dir, review_key, push_programs } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("work"));
             put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
             path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
             if let Some(key) = review_key {
                 put(&mut fields, "reviewKey", Value::from(key.expose()));
+            }
+            if !push_programs.is_empty() {
+                let entries: Vec<Value> = push_programs
+                    .iter()
+                    .map(|(id, programs)| {
+                        let mut entry: Map<String, Value> = Map::new();
+                        put(&mut entry, "id", Value::from(id.as_str()));
+                        put(&mut entry, "programs", programs_json(Some(programs)));
+                        return Value::Object(entry);
+                    })
+                    .collect();
+                put(&mut fields, "pushPrograms", Value::Array(entries));
             }
             Value::Object(fields).to_string()
         }
@@ -235,8 +247,38 @@ pub fn commit_line(request: &CommitRequest) -> String {
     put(&mut fields, "commit", request.commit.as_deref().map_or(Value::Null, Value::from));
     put(&mut fields, "captured", Value::from(request.captured));
     put(&mut fields, "holder", Value::from(request.holder.as_str()));
+    put(&mut fields, "programs", programs_json(request.programs.as_ref()));
     put(&mut fields, "cleanup", request.cleanup.as_ref().map_or(Value::Null, cleanup_json));
     return Value::Object(fields).to_string();
+}
+
+/// What:
+///  The programs and transport settings of a request as one JSON object,
+///  or null when it carries none.
+/// Why:
+///   The names travel as pairs rather than as an object's keys,
+/// so their order is the order the push's overlay adds them in,
+/// and a name cannot be lost to a
+///  duplicate key;
+/// `transport` is the flag alone,
+/// never a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const programsJson = (programs) => programs === null ? null : ({ transport: programs.transport, variables: programs.variables });
+/// ```
+fn programs_json(programs: Option<&crate::service_push_programs_held_in_memory::PushPrograms>) -> Value {
+    let Some(programs) = programs else {
+        return Value::Null;
+    };
+    let variables: Value = Value::Array(
+        programs
+            .variables
+            .iter()
+            .map(|(name, value)| { return Value::Array(vec![Value::from(name.as_str()), Value::from(value.as_str())]); })
+            .collect(),
+    );
+    return Value::Object(Map::from_iter([(String::from("transport"), Value::from(programs.transport)), (String::from("variables"), variables)]));
 }
 
 /// What:

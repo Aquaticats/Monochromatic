@@ -99,6 +99,7 @@ fn a_record_of_another_kind_leaves_no_notice() {
         parent: String::from("{\"root\":\"/w\",\"tools\":[\"pnpm\"]}"),
         created: String::from("2026-11-12T04:00:00Z"),
         tries: 0,
+        transport: false,
     };
     assert_eq!(notice_for_given_up(&trash, 3), None);
     remove(root.as_path());

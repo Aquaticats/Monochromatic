@@ -76,7 +76,7 @@ fn plant_trash(worktree: &Path, name: &str, count: usize) -> TrashManifest {
 /// A work item for the trash a manifest describes,
 /// as the hand-over writes it.
 fn item_of(worktree: &Path, git_dir: &Path, manifest: &TrashManifest) -> WorkItem {
-    return WorkItem { kind: WorkKind::Trash, repository: worktree.to_path_buf(), git_dir: git_dir.to_path_buf(), branch_ref: String::from(TRASH_REFERENCE), oid: manifest.name.clone(), parent: manifest.encode(), created: now_iso(), tries: 0 };
+    return WorkItem { kind: WorkKind::Trash, repository: worktree.to_path_buf(), git_dir: git_dir.to_path_buf(), branch_ref: String::from(TRASH_REFERENCE), oid: manifest.name.clone(), parent: manifest.encode(), created: now_iso(), tries: 0 , transport: false};
 }
 
 /// Take a snapshot of the main checkout for a new worktree `topic` and return what the controls inspect.

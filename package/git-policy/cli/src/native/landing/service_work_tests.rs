@@ -129,6 +129,7 @@ fn item(repo: &Repo, kind: WorkKind, oid: &str, branch: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -296,7 +297,7 @@ fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
 #[test]
 fn an_item_for_another_repository_or_with_a_bad_reference_is_refused() {
     let repo: Repo = repo("work-refused");
-    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere"), ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere"), transport: false, ..item(&repo, WorkKind::Push, OID, BRANCH) };
     let bad_reference: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/a b");
     for refused in [&elsewhere, &bad_reference] {
         assert!(!is_acceptable(refused, repo.common.as_path()), "{refused:?}");
@@ -463,7 +464,7 @@ fn a_holder_that_does_not_renew_loses_its_claim_to_the_next_instance() {
 #[test]
 fn a_push_given_up_by_recovery_leaves_a_notice() {
     let repo: Repo = repo("work-given-up");
-    let abandoned: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    let abandoned: WorkItem = WorkItem { tries: MAX_TRIES - 1, transport: false, ..item(&repo, WorkKind::Push, OID, BRANCH) };
     enqueue_all(&repo, std::slice::from_ref(&abandoned));
     let started: ClaimTime = ClaimTime::read();
     assert!(claim_next_of(work_directory(repo.common.as_path()).as_path(), &started, &SERVICE_KINDS).expect("claim").is_some());
@@ -942,6 +943,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work_directory(common.as_path()).as_path(), &review).expect("enqueue");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
@@ -1063,48 +1065,54 @@ fn the_service_starts_its_push_git_with_lock_pid_files_on() {
 }
 
 /// What:
-///  A push the service runs searches the program list the client that committed recorded,
-///  and its marker names that record.
+///  A push the service runs searches the programs of the command that asked for it,
+///  and says so,
+///  while a push whose values this service no longer holds says its list is the service's own.
 /// Why:
-///   The service takes the environment the manager started it with,
-///   which the person cannot see or change;
-///   a push must find the programs the shell that committed would,
-/// and a refusal must say which list it searched.
+///   The values are the memory of the service that received them and nothing on the disk,
+/// so the marker it lays over the push's environment is the only account a refusal has of which list was searched
+///  (`service_push_programs_held_in_memory`).
 #[test]
-fn the_service_push_searches_the_list_the_client_recorded() {
+fn the_service_push_searches_the_list_the_command_that_asked_gave() {
     let repo: Repo = repo("service-push-program-search");
     let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
     let item: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    let record: PathBuf = crate::service_client_program_search::record_path(repo.common.as_path());
 
-    // No client recorded anything: the service's own list is the one searched, and the marker says where a record would be.
+    // Nothing was held for this record: the service's own list is the one searched, and the marker says so.
     let without: PushGit = handlers.push_git(&item);
     assert_eq!(
-        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_client_program_search::MISSING_VARIABLE),
-        Some(record.clone().into_os_string()),
-        "a push with no record names the place one would be"
+        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_push_programs_held_in_memory::FROM_THE_SERVICE),
+        Some(OsString::from("1")),
+        "a push whose values are gone says the list it searched is the service's own"
     );
     assert_eq!(
-        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_client_program_search::RECORD_VARIABLE),
+        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_push_programs_held_in_memory::FROM_THE_REQUEST),
         None,
-        "and claims no record it does not have"
+        "and the manager's `PATH` is the one it kept"
     );
 
-    // A record the shell left: its list is searched, and the marker names the record.
+    // The command that asked for this record gave its list: that list is searched, and the marker names it.
     let shell_path: OsString = OsString::from("/opt/git-lfs/bin:/usr/bin");
-    let shell: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), shell_path.clone())];
-    crate::service_client_program_search::write(repo.common.as_path(), shell.as_slice()).expect("the record is written");
+    let shell: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), shell_path.clone()), (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /fake/key"))];
+    let programs: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(shell.as_slice());
+    crate::service_push_programs_held_in_memory::remember(item.git_dir.as_path(), item.id().as_str(), programs.clone());
     let with: PushGit = handlers.push_git(&item);
     assert_eq!(
         crate::child_environment::environment_value(with.environment.as_slice(), "PATH"),
         Some(shell_path),
-        "the push searches the shell's list, not the manager's"
+        "the push searches the list of the command that asked for it, not the manager's"
     );
     assert_eq!(
-        crate::child_environment::environment_value(with.environment.as_slice(), crate::service_client_program_search::RECORD_VARIABLE),
-        Some(record.into_os_string()),
-        "and the marker names the record it came from"
+        crate::child_environment::environment_value(with.environment.as_slice(), "GIT_SSH_COMMAND"),
+        Some(OsString::from("ssh -i /fake/key")),
+        "and reaches the remote the way that command does"
     );
+    assert_eq!(
+        crate::child_environment::environment_value(with.environment.as_slice(), crate::service_push_programs_held_in_memory::FROM_THE_REQUEST),
+        Some(OsString::from("1")),
+        "and the marker says the list came with the request"
+    );
+    crate::service_push_programs_held_in_memory::forget(item.git_dir.as_path(), item.id().as_str());
     remove(repo.root.as_path());
 }
 
@@ -1518,6 +1526,7 @@ fn a_repository_to_review(parent: &Path, name: &str) -> (PathBuf, PathBuf, WorkI
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     return (root, git_dir, item);
 }
@@ -1557,7 +1566,7 @@ fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers()
     // The positive control of the two faces: the review of a repository with no shadow log answers Done and reads nothing,
     //  whichever face asks it.
     let plain: PathBuf = repository_at(root.as_path(), "plain");
-    let plain_item: WorkItem = WorkItem { kind: WorkKind::Review, repository: plain.clone(), git_dir: plain.join(".git"), ..task_item.clone() };
+    let plain_item: WorkItem = WorkItem { kind: WorkKind::Review, repository: plain.clone(), git_dir: plain.join(".git"), transport: false, ..task_item.clone() };
     let plain_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint("http://127.0.0.1:9");
     assert_eq!(crate::merge_second_pass::tests::await_it(plain_handlers.review_awaiting(&plain_item)), Verdict::Done, "no shadow log means no review");
     assert_eq!(plain_handlers.review(&plain_item), Verdict::Done, "the synchronous face answers the same");

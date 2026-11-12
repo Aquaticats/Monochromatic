@@ -216,38 +216,39 @@ fn the_missing_program_message_names_the_cause_and_every_way_forward() {
 /// the service's list is not the shell's,
 ///  and the shell's is the one they can change.
 #[test]
-fn the_missing_program_message_names_the_record_or_the_service_list() {
-    let from_the_record: ProgramSearch = ProgramSearch::of(&[
-        (OsString::from("PATH"), OsString::from("/usr/bin")),
-        (
-            OsString::from(crate::service_client_program_search::RECORD_VARIABLE),
-            OsString::from("/repo/.git/monochromatic-git-policy-cli/push-programs.json"),
-        ),
+fn the_missing_program_message_names_the_shells_list_or_the_service_list() {
+    let from_the_request: ProgramSearch = ProgramSearch::of(&[
+        (OsString::from("PATH"), OsString::from("/opt/lfs/bin:/usr/bin")),
+        (OsString::from(crate::service_push_programs_held_in_memory::FROM_THE_REQUEST), OsString::from("1")),
     ]);
-    let message: String = missing_program_message(&from_the_record);
+    let message: String = missing_program_message(&from_the_request);
     assert!(
-        message.contains("the `PATH` recorded at /repo/.git/monochromatic-git-policy-cli/push-programs.json by the client that made this commit"),
+        message.contains("the `PATH` of the shell that asked for this push, which travelled with the request to the commit service that runs it"),
         "{message}"
     );
-    assert!(message.contains("on the `PATH` of the shell that commits"), "{message}");
+    assert!(message.contains("on the `PATH` of the shell that commits, then make the commit again"), "{message}");
 
-    let no_record: ProgramSearch = ProgramSearch::of(&[
+    let from_the_service: ProgramSearch = ProgramSearch::of(&[
         (OsString::from("PATH"), OsString::from("/usr/local/bin:/usr/bin")),
-        (
-            OsString::from(crate::service_client_program_search::MISSING_VARIABLE),
-            OsString::from("/repo/.git/monochromatic-git-policy-cli/push-programs.json"),
-        ),
+        (OsString::from(crate::service_push_programs_held_in_memory::FROM_THE_SERVICE), OsString::from("1")),
     ]);
-    let without_a_record: String = missing_program_message(&no_record);
-    assert!(without_a_record.contains("the folders this push searches: /usr/local/bin, /usr/bin"), "{without_a_record}");
+    let without_a_list: String = missing_program_message(&from_the_service);
+    assert!(without_a_list.contains("the folders this push searches: /usr/local/bin, /usr/bin"), "{without_a_list}");
     assert!(
-        without_a_record.contains("No `PATH` this release can read was recorded at /repo/.git/monochromatic-git-policy-cli/push-programs.json"),
-        "{without_a_record}"
+        without_a_list.contains("No `PATH` came with the request this push belongs to"),
+        "{without_a_list}"
     );
     assert!(
-        without_a_record.contains("the service's own `PATH`, which the manager that started the service fixed"),
-        "{without_a_record}"
+        without_a_list.contains("the service's own `PATH`, which the manager that started the service fixed"),
+        "{without_a_list}"
     );
+    // What the remedy promises must be true of the command it names: a push typed in that shell searches that shell's own list, and
+    //  records nothing for the service, which the record this refusal used to name no longer exists.
+    assert!(
+        without_a_list.contains("or push by hand once from that shell (`git push`), which searches that shell's own `PATH`"),
+        "{without_a_list}"
+    );
+    assert!(!without_a_list.contains("records that list"), "a typed push records nothing: {without_a_list}");
 }
 
 /// The failure explanation says nothing was published and names each way forward.

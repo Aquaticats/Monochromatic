@@ -77,7 +77,9 @@ pub(crate) fn move_branch(git: &GitContext, held: &Held, intent: &Intent, new: &
 /// whatABatchOwes(written); const moved = moveBranch(...); if (!moved.ok) forgetWhatABatchOwes(written); moved
 /// ```
 pub(crate) fn move_the_branch(git: &GitContext, held: &Held, written: &Intent, commit: &str, current: &str) -> Result<bool, String> {
-    crate::service_server_land_group::what_a_batch_owes(written);
+    // A restart has no request in memory, so it holds the pushes of the batch and no programs: each record keeps the flag it was
+    //  written with, and a push whose command chose a transport stops rather than speaking another (`push_without_its_transport`).
+    crate::service_server_land_group::what_a_batch_owes(written, &[]);
     let moved: Result<bool, String> = move_branch(git, held, written, commit, current);
     if matches!(moved, Ok(false) | Err(_)) {
         crate::service_server_land_group::forget_what_a_batch_owes(written);

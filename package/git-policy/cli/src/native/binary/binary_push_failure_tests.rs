@@ -153,6 +153,7 @@ fn wait_until_settled_in(git_dir: &Path, branch: &str, commit: &str) {
             parent: String::new(),
             created: String::new(),
             tries: 0,
+            transport: false,
         };
         return ["done", "failed"].iter().any(|state| { return work.join(state).join(record.id()).exists(); });
     });
@@ -269,6 +270,7 @@ fn push_item(setup: &Setup, commit: &str) -> WorkItem {
         parent: String::new(),
         created: now_iso(),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -282,7 +284,7 @@ fn wake_service(setup: &Setup) {
         heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: PATIENCE,
             units_record_dir: None,
 };
-    wake(&config, common_dir(setup).as_path(), None, &mut std::io::sink()).expect("the service takes the wake");
+    wake(&config, common_dir(setup).as_path(), None, &[], &mut std::io::sink()).expect("the service takes the wake");
 }
 
 /// Hands the service a push of `commit` as the wrapper's commit does,
@@ -468,6 +470,7 @@ fn leave_pending_push(setup: &Setup, linked: &Path, own: &Path, branch: &str) ->
         parent: String::new(),
         created: now_iso(),
         tries: 0,
+        transport: false,
     };
     enqueue(work_directory(own).as_path(), &item).expect("the push is recorded");
     return commit;

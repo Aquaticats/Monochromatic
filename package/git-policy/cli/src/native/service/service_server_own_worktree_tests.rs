@@ -150,6 +150,7 @@ fn a_service_with_a_push_plan_pending_ends_when_its_repository_is_deleted() {
             parent: String::from("fedcba9876543210fedcba9876543210fedcba98"),
             created: String::from("2026-11-11T08:55:00.000-05:00"),
             tries: 148,
+            transport: false,
         },
         attempt: 149,
     };

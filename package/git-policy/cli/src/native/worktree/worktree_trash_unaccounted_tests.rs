@@ -112,6 +112,7 @@ fn a_trash_record_read_accounts_for_the_trash_it_names() {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     };
     let claimed: PathBuf = state_directory(work.as_path(), CLAIMED).join(item.id());
     std::fs::create_dir_all(claimed.parent().expect("the claimed directory")).expect("the claimed directory");

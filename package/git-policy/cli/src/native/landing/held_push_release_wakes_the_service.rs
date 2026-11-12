@@ -102,7 +102,7 @@ impl WakeTheService for AskTheService<'_> {
         };
         // The wake's own lines are not the command's report, and a service that cannot be reached is not its failure.
         let mut silent: std::io::Sink = std::io::sink();
-        let _woken: Result<(), crate::service_messages::ClientFailure> = wake(&config, git_dir, None, &mut silent);
+        let _woken: Result<(), crate::service_messages::ClientFailure> = wake(&config, git_dir, None, &[], &mut silent);
     }
 }
 

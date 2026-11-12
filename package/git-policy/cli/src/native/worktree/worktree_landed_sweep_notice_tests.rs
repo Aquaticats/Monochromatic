@@ -86,6 +86,7 @@ fn a_handed_over_removal_is_named_with_the_record_its_outcome_stands_in() {
                 parent: String::from("/a worktree/with a space"),
                 created: String::from("2026-01-01T00:00:00+00:00"),
                 tries: 0,
+                transport: false,
             },
         }],
         ..LandedSweep::default()

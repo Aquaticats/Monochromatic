@@ -109,6 +109,7 @@ fn a_request(world: &World, id: &str, message: &str) -> CommitRequest {
         scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 

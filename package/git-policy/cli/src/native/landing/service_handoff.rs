@@ -124,10 +124,13 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
             parent: handoff.parent.clone(),
             created: now_iso(),
             tries: 0,
+            transport: false,
         });
     }
     enqueue_all(work_dir.as_path(), items.as_slice()).map_err(ClientFailure::WorkNotHandedOver)?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices).map_err(not_handed_over);
+    // The records this wake is about are the commit's upkeep and review, never a push of its own: the push record of a landed
+    //  commit comes from the landing, which holds the request's programs in the service's memory itself.
+    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, &[], notices).map_err(not_handed_over);
 }
 
 /// What:
@@ -260,6 +263,9 @@ fn push_item(handoff: &ServiceHandoff, landed: &str, reference: &str) -> WorkIte
         parent: handoff.parent.clone(),
         created: now_iso(),
         tries: 0,
+        // The record a landing held already says whether the request's command chose a transport; this one is written only when
+        //  nothing was held, and then this command is what asked for the push, so its own environment answers.
+        transport: crate::service_push_programs_held_in_memory::of_this_process().transport,
     };
 }
 
@@ -283,10 +289,18 @@ fn push_item(handoff: &ServiceHandoff, landed: &str, reference: &str) -> WorkIte
 /// ```ts
 /// await writePushRecord({ repository, gitDir, reference, tip, parent })
 /// ```
-pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &crate::ref_name::RefName, tip: &str, parent: &str) -> Result<(), ClientFailure> {
+pub fn write_push_record(
+    repository: &std::path::Path,
+    git_dir: &std::path::Path,
+    reference: &crate::ref_name::RefName,
+    tip: &str,
+    parent: &str,
+) -> Result<Option<String>, ClientFailure> {
     // A push record names its branch in text, and a spelling with replacement characters would push another branch, so a branch
     //  whose name is not text has none; `hand_over_push` tells the person that instead.
-    let Some(name) = reference.text() else { return Ok(()) };
+    let Some(name) = reference.text() else { return Ok(None) };
+    // The command that moved the branch is what asks for this push, so its own environment answers whether a transport was
+    //  chosen; the values themselves travel with the wake and are written nowhere (`service_push_programs_held_in_memory`).
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: repository.to_path_buf(),
@@ -296,9 +310,11 @@ pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path
         parent: parent.to_string(),
         created: now_iso(),
         tries: 0,
+        transport: crate::service_push_programs_held_in_memory::of_this_process().transport,
     };
+    let id: String = item.id();
     enqueue(work_directory(git_dir).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
-    return Ok(());
+    return Ok(Some(id));
 }
 
 /// What:
@@ -317,8 +333,16 @@ pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Wri
         let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), tip));
         return Ok(());
     }
-    write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), &handoff.reference, tip, handoff.parent.as_str())?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), None, notices).map_err(not_handed_over);
+    let record: Option<String> = write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), &handoff.reference, tip, handoff.parent.as_str())?;
+    // What: The programs of this command, and whether it chose the transport the push speaks through, go with the wake.
+    // Why:  Nothing of them may be written (the two command lines can hold a password), and the push runs after this command has
+    //  gone, so the message that announces the record is the last moment they can reach the service that runs it, which holds them
+    //  in its memory alone (`service_push_programs_held_in_memory`).
+    let programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)> = match record {
+        Some(id) => vec![(id, crate::service_push_programs_held_in_memory::of_this_process())],
+        None => Vec::new(),
+    };
+    return wake(&handoff.config, handoff.git_dir.as_path(), None, programs.as_slice(), notices).map_err(not_handed_over);
 }
 
 /// What:

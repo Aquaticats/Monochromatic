@@ -523,6 +523,7 @@ pub fn request_item(git_dir: &Path, source_root: &Path, pool: &Path) -> Result<W
         parent: pool.display().to_string(),
         created: now_iso(),
         tries: 0,
+        transport: false,
     });
 }
 
@@ -553,6 +554,7 @@ pub fn deletion_item(git_dir: &Path, pool: &Path, name: &OsStr) -> WorkItem {
         parent: entry.display().to_string(),
         created: now_iso(),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -599,7 +601,7 @@ fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), String> 
         units_record_dir: host.as_ref().map(units_record_dir_of),
     };
     let mut silent: std::io::Sink = std::io::sink();
-    return match wake(&config, git_dir, None, &mut silent) {
+    return match wake(&config, git_dir, None, &[], &mut silent) {
         Ok(()) => Ok(()),
         Err(failure) => Err(render(&failure)),
     };

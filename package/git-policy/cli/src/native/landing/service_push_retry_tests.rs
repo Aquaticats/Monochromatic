@@ -128,6 +128,7 @@ fn stage_installing(name: &str, hook_name: Option<&str>) -> Stage {
         parent: String::new(),
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work_directory(repo.join(".git").as_path()).as_path(), &work_item).expect("enqueue");
     let staged: Stage = Stage { root, repo, remote, landed };
@@ -301,6 +302,7 @@ fn scripted_world_paced(name: &str, verdicts: Vec<Verdict>, first: Duration) -> 
         parent: String::new(),
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("enqueue");
     let handlers: Arc<Scripted> = Arc::new(Scripted { verdicts: Mutex::new(verdicts), pushes: AtomicUsize::new(0) });
@@ -850,6 +852,7 @@ fn a_failed_push_of_a_branch_that_exists_is_not_settled_as_a_gone_branch() {
         parent: String::new(),
         created: String::from("2026-11-09T10:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work.as_path(), &item).expect("enqueue");
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
@@ -891,6 +894,7 @@ fn a_notice_of_a_gone_branch_says_when_the_refs_could_not_be_read() {
         parent: String::new(),
         created: String::from("2026-11-09T10:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work.as_path(), &item).expect("enqueue");
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
@@ -966,6 +970,7 @@ fn deleted_branch_world(name: &str, everywhere: bool) -> (PathBuf, PathBuf, Path
         parent: String::new(),
         created: String::from("2026-11-09T08:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work.as_path(), &item).expect("enqueue");
     return (root, git_dir, work, item, gone);
@@ -1257,6 +1262,7 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
         parent: String::new(),
         created: String::from("2026-11-07T07:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     let plan: crate::lfs_upload_plan::UploadPlan = crate::lfs_upload_plan::UploadPlan { remotes: vec![std::ffi::OsString::from("origin")], refs: vec![std::ffi::OsString::from("main")], everything: false, submodules: false, full_scan: false, objects: None };
     // The lookup of `git-lfs` takes the first `PATH` of the environment, so the stand-in's directory replaces the inherited one.
@@ -1374,6 +1380,7 @@ fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal
         parent: String::new(),
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
+        transport: false,
     };
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&NO_PROMPT));
     let mut verdict: Option<Verdict> = None;
@@ -1414,6 +1421,7 @@ fn push_record_id(commit: &str) -> String {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     }
     .id();
 }
@@ -1520,6 +1528,7 @@ fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
         parent: stage.landed.clone(),
         created: String::from("2026-11-04T05:40:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("enqueue");
     let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), Duration::ZERO);
@@ -1569,6 +1578,7 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
         parent: String::new(),
         created: String::from("2026-11-04T05:40:00.000Z"),
         tries: 0,
+        transport: false,
     };
     crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item: planned, attempt: 1 }).expect("the plan is kept");
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
@@ -1773,6 +1783,7 @@ fn a_due_push_with_no_retry_plan_left_is_worded_as_one_nothing_tries_again() {
         parent: String::new(),
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
+        transport: false,
     };
     let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
     // A round that keeps no plan: no first pause, and this push due again.
@@ -1821,6 +1832,7 @@ fn a_due_push_with_a_kept_plan_is_worded_as_one_the_service_keeps_trying() {
         parent: String::new(),
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
+        transport: false,
     };
     let due: Due = Due { git_dir: git_dir.clone(), item, attempt: 1 };
     // A round that keeps a plan: this push due again, and the first pause to plan the next try with.
@@ -1874,6 +1886,7 @@ fn push_item(repo: &Path, landed: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-09T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -1960,6 +1973,7 @@ fn a_plan_the_start_could_not_list_is_listed_again_and_its_push_is_made() {
                 parent: String::new(),
                 created: String::from("2026-11-03T05:40:00.000Z"),
                 tries: 0,
+                transport: false,
             },
             attempt: 1,
         },

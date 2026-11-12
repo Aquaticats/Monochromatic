@@ -103,6 +103,7 @@ fn held_batch(root: &Path, repo: &Path, context: &GitContext) -> Held {
         cleanup: None,
         index: git_dir.join("index"),
         git_dir: git_dir.clone(),
+transports: Vec::new(),
     };
     write_intent(journal.as_path(), &intent).expect("the intent");
     // The landing records the index file it saw under its lock before it writes the branch;
@@ -348,6 +349,7 @@ fn a_held_commit_lands_in_a_repository_whose_git_directory_is_beside_it() {
         cleanup: None,
         index: git_dir.join("index"),
         git_dir: git_dir.clone(),
+transports: Vec::new(),
     };
     write_intent(journal.as_path(), &intent).expect("the intent");
     write_start(journal.as_path(), 1, &witness_of(intent.index.as_path()).expect("the index file")).expect("the witness");

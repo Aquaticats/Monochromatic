@@ -48,6 +48,10 @@ pub mod js_text;
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
 
+/// The record an unreleased branch wrote of a shell's programs,
+/// and the staging files of its writes, removed by the first command that meets them.
+pub mod earlier_push_programs_record;
+
 /// The two costs a command pays outside the phases of its timing record,
 /// and the writer that measures what it prints.
 pub mod time_spent_outside_the_phases;

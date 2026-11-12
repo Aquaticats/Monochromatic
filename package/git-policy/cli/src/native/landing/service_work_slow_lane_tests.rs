@@ -64,6 +64,7 @@ fn record(world: &World, kind: WorkKind, oid: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-10T18:16:51.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -311,6 +312,7 @@ fn a_trash_record(staged: &Stage, oid: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-10T18:16:51.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -325,6 +327,7 @@ fn a_push_record(staged: &Stage) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-10T18:20:53.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 

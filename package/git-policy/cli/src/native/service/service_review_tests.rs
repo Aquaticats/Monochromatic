@@ -52,6 +52,7 @@ fn commit(fixture: &Fixture, files: &[(&str, &str)], message: &str) -> WorkItem 
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -172,6 +173,7 @@ fn a_linked_worktrees_entry_goes_to_the_repositorys_one_log() {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     let built: ReviewOptions = options(&item, "http://127.0.0.1:1/unused");
     assert_eq!(built.log_path, shared_log_path(common.as_path()));
@@ -200,6 +202,7 @@ fn a_repository_without_a_shadow_log_is_left_alone() {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     };
     assert_eq!(review_item(&git_context(), &item, options(&item, "http://127.0.0.1:1/unused")), Verdict::Done);
     assert!(!root.join(TRACKED_LOG_RELATIVE).exists());
@@ -217,7 +220,7 @@ fn a_gateway_failure_is_logged_and_an_unreadable_commit_fails_the_item() {
     assert_eq!(review_item(&git_context(), &item, options(&item, mock.url.as_str())), Verdict::Done);
     mock.finish();
     assert!(log_of(&fixture).contains("Luna failed: HTTP 503 busy"));
-    let unknown: WorkItem = WorkItem { oid: "0".repeat(40), ..item.clone() };
+    let unknown: WorkItem = WorkItem { oid: "0".repeat(40), transport: false, ..item.clone() };
     let verdict: Verdict = review_item(&git_context(), &unknown, options(&unknown, "http://127.0.0.1:1/unused"));
     assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains("git")), "{verdict:?}");
     remove(fixture.parent.as_path());

@@ -300,56 +300,55 @@ the manager's.
 
 ### The fix
 
-The client that commits records the list its own shell searches
-at `<git-dir>/monochromatic-git-policy-cli/push-programs.json`,
-in the folder the durable work records already use,
-before every submit (`service_client_program_search`):
-its `PATH`,
+The five values that decide where a push finds its programs,
+and how it reaches the remote,
+travel from the command that asks for the push to the commit service in its request or wake,
+and live only in that service process's memory
+(`service_push_programs_held_in_memory`):
+`PATH`,
 `GIT_EXEC_PATH`,
 `GIT_SSH`,
-`GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND`,
-one rename over the name so a push never reads half a list.
-The service reads it before every push and lays it over its own environment
-(`service_work_push_environment`),
-and marks which list it used
-(`MONOCHROMATIC_PUSH_PROGRAM_SEARCH_RECORD`,
-or `..._MISSING` with the record's path),
-so the refusal names the program,
-every folder of the list it searched,
-and where that list came from
-(`lfs_pre_push::ProgramSearch`).
-It is per worktree and refreshed by every commit,
-so a push retried after the client exits still uses the shell that made the commit;
-its reason is written in the module header.
+`GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND`.
+A commit carries them in its `CommitRequest`;
+a merge,
+cherry-pick,
+revert,
+pull's merge,
+an applied patch or a pull carries them in the `Work` message that wakes the service for the push record it just wrote.
+They are keyed by the push record and never by the worktree or the branch,
+so each push runs with the values of the command that asked for it,
+and are dropped when that record can no longer run.
 
-The control,
-`lfs_pre_push::a_commit_whose_service_lacks_the_shells_path_finds_git_lfs_through_the_shells_search_list`,
-fails against the code before the fix at
-`the service's push published the commit ... left: "absent" right: "8bc4667d9d..."`,
-with the service's push saying `\`git-lfs\` was not found in any directory of PATH`
-and the remote empty;
-it passes now.
+Nothing of them is written.
+The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only",
+after a review showed that the first version of this fix wrote both command lines into
+`<git-dir>/monochromatic-git-policy-cli/push-programs.json`,
+that the record was never removed,
+that a typed push never refreshed it,
+and that a killed client left a staging file holding the whole record.
+A first command that meets a record or staging file of that earlier shape removes it
+(`earlier_push_programs_record`);
+the branch that wrote them was never released.
+
+The one thing a record keeps is a flag:
+the push record says that the command which asked for it chose a transport,
+and never which.
+A service that restarted holds no values,
+so a push whose flag is set stops before it runs with the words that name the repository,
+the branch and the one command that pushes,
+and say that the transport settings of the command that asked are gone with the restart
+(`push_without_its_transport`).
+A push whose flag is unset searches the service's own `PATH` and its refusal says so
+(`lfs_pre_push::ProgramSearch`),
+and that refusal's remedy no longer promises that a typed push records a list for the service.
 
 ### Checks after this change
 
-- `mise run //package/git-policy/cli:native:clippy`:
-  no warning.
-- `native:test:host -- --no-fail-fast lfs service_work`:
-  `215 tests run: 215 passed, 7229 skipped`,
-  naming `service_client_program_search::tests::*`,
-  `the_service_push_searches_the_list_the_client_recorded`
-  and the two message controls.
-- `native:test:binary:host -- --no-fail-fast lfs`:
-  `55 tests run: 55 passed, 1030 skipped`.
-- Nine controls of `service_replay`,
-  `service_lane::a_landing_waiting`,
-  `fault_trace::lock_without_links` and `wait_notice::a_commit_that_waits`
-  fail or time out at this machine,
-  and fail the same way at `f059a5367a` in a clean worktree of its own,
-  with this change disabled and with a copy of the record never read:
-  they are `main`'s at the merge,
-  and they are the lock-holder search the coordinator named
-  (the wrapper reads `/proc/<pid>/fdinfo` of the IDE's watcher).
+- `mise run //package/git-policy/cli:native:clippy`: no warning.
+- The module tests named in the report,
+  and the binary controls
+  `binary::push_programs_held_in_memory`,
+  each shown failing before its fix.
 
 ## Open work
 

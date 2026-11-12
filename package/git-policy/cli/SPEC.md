@@ -10286,31 +10286,68 @@ The step:
   install-or-remove explanation and exits with status 1.
   Which folders that search reads is the push's own list.
   A typed push reads the environment of that command.
-  A push the commit service runs reads the list the client that made the commit recorded beside the work records,
-  `<git-dir>/monochromatic-git-policy-cli/push-programs.json`
-  (its `PATH`,
+  A push the commit service runs reads the list of the command that asked for it,
+  which is that command's `PATH`,
   `GIT_EXEC_PATH`,
   `GIT_SSH`,
-  `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND`),
-  which every commit refreshes before it submits:
+  `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND`:
   the service takes the environment the user manager started it with,
   and the person committing can neither see that list nor change it
   (on 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
   and two runs' commits landed while their pushes were refused for a program their own shell could start).
-  A client that recorded no list,
-  or a record this release cannot read,
-  leaves the service searching its own `PATH`,
+  Those five values travel from the command to the service with the request or the wake that asks for the push,
+  and live only in that service process's memory:
+  a commit carries them in its request,
+  a merge, cherry-pick, revert, pull's merge, patch or pull carries them in the message that wakes the service for the
+  push record it just wrote,
+  and nothing of them reaches a file,
+  a work record,
+  the journal or a log line
+  (`service_push_programs_held_in_memory`).
+  They are dropped when the push record they belong to can no longer run:
+  the push was made,
+  it failed for good,
+  or it had nothing to push.
+  Nothing outlives the service process,
+  so a restart drops every value it held,
+  and a push whose command set one of the three transport variables then stops before it runs:
+  the words name the repository,
+  the branch and the one command that pushes,
+  say that the transport settings of the command that asked are gone with the restart,
+  and say that nothing was sent through another transport.
+  That flag is the one thing a record keeps of them:
+  the push record names the commit and the branch and says that a transport was chosen,
+  and never which.
+  A push whose request carried no list,
+  or whose record was re-held by a service that restarted,
+  leaves the push searching the service's own `PATH`,
   and the refusal says that.
   The refusal names the program,
   every folder of the list it searched,
   and where that list came from,
-  so a person can tell the manager's list from their own.
-  The record carries no askpass program:
+  so a person can tell the manager's list from their own;
+  its remedy puts `git-lfs` on the list or sends the person to a push typed in their own shell,
+  which searches that shell's list,
+  and never promises that a typed push records anything for the service.
+  No askpass program travels:
   the service's pushes carry the never-prompt pair by the owner's decision
   (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`),
   so an askpass variable would be overwritten anyway;
   a credential helper is found through the carried `PATH` and the repository's configuration,
   and the service runs real Git by the absolute path its unit passes (`--git`).
+  The five names the service's own environment held are removed from a push that carries them,
+  so a name the command did not set is unset for the push rather than taken from the manager.
+  The branch a push record names is pushed with the values of the command whose record ran last on that branch:
+  a commit and a typed push never leave a later push running with an earlier command's values,
+  because the values are keyed by the record and never by the worktree or the branch.
+  A record an unreleased branch of this wrapper wrote at
+  `<git-dir>/monochromatic-git-policy-cli/push-programs.json`,
+  and the `.push-programs.json.*.partial` staging file of one of its writes,
+  are removed by the first command that meets them
+  (`earlier_push_programs_record`):
+  that branch was never released,
+  and its file holds the two command lines,
+  which can carry a password.
   If the upload exits non-zero or is ended by a signal,
   the wrapper prints,
   after the program's own output,

@@ -363,6 +363,7 @@ fn a_journal_with_a_plan(machine: &Machine, instance: &str, git_dir: &Path, repo
             parent: String::from("fedcba9876543210fedcba9876543210fedcba98"),
             created: String::from("2026-11-11T08:55:00.000-05:00"),
             tries: 148,
+            transport: false,
         },
         attempt: 149,
     };
@@ -448,6 +449,7 @@ fn a_journal_that_keeps_a_plan_of_a_repository_that_is_there_stays() {
             parent: String::new(),
             created: String::from("2026-11-11T08:55:00.000-05:00"),
             tries: 0,
+            transport: false,
         },
         attempt: 1,
     };

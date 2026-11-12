@@ -53,6 +53,7 @@ fn repositories(name: &str, count: usize) -> (PathBuf, Vec<Repository>) {
                 parent: String::new(),
                 created: String::from("2026-01-01T00:00:00.000Z"),
                 tries: 0,
+                transport: false,
             };
             enqueue(work_directory(common.as_path()).as_path(), &pending).expect("enqueue");
             return Repository { root: own, common };
@@ -242,6 +243,7 @@ fn the_retry_list_keeps_the_order_the_directories_were_named() {
             parent: String::new(),
             created: String::from("2026-01-01T00:00:00.000Z"),
             tries: 0,
+            transport: false,
         };
         enqueue(work_directory(repository.common.as_path()).as_path(), &foreign).expect("enqueue");
         crate::work_item::claim_next_of(work_directory(repository.common.as_path()).as_path(), &ClaimTime::read(), &[WorkKind::Review]).expect("claimed").expect("a claim");
@@ -287,6 +289,7 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work_directory(linked.as_path()).as_path(), &pending).expect("enqueue");
     let running: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -391,6 +394,7 @@ fn planned_world(name: &str, count: usize) -> (PathBuf, Vec<Assignment>) {
             parent: String::new(),
             created: String::from("2026-01-01T00:00:00.000Z"),
             tries: 0,
+            transport: false,
         };
         enqueue(work_directory(repository.common.as_path()).as_path(), &foreign).expect("enqueue");
         crate::work_item::claim_next_of(work_directory(repository.common.as_path()).as_path(), &ClaimTime::read(), &[WorkKind::Review]).expect("claimed").expect("a claim");
@@ -518,6 +522,7 @@ fn a_lane_drains_its_directories_in_the_order_they_were_named() {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work_directory(linked.as_path()).as_path(), &pending).expect("enqueue");
     let handlers: CouldPass = CouldPass { began: Arc::new(Mutex::new(Vec::new())) };
@@ -569,6 +574,7 @@ fn a_lane_that_panics_stops_its_lane_and_the_round_says_so() {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work_directory(linked.as_path()).as_path(), &behind).expect("enqueue");
     let handlers: PanicsOn = PanicsOn { when: made[0].common.clone() };

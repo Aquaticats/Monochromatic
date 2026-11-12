@@ -51,6 +51,7 @@ fn a_landed_commit_holds_its_push_where_no_round_runs_it() {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     }
     .id();
     assert!(
@@ -90,6 +91,7 @@ fn a_held_push_stays_held_when_the_service_restarts() {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     }
     .id();
     let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(held_name.as_str());
@@ -133,6 +135,7 @@ fn every_command_says_which_commit_is_held() {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     }
     .id();
     assert!(state_directory(work_dir.as_path(), crate::work_item::HELD).join(held_name.as_str()).exists(), "the push is still held");
@@ -171,6 +174,7 @@ fn a_batchs_hold_names_the_command_that_will_decide_the_checks() {
         cleanup: None,
         index: git_dir.join("index"),
         git_dir: git_dir.clone(),
+transports: Vec::new(),
     };
     crate::service_server_land_group::hold_the_pushes_of(&intent);
     let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
@@ -182,6 +186,7 @@ fn a_batchs_hold_names_the_command_that_will_decide_the_checks() {
         parent: base,
         created: String::new(),
         tries: 0,
+        transport: false,
     };
     let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD).join(item.id());
     let text: String = std::fs::read_to_string(held.as_path()).expect("the batch held the commit's push");

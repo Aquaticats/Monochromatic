@@ -72,7 +72,22 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
                 Some(Value::String(text)) => ReviewKey::new(text.as_str()),
                 Some(_) => return Err(String::from("work request is not acceptable")),
             };
-            return Ok(ClientMessage::Work { git_dir, review_key });
+            let mut push_programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)> = Vec::new();
+            match value.get("pushPrograms") {
+                None | Some(Value::Null) => {}
+                Some(Value::Array(entries)) => {
+                    for entry in entries {
+                        let id: &str = field(entry, "id")?;
+                        if !crate::work_item_ids_and_names::is_valid_id(id) {
+                            return Err(String::from("a work request names a record that is no work record"));
+                        }
+                        let programs: &Value = entry.get("programs").ok_or("a work request names no programs")?;
+                        push_programs.push((id.to_string(), programs_of(programs)?));
+                    }
+                }
+                Some(_) => return Err(String::from("work request is not acceptable")),
+            }
+            return Ok(ClientMessage::Work { git_dir, review_key, push_programs });
         }
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),
@@ -122,6 +137,11 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
                 scratch: path_bytes::read_field(entry, "scratch")?,
                 reftable: entry.get("reftable").and_then(Value::as_bool).unwrap_or(false),
             }),
+            _ => None,
+        },
+        // A request of an earlier release carries none, and then the push it queues searches the service's own list.
+        programs: match value.get("programs") {
+            Some(entry) if !entry.is_null() => Some(programs_of(entry)?),
             _ => None,
         },
     };
@@ -282,6 +302,39 @@ fn landing_figures(value: &Value) -> Result<LandingFigures, String> {
 /// The sentence for a sync that does not say whether the landing waited for it.
 fn no_word_on_waiting() -> String {
     return String::from("a sync of a landing does not say whether it was waited for");
+}
+
+/// What:
+///  The programs and transport settings one request carries,
+///  every name and value checked.
+/// Why:
+///   The line is a socket's:
+/// a name this release would never carry is refused rather than put into a child's environment,
+/// and so is a value that is not text or holds a NUL.
+/// The flag reaches no file:
+/// it says only that the command chose a transport.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const programsOf = (entry) => ({ transport: entry.transport === true, variables: entry.variables.map(([name, value]) => { if (!CARRIED.includes(name)) throw ...; return [name, value]; }) });
+/// ```
+fn programs_of(entry: &Value) -> Result<crate::service_push_programs_held_in_memory::PushPrograms, String> {
+    let mut variables: Vec<(String, String)> = Vec::new();
+    for item in entry.get("variables").and_then(Value::as_array).ok_or("the programs carry no list of variables")? {
+        let pair: &Vec<Value> = item.as_array().filter(|pair| { return pair.len() == 2; }).ok_or("a carried variable is not a name and a value")?;
+        let (Some(name), Some(value)) = (pair[0].as_str(), pair[1].as_str()) else {
+            return Err(String::from("a carried variable is not text"));
+        };
+        if !crate::service_push_programs_held_in_memory::CARRIED.contains(&name) {
+            return Err(format!("a carried variable this release never carries: {name}"));
+        }
+        if value.contains('\0') {
+            return Err(String::from("a carried variable holds a NUL"));
+        }
+        variables.push((String::from(name), String::from(value)));
+    }
+    let transport: bool = entry.get("transport").and_then(Value::as_bool).unwrap_or(false);
+    return Ok(crate::service_push_programs_held_in_memory::PushPrograms { variables, transport });
 }
 
 /// What:

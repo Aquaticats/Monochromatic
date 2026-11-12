@@ -68,6 +68,7 @@ pub(crate) fn request_for_git_built(ready: &Ready, native_inputs: &NativeInputs,
         // The command that will run this commit's post-commit gate, named so the push record the service holds for the commit
         //  can be settled by a later command when this one is gone (`held_push_holder_and_verdict.rs`).
         holder: crate::held_push_holder_and_verdict::this_command(),
+programs: None,
     };
 }
 
@@ -104,6 +105,7 @@ pub(crate) fn request_for_embedded(ready: &Ready, native_inputs: &NativeInputs, 
         // The command that will run this commit's post-commit gate, named so the push record the service holds for the commit
         //  can be settled by a later command when this one is gone (`held_push_holder_and_verdict.rs`).
         holder: crate::held_push_holder_and_verdict::this_command(),
+programs: None,
     };
 }
 

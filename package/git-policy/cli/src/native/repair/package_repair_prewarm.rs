@@ -237,6 +237,7 @@ pub fn item_of(common_dir: &Path, destination: &Path, entries: &[PrewarmEntry]) 
         parent: encode(entries)?,
         created,
         tries: 0,
+        transport: false,
     });
 }
 
@@ -292,7 +293,7 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
     let config: ClientConfig = ClientConfig { start_wait: reach.start_wait, start_ceiling: reach.start_wait, ..managed_client_config(address, host.as_ref()) };
     // The wake's lines are not the add's: it says once what became of the filling.
     let mut silent: std::io::Sink = std::io::sink();
-    return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
+    return wake(&config, common_dir, None, &[], &mut silent).map_err(render_failure);
 }
 
 /// What:

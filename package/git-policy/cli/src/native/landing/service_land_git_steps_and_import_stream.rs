@@ -665,6 +665,31 @@ pub(crate) fn holders_of(batch: &[&CommitRequest]) -> Vec<String> {
     return holders;
 }
 
+/// What:
+///  Whether the command of each request chose the transport its commit's push speaks through,
+///  in the order of the commits.
+/// Why:
+///   The values that chose it are held only in the memory of the service that received them
+/// (`service_push_programs_held_in_memory`),
+/// so the intent must say that one was chosen
+///  even though it can never hold which:
+/// a restart re-holds these pushes,
+/// and one whose values are gone must stop rather than speak a transport nobody
+///  asked for (`push_without_its_transport`).
+/// It is a flag per commit and never a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// batch.map((request) => request.programs?.transport === true)
+/// ```
+pub(crate) fn transports_of(batch: &[&CommitRequest]) -> Vec<bool> {
+    let mut transports: Vec<bool> = Vec::new();
+    for request in batch {
+        transports.push(request.programs.as_ref().is_some_and(|programs| { return programs.transport; }));
+    }
+    return transports;
+}
+
 
 /// What:
 ///  The requests of a batch that land against the tip `old`,

@@ -23,6 +23,7 @@ fn item(branch: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 

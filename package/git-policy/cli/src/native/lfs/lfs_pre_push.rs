@@ -271,11 +271,11 @@ pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) 
 ///  and where that list came from.
 /// Why:
 ///   A push typed in a shell searches that shell's `PATH`,
-/// and a push the commit service runs searches the list it was given:
-/// the shell's,
-///  which the client records,
+/// and a push the commit service runs searches the list that travelled with the request that asked for it,
+/// which is
+///  that shell's,
 /// or its own,
-/// which the user manager fixed at the service's start.
+/// which the user manager fixed at the service's start and which no command of the person reaches.
 /// A refusal that names only `PATH` leaves the person
 ///  unable to tell which list was searched or how to change it.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -297,15 +297,12 @@ pub struct ProgramSearch {
 pub enum ProgramSearchSource {
     /// The environment of the command that is pushing.
     ThisCommand,
-    /// The record the client that made the commit left,
-    /// at this path.
-    ClientRecord(std::path::PathBuf),
+    /// The list the command that asked for the push gave,
+    /// carried in the memory of the service that runs it.
+    TheCommandThatAsked,
     /// The service's own environment,
-    /// because no client record was at this path.
-    ServiceEnvironment {
-        /// Where the client that made the commit would have left its list.
-        missing_record: std::path::PathBuf,
-    },
+    /// because no list came with the request this push belongs to.
+    ServiceEnvironment,
 }
 
 impl ProgramSearch {
@@ -314,23 +311,23 @@ impl ProgramSearch {
     ///  and where it came from,
     /// read from the markers a service's push carries.
     /// Why:
-    ///   Only the service composes a push environment out of a record it read or did not find,
-    /// so it marks which one that was,
+    ///   Only the service composes a push environment,
+    /// so it marks whether the list came with the request or is its own,
     /// and every other push searches the environment of its own command.
     /// The refusal then names the list it really searched,
     /// never one of another push.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const source = env[RECORD_VARIABLE] ? { kind: 'clientRecord', path: env[RECORD_VARIABLE] }
-    ///   : env[MISSING_VARIABLE] ? { kind: 'serviceEnvironment', missing: env[MISSING_VARIABLE] } : { kind: 'thisCommand' };
+    /// const source = env[FROM_THE_REQUEST] ? { kind: 'theCommandThatAsked' }
+    ///   : env[FROM_THE_SERVICE] ? { kind: 'serviceEnvironment' } : { kind: 'thisCommand' };
     /// ```
     pub fn of(environment: &[(OsString, OsString)]) -> ProgramSearch {
-        let record: Option<OsString> = crate::child_environment::environment_value(environment, crate::service_client_program_search::RECORD_VARIABLE);
-        let missing: Option<OsString> = crate::child_environment::environment_value(environment, crate::service_client_program_search::MISSING_VARIABLE);
-        let source: ProgramSearchSource = match (record, missing) {
-            (Some(path), _) => ProgramSearchSource::ClientRecord(std::path::PathBuf::from(path)),
-            (None, Some(path)) => ProgramSearchSource::ServiceEnvironment { missing_record: std::path::PathBuf::from(path) },
+        let from_the_request: Option<OsString> = crate::child_environment::environment_value(environment, crate::service_push_programs_held_in_memory::FROM_THE_REQUEST);
+        let from_the_service: Option<OsString> = crate::child_environment::environment_value(environment, crate::service_push_programs_held_in_memory::FROM_THE_SERVICE);
+        let source: ProgramSearchSource = match (from_the_request, from_the_service) {
+            (Some(_), _) => ProgramSearchSource::TheCommandThatAsked,
+            (None, Some(_)) => ProgramSearchSource::ServiceEnvironment,
             (None, None) => ProgramSearchSource::ThisCommand,
         };
         return ProgramSearch { path: crate::child_environment::environment_value(environment, "PATH").unwrap_or_default(), source };
@@ -361,13 +358,11 @@ impl ProgramSearch {
     fn origin(&self) -> String {
         return match &self.source {
             ProgramSearchSource::ThisCommand => String::from("The list is this command's own `PATH`"),
-            ProgramSearchSource::ClientRecord(path) => format!(
-                "The list is the `PATH` recorded at {} by the client that made this commit, so it is the list the shell that committed searched",
-                path.display()
-            ),
-            ProgramSearchSource::ServiceEnvironment { missing_record } => format!(
-                "No `PATH` this release can read was recorded at {} by the client that made the commit, so this push searched the service's own `PATH`, which the manager that started the service fixed; the shell that made the commit may hold `{LFS_PROGRAM}` anyway",
-                missing_record.display()
+            ProgramSearchSource::TheCommandThatAsked => {
+                String::from("The list is the `PATH` of the shell that asked for this push, which travelled with the request to the commit service that runs it")
+            }
+            ProgramSearchSource::ServiceEnvironment => format!(
+                "No `PATH` came with the request this push belongs to, so this push searched the service's own `PATH`, which the manager that started the service fixed; a commit service that has to try a push again after it restarted holds none of the settings of the command that asked for it, and the shell that made the commit may hold `{LFS_PROGRAM}` anyway"
             ),
         };
     }
@@ -375,13 +370,15 @@ impl ProgramSearch {
     /// What:
     ///  Where the person can put the program so the same push finds it.
     /// Why:
-    ///  A remedy that names a list the person cannot change sends them nowhere.
+    ///  A remedy that names a list the person cannot change sends them nowhere,
+    /// and a remedy that promises an effect the named command does not have sends them round a circle.
     fn remedy(&self) -> String {
         return match &self.source {
             ProgramSearchSource::ThisCommand => String::from("on this command's `PATH`"),
-            ProgramSearchSource::ClientRecord(_) => String::from("on the `PATH` of the shell that commits"),
-            ProgramSearchSource::ServiceEnvironment { .. } => {
-                String::from("on the `PATH` of the shell that commits, then push by hand once (`git push`), which records that list")
+            ProgramSearchSource::TheCommandThatAsked => String::from("on the `PATH` of the shell that commits, then make the commit again"),
+            // A push typed in that shell searches its own `PATH`, and the commit service runs no part of it.
+            ProgramSearchSource::ServiceEnvironment => {
+                String::from("on the `PATH` of the shell that makes the commit and make the commit again, or push by hand once from that shell (`git push`), which searches that shell's own `PATH`")
             }
         };
     }

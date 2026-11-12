@@ -164,6 +164,7 @@ fn trash_item(trash: &PendingTrash) -> WorkItem {
         parent: trash.manifest.encode(),
         created: now_iso(),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -284,7 +285,7 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
                 };
                 // The wait says what it is for, and the line is the add's own: the trash is handed over once, so there is no
                 //  second report of it.
-                match wake(&config, trash.common_dir.as_path(), None, notices) {
+                match wake(&config, trash.common_dir.as_path(), None, &[], notices) {
                     Ok(()) => Ok(()),
                     Err(failure) => Err(render(&failure)),
                 }

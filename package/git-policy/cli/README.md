@@ -391,13 +391,20 @@ Read-only commands,
    refuses the push with `git-lfs`'s words instead of publishing pointers nobody can fill.
   The folders the search reads are the push's own list:
   a typed push reads its command's environment,
-  and a push the commit service runs reads the list the shell that committed recorded at
-   `<git-dir>/monochromatic-git-policy-cli/push-programs.json` (its `PATH` and the variables that name `ssh`,
-   `GIT_SSH`,
+  and a push the commit service runs reads the list of the command that asked for it
+   (`PATH`,
+  `GIT_SSH`,
   `GIT_SSH_COMMAND`,
-  `GIT_PROXY_COMMAND`,
+  `GIT_PROXY_COMMAND`
   and `GIT_EXEC_PATH`),
   because the service takes the environment the user manager started it with.
+  Those values travel with the request or the wake that asks for the push and live only in the service's memory,
+  because `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` can hold a password;
+  a service that restarted has none of them,
+  and a push whose command chose its transport then stops and prints the command that sends the commit instead.
+  A file an unreleased branch wrote at `<git-dir>/monochromatic-git-policy-cli/push-programs.json`,
+  and the staging file of one of its writes,
+  are removed by the first command that meets them.
   A push refused for want of `git-lfs` names the program,
   the folders it searched and where that list came from;
   the service never asks for a login,

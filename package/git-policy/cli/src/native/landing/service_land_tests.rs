@@ -87,6 +87,7 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
         scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 
@@ -156,8 +157,8 @@ fn a_member_that_overlaps_an_earlier_one_stays_only_if_it_captured_later() {
     let cases: [(u64, u64, bool); 4] = [(10, 20, true), (20, 10, false), (0, 20, false), (10, 10, false)];
     for (first_stamp, second_stamp, both_land) in cases {
         let world: World = world(format!("service-land-shadow-{first_stamp}-{second_stamp}").as_str());
-        let first: CommitRequest = CommitRequest { captured: first_stamp, ..request(&world, "first", "shared.txt", "one\n") };
-        let second: CommitRequest = CommitRequest { captured: second_stamp, ..request(&world, "second", "shared.txt", "two\n") };
+        let first: CommitRequest = CommitRequest { captured: first_stamp, programs: None, ..request(&world, "first", "shared.txt", "one\n") };
+        let second: CommitRequest = CommitRequest { captured: second_stamp, programs: None, ..request(&world, "second", "shared.txt", "two\n") };
         let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
         let outcomes = land_batch(&world.context, 1, &[first, second]).expect("landed");
         assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{outcomes:?}");
@@ -1280,6 +1281,7 @@ fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
             changes: vec![Change { path: PathBuf::from(format!("{id}.txt")), mode: ALLOWED_MODES[0], blob: Some(blob) }],
             git_dir: git_dir.clone(),
             index: git_dir.join("index"),
+programs: None,
             ..request(&world, id, "unused.txt", "x\n")
         };
     };
@@ -1504,6 +1506,7 @@ fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest
         scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
         holder: String::new(),
+programs: None,
     };
     return (landed, name);
 }

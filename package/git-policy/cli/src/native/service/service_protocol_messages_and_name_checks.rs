@@ -264,6 +264,20 @@ pub struct CommitRequest {
     ///  forget that record,
     /// so a record whose command is gone can be told from one that is still deciding.
     pub holder: String,
+    /// What:
+    ///  The programs that command finds its programs through,
+    ///  and whether it chose the transport the push speaks through.
+    /// Why:
+    ///   The service runs the push with the environment the user manager started it with,
+    /// which the person committing can neither see nor change,
+    /// and `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` can hold a password,
+    /// so the values travel in this request and live only in the service's memory
+    /// (`service_push_programs_held_in_memory`).
+    /// Nothing of them reaches the journal, the intent or a work record:
+    /// the intent names the worktree, the branch and the commits, and the record of a push keeps the flag alone.
+    /// Nothing means the request of a release that did not carry them,
+    /// and the push it queues searches the service's own list.
+    pub programs: Option<crate::service_push_programs_held_in_memory::PushPrograms>,
 }
 
 /// A commit the service landed and when its bytes were captured,
@@ -393,6 +407,17 @@ pub enum ClientMessage {
         /// message and in the service's memory,
         /// never in a work item or on disk.
         review_key: Option<ReviewKey>,
+        /// What:
+        ///  The programs and transport settings of this command,
+        ///  for the push records it has just written,
+        ///  each named by its record's id.
+        /// Why:
+        ///   A push record is a file and outlives this command,
+        /// so the values that cannot be written travel beside it,
+        /// in this message and in the service's memory alone
+        /// (`service_push_programs_held_in_memory`).
+        /// Empty for a wake about other work.
+        push_programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)>,
     },
     /// The rules text of this repository changed (a checkout,
     /// merge or pull of the person's own command);

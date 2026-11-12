@@ -172,6 +172,7 @@ fn a_request_at(git_dir: &Path, id: &str) -> crate::service_protocol::CommitRequ
         scratch: git_dir.join("monochromatic-git-policy-cli-service-a-0"),
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 

@@ -157,6 +157,7 @@ fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &st
         scratch,
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 

@@ -203,6 +203,7 @@ fn a_restart_says_each_batch_it_settled() {
         cleanup: None,
         index: git_dir.join("index"),
         git_dir: git_dir.clone(),
+transports: Vec::new(),
     };
     write_intent(journal.as_path(), &intent).expect("an open batch");
     let context: LandContext = LandContext {

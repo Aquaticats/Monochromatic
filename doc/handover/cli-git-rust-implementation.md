@@ -135,6 +135,40 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The push's programs and transport settings are held only in the commit service's memory (2026-11-12T13:27:44-05:00)
+
+#### What was wrong
+
+The fix of the push's program search (commit `a723733c55`, on
+`fix/git-policy-cli-lfs-push-uploads-every-object-the-remote-lacks`)
+wrote `push-programs.json` into the repository's Git directory at the start of every commit,
+with `PATH`, `GIT_EXEC_PATH`, `GIT_SSH`, `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` copied into it.
+The last two are whole command lines that can hold a password.
+A review showed the file was never removed, that a typed `git push` never refreshed it,
+and that a client killed between staging it and renaming it left `.push-programs.json.<random>.partial` holding the whole record.
+The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
+
+#### What the wrapper does now
+
+- The five values travel from the command that asks for the push to the commit service in its request
+  (`CommitRequest::programs`) or in the `Work` message that announces a push record another command wrote,
+  and live only in that service process's memory (`service_push_programs_held_in_memory`).
+  They are keyed by the push record's id and dropped when that record can no longer run;
+  a service that restarts holds none of them.
+- The three path values took the same way as the two command lines, not a record:
+  a record refreshed by commits alone would let a push of an older commit run with a later command's values,
+  which is one of the defects the review found.
+- A push record now carries one flag and no value (`WorkItem::transport`):
+  that the command which asked for the push chose a transport.
+  A push whose flag is set and whose values this service no longer holds stops before it runs
+  (`push_without_its_transport`), naming the repository, the branch and the one command that pushes,
+  and saying that the settings went with the restart and that nothing was sent through another transport.
+- A push whose request carried no list searches the service's own `PATH`;
+  the refusal says so, and its remedy sends the person to their own shell
+  (`lfs_pre_push::ProgramSearch`, whose remedy no longer claims that a typed push records a list).
+- A record or staging file of the earlier shape is removed by the first command that meets it
+  (`earlier_push_programs_record`, called from `show_push_failures`).
+
 ### A typed push of a branch that was not checked out published a merge labelled with the checked-out branch (2026-11-12T12:00:10-05:00)
 
 #### The eleven local-only branches are on the remote

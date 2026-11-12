@@ -58,6 +58,7 @@ fn a_held_push_is_said_with_no_notice_directory() {
         parent: String::new(),
         created: crate::iso_time::now_iso(),
         tries: 0,
+        transport: false,
     };
     assert!(!notice_directory(git_dir.as_path()).is_dir(), "no notice directory exists before the push is held");
     crate::work_item::hold(work_dir.as_path(), &item, "").expect("the push is held");
@@ -112,6 +113,7 @@ fn a_released_push_is_not_said() {
         parent: String::new(),
         created: crate::iso_time::now_iso(),
         tries: 0,
+        transport: false,
     };
     crate::work_item::hold(work_dir.as_path(), &item, "").expect("the push is held");
     assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken()).len(), 1);
@@ -138,6 +140,7 @@ fn a_blocked_push_is_not_said() {
         parent: String::new(),
         created: crate::iso_time::now_iso(),
         tries: 0,
+        transport: false,
     };
     crate::work_item::hold(work_dir.as_path(), &item, "").expect("the push is held");
     assert_eq!(crate::service_handoff::held_push_notices(git_dir.as_path(), &nothing_asked(), &nothing_woken()).len(), 1);

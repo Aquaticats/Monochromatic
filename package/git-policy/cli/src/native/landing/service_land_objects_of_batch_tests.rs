@@ -92,6 +92,7 @@ fn a_repository_with_a_built_commit(name: &str) -> (PathBuf, String, String, Com
         scratch: common.join("monochromatic-git-policy-cli-service-a-control"),
         captured: 0,
         holder: String::new(),
+programs: None,
     };
     return (root, base, built, request);
 }

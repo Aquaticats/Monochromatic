@@ -141,6 +141,13 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
 /// settleHeldPushes(gitDir); if (!isMachineRead(command)) for (const text of takePushFailures(gitDir)) stderr.write(text + '\n');
 /// ```
 pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
+    // What: The record a wrapper of an unreleased branch wrote here holds command lines that can carry a password, and this is the
+    //  first command that meets it.
+    // Why:  Nothing writes or reads it any more (`earlier_push_programs_record`), so removing it is the only way it leaves the disk;
+    //  a command whose output a program reads removes it all the same, because a value another program can read is no notice.
+    if let Some(git_dir) = checks.facts.known_git_dir() {
+        crate::earlier_push_programs_record::remove_what_an_earlier_branch_wrote(git_dir.as_path());
+    }
     // A notice is the person's, so a command whose output a program reads shows none and takes none; the held records are not a
     //  notice, and the state they settle is not the command's to keep from the repository.
     let silent: bool = is_machine_read(command_word(stripped), command_region(stripped));

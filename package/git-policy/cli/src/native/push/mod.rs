@@ -291,3 +291,7 @@ pub mod push_failure_notice_reports;
 /// The words that say how to change the push deadline,
 /// for the terminal and for the resident commit service.
 pub mod push_deadline_advice;
+
+/// The words a service push stops with when the transport settings of the command that asked for it are gone,
+/// with the one command that pushes the branch instead.
+pub mod push_without_its_transport;

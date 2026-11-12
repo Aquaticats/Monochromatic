@@ -235,7 +235,11 @@ pub(crate) fn land_batch_body(
         //  write Git never starts would leave records of a landing that did not happen, and every later command of the worktree
         //  would read them (a held push of a commit no branch names, and an owed update for a commit that landed).
         let owed_began: Instant = Instant::now();
-        crate::service_server_land_group::what_a_batch_owes(&intent);
+        // The programs each request's shell finds its programs through, and whether it chose the transport they reach the
+        //  remote through, are held against the push record its commit becomes; nothing of them is written.
+        let programs: Vec<Option<crate::service_push_programs_held_in_memory::PushPrograms>> =
+            batch.iter().map(|request| { return request.programs.clone(); }).collect();
+        crate::service_server_land_group::what_a_batch_owes(&intent, programs.as_slice());
         timing.reads_split.owed += owed_began.elapsed();
         // The index file now, under the lock, is what a replay of this batch must still find before it resets a path: a replay is
         //  made only over the file the landing saw. It is recorded for a commit Git built as for any other, since the witness

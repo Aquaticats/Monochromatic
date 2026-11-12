@@ -99,6 +99,7 @@ fn held_batch_in(journal: &Path, repo: &Path) -> crate::held_commit_record::Held
         cleanup: None,
         index: git_dir.join("index"),
         git_dir: git_dir.clone(),
+transports: Vec::new(),
     };
     write_intent(journal, &intent).expect("the intent");
     write_start(journal, 1, &witness_of(intent.index.as_path()).expect("the index file")).expect("the witness");
@@ -153,6 +154,7 @@ impl Setup {
             cleanup: None,
             index: git_dir.join("index"),
             git_dir: git_dir.to_path_buf(),
+transports: Vec::new(),
         };
     }
 

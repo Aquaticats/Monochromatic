@@ -118,6 +118,7 @@ fn a_plan_a_service_could_not_read_at_its_start_is_read_again_and_tried() {
         parent: String::new(),
         created: String::from("2026-11-03T05:40:00.000Z"),
         tries: 0,
+        transport: false,
     };
     // A service that stopped left the plan of a push it was still trying.
     let mut previous: PushRetries = PushRetries::restored(Duration::from_secs(1), plan.as_path());

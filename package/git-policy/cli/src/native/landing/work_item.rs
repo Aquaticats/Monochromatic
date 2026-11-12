@@ -79,6 +79,18 @@ pub struct WorkItem {
     pub created: String,
     /// Failed or abandoned attempts so far.
     pub tries: u32,
+    /// What:
+    ///  Whether the command that asked for this work chose the transport its push speaks through.
+    /// Why:
+    ///   `GIT_SSH`,
+    /// `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` are held only in the memory of the service that runs the push
+    /// (`service_push_programs_held_in_memory`),
+    /// so a service that restarted has none of them;
+    /// the record is then the only thing left that says the push must not run through the manager's transport instead,
+    /// and a word can say so to the person (`push_without_its_transport`).
+    /// It is a flag and never a value:
+    /// a command line that can hold a password reaches no record.
+    pub transport: bool,
 }
 
 /// Methods over an item.
@@ -155,6 +167,11 @@ impl WorkItem {
         ] {
             fields.insert(String::from(name), Value::from(text));
         }
+        // A record of a push whose command chose no transport says nothing, so every item of a repository that never set one
+        //  encodes exactly as it did before this field existed.
+        if self.transport {
+            fields.insert(String::from("transport"), Value::from(true));
+        }
         return format!("{}\n", Value::Object(fields));
     }
 
@@ -191,6 +208,8 @@ impl WorkItem {
             parent: text_field(&value, "parent")?,
             created: text_field(&value, "created")?,
             tries,
+            // A record of an earlier release, or of a push whose command chose no transport, says nothing.
+            transport: value.get("transport").and_then(Value::as_bool).unwrap_or(false),
         };
         let named: String = text_field(&value, "id")?;
         if named != item.id() && named != item.id_before_the_branch() {

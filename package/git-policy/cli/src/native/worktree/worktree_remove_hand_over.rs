@@ -140,6 +140,7 @@ pub fn removal_item(common_dir: &Path, parent_path: &Path, id: u64) -> WorkItem 
         parent: deleting.display().to_string(),
         created: now_iso(),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -179,6 +180,7 @@ pub fn worktree_removal_item(git_dir: &Path, target: &Path, registration: &Path)
         parent: target.display().to_string(),
         created: now_iso(),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -266,7 +268,7 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
         units_record_dir: host.as_ref().map(units_record_dir_of),
     };
     let mut silent: std::io::Sink = std::io::sink();
-    return match wake(&config, git_dir, None, &mut silent) {
+    return match wake(&config, git_dir, None, &[], &mut silent) {
         Ok(()) => Ok(()),
         Err(failure) => Err(render(&failure)),
     };
@@ -761,7 +763,7 @@ pub fn requeue_removals_an_earlier_release_refused(common_dir: &Path) -> Vec<Str
         }
         // The record is queued with one attempt behind it, so a removal Git refuses again is not queued by every later
         // command: the attempt count travels with the record into whatever state it settles in.
-        let again: WorkItem = WorkItem { tries: 1, ..item.clone() };
+        let again: WorkItem = WorkItem { tries: 1, transport: false, ..item.clone() };
         let pending: PathBuf = state_directory(work.as_path(), PENDING);
         if crate::private_storage::create_private_directory_all(pending.as_path()).is_err() {
             continue;

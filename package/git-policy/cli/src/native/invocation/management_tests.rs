@@ -752,6 +752,7 @@ fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_com
         cleanup: None,
         index: git_dir.join("index"),
         git_dir: git_dir.clone(),
+transports: Vec::new(),
     };
     crate::service_journal::write_intent(journal.as_path(), &intent).expect("an open batch");
     let (code, stdout, stderr) = doctor();
