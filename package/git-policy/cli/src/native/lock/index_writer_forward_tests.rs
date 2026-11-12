@@ -235,6 +235,7 @@ fn a_non_writer_with_a_copy_runs_settled() {
         destination: None,
         add_plan: None,
         remove_plan: None,
+        quiet: false,
     });
     assert_eq!(run_coordinated_forward(&forward), CoordinatedRun::Ran(0));
     remove(root.as_path());

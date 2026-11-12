@@ -65,6 +65,10 @@ struct Standing {
     step: Option<String>,
     /// When the add this step belongs to began.
     began: Instant,
+    /// Why this add runs as plain Git,
+    /// when the ladder does not serve its form,
+    /// and nothing for an add the ladder serves.
+    plain: Option<String>,
 }
 
 /// The state the add's own thread writes and the notice thread reads,
@@ -120,11 +124,56 @@ impl Drop for StandingNotice {
 /// aStepBegan('gitAdd') // or aStepEnded(undefined) for a step that left
 /// ```
 pub fn a_step_began(step: Option<&str>, began: Instant) {
+    publish(step, began);
+}
+
+/// What:
+///  Say that the add runs as plain Git,
+/// and which fact put it on that route.
+/// Why:
+///   The ladder does not serve every add,
+/// and one it refuses still leaves a person waiting with nothing said;
+/// the step is Git's own add,
+/// and the clause is what the wrapper knows about the route,
+/// so the
+///  line names both without a second step name nothing else enters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// thePlainAddBegan('because the folder it goes in, "…", does not exist yet', now);
+/// ```
+pub fn the_plain_add_began(clause: &str, began: Instant) {
+    let Ok(mut standing) = STANDING.lock() else {
+        crate::diagnostic_log::debug("addStandingNotice", "the plain route of the add could not be published for the notice");
+        return;
+    };
+    *standing = Some(Standing { step: Some(String::from(PLAIN_ADD_STEP)), began, plain: Some(clause.to_string()) });
+}
+
+/// The step a plainly run add is in:
+/// Git's own `git worktree add`, with nothing of the ladder around it.
+const PLAIN_ADD_STEP: &str = "gitAdd";
+
+/// What:
+///  Publish the add's step, its start and an optional route clause.
+/// Why:
+///   One place sets the state the notice reads,
+/// so a step of the ladder can never keep a clause
+///  about a route the add has left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// publish(step, began, plain); // the one writer of STANDING
+/// ```
+fn publish(step: Option<&str>, began: Instant) {
     let Ok(mut standing) = STANDING.lock() else {
         crate::diagnostic_log::debug("addStandingNotice", "the step of the add could not be published for the notice");
         return;
     };
-    *standing = Some(Standing { step: step.map(str::to_string), began });
+    // The route the add is on outlives its steps: an add the ladder does not serve runs plainly from its
+    // first step to its answer, so every line it prints while waiting says so.
+    let plain: Option<String> = standing.as_ref().and_then(|held| { return held.plain.clone(); });
+    *standing = Some(Standing { step: step.map(str::to_string), began, plain });
 }
 
 /// What:
@@ -308,7 +357,7 @@ fn notice_until_stopped(announce: &mut Box<dyn FnMut(String) + Send>, wait: Dura
             return;
         }
         std::thread::sleep(tick);
-        let Some((step, began)) = inside_an_add() else { continue };
+        let Some((step, began, plain)) = inside_an_add() else { continue };
         let waited: Duration = began.elapsed();
         if waited < wait {
             continue;
@@ -319,7 +368,7 @@ fn notice_until_stopped(announce: &mut Box<dyn FnMut(String) + Send>, wait: Dura
             continue;
         }
         announced = Some(waited);
-        announce(notice_line(step.as_deref(), waited));
+        announce(notice_line_on_route(step.as_deref(), waited, plain.as_deref()));
     }
 }
 
@@ -334,10 +383,10 @@ fn notice_until_stopped(announce: &mut Box<dyn FnMut(String) + Send>, wait: Dura
 /// ```ts
 /// const inside = STANDING.tryLock() ? standing : undefined;
 /// ```
-fn inside_an_add() -> Option<(Option<String>, Instant)> {
+fn inside_an_add() -> Option<(Option<String>, Instant, Option<String>)> {
     let standing = STANDING.try_lock().ok()?;
     let found: &Standing = standing.as_ref()?;
-    return Some((found.step.clone(), found.began));
+    return Some((found.step.clone(), found.began, found.plain.clone()));
 }
 
 /// What:
@@ -355,47 +404,119 @@ fn inside_an_add() -> Option<(Option<String>, Instant)> {
 /// `monochromatic-git-policy-cli: \`git worktree add\` is still running after ${seconds} seconds; it is ${step}. Nothing here waits for another program to finish, so a step that lasts is working, not stuck, and its own failure names what failed.`
 /// ```
 pub fn notice_line(step: Option<&str>, waited: Duration) -> String {
-    let doing: &str = step_sentence(step);
+    return notice_line_on_route(step, waited, None);
+}
+
+/// What:
+///  The line a waiting add prints,
+/// with what the wrapper knows about the route it took when that route is the plain one.
+/// Why:
+///   An add the ladder does not serve still leaves a person waiting,
+/// and the one thing the wrapper can
+///  add is which fact put it on the plain route:
+/// the line says it is a plain checkout,
+/// and the
+///  clause says why,
+/// so the wait is not silent and the route is not a surprise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `... after ${seconds} seconds; ${doing}${plain ? `, and this add runs as plain Git ${plain}` : ''}. Nothing here waits ...`
+/// ```
+fn notice_line_on_route(step: Option<&str>, waited: Duration, plain: Option<&str>) -> String {
+    let doing: String = step_sentence(step);
+    let route: String = match plain {
+        Some(clause) => format!(", and this add runs as plain Git {clause}"),
+        None => String::new(),
+    };
     return format!(
-        "monochromatic-git-policy-cli: `git worktree add` is still running after {} seconds; {doing}. Nothing here waits for another command to finish, so a step that lasts is working rather than stuck, and a step that fails names what failed.",
+        "monochromatic-git-policy-cli: `git worktree add` is still running after {} seconds; {doing}{route}. Nothing here waits for another command to finish, so a step that lasts is working rather than stuck, and a step that fails names what failed.",
         waited.as_secs()
     );
 }
+
+/// What:
+///  Every step an add enters, and the words a person reads for it.
+/// Why:
+///   The step names are the timing record's,
+/// written for someone reading that record,
+/// so each is said here as the work it is.
+/// The sentences live in one table beside the names so a step cannot be entered without
+///  words,
+/// and `every_step_an_add_enters_has_its_own_sentence` fails when one is added and not said.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const STEP_SENTENCES: [step: string, sentence: string][] = [['recover', 'it is settling ...'], ...]
+/// ```
+const STEP_SENTENCES: &[(&str, &str)] = &[
+    ("recover", "it is settling what interrupted commands left in this repository"),
+    ("chooseRung", "it is deciding how to make the worktree"),
+    ("refusals", "it is deciding how to make the worktree"),
+    ("checkSource", "it is deciding how to make the worktree"),
+    ("claimStage", "it is deciding how to make the worktree"),
+    ("walkSource", "it is reading the checkout the worktree is made from"),
+    ("readIndexAndTree", "it is comparing the source's index with the files it recorded"),
+    ("indexAgainstTree", "it is comparing the source's index with the files it recorded"),
+    ("gitAdd", "it is in Git's own `git worktree add`"),
+    ("bindRegistration", "it is recording which directories Git made for the worktree"),
+    ("recordBinding", "it is recording which directories Git made for the worktree"),
+    ("recordDestination", "it is recording where the new worktree goes"),
+    ("reserveDestination", "it is reserving the directory the new worktree is made in"),
+    ("prepareTarget", "it is asking for a snapshot of the main checkout"),
+    ("snapshotAheadProof", "it is asking for a snapshot of the main checkout"),
+    ("snapshotAheadWait", "it is waiting for the commit service to finish a snapshot it already started"),
+    ("takeSnapshot", "it is taking the snapshot of the main checkout"),
+    ("snapshotIoctl", "it is taking the snapshot of the main checkout"),
+    ("walkSnapshot", "it is taking the snapshot of the main checkout"),
+    ("readOwnIndex", "it is taking the snapshot of the main checkout"),
+    ("prune", "it is taking the snapshot of the main checkout"),
+    ("removeStubs", "it is taking the snapshot of the main checkout"),
+    ("replacePointer", "it is taking the snapshot of the main checkout"),
+    ("installIndexFile", "it is taking the snapshot of the main checkout"),
+    ("installIndex", "it is installing the snapshot's index"),
+    ("applyDifference", "it is bringing the snapshot to the commit the worktree is at"),
+    ("restoreDirty", "it is bringing the snapshot to the commit the worktree is at"),
+    ("exchange", "it is swapping the finished snapshot into place"),
+    ("settleDisplaced", "it is clearing the directory Git made once the snapshot is in place"),
+    ("finishRung", "it is finishing the step that made the new worktree"),
+    ("markCompleteFile", "it is recording that the worktree is complete"),
+    ("markCompleteDirectory", "it is recording that the worktree is complete"),
+    ("releaseClaim", "it is recording that the worktree is complete"),
+    ("copyIgnored", "it is copying the ignored files into the new worktree"),
+    ("handOverTrash", "it is handing the files the snapshot set aside to the commit service"),
+];
 
 /// What:
 ///  The step of the add a person reads,
 /// in the words of what it does.
 /// Why:
 ///   The step names are the timing record's,
-/// written for someone reading that record,
-/// so each is said here as the work it is;
-/// a step this release knows nothing about is said as the add's own work rather than left unnamed.
+/// so each is said from the one table that holds the names and their words;
+/// a step of a later release that this table does not name is said as the add's own work
+///  rather than left unnamed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const sentenceOf = (step) => ({ gitAdd: "Git's own `git worktree add` is checking out the files", ... })[step] ?? 'the add is working in a step the timing record names'
+/// const sentenceOf = (step) => step === undefined ? 'it is between two of its steps' : (STEP_SENTENCES.get(step) ?? 'the add is working in a step its timing record names');
 /// ```
-fn step_sentence(step: Option<&str>) -> &'static str {
+fn step_sentence(step: Option<&str>) -> String {
     let Some(name) = step else {
-        return "it is between two of its steps";
+        return String::from("it is between two of its steps");
     };
-    return match name {
-        "recover" => "it is settling what interrupted commands left in this repository",
-        "chooseRung" | "refusals" | "checkSource" | "claimStage" => "it is deciding how to make the worktree",
-        "gitAdd" | "git worktree" => "it is in Git's own `git worktree add`",
-        "bindRegistration" | "recordBinding" => "it is recording which directories Git made for the worktree",
-        "prepareTarget" | "snapshotAhead" | "snapshotAheadProof" => "it is asking for a snapshot of the main checkout",
-        "snapshotAheadWait" => "it is waiting for the commit service to finish a snapshot it already started",
-        "takeSnapshot" | "snapshotIoctl" | "walkSnapshot" | "readOwnIndex" | "prune" | "removeStubs" | "replacePointer" | "installIndexFile" => "it is taking the snapshot of the main checkout",
-        "applyDifference" | "restoreDirty" => "it is bringing the snapshot to the commit the worktree is at",
-        "exchange" => "it is swapping the finished snapshot into place",
-        "settleDisplaced" => "it is clearing the directory Git made once the snapshot is in place",
-        "markComplete" | "markCompleteFile" | "markCompleteDirectory" | "releaseClaim" => "it is recording that the worktree is complete",
-        "copyIgnored" => "it is copying the ignored files into the new worktree",
-        "handOverTrash" => "it is handing the files the snapshot set aside to the commit service",
-        "repair" => "it is repairing the new worktree's package-manager state",
-        _ => "the add is working in a step its timing record names",
-    };
+    // A Git run is named by its own subcommand (`git read-tree`), so the name is the words: a name that
+    // starts with `git ` says which run it is without a sentence of its own in the table.
+    if let Some(run) = name.strip_prefix("git ")
+        && !run.is_empty()
+    {
+        return format!("it is in Git's own `{name}`");
+    }
+    for (stepped, sentence) in STEP_SENTENCES {
+        if *stepped == name {
+            return (*sentence).to_string();
+        }
+    }
+    return String::from("the add is working in a step its timing record names");
 }
 
 /// The notice's words and its thread.

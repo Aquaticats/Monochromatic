@@ -27,7 +27,7 @@ use crate::worktree_identity::{WorktreeIdentity, common_directory};
 /// The shipped checks and their constructor.
 use crate::policy_checks::ShippedChecks;
 use crate::repository_facts::{GitFacts, RepositoryFacts};
-use crate::worktree_add_plan::{AddPlan, copy_start_directory, parse_add_plan, parse_copy_destination, start_directory};
+use crate::worktree_add_plan::{AddPlan, add_is_quiet, copy_start_directory, parse_add_plan, parse_copy_destination, start_directory};
 use crate::worktree_remove_plan::{RemovePlan, parse_remove_plan};
 use crate::worktree_copy_forward::{CopyFacts, copy_applies_with};
 /// What:
@@ -114,6 +114,9 @@ pub(crate) fn forward_action(
     }
     let creates: bool = creates_worktrees(&command);
     let add_plan: Option<AddPlan> = if creates { plan_worktree_add(&command) } else { None };
+    // The person's `--quiet` comes from the same reading of the words, whether or not the ladder serves
+    // the form, so an add it hands to plain Git still prints no line a quiet add would suppress.
+    let quiet: bool = creates && add_is_quiet(command.arguments.as_slice(), command.subcommand_index);
     let destination: Option<PathBuf> = if creates { plan_copy_destination(&command) } else { None };
     let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" {
         plan_worktree_remove(&command, common_directory(&location.identity))
@@ -129,6 +132,7 @@ pub(crate) fn forward_action(
                 destination,
                 add_plan,
                 remove_plan,
+                quiet,
             })
         } else {
             None

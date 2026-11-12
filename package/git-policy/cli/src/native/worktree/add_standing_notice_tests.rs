@@ -50,7 +50,7 @@ fn read_lines(lines: &Receiver<String>, wanted: usize, bound: Duration) -> Vec<S
 /// ```ts
 /// insideAnAdd() // [step, began] | undefined
 /// ```
-fn published() -> Option<(Option<String>, Instant)> {
+fn published() -> Option<(Option<String>, Instant, Option<String>)> {
     return inside_an_add();
 }
 
@@ -69,11 +69,11 @@ fn the_add_s_own_steps_are_what_the_notice_names() {
     assert_eq!(published(), None, "no step is published before one is entered");
     let outer: bool = add_timing::begin_step("copyIgnored");
     let inner: bool = add_timing::begin_step("git ls-files");
-    assert_eq!(published().map(|(step, _began)| { return step; }), Some(Some(String::from("git ls-files"))), "the innermost step is the one named");
+    assert_eq!(published().map(|(step, _began, _plain)| { return step; }), Some(Some(String::from("git ls-files"))), "the innermost step is the one named");
     add_timing::end_step(inner);
-    assert_eq!(published().map(|(step, _began)| { return step; }), Some(Some(String::from("copyIgnored"))), "leaving a step names the one that encloses it");
+    assert_eq!(published().map(|(step, _began, _plain)| { return step; }), Some(Some(String::from("copyIgnored"))), "leaving a step names the one that encloses it");
     add_timing::end_step(outer);
-    assert_eq!(published().map(|(step, _began)| { return step; }), Some(None), "between two steps nothing is named");
+    assert_eq!(published().map(|(step, _began, _plain)| { return step; }), Some(None), "between two steps nothing is named");
     add_timing::finish(0);
     assert_eq!(published(), None, "an add that answered publishes no step");
     crate::test_support::remove(root.as_path());
@@ -118,6 +118,7 @@ fn the_line_counts_the_seconds_and_says_the_step_in_words() {
     assert!(line.contains("Nothing here waits for another command to finish"), "the line says what the wait is not: {line}");
     assert!(notice_line(None, Duration::from_secs(9)).contains("it is between two of its steps"), "a step that has just ended is named as such");
     assert_eq!(step_sentence(Some("a step of a later release")), "the add is working in a step its timing record names", "a step this release does not know is still named as work");
+    assert_eq!(step_sentence(Some("git read-tree")), "it is in Git's own `git read-tree`", "a Git run is named by the subcommand the record holds");
 }
 
 /// The wait a control sets is the shipped one unless a positive number of seconds is set.
@@ -326,17 +327,17 @@ const TIME_FOR_ONE_REFUSED_WRITE: Duration = Duration::from_millis(200);
 fn a_notice_stuck_in_its_write_holds_no_lock_the_add_needs() {
     use std::sync::mpsc::Sender;
     use std::time::Instant;
-    let line: String = notice_line(Some("gitAdd"), ADD_STANDING_NOTICE_AFTER);
-    // One byte less than the notice's own line, so the notice's write cannot fit and a shorter one can.
-    let room: usize = line.len() + "\n".len() - 1;
+    let shipped: String = notice_line(Some("gitAdd"), ADD_STANDING_NOTICE_AFTER);
+    // One byte less than the notice's own line, so not one piece of its write fits and a shorter one does.
+    let room: usize = shipped.len() - 1;
     let (pipe, restored): (StandardErrorWithRoom, RestoredStandardError) = standard_error_with_room(room);
     a_step_began(Some("gitAdd"), Instant::now());
     let (began, beginning): (Sender<()>, Receiver<()>) = channel();
-    let sink = Box::new(move |line: String| {
+    let sink = Box::new(move |notice: String| {
         // The sink says its write is about to start, so the control knows the notice is in it rather
         // than hoping a sleep was long enough.
         let _sent = began.send(());
-        write_to_standard_error(line);
+        write_to_standard_error(notice);
     });
     let notice: StandingNotice = begin_quiet_after(false, sink, Duration::from_millis(1));
     assert!(beginning.recv_timeout(Duration::from_secs(10)).is_ok(), "the notice began its own write");
@@ -344,9 +345,9 @@ fn a_notice_stuck_in_its_write_holds_no_lock_the_add_needs() {
     // inside its write rather than about to make it.
     std::thread::sleep(TIME_FOR_ONE_REFUSED_WRITE);
     // The add's own report, written after the notice is inside a write the pipe refuses.
-    let (written, wrote): (Sender<std::io::Result<usize>>, Receiver<std::io::Result<usize>>) = channel();
+    let (reported, wrote): (Sender<std::io::Result<usize>>, Receiver<std::io::Result<usize>>) = channel();
     let add: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-        let _sent = written.send(std::io::Write::write(&mut std::io::stderr(), b"x"));
+        let _sent = reported.send(std::io::Write::write(&mut std::io::stderr(), b"x"));
     });
     let answer: Option<std::io::Result<usize>> = wrote.recv_timeout(Duration::from_secs(5)).ok();
     // Closing the read end releases the notice's write, and with it any lock the add's write waits on.
@@ -358,4 +359,122 @@ fn a_notice_stuck_in_its_write_holds_no_lock_the_add_needs() {
     // reader that would otherwise be the pipe this control filled.
     drop(restored);
     assert_eq!(answer.map(|written| { return written.ok(); }), Some(Some(b"x".len())), "the add's own byte is written while the notice's line waits in the pipe");
+}
+
+/// Every step name one source text enters, in the order the text enters it.
+/// Why:
+///  A scan of the crate's own text is what keeps the table of sentences true,
+/// so the reading of
+///  `begin_step("…")` is one function the control can be read against.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stepNames = (text) => [...text.matchAll(/begin_step\("([^"]+)"\)/g)].map((found) => found[1]);
+/// ```
+fn step_names(text: &str) -> Vec<String> {
+    let opening: &str = "begin_step(\"";
+    let mut names: Vec<String> = Vec::new();
+    let mut rest: &str = text;
+    while let Some(at) = rest.find(opening) {
+        let after: &str = &rest[at + opening.len()..];
+        let Some(end) = after.find('"') else { break };
+        names.push(after[..end].to_string());
+        rest = &after[end..];
+    }
+    return names;
+}
+
+/// What:
+///  Every step an add enters has its own sentence,
+/// and every sentence names a step an add enters.
+/// Why:
+///   A step entered with no sentence is told to the person as "a step its timing record names",
+/// which
+///  says nothing about the wait,
+/// and the review of release 0.6.1-alpha.12 found seven such steps while an
+///  add spent most of its 71.9 seconds in them.
+/// The scan reads the crate's own text,
+/// so a step added
+///  later cannot be without words and a sentence whose step is gone cannot stay.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entered = sources().flatMap(stepNames); expect(entered.every(hasSentence)).toBe(true); expect(sentences.every(isEntered)).toBe(true);
+/// ```
+#[test]
+fn every_step_an_add_enters_has_its_own_sentence() {
+    let root: PathBuf = crate::source_guard::source_scan_tests::source_root();
+    let roots: Vec<crate::source_guard::source_scan_tests::CrateRoot> = crate::source_guard::source_scan_tests::real_roots();
+    let sources: Vec<crate::source_guard::source_scan_tests::SourceFile> =
+        crate::source_guard::source_scan_tests::classified_sources(root.as_path(), roots.as_slice()).expect("the crate's own sources");
+    let mut entered: Vec<String> = Vec::new();
+    for file in sources.iter().filter(|file| { return !file.test_only; }) {
+        let text: String = std::fs::read_to_string(root.join(file.path.as_str())).expect("a source file of this crate");
+        entered.extend(step_names(text.as_str()));
+    }
+    assert!(!entered.is_empty(), "the scan read the steps an add enters");
+    let mut missing: Vec<&str> = Vec::new();
+    for name in &entered {
+        if !STEP_SENTENCES.iter().any(|(step, _sentence)| { return step == name; }) {
+            missing.push(name.as_str());
+        }
+    }
+    assert!(missing.is_empty(), "a step an add enters has no sentence of its own: {missing:?}");
+    let stale: Vec<&str> = STEP_SENTENCES
+        .iter()
+        .map(|(step, _sentence)| { return *step; })
+        .filter(|step| { return !entered.iter().any(|name| { return name == step; }); })
+        .collect();
+    assert!(stale.is_empty(), "a sentence names a step no add enters any more: {stale:?}");
+}
+
+/// What:
+///  An add the ladder does not serve says it is running,
+/// that it is a plain checkout,
+/// and which fact put it there.
+/// Why:
+///   The line is the same one a served add prints,
+/// so a plainly run add is never silent,
+/// and it names the
+///  folder the destination needs,
+/// which is what the ladder's own reading refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// thePlainAddBegan(whyPlainAdd(Some(missingParentDestination)), now); expect(line).toMatch(/plain checkout the wrapper does not serve because the folder it goes in, "…", does not exist yet/);
+/// ```
+#[test]
+fn a_plain_add_s_line_names_git_s_own_add_and_the_missing_folder() {
+    let root: PathBuf = crate::test_support::fixture("add-standing-plain-route");
+    // A destination inside a folder that was never made: the ladder's reading of the destination
+    // refuses it, and the wrapper runs Git plainly.
+    let destination: PathBuf = root.join("missing-parent").join("topic");
+    let clause: String = crate::worktree_add_plan::why_a_plain_add(Some(destination.as_path()));
+    let (announced, heard): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
+    the_plain_add_began(clause.as_str(), Instant::now());
+    let notice: StandingNotice = begin_quiet_after(
+        false,
+        Box::new(move |line: String| {
+            let _sent = announced.send(line);
+        }),
+        Duration::from_millis(1),
+    );
+    let said: Vec<String> = read_lines(&heard, 1, Duration::from_secs(10));
+    assert_eq!(said.len(), 1, "the plainly run add says it is still running: {said:?}");
+    assert!(said[0].contains("it is in Git's own `git worktree add`"), "the line names the step: {}", said[0]);
+    assert!(
+        said[0].contains("and this add runs as plain Git because the folder it goes in"),
+        "the line names the route and the fact that caused it: {}",
+        said[0]
+    );
+    assert!(said[0].contains("does not exist yet"), "the missing folder is named: {}", said[0]);
+    drop(notice);
+    // The route outlives the step it was published with: the ladder's own steps are entered by the add
+    // that runs plainly too, and every line while it waits says it is plain.
+    a_step_began(Some("recordDestination"), Instant::now());
+    let later: String = notice_line_on_route(Some("recordDestination"), ADD_STANDING_NOTICE_AFTER, Some(clause.as_str()));
+    assert!(later.contains("it is recording where the new worktree goes"), "the line names the step the add is in: {later}");
+    assert!(later.contains("and this add runs as plain Git because the folder it goes in"), "and still says why it is plain: {later}");
+    the_add_ended();
+    crate::test_support::remove(root.as_path());
 }

@@ -223,3 +223,34 @@ fn the_line_carries_the_quiet_gaps() {
     assert_eq!(record["quiet"]["git ls-files"].as_f64(), Some(20.0));
     assert_eq!(parsed(nested().line(at(TOTAL_MS), 0).as_str())["quiet"], serde_json::json!({}));
 }
+
+/// What:
+///  An add the ladder does not serve still writes a record,
+/// and the record says why it ran plainly.
+/// Why:
+///   An add the wrapper hands to plain Git is the one a person is most likely to wait through with
+/// nothing
+///  said,
+/// and the record is what explains the wait afterwards;
+/// without it the review of release
+///  0.6.1-alpha.12 measured a first add of 64.8 seconds that left no trace at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// beginOnRoute(common, false, whyPlainAdd(Some(destination))); finish(0); expect(record).toMatch(/"route":"plain"/);
+/// ```
+#[test]
+fn an_add_the_ladder_does_not_serve_records_the_route_it_took() {
+    let root: PathBuf = fixture("add-timing-plain-route");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("a common directory");
+    let clause: String = String::from("because the folder it goes in, \"/never/made\", does not exist yet");
+    super::begin_on_route(common.clone(), false, Some(clause.clone()));
+    note("steps", "none of the ladder's");
+    finish(0);
+    let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
+    let record: serde_json::Value = parsed(text.lines().next().expect("one line"));
+    assert_eq!(record["notes"]["route"], "plain", "the record says the add ran as plain Git: {text}");
+    assert_eq!(record["notes"]["whyPlain"], clause.as_str(), "and why it did: {text}");
+    remove(root.as_path());
+}

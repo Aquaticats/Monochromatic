@@ -15059,6 +15059,16 @@ never through `std::io::stderr()`:
 that handle is one lock for the whole process,
 so a notice whose reader stopped draining would hold it while it waited,
 and the add's own next report would wait behind its own notice.
+Each step is said in the words of the work it is,
+from one table of every step an add enters (`STEP_SENTENCES`):
+a control reads the crate's own `begin_step("…")` calls and fails when a step has no sentence
+or a sentence names a step nothing enters (`every_step_an_add_enters_has_its_own_sentence`),
+and a step a Git run is timed as (`git read-tree`) is said from its own subcommand.
+An add the ladder does not serve says the same line with the fact that put it on that route,
+and writes its record:
+`begin_on_route` notes `route=plain` and the clause naming the fact,
+so an add handed to plain Git because the folder its destination goes in does not exist
+is neither silent while it runs nor absent from the record afterwards.
 `CLI_GIT_ADD_NOTICE_SECONDS` moves the wait,
 and a setting that is missing,
 is not a number or is zero leaves the shipped one.

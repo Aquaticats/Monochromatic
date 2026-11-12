@@ -288,7 +288,30 @@ thread_local! {
 /// replacing any earlier recording
 ///  of this thread.
 pub fn begin(common_dir: PathBuf, quiet: bool) {
-    ACTIVE.set(Some((Instant::now(), Recorder::new(common_dir))));
+    begin_on_route(common_dir, quiet, None);
+}
+
+/// What:
+///  Begin recording an add,
+///  saying why it runs as a plain checkout when the wrapper does not serve it.
+/// Why:
+///   An add the ladder does not serve still takes time a person waits through,
+/// and it is the same add to
+///  the recording:
+/// its whole wait is one step nothing of the ladder surrounds,
+/// the note says which
+///  fact put it on the plain route,
+/// and the notice says the same while it runs,
+/// so a plain add is
+///  never silent and never leaves the record of an add that says nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// beginOnRoute(commonDir, quiet, plain); // plain: why the ladder refused, or undefined
+/// ```
+pub fn begin_on_route(common_dir: PathBuf, quiet: bool, plain: Option<String>) {
+    let began: Instant = Instant::now();
+    ACTIVE.set(Some((began, Recorder::new(common_dir))));
     // An add that is still running after a few seconds says which step it is in,
     // on a thread of its own,
     // so the wait is never
@@ -299,6 +322,13 @@ pub fn begin(common_dir: PathBuf, quiet: bool) {
     NOTICE.set(Some(crate::add_standing_notice::begin_for(quiet)));
     if let Ok(mut work) = WORK.lock() {
         *work = Some(Vec::new());
+    }
+    if let Some(clause) = plain {
+        // The route is noted so the record says why the ladder stepped aside, and the step is published
+        //  once, because a plain add has one stretch of work from here to its answer.
+        note("route", "plain");
+        note("whyPlain", clause.as_str());
+        crate::add_standing_notice::the_plain_add_began(clause.as_str(), began);
     }
 }
 
