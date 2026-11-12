@@ -20,7 +20,7 @@
 //! expect((await drain(goneRepo, due)).changes).toEqual([{ forget: branch }]);
 //! ```
 
-use super::{Gone, GoneBecause, Mounts, NothingIsMounted, Proof, TheMountTable, gone_line, prove, the_mounts};
+use super::{Gone, GoneBecause, Mounts, NothingIsMounted, Proof, gone_line, prove, the_mounts};
 use crate::claim_time::ClaimTime;
 use crate::push_retry::{RetryChange, Retrying};
 use crate::service_claim_renewal_running::Renewal;
@@ -316,7 +316,7 @@ fn a_path_behind_an_unmounted_mount_point_keeps_its_plans() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_real_mount_table_names_the_root() {
-    assert!(TheMountTable::default().is_mount_point(Path::new("/")), "the root of the tree is a mount point");
+    assert!(the_mounts().is_mount_point(Path::new("/")), "the root of the tree is a mount point");
 }
 
 /// Environment variable that makes the control below run its inner half,

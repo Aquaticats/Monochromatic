@@ -205,9 +205,21 @@ pub struct TheMountTable {
     table: Vec<MountFacts>,
 }
 
-impl Default for TheMountTable {
-    /// Read the mount table of the running system.
-    fn default() -> Self {
+impl TheMountTable {
+    /// What:
+    ///  The mount table of the running system,
+    ///  read now.
+    /// Why:
+    ///   A table is one look at the system,
+    /// and a question it answered may be asked again after a drive was mounted;
+    /// the caller that asks again makes another table,
+    /// which is what `the_mounts` is for.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// TheMountTable.readNow() // the table as it is now; on a platform without one, nothing is a mount point
+    /// ```
+    fn read_now() -> Self {
         #[cfg(target_os = "linux")]
         {
             return Self { table: the_mount_table() };
@@ -254,7 +266,7 @@ impl Mounts for TheMountTable {
 /// theMounts().isMountPoint('/') // the table as it is now
 /// ```
 pub fn the_mounts() -> TheMountTable {
-    return TheMountTable::default();
+    return TheMountTable::read_now();
 }
 
 /// The mount table this process reads,
@@ -404,8 +416,8 @@ fn is_empty_directory(path: &Path) -> std::io::Result<bool> {
 /// this is the
 ///  question that tells them apart,
 /// asked only after the directory failed to resolve.
-/// Four readings keep a plan,
-/// because each of them has
+/// Four answers keep a plan,
+/// because each of them leaves
 ///  something that can still put the directory back:
 /// a worktree that is still there,
 /// a directory with nothing in it,
