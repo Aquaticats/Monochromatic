@@ -3784,6 +3784,9 @@ importers:
 
   package/pi-plugin/agent-settled-notification:
     dependencies:
+      '@monochromatic-dev/async-time-core':
+        specifier: workspace:*
+        version: link:../../async-time/core
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -3793,9 +3796,6 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'

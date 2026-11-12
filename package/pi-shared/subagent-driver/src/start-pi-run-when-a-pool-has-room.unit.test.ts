@@ -292,6 +292,8 @@ async function writeStandIns({
     name: 'git',
     body: [
       'case "$*" in',
+      // The policy namespace help is what the launcher asks for before it starts a session, and only the wrapper answers it.
+      `  *'monochromatic-git-policy-cli --help'*) printf '%s\\n' 'Usage: git monochromatic-git-policy-cli <command> [options]' ;;`,
       `  *'rev-parse --show-toplevel'*) printf '%s\\n' "$FAKE_CHECKOUT" ;;`,
       `  *'rev-parse --verify'*) exit 0 ;;`,
       `  *'worktree add'*) mkdir --parents "$FAKE_CHECKOUT/.claude/worktrees/pi-copy-route" ;;`,
@@ -584,6 +586,10 @@ await describe({
           turns: 40,
         },),);
         /**
+         The prompt file a start needs before it makes anything.
+         */
+        await writeFile(join(folder.path, 'prompt.md',), 'Answer with one line.\n',);
+        /**
          What the gate answered.
          */
         const ran = await runTheGate({
@@ -597,6 +603,7 @@ await describe({
             '--memory=1G',
             '--tasks=100',
             '--wall=600',
+            `--checkout-folder=${folder.path}`,
           ],
         },);
         expect(ran.status,).toBe(0,);
@@ -667,6 +674,10 @@ await describe({
           execStart: '',
         },);
         /**
+         The prompt file a start needs before it makes anything.
+         */
+        await writeFile(join(folder.path, 'prompt.md',), 'Answer with one line.\n',);
+        /**
          What the gate answered for a runs folder with no finished run.
          */
         const ran = await runTheGate({
@@ -680,6 +691,7 @@ await describe({
             '--memory=1G',
             '--tasks=100',
             '--wall=600',
+            `--checkout-folder=${folder.path}`,
           ],
         },);
         expect(ran.status,).not.toBe(0,);

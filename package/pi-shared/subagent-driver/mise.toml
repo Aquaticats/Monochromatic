@@ -62,8 +62,8 @@ runPiCommand('start-pi-run-when-a-pool-has-room')
 """
 
 [tasks."start-pi-run-in-a-worktree"]
-description = "Make a run's worktree from the checkout's main, link its dependencies, start the driver as a capped unit, and remove the worktree once the run has finished with it"
-usage = 'arg "[args]" var=#true help="--name, --branch, --prompt, --cpu, --memory, --tasks and --wall are required; the rest have defaults"'
+description = "Make a run's worktree with its branch started at the commit or branch the run names, link its dependencies, start the driver as a capped unit, and remove the worktree once the run has finished with it"
+usage = 'arg "[args]" var=#true help="--name, --branch, --prompt, --cpu, --memory, --tasks and --wall are required; --base names the commit or branch a new branch starts at, and the rest have defaults"'
 shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.parse_usage_args}}
@@ -73,7 +73,7 @@ runPiCommand('start-pi-run-in-a-worktree')
 
 [tasks."retry-pi-run-start-until-a-pool-has-room"]
 description = "Ask the pool gate for a slot until it starts the run or the deadline passes: --deadline-seconds and --period-seconds, then -- and the pool gate's words"
-usage = 'arg "[args]" var=#true help="--deadline-seconds=<n> --period-seconds=<n> -- <pool gate options>"'
+usage = 'arg "[args]" var=#true help="--deadline-seconds=<n> --period-seconds=<n> [--] <pool gate options>"'
 shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.parse_usage_args}}
@@ -82,7 +82,7 @@ runPiCommand('retry-pi-run-start-until-a-pool-has-room')
 """
 
 [tasks."start-pi-runs-from-a-batch-list"]
-description = "Start every entry of a batch list through the retrying start, one at a time, and print the line each entry ended with"
+description = "Start every entry of a batch list through the retrying start, one at a time, and print the line each entry ended with: a failed entry names its own reason, and the whole of what it printed is kept beside the runs"
 usage = 'arg "[args]" var=#true help="--batch-file=<file> [--runs-folder=<folder>] [--deadline-seconds=<n>]"'
 shell = "node --input-type=module-typescript -e"
 run = """

@@ -23,7 +23,6 @@
 use super::commit::wrapped_commit;
 use super::support::{Fixture, Observed, fixture, git, observe, remove, run_direct, run_wrapped, stderr_of};
 use git_policy_cli::held_commit_record::{Held, write};
-use git_policy_cli::ref_name::RefName;
 use git_policy_cli::worktree_added_by_the_wrapper::record;
 use std::path::{Path, PathBuf};
 
@@ -198,7 +197,7 @@ fn a_held_commit_a_merge_lands(label: &str) -> HeldScene {
         repository: linked.clone(),
         common_dir: common.clone(),
         git_dir: worktree_git_dir.clone(),
-        reference: RefName::from_text(format!("refs/heads/{BRANCH}").as_str()),
+        reference: git_policy_cli::ref_name::RefName::from_text(format!("refs/heads/{BRANCH}").as_str()),
         old: git_said(&fixture, &linked, &["rev-parse", "HEAD"]).trim().to_string(),
         new: held.clone(),
         commits: vec![held.clone()],

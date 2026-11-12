@@ -21,11 +21,17 @@ import {
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { errorCodeOf, } from './error-code-of.ts';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
+import {
+  StartRefusedError,
+  startRefusalsIn,
+} from './checks-before-a-start.ts';
 import {
   fieldsOf,
   isRecord,
 } from './read-pi-fields.ts';
 import { gitRunnerOf, } from './git-command.ts';
+import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
 import { nextRunNumber, } from './next-run-number.ts';
 import {
   NO_WORKTREE_BRANCH,
@@ -70,14 +76,7 @@ const git = gitRunnerOf(runCommandWithChildProcess,);
 /**
  The top of the checkout this command runs in, which is where a run's worktree is made unless the caller names another checkout.
  */
-const checkoutFolder = await requiredOutputOf({
-  run: runCommandWithChildProcess,
-  command: 'git',
-  words: [
-    'rev-parse',
-    '--show-toplevel',
-  ],
-},);
+const checkoutFolder = await checkoutFolderOf({ from: process.cwd(), },);
 
 /**
  What this run of the command was asked for.
@@ -293,13 +292,67 @@ async function statusOf({
   };
 }
 
+/**
+ Every reason this start is refused, which is read before anything is made: a start that was refused leaves no worktree, no run
+ folder and no unit, and spends no provider slot on a run that could not have worked.
+ */
+const refusals = await startRefusalsIn({
+  promptFile: options.promptFile,
+  git,
+  checkoutFolder: options.checkoutFolder,
+  base: options.base,
+  run: runCommandWithChildProcess,
+  runName: options.name,
+},);
+if (refusals.length > 0) {
+  throw new StartRefusedError(`${options.name} was not started:\n${refusals.join('\n')}`,);
+}
+
+/**
+ The `PATH` the session's own processes get, which a systemd unit does not inherit from the shell that started this command.
+ */
+const pathOfMiseEnvironment = await requiredOutputOf({
+  run: runCommandWithChildProcess,
+  command: 'mise',
+  words: [
+    'exec',
+    '--',
+    'printenv',
+    'PATH',
+  ],
+  folder: options.checkoutFolder,
+},);
+
 if (!readOnlyInMain) {
   console.log(await makeWorktree({
     git,
     checkoutFolder: options.checkoutFolder,
     worktree,
     branch: options.branch,
+    base: options.base,
   },),);
+}
+
+try {
+  console.log(`git: ${await refuseUnlessTheWrapperAnswersGit({
+    run: runCommandWithChildProcess,
+    sessionPath: pathOfMiseEnvironment,
+    workingFolder: worktree,
+  },)} answers as the policy wrapper`,);
+}
+catch (error) {
+  // Issue 1768: a session whose git is the system binary never runs the wrapper, so this run is refused before anything is
+  // started rather than started without the policies, the guards against discarding work and the automatic push. The check
+  // refuses with an error of this package's own, whose message says everything a reader needs; any other failure is not a
+  // refusal and is left as the uncaught error it is.
+  if (!Error.isError(error,)) {
+    throw error;
+  }
+  console.error(`${options.name}: refusing to start: ${error.message}`,);
+  process.exit(1,);
+}
+
+if (!readOnlyInMain) {
   /**
    What linking the worktree's dependencies answered.
    */
@@ -337,17 +390,7 @@ const unit = unitCommandOf({
   memory: options.memory,
   taskCount: options.taskCount,
   wallSeconds: options.wallSeconds,
-  pathOfMiseEnvironment: await requiredOutputOf({
-    run: runCommandWithChildProcess,
-    command: 'mise',
-    words: [
-      'exec',
-      '--',
-      'printenv',
-      'PATH',
-    ],
-    folder: options.checkoutFolder,
-  },),
+  pathOfMiseEnvironment,
   home: env.HOME ?? '',
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,
