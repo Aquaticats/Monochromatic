@@ -1,9 +1,10 @@
-# Resume the desktop-session reload investigation after reboot
+# Continue the desktop-session reload investigation
 
-## Checkpoint at 2026-11-12T03:47:48-05:00
+## Checkpoint at 2026-11-12T09:59:14+00:00
 
 The user asked to dig fully into both systemd and the Git wrapper,
-then requested that the findings be saved and the issue updated before reboot.
+requested a saved checkpoint before reboot,
+and then explicitly resumed the investigation after reboot.
 The user said no Claude Sonnet or Kimi K3.1 Pro audits were needed this session.
 None was started.
 
@@ -39,12 +40,10 @@ the actual blocking operation remains unproven.
   saved session,
   and incident-version source.
   Distinguish a preparation commit printed to stdout from a commit that reached the branch.
-- Reproduce a delayed systemd manager while the bus remains responsive.
-  The source processes expired calls before queued replies.
-  Use GDB at the exported `manager_reload`,
-  finish the function,
-  hold the manager with a bounded gate,
-  and independently verify bus ownership while it is held.
+- Automate the now-reproduced delayed-manager case,
+  combining a successful subscription reply observed on the bus with the final service-state assertion.
+  The first manager-only pause reproduced the shutdown with a responsive bus.
+  The subsequent monitored run reached its container lifetime limit before its final check and is excluded.
 - Compare current upstream and maintained systemd releases,
   then prototype and verify a repair in a disposable clone.
   Preserve detection of real bus-name loss and startup failure;
@@ -93,6 +92,25 @@ its `feed.jsonl` truncates tool results.
 The session filename is
 `2026-11-12T05-58-16-907Z_01a1ce55-e049-76d8-9fc0-fe8eb6f98f8e.jsonl`.
 Relevant results are between `2026-11-12T06:19:00Z` and `2026-11-12T06:27:00Z`.
+The original command began at `2026-11-12T06:21:10.236Z` through the `process` tool,
+not the `bash` tool.
+Its release is `0.6.1-alpha.12`,
+source commit `418ef369a6bb34e829ea90a50c64d9bb5d353d1a`.
+
+The post-reboot host kernel is `7.3.3-ogc1.1.fc45.x86_64`;
+the systemd and KDE package versions did not change.
+The prototype clone has also fetched `v262.2`.
+Its changes in the relevant files do not alter the failure callback or timeout-before-reply order,
+but that release has not yet been exercised in the reproducer.
+
+The build-dependency container `systemd-reload-build-deps-20261112` installed Meson,
+Ninja,
+and related dependencies,
+but pacman hooks failed under its inner sandbox.
+Use the already documented repair in
+[`pacman-hook-sandbox-rootless-podman-build.md`](../troubleshooting/pacman-hook-sandbox-rootless-podman-build.md)
+before treating a derived image as ready.
+The current build source remains unmodified.
 
 The successful probe used `localhost/monochromatic/nested-wayland-session:latest`
 with its entrypoint changed to `/usr/lib/systemd/systemd`,

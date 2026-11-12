@@ -414,8 +414,10 @@ The open work is recorded in
 
 ### Original wrapper recovery output recovered
 
-The original agent's saved session contains the full command output,
-which its driver feed had truncated.
+The original agent's saved session contains the untruncated tool result,
+which its driver feed had shortened.
+The tool result was itself a tail of command output,
+not the complete command log.
 The tool result at `2026-11-12T06:25:08.295Z` includes:
 
 ```text
@@ -494,6 +496,103 @@ not a completed result.
   Whether alternating executable paths cause repeated global reloads still needs a real-manager fixture.
 - No Sonnet or Kimi audit was launched.
   The user explicitly waived those audits for this session.
+
+## Manager-only delay reproduced at 2026-11-12T04:18:02-05:00
+
+After reboot,
+the host retained systemd `262.1-1.fc45`,
+KWin `6.8.2-3.fc45`,
+and Plasma `6.8.2-1.fc45`.
+The kernel changed from `7.2.15-ogc1.1.fc45.x86_64` to `7.3.3-ogc1.1.fc45.x86_64`.
+The container image was still
+`75045b70216eff1bca32eef9add76c9cf02153f11d9c6dab01290ea90df4c6fd`.
+
+The normal reload control left `desktop-probe.service` and its bound target active,
+with service PID 146 and bus owner `:1.1`.
+GDB then paused only the container manager after `manager_reload` returned:
+
+```text
+# Disposable container debugger commands, /probe/pause-manager.gdb.
+set pagination off
+set confirm off
+set debuginfod enabled off
+set breakpoint pending on
+break manager_reload
+printf "RELOAD_BREAKPOINT_ARMED\n"
+continue
+finish
+printf "MANAGER_PAUSED_AFTER_RELOAD\n"
+shell /usr/bin/timeout 120 /usr/bin/cat /probe/resume-manager
+detach
+quit
+```
+
+The container had `SYS_PTRACE` capability for this debugger.
+Its systemd process was PID 1 inside the container,
+not the host's PID 1.
+While that process was held,
+`ps` reported `ts` before and after a successful independent bus query:
+
+```text
+# Observations while only the disposable manager was paused.
+PID STAT COMMAND
+  1 ts   systemd
+s ":1.1"
+PID STAT COMMAND
+  1 ts   systemd
+```
+
+The query was `GetNameOwner` for `org.example.DesktopProbe`.
+The manager remained paused for a further 6.1109 seconds,
+exceeding the fixture's 3-second method timeout.
+After release through the FIFO,
+GDB detached and the reload caller exited successfully.
+The service and target became inactive,
+the service PID became zero,
+and `Result=success`.
+At `2026-11-12T09:18:02+00:00`,
+the container journal emitted the same subscription-timeout diagnostic and then
+`desktop-probe.service: Deactivated successfully.`
+
+This proves that a manager delay can produce the shutdown while the bus remains responsive
+and the service still owns its name during the delay.
+It does not identify which operation delayed the original host manager.
+
+### Additional bus-monitor evidence and its limit
+
+A subsequent run captured the manager's `AddMatch` request for the fixture's `NameOwnerChanged` signal,
+cookie 136 from `:1.0`,
+and the bus's successful `method_return` with `reply_cookie=136` destined for `:1.0`.
+Both were present in a log copied while the manager was still in tracing-stop state.
+The independent name-owner query returned `:1.4` in that run.
+
+That run reached the container's 1800-second lifetime limit before the final release and state check.
+Its termination is excluded as evidence for the subscription-timeout shutdown.
+The next run must combine the request/reply capture and final-state assertion in an automated harness.
+
+### Incident wrapper source identified
+
+The original invocation was a guarded `git commit`,
+started through the agent's process tool at `2026-11-12T06:21:10.236Z`.
+It did not explicitly request a manager reload.
+Its output was piped through `tail -20`,
+and a later command read a tail of that retained output.
+
+The incident worktree's lock selected `monochromatic-git-policy-cli` `0.6.1-alpha.12`.
+The release tag resolves to `418ef369a6bb34e829ea90a50c64d9bb5d353d1a`.
+Its Linux x64 archive checksum is
+`b3c92d60bd3acdbb08f23f2ff8ebbb2882f5e416516727224c360632d8520667`.
+That release's `service_client_reach_service.rs` contains the restart and fallback reload paths,
+and `wait_ceilings.rs` sets `SERVICE_GREETING_SILENCE` to 3 seconds
+and `START_CEILING` to 60 seconds.
+These bounds align with the service starting at 01:21:33,
+the restart at 01:21:36,
+and the global reload request at 01:22:34.
+The remaining call-chain review must distinguish this evidence from proof of every intermediate branch.
+
+The current checkout's `git` link resolves to a toolchain launcher.
+Its resolver and the recorded executable used by the service still need tracing;
+do not assume that the launcher path is the service executable.
 
 ## Upstream filing decision
 
