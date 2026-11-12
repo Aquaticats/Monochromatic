@@ -297,6 +297,31 @@ move its durable facts to their canonical doc and delete it from this page.
   A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
   (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
 
+#### The hourly pass after 15:00: the disk pressure is back and the restarted runs did not survive it (2026-11-12T15:44:38-05:00)
+
+- `/proc/pressure/io` at 15:03:42: full avg10=51.03, avg60=65.18, avg300=69.24, higher than at 13:25.
+  At 14:42:41 it had read full avg10=8.39. It comes and goes; what drives it at each time is not established.
+  This session's own read-only commands now take minutes: a `tail` of one small file returned forty minutes after it was sent.
+- Culled: none.
+- Rounds 310, 311 and 312, started again at 14:06 to 14:20, all ended without a turn:
+  - The two runs of round 310 that were up at 14:11 ended within nine minutes with `endReason` "prompt-rejected" and zero turns:
+    Pi gave "no answer in 120000 ms" to its first prompt, and "Pi was still running 5000 ms after SIGKILL."
+    The third ended on `CommandAnswerMissingError: mise exec ... command -v node answered -1`.
+  - Round 311's launcher printed "Failed to query unit state: Connection timed out" and then reported status 0
+    for a run that had done nothing; its run folder is empty.
+  - Round 312 ended with "Main processes terminated with: code=exited, status=1/FAILURE".
+  - Each failed start leaves a new worktree whose package repair (`pnpm install`, `mpm-shadow install`) runs on in the main checkout's commit service,
+    which is the service whose landings wait. Starting again and again makes the jam worse.
+- So no start is tried again until integration pass 18 is merged and released, or the pressure is seen low at the time of the try.
+  The driver's 120-second bound on Pi's first prompt and the launcher's false status 0 were added to the launcher-fix brief
+  (`~/temp/agent/pi-runs/launcher-starts-a-run-under-load-instead-of-ending-a-batch-on-one-timed-out-request-prompt.md`).
+  Not started and waiting, with briefs written: rounds 310 (three runs), 311, 312, and round 313 whose launcher was still alive at 15:03.
+- Ended since 14:00: the Kimi audit of LFS (14:18:42), the review of the first fix for issue 6286 (14:23:17),
+  and `add-says-when-its-copy-is-short-and-settles-below-a-read-only-directory-1` (14:52:21, "Both defects are fixed").
+  A Sonnet subagent reads them a second time into `~/temp/agent/digest-2026-11-12T1506-three-runs/digest.md`.
+- Twenty-four runs of this work had live units at 15:03, pass 18 and the run for issue 6286 among them.
+  Pass 18 has been running since 12:06:32; its bounded wait of fifty minutes ended at 15:04:55 with the run still active.
+
 #### Seven Kimi audits of 0.6.1-alpha.14, read a second time (2026-11-12T14:46:45-05:00)
 
 - `~/temp/agent/digest-2026-11-12T1406-kimi-audits/digest.md`; each audit's uncut report is beside it.
