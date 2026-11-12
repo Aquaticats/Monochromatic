@@ -4,7 +4,8 @@
 //!  and the command then runs.
 //! Why:
 //!  The exemption was decided for the worktree rule
-//!  (the owner's answer of 2026-11-11, `#3024`:
+//!  (the owner's answer of 2026-11-11,
+//!  `#3024`:
 //!  a vendored clone under the Cargo build directory must not be refused),
 //!  and it never decided that the rule "never discard user data" stops holding there.
 //!  A refusal would fail a build that resets or cleans its own clone,
@@ -25,24 +26,45 @@
 
 /// The bound on the folder of saved copies,
 ///  the pass that applies it after a save,
-///  and the saved copies themselves.
+///  and the saved copies the record names.
 use crate::conflict_side_guard::prune_after_save;
 use crate::conflict_sides::{SavedCopy, save_copies};
 /// The age and size limits that pass applies.
 use crate::discarded_prune::Limits;
+/// The named facts a record of an exemption carries.
+use crate::discard_audit_facts::AuditFact;
+/// The record of every decision.
+use crate::discard_audit::{AuditOutcome, record_audit_with_facts};
+/// The exempt directory the command's own environment named.
+use crate::effective_target::{ToolCacheDirectory, matching_allowed_worktree_dir_for_repository};
+/// The engine's findings and outcomes.
+use crate::policy_engine::PolicyOutcome;
+/// Where the command runs.
+use crate::repository_location::RepositoryLocation;
 /// The facts every question is asked.
 use crate::repository_facts::RepositoryFacts;
-/// The directory the copies are read from,
-///  and the directory they are written below.
-use crate::worktree_identity::WorktreeIdentity;
+/// The one place a form is let through.
+use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form};
+use crate::policy_checks::rejected;
 /// Which question the form's measurement asked,
-///  because it says what the form would lose.
-use crate::rule_linked_worktree::{DirtyQuestion, GuardedCommand, TargetTree};
+///  because it says what the form would lose,
+///  and the code a stopped command is rejected with.
+use crate::rule_linked_worktree::{
+    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, TargetTree,
+};
 /// The scope of a worktree status,
 ///  whose two answers name tracked changes and untracked files apart.
 use crate::rule_worktree_dirty::DirtyScope;
-/// The notices of a save the exemption made.
-use crate::rule_linked_worktree_messages::{exempt_saved_notice, exempt_save_stopped_message};
+/// The notices of a save the exemption made,
+///  and the sentence that says which variable exempted the repository.
+use crate::rule_linked_worktree_messages::{
+    exempt_saved_notice, exempt_save_stopped_message, exemption_notice,
+};
+/// The directory the copies are read from,
+///  and the directory they are written below.
+use crate::worktree_identity::WorktreeIdentity;
+/// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
+use std::ffi::OsString;
 use std::path::Path;
 
 /// What:
@@ -98,7 +120,8 @@ pub(crate) enum ExemptVerdict {
     ///  the command runs as Git runs it.
     Nothing,
     /// What the form would lose is copied beside the audit log:
-    ///  the command runs, and the notice names each copy.
+    ///  the command runs,
+    ///  and the notice names each copy.
     Saved {
         /// What the person reads before Git runs.
         notice: String,
@@ -231,4 +254,124 @@ pub(crate) fn save_the_exempt_discard(facts: &mut dyn RepositoryFacts, form: Exe
             return ExemptVerdict::Stopped(exempt_save_stopped_message(command, &failure.subject, &failure.reason));
         }
     }
+}
+
+/// What:
+///  The facts a record carries for a repository the allowlist exempts,
+///  and the notice the person reads,
+///  or both empty for a repository no entry holds.
+///  `&[ToolCacheDirectory]` borrows the exempt directories.
+/// Why:
+///   Every decision an exemption lets through names the variable that chose it,
+///  in one place,
+///  so no ending can record the exemption without saying which variable made it
+///  and no ending can print the notice twice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exemptionFacts(identity, allowedDirs, notices): AuditFact[];
+/// ```
+pub(crate) fn exemption_facts(
+    identity: &WorktreeIdentity,
+    allowed_worktree_dirs: &[ToolCacheDirectory],
+    notices: &mut Vec<String>,
+) -> Vec<AuditFact> {
+    let Some(found) = matching_allowed_worktree_dir_for_repository(identity, allowed_worktree_dirs) else {
+        return Vec::<AuditFact>::new();
+    };
+    notices.push(exemption_notice(found.named_by, found.path.as_path()));
+    return vec![AuditFact::Text("exemptedBy", found.named_by.to_string())];
+}
+
+/// What:
+///  One exempt repository's discarding form,
+///  with the facts it still asks and the record it leaves.
+///  A `struct` is a record with named fields.
+/// Why:
+///  The two places an exempt repository saves from (a worktree that holds changes,
+///  and a tree that would overwrite an ignored file) pass the same things,
+///  so one record keeps them from drifting apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ExemptForm = { facts; discard; location; seen; exemption; dirty; notices; conflictNote };
+/// ```
+pub(crate) struct ExemptForm<'a> {
+    /// The facts the save still asks.
+    pub(crate) facts: &'a mut dyn RepositoryFacts,
+
+    /// The form and what its copy needs,
+    ///  whose own limits the let-through point applies to a nested repository too.
+    pub(crate) discard: ExemptDiscard<'a>,
+
+    /// Where the command runs.
+    pub(crate) location: &'a RepositoryLocation,
+
+    /// The tokens after the subcommand,
+    ///  for the nested repository a clean would delete.
+    pub(crate) region: &'a [OsString],
+
+    /// The command as Git will run it,
+    /// aliases included.
+    pub(crate) seen: &'a [OsString],
+
+    /// The exemption the record names.
+    pub(crate) exemption: &'a [AuditFact],
+
+    /// What the policy measured,
+    ///  or nothing when it asked no question.
+    pub(crate) dirty: Option<bool>,
+
+    /// The notices the person reads before Git runs.
+    pub(crate) notices: &'a mut Vec<String>,
+
+    /// The sentence a rejection of the same line gets beside the exemption's own text.
+    pub(crate) conflict_note: &'a str,
+
+}
+
+/// What:
+///  Copy what an exempt repository's form would discard,
+///  record the decision,
+///  and let the form run.
+/// Why:
+///   The exemption is from the worktree rule,
+///  and never from the rule that nothing a person wrote is discarded unsaved:
+///  the form runs with its save,
+///  a save that could not be made stops it with the worktree as it was,
+///  and a form that would lose nothing records the exemption and runs as Git runs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function saveAndAllow(form: ExemptForm): PolicyOutcome;
+/// ```
+pub(crate) fn save_and_allow(form: ExemptForm<'_>) -> PolicyOutcome {
+    let command: GuardedCommand = form.discard.command;
+    let discarded_limits: Limits = form.discard.limits;
+    let mut saved: Vec<SavedCopy> = Vec::<SavedCopy>::new();
+    match save_the_exempt_discard(form.facts, form.discard) {
+        ExemptVerdict::Nothing => {}
+        ExemptVerdict::Saved { notice, copies } => {
+            form.notices.push(notice);
+            saved = copies;
+        }
+        ExemptVerdict::Stopped(message) => {
+            record_audit_with_facts(&form.location.identity, command, AuditOutcome::Rejected, form.seen, form.dirty, form.exemption);
+            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{}", form.conflict_note));
+        }
+    }
+    // The save is on disk, and the form is let through where every letting-through happens, so a clean that would
+    //  delete a nested repository still moves it whole before Git runs.
+    return allow_a_discarding_form(AllowedForm {
+        facts: form.facts,
+        command,
+        location: form.location,
+        region: form.region,
+        seen: form.seen,
+        dirty: form.dirty,
+        discarded_limits,
+        notices: form.notices,
+        exemption: form.exemption,
+        saved_by_exemption: saved.as_slice(),
+    });
 }

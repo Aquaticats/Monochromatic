@@ -41,7 +41,8 @@ use std::ffi::OsString;
 ///  `--exclude-standard` is the worktree's own ignore stack,
 ///  which leaves out the ignored build output a clean may delete without a copy;
 ///  `--full-name` names every path from the top of the worktree,
-///  which is where the copies are read from, whatever `-C` did to the directory Git runs in.
+///  which is where the copies are read from,
+///  whatever `-C` did to the directory Git runs in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +78,15 @@ fn untracked_query_arguments(global_prefix: &[OsString]) -> Vec<OsString> {
 /// const files = paths.filter((path) => !path.endsWith('/'));
 /// ```
 fn untracked_files(paths: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
-    return paths.into_iter().filter(|path| { return !path.ends_with(b"/"); }).collect();
+    let mut files: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for path in paths {
+        // A directory Git named as one is not a file a copy holds.
+        if path.ends_with(b"/") {
+            continue;
+        }
+        files.push(path);
+    }
+    return files;
 }
 
 /// What:

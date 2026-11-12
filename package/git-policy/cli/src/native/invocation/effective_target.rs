@@ -241,7 +241,8 @@ pub fn cargo_build_script_output_dir(
 ///  A `struct` is a record with named fields.
 /// Why:
 ///   A relative value under a name Cargo reads describes a directory Cargo resolves against a base
-///  this invocation cannot know, so a later name does not describe the directory Cargo uses;
+///  this invocation cannot know,
+///  so a later name does not describe the directory Cargo uses;
 ///  a relative value under a name Cargo never reads describes no directory at all,
 ///  so the later names are still worth asking
 ///  (`cargo_build_dir`).

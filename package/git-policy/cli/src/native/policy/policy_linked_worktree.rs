@@ -32,10 +32,7 @@
 use crate::command_clean::{clean_dry_run_arguments, clean_dry_run_arguments_without_exclusions, paths_only_the_exclusions_add};
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
-use crate::effective_target::{
-    EffectiveTarget, ToolCacheDirectory, classify_effective_target,
-    matching_allowed_worktree_dir_for_repository,
-};
+use crate::effective_target::{EffectiveTarget, ToolCacheDirectory, classify_effective_target};
 /// The guarded decision about the command Git will run,
 /// alias expansion included.
 use crate::guarded_forwarded_command::GuardedForwarded;
@@ -66,166 +63,26 @@ use crate::policy_checks::{fact_unavailable, clean, rejected};
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
     DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, TargetTree,
-    dirty_question, dirty_worktree_message, exemption_notice, ignored_file_message,
+    dirty_question, dirty_worktree_message, ignored_file_message,
     repository_stash_message, resolve_linked_worktree, target_tree,
 };
-/// Whether a `git remote` or `git config` command writes the settings every worktree shares.
-use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange};
-/// The text that refusal prints.
-use crate::rule_shared_remote_messages::shared_remote_settings_message;
+/// The refusal of a command that would change the settings every worktree shares.
+use crate::policy_linked_worktree_shared_remote::refuse_shared_remote_settings;
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
 use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
 /// The save-first guard an exempt repository keeps around a form that discards work.
-use crate::policy_linked_worktree_exempt_save::{ExemptDiscard, ExemptVerdict, save_the_exempt_discard};
-/// One saved copy,
-///  whose path and place a record names,
-///  and the list of them a record holds.
-use crate::conflict_sides::{SavedCopy, copy_places};
-/// The common Git directory,
-///  for naming the file every worktree shares.
-use crate::worktree_identity::{WorktreeIdentity, common_directory};
-/// The path with every link resolved as far as it exists,
-///  for comparing two spellings of one file,
-///  and the directory a command runs in,
-///  which `--work-tree` does not move.
-use crate::repository_link_paths::{chain_directory, resolve_as_far_as_it_exists};
+use crate::policy_linked_worktree_exempt_save::{
+    ExemptDiscard, ExemptForm, exemption_facts, save_and_allow,
+};
+/// The list of copies a record names.
+use crate::conflict_sides::copy_places;
 /// The tokens after the subcommand word.
 use crate::global_arguments::command_tokens;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
-use std::path::{Path, PathBuf};
-
-/// What:
-///  The directory the command runs in,
-///  as Git resolved it:
-///  this process's own directory moved by the `-C` chain the caller
-///  wrote before the subcommand.
-///  `&[OsString]` borrows that chain.
-///  `Result<PathBuf, String>` is the directory or why it could not be named.
-/// Why:
-///   A relative `--file` path is read from where the command runs,
-///  `--work-tree` does not move that directory for `git config`,
-///  and it may name a directory the command does not run in at all,
-///  so the worktree top level plus Git's own prefix is not the answer here:
-///  that prefix is empty whenever the caller sits outside the `--work-tree`,
-///  which is exactly when the two disagree.
-///  Only the `-C` chain moves the directory Git reads a relative path from.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const commandDirectory = (globalPrefix) => chainDirectory(process.cwd(), globalPrefix);
-/// ```
-fn command_directory(global_prefix: &[OsString]) -> Result<PathBuf, String> {
-    // The caller's own directory, which no option changes: Git moves it only for `-C`.
-    let Ok(cwd) = std::env::current_dir() else {
-        return Err(String::from(
-            "monochromatic-git-policy-cli could not name the directory this command runs in, so the command was \
-             not judged.",
-        ));
-    };
-    return Ok(chain_directory(cwd.as_path(), global_prefix));
-}
-
-/// What:
-///  Whether the path a `--file` write names is the configuration file every worktree
-///  shares.
-///  `&Path` borrows the named path,
-///  the directory the command runs in and the shared file.
-/// Why:
-///   The shared file is one of the paths `--file` takes,
-///  and naming it is not naming another file;
-///  a
-///       relative path,
-///  one through `..` and one through a link are the same file,
-///  so both spellings are
-///       resolved the way the filesystem does before they are compared.
-///  A path that names neither the file nor a
-///       link to it is a file of the command's own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namesTheSharedFile = (named, directory, shared) => resolve(named.startsWith('/') ? named : join(directory, named)) === resolve(shared);
-/// ```
-fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> bool {
-    let spelled: PathBuf = if named.is_absolute() {
-        named.to_path_buf()
-    } else {
-        directory.join(named)
-    };
-    return resolve_as_far_as_it_exists(spelled.as_path()) == resolve_as_far_as_it_exists(shared_file);
-}
-
-/// What:
-///  The refusal of a command that would change the remote settings every worktree of the
-///  repository shares,
-///  when the command runs in a linked worktree.
-///  `&SharedRemoteChange` borrows the change the guard decided about.
-/// Why:
-///   One `.git/config` is shared by the main checkout and every linked worktree,
-///  so a write from a
-///       linked worktree reaches the main checkout and every other worktree;
-///  the refusal names that file and
-///       the main checkout,
-///  and changes nothing.
-///  A main checkout,
-///  a place outside a worktree and an
-///       exempt tool cache keep today's behaviour,
-///  and every other command is left to the policies below.
-///  A
-///       `--file` write is this rule's only when its path resolves to that same file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function refuseSharedRemoteSettings(facts, change, allowedDirs): PolicyOutcome;
-/// ```
-fn refuse_shared_remote_settings(
-    facts: &mut dyn RepositoryFacts,
-    change: &SharedRemoteChange,
-    allowed_worktree_dirs: &[ToolCacheDirectory],
-) -> PolicyOutcome {
-    let location: RepositoryLocation = match facts.location() {
-        Ok(found) => found,
-        Err(message) => return fact_unavailable(message),
-    };
-    let target: EffectiveTarget =
-        classify_effective_target(&location.identity, allowed_worktree_dirs);
-    // Only a linked worktree shares its configuration with another checkout.
-    if target != EffectiveTarget::LinkedWorktree {
-        return clean();
-    }
-    // The configuration file Git writes for the repository: `$GIT_COMMON_DIR/config`.
-    let shared_file: PathBuf = match common_directory(&location.identity) {
-        Some(directory) => directory.join("config"),
-        None => {
-            return fact_unavailable(String::from(
-                "monochromatic-git-policy-cli could not name the configuration file this repository's worktrees \
-                 share, so the command was not judged.",
-            ));
-        }
-    };
-    // A `--file` write names its own file: only the path that resolves to this repository's shared file is one.
-    if let Some(named) = &change.named_file {
-        let directory: PathBuf = match command_directory(facts.transaction_context().global_prefix.as_slice()) {
-            Ok(found) => found,
-            Err(message) => return fact_unavailable(message),
-        };
-        if !names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
-            return clean();
-        }
-    }
-    let main_checkout: PathBuf = match facts.main_worktree_root() {
-        Ok(found) => found,
-        Err(message) => return fact_unavailable(message),
-    };
-    return rejected(
-        SHARED_REMOTE_SETTINGS_CODE,
-        shared_remote_settings_message(&change.setting, shared_file.as_path(), main_checkout.as_path()),
-    );
-}
 
 /// What:
 ///  Whether a `git clean -X` that carries its own `-e`/`--exclude` patterns would delete a path those patterns
@@ -266,116 +123,6 @@ fn clean_deletes_a_path_only_its_exclusions_ignore(
     };
     let otherwise_deleted: Vec<Vec<u8>> = facts.clean_deleted_paths(without_patterns)?;
     return Ok(!paths_only_the_exclusions_add(deleted.as_slice(), otherwise_deleted.as_slice()).is_empty());
-}
-
-/// What:
-///  The facts a record carries for a repository the allowlist exempts,
-///  and the notice the person reads,
-///  or both empty for a repository no entry holds.
-///  `&[ToolCacheDirectory]` borrows the exempt directories.
-/// Why:
-///   Every decision an exemption lets through names the variable that chose it,
-///  in one place,
-///  so no ending can record the exemption without saying which variable made it
-///  and no ending can print the notice twice.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function exemptionFacts(identity, allowedDirs, notices): AuditFact[];
-/// ```
-fn exemption_facts(
-    identity: &WorktreeIdentity,
-    allowed_worktree_dirs: &[ToolCacheDirectory],
-    notices: &mut Vec<String>,
-) -> Vec<AuditFact> {
-    let Some(found) = matching_allowed_worktree_dir_for_repository(identity, allowed_worktree_dirs) else {
-        return Vec::<AuditFact>::new();
-    };
-    notices.push(exemption_notice(found.named_by, found.path.as_path()));
-    return vec![AuditFact::Text("exemptedBy", found.named_by.to_string())];
-}
-
-/// What:
-///  One exempt repository's discarding form,
-///  with the facts it still asks and the record it leaves.
-///  A `struct` is a record with named fields.
-/// Why:
-///  The two places an exempt repository saves from (a worktree that holds changes,
-///  and a tree that would overwrite an ignored file) pass the same things,
-///  so one record keeps them from drifting apart.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ExemptForm = { facts; discard; location; seen; exemption; dirty; notices; conflictNote };
-/// ```
-struct ExemptForm<'a> {
-    /// The facts the save still asks.
-    facts: &'a mut dyn RepositoryFacts,
-    /// The form and what its copy needs,
-    ///  whose own limits the let-through point applies to a nested repository too.
-    discard: ExemptDiscard<'a>,
-    /// Where the command runs.
-    location: &'a RepositoryLocation,
-    /// The tokens after the subcommand,
-    ///  for the nested repository a clean would delete.
-    region: &'a [OsString],
-    /// The command as Git will run it,
-    /// aliases included.
-    seen: &'a [OsString],
-    /// The exemption the record names.
-    exemption: &'a [AuditFact],
-    /// What the policy measured,
-    ///  or nothing when it asked no question.
-    dirty: Option<bool>,
-    /// The notices the person reads before Git runs.
-    notices: &'a mut Vec<String>,
-    /// The sentence a rejection of the same line gets beside the exemption's own text.
-    conflict_note: &'a str,
-}
-
-/// What:
-///  Copy what an exempt repository's form would discard,
-///  record the decision,
-///  and let the form run.
-/// Why:
-///   The exemption is from the worktree rule, and never from the rule that nothing a person wrote is discarded
-///  unsaved: the form runs with its save,
-///  a save that could not be made stops it with the worktree as it was,
-///  and a form that would lose nothing records the exemption and runs as Git runs it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function saveAndAllow(form: ExemptForm): PolicyOutcome;
-/// ```
-fn save_and_allow(form: ExemptForm<'_>) -> PolicyOutcome {
-    let command: GuardedCommand = form.discard.command;
-    let discarded_limits: Limits = form.discard.limits;
-    let mut saved: Vec<SavedCopy> = Vec::<SavedCopy>::new();
-    match save_the_exempt_discard(form.facts, form.discard) {
-        ExemptVerdict::Nothing => {}
-        ExemptVerdict::Saved { notice, copies } => {
-            form.notices.push(notice);
-            saved = copies;
-        }
-        ExemptVerdict::Stopped(message) => {
-            record_audit_with_facts(&form.location.identity, command, AuditOutcome::Rejected, form.seen, form.dirty, form.exemption);
-            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{}", form.conflict_note));
-        }
-    }
-    // The save is on disk, and the form is let through where every letting-through happens, so a clean that would
-    //  delete a nested repository still moves it whole before Git runs.
-    return allow_a_discarding_form(AllowedForm {
-        facts: form.facts,
-        command,
-        location: form.location,
-        region: form.region,
-        seen: form.seen,
-        dirty: form.dirty,
-        discarded_limits,
-        notices: form.notices,
-        exemption: form.exemption,
-        saved_by_exemption: saved.as_slice(),
-    });
 }
 
 /// What:

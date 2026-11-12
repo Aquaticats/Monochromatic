@@ -51,8 +51,13 @@ pub mod policy_checks;
 /// in its own file so the registry of shipped policies stays readable.
 pub mod policy_linked_worktree;
 
+/// The shared-remote-settings refusal of the linked-worktree check,
+///  in its own file so that check stays within its line bound.
+pub mod policy_linked_worktree_shared_remote;
+
 /// The save-first guard a repository the allowlist exempts from the worktree rule keeps:
-///  the work a discarding form would lose is copied beside the audit log, and the form then runs.
+///  the work a discarding form would lose is copied beside the audit log,
+///  and the form then runs.
 pub mod policy_linked_worktree_exempt_save;
 
 /// Keeping the nested Git repositories a clean would delete,

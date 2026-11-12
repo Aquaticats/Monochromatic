@@ -119,7 +119,8 @@ fn reset_hard_with_out_dir(fixture: &Fixture, directory: &Path, out_dir: &Path) 
     return observe(&mut command, b"");
 }
 
-/// Run the wrapper in `directory` with each of `variables` set, and with `arguments` after the subcommand.
+/// Run the wrapper in `directory` with each of `variables` set,
+/// and with `arguments` after the subcommand.
 /// Why:
 ///   A build step's own discard is the same command a person runs,
 ///  and only the environment says which tree it runs in.
@@ -396,7 +397,8 @@ fn a_checkout_in_a_clone_under_a_relative_cargo_build_directory_is_refused() {
 ///  and the exemption notice itself said nothing was saved.
 ///  A build is not a person and what it discards in its own clone is its own,
 ///  so the form must still succeed;
-///  the person's edit inside that tree must still be on disk, which is what the copy is for.
+///  the person's edit inside that tree must still be on disk,
+///  which is what the copy is for.
 #[test]
 fn a_hard_reset_in_a_clone_under_the_cargo_build_directory_saves_the_edit_and_runs() {
     let fixture: Fixture = fixture("cargo-build-directory-reset");
@@ -461,7 +463,9 @@ fn a_forced_clean_in_a_clone_under_the_cargo_build_directory_saves_the_untracked
 }
 
 /// What:
-///  A relative `CARGO_BUILD_DIR`, which Cargo never reads, does not mask the absolute `CARGO_TARGET_DIR` beside it.
+///  A relative `CARGO_BUILD_DIR`,
+///  which Cargo never reads,
+///  does not mask the absolute `CARGO_TARGET_DIR` beside it.
 /// Why:
 ///   The review found the checkout refused here,
 ///  so a build step that exports the unread name lost the exemption its own absolute directory names;

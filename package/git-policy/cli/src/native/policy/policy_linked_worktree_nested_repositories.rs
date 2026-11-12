@@ -31,7 +31,8 @@ use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy};
 use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies_and_facts, record_audit_with_facts};
 /// The fact that names the exemption a record ran under.
 use crate::discard_audit_facts::AuditFact;
-/// The copies a record names, as the one list every saving ending writes.
+/// The copies a record names,
+///  as the one list every saving ending writes.
 use crate::conflict_sides::copy_places;
 /// The limits of the folder of saved copies.
 use crate::discarded_prune::Limits;

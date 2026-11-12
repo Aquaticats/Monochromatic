@@ -16162,7 +16162,9 @@ naming the variable and the directory it points at,
 so a variable that happens to name a repository is visible to the person:
 "this repository is exempt from the worktree guard because `MISE_DATA_DIR` names <directory>,
 which contains both its Git directory and its worktree.
-Nothing was measured, and the command runs without that rule; a form that discards uncommitted work is
+Nothing was measured,
+and the command runs without that rule;
+a form that discards uncommitted work is
 copied beside the audit log first and then runs".
 The comparison is made on resolved paths:
 each allowlisted directory is resolved before it is compared,
@@ -16188,7 +16190,8 @@ and the deliberate override (`--no-enforce-worktree` directly after the subcomma
 
 The exemption is from the worktree rule and from nothing else.
 Never discarding user data holds in every repository,
-and the rule it replaces here is a refusal, which a build cannot live with:
+and the rule it replaces here is a refusal,
+which a build cannot live with:
 the case the exemption exists for is a build step that resets or cleans its own vendored clone.
 So a guarded form in an exempt repository runs as Git runs it,
 after what it would lose is copied into the folder of saved copies beside the audit log,
@@ -16200,7 +16203,9 @@ What is copied follows the question the policy already asked about the form:
 - a form that writes a tree or replaces the index loses the uncommitted changes of tracked files,
   which are `git diff --name-only -z` and `git diff --cached --name-only -z`,
   each path once and in a settled order;
-- a clean that deletes untracked files (`-f`, `-fd`, `-fdx`) loses the untracked files the ignore rules
+- a clean that deletes untracked files (`-f`,
+  `-fd`,
+  `-fdx`) loses the untracked files the ignore rules
   do not cover,
   which is `git ls-files --others --exclude-standard --full-name -z`;
   a clean whose `-e`/`--exclude` patterns pull in a path the worktree does not ignore is covered by the
