@@ -33,8 +33,7 @@ use std::path::Path;
 
 /// What:
 ///  The staging start that puts the working copy of every file still unmerged into the commit's own index,
-/// nothing
-///  when no file is unmerged.
+/// and nothing at all when no file is unmerged.
 /// Why:
 ///   Git refuses a commit of an index with unmerged paths (`builtin/commit.c:348`,
 /// `refresh_cache_or_die`),
