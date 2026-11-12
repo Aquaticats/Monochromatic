@@ -9,11 +9,11 @@
  print the newest timing line and the service journal of the sample commit.
 
  What is added to what the script did. Every step is bounded, because nothing here may wait forever. The commit is decided
- from the lockfile as it is after the tools were installed, compared with the commit the checkout points at, so a lock a
- step had already staged is committed and one another install already committed records nothing instead of failing. A lock
- another process wrote while the release was installed is never committed under this release's name: the install refuses
- and leaves that write where it is. And `--dry-run` prints the same plan and changes nothing, so a person can read what an
- install would do first.
+ from the lockfile as it is after the tools were installed, compared with what the checkout already records, so a lock a
+ step had already staged is committed and one another install already committed records nothing instead of failing; a
+ commit that loses that race to another install after the decision answers the same way. A lock another process wrote while
+ the release was installed is never committed under this release's name: the install refuses and leaves that write where it
+ is. And `--dry-run` prints the same plan and changes nothing, so a person can read what an install would do first.
 
  What an install runs and the texts it reads are in `native-install-steps.ts`; this file is the command line and the order.
  */
@@ -30,7 +30,6 @@ import {
 } from './native-gate-main.ts';
 import {
   gateRepositoryOf,
-  gitDeadlineMilliseconds,
   gitProgram,
   promptlessGitSettings,
 } from './native-gate-paths.ts';
@@ -38,6 +37,11 @@ import {
   runGateCommand,
   runGateCommandOrThrow,
 } from './native-gate-run.ts';
+import {
+  gitVersionLineOf,
+  lastCommitHoldsFile,
+  lockRecordOf,
+} from './native-install-checkout.ts';
 import {
   type InstallStep,
   commitTimingFileName,
@@ -187,71 +191,55 @@ async function runStep({
 }
 
 /**
- Runs one git query of the install, bounded and promptless.
+ Runs the commit step, answering whether this install's own commit recorded the lockfile.
 
- @param repository - the checkout to ask
+ Another install of the same release can commit the same lockfile between this install's decision to commit and its
+ commit: Git then answers "nothing to commit, working tree clean" with status 1, and the release is recorded all the same,
+ so that is not a failure of the install. Any other failure is the install's own and is rethrown.
 
- @param args - the arguments after the `-C <checkout>` pair
+ @param step - the commit step
 
- @returns what git printed on standard output
+ @param lock - the lockfile text this install resolved
 
- @throws NativeGateError when git cannot answer
+ @param deadlineMilliseconds - how long the step may run
+
+ @returns true when this commit recorded the lockfile, false when the last commit already held it
+
+ @throws NativeGateError when the commit failed and the last commit does not hold the lockfile
 
  @example
  ```ts
- await askGit({ repository: '/repo', args: ['diff', '--', 'toolchain.lock.json'] });
+ await commitLock({ step: commitStep, lock: installedLock, deadlineMilliseconds });
  ```
  */
-async function askGit({
-  repository,
-  args,
+async function commitLock({
+  step,
+  lock,
+  deadlineMilliseconds,
 }: {
-  readonly repository: string;
-  readonly args: readonly string[];
-}): Promise<string> {
-  return (await runGateCommandOrThrow({
-    program: gitProgram,
-    args: [
-      '-C',
-      repository,
-      ...args,
-    ],
-    deadlineMilliseconds: gitDeadlineMilliseconds,
-    environment: {
-      ...process.env,
-      ...promptlessGitSettings,
-    },
-  })).stdout;
-}
-
-/**
- The lockfile's difference from the commit the checkout points at, which is what a commit of that path would record.
-
- Asked again right before the commit, because the worktree can be written between the install of the tools and the
- commit: another install of the same release then finds nothing to record, and a lockfile another process changed is
- caught before it is committed.
-
- @param repository - the checkout to ask
-
- @returns the diff, empty when the lockfile matches the last commit
-
- @throws NativeGateError when git cannot answer
-
- @example
- ```ts
- await lockDiffFromCommit({ repository: '/repo' });
- ```
- */
-async function lockDiffFromCommit({ repository }: { readonly repository: string; }): Promise<string> {
-  return await askGit({
-    repository,
-    args: [
-      'diff',
-      'HEAD',
-      '--',
-      lockFileName,
-    ],
-  });
+  readonly step: InstallStep;
+  readonly lock: string;
+  readonly deadlineMilliseconds: number;
+}): Promise<boolean> {
+  try {
+    await runStep({
+      step,
+      deadlineMilliseconds,
+    });
+    return true;
+  }
+  catch (error) {
+    if (!(error instanceof NativeGateError))
+      throw error;
+    if (!await lastCommitHoldsFile({
+      repository: step.repository,
+      name: lockFileName,
+      text: lock,
+    }))
+      throw error;
+    printLine(`== another install committed ${lockFileName} while this one asked ${gitProgram} to, so this commit recorded nothing and no sample was taken`);
+    return false;
+  }
 }
 
 /**
@@ -308,6 +296,60 @@ async function printSampleEvidence({
   printLine(journal.timedOut
     ? `the journal did not answer within ${String(journalDeadlineMilliseconds)} ms`
     : `${journal.stdout}${journal.stderr}`.trimEnd());
+}
+
+/**
+ Makes the sample commit and prints what came of it: how long it took, the wrapper's timing record of it, and the journal
+ it was answered in.
+
+ @param step - the commit step
+
+ @param lock - the lockfile text this install resolved
+
+ @param deadlineMilliseconds - how long the step may run
+
+ @returns true when this install's own commit recorded the lockfile, false when another install recorded it first
+
+ @throws NativeGateError when the commit failed and the last commit does not hold the lockfile
+
+ @example
+ ```ts
+ await sampleTheCommit({ step: commitStep, lock: installedLock, deadlineMilliseconds });
+ ```
+ */
+async function sampleTheCommit({
+  step,
+  lock,
+  deadlineMilliseconds,
+}: {
+  readonly step: InstallStep;
+  readonly lock: string;
+  readonly deadlineMilliseconds: number;
+}): Promise<boolean> {
+  /**
+   The moment the sample commit began, which the journal is read from.
+   */
+  const started = new Date();
+  /**
+   How many milliseconds the commit took, which is the sample.
+   */
+  const startedMilliseconds = Date.now();
+  /**
+   Whether this install's own commit recorded the lockfile, which is false when another install recorded it first.
+   */
+  const recorded = await commitLock({
+    step,
+    lock,
+    deadlineMilliseconds,
+  });
+  if (!recorded)
+    return false;
+  printLine(`== the sample commit took ${String(Date.now() - startedMilliseconds)} ms`);
+  await printSampleEvidence({
+    repository: step.repository,
+    started,
+  });
+  return true;
 }
 
 /**
@@ -408,11 +450,19 @@ async function main(): Promise<number> {
     lockFileName
   ), });
   /**
-   The lockfile's diff against the last commit, printed whole, because it is the review surface of a released version
-   (rule `UPN`), and because it is exactly what a commit of this path would record.
+   What the checkout records about the lockfile, asked before the tools are installed: a checkout with no commit is one
+   Git refuses `HEAD` as a revision in, and the answer also says what a line about a lockfile nothing recorded has to
+   say.
    */
-  const diff = await lockDiffFromCommit({ repository, });
-  printLine(diff.trim() === '' ? `${lockFileName} did not change` : diff.trimEnd());
+  const {
+    hasCommit,
+    diff: printedDiff,
+  } = await lockRecordOf({ repository, });
+  /**
+   The lockfile's diff against what the checkout records, printed whole, because it is the review surface of a released
+   version (rule `UPN`), and because it is exactly what a commit of this path would record.
+   */
+  printLine(printedDiff.trim() === '' ? `${lockFileName} did not change` : printedDiff.trimEnd());
   await runStep({
     step: installStep,
     deadlineMilliseconds,
@@ -420,16 +470,7 @@ async function main(): Promise<number> {
   /**
    What the installed `git` says it is.
    */
-  const reported = (await runGateCommandOrThrow({
-    program: gitProgram,
-    args: ['--version',],
-    deadlineMilliseconds: gitDeadlineMilliseconds,
-    environment: {
-      ...process.env,
-      ...promptlessGitSettings,
-    },
-    workingDirectory: repository,
-  })).stdout;
+  const reported = await gitVersionLineOf({ repository, });
   printLine(reported.trimEnd());
   if (!reported.includes(wrapperVersionLine({ version, }))) {
     throw new NativeGateError(`${gitProgram} --version does not name ${version}, so the installed wrapper is not the release that was asked for. What it printed: ${reported.trim() || '(nothing)'}. Check that ${wrapperToolName} resolves to ${version} (mise run toolchain:install, or mise which ${wrapperToolName.slice('cargo:'.length)}) and that the wrapper's directory comes before any other ${gitProgram} on PATH.`);
@@ -449,40 +490,37 @@ async function main(): Promise<number> {
     /**
      What holds the lock now, printed so a person reads the write this install did not make.
      */
-    const changed = await lockDiffFromCommit({ repository, });
-    printLine(changed.trim() === '' ? `${lockFileName} now matches the last commit, where this install left a change` : changed.trimEnd());
+    const { diff: otherWriteDiff } = await lockRecordOf({ repository, });
+    printLine(otherWriteDiff.trim() === '' ? `${lockFileName} now matches the last commit, where this install left a change` : otherWriteDiff.trimEnd());
     throw new NativeGateError(`${lockFileName} was written by something else while ${version} was installed, so it no longer holds what this install resolved; nothing was committed and that write is left as it is. Run the install again once nothing else is writing the lock, so the release it records is the one the diff shows.`);
   }
   /**
-   Whether there is a commit to make, which is whether the lockfile differs from the last commit now.
+   What the checkout still records differently from its lockfile, which decides whether there is a commit to make.
+   */
+  const { diff: recordableDiff, } = await lockRecordOf({ repository, });
+  /**
+   Whether there is a commit to make, which is whether the lockfile differs from what the checkout records now.
 
    Asked after the install and not from the earlier diff, because another process can commit this release in between: an
    install that lost that race has nothing to record, and a commit with no change would fail where the requested state
    already holds.
    */
-  const lockMoved = (await lockDiffFromCommit({ repository, })).trim() !== '';
-  if (lockMoved) {
-    /**
-     The moment the sample commit began, which the journal is read from.
-     */
-    const started = new Date();
-    /**
-     How many milliseconds the commit took, which is the sample.
-     */
-    const startedMilliseconds = Date.now();
-    await runStep({
+  const lockMoved = recordableDiff.trim() !== '';
+  /**
+   Whether this install's own commit recorded the lock, which is false when another install recorded it first.
+   */
+  const sampled = lockMoved
+    ? await sampleTheCommit({
       step: commitStep,
+      lock: installedLock,
       deadlineMilliseconds,
-    });
-    printLine(`== the sample commit took ${String(Date.now() - startedMilliseconds)} ms`);
-    await printSampleEvidence({
-      repository,
-      started,
-    });
-  }
-  printLine(lockMoved
+    })
+    : false;
+  printLine(sampled
     ? `installed ${version} and committed the lock`
-    : `installed ${version}; ${lockFileName} already named it, so nothing was committed`);
+    : hasCommit
+      ? `installed ${version}; ${lockFileName} already named it, so nothing was committed`
+      : `installed ${version}; the checkout has no commit yet, so ${lockFileName} is left for the first one`);
   return 0;
 }
 

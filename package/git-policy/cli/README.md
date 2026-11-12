@@ -5702,7 +5702,7 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   and then the newest line of the wrapper's commit timing record beside the common Git directory
   and the service journal of that commit.
   The commit is decided from the lockfile as it is after the tools were installed,
-  compared with the commit the checkout points at,
+  compared with what the checkout already records,
   rather than from the diff printed before the install:
   that is what a commit of the path would record,
   so a lockfile an earlier step had already staged is committed,
@@ -5710,6 +5710,14 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   failing a commit with nothing to record,
   and reads no journal,
   because there is then no sample commit.
+  A commit that loses the race to another install of the same release after that decision answers the same way:
+  when the commit step itself fails and `HEAD` already holds exactly the lockfile this install resolved,
+  the install says which commit it found and records nothing,
+  so a release another install recorded is not a failed install.
+  A checkout with no commit yet is one Git refuses `HEAD` as a revision in,
+  so the lockfile there is compared with the index,
+  which is what a first commit reads;
+  the install then exits 0 and says the lockfile is left for that first commit.
   A lockfile another process writes while the release is installed is never committed under this release's name:
   the install prints the write it found,
   refuses,
