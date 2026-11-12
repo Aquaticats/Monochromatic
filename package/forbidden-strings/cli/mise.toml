@@ -110,8 +110,12 @@ description = "Fallback local publish. Canonical path is .github/workflows/cargo
 run = "cargo publish"
 
 [tasks.test]
-description = "cargo nextest run"
-run = "cargo nextest run --release"
+description = "cargo nextest run, then the porter's own scan cases"
+run = ["cargo nextest run --release", "node bin/port-betterleaks-scan-test.ts"]
+
+[tasks."test:scripts"]
+description = "Answer every case the betterleaks porter's rule-body line readers and PCRE rewrite passes must give"
+run = "node bin/port-betterleaks-scan-test.ts"
 
 [tasks."scan:all"]
 description = "Scan the complete repository with the release forbidden-strings binary"

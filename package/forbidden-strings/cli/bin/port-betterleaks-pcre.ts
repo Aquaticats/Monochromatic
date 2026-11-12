@@ -105,6 +105,136 @@ function escapeResharpOnlyMeta({ pattern, }: { readonly pattern: string; },): st
   return out;
 }
 
+//region Pattern rewrites, one walk over the body each
+/**
+ Characters whose later `?` marks a lazy quantifier, which resharp refuses.
+ */
+const QUANTIFIER_CHARACTERS: ReadonlySet<string> = new Set([
+  '*',
+  '+',
+  '?',
+  '}',
+],);
+
+/**
+ Whether the character may open a PCRE capture name.
+ 
+ @param character - one character of the body, or the empty string past its end
+ 
+ @returns whether the character is an ASCII letter or an underscore
+ */
+function isNameStartCharacter({ character, }: { readonly character: string; },): boolean {
+  return ((character >= 'a') && (character <= 'z'))
+    || ((character >= 'A') && (character <= 'Z'))
+    || (character === '_');
+}
+
+/**
+ Whether the character may continue a PCRE capture name.
+ 
+ @param character - one character of the body, or the empty string past its end
+ 
+ @returns whether the character is an ASCII letter, a digit or an underscore
+ */
+function isNameCharacter({ character, }: { readonly character: string; },): boolean {
+  return isNameStartCharacter({ character, },) || ((character >= '0') && (character <= '9'));
+}
+
+/**
+ Replace PCRE's named-capture opening, `(?P<name>`, with resharp's non-capturing `(?:`. Resharp parses the named
+ form but has no captures, so the non-capturing form is the cleanest signal of intent.
+ 
+ @param pattern - one upstream rule body
+ 
+ @returns the body with every named-capture opening made non-capturing
+ 
+ @example
+ ```ts
+ namedCaptureGroupsMadeNonCapturing({ pattern: '(?P<key>a)' });
+ ```
+ */
+export function namedCaptureGroupsMadeNonCapturing({ pattern, }: { readonly pattern: string; },): string {
+  /**
+   The opening the walk looks for.
+   */
+  const opening = '(?P<';
+  /**
+   The body with every completed opening already replaced.
+   */
+  let out = '';
+  /**
+   Position in `pattern` from which the text is still owed to `out`.
+   */
+  let from = 0;
+  /**
+   Last position a candidate opening can start at, since nothing shorter than the opening itself can hold one.
+   */
+  const lastOpeningStart = pattern.length - opening.length;
+  for (let searchFrom = 0; searchFrom <= lastOpeningStart;) {
+    /**
+     Position of the next candidate opening.
+     */
+    const at = pattern.indexOf(
+      opening,
+      searchFrom,
+    );
+    if (at === (-1))
+      break;
+    /**
+     Position just past the characters that continue the name the opening begins.
+     */
+    let nameEnd = at + opening.length;
+    while (isNameCharacter({ character: pattern.charAt(nameEnd,), },)) nameEnd += 1;
+    if (isNameStartCharacter({ character: pattern.charAt(at + opening.length,), },)
+      && (pattern.charAt(nameEnd,) === '>')) {
+      out += `${pattern.slice(
+        from,
+        at,
+      )  }(?:`;
+      from = nameEnd + 1;
+      searchFrom = from;
+      continue;
+    }
+    // No name here; a later opening may still be one.
+    searchFrom = at + 1;
+  }
+  out += pattern.slice(from,);
+  return out;
+}
+
+/**
+ Drop the lazy marker of every quantifier suffix: `*?`, `+?`, `??` and `}?` keep the quantifier alone. Resharp uses
+ leftmost-longest semantics and errors on an explicit lazy marker, so the greedy form is the closest available
+ behavior. The group openings `(?:`, `(?=`, `(?!`, `(?<=` and `(?<!` keep their `?`, which follows `(` and never a
+ quantifier character.
+ 
+ @param pattern - one upstream rule body
+ 
+ @returns the body with no lazy marker left
+ 
+ @example
+ ```ts
+ lazyQuantifierMarkersDropped({ pattern: 'a*?' });
+ ```
+ */
+export function lazyQuantifierMarkersDropped({ pattern, }: { readonly pattern: string; },): string {
+  /**
+   The body without the markers its quantifiers carried.
+   */
+  let out = '';
+  for (let at = 0; at < pattern
+    .length; at += 1) {
+    /**
+     The character the walk is on, which the body keeps.
+     */
+    const character = pattern.charAt(at,);
+    out += character;
+    if (QUANTIFIER_CHARACTERS.has(character,) && (pattern.charAt(at + 1,) === '?')) at += 1;
+  }
+  return out;
+}
+//endregion
+
 /**
  Convert a betterleaks-style PCRE regex to resharp-compatible form, finishing
  with {@link escapeResharpOnlyMeta} for the resharp-only meta characters.
@@ -120,29 +250,10 @@ function escapeResharpOnlyMeta({ pattern, }: { readonly pattern: string; },): st
  */
 export function pcreToResharp({ pattern, }: { readonly pattern: string; },): string {
   /**
-   Working copy threaded through the three rewrite passes below.
+   The body with every pass applied, each one walking what the pass before it left.
    */
-  let out = pattern;
-  /* oxlint-disable no-restricted-syntax/no-regex -- both passes are one anchored sweep of a single upstream rule body: the first matches the literal `(?P<` prefix plus one identifier class, the second one quantified character followed by `?`. Neither nests a quantifier over a group, both run once over a body bounded by the vendored config, so each scan is linear and cannot backtrack. Issues 823 and 824 replace them with cursor walks. */
-  // Drop named-capture syntax: `(?P<name>...)` -> `(?:...)`. Resharp
-  // parses the named form but has no captures; making them non-capturing
-  // is the cleanest signal of intent.
-  out = out.replaceAll(
-    /\(\?P<[A-Za-z_][A-Za-z0-9_]*>/gu,
-    '(?:',
-  );
-  // Strip the trailing `?` in lazy quantifier suffixes: `*?` `+?` `??`
-  // and `}?` (the latter closes `{n}?`/`{n,m}?`/`{n,}?`). Resharp uses
-  // leftmost-longest semantics and errors on explicit lazy markers; the
-  // greedy form is the closest available behavior.
-  // Group-prefix forms `(?:`, `(?=`, `(?!`, `(?<=`, `(?<!` do not
-  // match this pattern: the `?` there sits directly after `(`, never
-  // after `* + ? }`.
-  out = out.replaceAll(
-    /(?<quantifier>[*+?}])\?/gu,
-    '$<quantifier>',
-  );
-  /* oxlint-enable no-restricted-syntax/no-regex */
+  let out = namedCaptureGroupsMadeNonCapturing({ pattern, },);
+  out = lazyQuantifierMarkersDropped({ pattern: out, },);
   // Escape resharp-only meta characters (`~`, `_`, `&`) that PCRE treats
   // as literal.
   out = escapeResharpOnlyMeta({ pattern: out, },);

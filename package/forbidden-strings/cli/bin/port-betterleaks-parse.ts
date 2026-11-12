@@ -8,6 +8,11 @@
 
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
+import {
+  readRuleBodyLine,
+  rulesTableHeaderPresent,
+} from './port-betterleaks-toml-lines.ts';
+
 /**
  One rule extracted from the upstream TOML, before conversion.
  
@@ -184,8 +189,7 @@ export function parseRules({ toml, }: { readonly toml: string; },): readonly Raw
     const line = nonNullishOrThrow(lines[cursor.at],);
     cursor.at += 1;
     // Look for top-level rule opener `[[rules]]` (not `[[rules.something]]`).
-    // oxlint-disable-next-line no-restricted-syntax/no-regex -- one TOML table header line, anchored at both ends, matching escaped literal brackets and `\s*`; the scan is linear and cannot backtrack.
-    if (!/^\[\[rules\]\]\s*$/u.test(line,))
+    if (!rulesTableHeaderPresent({ line, },))
       continue;
     /**
      Per-rule fields, filled by the extractors below; a rule missing its
@@ -207,20 +211,17 @@ export function parseRules({ toml, }: { readonly toml: string; },): readonly Raw
        Current line inside the rule body.
        */
       const rl = nonNullishOrThrow(lines[cursor.at],);
+      /**
+       What this line of the rule body carried.
+       */
+      const bodyLine = readRuleBodyLine({ line: rl, },);
       // Sub-tables of the current rule: `[[rules.required]]` /
       // `[[rules.allowlists]]`. Mark `hasRequired` when applicable
       // and skip through their bodies.
-      /**
-       Capture of any `[[rules.<name>]]` sub-table header at the cursor.
-       */
-      // oxlint-disable-next-line no-restricted-syntax/no-regex -- one TOML sub-table header line, anchored at both ends, matching escaped literal brackets around one word; the scan is linear and cannot backtrack.
-      const subTableMatch = /^\[\[rules\.(?<name>[\w]+)\]\]\s*$/u.exec(rl,);
-      if (subTableMatch !== null) {
-        /**
-         The sub-table name, the part of the header after `rules.`.
-         */
-        const subTableName = nonNullishOrThrow(subTableMatch.groups,);
-        if (subTableName?.name === 'required')
+      if (bodyLine.kind
+        === 'sub-table') {
+        if (bodyLine.name
+          === 'required')
           hasRequired = true;
         cursor.at += 1;
         while (cursor.at < lines
@@ -239,38 +240,22 @@ export function parseRules({ toml, }: { readonly toml: string; },): readonly Raw
       if (rl.startsWith('[',))
         break;
       // Field extractors. Each consumes its own lines via the cursor.
-      /**
-       Match for the `id = "..."` field.
-       */
-      // oxlint-disable-next-line no-restricted-syntax/no-regex -- one TOML field line, anchored at `^`, matching a literal key, `\s*`, `=` and one quoted run; the scan is linear and cannot backtrack.
-      const idMatch = /^id\s*=\s*"(?<value>[^"]*)"/u.exec(rl,);
-      if (idMatch !== null) {
-        /**
-         The captured `id` value of this rule.
-         */
-        const idValue = nonNullishOrThrow(idMatch.groups,);
-        fields.id = nonNullishOrThrow(idValue?.value,);
+      if (bodyLine.kind
+        === 'id') {
+        fields.id = bodyLine.value;
         cursor.at += 1;
         continue;
       }
-      /**
-       Match for the `description = "..."` field; capture handles `\"` escapes.
-       */
-      // oxlint-disable-next-line no-restricted-syntax/no-regex -- one TOML field line, anchored at `^`, matching a literal key and one quoted run whose alternation consumes one character or one escape at a time; every step advances one character, so the scan is linear.
-      const descriptionMatch = /^description\s*=\s*"(?<value>(?:[^"\\]|\\.)*)"/u.exec(rl,);
-      if (descriptionMatch !== null) {
-        /**
-         The captured description, still carrying its `\"` escapes.
-         */
-        const descriptionValue = nonNullishOrThrow(descriptionMatch.groups,);
+      if (bodyLine.kind
+        === 'description') {
         /**
          Upstream description with its escapes decoded.
          */
-        const escaped = nonNullishOrThrow(descriptionValue?.value,);
-        fields.description = escaped.replaceAll(
+        fields.description = bodyLine.value
+          .replaceAll(
           String.raw`\"`,
           '"',
-        );
+          );
         cursor.at += 1;
         continue;
       }
