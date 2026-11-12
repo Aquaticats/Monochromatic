@@ -120,7 +120,7 @@ fn a_commit_whose_service_is_stopped_is_made_and_the_woken_service_makes_no_seco
         stops.push(unsafe { libc::kill(*service_pid as libc::pid_t, libc::SIGSTOP) });
     }
     assert!(!stopped.is_empty(), "the fixture service this control stops is running");
-    assert!(stops.iter().all(|outcome| *outcome == 0), "every stop is taken: {stopped:?} {stops:?}");
+    assert!(stops.iter().all(|outcome| return *outcome == 0), "every stop is taken: {stopped:?} {stops:?}");
     // The command this control started is what it waits for, and the bound of `wrapped_commit` is what ends a command that
     //  never returns.
     let ended: Output = child.wait_with_output().expect("the wrapped commit ends");
@@ -128,6 +128,8 @@ fn a_commit_whose_service_is_stopped_is_made_and_the_woken_service_makes_no_seco
     // The other program lets the index go, and the service runs again, which is what a stopped process does when whatever held
     //  it lets go.
     let _ended = Command::new("kill").args(["-KILL", holder.id().to_string().as_str()]).status();
+    let mut reaped: Child = holder;
+    let _waited = reaped.wait();
     for service_pid in &stopped {
         // SAFETY: as above, on the same services.
         unsafe { libc::kill(*service_pid as libc::pid_t, libc::SIGCONT) };

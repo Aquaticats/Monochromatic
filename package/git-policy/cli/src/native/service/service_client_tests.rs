@@ -166,6 +166,10 @@ fn greet_and_read(stream: &UnixStream) {
     std::io::BufReader::new(stream).read_line(&mut request).expect("the client sends its request");
 }
 
+/// How long the stand-in of the unterminated-line control talks without ever ending a line:
+/// longer than the budget of any control here, and shorter than the control's own patience.
+const DRIBBLING: Duration = Duration::from_secs(5);
+
 /// How many connections a stand-in service of these controls serves before its thread ends,
 /// and how long it may take to serve them:
 /// a bound of its own,
@@ -379,8 +383,10 @@ fn a_service_that_never_ends_its_line_costs_the_client_its_budget_and_nothing_mo
             match service.accept() {
                 Ok((stream, _address)) => {
                     let _counted = counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    // Bytes that are the start of no message, and no newline: the service talks and answers nothing.
-                    for _chunk in 0..40 {
+                    // Bytes that are the start of no message, and never a newline, for longer than the budget of any control
+                    //  here: the service talks and answers nothing.
+                    let talking: Instant = Instant::now();
+                    while talking.elapsed() < DRIBBLING {
                         if (&stream).write_all(b"{\"welcome\":").is_err() {
                             break;
                         }

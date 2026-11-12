@@ -193,7 +193,7 @@ fn a_reference_lock_that_stands_keeps_the_commit_and_says_where_it_is() {
     assert_eq!(records[0].new, commit);
     assert!(words.contains(commit.get(..7).unwrap_or(commit.as_str())) && words.contains("main.lock"), "{words}");
     assert!(words.contains("has not moved yet") && words.contains("is kept at"), "{words}");
-    assert!(records[0].locks.iter().any(|lock| lock.ends_with("main.lock")), "the record names the lock that stands: {:?}", records[0].locks);
+    assert!(records[0].locks.iter().any(|standing| return standing.ends_with("main.lock")), "the record names the lock that stands: {:?}", records[0].locks);
     remove(root.as_path());
 }
 

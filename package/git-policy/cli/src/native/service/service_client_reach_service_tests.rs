@@ -218,7 +218,7 @@ fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
         // A whole second, so the covered case cannot spend it unnoticed: the client must ask after the first answer.
         start_wait: Duration::from_secs(1),
         heartbeat_silence: Duration::from_millis(200),
-        patience: Duration::from_millis(200),
+        patience: Duration::from_secs(30),
         start_watch: Some(ManagerWatch {
             bus: PathBuf::from("/nonexistent/bus"),
             unit: String::from(unit),
@@ -644,7 +644,7 @@ fn an_address_that_answers_nothing_with_no_manager_to_ask_is_named_truly() {
         // Past the notice grace, so this control also reads the line the wait prints.
         start_wait: Duration::from_millis(1_200),
         heartbeat_silence: Duration::from_millis(200),
-        patience: Duration::from_millis(200),
+        patience: Duration::from_secs(30),
         start_watch: None,
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
@@ -698,7 +698,7 @@ fn an_address_nothing_listens_on_is_the_service_that_did_not_start() {
         activation: Activation::Managed,
         start_wait: Duration::from_millis(200),
         heartbeat_silence: Duration::from_millis(200),
-        patience: Duration::from_millis(200),
+        patience: Duration::from_secs(30),
         start_watch: None,
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
@@ -849,7 +849,7 @@ fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends(
         // Twice the notice grace, so the line and the end of the wait are a second apart at the least.
         start_wait: Duration::from_millis(2_400),
         heartbeat_silence: Duration::from_millis(200),
-        patience: Duration::from_millis(200),
+        patience: Duration::from_secs(30),
         start_watch: None,
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
@@ -882,7 +882,8 @@ fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends(
     drop(held);
 }
 
-/// The budget of a control that reaches a service: the silence bound every command gives it.
+/// The budget of a control that reaches a service: longer than every bound these controls assert, so what ends their waits is
+/// the bound each of them is about and not the budget.
 fn a_patience() -> crate::service_client_patience::Patience {
-    return crate::service_client_patience::Patience::of(Duration::from_millis(200));
+    return crate::service_client_patience::Patience::of(Duration::from_secs(30));
 }

@@ -127,7 +127,7 @@ pub fn restarting_notice(unit: &str, waited: Duration) -> String {
 
 /// Printed each time the service goes silent while a commit waits,
 /// before the same request is sent to it again.
-pub const SILENT_NOTICE: &str = "The commit service stopped answering; asking it again with the same commit, which cannot land twice.";
+pub const SILENT_NOTICE: &str = "The commit service stopped answering, so this command makes the commit itself; the service cannot make it twice.";
 
 /// Printed once when the service is being replaced by a newer one.
 pub const UPDATING_NOTICE: &str = "Updating the commit service...";

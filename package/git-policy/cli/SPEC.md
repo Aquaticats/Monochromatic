@@ -6196,6 +6196,19 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   308 s;
   1.6 times the longest whole commit,
   751 s).
+- `COMMIT_SERVICE_PATIENCE` 2 seconds:
+  the one budget a commit gives the service over its whole exchange,
+  counted from each complete message and spent by every step
+  (the greeting, the write of the request, the answer, a connection again, and the hand-over after a landing),
+  which each shorten their own bound to what is left of it.
+  A complete message starts it again,
+  so a service that keeps saying what it does is waited for as long as it works;
+  a part of a line is not a message, so bytes that never end a line move nothing.
+  Two missed beats are the fewest that are not one late timer
+  (`HEARTBEAT_EVERY` is one second and the 300 timers measured for it fired at most 2.2 ms late,
+  `service_protocol.rs`),
+  and the whole exchange plus the hand-over after such a commit stays under the owner's 5,000 ms bound on what a commit
+  may add to native Git (`native:perf`).
 - `WITHDRAW_CEILING` 10 minutes:
   the client's wait for the answer to its withdrawal (five times the longest observed
   landing).
@@ -7003,9 +7016,13 @@ now inside these bounds:
   this number awaits the owner's approval.
 - The service sends a heartbeat every second (`HEARTBEAT_EVERY`) to a client whose request is queued or landing;
   a client that
-  hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
-  and ends with the "stopped
-  answering" failure when the service greets nothing.
+  hears nothing for its budget takes the service for stopped:
+  a commit's budget is `COMMIT_SERVICE_PATIENCE` (2 seconds, the same as its whole exchange)
+  and
+  every other command's is `HEARTBEAT_SILENCE` (5 seconds).
+  A service that went away closes its connection instead,
+  and a client that meets a closed connection asks again with the same request identity
+  and ends with the "stopped answering" failure when the service greets nothing.
   The beat is written before the note it carries,
   and a note still unanswered one beat later is left for the next beat
   (`service_reply.rs`),
@@ -10731,8 +10748,10 @@ no configuration key or environment variable opts out of it.
 Every non-dry-run commit command line is landed by the resident commit service of the worktree:
 one instance of the systemd template units `monochromatic-git-policy-cli@.socket` and `monochromatic-git-policy-cli@.service` per worktree,
 started by the operating system on the first connection (socket activation).
-The wrapper never starts the service itself,
-and it has no other way to land a commit.
+The wrapper never starts the service itself.
+A commit that has been prepared and gets no answer from the service is landed by the command's own process,
+with the service's own landing steps (see "A commit whose service stopped"),
+and no other commit has any other way to be landed.
 The service unit sets no resource limits of its own
 (no `MemoryMax`,
 `CPUQuota`,
@@ -12407,9 +12426,99 @@ because only the second means a service stopped inside its own process:
 the message names the address and the seconds it waited
 (`ClientFailure::NothingAnswered`,
 and `ClientFailure::DidNotStart` where nothing listened at all).
-There is no other writer to fall back on:
-the service is the only writer,
-so a commit with no way to reach it changes nothing and stops.
+A machine with no runtime directory,
+no session bus,
+or no executable of the wrapper's own to name in a unit has no route to a service at all,
+so the commit stops there as above.
+A machine with a route whose service answers nothing,
+or cannot be started,
+is not that case any more:
+the commit has been prepared,
+and the command makes it itself (see "A commit whose service stopped").
+Windows and other systems where the wrapper cannot be provisioned still stop.
+
+### A commit whose service stopped
+
+A service that stops in the middle of a commit's exchange is an ordinary event on this machine:
+a process frozen by the kernel under memory pressure,
+one stopped by a debugger or a signal,
+a disk stall of tens of seconds,
+a service being replaced.
+The rule it meets is that a commit never fails where native Git would succeed,
+and native Git,
+on the same repository with no service at all,
+makes the commit.
+
+The exchange has these steps,
+and each of them asks `Patience` for what is left of the command's one budget
+(`COMMIT_SERVICE_PATIENCE`,
+`service_client_patience.rs`):
+
+- Connecting, and the greeting of a connection:
+  bounded by the attempt's own patience (a start watch's interval,
+  the start wait where no manager can be asked,
+  or `HEARTBEAT_SILENCE` once a service greeted) and by the budget.
+- Writing the request:
+  bounded by the socket's write timeout,
+  which is the budget (`service_client.rs`).
+  A write that does not go means a service that is not reading,
+  and ends the exchange,
+  because nothing the client reads afterwards would run.
+- Reading each line of the answer:
+  bounded chunk by chunk,
+  so a service that sends bytes and never ends a line cannot outlast the budget,
+  and a line longer than `MAX_LINE_BYTES` is not a message
+  (`service_client_listen_and_ask_to_retire.rs`).
+  A complete message starts the budget again;
+  a part of a line does not.
+- The whole answer:
+  `ANSWER_CEILING` (20 minutes), counted from the first send and not moved by messages.
+- Reaching the service again after the connection closed:
+  bounded by the greeting bounds above, up to `RECONNECTS` (5) times.
+  A silence is not resent:
+  the service beats every second while it works,
+  so a silence of the whole budget is a process that is not running,
+  and a second send to it costs the same wait and cannot be read.
+- Withdrawing a request (an interrupt, or `ANSWER_CEILING`):
+  a connection of its own within the same bounds, then `WITHDRAW_CEILING` (10 minutes).
+
+A commit whose request was prepared and which gets no answer at all
+(`ServiceSilent`,
+`MayNotHaveLanded`,
+`NothingAnswered`,
+`DidNotStart`,
+`WithdrawalUnconfirmed`)
+is made by the command itself (`landing/service_land_after_the_service_stopped.rs`),
+with the service's own steps:
+the objects (`objects_of_batch`),
+the batch's record (`record_the_batch`),
+the record of the hold,
+and the settlement a held commit already is
+(`held_commit_settle.rs`):
+one compare-and-swap of the branch from the value the commit was prepared on,
+the index entries under Git's own `index.lock`,
+the conclusion state removed,
+and the pushes held.
+The connection is closed before any of this,
+which is the withdrawal the service checks before it acts
+(`service_land_requests_whose_client_is_gone.rs`),
+and the settlement's side reference and index lock are taken without a wait,
+so a lock that stands leaves the commit held with its record.
+A request is never applied twice,
+and this does not rest on any record of finished batches:
+the commit's identity is a function of the request
+(the same parents,
+tree,
+identities,
+message and time through the same import),
+so a service that wakes and makes the same request makes the same commit,
+and the branch's compare-and-swap finds it already there,
+while a branch that moved for another reason is what the replay carries the change onto.
+A commit that cannot be made either way,
+because the repository refused it or its change conflicts with the branch,
+keeps the object on the batch's side reference,
+names that reference and the record in its words,
+and leaves the person's index and worktree as they were.
 
 ### Invocation capture
 
