@@ -10,7 +10,7 @@
 //! expect(savedBeforeAbortNotice('merge', copies)).toContain('git merge --abort');
 //! ```
 
-use super::{abort_command_text, copy_failed_text, saved_before_abort_notice};
+use super::{abort_command_text, copy_failed_text, saved_before_abort_notice, staged_content_text};
 use crate::conflict_sides::SavedCopy;
 use crate::rule_abort_operation::AbortOperation;
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
@@ -83,6 +83,24 @@ fn the_refused_save_names_the_command_the_operation_and_the_reason() {
     assert!(text.contains("git cherry-pick --abort or git revert --abort"), "{text}");
     assert!(text.contains("--no-enforce-worktree"), "{text}");
     assert!(text.contains("nothing was changed"), "{text}");
+}
+
+/// Content that stands only in the index is named with every way to keep it.
+#[test]
+fn the_staged_content_refusal_names_the_paths_the_ways_out_and_the_hatch() {
+    let text: String = staged_content_text(
+        AbortOperation::Merge,
+        AbortOperation::Merge,
+        [b"new.txt".to_vec(), b"dir/notes.txt".to_vec()].as_slice(),
+    );
+    assert!(text.contains("git merge --abort"), "{text}");
+    assert!(text.contains("new.txt, dir/notes.txt"), "{text}");
+    assert!(text.contains("the index does"), "{text}");
+    assert!(text.contains("the merge in progress is the only thing keeping that content"), "{text}");
+    assert!(text.contains("git restore --worktree -- <path>"), "{text}");
+    assert!(text.contains("git show :<path> > <file>"), "{text}");
+    assert!(text.contains("--no-enforce-worktree"), "{text}");
+    assert!(text.contains("nothing was saved or changed"), "{text}");
 }
 
 /// An `am` abort that ends a rebase names the rebase in the notice,

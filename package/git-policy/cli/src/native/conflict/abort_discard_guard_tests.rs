@@ -61,7 +61,17 @@ impl Drop for Scene {
 /// A waiting abort whose restored tree is `HEAD`,
 ///  with the person's own work at these paths.
 fn waiting(operation: AbortOperation, paths: Vec<Vec<u8>>) -> AbortDiscard {
-    return AbortDiscard::Waiting { in_progress: operation, restored: OsString::from("HEAD"), paths };
+    return AbortDiscard::Waiting { in_progress: operation, restored: OsString::from("HEAD"), index_only: Vec::new(), paths };
+}
+
+/// A waiting abort whose worktree no longer holds a file the index still holds at `index_only`.
+fn waiting_with_index_only(operation: AbortOperation, index_only: Vec<Vec<u8>>) -> AbortDiscard {
+    return AbortDiscard::Waiting {
+        in_progress: operation,
+        restored: OsString::from("HEAD"),
+        index_only: index_only.clone(),
+        paths: index_only,
+    };
 }
 
 /// The limits of the saved copies:
@@ -220,6 +230,7 @@ fn the_ignored_file_question_reads_the_restored_revision() {
     facts.abort_discard = Ok(AbortDiscard::Waiting {
         in_progress: AbortOperation::Rebase,
         restored: OsString::from(record),
+        index_only: Vec::<Vec<u8>>::new(),
         paths: Vec::<Vec<u8>>::new(),
     });
     facts.ignored_and_tracked = Ok(Vec::<String>::new());
@@ -232,6 +243,26 @@ fn the_ignored_file_question_reads_the_restored_revision() {
         "the record the abort restores is the tree asked about: {:?}",
         facts.asked
     );
+}
+
+/// Content that stands only in the index is refused naming the paths,
+///  because a worktree file that is not there cannot be copied.
+#[test]
+fn content_the_worktree_lost_is_refused_with_its_paths() {
+    let scene: Scene = Scene::new("index-only");
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.abort_discard = Ok(waiting_with_index_only(AbortOperation::Merge, vec![b"new.txt".to_vec()]));
+    facts.ignored_and_tracked = Ok(Vec::<String>::new());
+    match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge, &scene.identity(), 0, limits()) {
+        AbortVerdict::CopyFailed(text) => {
+            assert!(text.contains("new.txt"), "{text}");
+            assert!(text.contains("the index does"), "{text}");
+            assert!(text.contains("git restore --worktree --"), "{text}");
+            assert!(text.contains("nothing was saved or changed"), "{text}");
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+    assert!(!scene.root.join(".git").join(SAVED_DIRECTORY).exists(), "nothing was saved");
 }
 
 /// An `am` abort that ends a rebase names the rebase in its refusal,

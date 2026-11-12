@@ -137,3 +137,37 @@ pub fn copy_failed_text(operation: AbortOperation, in_progress: AbortOperation, 
 #[cfg(test)]
 #[path = "rule_abort_messages_tests.rs"]
 mod tests;
+
+/// What:
+///  The text of a rejected abort whose worktree no longer holds a file the index still holds.
+///  `&[Vec<u8>]` borrows the paths Git printed.
+/// Why:
+///   The abort resets the index as well as the worktree,
+///  so content that stands only in the index would be discarded where no worktree file can be copied;
+///  the person is told which paths,
+///  every way to keep the content,
+///  and the hatch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stagedContentText(operation: AbortOperation, inProgress: AbortOperation, paths: Buffer[]): string;
+/// ```
+pub fn staged_content_text(operation: AbortOperation, in_progress: AbortOperation, paths: &[Vec<u8>]) -> String {
+    let command: &str = abort_command_text(operation);
+    let word: &str = operation_name(in_progress);
+    let mut named: Vec<String> = Vec::<String>::new();
+    for path in paths.iter().take(SHARED_PATHS_NAMED) {
+        named.push(String::from_utf8_lossy(path.as_slice()).into_owned());
+    }
+    let mut listed: String = named.join(", ");
+    if paths.len() > SHARED_PATHS_NAMED {
+        listed.push_str(format!(", and {} more", paths.len() - SHARED_PATHS_NAMED).as_str());
+    }
+    return format!(
+        "monochromatic-git-policy-cli: {command} is rejected because the worktree no longer holds {listed}, while the index does, and the {word} in \
+         progress is the only thing keeping that content: the abort resets the index too, so it would be discarded with no copy, and nothing was \
+         saved or changed. Put the file back with `git restore --worktree -- <path>`, or keep the content with `git show :<path> > <file>`, then run \
+         the command again. {hatch}",
+        hatch = crate::rule_linked_worktree_messages::HATCH_ADVICE
+    );
+}

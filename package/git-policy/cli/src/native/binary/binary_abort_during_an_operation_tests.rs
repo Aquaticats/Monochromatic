@@ -529,3 +529,31 @@ fn a_rebase_abort_checks_the_ignored_files_of_the_original_head_it_restores() {
     );
     remove(&fixture);
 }
+
+/// Content that stands only in the index is not left to the abort:
+///  the worktree file was deleted after it was staged,
+///  so no copy can be made from the worktree,
+///  and the abort would drop the only reference to it.
+///  The command is refused naming the path, and the index still holds it.
+#[test]
+fn a_merge_abort_refuses_content_that_stands_only_in_the_index() {
+    let fixture: Fixture = fixture("abort-merge-index-only");
+    let linked: PathBuf = linked_worktree_with_a_diverged_side(&fixture);
+    attempt(&fixture, linked.as_path(), &["merge", "side"]);
+    std::fs::write(linked.join("new.txt"), b"content that exists only in the index\n").expect("the staged file");
+    git(&fixture, linked.as_path(), &["add", "--", "new.txt"]);
+    let staged: String = plain(&fixture, linked.as_path(), &["rev-parse", ":new.txt"]).trim().to_string();
+    assert_eq!(staged.len(), 40, "the index holds the new file's bytes: {staged}");
+    std::fs::remove_file(linked.join("new.txt")).expect("the worktree file goes");
+    let during: String = plain(&fixture, linked.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]);
+    assert!(during.contains("AD new.txt"), "the index added it and the worktree no longer holds it: {during}");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["merge", "--abort"]);
+    let said: String = stderr_of(&observed);
+    assert!(rejected(&observed), "content only the index holds keeps the refusal: {said}");
+    assert!(said.contains("new.txt"), "the refusal names the path: {said}");
+    assert!(said.contains("the index does"), "the refusal says where the content stands: {said}");
+    let after: String = plain(&fixture, linked.as_path(), &["rev-parse", ":new.txt"]).trim().to_string();
+    assert_eq!(after, staged, "the index still holds the content: {said}");
+    assert!(saved_copies(common_dir(&fixture, linked.as_path()).as_path()).is_empty(), "the abort did not run");
+    remove(&fixture);
+}

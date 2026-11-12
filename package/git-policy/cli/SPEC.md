@@ -16241,6 +16241,15 @@ every uncommitted tracked change is named
 because those aborts return with a hard reset that keeps nothing.
 A listing that fails is a rejection,
 never an empty list.
+A listed path that the worktree no longer holds while the index does is content the abort would drop,
+because the abort resets the index too,
+and no worktree file can be copied for it:
+the two listings that name it are `git ls-files --stage -z` (a stage-zero entry) and
+`git ls-files --deleted -z` (no file in the worktree),
+each read over the listed paths with `:(top,literal)` names,
+and the command is rejected naming every such path,
+saying the content stands only in the index and giving `git restore --worktree -- <path>` and
+`git show :<path> > <file>` as the ways to keep it.
 The copies are written by the same saver,
 into the same `monochromatic-git-policy-cli/discarded/<UTC time>/` folder,
 with the same bound,
@@ -16626,7 +16635,11 @@ so that link or file would be lost unsaved.
 The finding names the directory (`dir`) and what it is,
 and says to move it out of the way or save it first.
 A directory in front of the name that does not exist means there is nothing to copy.
-The copy is read from the opened file.
+The copy is read from the opened file,
+and only as far as the size that file had when it was opened:
+a writer that keeps appending cannot hold the copy open for good,
+the bytes added after that size are never read,
+and the comparison below rejects the changed source.
 Its device,
 inode,
 size,

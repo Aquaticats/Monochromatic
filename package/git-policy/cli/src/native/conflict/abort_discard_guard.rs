@@ -34,7 +34,7 @@ use crate::conflict_sides::{SaveFailure, SavedCopy, save_copies};
 use crate::discarded_prune::Limits;
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_facts_abort_discard::AbortDiscard;
-use crate::rule_abort_messages::{copy_failed_text, saved_before_abort_notice};
+use crate::rule_abort_messages::{copy_failed_text, saved_before_abort_notice, staged_content_text};
 use crate::rule_abort_operation::{AbortOperation, aborted_operation, operation_name};
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_linked_worktree_messages::ignored_file_message;
@@ -144,7 +144,7 @@ pub fn judge_abort_discard(
         // The state files or the listings could not be read: the usual rejection stands, and nothing is saved or let go.
         Err(_message) => return AbortVerdict::NotApplicable,
     };
-    let AbortDiscard::Waiting { in_progress, restored, paths } = discard else {
+    let AbortDiscard::Waiting { in_progress, restored, index_only, paths } = discard else {
         return AbortVerdict::LeftToGit;
     };
     let Some((root, common)) = places(identity) else {
@@ -168,6 +168,11 @@ pub fn judge_abort_discard(
                 operation_name(in_progress)
             ));
         }
+    }
+    // Content the worktree no longer holds and the index does is work this abort would discard,
+    //  and the save step copies worktree files only: the command is rejected naming the paths.
+    if !index_only.is_empty() {
+        return AbortVerdict::CopyFailed(staged_content_text(operation, in_progress, index_only.as_slice()));
     }
     if paths.is_empty() {
         // Only the operation's own state is there, which is what the abort is for.

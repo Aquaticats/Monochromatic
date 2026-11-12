@@ -296,7 +296,7 @@ impl From<SaveFailure> for CopyError {
 }
 
 /// What:
-///  Read `from` to its end into `to`,
+///  Read `from` up to the size it had when it was opened into `to`,
 /// then prove the source held still.
 /// Why:
 ///   The stamp of the open descriptor must be the one taken before the first read,
@@ -306,6 +306,10 @@ impl From<SaveFailure> for CopyError {
 /// without a link,
 /// to the object that was read;
 /// `between` runs after each chunk.
+///  The read stops at that size,
+///  so a writer that keeps appending cannot hold the copy open for good:
+///  the extra bytes are never read,
+///  and the stamp comparison after the read rejects the changed source.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -314,8 +318,10 @@ impl From<SaveFailure> for CopyError {
 fn copy_stream(located: &Located, from: &mut File, to: &mut File, before: Stamp, between: &mut dyn FnMut()) -> Result<(), CopyError> {
     let mut buffer: Vec<u8> = vec![0; 1 << 16];
     let mut copied: u64 = 0;
-    loop {
-        let count: usize = from.read(buffer.as_mut_slice())?;
+    while copied < before.size {
+        let left: u64 = before.size - copied;
+        let wanted: usize = usize::try_from(left).unwrap_or(usize::MAX).min(buffer.len());
+        let count: usize = from.read(&mut buffer[..wanted])?;
         if count == 0 {
             break;
         }

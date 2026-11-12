@@ -140,3 +140,34 @@ fn a_source_that_changes_during_the_copy_is_a_failure_and_leaves_no_copy() {
         remove(base.as_path());
     }
 }
+
+/// A file that keeps growing is read only as far as the size it had when it was opened,
+///  so a writer that never stops cannot hold the copy open for good:
+///  the copy stops at that size and the changed source is rejected.
+#[test]
+fn a_source_that_keeps_growing_is_read_only_to_the_size_it_was_opened_at() {
+    let base = fixture("source-growing");
+    let content: Vec<u8> = large_source(base.as_path());
+    let located = locate(base.as_path(), b"a.rs").expect("lookup").expect("present");
+    let mut appended: usize = 0;
+    // The writer this control supplies stops at its own bound,
+    //  so a copy that read to the end of a growing file would reach that bound
+    //  instead of the size the file had when it was opened.
+    let writer_bound: usize = 10_000;
+    let error: SaveFailure = copy_located(&located, base.join("copy").as_path(), &mut || {
+        if appended < writer_bound {
+            let mut file = std::fs::OpenOptions::new().append(true).open(base.join("a.rs")).expect("open");
+            std::io::Write::write_all(&mut file, b"x").expect("append");
+            appended += 1;
+        }
+    })
+    .expect_err("a source that grew while it was copied");
+    assert_eq!(error.kind, FailureKind::Changed, "{error:?}");
+    assert!(
+        appended < writer_bound,
+        "the copy reads the {} bytes it opened, not the bytes a writer keeps adding: {appended} appends",
+        content.len()
+    );
+    assert!(!base.join("copy").exists(), "no cut-short copy stays");
+    remove(base.as_path());
+}
