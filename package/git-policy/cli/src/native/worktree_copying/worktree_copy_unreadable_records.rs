@@ -291,10 +291,12 @@ fn settle_unreadable_binding(common_dir: &Path, container: &Path) -> Result<Opti
 /// and names what may stand.
 /// Why:
 ///   The record is what tells every command that a worktree holds less than its source ignores;
-/// when it cannot be read, the worktree it named is not named by it any more,
+/// when it cannot be read,
+/// the worktree it named is not named by it any more,
 /// and the note says so once.
 /// The writer lives only in the record's own bytes,
-/// so a record that cannot be read names none, and nothing waits for one.
+/// so a record that cannot be read names none,
+/// and nothing waits for one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -326,7 +328,8 @@ fn settle_unreadable_unfilled_records(common_dir: &Path, notices: &mut Vec<Strin
 ///  The worktree a record of an unfinished copy was written about,
 /// as the records of the same copy name it.
 /// Why:
-///   The record's name shares its identifier with the journal the copy wrote, or with the claim an add wrote,
+///   The record's name shares its identifier with the journal the copy wrote,
+/// or with the claim an add wrote,
 /// so those records still name the worktree even when the record itself does not read.
 ///
 /// In TS you'd write (pseudocode):

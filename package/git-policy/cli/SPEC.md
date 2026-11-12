@@ -3860,7 +3860,8 @@ The command that meets one settles it in the pass that runs before every forward
   are that owner's and are left whole with no wait.
   A claim's and an unfilled record's name carries no owner,
   and a record whose bytes do not read cannot name one either,
-  so such a record has none to wait for, which is what an interrupted copy is.
+  so such a record has none to wait for,
+  which is what an interrupted copy is.
 - A record whose writer is gone is renamed into `<common git dir>/monochromatic-git-policy-cli-worktree-copy/v1/unreadable`,
   never deleted,
   and never over a record an earlier command kept there.

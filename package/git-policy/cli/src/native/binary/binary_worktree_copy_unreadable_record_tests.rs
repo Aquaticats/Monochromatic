@@ -58,7 +58,8 @@ struct Damage {
     bytes: Vec<u8>,
 }
 
-/// Where a value that starts at `rest` ends: the next top-level separator or the object's closing brace.
+/// Where a value that starts at `rest` ends:
+/// the next top-level separator or the object's closing brace.
 fn value_end(rest: &[u8]) -> usize {
     let mut in_string: bool = false;
     let mut escaped: bool = false;
