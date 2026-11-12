@@ -433,6 +433,11 @@ pub fn load(directory: &Path) -> Vec<StoredPlan> {
 /// it stays,
 /// and it is not read again after a pause,
 /// because a second read of it answers the same.
+/// The listing itself answers twice:
+/// the entries it names, and an error that ended it before it named them all.
+/// An error part way through is what a directory read on a mount that stopped answering does,
+/// and a plan it never named would otherwise wait for the life of the service,
+/// so that error leaves the journal unread and it is listed again after a pause.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -481,21 +486,35 @@ struct ListedPlan {
 ///  Reads every plan `listed` names,
 ///  one per branch,
 ///  the newest file winning,
-///  and judges each file by what was read of it.
+///  and judges each file by what was read of it;
+///  an entry the listing could not read leaves the journal `unread`.
 /// Why:
 ///   `load_reporting` lists the directory;
 ///  this is what the entries a listing named and the error that ended it become.
+///  An error the listing hands back says the directory holds entries this read never saw,
+///  and a plan among them is what a restarted service tries a push from:
+///  nothing else scans the item that waits for it,
+///  so reading the failure as the end of the listing leaves that push waiting for the life of the service.
+///  The directory is read again after a pause instead
+/// (`PushRetries::restore`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// readThePlans(dir, listed)
+/// readThePlans(dir, listed) // an entry error sets unread
 /// ```
 fn read_the_plans(directory: &Path, listed: impl Iterator<Item = std::io::Result<ListedPlan>>) -> LoadedPlans {
     let mut unread: bool = false;
     let mut found: Vec<(SystemTime, StoredPlan)> = Vec::new();
-    for listed_plan in listed.flatten() {
-        let path: PathBuf = listed_plan.path;
-        let written: SystemTime = listed_plan.written;
+    for listed_plan in listed {
+        let (path, written): (PathBuf, SystemTime) = match listed_plan {
+            Ok(plan) => (plan.path, plan.written),
+            // An entry the listing could not read may be a plan, and no wake comes for the push it schedules.
+            Err(error) => {
+                crate::service_warn!("the retry plans in {} could not all be listed, so they are read again after a pause: {error}", directory.display());
+                unread = true;
+                continue;
+            }
+        };
         if path.extension().and_then(std::ffi::OsStr::to_str) != Some(PLAN_EXTENSION) {
             continue;
         }
