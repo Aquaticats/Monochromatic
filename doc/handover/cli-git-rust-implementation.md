@@ -203,6 +203,59 @@ move its durable facts to their canonical doc and delete it from this page.
   pass 17 carries sixteen branches that answer the audits of alpha.12,
   and an audit before it lands would report them again.
 
+#### After the cron's fire, state at 10:03:37 and what followed until 10:06:03
+
+- Nineteen `pi-*` runs alive,
+  one of them another session's.
+  Rounds 286, 287 and 288 are shown working by their feeds.
+  Round 288,
+  started 10:02:
+  `commit-that-concludes-a-merge-is-built-within-five-seconds-of-real-git`,
+  for the commit of 14,579 ms
+  (a native control,
+  spans inside the build step,
+  a fix if the wrapper is over the bound).
+- `commit-that-does-not-land-says-what-stopped-it-2` had a quiet feed for 1,000 seconds.
+  It is inside one command,
+  the package's host tests under a bound of 3,000 seconds,
+  started 09:23:31.
+  Not stopped.
+- One more run ended,
+  by its own stop with a report,
+  at 09:57:06:
+  `discarding-commands-guard-every-file-they-overwrite-or-delete-2`,
+  tip `2f6ac5f6f0`.
+  Its branch stays held out of releases.
+  Started for it:
+  round 289,
+  a qwen4 review,
+  and a Sonnet digest in `~/temp/agent/digest-2026-11-12T1005-discard-guard/`
+  that also lists what a person at the keyboard sees differently,
+  for the owner's read.
+- Nothing culled or reframed.
+- A gap,
+  found because two reviews did not start:
+  the scratch gate that the batch starts still go through
+  (`~/temp/agent/pi-runs/start-pi-run-if-a-slot-is-free.ts`)
+  gives the qwen4 pool a limit of 4,
+  while the package's `src/pool-limits.ts` has the owner's 18.
+  So the reviews of round 285's third branch (worktree add without waiting)
+  and of round 289 wait in a retry loop behind four running reviews,
+  with a deadline of 7,200 seconds,
+  and print nothing while they wait.
+  The scratch scripts are not edited (the owner's rule);
+  the remedy is the package's own batch start,
+  which round 287's agent is making usable.
+  A note of 10:06:03 gives that agent the evidence and asks for:
+  a review batch gated by the package's limits,
+  a wait that says what it waits for,
+  and the exact command to switch to.
+  Until then at most four reviews run at once.
+- If a waiting review passes its deadline,
+  start it again;
+  `runs-that-ended-since.ts` does not show a run that never started,
+  so check `agents-batch-round-285.out` and `agents-batch-round-289.out` for "no slot freed before the deadline".
+
 ### A wrapper killed for memory in a 512 MB scope: the holder scan's read of a descriptor record, issue 6287 (2026-11-12T09:50:16-05:00)
 
 #### What the owner said
