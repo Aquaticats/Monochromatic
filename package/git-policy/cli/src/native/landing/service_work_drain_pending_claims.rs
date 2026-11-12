@@ -519,8 +519,8 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     let claim_wait: Option<Duration> =
         next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await.map(no_sooner_than_a_look_again);
     return match (look_again, claim_wait) {
-        (Some(housekeeping), Some(claim)) => Some(housekeeping.min(claim)),
-        (housekeeping, claim) => housekeeping.or(claim),
+        (Some(deferred), Some(claim)) => Some(deferred.min(claim)),
+        (deferred, claim) => deferred.or(claim),
     };
 }
 
