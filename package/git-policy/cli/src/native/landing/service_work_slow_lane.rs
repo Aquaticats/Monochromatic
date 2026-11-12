@@ -29,6 +29,9 @@
 //! The claims are the drain's own:
 //! the lane claims `SLOW_KINDS` and the round claims `PUSH_KINDS`,
 //! so the two never take each other's records and no lock is needed.
+//!  A look that panicked is kept as a look that left its work for a later one,
+//! so one repository's defect ends that look and not the lane,
+//!  and the count that keeps the service up is given back even then.
 //! What a person waits for is kept free of the lane's queue as well:
 //! every storage step of these kinds asks through the gate that leaves one blocking place to the round
 //! (`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`).
@@ -38,7 +41,8 @@
 //! const lane = SlowLane.start(handlers, busy); lane.ask(wake); // for await (const wake of inbox) await drainSlow(wake.gitDir)
 //! ```
 
-use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
+use crate::a_panic_that_ends_one_item::keep_a_panic_awaiting;
+use crate::housekeeping_of_one_round::{HOUSEKEEPING_OF_ONE_ROUND, LOOK_AGAIN_AFTER_DEFERRING};
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
 use crate::service_work::{CLAIM_LEASE, GitHandlers};
@@ -49,6 +53,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
+use std::future::Future;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 /// What:
@@ -118,6 +123,64 @@ impl SlowLane {
 }
 
 /// What:
+///  The lane counted busy while this value lives,
+///  and its count given back when it ends,
+///  a panic included.
+/// Why:
+///   The lane is what keeps the service from exiting while a claim of it is held,
+/// so a count raised by a task that panicked would keep the service alive for ever
+/// and leave the slow work it was going to do undone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// using busy = TheLaneIsBusy.raising(busy);
+/// ```
+struct TheLaneIsBusy {
+    /// The count the lane keeps, which this value raised by one.
+    busy: Arc<AtomicUsize>,
+}
+
+impl TheLaneIsBusy {
+    /// Count the lane busy from here until this value ends.
+    fn raising(busy: &Arc<AtomicUsize>) -> TheLaneIsBusy {
+        busy.fetch_add(1, Ordering::SeqCst);
+        return TheLaneIsBusy { busy: Arc::clone(busy) };
+    }
+}
+
+impl Drop for TheLaneIsBusy {
+    fn drop(&mut self) {
+        self.busy.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// What:
+///  One look at one directory,
+///  with a panic kept as a look that left its work for a later one.
+/// Why:
+///   A look runs the drain, and a defect in it must not end the lane:
+/// the records it held keep their lease and this asks to be looked at again after the pause a look that
+///  left housekeeping behind asks for,
+/// so the lane serves this repository again and every repository behind it goes on being served.
+/// The panic itself is printed by the process's panic hook where it happened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = await aLookThatMayPanic(drainSlow(gitDir, handlers, housekeeping));
+/// ```
+async fn a_look_that_may_panic<W: Future<Output = Option<Duration>> + Send>(look: W) -> Option<Duration> {
+    return match keep_a_panic_awaiting(look).await {
+        Ok(left) => left,
+        Err(said) => {
+            crate::service_warn!(
+                "a look at one repository's slow work stopped unexpectedly, so the records it held keep their lease and it is looked at again after the pause: {said}"
+            );
+            Some(LOOK_AGAIN_AFTER_DEFERRING)
+        }
+    };
+}
+
+/// What:
 ///  The lane itself:
 /// take the wake it was given,
 /// then every wake already queued behind it,
@@ -143,7 +206,8 @@ impl SlowLane {
 async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration) {
     loop {
         let Some(first) = inbox.recv().await else { return };
-        busy.fetch_add(1, Ordering::SeqCst);
+        // The count is this frame's until the looks it covers end, and a look that panicked gives it back too.
+        let _busy: TheLaneIsBusy = TheLaneIsBusy::raising(&busy);
         let mut wakes: Vec<Wake> = vec![first];
         while let Ok(queued) = inbox.try_recv() {
             wakes.push(queued);
@@ -161,7 +225,7 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                 if let Some(key) = review_key.clone() {
                     keys.insert(git_dir.clone(), key);
                 }
-                if let Some(wait) = drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping).await {
+                if let Some(wait) = a_look_that_may_panic(drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping)).await {
                     soonest = Some(match soonest {
                         Some(already) => already.min(wait),
                         None => wait,
@@ -178,7 +242,6 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                 wakes.push(queued);
             }
         }
-        busy.fetch_sub(1, Ordering::SeqCst);
     }
 }
 

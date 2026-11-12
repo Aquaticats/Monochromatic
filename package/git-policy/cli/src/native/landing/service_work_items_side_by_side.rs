@@ -22,6 +22,11 @@
 //! so they run beside each other,
 //! one item of each worktree per wave,
 //! within the width this file measures and the host allows.
+//!  A wave settles each item as that item's work ends,
+//! not after the slowest of the wave,
+//! so a finished item's record does not wait for a sibling that takes minutes;
+//! and an item whose handler stopped unexpectedly is settled as failed with the words the panic left,
+//! so its siblings finish and are settled (`a_panic_that_ends_one_item.rs`).
 //! Nothing here locks:
 //! the claims stay in the drain's own set and are settled by the task that took them,
 //! and every wave's answers come back in the order the items were claimed
@@ -36,7 +41,7 @@ use crate::landing::service_work_handlers_replanning_and_acceptance::{Verdict, W
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_work_settling_with_words::settle_with_the_words;
-use crate::side_by_side_on_the_current_task::run_all_side_by_side_on_the_current_task;
+use crate::side_by_side_on_the_current_task::{AnAnswer, AnswersAsTheyCome};
 use crate::work_item::{Claimed, WorkItem};
 use std::collections::HashMap;
 use std::future::Future;
@@ -230,21 +235,116 @@ fn worktree_of(claimed: &Claimed) -> PathBuf {
 /// What:
 ///  Run one batch of items of one kind beside each other,
 /// one item of each worktree per wave,
-/// and settle every one of them with the words its kind leaves.
+///  settling each item with the words its kind leaves as that item's work ends.
 /// Why:
 ///   The kinds all answer the four verdicts and are all settled the same way
 /// (`service_work_settling_with_words.rs`),
 /// so the account of running them is one function and each kind names only its handler and its words.
+/// An item is settled when its work ends and not when the slowest of its wave does,
+/// so a finished item's record does not wait for a sibling that takes minutes.
+/// An item whose handler stopped unexpectedly is settled as failed with the words the panic left,
+///  and its siblings finish and are settled.
 /// The claims stay in the caller's set and come back with it,
 /// so nothing here locks the set or names a claim.
 /// A set the system refuses a job for ends the batch,
-/// as it ends the drain (`service_work_drain_pending_claims.rs`).
+/// as it ends the drain (`service_work_drain_pending_claims.rs`),
+///  and the items still inside their work are waited for and settled by nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const wave of wavesOf(worktrees, width)) { const verdicts = await Promise.all(wave.map(ask)); for (const [item, verdict] of zip(wave, verdicts)) held = await settleWithTheWords(held, workDir, item, verdict, kind); }
+/// for (const wave of wavesOf(worktrees, width)) { for await (const [at, answer] of AnswersAsTheyCome.starting(wave.map(ask))) held = await settleWithTheWords(held, workDir, items[wave[at]], answer, kind); }
 /// ```
-pub(crate) async fn run_and_settle_side_by_side<H, F>(mut held: HeldClaims, work_dir: &Path, handlers: &H, items: Vec<Claimed>, width: usize, kind: &str, ask: F) -> Option<HeldClaims>
+pub(crate) async fn run_and_settle_side_by_side<H, F>(held: HeldClaims, work_dir: &Path, handlers: &H, items: Vec<Claimed>, width: usize, kind: &str, ask: F) -> Option<HeldClaims>
+where
+    H: WorkHandlers + Sync + ?Sized,
+    F: for<'lent> Fn(&'lent H, &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
+{
+    let mut every_item_may_start = || true;
+    let mut nothing_left_for_a_later_round: Vec<Claimed> = Vec::new();
+    return run_and_settle_what_may_start(
+        held,
+        work_dir,
+        handlers,
+        items,
+        width,
+        kind,
+        ask,
+        &mut every_item_may_start,
+        &mut nothing_left_for_a_later_round,
+    )
+    .await;
+}
+
+/// What:
+///  Run one batch of housekeeping items the round's bound answers for,
+/// one item of each worktree per wave,
+///  asking the bound as each item starts rather than once for the batch,
+///  settling each item as its work ends,
+///  and handing the items the bound did not let start back for a later round.
+/// Why:
+///   A step runs its items as one batch of waves,
+/// and a bound decided once for the batch started every item of any size:
+/// a relink, a review or a snapshot that arrived during a long batch of trashes was claimed only when the whole batch was over
+/// (`housekeeping_of_one_round.rs`).
+/// The bound is asked here as each item is put into a wave,
+/// so the items of one wave still start together and the rest keep their turn for a later round.
+/// An item the bound refused has not started, so it is not claimed by this round's work:
+/// it goes back to `pending` with the others the caller names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const wave of wavesOf(worktrees, width)) { for (const at of wave) { if (!mayStart()) { left.push(items[at]); continue; } starting.push(at); running.push(ask(items[at])); } ... }
+/// ```
+pub(crate) async fn run_and_settle_what_the_round_may_start<H, F>(
+    held: HeldClaims,
+    work_dir: &Path,
+    handlers: &H,
+    items: Vec<Claimed>,
+    width: usize,
+    kind: &str,
+    ask: F,
+    may_start: &mut (dyn FnMut() -> bool + Send),
+    left_for_a_later_round: &mut Vec<Claimed>,
+) -> Option<HeldClaims>
+where
+    H: WorkHandlers + Sync + ?Sized,
+    F: for<'lent> Fn(&'lent H, &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
+{
+    return run_and_settle_what_may_start(
+        held,
+        work_dir,
+        handlers,
+        items,
+        width,
+        kind,
+        ask,
+        may_start,
+        left_for_a_later_round,
+    )
+    .await;
+}
+
+/// What:
+///  `run_and_settle_side_by_side` and `run_and_settle_what_the_round_may_start` with everything the two differ in given.
+/// Why:
+///   The waves, the starting of each item and the settling of each answer are one account,
+///  so a kind that is bounded like housekeeping and a kind that is not cannot drain differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const wave of wavesOf(worktrees, width)) { const starting = []; for (const at of wave) { if (!mayStart()) { left.push(items[at]); continue; } starting.push(at); running.push(ask(items[at])); } for await (const [at, answer] of AnswersAsTheyCome.starting(running)) held = await settleWithTheWords(held, workDir, items[starting[at]], answer, kind); }
+/// ```
+async fn run_and_settle_what_may_start<H, F>(
+    mut held: HeldClaims,
+    work_dir: &Path,
+    handlers: &H,
+    items: Vec<Claimed>,
+    width: usize,
+    kind: &str,
+    ask: F,
+    may_start: &mut (dyn FnMut() -> bool + Send),
+    left_for_a_later_round: &mut Vec<Claimed>,
+) -> Option<HeldClaims>
 where
     H: WorkHandlers + Sync + ?Sized,
     F: for<'lent> Fn(&'lent H, &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>>,
@@ -252,13 +352,33 @@ where
     let worktrees: Vec<PathBuf> = items.iter().map(worktree_of).collect();
     for wave in waves_of(worktrees.as_slice(), width) {
         let mut running: Vec<Pin<Box<dyn Future<Output = Verdict> + Send + '_>>> = Vec::with_capacity(wave.len());
+        let mut starting: Vec<usize> = Vec::with_capacity(wave.len());
         for index in &wave {
+            // The bound is asked as each item is put in flight, so a wave still starts its items together and the items after
+            //  it keep their turn for a later round.
+            if !may_start() {
+                left_for_a_later_round.push(items[*index].clone());
+                continue;
+            }
+            starting.push(*index);
             running.push(ask(handlers, &items[*index].item));
         }
-        let verdicts: Vec<Verdict> = run_all_side_by_side_on_the_current_task(running).await;
-        for (index, verdict) in wave.iter().zip(verdicts) {
-            let claimed: Claimed = items[*index].clone();
-            held = settle_with_the_words(held, work_dir, claimed, verdict, kind).await?;
+        let mut answers: AnswersAsTheyCome<'_, Verdict> = AnswersAsTheyCome::starting(running);
+        while let Some((at, answer)) = answers.the_next_answer().await {
+            let verdict: Verdict = match answer {
+                AnAnswer::Answered(answer) => answer,
+                // One item's handler stopped unexpectedly: that item fails with what happened, and the rest of its wave goes on.
+                AnAnswer::Stopped(said) => Verdict::Failed(said),
+            };
+            held = match settle_with_the_words(held, work_dir, items[starting[at]].clone(), verdict, kind).await {
+                Some(back) => back,
+                None => {
+                    // The set went with a job the system refused a thread for, so nothing here can settle what is left:
+                    //  the items still inside their work are waited for, and their records keep their lease.
+                    answers.the_rest().await;
+                    return None;
+                }
+            };
         }
     }
     return Some(held);

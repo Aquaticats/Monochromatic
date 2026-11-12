@@ -1997,7 +1997,10 @@ fn drain_with(repo: &Repo, handler: &Controlled, kinds: &'static [WorkKind], sli
 #[test]
 fn a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent() {
     let repo: Repo = repo("work-housekeeping-batch-slice");
-    let items: Vec<WorkItem> = (0..A_BATCH).map(|at| { return item(&repo, WorkKind::Trash, OID, format!("refs/cli-git/trash-{at}").as_str()); }).collect();
+    // One record an item: a trash's id is its kind and its object name, so each one names an object of its own.
+    let items: Vec<WorkItem> = (0..A_BATCH)
+        .map(|at| { return item(&repo, WorkKind::Trash, format!("{at:040x}").as_str(), format!("refs/cli-git/trash-{at}").as_str()); })
+        .collect();
     enqueue_all(&repo, items.as_slice());
     let work: PathBuf = work_directory(repo.common.as_path());
     let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
@@ -2010,6 +2013,7 @@ fn a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent() {
     crate::service_work_items_side_by_side::take_the_hosts_width();
     assert_eq!(names(&repo, DONE).len(), 1, "a 20 ms slice starts one 150 ms trash and no more");
     assert_eq!(names(&repo, PENDING).len(), items.len() - 1, "the housekeeping the round did not start waits for a later round");
+    assert!(names(&repo, FAILED).is_empty(), "no item was failed");
     assert!(names(&repo, CLAIMED).is_empty(), "nothing the round did not start stays claimed");
     assert_eq!(drained.look_again, Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING), "the round asks to be looked at again for the housekeeping it left");
     remove(repo.root.as_path());

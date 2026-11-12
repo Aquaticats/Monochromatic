@@ -7039,6 +7039,14 @@ now inside these bounds:
   and the lane that runs those kinds looks at that repository again after `LOOK_AGAIN_AFTER_DEFERRING` (5 seconds,
   `landing/service_work_slow_lane.rs`),
   so the part of a backlog one look could not start is taken by the look after it.
+  The bound is asked as each housekeeping item starts,
+  never once for a batch of them,
+  so a batch of any size does not begin in full:
+  the first item starts and the rest keep their turn as soon as the slice is spent.
+  A round whose first claim step got no place within `AFTER_COMMIT_STATE_CEILING` claimed nothing,
+  and it names that same pause,
+  because no claim of it exists whose lease would bring the loop back
+  (`landing/service_work_storage_awaited.rs`).
   An item a round has started is never interrupted,
   because a removal stopped halfway would need a resume the trash does not keep;
   the bound decides what a round starts,
@@ -11400,8 +11408,11 @@ the round that answers a wake claims `PUSH_KINDS` alone (`landing/service_work_s
 The push's own steps never queue behind slow work either:
 one place of the process's bound on blocking jobs stays free of every slow kind
 (`SLOW_WORK_RESERVE`,
-`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`),
-so a queue of trashes cannot hold the read of a push's child,
+`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`):
+the trash's removals and its two lookups,
+the snapshot ahead,
+and the prewarm's tree clone (`clone_tree_awaiting` in `repair/package_repair_tree_clone.rs`),
+so a queue of trashes or a wave of prewarm clones cannot hold the read of a push's child,
 which is the shape of the wait measured on the installed `0.6.1-alpha.10` at 2026-11-11T10:38:00-05:00.
 
 ##### Upkeep (`maintenance`)
@@ -11421,6 +11432,10 @@ nor beside that worktree's trash emptying,
 its snapshot ahead,
 or the delete of its subvolume.
 The prewarm of another worktree runs beside it.
+The clone of its build directories asks through the gate that keeps a place free of slow work
+(`run_a_slow_job_or_in_turn` in `blocking_jobs_within_the_budget.rs`),
+as the trash's removals and the snapshot ahead do,
+so a wave of prewarm clones never stands between a person's push and the read its steps need.
 
 ##### Relink
 
@@ -11466,7 +11481,10 @@ The shadow review of a landed commit reads the commit and appends one entry to t
 and the append is one whole-entry write on an append-mode descriptor with no lock
 (`log_lines_appended_without_a_lock.rs`),
 so two reviews of one repository may run beside each other and every other kind.
-Reviews go last in a round because a push is the person's backup and a review is a shadow record.
+Reviews run after the pushes and before the steps that free space:
+a push is the person's backup, and a review is a shadow record bounded by `REVIEW_CEILING` that decides nothing about a push.
+On 2026-11-11 two reviews stayed claimed for a quarter of an hour while the round emptied the trashes of removed worktrees ahead of them,
+one of which can run for many minutes (`doc/planning/git-policy-cli-push-jams-2026-11-10.md`).
 
 ##### What the waves keep of the order
 
@@ -11476,13 +11494,22 @@ the snapshot a person waits for,
 then the upkeep,
 then what a new worktree needs (relink,
 then prewarm),
+then the reviews,
 then what frees space (subvolume delete,
-then trash),
-then the reviews.
+then trash).
 Inside one kind,
 each worktree's records keep the order they were claimed in,
 and a worktree that has more records than the width waits for the next wave rather than for the whole queue:
 the turn moves by one key each wave.
+A wave settles each item as that item's work ends,
+never after the slowest of the wave:
+a push refused at once is on record at once and its notice is written then,
+which is what matters when a silent server holds its sibling for the push deadline or the connected push's quiet window
+(`wait_ceilings.rs`).
+A panic in one item is kept as that item's answer (`foundation/a_panic_that_ends_one_item.rs`):
+its record is settled as failed with what happened,
+its siblings finish and are settled,
+and the lane that ran it goes on looking at repositories.
 
 ### The service's hold on the index lock
 

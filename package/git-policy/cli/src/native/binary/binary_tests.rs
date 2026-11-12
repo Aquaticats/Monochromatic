@@ -820,3 +820,8 @@ mod service_stop_ends_its_gits;
 /// Cargo and the toolchain launchers work at the new location.
 #[path = "binary_package_repair_tests.rs"]
 mod package_repair;
+
+/// A commit and its push made while the service is inside a batch of the repository's own housekeeping records:
+/// how long each waited, measured for the record and not asserted as a control.
+#[path = "binary_housekeeping_beside_a_commit_tests.rs"]
+mod housekeeping_beside_a_commit;

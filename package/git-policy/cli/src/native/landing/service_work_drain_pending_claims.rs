@@ -8,6 +8,9 @@
 //! Inside one kind the items of different worktrees run beside each other and one worktree's items keep their turn
 //! (`service_work_items_side_by_side.rs`),
 //! and the pushes of different branches of the repository run beside each other.
+//!  Each item is settled, and its notice written, as that item's work ends,
+//! and an item whose handler stopped unexpectedly fails alone (`a_panic_that_ends_one_item.rs`),
+//!  so a finished push does not wait for a sibling that a silent server holds.
 //! Why:
 //!  It is the largest step of the service's work and has a file of its own,
 //! so the drains that call it stay short.
@@ -43,11 +46,13 @@ use crate::service_work_storage_awaited::{acceptable_awaiting, claim_all_awaitin
 use crate::journald_native::Priority;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
 use crate::service_work_drain_deletes_subvolumes::delete_subvolumes_awaiting;
-use crate::service_work_items_side_by_side::{pushes_side_by_side, run_and_settle_side_by_side, slow_items_side_by_side, waves_of};
+use crate::service_work_items_side_by_side::{
+    pushes_side_by_side, run_and_settle_side_by_side, run_and_settle_what_the_round_may_start, slow_items_side_by_side, waves_of,
+};
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
 use crate::parallel_budget::HostResources;
-use crate::side_by_side_on_the_current_task::run_all_side_by_side_on_the_current_task;
+use crate::side_by_side_on_the_current_task::{AnAnswer, AnswersAsTheyCome};
 use crate::work_item::{Claimed, DONE, FAILED, PENDING, WorkItem, WorkKind};
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -148,32 +153,6 @@ fn may_start_housekeeping(slice: &HousekeepingOfOneRound, started: &mut bool) ->
 }
 
 /// What:
-///  The items of one housekeeping step this round may start, in the order they were claimed,
-///  and the ones it leaves for a later round.
-/// Why:
-///   A step runs its items as one batch of waves (`service_work_items_side_by_side.rs`),
-/// so the round answers "may I start this one now" for the whole batch before it begins,
-///  the first item whatever the slice has spent and the rest only while it has room
-/// (`housekeeping_of_one_round.rs`);
-/// an item it may not start is handed back by the caller and named in the round's line.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const starting = whatTheRoundMayStart(items, slice, started, left); // the rest go to left
-/// ```
-fn what_the_round_may_start(items: Vec<Claimed>, slice: &HousekeepingOfOneRound, started: &mut bool, left_for_a_later_round: &mut Vec<Claimed>) -> Vec<Claimed> {
-    let mut starting: Vec<Claimed> = Vec::new();
-    for item in items {
-        if !may_start_housekeeping(slice, started) {
-            left_for_a_later_round.push(item);
-            continue;
-        }
-        starting.push(item);
-    }
-    return starting;
-}
-
-/// What:
 ///  Claims and runs every pending item of one work directory of the kinds `kinds` names,
 /// until none is left;
 /// the claims held are renewed every third of `lease`,
@@ -191,6 +170,7 @@ fn what_the_round_may_start(items: Vec<Claimed>, slice: &HousekeepingOfOneRound,
 /// as before,
 /// and the records it holds keep their lease.
 ///  A round starts housekeeping only while `housekeeping` has room,
+/// asked as each housekeeping item starts rather than once for a batch of them,
 /// and answers how soon to look at this directory
 ///  again when it left some for a later round.
 /// An item that has started is never interrupted:
@@ -232,6 +212,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             Ok(taken) => taken,
             Err(reason) => {
                 crate::service_error!("{reason}");
+                // Nothing was claimed, so no claim's lease runs out and no record of this directory names a moment to
+                //  come back for: the round names the pause itself, or the pushes waiting here wait for a wake nothing
+                //  sends, which is a wait with no bound.
+                look_again = Some(LOOK_AGAIN_AFTER_DEFERRING);
                 break;
             }
         };
@@ -319,9 +303,17 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                     return (verdict, pushing_since, pushing.elapsed().as_millis());
                 }));
             }
-            let pushed: Vec<(Verdict, SystemTime, u128)> = run_all_side_by_side_on_the_current_task(running).await;
-            for (index, (verdict, pushing_since, push_ms)) in wave.iter().zip(pushed) {
-                let members: &Vec<Claimed> = &branches[*index];
+            // Each branch is settled, and its notice written, as its own push ends:
+            //  a silent server holds its sibling for the push deadline or the connected push's quiet window, and the
+            //  refusal Git already gave must not wait for that.
+            let mut answers: AnswersAsTheyCome<'_, (Verdict, SystemTime, u128)> = AnswersAsTheyCome::starting(running);
+            while let Some((at, answer)) = answers.the_next_answer().await {
+                let (verdict, pushing_since, push_ms): (Verdict, SystemTime, u128) = match answer {
+                    AnAnswer::Answered(answer) => answer,
+                    // A push whose handler stopped unexpectedly fails with what happened, and the branches beside it go on.
+                    AnAnswer::Stopped(said) => (Verdict::Failed(said), SystemTime::now(), 0),
+                };
+                let members: &Vec<Claimed> = &branches[wave[at]];
                 if let Some(newest) = members.last() {
                     // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
                     let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
@@ -350,7 +342,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 }
                 match settle_after_the_push(held, work_dir.as_path(), git_dir, members, verdict, pushing_since, replanning).await {
                     Some(back) => held = back,
-                    None => break 'round,
+                    None => {
+                        // The set went with a job the system refused a thread for, so the branches still pushing are
+                        //  waited for and their records keep their lease.
+                        answers.the_rest().await;
+                        break 'round;
+                    }
                 }
             }
         }
@@ -406,8 +403,8 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
         }
         // A new worktree's Cargo build directory is filled before the left-out files are emptied: the filling is the work
         //  the add stopped doing, and the sooner it lands the more likely the first build in the worktree finds it.
-        // The step runs in the waves the round may start, and the items it may not start are the housekeeping a later round
-        //  is named.
+        // The step runs in the waves the round may start, asking its bound as each item of a wave starts, and the items it
+        //  may not start are the housekeeping a later round is named.
         let prewarmed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), prewarms).await {
             Some((back, mine)) => {
                 held = back;
@@ -415,13 +412,23 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             }
             None => break 'round,
         };
-        let starting: Vec<Claimed> = what_the_round_may_start(prewarmed, &slice, &mut housekeeping_has_started, &mut left_for_a_later_round);
-        if !starting.is_empty() {
-            let prewarms_wide: usize = slow_items_side_by_side(starting.len(), &host);
-            match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, starting, prewarms_wide, "prewarm", ask_prewarm).await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
+        let prewarms_wide: usize = slow_items_side_by_side(prewarmed.len(), &host);
+        let mut may_start_prewarm_now = || may_start_housekeeping(&slice, &mut housekeeping_has_started);
+        match run_and_settle_what_the_round_may_start(
+            held,
+            work_dir.as_path(),
+            handlers,
+            prewarmed,
+            prewarms_wide,
+            "prewarm",
+            ask_prewarm,
+            &mut may_start_prewarm_now,
+            &mut left_for_a_later_round,
+        )
+        .await
+        {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // The review of a commit runs before the steps that free space: it is bounded by its own ceiling (`REVIEW_CEILING`), it
         //  decides nothing about any push, and on 2026-11-11 two reviews stayed claimed for a quarter of an hour while the round
@@ -456,9 +463,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 }
             }
         }
-        // The left-out files of a snapshot-made worktree are emptied last, in the waves the round may start: freeing them is
-        //  a local job nothing waits for, and a trash of a removed worktree can take minutes (`worktree_trash_dispose.rs`).
-        //  The items the round may not start are the housekeeping a later round is named.
+        // The left-out files of a snapshot-made worktree are emptied last, in the waves the round may start, asking its
+        //  bound as each item of a wave starts: freeing them is a local job nothing waits for, and a trash of a removed
+        //  worktree can take minutes (`worktree_trash_dispose.rs`). The items the round may not start are the housekeeping
+        //  a later round is named.
         let trashed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), trashes).await {
             Some((back, mine)) => {
                 held = back;
@@ -466,13 +474,23 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             }
             None => break 'round,
         };
-        let emptying: Vec<Claimed> = what_the_round_may_start(trashed, &slice, &mut housekeeping_has_started, &mut left_for_a_later_round);
-        if !emptying.is_empty() {
-            let trashes_wide: usize = slow_items_side_by_side(emptying.len(), &host);
-            match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, emptying, trashes_wide, "trash", ask_trash).await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
+        let trashes_wide: usize = slow_items_side_by_side(trashed.len(), &host);
+        let mut may_start_trash_now = || may_start_housekeeping(&slice, &mut housekeeping_has_started);
+        match run_and_settle_what_the_round_may_start(
+            held,
+            work_dir.as_path(),
+            handlers,
+            trashed,
+            trashes_wide,
+            "trash",
+            ask_trash,
+            &mut may_start_trash_now,
+            &mut left_for_a_later_round,
+        )
+        .await
+        {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // The housekeeping this round did not start goes back to `pending` for a later round, named here once, so a person
         //  reading the journal sees where their trash went and the service says when it looks again.

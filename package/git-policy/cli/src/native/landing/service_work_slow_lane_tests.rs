@@ -587,3 +587,52 @@ fn a_slow_item_that_stops_unexpectedly_ends_its_own_record_and_not_the_look() {
     assert!(names_in(&world, CLAIMED).is_empty(), "no record of the look stays claimed: {:?}", names_in(&world, CLAIMED));
     remove(world.root.as_path());
 }
+
+/// What:
+///  The lane gives its busy count back when a look ends,
+///  and a look that panicked gives it back too.
+/// Why:
+///   The count is what keeps the service from exiting while a claim of the lane is held,
+/// so a count raised by a task that panicked would keep the service up for ever
+/// and the slow work that look was going to do would never be done.
+/// The count is held by the frame that raised it, not by the trap after it.
+#[test]
+fn the_lane_gives_its_busy_count_back_when_a_look_panicked() {
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let raised: usize = {
+        let _counted: TheLaneIsBusy = TheLaneIsBusy::raising(&busy);
+        busy.load(Ordering::SeqCst)
+    };
+    assert_eq!(raised, 1, "the lane counts itself busy while its work lasts");
+    assert_eq!(busy.load(Ordering::SeqCst), 0, "the count goes back when that work ends");
+    let caught: std::thread::Result<()> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _counted: TheLaneIsBusy = TheLaneIsBusy::raising(&busy);
+        panic!("a look stopped unexpectedly");
+    }));
+    assert!(caught.is_err(), "the control's own panic reached the end of the frame it was raised in");
+    assert_eq!(busy.load(Ordering::SeqCst), 0, "a look that panicked gives the count back too");
+}
+
+/// What:
+///  A look that panicked asks to be looked at again after the pause,
+///  a look that answered keeps its own answer,
+///  and a look that asked for nothing asks for nothing.
+/// Why:
+///   A look runs the drain, and a defect in it must not end the lane:
+/// the records it held keep their lease,
+/// so the pause is what brings this repository back to the lane that is still serving the ones behind it.
+#[test]
+fn a_look_that_panicked_is_looked_at_again() {
+    let panicked: Option<Duration> = crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async {
+        panic!("a look stopped unexpectedly");
+    }));
+    assert_eq!(
+        panicked,
+        Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
+        "a look that panicked asks to be looked at again after the pause"
+    );
+    let quiet: Option<Duration> = crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async { return None; }));
+    assert_eq!(quiet, None, "a look that left nothing behind asks for no extra look");
+    let asked: Option<Duration> = crate::merge_second_pass::tests::await_it(a_look_that_may_panic(async { return Some(Duration::from_secs(3)); }));
+    assert_eq!(asked, Some(Duration::from_secs(3)), "a look that asked for a pause keeps its own");
+}
