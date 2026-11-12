@@ -1371,8 +1371,12 @@ fn a_matching_push_whose_remote_moved_past_the_commit_leaves_no_record_and_no_pl
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let planned: Option<Duration> = round_with_real_git(&stage, &mut retries);
     let record: String = notice_text(&stage);
-    // A delivered push that carried a refusal keeps Git's line for the person, and says the push was made.
-    assert!(record.contains("was made"), "the record says the push was made: {record}");
+    // A delivered push that carried a refusal keeps Git's line for the person, and the record says the push was made.
+    assert!(
+        record.starts_with(crate::push_failure_notice_reports::REPORT_MAGIC),
+        "the record is one of a push that was made and not of a failure: {record}"
+    );
+    assert!(record.contains("[rejected]"), "Git's own line for the refused ref reaches the person: {record}");
     assert!(!record.contains("may or may not have taken that commit"), "a commit the remote holds is not a failed backup: {record}");
     assert!(retries.directories().is_empty(), "no plan names the repository");
     assert_eq!(planned, None, "nothing is left to try again");
