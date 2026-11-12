@@ -937,6 +937,10 @@ pub mod lean_identity;
 /// The non-blocking take of a Cargo profile directory's build locks.
 pub mod lean_lock_probe;
 
+/// The tests of the non-blocking take of a profile directory's build locks.
+#[cfg(test)]
+mod lean_lock_probe_tests;
+
 /// The scan of `/proc` for processes using a path.
 pub mod lean_proc_scan;
 

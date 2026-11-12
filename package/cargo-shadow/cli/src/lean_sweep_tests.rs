@@ -227,6 +227,24 @@ fn a_pipe_at_a_fingerprint_json_is_reported_and_holds_nothing() {
 }
 
 #[test]
+fn a_pipe_at_a_build_lock_is_skipped_and_removes_nothing() {
+    let root = scratch();
+    let profile: PathBuf = make_profile(root.path(), "debug");
+    let stale: Vec<PathBuf> = add_old_unit(&profile, "alpha", "00000000000000aa", OLD_COMPILER, NOW - 10 * DAY);
+    add_old_unit(&profile, "beta", "00000000000000bb", NEW_COMPILER, NOW - HOUR);
+    let lock: PathBuf = profile.join(".cargo-build-lock");
+    fs::remove_file(&lock).expect("the regular lock file the fixture wrote");
+    make_pipe(&lock);
+    let judged_profile: PathBuf = profile.clone();
+    let outcome: ProfileOutcome = within(move || { return sweep(&judged_profile); });
+    let named: bool = outcome.skipped.as_deref().is_some_and(|reason| { return reason.contains("cannot be locked here") && reason.contains("not a regular file"); });
+    assert!(named, "the pass says why it skipped the profile directory: {outcome:?}");
+    for path in &stale {
+        assert!(path.exists(), "nothing is removed from a profile directory whose lock was not taken: {}", path.display());
+    }
+}
+
+#[test]
 fn a_directory_in_no_known_layout_is_left_untouched() {
     let root = scratch();
     let profile: PathBuf = root.path().join("strange");

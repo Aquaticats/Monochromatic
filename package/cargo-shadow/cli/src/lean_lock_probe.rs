@@ -8,6 +8,8 @@
 //! so a sweep that holds the same lock excludes every
 //! cooperating build of that directory.
 //! The attempt never waits ("nothing should ever wait forever or indefinitely"):
+//! the open of a lock file never waits either,
+//! so a name that is not a regular file is refused and never opened;
 //! a busy lock,
 //! a file system that cannot lock and a queued waiter all mean the directory is skipped and reported.
 //! The lock files are never renamed or unlinked.
@@ -23,6 +25,9 @@ use std::{fs, fs::File, path::{Path, PathBuf}};
 /// The non-blocking exclusive `flock`,
 /// and the device number split that `/proc/locks` prints.
 use rustix::fs::{FlockOperation, flock, major, minor};
+
+/// The open that never waits and refuses what is not a regular file.
+use crate::lean_text::open_regular;
 
 /// Device and inode of the lock files.
 use crate::lean_identity::{Identity, identity_of};
@@ -123,6 +128,8 @@ pub fn waiter_lines_name(table: &str, device: u64, inode: u64) -> bool {
 /// It is the first proof of "not in use":
 /// while it holds,
 /// no cooperating cargo builds in this profile directory.
+/// The open of each lock file refuses what is not a regular file,
+/// because opening a pipe waits for a writer and a sweep that waits is no proof of anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,10 +140,10 @@ pub fn lock_profile_directory(profile: &Path, lock_table: &Path) -> LockOutcome 
     let mut names: Vec<PathBuf> = Vec::new();
     for name in LOCK_FILE_NAMES {
         let path: PathBuf = profile.join(name);
-        let file: File = match File::open(&path) {
+        let file: File = match open_regular(&path, true) {
             Ok(opened) => opened,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return LockOutcome::Unlockable { file: path, reason: error.to_string() },
+            Err(error) => return LockOutcome::Unlockable { file: path, reason: format!("{error}, so nothing was opened here and no build was excluded") },
         };
         match flock(&file, FlockOperation::NonBlockingLockExclusive) {
             Ok(()) => {}

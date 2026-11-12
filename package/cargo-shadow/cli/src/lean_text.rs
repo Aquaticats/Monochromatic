@@ -136,16 +136,21 @@ pub fn read_small_bytes(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
 }
 
 /// What:
-/// `fn open_regular(path: &Path, follow_links: bool) -> std::io::Result<fs::File>` is the open every reader here shares.
+/// `pub(crate) fn open_regular(path: &Path, follow_links: bool) -> std::io::Result<fs::File>` is the open every reader here shares,
+/// and the open a caller uses when it must hold a name rather than read it.
 /// Why:
 /// The readers differ in one flag and in how much they read,
 /// and the flags of the open are read in one place.
+/// A caller that takes a lock on a name in a build tree opens it here too,
+/// so the one rule covers both:
+/// the open never waits for a writer,
+/// and what it opened must be a regular file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function openRegular(path: string, followLinks: boolean): number
 /// ```
-fn open_regular(path: &Path, follow_links: bool) -> io::Result<fs::File> {
+pub(crate) fn open_regular(path: &Path, follow_links: bool) -> io::Result<fs::File> {
     let mut flags: OFlags = OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NONBLOCK;
     if !follow_links {
         flags |= OFlags::NOFOLLOW;
