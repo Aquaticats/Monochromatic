@@ -44,15 +44,32 @@ use std::path::{Path, PathBuf};
 ///  and the caller then treats the branch as it does one whose reflog Git no longer keeps.
 const REFLOG_LIMIT: u64 = 16 << 20;
 
-/// The commit a reflog line names as the value a reference had before it existed,
-/// which is what a branch created at a commit records.
+/// What:
+///  Whether one reflog field is the name a reference had before it existed,
+///  which is the null object name of the repository's own hash.
 /// Why:
 ///  Measured with Git 2.56 on a fixture:
 ///  `git worktree add -b task-z` writes `0000...0000 <commit> ... branch: Created from HEAD`,
 ///  and no branch ever pointed anywhere before that line.
 ///  A reset onto a commit and a commit of its own both record the commit the branch held before them,
-///  so a line that names this value is the one line that says nothing about who made a commit.
-const NO_COMMIT: &str = "0000000000000000000000000000000000000000";
+///  so a line whose old value is this name is the one line that says nothing about who made a commit.
+///  Git writes the name with as many zeros as the repository's hash is wide,
+///  and comparing it against the forty zeros of SHA-1 read a branch created in a SHA-256 repository as one
+///  that moved onto the commit it was created at:
+///  the sweep then kept every landed worktree whose tip another branch was just made at,
+///  which is the state the wrapper's own `git worktree add -b` makes on every task
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+///  Measured with Git 2.56 on a `git init --object-format=sha256` fixture on 2026-11-11:
+///  it writes sixty-four zeros before a branch's first reflog line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isNoCommit('0000000000000000000000000000000000000000000000000000000000000000') // true
+/// ```
+fn is_no_commit(field: &[u8]) -> bool {
+    return !field.is_empty() && field.iter().all(|byte| return *byte == b'0');
+}
 
 /// The bytes of the reflog of `reference`,
 /// read without waiting for a writer,
@@ -135,7 +152,8 @@ fn moved_between(line: &[u8]) -> Option<(&[u8], &[u8])> {
 ///  never where a commit came from.
 ///  The one difference it does record is a branch's first line,
 ///  which names no commit as the value before it,
-///  so a branch created at a commit proves nothing about who made that commit.
+///  so a branch created at a commit proves nothing about who made that commit,
+///  whatever width that repository's null object name has (`is_no_commit`).
 ///  A repository that keeps no reflog for the branch answers nothing,
 ///  and the caller then treats the branch as it did before this question existed.
 ///
@@ -148,7 +166,7 @@ pub(crate) fn branch_moved_onto(common_dir: &Path, reference: &str, commit: &str
     let wanted: &[u8] = commit.as_bytes();
     for line in text.split(is_line_end) {
         let Some((old, next)) = moved_between(line) else { continue };
-        if next == wanted && old != next && old != NO_COMMIT.as_bytes() {
+        if next == wanted && old != next && !is_no_commit(old) {
             return true;
         }
     }
