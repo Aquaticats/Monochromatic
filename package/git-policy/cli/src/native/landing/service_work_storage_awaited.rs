@@ -116,7 +116,46 @@ async fn a_storage_step_awaited_no_longer_than<T: Send + 'static>(ceiling: Durat
 /// const claimed = await claimAllAwaiting(workDir, kinds)
 /// ```
 pub(crate) async fn claim_all_awaiting(work_dir: &Path, kinds: &'static [WorkKind]) -> Result<Vec<Claimed>, String> {
-    return claim_all_within_awaiting(AFTER_COMMIT_STATE_CEILING, work_dir, kinds).await;
+    return claim_all_within_awaiting(the_claim_steps_ceiling(), work_dir, kinds).await;
+}
+
+/// The ceiling a control stated for the claim steps of this process,
+/// in milliseconds,
+/// or nothing when it stated none.
+/// The release executable keeps nothing of it.
+#[cfg(test)]
+static A_CLAIM_CEILING_FOR_A_CONTROL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// What:
+///  State the ceiling the next claim steps of this process take,
+///  so a control reaches the bound a round keeps in a moment instead of the sixty seconds a shipped step waits.
+/// Why:
+///   A round whose claim step got no place must ask to be looked at again,
+/// and only a control can reach that answer without waiting the shipped ceiling out;
+/// `claim_all_within_awaiting` states it for one caller instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdTheClaimStepsTo(20); // the next claim steps take 20 ms
+/// ```
+#[cfg(test)]
+pub(crate) fn hold_the_claim_steps_to(ceiling: Duration) {
+    A_CLAIM_CEILING_FOR_A_CONTROL.store(u64::try_from(ceiling.as_millis()).unwrap_or(u64::MAX), std::sync::atomic::Ordering::SeqCst);
+}
+
+/// The ceiling this process's claim steps take:
+/// the one a control stated,
+/// or `AFTER_COMMIT_STATE_CEILING`,
+/// which is what the after-commit work's own state steps take.
+fn the_claim_steps_ceiling() -> Duration {
+    #[cfg(test)]
+    {
+        let stated: u64 = A_CLAIM_CEILING_FOR_A_CONTROL.load(std::sync::atomic::Ordering::SeqCst);
+        if stated > 0 {
+            return Duration::from_millis(stated);
+        }
+    }
+    return AFTER_COMMIT_STATE_CEILING;
 }
 
 /// `claim_all_awaiting` with the ceiling its place and its job are given,
@@ -324,18 +363,19 @@ pub(crate) async fn record_push_skip_awaiting(git_dir: &Path, branch_ref: &str, 
 
 /// What:
 ///  How long until the first claim still held in `work_dir` runs out its lease,
-/// or nothing when none is held.
+/// or nothing when none is held;
+/// a look that could not be made is a refusal so its caller can look again rather than take it as proof that nothing is held.
 /// Why:
 ///   The answer is a listing of the claim names,
 /// and it is what wakes the service once another instance's lease is over,
 /// so a failure to
-///  read it is said rather than read as "nothing is held".
+///  read it is said and given back as a failure rather than read as "nothing is held".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await nextClaimExpiryAwaiting(workDir, now, lease)
 /// ```
-pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime, lease: Duration) -> Option<Duration> {
+pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime, lease: Duration) -> Result<Option<Duration>, String> {
     let directory: PathBuf = work_dir.to_path_buf();
     let reading: ClaimTime = now.clone();
     return match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the look that finds when another instance's claim runs out", "no wait is answered", move || {
@@ -343,43 +383,50 @@ pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime,
     })
     .await
     {
-        Ok(wait) => wait,
+        Ok(wait) => Ok(wait),
         Err(said) => {
             refused(said.as_str());
-            None
+            Err(said)
         }
     };
 }
 
 /// What:
 ///  Take back the claims of records whose holder stopped renewing them,
-/// and leave a notice for the person about each record given up on.
+/// and leave a notice for the person about each record given up on,
+///  answering whether the step ran.
 /// Why:
 ///   It lists the claim names and the states and moves records,
 /// which is storage;
 /// a lookup of the person's notice is written from
 ///  inside the same step (`SkipNotice`),
 /// so the words of a place that could not be reached are said where they are learned.
+///  The answer is the same one the claim step gives the round:
+/// a step that got no place claimed nothing,
+///  and every pending record of this directory then waits for a wake nothing sends unless the round names its own pause.
+///  It takes the ceiling the claim steps take, which is `AFTER_COMMIT_STATE_CEILING` unless a control states another,
+/// because taking a claim back is one of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await requeueExpiredAwaiting(workDir, gitDir, now, lease)
+/// const ran = await requeueExpiredAwaiting(workDir, gitDir, now, lease)
 /// ```
-pub(crate) async fn requeue_expired_awaiting(work_dir: &Path, git_dir: &Path, now: &ClaimTime, lease: Duration) {
+pub(crate) async fn requeue_expired_awaiting(work_dir: &Path, git_dir: &Path, now: &ClaimTime, lease: Duration) -> bool {
     let directory: PathBuf = work_dir.to_path_buf();
     let repository: PathBuf = git_dir.to_path_buf();
     let reading: ClaimTime = now.clone();
     // A record given up on is a notice about this repository, which the job says with its own path so nothing is lent to it.
-    match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the taking back of claims whose holder stopped renewing them", "none is taken back", move || {
+    return match a_storage_step_awaited_no_longer_than(the_claim_steps_ceiling(), "the taking back of claims whose holder stopped renewing them", "none is taken back", move || {
         let _recovered: Recovered = requeue_expired_reporting_telling(directory.as_path(), &reading, lease, MAX_TRIES, &SkipNotice(repository.as_path()));
     })
     .await
     {
-        Ok(()) => {}
+        Ok(()) => true,
         Err(said) => {
             refused(said.as_str());
+            false
         }
-    }
+    };
 }
 
 /// What:

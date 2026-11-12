@@ -287,7 +287,8 @@ fn stage_container_name(stage_root: &Path) -> String {
 /// as its kind requires.
 /// Why:
 ///   Directories are created private and changed later;
-/// links are recreated with their exact target text.
+/// links are recreated with the target text the stage holds,
+/// which the copy wrote for the place the link occupies rather than for the stage's own depth.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

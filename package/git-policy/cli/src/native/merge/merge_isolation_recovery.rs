@@ -26,13 +26,13 @@ pub use crate::merge_isolation_recovery_steps::{
 #[cfg(test)]
 use crate::merge_isolation_recovery_steps::{finish_asides, merge_changes};
 use crate::merge_isolation_recovery_cleanup::{
-    a_landed_merge_in_another_branchs_worktree, drop_record, drop_side_ref_awaiting, edits_on_the_merges_own_paths,
-    no_commit_names_the_merges_parent, staged_work_on_the_merges_paths,
+    a_landed_merge_in_another_branchs_worktree, edits_on_the_merges_own_paths, no_commit_names_the_merges_parent,
+    staged_work_on_the_merges_paths,
 };
 /// The person's own work a merge carries,
 /// in the file that carries it.
 use crate::merge_isolation_recovery_carry::{
-    carry_the_capture_awaiting, carry_onto_awaiting, drop_capture_awaiting, restore_the_capture_awaiting,
+    SideRef, carry_the_capture_awaiting, carry_onto_awaiting, drop_the_records_refs_then_the_record_or_say, restore_the_capture_awaiting,
 };
 /// Running Git for the ancestry question,
 /// on the runtime the caller runs on.
@@ -157,11 +157,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
             if !carry_the_capture_awaiting(place, root, intent, landed.as_slice(), out).await? {
                 return Ok(MergeRecoveryAction::IndexHeld);
             }
-            if let Err(error) = drop_record_and_side_ref_awaiting(place, root, record, intent).await {
-                // The branch already names this merge, so a refusal here reports it as installed.
-                return Err(MergeRefusal { error, began: true });
-            }
-            drop_capture_awaiting(place, root, intent).await;
+            drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, true, out).await?;
             return Ok(MergeRecoveryAction::AlreadyLanded);
         }
         Some(_moved) => {}
@@ -239,10 +235,9 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
             if !restore_the_capture_awaiting(place, root, intent, out).await? {
                 return Ok(MergeRecoveryAction::IndexHeld);
             }
-            if let Err(error) = drop_record(record) {
-                return Err(MergeRefusal { error, began });
-            }
-            drop_capture_awaiting(place, root, intent).await;
+            // The person's bytes are back, and the ref that kept them goes before the record that names it, so a deletion another
+            //  command's lock blocked is retried by the next command instead of leaving a name nothing removes.
+            drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, began, out).await?;
             return Ok(MergeRecoveryAction::Discarded);
         }
         return Err(MergeRefusal {
@@ -271,11 +266,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                 if !carry_onto_awaiting(place, root, intent, head, intent.target_ref.as_deref().unwrap_or("HEAD"), out).await? {
                     return Ok(MergeRecoveryAction::IndexHeld);
                 }
-                if let Err(error) = drop_record(record) {
-                    return Err(MergeRefusal { error, began });
-                }
-                drop_side_ref_awaiting(place, root, intent).await;
-                drop_capture_awaiting(place, root, intent).await;
+                drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, began, out).await?;
                 return Ok(MergeRecoveryAction::AlreadyLanded);
             }
             if intent.side_ref.is_some() {
@@ -301,18 +292,18 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                 if !restore_the_capture_awaiting(place, root, intent, out).await? {
                     return Ok(MergeRecoveryAction::IndexHeld);
                 }
-                if let Err(error) = drop_record(record) {
-                    return Err(MergeRefusal { error, began });
-                }
-                drop_capture_awaiting(place, root, intent).await;
+                // The side ref stays: it is the only name that still keeps the merge's commit reachable, and the line says so.
+                drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Keep, began, out).await?;
                 return Ok(MergeRecoveryAction::SavedBranchMoved);
             }
-            let action: MergeRecoveryAction = settle_moved_branch_awaiting(place, record, intent, head, false, out).await?;
+            let action: MergeRecoveryAction = settle_moved_branch_awaiting(place, record, intent, head, true, out).await?;
             if action == MergeRecoveryAction::BranchMoved {
-                drop_side_ref_awaiting(place, root, intent).await;
-                if restore_the_capture_awaiting(place, root, intent, out).await? {
-                    drop_capture_awaiting(place, root, intent).await;
+                // The person's bytes come back before the ref that keeps them goes, and the record that names both goes last, so a
+                //  deletion another command's lock blocked is retried by the next command.
+                if !restore_the_capture_awaiting(place, root, intent, out).await? {
+                    return Ok(MergeRecoveryAction::IndexHeld);
                 }
+                drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, true, out).await?;
             }
             return Ok(action);
         }
@@ -325,10 +316,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
         if !restore_the_capture_awaiting(place, root, intent, out).await? {
             return Ok(MergeRecoveryAction::IndexHeld);
         }
-        if let Err(error) = drop_record_and_side_ref_awaiting(place, root, record, intent).await {
-            return Err(MergeRefusal { error, began });
-        }
-        drop_capture_awaiting(place, root, intent).await;
+        drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, began, out).await?;
         return Ok(MergeRecoveryAction::Discarded);
     }
     let mut foreign: Vec<String> = Vec::new();
@@ -385,8 +373,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     if !carry_the_capture_awaiting(place, root, intent, written.as_slice(), out).await? {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
-    drop_record_and_side_ref_awaiting(place, root, record, intent).await.map_err(partly_installed)?;
-    drop_capture_awaiting(place, root, intent).await;
+    drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, true, out).await?;
     return Ok(MergeRecoveryAction::Completed);
 }
 

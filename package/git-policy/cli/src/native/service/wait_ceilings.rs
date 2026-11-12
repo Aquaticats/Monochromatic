@@ -59,6 +59,23 @@ pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
 /// One minute is 58 times that.
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
+/// The longest a service waits for the build of its own multi-thread runtime,
+/// once that build has outlasted `BUILD_DEADLINE`,
+/// before it ends and lets the service manager start it again.
+///  Why it is `START_CEILING`:
+/// the greeting of a connection waits behind that build,
+/// so this wait is inside the time a client gives the service's start.
+/// A service that ended sooner would end a start the person's commit is still waiting for,
+/// which is how a working runtime that arrived 1.76 s after `ready` cost a commit its service
+/// (the gate of 2026-11-11T10:29-05:00,
+/// `fault_trace::a_service_killed_at_each_ftruncate_leaves_a_recoverable_repository`),
+/// and one that waited longer would serve a client that has already given up.
+///  Measured:
+/// a build of the runtime takes 0.3 to 0.5 ms when it works,
+/// and the slowest of 52 cold starts greeted in 1,041 ms,
+/// so one minute is far from any ordinary slow start.
+pub const RUNTIME_BUILD_PATIENCE: Duration = START_CEILING;
+
 /// The longest a command waits for the greeting of a service it only has to tell about work whose record it has
 /// already written:
 /// the trash an add sets aside,
@@ -1061,28 +1078,6 @@ pub const WARNING_WRITE_CEILING: Duration = Duration::from_millis(250);
 /// so 5 s is about 14,000 times the median and 6,300 times the
 ///  slowest of them.
 pub const REPORT_SCAN_CEILING: Duration = Duration::from_secs(5);
-
-/// The longest a `git worktree add` waits for the snapshot the commit service makes ahead of it.
-///  The ceiling covers the whole wait,
-/// not one look:
-/// the add asks the service for a snapshot,
-///  looks for what it published,
-/// and ends the snapshot rung when this passes so that Git's own checkout makes the
-///  worktree.
-///  Measured on this volume,
-/// the 473 adds of this repository's own add timing log to
-///  2026-11-11T01:53:18.713Z spent 5,413.0 ms in the snapshot ioctl at the median,
-///  15,238.4 ms at the
-///  ninetieth percentile and 39,828.5 ms at the worst (402 of them recorded that step),
-/// so 1.5 times the
-///  worst measured call is about an hour of this volume's worst traffic,
-/// and it is the owner's own bound for an add:
-///  "60s is fine for adding worktrees".
-/// A wait that reaches it costs the add Git's own checkout of the tree,
-/// which
-///  is what a worktree add does on any filesystem that cannot snapshot,
-/// and the command says why it took that route.
-pub const SNAPSHOT_AHEAD_CEILING: Duration = Duration::from_secs(60);
 
 /// The ceilings are derived and checked as controls in the test module.
 #[cfg(test)]

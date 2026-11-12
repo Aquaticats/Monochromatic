@@ -801,6 +801,12 @@ pub fn finish_owed_worktree_copies(
         if crate::worktree_copy_swapped_add_settlement::is_a_completed_exchange(claim.as_path(), add.container.as_path())? {
             continue;
         }
+        // The same answer where a kill removed the record of the object the stage's creation made before this
+        // command read the claim: the completion marker is the add's own record that it finished, so the file to
+        // copy is already in the worktree and no command may name it missing.
+        if crate::worktree_copy_interrupted_add_settlement::the_add_finished(claim.as_path()) {
+            continue;
+        }
         // The copy fills one worktree, and the command that runs in it is the one that waits: a command in another
         // worktree does not pay for the source's ignored state, and is told which worktree does.
         if !crate::worktree_copy_recovery::finishes_destination(destinations, add.destination.as_path()) {
