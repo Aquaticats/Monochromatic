@@ -170,6 +170,27 @@ the shadow pool claim proposal ended (`docs/git-policy-cli-shadow-pool-claim-ren
 (22 claims over 100 ms, 3 over 2 s, the largest 5,623 ms with 5,606 ms in the rename), and it ranks
 the service handing out a drawn tree first, a mark renamed inside the member second, a smaller skeleton third, nothing fourth;
 its three questions go to the owner through the question tool.
+
+The owner's answer, 2026-11-11T19:12-05:00, through the question tool, to "Who should do the rename?"
+(options: the service hands out a tree, a mark inside the member, leave it as it is):
+"Service hands out a tree (Recommended)".
+So the commit service renames a pool member into place ahead of time and hands the commit its path,
+and the commit still runs every check on the tree it is handed (the record's option A, checked form).
+The record's other two questions were picked under the owner's delegation of non-destructive choices, open to veto:
+every check the claim makes stays (options C and D, the claim trusting the fill, are not taken:
+the saving is 0.82 ms at the median and the tail does not move);
+and the smaller skeleton with one listing (option E) is built if its probe passes
+(Git and `write_shadow_refs` in a shadow without `objects/pack`, `refs/heads` and `refs/tags`), since it changes no guarantee.
+Round 237 builds all of it (`perf/git-policy-cli-commit-service-hands-a-commit-its-shadow`,
+on `integrate/git-policy-cli-pass-14-for-alpha-11`, brief `commit-service-hands-a-commit-its-shadow-prompt.md`).
+
+A defect in the same code, seen on the handover commit of 19:09 (installed 0.6.1-alpha.10):
+`[shadowPool] refused the pooled shadow member-...: the shared entry monochromatic-git-policy-cli-commit-timing.jsonl.7 is not in the member`.
+A rotated generation of the wrapper's own timing log, appearing after a member was filled, got that member refused
+(`src/native/shadow/shadow_pool_member.rs`).
+Whether every member filled before a rotation is refused, and what a refusal costs the commit, is not measured;
+round 237's brief carries it: the wrapper writing its own log must never spend the pool.
+
 The three qwen reviews are being scored against Kimi's and the fix agents' verdicts by a Claude Code native subagent
 (result in `~/temp/agent/qwen-trials/review-trial-scoring.md`).
 The 600 s quiet window of an add's inline package repair against "60s is fine for adding worktrees"
