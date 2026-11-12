@@ -221,6 +221,36 @@ pub enum Enqueued {
 }
 
 /// What:
+/// What:
+///  Whether this text is a record written by a release later than this one:
+///  a version above this build's,
+///  or a kind this build does not know.
+/// Why:
+///  A queue outlives the program that writes to it,
+///  and every release of this program shares one queue per Git directory.
+///  A record a later release queued must be left for that release,
+///  and a service that settled it in `failed` would take away work nothing ever reads again
+///  (`take_entry`).
+///  Only the two fields that say how to read the record are asked,
+///  so a record of a kind this build knows and a field it does not is still this build's work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const later = (text) => { const value = JSON.parse(text); return value.v > VERSION || !WorkKind.fromName(value.kind) };
+/// ```
+pub(crate) fn record_of_a_later_release(text: &str) -> bool {
+    let Ok(value) = serde_json::from_str::<Value>(text) else { return false };
+    if let Some(version) = value.get("v").and_then(Value::as_u64)
+        && version > VERSION
+    {
+        return true;
+    }
+    return match value.get("kind").and_then(Value::as_str) {
+        Some(name) => WorkKind::from_name(name).is_none(),
+        None => false,
+    };
+}
+
 ///  A named field of a work record as text.
 /// Why:
 ///  `WorkItem::decode` reads every text field of the record,
@@ -541,6 +571,12 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
     };
     // An id that is not a kind and what that kind names could make names that do not fit; it never becomes a claim.
     if !crate::work_item_ids_and_names::is_id_suffix(kind, &id[kind.name().len() + 1..]) {
+        // A later release may add a kind whose name begins with one this build knows, and its record is that release's.
+        let queued: PathBuf = state_directory(work_dir, PENDING).join(id);
+        if left_for_a_later_release(queued.as_path()) {
+            log(format!("the queued entry {id:?} is a record of a later release, so it is left for that release").as_str());
+            return Ok(None);
+        }
         quarantine_pending(
             work_dir,
             id,
@@ -592,9 +628,36 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
         // a record of other work would be settled as done under this id.
         Ok(item) if item.id() == id || item.id_before_the_branch() == id => Ok(Some(Claimed { id: id.to_owned(), name, item })),
         _ => {
+            // A record of a kind or a version this build does not know is a later release's, and it is queued again for
+            // that release rather than settled in `failed`, where nothing reads it again.
+            if left_for_a_later_release(claimed_path.as_path()) {
+                log(format!("the claim of {id} is a record of a later release, so it is queued again for that release").as_str());
+                let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, PENDING).join(id));
+                return Ok(None);
+            }
             let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, FAILED).join(id));
             Ok(None)
         }
+    };
+}
+
+/// What:
+///  Whether the record at `path` was written by a release later than this one.
+/// Why:
+///  The answer decides whether a consumer settles the record in `failed`,
+///  where nothing reads it again,
+///  or leaves it for the release that wrote it.
+///  A file that cannot be read is no later release's record:
+///  the consumer's own quarantine is what an unreadable file answers to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const later = (path) => recordOfALaterRelease(readFileSync(path, 'utf8'));
+/// ```
+fn left_for_a_later_release(path: &Path) -> bool {
+    return match std::fs::read_to_string(path) {
+        Ok(text) => record_of_a_later_release(text.as_str()),
+        Err(_unreadable) => false,
     };
 }
 

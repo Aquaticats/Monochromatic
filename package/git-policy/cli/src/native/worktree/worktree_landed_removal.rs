@@ -460,6 +460,22 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
             return sweep;
         }
     };
+    // A service that does not answer costs this merge one wait and not one per candidate: the record is what outlives
+    // the command, and every later command of the repository wakes the same service
+    // (`HAND_OVER_GREETING_WAIT`, `wait_ceilings.rs`). A branch named for a merge that never waits on a removal had the
+    // merge wait about two seconds for each of four candidates against a stopped service
+    // (an audit of the release changeover, finding 7).
+    let wake_failed: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
+    let told = |context: &GitContext, git_dir: &Path| -> Result<(), String> {
+        if let Some(earlier) = wake_failed.borrow().as_ref() {
+            return Err(earlier.clone());
+        }
+        let answer: Result<(), String> = (place.told)(context, git_dir);
+        if let Err(reason) = &answer {
+            *wake_failed.borrow_mut() = Some(reason.clone());
+        }
+        return answer;
+    };
     for one in &registered {
         if !candidates.contains(one.branch.as_str()) || place.current_root == Some(one.worktree.as_path()) {
             continue;
@@ -469,7 +485,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         if !place.registered_before.holds(one) {
             continue;
         }
-        match examine_and_remove(place, one, registered.as_slice()) {
+        match examine_and_remove(place, &told, one, registered.as_slice()) {
             Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
             Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report }),
             Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report }),
@@ -530,7 +546,7 @@ enum Attempt {
 /// ```ts
 /// removeHereOrHandOver(place, registration) // an Attempt: removed here, handed to the service, or kept with its reason
 /// ```
-fn remove_here_or_hand_over(place: &LandedPlace<'_>, one: &Registration) -> Attempt {
+fn remove_here_or_hand_over(place: &LandedPlace<'_>, told: &dyn Fn(&GitContext, &Path) -> Result<(), String>, one: &Registration) -> Attempt {
     let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
     let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
     match remove_subvolume_worktree(&request) {
@@ -542,7 +558,7 @@ fn remove_here_or_hand_over(place: &LandedPlace<'_>, one: &Registration) -> Atte
         RemoveOutcome::Refused(report) => return Attempt::Refused(report),
         RemoveOutcome::LeftToGit => {}
     }
-    let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.current_root, place.told) {
+    let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.current_root, told) {
         Ok(record) => record,
         Err(reason) => return Attempt::Kept(reason),
     };
@@ -592,7 +608,7 @@ enum Examined {
 /// ```ts
 /// examineAndRemove(place, registration, registered)
 /// ```
-fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &[Registration]) -> Examined {
+fn examine_and_remove(place: &LandedPlace<'_>, told: &dyn Fn(&GitContext, &Path) -> Result<(), String>, one: &Registration, registered: &[Registration]) -> Examined {
     if !added_by_the_wrapper(one.admin.as_path(), one.worktree.as_path()) {
         return Examined::Unproven;
     }
@@ -609,7 +625,7 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
     if let Some(why) = why_the_worktree_stays(&look, one.worktree.as_path(), one.admin.as_path()) {
         return Examined::Kept(why);
     }
-    let removal: Attempt = remove_here_or_hand_over(place, one);
+    let removal: Attempt = remove_here_or_hand_over(place, told, one);
     if matches!(removal, Attempt::Removed) {
         // A pool names the worktree it serves in every member's config and sits in the common Git directory, which no
         // removal deletes, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).

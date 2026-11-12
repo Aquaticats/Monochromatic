@@ -11,6 +11,7 @@ use crate::service_work::Verdict;
 use crate::shadow_pool::pool_root_for;
 use crate::test_support::{fixture, git_context, remove};
 use crate::worktree_remove::{Held, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
+use crate::worktree_remove_hand_over as test_support;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::work_item::WorkKind;
 
@@ -873,5 +874,167 @@ fn a_record_of_a_removal_whose_worktree_is_gone_removes_nothing_at_the_path_it_n
     );
     assert!(linked.worktree.is_dir(), "the new worktree stays");
     assert_eq!(std::fs::read(written.as_path()).expect("the ignored file is still there"), b"the new worktree's own ignored state\n");
+    remove(linked.root.as_path());
+}
+
+/// The work directory of one repository's queue.
+fn work_of(common: &Path) -> PathBuf {
+    return crate::service_work::work_directory(common);
+}
+
+/// Write a record into one state of the queue,
+/// as a producer or a settled attempt leaves it.
+fn put_a_record(common: &Path, state: &str, item: &WorkItem) {
+    let directory: PathBuf = work_of(common).join(state);
+    crate::private_storage::create_private_directory_all(directory.as_path()).expect("the state directory");
+    std::fs::write(directory.join(item.id()).as_path(), item.encode().as_bytes()).expect("the record");
+}
+
+/// What:
+///  A whole-worktree removal that a commit service of an earlier release refused is queued once more,
+///  said on the command,
+///  and never queued a third time.
+/// Why:
+///  The record carries the kind `subvolume-delete` and a digest in `oid`,
+///  and a service of the release before this one reads that field as a subvolume number and fails the record.
+///  Nothing reads `failed` again,
+///  so the landed worktree would stay for ever with nothing said about it
+///  (an audit of the release changeover,
+///  finding 2).
+#[test]
+fn a_removal_an_earlier_service_refused_is_queued_once_more() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-refused-by-an-earlier-service");
+    // What the release before this one left: the record it queued, with no identity beside the registration, settled in
+    // `failed` by a service that read its `oid` as a subvolume number.
+    let item: WorkItem = worktree_removal_item(linked.common.as_path(), linked.worktree.as_path(), linked.common.join("worktrees/topic").as_path());
+    put_a_record(linked.common.as_path(), "failed", &item);
+    let said: Vec<String> = requeue_removals_an_earlier_release_refused(linked.common.as_path());
+    assert_eq!(said.len(), 1, "the person is told once: {said:?}");
+    assert!(said[0].contains(linked.worktree.display().to_string().as_str()), "the line names the worktree: {said:?}");
+    let queued: PathBuf = work_of(linked.common.as_path()).join("pending").join(item.id());
+    assert!(queued.is_file(), "the record is queued again: {}", queued.display());
+    assert!(!work_of(linked.common.as_path()).join("failed").join(item.id()).exists(), "and it is no longer failed");
+    let again: WorkItem = WorkItem::decode(std::fs::read_to_string(queued.as_path()).expect("the queued record").as_str()).expect("a record this release reads");
+    assert_eq!(again.tries, 1, "the record says it has had the one attempt it was owed");
+    assert!(requeue_removals_an_earlier_release_refused(linked.common.as_path()).is_empty(), "a removal is queued once more once");
+    // What the service that reads it now does with it: removes it, as this release's reader can.
+    assert_eq!(delete_subvolume_of(&again), Verdict::Done, "this release's service removes the worktree");
+    assert!(!linked.worktree.exists(), "the worktree the merge landed is gone");
+    remove(linked.root.as_path());
+}
+
+/// What:
+///  A refused removal whose worktree is already gone is not queued again,
+///  and neither is a record that is not a whole-worktree removal.
+/// Why:
+///  Queuing work that has nothing left to do costs a service round and says nothing to anyone,
+///  and a refused push is a record its own settlement already reported.
+#[test]
+fn a_refused_record_with_nothing_left_to_do_is_left_where_it_is() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-refused-nothing-to-do");
+    let item: WorkItem = worktree_removal_item(linked.common.as_path(), linked.worktree.as_path(), linked.common.join("worktrees/topic").as_path());
+    // The worktree the record named is gone, as a person removing it by hand leaves it.
+    crate::test_support::git(linked.repo_root().as_path(), &["worktree", "remove", "--force", linked.worktree.to_str().expect("utf8")]);
+    put_a_record(linked.common.as_path(), "failed", &item);
+    assert!(requeue_removals_an_earlier_release_refused(linked.common.as_path()).is_empty(), "a worktree that is gone is nothing to queue");
+    assert!(!work_of(linked.common.as_path()).join("pending").join(item.id()).exists(), "nothing was queued");
+    remove(linked.root.as_path());
+}
+
+/// What:
+///  A record of a kind or a version this release does not know stays queued for the release that wrote it.
+/// Why:
+///  The queue is shared by every release of this program for one Git directory,
+///  and the changeover between two releases is a matter of hours here.
+///  A consumer that settled a record it cannot read in `failed` took away work nothing reads again,
+///  which is what an earlier release's service did to this release's removals
+///  (an audit of the release changeover,
+///  finding 2).
+#[test]
+fn a_record_of_a_later_release_is_left_queued_for_it() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-a-later-release");
+    let work: PathBuf = work_of(linked.common.as_path());
+    let tracked: String = crate::test_support::git_text(linked.repo_root().as_path(), &["rev-parse", "HEAD"]);
+    // A record of a kind this build does not know, under an id whose shape it does.
+    let unknown_kind: String = format!(
+        "{{\"v\":1,\"tries\":0,\"kind\":\"a kind a later release added\",\"id\":\"review-{tracked}\",\"repository\":\"{}\",\"gitDir\":\"{}\",\"ref\":\"refs/heads/main\",\"oid\":\"{tracked}\",\"parent\":\"\",\"created\":\"2026-11-01T00:00:00.000Z\"}}\n",
+        linked.repo_root().display(),
+        linked.common.display()
+    );
+    let newer_version: String = format!(
+        "{{\"v\":9,\"tries\":0,\"kind\":\"review\",\"id\":\"review-{tracked}\",\"repository\":\"{}\",\"gitDir\":\"{}\",\"ref\":\"refs/heads/main\",\"oid\":\"{tracked}\",\"parent\":\"\",\"created\":\"2026-11-01T00:00:00.000Z\"}}\n",
+        linked.repo_root().display(),
+        linked.common.display()
+    );
+    let by_kind: PathBuf = work.join("pending").join(format!("review-{tracked}"));
+    std::fs::create_dir_all(by_kind.parent().expect("the pending directory")).expect("the pending directory");
+    std::fs::write(by_kind.as_path(), unknown_kind.as_bytes()).expect("a record of a kind this build does not know");
+    assert!(crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read()).expect("a claim finds nothing to take").is_none(), "a kind this build does not know is no work of its own");
+    assert!(by_kind.is_file(), "the record is left for the release that wrote it");
+    assert!(!work.join("failed").join(format!("review-{tracked}")).exists(), "and it is not settled in failed");
+    std::fs::remove_file(by_kind.as_path()).expect("the kind control gives its name back");
+    std::fs::write(by_kind.as_path(), newer_version.as_bytes()).expect("a record of a version this build does not know");
+    assert!(crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read()).expect("a claim finds nothing to take").is_none(), "a version this build does not know is no work of its own");
+    assert!(by_kind.is_file(), "the record is left for the release that wrote it");
+    assert!(!work.join("failed").join(format!("review-{tracked}")).exists(), "and it is not settled in failed");
+    // A record that is no record at all is still settled where nothing reads it again.
+    std::fs::write(by_kind.as_path(), b"this is not a record\n").expect("a file that is no record");
+    assert!(crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read()).expect("a claim finds nothing to take").is_none(), "a file that is no record is no work");
+    assert!(work.join("failed").join(format!("review-{tracked}")).is_file(), "a file that is no record is settled in failed");
+    remove(linked.root.as_path());
+}
+
+/// What:
+///  A removal a kill cut short is finished by the next attempt,
+///  and one that a person's file would go with is kept and said.
+/// Why:
+///  Git deletes a worktree's files one by one,
+///  so a service killed in the middle leaves tracked files gone while the registration and the ignored state stay,
+///  and Git then reads that tree as changed and refuses it.
+///  Without the record that says this removal began,
+///  the next attempt settled the record as failed and the half-deleted worktree stayed for good,
+///  with the command the notice promises failing on a `.git` that was not there
+///  (an audit of the release changeover,
+///  finding 3).
+#[test]
+fn a_removal_a_kill_cut_short_is_finished_by_the_next_attempt() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-killed");
+    let item: WorkItem = handed_over(&linked, None);
+    let admin: PathBuf = linked.common.join("worktrees").join("topic");
+    // The state a service killed inside `git worktree remove` leaves: the record of a begun removal, and the tracked
+    // files Git had already deleted.
+    test_support::record_begun(linked.common.as_path(), item.id().as_str(), test_support::identity_standing_there(linked.worktree.as_path(), admin.as_path()).as_str());
+    std::fs::remove_file(linked.worktree.join("tracked.txt").as_path()).expect("a tracked file Git's own removal deleted before the kill");
+    assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the next attempt finishes this program's own half-done removal");
+    assert!(!linked.worktree.exists(), "the worktree is gone");
+    assert!(!linked.common.join(super::BEGUN_FOLDER).join(item.id()).exists(), "and the record of the beginning goes with it");
+    remove(linked.root.as_path());
+}
+
+/// What:
+///  A removal a kill cut short is not finished when the half-deleted worktree now holds a file Git would keep.
+/// Why:
+///  `--force` is what finishes the half-deleted tree,
+///  and `--force` deletes what Git would keep:
+///  a file the person wrote there after the kill keeps the worktree,
+///  and the reason names the started removal.
+#[test]
+fn a_half_deleted_worktree_holding_a_persons_file_is_kept_and_said() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-killed-with-a-file");
+    let item: WorkItem = handed_over(&linked, None);
+    let admin: PathBuf = linked.common.join("worktrees").join("topic");
+    test_support::record_begun(linked.common.as_path(), item.id().as_str(), test_support::identity_standing_there(linked.worktree.as_path(), admin.as_path()).as_str());
+    std::fs::remove_file(linked.worktree.join("tracked.txt").as_path()).expect("a tracked file Git's own removal deleted before the kill");
+    let theirs: PathBuf = linked.worktree.join("notes.txt");
+    std::fs::write(theirs.as_path(), b"what the person wrote after the kill\n").expect("a file the person wrote there");
+    let verdict: Verdict = delete_subvolume_of(&item);
+    assert!(
+        matches!(&verdict, Verdict::Failed(words) if words.contains("began and a kill cut it short")),
+        "the worktree stays and the reason names the started removal: {verdict:?}"
+    );
+    assert_eq!(std::fs::read(theirs.as_path()).expect("the file is still there"), b"what the person wrote after the kill\n");
+    let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
+    assert_eq!(texts.len(), 1, "the person is told once: {texts:?}");
+    assert!(texts[0].contains("began and a kill cut it short"), "the notice says why: {texts:?}");
     remove(linked.root.as_path());
 }

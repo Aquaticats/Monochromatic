@@ -180,7 +180,7 @@ fn a_worktree_with_no_compared_worktree_stays_on_the_second_look() {
     let look: SecondLook<'_> = SecondLook { context: &context, common_dir: fixture.common.as_path(), proc_root: empty.as_path(), source: None };
     let why: Option<String> = why_the_worktree_stays(&look, fixture.worktree.as_path(), fixture.admin().as_path());
     assert!(
-        matches!(why, Some(said) if said.contains("without a worktree")),
+        matches!(&why, Some(said) if said.contains("without a worktree")),
         "nothing proves the ignored files are not the person's: {why:?}"
     );
 }

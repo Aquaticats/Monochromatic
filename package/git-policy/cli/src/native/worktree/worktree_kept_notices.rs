@@ -151,20 +151,6 @@ pub fn record_kept_worktree(common_dir: &Path, worktree: &Path, branch: &str, wh
     };
 }
 
-/// One record as a command holds it before it shows it.
-struct Record {
-    /// The record's own name,
-    /// where a notice whose words could not be written goes back.
-    record: PathBuf,
-    /// The worktree the record is about.
-    worktree: PathBuf,
-    /// The branch it had checked out,
-    /// as the record holds it.
-    branch: String,
-    /// The reason it was kept.
-    why: String,
-}
-
 /// What:
 ///  The record's parts,
 ///  or nothing when the file is not one this release wrote.
@@ -237,12 +223,29 @@ pub fn kept_worktree_notices(common_dir: &Path) -> Vec<Notice> {
         if !name.ends_with(RECORD_SUFFIX) {
             continue;
         }
+        // The record is read before it is claimed, so a file this program did not write is neither shown nor moved:
+        // renaming it first and finding it unreadable would take something of the person's out of its own name.
+        let Some((worktree, branch, why)) = parsed_file(path.as_path()) else { continue };
         let Some(claimed) = claim(path.as_path(), &token) else { continue };
-        if let Some(notice) = notice_at(claimed.as_path()) {
-            notices.push(notice);
-        }
+        notices.push(Notice { record: path, claim: claimed, text: words_of(worktree.as_path(), branch.as_str(), why.as_str()) });
     }
     return notices;
+}
+
+/// What:
+///  The parts of the record at `path`,
+///  or nothing when it is not one this release wrote.
+/// Why:
+///   A reader that moved the file first and found it unreadable would take a person's file out of its own name,
+///  so the reading comes first and the claim after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const parsed = parsedFile(path); // [worktree, branch, why] | undefined
+/// ```
+fn parsed_file(path: &Path) -> Option<(PathBuf, String, String)> {
+    let text: String = std::fs::read_to_string(path).ok()?;
+    return parse_record(text.as_str());
 }
 
 /// What:

@@ -3055,7 +3055,41 @@ A worktree whose branch a merge landed is removed by those same routes,
  and a record whose words could not be written stays for the next command,
  exactly as a failed push's record does.
  A command whose output a program reads shows none of them and takes none.
- Nothing about a worktree added inside a landed one is promised after that last reading:
+ A record identifies one worktree and not a path.
+ The hand-over writes, beside the registration, the device and the inode of the registration and of the worktree root,
+ and the service compares them with the two directories standing there before it removes anything;
+ a worktree a person removed and added again at the same path is two other directories,
+ and the earlier record then removes nothing and settles as one whose worktree is gone,
+ with a line in the service's journal.
+ A record whose hand-over wrote no such identity,
+ which is every record an earlier release queued,
+ is compared with the name it was keyed by:
+ a match proves the registration is untouched since the hand-over,
+ and a mismatch leaves the worktree and names it.
+ The worktree the ignored files were compared with is written beside the registration as well
+ (the file `monochromatic-git-policy-cli-removal-compared-with`):
+ no command of the merge is there any more to name it,
+ and the record has no field for either fact without changing a shape another release parses.
+A queue outlives the program that writes to it,
+ and every release of this program shares one queue for one Git directory,
+ so a consumer leaves a record it cannot read for the release that wrote it:
+ a kind this build does not know,
+ and a version above this build's,
+ are left in `pending` and looked at again,
+ which is one read per record per round;
+ a field this build does not know is ignored, and the record is this build's work when its kind and version are;
+ and a record that is not a record at all, which no release can ever read, is settled in `failed`
+ (`record_of_a_later_release` in `src/native/landing/work_item.rs`).
+ A whole-worktree removal that a commit service of an earlier release refused is queued once more by the next command
+ of the repository,
+ with a line that names the worktree:
+ that service reads the record's `oid` as a subvolume number,
+ answers a failure,
+ and nothing reads `failed` again,
+ so the landed worktree stayed for ever and nothing said so.
+ The second attempt is marked in the record itself, through the attempt count it already carries,
+ so a removal Git refuses again is not queued by every later command.
+Nothing about a worktree added inside a landed one is promised after that last reading:
  a worktree registered,
  a lock taken,
  an operation started or an ignored file written between it and Git's deletion or the subvolume destroy goes with

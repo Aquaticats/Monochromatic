@@ -1150,8 +1150,9 @@ Every other case is real `git worktree remove`,
 That removal never runs on the merge's own thread:
  the merge records it for the commit service of the worktree it ran in,
  and the line it prints names the record,
- where `done` means the worktree is gone and `failed` means Git kept it,
- with Git's own sentence in the service's journal.
+ where `done` means the worktree is gone and `failed` means it was kept,
+ with the reason on the standard error of your next command in that repository,
+ and Git's own sentence in the service's journal.
 Either way,
  **the branch is kept**,
  and so is every commit on it;

@@ -1150,7 +1150,7 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
     let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = an_empty_process_table(&landed);
     let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
-    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
+    let examined: Examined = examine_and_remove(&place, &no_service_answers, &outer, registered.as_slice());
     assert_eq!(
         std::fs::read(changed.as_path()).expect("the changed file is still there"),
         b"# the fixture, edited in the nested worktree\n",
@@ -1204,7 +1204,7 @@ fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
     let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = an_empty_process_table(&landed);
     let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
-    let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
+    let examined: Examined = examine_and_remove(&place, &no_service_answers, &outer, registered.as_slice());
     // The removal is Git's own read of every tracked file of the worktree, so the sweep records it and returns, and the
     //  service's call is where the worktree goes. The snapshot of the records it holds is taken before that record is
     //  written, which is what carries the failure recorded here.
@@ -1415,4 +1415,56 @@ fn a_repository_with_a_subvolume_worktree(name: &str) -> Option<Landed> {
     git(worktree.as_path(), &["update-index", "--refresh"]);
     let common: PathBuf = main.join(".git");
     return Some(Landed { root, main, common, worktree });
+}
+
+/// What:
+///  A merge whose service does not answer tells that service once and hands the rest of the candidates over without
+///  waiting for it again.
+/// Why:
+///  Every hand-over waits `HAND_OVER_GREETING_WAIT` for the service's greeting,
+///  and a merge with four candidates against a stopped service took about two seconds each,
+///  which is a merge waiting on a removal
+///  (an audit of the release changeover,
+///  finding 7).
+///  The record is what outlives the command,
+///  and every later command of the repository wakes the same service,
+///  so one failed wake says what the rest would say.
+#[test]
+fn a_merge_whose_service_does_not_answer_tells_it_once() {
+    let landed: Landed = a_repository_with_a_worktree("landed-service-silent");
+    // A second worktree whose branch this one merge lands too, so the sweep has two candidates to hand over.
+    let other: PathBuf = landed.root.join("second");
+    git(landed.main.as_path(), &["worktree", "add", "--quiet", "-b", "second", other.to_str().expect("a UTF-8 fixture path")]);
+    let work: PathBuf = other.join("second.md");
+    std::fs::write(work.as_path(), b"the second branch's work\n").expect("a file the second branch commits");
+    age(work.as_path());
+    git(other.as_path(), &["add", "--", "second.md"]);
+    git(other.as_path(), &["commit", "--quiet", "--message=the second branch's work"]);
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let second: PathBuf = std::fs::canonicalize(other.as_path()).expect("the second worktree's real path");
+    record(landed.common.as_path(), second.as_path()).expect("the record of the other worktree this program made");
+    let before: String = head_of(landed.main.as_path());
+    let registered_before: RegisteredBefore = registrations_now(&landed);
+    git(landed.main.as_path(), &["merge", "--quiet", "--no-ff", "--message=land both", "feature", "second"]);
+    let after: String = head_of(landed.main.as_path());
+    let context: crate::transaction_git::GitContext = git_context();
+    let table: PathBuf = an_empty_process_table(&landed);
+    let asked: std::cell::RefCell<usize> = std::cell::RefCell::new(0);
+    let silent = |_context: &crate::transaction_git::GitContext, _git_dir: &Path| -> Result<(), String> {
+        *asked.borrow_mut() += 1;
+        return Err(String::from("no service answers here"));
+    };
+    let place: LandedPlace<'_> = LandedPlace {
+        context: &context,
+        cwd: landed.main.as_path(),
+        common_dir: landed.common.as_path(),
+        current_root: Some(landed.main.as_path()),
+        proc_root: table.as_path(),
+        registered_before: &registered_before,
+        git_dir: landed.common.as_path(),
+        told: &silent,
+    };
+    let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
+    assert_eq!(sweep.handed_over.len(), 2, "both landed worktrees wait for the commit service: {sweep:?}");
+    assert_eq!(*asked.borrow(), 1, "the merge waits for the service once and not once per candidate");
 }
