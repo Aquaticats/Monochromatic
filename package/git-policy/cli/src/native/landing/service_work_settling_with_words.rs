@@ -40,6 +40,9 @@ use std::path::Path;
 /// and the lease running out is what returns the record to `pending` with one more try
 /// (`work_item_recovery.rs`),
 /// which is the retry the answer asked for.
+///  The look that kept it answers that moment as when to look at this directory again
+/// (`service_work_drain_pending_claims.rs`),
+/// so the record is queued again and run without another request.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

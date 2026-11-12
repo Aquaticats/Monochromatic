@@ -417,8 +417,9 @@ impl crate::work_item_recovery::GivenUpNotice for SkipNotice<'_> {
 /// ```
 #[derive(Debug, Default)]
 pub struct Drained {
-    /// How long until a claim another instance holds runs out its lease,
-    /// or nothing when there is none.
+    /// How long until the caller must look at this directory again:
+    /// the pause a drain that left housekeeping for a later look asked for, or the end of the earliest claim it keeps,
+    /// or nothing when neither is left.
     pub wait: Option<Duration>,
     /// The plans and the forgets the drain asks of the retry plan,
     /// in the order they were made.

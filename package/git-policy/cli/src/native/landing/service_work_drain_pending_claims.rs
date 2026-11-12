@@ -5,6 +5,11 @@
 //! groups the pushes by branch,
 //! and runs each kind with its awaited handler,
 //!  every storage step in a job of the blocking pool.
+//!  A look first takes back the claims whose holder stopped renewing them,
+//! and it answers when to look at this directory again:
+//!  the earliest of the housekeeping it left for a later look and the end of the earliest claim still held here,
+//! so a lane that keeps a claim
+//!  (a retryable answer, or a settling step that could not run) is left with a wake for it.
 //! Inside one kind the items of different worktrees run beside each other and one worktree's items keep their turn
 //! (`service_work_items_side_by_side.rs`),
 //! and the pushes of different branches of the repository run beside each other.
@@ -38,8 +43,11 @@
 
 use super::service_work_handlers_replanning_and_acceptance::*;
 use super::service_work_settling_a_verdict::settle_after_the_push;
+use crate::claim_time::ClaimTime;
 use crate::housekeeping_of_one_round::{HousekeepingOfOneRound, LOOK_AGAIN_AFTER_DEFERRING};
-use crate::service_work_storage_awaited::{acceptable_awaiting, claim_all_awaiting, settle_all_awaiting, still_held_awaiting};
+use crate::service_work_storage_awaited::{
+    acceptable_awaiting, claim_all_awaiting, next_claim_expiry_awaiting, requeue_expired_awaiting, settle_all_awaiting, still_held_awaiting,
+};
 use crate::journald_native::Priority;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
 use crate::service_work_drain_deletes_subvolumes::delete_subvolumes_awaiting;
@@ -191,8 +199,9 @@ fn what_the_round_may_start(items: Vec<Claimed>, slice: &HousekeepingOfOneRound,
 /// as before,
 /// and the records it holds keep their lease.
 ///  A round starts housekeeping only while `housekeeping` has room,
-/// and answers how soon to look at this directory
-///  again when it left some for a later round.
+/// and answers how soon to look at this directory again:
+/// the earliest of what it left for a later look and the end of the earliest claim still held in this directory,
+///  so a claim it keeps is looked at again when its lease runs out even though no other wake names this directory.
 /// An item that has started is never interrupted:
 /// the answer says what a round may start,
 ///  not how long one step of it may last
@@ -200,11 +209,12 @@ fn what_the_round_may_start(items: Vec<Claimed>, slice: &HousekeepingOfOneRound,
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning, kinds, housekeeping) // Duration | undefined
+/// await drainPendingAwaiting(gitDir, handlers, now, lease, renewal, replanning, kinds, housekeeping) // Duration | undefined
 /// ```
 pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
+    now: &ClaimTime,
     lease: Duration,
     renewal: Renewal<'_>,
     replanning: &mut Replanning,
@@ -212,6 +222,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     housekeeping: Duration,
 ) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
+    // A claim whose holder stopped renewing it is taken back before this look claims anything, so a look taken at the end of a
+    //  claim finds the record `pending` and runs it again: the lease is what a retry waits for, and a look that did not take
+    //  the claim back would find nothing to do and answer the same wait for ever.
+    requeue_expired_awaiting(work_dir.as_path(), git_dir, now, lease).await;
     let (the_claims, renewer) = held_claims(work_dir.as_path());
     let mut held: HeldClaims = the_claims;
     // The housekeeping this round may still start, and what it left for a later round.
@@ -494,5 +508,33 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     }
     // The renewal is stopped and waited for here, so a drain that returns leaves no task renaming a claim behind it.
     renewing.stop_awaiting().await;
-    return look_again;
+    // What:
+    //  When this look's caller must look at this directory again:
+    //  the earliest of the housekeeping left for a later look and the end of the earliest claim still held here,
+    // its own or another instance's.
+    // Why:
+    //  A claim this look kept (a retryable answer, a settling step that could not run) has nothing else to look at it again:
+    //  the service's own words promise it is tried again when its claim runs out, so the look that kept it owes that moment
+    //  to the one loop that will come back.
+    let claim_wait: Option<Duration> =
+        next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease).await.map(no_sooner_than_a_look_again);
+    return match (look_again, claim_wait) {
+        (Some(housekeeping), Some(claim)) => Some(housekeeping.min(claim)),
+        (housekeeping, claim) => housekeeping.or(claim),
+    };
+}
+
+/// What:
+///  A wait that has already run out, as the pause a look that left housekeeping for a later look takes.
+/// Why:
+///   A claim already past its lease that the taking back could not move answers a wait of no time at all,
+/// and a look that came back at once would spin the service on the same claim.
+/// The pause is the one such a look already waits, so nothing is looked at later than that.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noSoonerThanALookAgain = (left) => left.isZero() ? LOOK_AGAIN_AFTER_DEFERRING : left;
+/// ```
+fn no_sooner_than_a_look_again(left: Duration) -> Duration {
+    return if left.is_zero() { LOOK_AGAIN_AFTER_DEFERRING } else { left };
 }

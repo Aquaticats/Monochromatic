@@ -29,6 +29,8 @@
 //! The claims are the drain's own:
 //! the lane claims `SLOW_KINDS` and the round claims `PUSH_KINDS`,
 //! so the two never take each other's records and no lock is needed.
+//! A claim the lane keeps (a retryable answer, or a settling step that could not run) is looked at again by the lane at the
+//! moment its lease runs out, so the retry the answer promised needs no other request and no periodic poll.
 //! What a person waits for is kept free of the lane's queue as well:
 //! every storage step of these kinds asks through the gate that leaves one blocking place to the round
 //! (`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`).
@@ -38,6 +40,7 @@
 //! const lane = SlowLane.start(handlers, busy); lane.ask(wake); // for await (const wake of inbox) await drainSlow(wake.gitDir)
 //! ```
 
+use crate::claim_time::ClaimTime;
 use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
@@ -138,6 +141,9 @@ impl SlowLane {
 /// so one repository's backlog is taken in slices:
 /// the repositories queued with it are looked at first,
 /// and it is looked at again after the pause the drain asked for.
+///  A look that keeps a claim asks to be looked at again when that claim runs out,
+/// so the lane itself is what tries the item again:
+/// nothing else would wake the service for a claim only this lane holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,12 +195,14 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 ///  Run every slow kind that waits for this repository,
 /// for the directory itself and for the common directory of a bare repository,
 /// as the round runs the pushes,
-/// and answer how soon it asks to be looked at again.
+/// and answer how soon it asks to be looked at again:
+/// the pause a look that left housekeeping asked for, or the end of the earliest claim it keeps.
 /// Why:
 ///   The records of a bare repository's worktrees sit in its common directory's work directory,
 /// and the round reaches that directory too (`drain_common_records_planned_awaiting`),
 /// so the lane must reach it or those records are never run.
 /// A directory whose look left housekeeping for a later one names the pause it wants (`housekeeping_of_one_round.rs`),
+/// as a claim it keeps names the moment its lease runs out,
 /// and the earlier of the two looks is what the lane waits.
 ///
 /// In TS you'd write (pseudocode):
@@ -230,7 +238,8 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
 /// Every slow kind settles itself and none of them reads the plan
 ///  (`service_work_drain_pending_claims.rs`).
 ///  A look starts housekeeping for no longer than the slice it was given,
-/// and says when to look again when it left some of it for a later one.
+/// and says when to look again when it left some of it for a later one,
+/// or when the earliest claim it keeps runs out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -238,7 +247,7 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
 /// ```
 async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration, lease: Duration) -> Option<Duration> {
     let mut nothing_to_plan: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
-    return drain_pending_awaiting(git_dir, handlers, lease, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
+    return drain_pending_awaiting(git_dir, handlers, &ClaimTime::read(), lease, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
 }
 
 /// Controls for the lane stay out of the release executable.
