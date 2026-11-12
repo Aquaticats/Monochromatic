@@ -1578,3 +1578,228 @@ fn a_checkout_that_changes_the_rules_text_asks_the_running_service_to_compile_it
     assert_eq!(compiled_rules_in(&cache), 0, "a service that was not running compiled the rules");
     remove_settled(&fixture);
 }
+
+/// What:
+///  What a stand-in service does with the requests it receives.
+/// Why:
+///  The client's own ending is what these controls read,
+///  so the answer is the one fact each control varies.
+enum StandInAnswer {
+    /// Answer a commit with the failure code given,
+    /// which is the answer a real service gives without landing anything.
+    Fail(git_policy_cli::service_protocol::FailureCode),
+    /// Answer a commit with nothing, so its client waits,
+    /// and answer a withdrawal that it will never land.
+    Hold,
+}
+
+/// What:
+///  A service that greets like one of this release at `places.socket`,
+///  writes `saw` once it has read a commit line,
+///  and then answers that commit as `answer` says,
+///  and answers every withdrawal with `withdrawn`.
+/// Why:
+///  A control of what the client records cannot wait for a real service to fail in the one way it wants;
+///  a listener that speaks the greeting and the two answers is the smallest thing that is still the wrapper's own protocol,
+///  and it starts nothing of the account's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const standIn = spawnStandIn(socket, saw, { fail: 'rejected' });
+/// ```
+struct StandIn {
+    /// Ends the accepting thread when the control is over,
+    /// from the control or from a panic.
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// The address the thread listens at,
+    /// so the end of the control can wake it.
+    socket: PathBuf,
+    /// The accepting thread,
+    /// joined when the control ends.
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for StandIn {
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _wake = std::os::unix::net::UnixStream::connect(&self.socket);
+        if let Some(thread) = self.thread.take() {
+            let _joined = thread.join();
+        }
+    }
+}
+
+/// `StandIn`: binds the address,
+/// then greets and answers on a thread of its own.
+fn stand_in(places: &Places, saw: &Path, answer: StandInAnswer) -> StandIn {
+    use std::io::{BufRead as _, BufReader, Write as _};
+    use std::os::unix::net::{UnixListener, UnixStream};
+    std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
+    let listener: UnixListener = UnixListener::bind(&places.socket).expect("the stand-in listens");
+    listener.set_nonblocking(true).expect("a listener that does not block");
+    let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let watched: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&stop);
+    let marker: PathBuf = saw.to_path_buf();
+    let socket: PathBuf = places.socket.clone();
+    let thread: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let mut held: Vec<UnixStream> = Vec::new();
+        while !watched.load(std::sync::atomic::Ordering::SeqCst) {
+            let Ok((stream, _)) = listener.accept() else {
+                std::thread::sleep(Duration::from_millis(5));
+                continue;
+            };
+            let _nonblocking = stream.set_nonblocking(false);
+            let mut greeting: String = git_policy_cli::service_protocol::encode_service(&git_policy_cli::service_protocol::ServiceMessage::Welcome {
+                version: git_policy_cli::service_protocol::PROTOCOL_VERSION,
+                release: Some(String::from(git_policy_cli::service_protocol::RELEASE)),
+            });
+            greeting.push('\n');
+            if (&stream).write_all(greeting.as_bytes()).is_err() {
+                continue;
+            }
+            let mut line: String = String::new();
+            let _read = BufReader::new(&stream).read_line(&mut line);
+            let mut reply: String = String::new();
+            // What a connection the stand-in keeps open is held for: a service answers a commit by closing nothing, so a held
+            //  request is the wait a stop arrives in.
+            let mut keep: bool = false;
+            if line.contains("\"type\":\"commit\"") {
+                let _written = std::fs::write(&marker, b"the stand-in read a commit");
+                match answer {
+                    StandInAnswer::Fail(code) => {
+                        reply = git_policy_cli::service_protocol::encode_service(&git_policy_cli::service_protocol::ServiceMessage::Failed { id: String::new(), code });
+                        keep = true;
+                    }
+                    StandInAnswer::Hold => keep = true,
+                }
+            } else if line.contains("\"type\":\"withdraw\"") {
+                reply = git_policy_cli::service_protocol::encode_service(&git_policy_cli::service_protocol::ServiceMessage::Withdrawn { id: String::new() });
+            }
+            if !reply.is_empty() {
+                reply.push('\n');
+                let _answered = (&stream).write_all(reply.as_bytes());
+            }
+            if keep {
+                held.push(stream);
+            }
+        }
+    });
+    return StandIn { stop, socket, thread: Some(thread) };
+}
+
+/// What:
+///  A commit the service answered without landing states the answer it gave,
+///  and the person is told the same cause in words.
+/// Why:
+///  Seven stopped records of three hours of one release said only `unidentified`,
+///  and one of them was answered by a service in 23 ms:
+///  the client knew the answer,
+///  printed it,
+///  and the record kept none of it.
+///  The record must name the route and the failure,
+///  so a reader can act without reading the terminal of a command that is over.
+#[test]
+fn a_commit_the_service_answers_with_a_failure_states_what_the_answer_was() {
+    let fixture: Fixture = fixture("timing-service-refused");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-service-refused-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let _stand_in: StandIn = stand_in(&places, &fixture.root.join("saw-commit"), StandInAnswer::Fail(git_policy_cli::service_protocol::FailureCode::Rejected));
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    let stderr: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
+    assert_eq!(served.code, Some(1), "{stderr}");
+    assert!(stderr.contains("refused"), "the person is told what the service answered: {stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed: {stderr}");
+    // What the command was asked to commit is where it was: a commit that was not made costs nothing.
+    assert!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt").contains("edit "), "the worktree file is as it was");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    println!("TIMING RECORD (the service answered a failure): {record}");
+    assert_eq!(record["outcome"], "stopped", "{record}");
+    assert_eq!(record["sends"], 1, "the answer is to the one request it sent: {record}");
+    assert_eq!(record["stop"]["kind"], "client-refusal", "{record}");
+    assert_eq!(record["stop"]["reason"], "refused", "the record names the answer the service gave: {record}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit no service answered says which bound ran out and that nothing answered,
+///  where the record used to say only that something had stopped it.
+/// Why:
+///  Three of the seven live records spent twenty seconds in one exchange with the service manager and then said
+///  `unidentified`;
+///  a reader could not tell a manager that answered nothing from a release that would not stop,
+///  and the person's own words named the wrong one of the two.
+///  The wait here is the client's own start wait,
+///  which is the bound the record must name.
+#[test]
+fn a_commit_nothing_answers_states_the_bound_that_ran_out() {
+    use std::os::unix::net::UnixListener;
+    let fixture: Fixture = fixture("timing-nothing-answered");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-nothing-answered-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
+    // A listener that never accepts: its connections wait in the kernel, which is what a service stopped inside its own
+    //  process looks like from outside.
+    let _quiet: UnixListener = UnixListener::bind(&places.socket).expect("a listener that accepts nothing");
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let served = commit_a(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    let stderr: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
+    assert_eq!(served.code, Some(1), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed: {stderr}");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    println!("TIMING RECORD (nothing answered): {record}");
+    assert_eq!(record["outcome"], "stopped", "{record}");
+    assert_eq!(record["sends"], 0, "no request was ever written: {record}");
+    assert_eq!(record["stop"]["kind"], "client-refusal", "{record}");
+    assert_eq!(record["stop"]["reason"], "nothing-answered", "the record names the bound that ran out: {record}");
+    assert!(number(record, "reachMs") >= 9_000, "the record states the wait the bound covered: {record}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit the person stops says the signal and the process that sent it,
+///  so a record tells a keyboard's interrupt from another program's own bound.
+/// Why:
+///  A caller that gives up on a slow commit sends the same `SIGTERM` a person's stop sends,
+///  and seven records of one release were read as if a person had stopped them:
+///  who sent the signal is the one fact that separates the two,
+///  and it is in the kernel's own report of the signal.
+///  The stand-in holds the commit, so the stop arrives where a real one would: while the command waits.
+#[test]
+fn a_commit_the_person_stops_states_the_signal_and_who_sent_it() {
+    let fixture: Fixture = fixture("timing-signal");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-signal-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let saw: PathBuf = fixture.root.join("saw-commit");
+    let _stand_in: StandIn = stand_in(&places, saw.as_path(), StandInAnswer::Hold);
+    std::fs::write(repo.join("a.txt"), b"edit by the signal control\n").expect("a.txt");
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    // No `timeout` in front of the wrapper: it would forward the stop to the wrapper's whole group and the wrapper's own
+    //  answer to it would never be exercised (`binary_fault_run.rs`).
+    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
+    let mut running = super::fault_run::spawn_watched(&fixture, &mut command);
+    running.wait_for(saw.as_path());
+    let sender: i32 = i32::try_from(std::process::id()).expect("a process ID fits");
+    // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
+    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGTERM) }, 0, "the control sends the stop");
+    let finished = running.finish();
+    let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
+    println!("STOPPED COMMIT: status {:?}: {stderr}", finished.status);
+    assert!(stderr.contains("interrupted with signal"), "the person is told in one line: {stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "the commit was not made: {stderr}");
+    assert!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt").contains("edit by the signal control"), "the worktree file is as it was");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the interrupted commit wrote no record: {stderr}") });
+    println!("TIMING RECORD (interrupted): {record}");
+    assert_eq!(record["outcome"], "stopped", "{record}");
+    assert_eq!(record["stop"]["kind"], "client-signal", "{record}");
+    assert_eq!(record["stop"]["signal"], libc::SIGTERM, "{record}");
+    assert_eq!(record["stop"]["sender"], sender, "the record names the process that sent the stop: {record}");
+    remove_settled(&fixture);
+}

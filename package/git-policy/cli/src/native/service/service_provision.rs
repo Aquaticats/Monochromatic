@@ -461,7 +461,7 @@ pub(crate) fn provision_when_needed(named: Option<&ProvisionHost>, provisioned: 
     let provided = provision(host);
     *timing += began.elapsed();
     if let Err(failure) = provided {
-        return Err(crate::commit_transaction::TransactionStop::Message(crate::service_messages::render(&failure)));
+        return Err(crate::commit_transaction::client_stop(failure));
     }
     return Ok(true);
 }

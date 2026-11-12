@@ -29,6 +29,12 @@ use std::sync::atomic::{AtomicI32, Ordering};
 /// an `AtomicI32` because a handler may only write one word.
 static STOP_REQUESTED: AtomicI32 = AtomicI32::new(0);
 
+/// The process that sent that signal,
+/// and zero while none was seen or where the kernel named none:
+/// a terminal's interrupt or a signal the kernel raised carries no sender,
+/// and the record says so rather than guessing one.
+static STOP_SENDER: AtomicI32 = AtomicI32::new(0);
+
 /// The connection whose read is running,
 /// and minus one while none is:
 /// a handler may call only what the kernel allows,
@@ -57,8 +63,19 @@ const WATCHED: [std::os::raw::c_int; 2] = [libc::SIGINT, libc::SIGTERM];
 /// ```ts
 /// process.on(signal, () => { if (alreadyAsked) { signal(SIG_DFL); raise(signal) } else { asked = signal } });
 /// ```
-extern "C" fn note_the_stop(signal: std::os::raw::c_int) {
+extern "C" fn note_the_stop(signal: std::os::raw::c_int, info: *mut libc::siginfo_t, _context: *mut std::ffi::c_void) {
     if STOP_REQUESTED.swap(signal, Ordering::SeqCst) == 0 {
+        // What: The process that sent the signal is kept where the kernel named one.
+        // Why:  The person's "who stopped my commit" is answered by the sender, and `si_pid` is on the list of what a handler may
+        //       read; a terminal's interrupt and a timer carry no sender and keep zero.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // sender = info && info.fromProcess ? info.pid : 0;
+        // ```
+        if let Some(pid) = sender_of(info) {
+            STOP_SENDER.store(pid, Ordering::SeqCst);
+        }
         // The read the wait is inside is woken here, because the kernel may deliver this signal to any thread of the process,
         //  and a thread that is not the waiting one only writes the flag the waiter reads after its own read gives up.
         let reading: i32 = READING.load(Ordering::SeqCst);
@@ -78,6 +95,64 @@ extern "C" fn note_the_stop(signal: std::os::raw::c_int) {
         libc::signal(signal, libc::SIG_DFL);
         libc::raise(signal);
     }
+}
+
+/// What:
+///  The process that sent the stop this commit answers,
+///  and nothing while none was sent or the kernel named none.
+/// Why:
+///  Two agents on one repository stop each other's commits with `SIGTERM` at their own bounds,
+///  and a record that says only "signal 15" cannot tell a person's Ctrl-C from a tool's bound:
+///  the sender is the difference, and it is the one fact that says whose bound it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stopSender() // the pid that sent the stop, or undefined
+/// ```
+pub(crate) fn stop_sender() -> Option<i32> {
+    let sender: i32 = STOP_SENDER.load(Ordering::SeqCst);
+    if sender <= 0 {
+        return None;
+    }
+    return Some(sender);
+}
+
+/// What:
+///  The process that sent a signal,
+///  where the kernel says which one did.
+/// Why:
+///  `si_pid` is defined for the signals a process sends (`kill`, `sigqueue`, `tkill`);
+///  a terminal's interrupt, a kernel fault signal and a timer carry no sender,
+///  and the kernel's own definition of who sent it is the only honest answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// senderOf(info) // info ? (info.fromProcess ? info.pid : undefined) : undefined
+/// ```
+#[cfg(target_os = "linux")]
+fn sender_of(info: *mut libc::siginfo_t) -> Option<i32> {
+    if info.is_null() {
+        return None;
+    }
+    // SAFETY: with `SA_SIGINFO` the kernel passes a valid `siginfo_t`, and reading the sender's number touches no other memory.
+    let code: std::os::raw::c_int = unsafe { (*info).si_code };
+    if !crate::signal_relay::is_process_sender(code) {
+        return None;
+    }
+    // SAFETY: the same `siginfo_t`; `si_pid` is the sender's number inside it.
+    let pid: i32 = unsafe { (*info).si_pid() };
+    if pid <= 0 {
+        return None;
+    }
+    return Some(pid);
+}
+
+/// The systems whose kernel names a signal's sender,
+/// and the systems this one is not:
+/// without the accessor the record says the signal and no sender.
+#[cfg(not(target_os = "linux"))]
+fn sender_of(_info: *mut libc::siginfo_t) -> Option<i32> {
+    return None;
 }
 
 /// What:
@@ -177,6 +252,7 @@ pub(crate) struct StopWatch {
 /// ```
 pub(crate) fn watch_for_a_stop() -> StopWatch {
     STOP_REQUESTED.store(0, Ordering::SeqCst);
+    STOP_SENDER.store(0, Ordering::SeqCst);
     let mut previous: Vec<(std::os::raw::c_int, libc::sigaction)> = Vec::new();
     for signal in WATCHED {
         // SAFETY: an empty mask and a handler that writes one word, shuts a descriptor down and raises a number are what
@@ -184,8 +260,10 @@ pub(crate) fn watch_for_a_stop() -> StopWatch {
         unsafe {
             let mut action: libc::sigaction = std::mem::zeroed();
             action.sa_sigaction = note_the_stop as *const () as usize;
-            // No `SA_RESTART`: a read this process is inside must come back when the signal arrives.
-            action.sa_flags = 0;
+            // What: `SA_SIGINFO` carries the sender of the signal into the handler; `SA_RESTART` is left off.
+            // Why:  The record names who stopped the commit, and a read this process is inside must come back when the signal
+            //       arrives.
+            action.sa_flags = libc::SA_SIGINFO;
             libc::sigemptyset(&mut action.sa_mask);
             let mut before: libc::sigaction = std::mem::zeroed();
             if libc::sigaction(signal, &action, &mut before) == 0 {
@@ -203,6 +281,7 @@ pub(crate) fn watch_for_a_stop() -> StopWatch {
 impl Drop for StopWatch {
     fn drop(&mut self) {
         STOP_REQUESTED.store(0, Ordering::SeqCst);
+        STOP_SENDER.store(0, Ordering::SeqCst);
         READING.store(-1, Ordering::SeqCst);
         for (signal, before) in std::mem::take(&mut self.previous) {
             // SAFETY: `before` is the action this watch replaced, read back by `sigaction`; putting it back touches no

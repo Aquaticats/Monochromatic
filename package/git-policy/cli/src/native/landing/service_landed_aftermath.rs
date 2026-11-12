@@ -192,8 +192,8 @@ pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: L
     }
     // A commit the person interrupted is not made, and the command ends as the signal ends it: the words say what became of the
     //  commit, and the shell reports the death an interrupted native Git reports (`commit_command.rs`, `report_stop`).
-    if let crate::service_messages::ClientFailure::Interrupted { signal, .. } = failure {
-        return Err(TransactionStop::EndedBySignal { signal, message: render(&failure) });
+    if let crate::service_messages::ClientFailure::Interrupted { signal, sender, .. } = failure {
+        return Err(TransactionStop::EndedBySignal { signal, sender, message: render(&failure) });
     }
     let worded: Option<ClientFailure> = match failure {
         // The one silence that could not state a fact reads the branch once and states what it shows.
@@ -204,7 +204,7 @@ pub(crate) fn after_a_silent_or_failed_service(failure: ClientFailure, placed: L
         // The branch holds the commit this command prepared, so the commit was made, and the command succeeds.
         return Ok(the_landed_commit(placed));
     };
-    return Err(TransactionStop::Message(render(&reported)));
+    return Err(crate::commit_transaction::client_stop(reported));
 }
 
 /// What:
@@ -255,6 +255,7 @@ fn report_after_a_landing(reported: Result<(), TransactionStop>) {
         TransactionStop::Message(words) => warn("serviceCommit", format!("the commit landed and the work after it failed: {words}").as_str()),
         TransactionStop::Failed { code, message } => warn("serviceCommit", format!("the commit landed and the work after it failed ({code:?}): {message}").as_str()),
         TransactionStop::EndedBySignal { signal, .. } => warn("serviceCommit", format!("the commit landed and the work after it was interrupted by signal {signal}").as_str()),
+        TransactionStop::Client(failure) => warn("serviceCommit", format!("the commit landed and the work after it failed ({}): {}", crate::service_messages::failure_code(&failure), crate::service_messages::render(&failure)).as_str()),
     };
 }
 

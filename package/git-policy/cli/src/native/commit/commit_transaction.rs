@@ -104,6 +104,17 @@ pub enum TransactionStop {
     /// A Git step failed:
     /// the message reaches standard error and the status is 1.
     Message(String),
+    /// What:
+    ///  The command itself decided that this commit cannot be made,
+    ///  and the failure carries both the words the person reads and the name the record states.
+    /// Why:
+    ///  A failure the client decided is one the client can name:
+    ///  a service of another release that would not stop,
+    ///  a service manager that answered nothing within its bound,
+    ///  a service that refused the request.
+    ///  Carrying the failure rather than the words it rendered is what lets the timing record say which one it was,
+    ///  where a `Message` of the wrapper's own still needs a separate answer (`commit_stop_reason.rs`).
+    Client(crate::service_messages::ClientFailure),
     /// A transaction failure reported as an engine failure event with status 2.
     Failed {
         /// The failure's stable code.
@@ -116,6 +127,10 @@ pub enum TransactionStop {
     EndedBySignal {
         /// The signal the person sent.
         signal: i32,
+        /// The process that sent it,
+        /// where the kernel says which one did;
+        /// nothing for a signal a terminal or the kernel raised.
+        sender: Option<i32>,
         /// What the command says before it ends.
         message: String,
     },
@@ -151,6 +166,21 @@ pub fn failed(message: String) -> TransactionStop {
         code: EngineFailureCode::TransactionFailed,
         message,
     };
+}
+
+/// What:
+///  A stop the command decided, from the failure whose words the person reads.
+/// Why:
+///  Every place that ends a commit with a `ClientFailure` builds it this way,
+///  so the failure reaches both ends of the command:
+///  the words standard error shows and the name the record keeps (`service_messages::failure_code`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const clientStop = (failure) => new TransactionStop(failure);
+/// ```
+pub fn client_stop(failure: crate::service_messages::ClientFailure) -> TransactionStop {
+    return TransactionStop::Client(failure);
 }
 
 /// What:

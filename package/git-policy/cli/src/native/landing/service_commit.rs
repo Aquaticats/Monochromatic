@@ -66,7 +66,7 @@ use crate::service_branch_shows::refused_when_the_branch_switched;
 /// The result of a commit that landed,
 /// and the work after it.
 use crate::service_landed_aftermath::{LandedAftermath, the_landed_commit};
-use crate::service_messages::{ClientFailure, render};
+use crate::service_messages::ClientFailure;
 /// Which end of the commit's scratch tree a submitted request leaves it to.
 use crate::service_commit_tree_ownership::the_service_never_took;
 use crate::service_prepare::{HandedBackTree, NativeInputs, PrepareInputs, Prepared, Ready, prepare};
@@ -193,7 +193,7 @@ pub fn service_commit<F: RepositoryFacts>(
                 // The policies could not read an object this commit had just written: something removed it meanwhile.
                 //  The captured bytes are gone, and the worktree is not read again to replace them.
                 if content_was_removed(result.events.as_slice()) {
-                    return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
+                    return Err(crate::commit_transaction::client_stop(ClientFailure::ContentPruned));
                 }
                 return Ok(ServiceCommit { result, handoff: None });
             }
@@ -385,7 +385,7 @@ pub fn service_commit<F: RepositoryFacts>(
             }
         }
     }
-    return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: timing.attempts })));
+    return Err(crate::commit_transaction::client_stop(ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: timing.attempts }));
 }
 
 /// Service commit controls stay out of the release executable.

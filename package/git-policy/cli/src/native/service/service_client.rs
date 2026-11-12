@@ -232,7 +232,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         //  and one the service gives up was not made.
         if let Some(signal) = crate::service_client_interrupted::stop_requested() {
             trace.answer_wait += waiting_since.elapsed();
-            return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal });
+            return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal, sender: crate::service_client_interrupted::stop_sender() });
         }
         // What:
         //  The place the service named,
@@ -300,7 +300,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
             if let Some(signal) = crate::service_client_interrupted::stop_requested() {
                 trace.answer_wait += written_at.elapsed();
-                return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal });
+                return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal, sender: crate::service_client_interrupted::stop_sender() });
             }
             // What:
             //  Where the commit stands, and that it is inside a write, are said here, before each wait, so a service that

@@ -298,7 +298,7 @@ fn a_commit_the_person_interrupts_is_withdrawn_and_never_lands() {
     let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("interrupted"), &mut std::io::sink()).expect_err("the service gave the request up");
     interrupting.join().expect("the interrupt is sent");
     drop(serving);
-    let expected: ClientFailure = ClientFailure::Interrupted { signal: libc::SIGINT, blocker: Some(String::from("the commit waits for another program's index lock")) };
+    let expected: ClientFailure = ClientFailure::Interrupted { signal: libc::SIGINT, sender: Some(std::process::id() as i32), blocker: Some(String::from("the commit waits for another program's index lock")) };
     assert_eq!(failure, expected, "the person is told the commit was not made");
     let words: String = crate::service_messages::render(&failure);
     assert!(words.contains("interrupted") && words.contains("was not made"), "{words}");

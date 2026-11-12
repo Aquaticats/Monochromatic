@@ -27,7 +27,7 @@ use crate::service_commit_input_notes_and_embedded_commit::Embedded;
 use crate::service_pruned::the_objects_it_names_are_gone;
 use crate::service_amend_replayed::AmendedCommit;
 use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_service};
-use crate::service_messages::{ClientFailure, render};
+use crate::service_messages::ClientFailure;
 use crate::service_prepare::{NativeInputs, Ready};
 use crate::service_protocol::CommitRequest;
 use crate::service_client::ClientConfig;
@@ -79,7 +79,7 @@ pub(crate) struct FailedAttempt<'a> {
 /// throw new TransactionStop(render(ClientFailure.ContentPruned))
 /// ```
 pub(crate) fn content_was_pruned() -> TransactionStop {
-    return TransactionStop::Message(render(&ClientFailure::ContentPruned));
+    return crate::commit_transaction::client_stop(ClientFailure::ContentPruned);
 }
 
 /// What:

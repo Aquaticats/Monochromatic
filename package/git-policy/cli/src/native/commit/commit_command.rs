@@ -84,8 +84,20 @@ pub fn effective_directory(start: &Path, global_prefix: &[OsString]) -> PathBuf 
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CommitEnding {
-    /// The process exit status.
+    /// The process exit status,
+    /// which a command that ends by a signal never returns a caller.
     pub code: i32,
+    /// What:
+    ///  The signal this command ends by,
+    ///  when it was stopped by one.
+    /// Why:
+    ///  A stop by a signal is reported to the person before the process ends by that signal,
+    ///  and the record of the commit is written between the two:
+    ///  the command's own end used to raise the signal inside the report,
+    ///  so a commit the person interrupted wrote no record at all,
+    ///  and no record of 1,792 has ever said `client-signal` (`SPEC.md`, "The commit protocol").
+    ///  The ending carries the signal so the raise happens after the record is on disk.
+    pub signal: Option<i32>,
 }
 
 /// What:
@@ -145,17 +157,26 @@ fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding
     //  did not land names the route that stopped it and not only the status it returned (`commit_stop_reason.rs`).
     timing.stop = Some(reason_of_stop(&stop, crate::git_step_failure::drain_failed_step()));
     match stop {
-        TransactionStop::NativeExit(code) => return CommitEnding { code },
+        TransactionStop::NativeExit(code) => return CommitEnding { code, signal: None },
         TransactionStop::Message(message) => {
             write_stderr(format!("{message}\n").as_str());
-            return CommitEnding { code: 1 };
+            return CommitEnding { code: 1, signal: None };
+        }
+        // A stop the command decided itself: the words the failure renders are what the person reads, and the failure is what
+        //  the record named (`commit_stop_reason.rs`), so both ends of the command carry the same cause.
+        TransactionStop::Client(failure) => {
+            write_stderr(format!("{}\n", render(&failure)).as_str());
+            return CommitEnding { code: 1, signal: None };
         }
         // The person stopped this command with a signal, and the commit it waited for is not made: the words say so, and the
         //  command ends as that signal ends a program, which is what a shell reports for an interrupted native Git (`128 + the
         //  signal`). The returned status is reached only when the signal cannot end this process.
-        TransactionStop::EndedBySignal { signal, message } => {
+        // What: The person is told in one line, and the command ends by that signal once the record is written.
+        // Why:  The record is the only account of a stopped commit that outlives the terminal;
+        //       a raise here ended the process before `run_commit_command` wrote it, so an interrupted commit left none.
+        TransactionStop::EndedBySignal { signal, message, .. } => {
             write_stderr(format!("{message}\n").as_str());
-            return CommitEnding { code: crate::forwarding::end_as_git_ended(signal) };
+            return CommitEnding { code: crate::forwarding::SIGNAL_EXIT_BASE + signal, signal: Some(signal) };
         }
         TransactionStop::Failed { code, message } => {
             let event: PolicyEvent = PolicyEvent::EngineFailure {
@@ -167,7 +188,7 @@ fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding
                 path: None,
             };
             write_stderr(render_policy_events(0, std::slice::from_ref(&event)).as_str());
-            return CommitEnding { code: 2 };
+            return CommitEnding { code: 2, signal: None };
         }
     }
 }
@@ -217,6 +238,12 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     let ending: CommitEnding = run_timed(command, checks, &mut timing);
     // One append to the repository's timing file once everything the person sees is written; the terminal never shows it.
     timing.finish(ending.code);
+    // What: A command stopped by a signal ends by it here, after the record, as a shell reports an interrupted native Git.
+    // Why:  The record of an interrupted commit is the one thing that outlives the terminal it was stopped from, and the raise
+    //       used to happen inside the report, before the record was written.
+    if let Some(signal) = ending.signal {
+        let _ended = crate::forwarding::end_as_git_ended(signal);
+    }
     return ending;
 }
 
@@ -225,7 +252,7 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut ShippedChecks<F>, timing: &mut CommitTiming) -> CommitEnding {
     if let Err(reason) = check_git_version(command.context) {
         write_stderr(render_engine_failure(0, EngineFailureCode::ContentUnavailable, reason.as_str()).as_str());
-        return CommitEnding { code: 2 };
+        return CommitEnding { code: 2, signal: None };
     }
     let start: PathBuf = match std::env::current_dir() {
         Ok(found) => found,
@@ -276,7 +303,7 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
     let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
         timing.outcome = "ended";
         timing.stop = ended;
-        return CommitEnding { code: served.result.exit_code };
+        return CommitEnding { code: served.result.exit_code, signal: None };
     };
     timing.outcome = "landed";
     return post_commit(command, &handoff, landed.as_str(), timing);
@@ -323,7 +350,7 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         if let Some(unkept) = forget_the_push(handoff, landed, if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() }) {
             write_stderr(format!("{unkept}\n").as_str());
         }
-        return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
+        return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE, signal: None };
     }
     // The gate approved the backup: the push the service held for this commit becomes runnable, and the hand-off below wakes it.
     if let Err(failure) = promote_the_push(handoff, landed) {
@@ -339,7 +366,7 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     if let Err(failure) = handed {
         write_stderr(format!("{}\n", render(&failure)).as_str());
     }
-    return CommitEnding { code: 0 };
+    return CommitEnding { code: 0, signal: None };
 }
 
 /// Controls for this module stay out of the release executable.

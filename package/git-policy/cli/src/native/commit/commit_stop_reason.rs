@@ -38,6 +38,9 @@ use crate::git_step_failure::FailedStep;
 use crate::policy_events::{PolicyEvent, event_blocks};
 /// How a commit can stop without landing.
 use crate::commit_transaction::TransactionStop;
+/// The failure a command decided its own stop from,
+/// and the word the record names it by.
+use crate::service_messages::{ClientFailure, failure_code};
 
 /// A policy's error finding stopped the commit.
 pub const KIND_POLICY: &str = "policy";
@@ -60,19 +63,49 @@ pub const KIND_NATIVE_EXIT: &str = "native-exit";
 pub const KIND_CLIENT_SIGNAL: &str = "client-signal";
 
 /// What:
+///  The command itself decided that the commit cannot be made,
+///  and the record says which failure did it.
+/// Why:
+///  These stops are the ones the client knows best and the record named worst:
+///  a service of another release that would not stop,
+///  a service manager that answered nothing within its bound,
+///  a service that refused the request,
+///  a wait that reached its ceiling.
+///  Every one of them used to land in `unidentified`,
+///  which the owner's rule reads as a defect,
+///  although the person had been told the cause in words.
+///  The `reason` member carries `service_messages::failure_code`.
+pub const KIND_CLIENT_REFUSAL: &str = "client-refusal";
+
+/// What:
 ///  What the record states when no step,
 /// no policy,
 /// no transform and no engine failure explains the stop.
 /// Why:
-///   The routes that stop a commit with words of their own (the branch kept moving,
-/// the content was pruned,
-/// the service was not there) report
+///   The routes that stop a commit with words the wrapper did not name (a Git failure that noted no step,
+/// a run of events that explains nothing) report
 ///  no step and no finding,
 ///  so their records say this rather than nothing:
 /// it is where the owner's rule looks for a defect,
 ///  "If we can't figure it out,
-/// then we have a defect and should log more.",
+/// then we have a defect and should log more."
+///  A record that says only this cannot say how far the wrapper looked,
+///  so the reason names the routes that were checked and were not it (`ruledOut`).
 pub const KIND_UNIDENTIFIED: &str = "unidentified";
+
+/// The routes a stop in the wrapper's own words was checked against and is none of.
+/// Why:
+///   A reader of an `unidentified` record needs to know what was ruled out:
+///  every route a commit can stop by is named,
+///  and the record says they were all absent.
+const EVERY_ROUTE_A_MESSAGE_IS_NOT: [&str; 7] = [KIND_POLICY, KIND_CORE_FINDING, KIND_ENGINE_FAILURE, KIND_GIT_STEP, KIND_NATIVE_EXIT, KIND_CLIENT_SIGNAL, KIND_CLIENT_REFUSAL];
+
+/// What:
+///  The routes a run of events that explains nothing was checked against.
+/// Why:
+///  `reason_of_events` reads the events of a commit that reported a result,
+///  so only the routes an event can carry were looked for.
+const EVERY_ROUTE_AN_EVENT_IS_NOT: [&str; 3] = [KIND_ENGINE_FAILURE, KIND_CORE_FINDING, KIND_POLICY];
 
 /// The step name the wrapper gives the `git commit` it builds in a scratch repository.
 /// It is the step a commit Git declined names when the runner noted none.
@@ -92,7 +125,7 @@ const SCRATCH_COMMIT_STEP: &str = "git commit";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Stop = { kind: string; policy?: string; core?: string; code?: string; step?: string; status?: number };
+/// type Stop = { kind: string; policy?: string; core?: string; code?: string; step?: string; status?: number; signal?: number; sender?: number; reason?: string; ruledOut?: string[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommitStopReason {
@@ -115,47 +148,75 @@ pub struct CommitStopReason {
     /// The signal the person sent to stop the command;
     /// absent unless the person stopped it.
     signal: Option<i32>,
+    /// The process that sent that signal,
+    /// where the kernel said which one did;
+    /// absent for a signal from a terminal or from the kernel,
+    /// and for every stop that is not a signal.
+    sender: Option<i32>,
+    /// What the command's own failure came to,
+    /// in one word from `service_messages::failure_code`;
+    /// absent unless the command decided the stop itself.
+    reason: Option<&'static str>,
+    /// The routes that were checked and are not what stopped the commit,
+    /// named where no route could be:
+    /// absent unless the record says `unidentified`.
+    ruled_out: &'static [&'static str],
 }
 
 impl CommitStopReason {
+    /// A reason of one kind,
+    /// with the member each kind fills.
+    fn only(kind: &'static str) -> Self {
+        return Self { kind, policy: None, core: None, code: None, step: None, status: None, signal: None, sender: None, reason: None, ruled_out: &[] };
+    }
+
     /// A policy's error finding.
     pub fn policy(name: &str) -> Self {
-        return Self { kind: KIND_POLICY, policy: Some(name.to_string()), core: None, code: None, step: None, status: None, signal: None };
+        return Self { policy: Some(name.to_string()), ..Self::only(KIND_POLICY) };
     }
 
     /// A fixed transform's rejection,
     /// named by the transform and by its own code.
     pub fn core_finding(core: &'static str, code: &'static str) -> Self {
-        return Self { kind: KIND_CORE_FINDING, policy: None, core: Some(core), code: Some(code), step: None, status: None, signal: None };
+        return Self { core: Some(core), code: Some(code), ..Self::only(KIND_CORE_FINDING) };
     }
 
     /// The wrapper's own engine failing,
     /// named by its stable code.
     pub fn engine_failure(code: &'static str) -> Self {
-        return Self { kind: KIND_ENGINE_FAILURE, policy: None, core: None, code: Some(code), step: None, status: None, signal: None };
+        return Self { code: Some(code), ..Self::only(KIND_ENGINE_FAILURE) };
     }
 
     /// A Git step that failed,
     /// named by the step and by the status it exited with.
     pub fn git_step(step: &str, status: Option<i32>) -> Self {
-        return Self { kind: KIND_GIT_STEP, policy: None, core: None, code: None, step: Some(step.to_string()), status, signal: None };
+        return Self { step: Some(step.to_string()), status, ..Self::only(KIND_GIT_STEP) };
     }
 
     /// Real Git declining the command,
     /// named by the step it ran and by its own status.
     pub fn native_exit(step: &str, status: i32) -> Self {
-        return Self { kind: KIND_NATIVE_EXIT, policy: None, core: None, code: None, step: Some(step.to_string()), status: Some(status), signal: None };
+        return Self { step: Some(step.to_string()), status: Some(status), ..Self::only(KIND_NATIVE_EXIT) };
     }
 
-    /// A commit whose route named nothing a reader can check.
-    pub fn unidentified() -> Self {
-        return Self { kind: KIND_UNIDENTIFIED, policy: None, core: None, code: None, step: None, status: None, signal: None };
+    /// A commit whose route named nothing a reader can check,
+    /// with the routes that were looked for and were not it.
+    pub fn unidentified(ruled_out: &'static [&'static str]) -> Self {
+        return Self { ruled_out, ..Self::only(KIND_UNIDENTIFIED) };
     }
 
     /// The person stopping the command with a signal,
-    /// named by the signal.
-    pub fn client_signal(signal: i32) -> Self {
-        return Self { kind: KIND_CLIENT_SIGNAL, policy: None, core: None, code: None, step: None, status: None, signal: Some(signal) };
+    /// named by the signal and,
+    /// where the kernel said which process sent it,
+    /// by that process.
+    pub fn client_signal(signal: i32, sender: Option<i32>) -> Self {
+        return Self { signal: Some(signal), sender, ..Self::only(KIND_CLIENT_SIGNAL) };
+    }
+
+    /// The command's own failure,
+    /// named by the word that failure goes by.
+    pub fn client_failure(failure: &ClientFailure) -> Self {
+        return Self { reason: Some(failure_code(failure)), ..Self::only(KIND_CLIENT_REFUSAL) };
     }
 
     /// What the reason says,
@@ -188,6 +249,16 @@ impl CommitStopReason {
         }
         if let Some(signal) = self.signal {
             members.push(format!("\"signal\":{signal}"));
+        }
+        if let Some(sender) = self.sender {
+            members.push(format!("\"sender\":{sender}"));
+        }
+        if let Some(reason) = self.reason {
+            members.push(format!("\"reason\":{}", quote(reason)));
+        }
+        if !self.ruled_out.is_empty() {
+            let routes: Vec<String> = self.ruled_out.iter().map(|route| { return quote(route); }).collect();
+            members.push(format!("\"ruledOut\":[{}]", routes.join(",")));
         }
         return format!("{{{}}}", members.join(","));
     }
@@ -225,7 +296,7 @@ pub fn stop_json(reason: Option<&CommitStopReason>) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function reasonOfStop(stop, failed) { if (stop.nativeExit) return nativeExit(failed ?? { name: 'git commit', status: stop.code }); if (failed) return gitStep(failed); if (stop.failed) return engineFailure(stop.code); return unidentified(); }
+/// function reasonOfStop(stop, failed) { if (stop.nativeExit) return nativeExit(failed ?? { name: 'git commit', status: stop.code }); if (stop.client) return clientFailure(stop.client); if (failed) return gitStep(failed); if (stop.failed) return engineFailure(stop.code); if (stop.signal) return clientSignal(stop.signal, stop.sender); return unidentified(everyRouteAMessageIsNot); }
 /// ```
 pub fn reason_of_stop(stop: &TransactionStop, failed: Option<FailedStep>) -> CommitStopReason {
     return match stop {
@@ -233,15 +304,18 @@ pub fn reason_of_stop(stop: &TransactionStop, failed: Option<FailedStep>) -> Com
             Some(step) => CommitStopReason::native_exit(step.name.as_str(), step.status.unwrap_or(*code)),
             None => CommitStopReason::native_exit(SCRATCH_COMMIT_STEP, *code),
         },
+        // What the command decided is what the record states, and a step that failed beside it never explains it: the failure
+        //  names the route, and a later step's note is the one the runner happened to keep.
+        TransactionStop::Client(failure) => CommitStopReason::client_failure(failure),
         TransactionStop::Message(_) => match failed {
             Some(step) => CommitStopReason::git_step(step.name.as_str(), step.status),
-            None => CommitStopReason::unidentified(),
+            None => CommitStopReason::unidentified(&EVERY_ROUTE_A_MESSAGE_IS_NOT),
         },
         TransactionStop::Failed { code, .. } => match failed {
             Some(step) => CommitStopReason::git_step(step.name.as_str(), step.status),
             None => CommitStopReason::engine_failure(engine_failure_code_name(*code)),
         },
-        TransactionStop::EndedBySignal { signal, .. } => CommitStopReason::client_signal(*signal),
+        TransactionStop::EndedBySignal { signal, sender, .. } => CommitStopReason::client_signal(*signal, *sender),
     };
 }
 
@@ -281,7 +355,7 @@ pub fn reason_of_events(events: &[PolicyEvent]) -> CommitStopReason {
             return CommitStopReason::policy(policy_descriptor(finding.policy).name);
         }
     }
-    return CommitStopReason::unidentified();
+    return CommitStopReason::unidentified(&EVERY_ROUTE_AN_EVENT_IS_NOT);
 }
 
 /// The reasons,

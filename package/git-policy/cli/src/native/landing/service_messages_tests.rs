@@ -60,10 +60,10 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
         ClientFailure::ContentPruned,
-        ClientFailure::Interrupted { signal: libc::SIGINT, blocker: Some(String::from("a landing behind another program's index lock")) },
-        ClientFailure::Interrupted { signal: libc::SIGTERM, blocker: None },
-        ClientFailure::InterruptedNotKnown { signal: libc::SIGINT, blocker: None },
-        ClientFailure::InterruptedNotKnown { signal: libc::SIGTERM, blocker: Some(String::from("the commit service has been inside a write for 21 minutes and has not heard back")) },
+        ClientFailure::Interrupted { signal: libc::SIGINT, sender: Some(4242), blocker: Some(String::from("a landing behind another program's index lock")) },
+        ClientFailure::Interrupted { signal: libc::SIGTERM, sender: None, blocker: None },
+        ClientFailure::InterruptedNotKnown { signal: libc::SIGINT, sender: None, blocker: None },
+        ClientFailure::InterruptedNotKnown { signal: libc::SIGTERM, sender: Some(4242), blocker: Some(String::from("the commit service has been inside a write for 21 minutes and has not heard back")) },
     ];
     for platform in [Platform::Windows, Platform::Bsd, Platform::LinuxWithoutUserServices, Platform::Other] {
         all.push(ClientFailure::NoActivation(platform));

@@ -50,7 +50,7 @@ pub(crate) fn the_same_conclusion(
         return Ok(());
     }
     let failure: crate::service_messages::ClientFailure = crate::service_messages::ClientFailure::ConclusionStateChanged { branch: branch.to_string() };
-    return Err(TransactionStop::Message(crate::service_messages::render(&failure)));
+    return Err(crate::commit_transaction::client_stop(failure));
 }
 
 /// The failure of reading the conclusion state,
