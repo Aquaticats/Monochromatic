@@ -126,6 +126,21 @@ impl Session {
         };
     }
 
+    /// Run one request the caller built,
+    /// with its own working directory and its own terms.
+    /// Why:
+    ///   A step whose ending the wrapper answers for says so on the request itself
+    ///  (`ended_at_its_bound`),
+    /// and the words of a failure name the request's own command line.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// session.runRequest(request)
+    /// ```
+    pub fn run_request(&self, request: &GitRequest) -> std::io::Result<GitOutput> {
+        return run_git(&self.context, request);
+    }
+
     /// Run Git with bytes on standard input.
     pub fn run_with_input(&self, arguments: &[&str], input: Vec<u8>) -> Result<GitOutput, String> {
         let mut request: GitRequest = GitRequest::new(Path::new("."), arguments);

@@ -18,7 +18,6 @@ use crate::merge_isolation_carry_apply::CarryFailure;
 use crate::merge_isolation_carry_parts::Capture;
 use std::path::Path;
 use std::time::Duration;
-
 /// What:
 ///  The line for a merge that is saved on a side ref because another program holds the index.
 /// Why:
@@ -45,6 +44,27 @@ pub(crate) fn a_deferred_save_finding(reference: &str, lock: &Path, side_ref: &s
          merge does not change are kept. If no program is using this repository, the lock was left by a program that was killed, and \
          removing it lets a command run.\n",
         lock = lock.display()
+    );
+}
+
+/// What:
+///  The line for a merge that is saved on a side ref because another merge is installing in the same worktree.
+/// Why:
+///   The command exits 0 and the branch has not moved,
+/// so the person must be told where the merge is,
+/// what finishes it,
+///  and that nothing of theirs was touched.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: git merge ${reference}: another merge is installing ...`
+/// ```
+pub(crate) fn a_deferred_save_behind_a_merge(reference: &str, holder_pid: i64, side_ref: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git merge {reference}: another merge is installing its result in this worktree (process {holder_pid}), and \
+         one merge installs in a worktree at a time, so this one is saved on {side_ref} and this command exits 0. Nothing of it is in the \
+         checkout and the branch has not moved: the next git command in this worktree finishes it once that merge is done, and the edits you \
+         make meanwhile to files it does not change are kept.\n"
     );
 }
 

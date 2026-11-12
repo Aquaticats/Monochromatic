@@ -480,12 +480,30 @@ fn is_proven_to_run_twice(name: &str, rest: &[String]) -> bool {
 }
 
 /// What:
+///  Whether a step that shows no sign of work may be ended.
+/// Why:
+///   The quiet window ends a step only when the wrapper can answer for what it did:
+///  a step it runs again,
+///  or one whose caller puts back every byte it changed
+///  (`ended_at_its_bound` in `transaction_git_request_and_reply_types.rs`).
+/// A step that is neither is only announced and waited for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mayBeRerun(request) || request.endedAtItsBound
+/// ```
+pub(crate) fn may_be_ended_when_quiet(request: &GitRequest) -> bool {
+    return may_be_rerun(request) || request.ended_at_its_bound;
+}
+
+/// What:
 ///  Whether the request's step may be ended at a ceiling:
 /// it can be run twice,
 /// by the allow-list `may_be_rerun`,
 /// or it only reads
 ///  or writes unreferenced objects,
-/// or it is a proven form.
+/// or it is a proven form,
+///  or its caller puts back every byte it changed.
 /// Why:
 ///   Anything else has no ceiling,
 /// because data is lost by guessing wrong and a wait is not (the coordinator's reading of the owner's
@@ -495,10 +513,15 @@ fn is_proven_to_run_twice(name: &str, rest: &[String]) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// mayBeRerun(request) || READS_AND_OBJECT_WRITERS.includes(name) || isProvenToRunTwice(name, words)
+/// mayBeRerun(request) || request.endedAtItsBound || READS_AND_OBJECT_WRITERS.includes(name) || isProvenToRunTwice(name, words)
 /// ```
 pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
     if may_be_rerun(request) {
+        return true;
+    }
+    // A caller that puts back every byte its step changed proves the ending itself, and no name of a command is enough
+    //  for that on its own (`transaction_git_request_and_reply_types.rs`, `ended_at_its_bound`).
+    if request.ended_at_its_bound {
         return true;
     }
     let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else {

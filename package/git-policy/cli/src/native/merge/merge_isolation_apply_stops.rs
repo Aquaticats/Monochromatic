@@ -27,6 +27,7 @@ use crate::merge_isolation_report::not_applied_finding;
 use crate::merge_isolation_carry_apply::CarryFailure;
 use crate::merge_isolation_journal::MergeIntent;
 use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge};
+use crate::merge_isolation_git_reads::Session;
 use crate::merge_isolation_run_types::{Bail, IsolatedMerge, refused};
 use std::path::Path;
 
@@ -49,7 +50,12 @@ pub(crate) fn a_clear_that_met_newer_bytes(place: &RecoveryPlace, record: &Path,
         // Nothing of the merge was applied, so the record and the capture are gone and the round is made again.
         Ok(MergeRecoveryAction::Discarded | MergeRecoveryAction::BranchMoved | MergeRecoveryAction::SavedBranchMoved) => Bail::Again(detail),
         // The lock stays held or the record waits, so the next command finishes this very merge and nothing of the person's went.
-        Ok(MergeRecoveryAction::IndexHeld | MergeRecoveryAction::DeferredRefused | MergeRecoveryAction::OwnerActive) => refused(
+        Ok(
+            MergeRecoveryAction::IndexHeld
+            | MergeRecoveryAction::DeferredRefused
+            | MergeRecoveryAction::OwnerActive
+            | MergeRecoveryAction::PartlyInstalled,
+        ) => refused(
             2,
             format!(
                 "monochromatic-git-policy-cli: git merge {reference}: {detail}; the merge was recorded and nothing of yours was \
@@ -101,5 +107,91 @@ pub(crate) fn settle_a_failed_step(
         }),
         Ok(_) => refused(code, format!("{}{}", String::from_utf8_lossy(git_stderr), not_applied_finding(reference, detail))),
         Err(error) => refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None)),
+    };
+}
+
+/// What:
+///  Put back a merge whose checkout step the wrapper ended,
+/// and refuse it with the reason and the state.
+/// Why:
+///  The step that writes the merge into the checkout may have to download the content it writes,
+/// and a server that
+///  accepts the request and never answers held it and its `git-lfs` child for good,
+/// with `index.lock` held and the worktree half
+///  written (measured at 607 seconds,
+/// `F13` of the alpha.12 audit).
+/// The step is ended at the bound of a bulk step,
+/// and what it began must not stay:
+/// every path the merge changes is put back to what the branch holds now,
+/// the person's own work stays where the merge never
+///  wrote it and comes back from the record's copy where it did,
+/// the index lock the ended Git left is cleared on the proof recovery acts on,
+/// and the record goes.
+///  A step that was ended after Git moved the branch is not put back:
+/// the merge landed,
+/// and its record is settled as any such merge is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function putBackAMergeWhoseCheckoutDidNotFinish({ place, record, intent, reference, newOid, mover }): Bail; // settle or refuse
+/// ```
+pub(crate) fn put_back_a_merge_whose_checkout_did_not_finish(
+    place: &RecoveryPlace,
+    record: &Path,
+    intent: &MergeIntent,
+    reference: &str,
+    new_oid: &str,
+    mover: &Session,
+) -> Bail {
+    let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
+    // The branch is read before anything is put back: a step ended in the instant after Git moved it is a merge that
+    //  landed, and putting its paths back would leave a branch naming the merge with a checkout that does not.
+    let head: String = match mover.run(&["rev-parse", "--verify", "--quiet", target]) {
+        Ok(found) if found.succeeded() => String::from_utf8_lossy(&found.stdout).trim().to_owned(),
+        _ => String::new(),
+    };
+    if head == new_oid {
+        return settle_a_failed_step(place, record, intent, reference, "the checkout step was ended after the branch moved", false, 2, b"");
+    }
+    if head.is_empty() {
+        // The branch cannot be read, so nothing of the merge can be put back against it; the record stays and a command
+        //  that writes to the checkout is stopped until the branch can be read (`startup_gate.rs`).
+        return refused(
+            2,
+            render_engine_failure_with_hint(
+                0,
+                EngineFailureCode::ContentUnavailable,
+                format!(
+                    "monochromatic-git-policy-cli: git merge {reference}: the step that writes the merge into the checkout made no \
+                     progress and was ended, and {target} could not be read to put the paths it changed back. Nothing of the merge moved \
+                     the branch. Check the branch with `git log -1`, then run any git command again."
+                )
+                .as_str(),
+                None,
+            ),
+        );
+    }
+    let settled = crate::lazy_runtime::run_on_runtime(crate::merge_isolation_moved::settle_moved_branch_awaiting(
+        place,
+        record,
+        intent,
+        head.as_str(),
+        false,
+        &mut std::io::stderr(),
+    ));
+    return match settled {
+        // The checkout is the branch's again and the record is gone: the merge was not made, and nothing is left of it.
+        Ok(_) => refused(
+            2,
+            format!(
+                "monochromatic-git-policy-cli: git merge {reference}: the step that writes the merge into the checkout showed no sign \
+                 of work for its whole window and was ended (or ran to its bound), and Git had not moved the branch, so the merge was \
+                 not made. Every path it had begun to write is back at {head} and your own work in them is where it was, the record and \
+                 the copy it kept of that work are gone, and no lock or program of the step is left. A `git-lfs` download from a server \
+                 that accepts the request and never answers is the usual cause: check that the LFS server answers, then run the merge \
+                 again.\n"
+            ),
+        ),
+        Err(refusal) => refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, format!("{refusal}").as_str(), None)),
     };
 }

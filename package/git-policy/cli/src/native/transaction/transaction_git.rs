@@ -37,7 +37,7 @@ pub use crate::transaction_git_request_and_reply_types::{GitContext, GitFailure,
 /// The rules for which steps may be run again or ended,
 /// re-exported under the path they had in this file.
 pub(crate) use crate::transaction_git_step_rerun_and_end_rules::{NO_REFLOG_SETTING, subcommand_of};
-use crate::transaction_git_step_rerun_and_end_rules::{is_branch_write, may_be_rerun};
+use crate::transaction_git_step_rerun_and_end_rules::{is_branch_write, may_be_ended_when_quiet, may_be_rerun};
 /// The bound of a step,
 /// and the test-only shortened bounds of the current thread.
 use crate::transaction_git_step_bounds::step_bound;
@@ -388,7 +388,7 @@ pub(crate) fn step_subject(request: &GitRequest) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runWatched({ gitPath, cwd, args, terms, stoppable: mayBeRerun(request) })
+/// await runWatched({ gitPath, cwd, args, terms, stoppable: mayBeEndedWhenQuiet(request) })
 /// ```
 fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms) -> std::io::Result<GitOutput> {
     let mut command: Command = build_command(context, request);
@@ -414,7 +414,7 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     let began: std::time::Instant = std::time::Instant::now();
     // A stop of the service lets the branch write finish (owner, 2026-11-08, "B: let a branch write finish (Recommended)").
     let a_stop_lets_it_finish: bool = matches!(bound, StepBound::Unbounded) && is_branch_write(request);
-    let watched = output_watched_within_for_a_stop(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound, a_stop_lets_it_finish);
+    let watched = output_watched_within_for_a_stop(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_ended_when_quiet(request), bound, a_stop_lets_it_finish);
     crate::transaction_step_durations::note_step(ledger_step.as_str(), began, began.elapsed());
     let output: std::process::Output = watched?;
     return Ok(GitOutput {

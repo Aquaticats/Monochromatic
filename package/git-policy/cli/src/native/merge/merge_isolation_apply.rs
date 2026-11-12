@@ -38,8 +38,10 @@ use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, changes_between
 use crate::merge_isolation_carry_landed::{LandedFile, landed_of, write_landed_record};
 /// The words a merge that could not be finished now prints,
 /// which its own file holds so this one stays inside the code-line limit.
-use crate::merge_isolation_apply_findings::{a_deferred_save_finding, a_merge_that_could_not_be_saved};
-use crate::merge_isolation_apply_stops::{a_clear_that_met_newer_bytes, settle_a_failed_step};
+use crate::merge_isolation_apply_findings::{a_deferred_save_behind_a_merge, a_deferred_save_finding, a_merge_that_could_not_be_saved};
+/// The one mark of an install running in this worktree.
+use crate::merge_install_guard::{InstallGuard, TakeOutcome, install_guard_path, take_install_guard};
+use crate::merge_isolation_apply_stops::{a_clear_that_met_newer_bytes, put_back_a_merge_whose_checkout_did_not_finish, settle_a_failed_step};
 /// The carry of a merge that landed,
 /// its lines,
 /// and what a branch that moved under it does about them.
@@ -51,7 +53,7 @@ use crate::merge_options::{MergeShape, Signing};
 /// Marker phases for the crash controls.
 use crate::transaction_phase::{Phase, reach_transaction_phase};
 /// Real Git.
-use crate::transaction_git::{GitContext, GitOutput};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest};
 /// The owner of the intent record,
 /// and its identifier.
 use crate::transaction_owner::current_transaction_owner;
@@ -187,6 +189,16 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         side_ref: None,
         carried: plan.carried.cloned(),
     };
+    // One merge installs in a worktree at a time (`SPEC.md`, "One install in a worktree at a time"). The mark is taken
+    //  with `O_EXCL`, so two commands that arrive together cannot both install; it names this merge's owner, so a mark a
+    //  killed merge left is cleared by the next command on the same proof recovery uses. A mark another live merge holds
+    //  is the answer the package already gives a merge that cannot install now: this one is kept on a side ref of its
+    //  own, exits 0, and the next command finishes it.
+    let _held: InstallGuard = match take_install_guard(git_dir, &intent.owner) {
+        Ok(TakeOutcome::Took(taken)) => taken,
+        Ok(TakeOutcome::HeldBy(holder_pid)) => return save_behind_a_merge_that_installs(session, plan, &intent, reference.as_str(), holder_pid),
+        Err(error) => return Err(Bail::from(format!("the mark of this install could not be taken: {error}"))),
+    };
     let record: PathBuf = match write_merge_intent(git_dir, &intent) {
         Ok(written) => written,
         Err(error) => {
@@ -265,12 +277,32 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         context: GitContext { overlay, ..session.context.clone() },
     };
     // A start failure is handled like a refusal: the record settles whatever Git began.
-    let moved: GitOutput = match mover.run(&["merge", "--ff-only", "--no-edit", new_oid]) {
-        Ok(output) => output,
-        Err(reason) => GitOutput { code: None, stdout: Vec::new(), stderr: reason.into_bytes() },
+    //  The step is the one that writes the merge into the checkout, and the content it writes may have to be downloaded
+    //  (an LFS smudge passes through this Git's filters). A server that accepts the request and never answers kept it, and
+    //  its `git-lfs` child, running with `index.lock` held for good: measured at 607 seconds, then exit 2 with nothing put
+    //  back (`F13` of the alpha.12 audit). It is ended at the bound of a bulk step instead, because the wrapper puts back
+    //  every path it changed, and the branch it has not moved
+    //  (`SPEC.md`, "The bounds of a merge's steps"; `merge_isolation_apply_stops.rs`).
+    let mover_request = GitRequest::new(root, &["merge", "--ff-only", "--no-edit", new_oid]).ended_at_its_bound();
+    let ended: bool;
+    let moved: GitOutput = match mover.run_request(&mover_request) {
+        Ok(output) => {
+            ended = false;
+            output
+        }
+        Err(reason) => {
+            ended = reason.kind() == std::io::ErrorKind::TimedOut;
+            GitOutput { code: None, stdout: Vec::new(), stderr: format!("{reason}").into_bytes() }
+        }
     };
     if !moved.succeeded() {
         let detail: String = moved.error_text();
+        // A checkout step the wrapper ended may have written some of the merge's files and no index and no branch: the
+        //  merge is put back to what the branch holds, so the person's worktree holds either what it held before or the
+        //  whole result, and no lock or program of the step is left.
+        if ended {
+            return Err(put_back_a_merge_whose_checkout_did_not_finish(&place, record.as_path(), &intent, reference.as_str(), new_oid, &mover));
+        }
         let lock_taken: bool = detail.contains("index.lock");
         return Err(settle_a_failed_step(
             &place,
@@ -338,6 +370,70 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         stdout,
         stderr,
     });
+}
+
+/// What:
+///  Save a merge that met another merge installing in the same worktree:
+/// keep its commit on a side ref,
+/// record that the checkout is still to be finished,
+/// say so,
+///  and end with status 0.
+/// Why:
+///   Two installs beside each other leave an index the merge commit does not explain and a checkout neither install
+///  can finish (`SPEC.md`,
+/// "One install in a worktree at a time").
+/// A merge that finds the mark of a live install is
+///  kept the way a merge that met a live `index.lock` is kept:
+/// its commit on a side ref,
+/// a record that names it,
+/// and the next
+///  command in this worktree finishes it.
+/// Nothing of the merge is in the checkout,
+/// so the person's own work is
+///  untouched,
+/// and the record names the capture,
+/// so a finish carries it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function saveBehindAMergeThatInstalls({ session, plan, intent, reference, holderPid }): Promise<IsolatedMerge>;
+/// ```
+fn save_behind_a_merge_that_installs(
+    session: &Session,
+    plan: &Plan<'_>,
+    intent: &MergeIntent,
+    reference: &str,
+    holder_pid: i64,
+) -> Result<IsolatedMerge, Bail> {
+    let Some(side_ref) = keep_on_a_side_ref(session, plan.new_oid) else {
+        return Err(refused(2, a_merge_that_could_not_be_saved(reference, install_guard_path(plan.git_dir).as_path())));
+    };
+    let mut later: MergeIntent = intent.clone();
+    later.owner.transaction_id = match random_uuid() {
+        Ok(id) => id,
+        Err(error) => return Err(Bail::from(error.0)),
+    };
+    later.side_ref = Some(side_ref.clone());
+    // Nothing of this merge is in the checkout, so nothing of the person's is to be put back later either: a capture
+    //  restored against a branch another merge has moved would write their old index entries over the merge's, which is
+    //  the half-applied result this mark exists to prevent. The worktree still holds their bytes, so the capture is
+    //  dropped here and the record names none (`merge_isolation_recovery.rs`, the settling of a saved merge).
+    later.carried = None;
+    if let Some(capture) = plan.carried {
+        drop_capture_ref(&session.context, plan.git_dir, plan.root, capture);
+    }
+    if let Err(error) = write_merge_intent(plan.git_dir, &later) {
+        return Err(refused(
+            2,
+            format!(
+                "monochromatic-git-policy-cli: git merge {reference}: another merge is installing its result in this worktree (process {holder_pid}), and \
+                 this merge could not be recorded for a later finish ({error}); its commit is kept on {side_ref}. Nothing was changed. Run the \
+                 merge again once that merge is done.\n"
+            ),
+        ));
+    }
+    debug(TAG, format!("the merge is saved on {side_ref} because the merge of process {holder_pid} is installing in this worktree").as_str());
+    return Ok(IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_deferred_save_behind_a_merge(reference, holder_pid, side_ref.as_str()) });
 }
 
 /// What:

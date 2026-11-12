@@ -203,12 +203,15 @@ fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
 /// and the next command
 ///  would read it as another session's staged work.
 /// A record of a merge that still runs is left alone.
+///  A merge that is partly installed and cannot be finished now stops a command that would write to the checkout, and
+///  only names the state to a command that reads it: a worktree no command may look at is one no person can get out of
+///  (`SPEC.md`, "A merge that is partly installed stops writes, never reads").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// if (await mergeIntentsToRecover(gitDir)) await recoverInterruptedMerges({ place, gitDir, stderr });
 /// ```
-fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &mut dyn Write) -> Result<(), RecoveryError> {
+fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &mut dyn Write, reads_only: bool) -> Result<(), RecoveryError> {
     // A copy a merge kept beside a path is decided here too: it is the one thing a worktree with no merge record still has to
     //  look at, and a copy no later merge touches would otherwise be a file no command ever ends.
     if !merge_intents_to_recover(git_dir)? && !any_kept_copy(git_dir) {
@@ -223,6 +226,15 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
     // The notices of what recovery did go to the command's standard error, so a person who ran a read-only command
     //  learns that it finished a merge (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 1).
     let outcomes = recover_interrupted_merges(&place, git_dir, out)?;
+    for outcome in &outcomes {
+        let Some(words) = &outcome.stopped else { continue };
+        if !reads_only {
+            return Err(RecoveryError(words.clone()));
+        }
+        // A command that only reads the checkout names the state and reads it: nothing of the merge is a guess it makes,
+        //  and `git status` is what a person looks at first.
+        let _noted = out.write_all(format!("monochromatic-git-policy-cli: {words}\n").as_bytes());
+    }
     if !outcomes.is_empty() {
         debug("startupGate", format!("isolated merge recovery outcomes: {outcomes:?}").as_str());
     }
@@ -257,12 +269,37 @@ pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity, en
 /// Why:
 ///  The link gate runs first and costs one failed open when the file is absent;
 /// tests give a disposable home.
+///  `reads_only` says the command only looks at the checkout,
+/// so a merge that is partly installed is named to it and does
+///  not stop it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// recoverForCommand({ context, identity, home })
+/// recoverForCommand({ context, identity, home, readsOnly })
 /// ```
 pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeIdentity, home: Option<&Path>) -> Gate {
+    return recover_of_command(context, identity, home, false);
+}
+
+/// What:
+///  The startup step for a command that only reads the checkout.
+/// Why:
+///   A merge that is partly installed and cannot be finished now leaves the index and the worktree as they are;
+/// reading
+///  them is what a person does next, and stopping `git status` with exit 2 leaves them nothing to read and not even the
+///  way out the refusal names (`SPEC.md`, "A merge that is partly installed stops writes, never reads").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recoverForAReadOfTheCheckout({ context, identity, environment })
+/// ```
+pub fn recover_for_a_read_of_the_checkout(context: &GitContext, identity: &WorktreeIdentity, environment: &[(OsString, OsString)]) -> Gate {
+    let home: Option<PathBuf> = environment_home(environment);
+    return recover_of_command(context, identity, home.as_deref(), true);
+}
+
+/// `recover_for_command_with_home` with the rule for a merge that is only partly installed given.
+fn recover_of_command(context: &GitContext, identity: &WorktreeIdentity, home: Option<&Path>, reads_only: bool) -> Gate {
     let Some((git_dir, common_dir)) = worktree_directories(identity) else {
         return Gate::Clear;
     };
@@ -277,7 +314,7 @@ pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeId
         Ok(false) => {}
         Err(error) => return stopped(&error),
     }
-    if let Err(error) = settle_merges(context, git_dir, common_dir, &mut std::io::stderr()) {
+    if let Err(error) = settle_merges(context, git_dir, common_dir, &mut std::io::stderr(), reads_only) {
         return stopped(&error);
     }
     if let Some(note) = registry_note(git_dir.join(REGISTRY_DIRECTORY_NAME).as_path()) {

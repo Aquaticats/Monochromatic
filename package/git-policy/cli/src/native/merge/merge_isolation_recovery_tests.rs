@@ -324,6 +324,7 @@ fn a_merge_that_never_began_is_discarded() {
             target_ref: Some(String::from("refs/heads/main")),
             new_oid: world.new_oid.clone(),
             side_ref: None,
+            stopped: None,
         }]
     );
     assert!(!record.exists());

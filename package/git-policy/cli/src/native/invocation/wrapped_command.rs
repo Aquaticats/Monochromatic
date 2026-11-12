@@ -62,7 +62,7 @@ use crate::policy_trigger::Trigger;
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::RepositoryLocation;
 /// Startup recovery as a command step.
-use crate::startup_gate::{Gate, recover_for_command};
+use crate::startup_gate::{Gate, recover_for_a_read_of_the_checkout, recover_for_command};
 /// A valid preparation lease marks a command started by a hook of a live transaction.
 use crate::unported::{Unported, unported_from_unavailable, unported_notice};
 use crate::worktree_identity::worktree_root;
@@ -388,7 +388,7 @@ fn recover_before_read_only<F: RepositoryFacts>(
     let Some(Ok(location)) = checks.facts.asked_location() else {
         return None;
     };
-    match recover_for_command(&checks.facts.transaction_context(), &location.identity, environment) {
+    match recover_for_a_read_of_the_checkout(&checks.facts.transaction_context(), &location.identity, environment) {
         Gate::Clear => return None,
         Gate::Stop(stderr) => {
             return Some(WrappedOutcome::Exit {

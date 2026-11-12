@@ -138,6 +138,14 @@ pub enum MergeRecoveryAction {
     ///  side ref keeps the merge commit,
     /// which the line names.
     SavedBranchMoved,
+    /// Part of the merge is in the checkout and it cannot be finished now,
+    /// so nothing more was changed and the record was
+    ///  kept.
+    /// A command that only reads the checkout goes on and is told the state;
+    /// a command that would write to
+    ///  it stops,
+    /// because it would read the merge as another session's staged work.
+    PartlyInstalled,
     /// A merge that was saved on a side ref could not be finished now;
     /// nothing of it is in the checkout,
     /// so the command goes

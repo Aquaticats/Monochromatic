@@ -79,6 +79,11 @@ pub mod merge_isolation_moved;
 /// The durable intent record of an isolated merge.
 pub mod merge_isolation_journal;
 
+/// The one mark of an install running in a worktree,
+/// the wait a second merge makes for it,
+/// and the clearing of one a killed merge left.
+pub mod merge_install_guard;
+
 /// The raw differences of an isolated merge and the worktree state of each changed path.
 pub mod merge_isolation_changes;
 

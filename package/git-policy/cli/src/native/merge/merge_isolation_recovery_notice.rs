@@ -93,6 +93,10 @@ pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
         | MergeRecoveryAction::Discarded
         | MergeRecoveryAction::AlreadyLanded
         | MergeRecoveryAction::IndexHeld
+        // A merge that is partly installed is named by the caller that decides whether the command may go on
+        //  (`startup_gate.rs`), because the words say what a command that writes must not do and what a reading one
+        //  reads instead.
+        | MergeRecoveryAction::PartlyInstalled
         | MergeRecoveryAction::DeferredRefused => None,
     };
 }

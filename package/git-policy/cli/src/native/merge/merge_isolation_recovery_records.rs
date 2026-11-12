@@ -19,6 +19,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
+use crate::merge_install_guard::{a_dead_install_guard, clear_install_guard};
 use crate::merge_isolation_journal::{MergeIntent, list_merge_intents, parse_merge_intent};
 use crate::merge_isolation_kept_copies_decisions::sweep_kept_copies_awaiting;
 use crate::merge_isolation_take_aside_names::merge_key_of_a_record;
@@ -50,23 +51,33 @@ pub struct MergeRecoveryOutcome {
     /// The side ref that keeps the merge commit,
     /// for a merge that was saved because the index was locked.
     pub side_ref: Option<String>,
+    /// What a command that writes to the checkout is told about a merge that is partly installed,
+    /// or nothing when nothing of the merge is in the checkout
+    /// (`MergeRecoveryAction::PartlyInstalled`).
+    pub stopped: Option<String>,
 }
 
 /// What:
 ///  Whether the worktree's Git directory holds an intent record that recovery must look at:
 /// one whose owner is
 ///  dead,
-/// or one that cannot be read.
+/// or one that cannot be read,
+/// or the mark of an install whose merge is gone.
 /// Why:
 ///   The common case needs one failed directory read and no lock.
 ///  A record of a merge that still runs is not recovered,
 /// so a nested command does not touch its ancestor's merge.
+///  A mark whose merge was killed before it wrote its record is the one state a record walk would never look at,
+///  and every command would wait its ceiling for a merge that does not exist.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (await listMergeIntents(gitDir)).some((record) => !isLive(record))
+/// (await listMergeIntents(gitDir)).some((record) => !isLive(record)) || await aDeadInstallGuard(gitDir)
 /// ```
 pub fn merge_intents_to_recover(git_dir: &Path) -> Result<bool, RecoveryError> {
+    if a_dead_install_guard(git_dir)? {
+        return Ok(true);
+    }
     for record in list_merge_intents(git_dir)? {
         let bytes: Vec<u8> = match std::fs::read(record.as_path()) {
             Ok(found) => found,
@@ -122,6 +133,12 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
     out: &mut W,
 ) -> Result<Vec<MergeRecoveryOutcome>, RecoveryError> {
     let mut outcomes: Vec<MergeRecoveryOutcome> = Vec::new();
+    // The mark of an install whose merge is gone holds nothing: its merge is found by its record, and a merge killed
+    //  before it wrote one leaves nothing else that names it. It goes first, so the walk below never mistakes it for an
+    //  install that still runs (`merge_install_guard.rs`).
+    if a_dead_install_guard(git_dir)? {
+        clear_install_guard(git_dir)?;
+    }
     // Every record is read and its owner judged before any is settled, so a record of another namespace older than the patience
     //  stops the command with nothing changed (owner, 2026-11-04, "Refuse and name it (Recommended)"; sol-1 round 3, P1 C).
     let mut planned: Vec<(PathBuf, MergeIntent, OwnerLiveness)> = Vec::new();
@@ -157,6 +174,7 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
     crate::service_fault::reach("recovery-owners-planned");
     sweep_kept_copies_awaiting(place, running.as_slice(), out).await;
     for (record, intent, liveness) in planned {
+        let mut stopped: Option<String> = None;
         let action: MergeRecoveryAction = if liveness == OwnerLiveness::Alive {
             debug("recoverInterruptedMerges", format!("the owner of {} still runs", record.display()).as_str());
             MergeRecoveryAction::OwnerActive
@@ -179,17 +197,21 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
                     MergeRecoveryAction::DeferredRefused
                 }
                 Err(refusal) => {
-                    // Part of the merge is in the index or the worktree, so the command must not go on reading the checkout.
+                    // Part of the merge is in the index or the worktree. A command that writes to the checkout must not go
+                    //  on, because it would read the merge as another session's staged work; a command that only reads it
+                    //  goes on and says what it reads, because a state no command may even look at is one no person can
+                    //  get out of (`SPEC.md`, "A merge that is partly installed stops writes, never reads").
                     let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its record");
                     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
                     // The refusal's own sentence ends with a period, and this one follows it inside a sentence of its own, so
                     //  the period it already carries is not written twice.
                     let said: &str = refusal.error.0.strip_suffix('.').unwrap_or(refusal.error.0.as_str());
-                    return Err(RecoveryError(format!(
+                    stopped = Some(format!(
                         "A merge saved on {side_ref} for {target} is partly installed in this worktree: {said}. Nothing more was changed \
                          and the record {} was kept; check `git status` and `git stash list` before you commit anything.",
                         record.display()
-                    )));
+                    ));
+                    MergeRecoveryAction::PartlyInstalled
                 }
             }
         };
@@ -199,6 +221,7 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
             target_ref: intent.target_ref.clone(),
             new_oid: intent.new_oid.clone(),
             side_ref: intent.side_ref.clone(),
+            stopped,
         };
         if let Some(line) = recovery_notice(&outcome) {
             // A closed terminal is not a reason to stop the command the person asked for.

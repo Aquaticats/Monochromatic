@@ -99,6 +99,13 @@ pub struct GitRequest {
     /// Bytes on standard input;
     ///  none means an empty input.
     pub input: Option<Vec<u8>>,
+    /// Whether this step may be ended at its bound even though running it a second time would write something new,
+    ///  because the command that starts it can put back every byte it changed;
+    ///  `ended_at_its_bound()` is the way to set it.
+    ///  No form is proven by its name alone,
+    ///  so the answer stays with the one caller that proves it
+    ///  (`transaction_git_step_rerun_and_end_rules.rs`).
+    pub ended_at_its_bound: bool,
 }
 
 /// Builder methods for one request.
@@ -123,6 +130,29 @@ impl GitRequest {
             arguments: owned,
             ..Self::default()
         };
+    }
+
+    /// What:
+    ///  This request with the answer that its step may be ended at its bound.
+    /// Why:
+    ///   A step Git writes in place is otherwise never ended (owner,
+    /// 2026-11-04,
+    /// "Never cut a branch write (Recommended)"):
+    ///  ending it could leave a half-written state nothing puts back.
+    /// A step whose caller can put back every byte it changed is not that
+    ///  case,
+    /// and saying so is the caller's one decision
+    /// (`merge_isolation_apply.rs`;
+    /// `SPEC.md`,
+    /// "The bounds of a merge's steps").
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// { ...request, endedAtItsBound: true }
+    /// ```
+    pub fn ended_at_its_bound(mut self) -> Self {
+        self.ended_at_its_bound = true;
+        return self;
     }
 
     /// What:

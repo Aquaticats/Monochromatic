@@ -47,6 +47,9 @@ use crate::merge_isolation_ignored_paths::ignored_untracked_among;
 /// The word-level second pass over the conflicts of the merge tree,
 /// and the attribute tree it reads.
 use crate::merge_second_pass::Merged;
+/// The one mark of an install running in this worktree,
+/// and the wait a merge makes for one.
+use crate::merge_install_guard::{GuardWait, wait_for_the_installing_merge};
 /// Recovery of records.
 use crate::merge_isolation_recovery::recover_interrupted_merges;
 /// The person's own work in the paths the merge changes,
@@ -167,6 +170,19 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
         _ => return Err(Bail::Forward(None)),
     };
     recover_dead_merges(input, git_dir, root)?;
+    // One merge installs in a worktree at a time: a second install beside a first leaves an index the merge commit does
+    //  not explain, or a checkout neither install can finish (`SPEC.md`, "Merges and commits never fail", "One install in a
+    //  worktree at a time"). The wait is bounded and names the merge it waits for; a merge that still installs at the
+    //  ceiling is met again by the install's own mark, which saves this merge on a side ref instead of installing it
+    //  (`merge_isolation_apply.rs`).
+    match wait_for_the_installing_merge(git_dir, &mut std::io::stderr()).map_err(|error| refused(2, format!("monochromatic-git-policy-cli: git merge: {error}\n")))? {
+        GuardWait::Free => {}
+        // Another merge installed under this one, so the round is computed again on the branch as it is now.
+        GuardWait::Released(_) => return Err(Bail::Again(String::from("a merge finished its install in this worktree while this merge waited for it"))),
+        // Nothing of this merge has been read from the checkout yet, so the round goes on and its install decides at the
+        //  mark: a mark still held there saves the merge on a side ref of its own.
+        GuardWait::StillHeld(_) => {}
+    }
     let shape: MergeShape = match parse_merge_shape(input.command.region()) {
         ParsedMerge::Supported(found) => found,
         ParsedMerge::Unsupported(reason) => {
