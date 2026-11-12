@@ -18,13 +18,17 @@ import {
   requiredText,
 } from './required-option-values.ts';
 
+import {
+  BASE_OF_A_RUN_NAMING_NONE,
+} from './worktree-of-a-run.ts';
+
 /**
  The launcher's command line, for the error message.
  */
 export const WORKTREE_LAUNCHER_USAGE: string =
   'start-pi-run-in-a-worktree --name=<run name> --branch=<branch> --prompt=<file> --cpu=<percent> --memory=<size> --tasks=<count> --wall=<seconds> '
-    + '[--run=<number>] [--session=<file>] [--provider=<name>] [--model=<name>] [--turn-cap=<n>] [--idle-seconds=<n>] '
-    + '[--runs-folder=<folder>] [--checkout-folder=<folder>]';
+    + '[--base=<commit or branch>] [--run=<number>] [--session=<file>] [--provider=<name>] [--model=<name>] [--turn-cap=<n>] '
+    + '[--idle-seconds=<n>] [--runs-folder=<folder>] [--checkout-folder=<folder>]';
 
 /**
  The branch name that tells the launcher to run in the checkout itself, without making a worktree.
@@ -129,6 +133,11 @@ export type WorktreeLauncherOptions = {
   readonly branch: string;
 
   /**
+   The commit or branch a branch this run creates starts at, which an existing branch of that name keeps its own commits over.
+   */
+  readonly base: string;
+
+  /**
    The first prompt.
    */
   readonly promptFile: string;
@@ -230,6 +239,7 @@ export function parseWorktreeLauncherOptions({
       value: parsed.branch,
       name: 'branch',
     },),),
+    base: parsed.base ?? BASE_OF_A_RUN_NAMING_NONE,
     promptFile: requiredText(optionOf({
       value: parsed.prompt,
       name: 'prompt',
@@ -309,6 +319,7 @@ export function worktreeFolderOf({
 type WrittenValues = {
   readonly name?: string;
   readonly branch?: string;
+  readonly base?: string;
   readonly prompt?: string;
   readonly cpu?: string;
   readonly memory?: string;
@@ -350,6 +361,7 @@ function writtenValuesIn(commandLine: readonly string[],): WrittenValues {
       options: {
         name: { type: 'string', },
         branch: { type: 'string', },
+        base: { type: 'string', },
         prompt: { type: 'string', },
         cpu: { type: 'string', },
         memory: { type: 'string', },

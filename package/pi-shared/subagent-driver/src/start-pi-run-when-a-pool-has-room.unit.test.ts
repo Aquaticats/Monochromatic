@@ -584,6 +584,10 @@ await describe({
           turns: 40,
         },),);
         /**
+         The prompt file a start needs before it makes anything.
+         */
+        await writeFile(join(folder.path, 'prompt.md',), 'Answer with one line.\n',);
+        /**
          What the gate answered.
          */
         const ran = await runTheGate({
@@ -597,6 +601,7 @@ await describe({
             '--memory=1G',
             '--tasks=100',
             '--wall=600',
+            `--checkout-folder=${folder.path}`,
           ],
         },);
         expect(ran.status,).toBe(0,);
@@ -667,6 +672,10 @@ await describe({
           execStart: '',
         },);
         /**
+         The prompt file a start needs before it makes anything.
+         */
+        await writeFile(join(folder.path, 'prompt.md',), 'Answer with one line.\n',);
+        /**
          What the gate answered for a runs folder with no finished run.
          */
         const ran = await runTheGate({
@@ -680,6 +689,7 @@ await describe({
             '--memory=1G',
             '--tasks=100',
             '--wall=600',
+            `--checkout-folder=${folder.path}`,
           ],
         },);
         expect(ran.status,).not.toBe(0,);

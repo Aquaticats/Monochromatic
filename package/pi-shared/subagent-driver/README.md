@@ -163,6 +163,11 @@ or start a run it would refuse.
   and `--wall`,
   which are all required.
 - `--branch=none` runs in the checkout itself and makes no worktree.
+- `--base`:
+  the commit or branch the run's new branch starts at,
+  `main` when it is not given.
+  A fix for a reviewed branch names that branch;
+  a review names the commit it reviews.
 - `--run`:
   the run folder's number.
   Without it the next number no folder of that name holds is taken,
@@ -178,8 +183,20 @@ or start a run it would refuse.
   `--runs-folder`,
   and `--checkout-folder`.
 
-The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`,
-made from the checkout's `main` unless the run's branch already exists.
+The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`.
+A branch this launcher creates starts at `--base`,
+and a branch that already exists is added as it is,
+keeping its own commits,
+because moving it would rewrite work someone else may be reading;
+the line the launcher prints says which of the two it did.
+The checkout it works in is the nearest folder above the one it was started in that holds a `.git`,
+which a worktree marks with a file;
+it does not ask Git for that root,
+because this repository's Git wrapper refuses every command whose folder is not the root,
+and a command of this package runs from the package's own folder.
+On 2026-11-11 that refusal ended all ten starts of a batch before any of them made a worktree.
+`--checkout-folder` names the checkout instead.
+
 The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to put the run away,
 which is the only bound that reaches a driver stuck in a file system call.
 
@@ -192,6 +209,16 @@ It used to wait on `systemd-run --wait` alone,
 and while an impostor manager held the session bus name on 2026-11-11,
 sixteen launchers never heard their units end and waited about ten hours.
 
+Nothing is made before three checks pass:
+the prompt file exists and can be read,
+the base names a commit,
+and no unit of the run's name is there.
+A start that fails one of them prints every reason it found and exits non-zero,
+with no worktree, no run folder and no unit,
+so no provider slot is spent on a run that could not have worked.
+Before this, a launcher took a slot, made a worktree and linked its dependencies,
+and only then did the driver find that its prompt file was not there.
+
 When the run has ended the worktree is removed only if the run ended `idle` or on its stop file,
 its HEAD is a branch,
 and `git status` holds nothing.
@@ -201,7 +228,12 @@ and every other ending keeps it and prints why.
 ### `retry-pi-run-start-until-a-pool-has-room`
 
 `--deadline-seconds` and `--period-seconds`,
-then `--` and the pool gate's words.
+then the pool gate's words.
+A `--` between them is optional:
+the command reads its own two options wherever they stand,
+because `mise run //package/pi-shared/subagent-driver:retry-pi-run-start-until-a-pool-has-room -- --deadline-seconds=1 --period-seconds=1 -- --name=a`
+lost its second `--` before the script saw it,
+so the task could not be used as its own usage line said.
 It ends when the gate starts the run,
 when the gate answers something other than "no slot",
 or at its deadline,
@@ -222,13 +254,27 @@ An entry may also name `prompt`,
 `wall`,
 `run`,
 `sessionOf`,
-`provider` and
-`model`.
+`session`,
+`provider`,
+`model` and
+`base`,
+which is the commit or branch the run's new branch starts at
+(`main` when the entry names none,
+and never used when the run's branch already exists).
+An entry that names a field this command does not read refuses the whole list,
+with a message naming the field and the entry,
+so a field is never dropped silently.
 A `prompt` that is not a path is read under the runs folder,
 and an entry with none reads `<name>-prompt.md` there.
 Entries start twenty seconds apart,
-and the command prints one line per entry once every run it started has ended,
-keeping the end of both streams so a failure says why.
+and the command prints one line per entry once every run it started has ended.
+That line names the run and the reason it failed by,
+which is the error's own message,
+never the line a stack happens to end with:
+Node ends an uncaught error with `Node.js v26.13.0`,
+and for all ten starts of 2026-11-11 that was the whole of what the batch printed.
+The whole of what a failed start printed is appended to `<runs-folder>/<name>-start-failure.log`,
+and the line names that file.
 
 ## Command line
 
