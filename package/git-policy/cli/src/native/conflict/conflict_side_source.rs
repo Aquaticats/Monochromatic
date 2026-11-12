@@ -199,10 +199,8 @@ pub fn locate(root: &Path, relative: &[u8]) -> Result<Option<Located>, SaveFailu
 /// when last written,
 /// when last changed,
 /// with what mode.
-///  A copy proves the source held still against this,
-///  and a later comparison asks whether it still does.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Stamp {
+struct Stamp {
     /// Device and inode.
     object: (u64, u64),
     /// Size in bytes.
@@ -217,7 +215,7 @@ pub struct Stamp {
 
 impl Stamp {
     /// The stamp of metadata read from an open descriptor or from a name.
-    pub fn of(metadata: &std::fs::Metadata) -> Stamp {
+    fn of(metadata: &std::fs::Metadata) -> Stamp {
         return Stamp {
             object: (metadata.dev(), metadata.ino()),
             size: metadata.size(),
@@ -244,7 +242,7 @@ fn changed(located: &Located, what: &str) -> SaveFailure {
 /// ```ts
 /// function copyLink(located: Located, destination: string): void;
 /// ```
-fn copy_link(located: &Located, before: &std::fs::Metadata, destination: &Path) -> Result<Stamp, SaveFailure> {
+fn copy_link(located: &Located, before: &std::fs::Metadata, destination: &Path) -> Result<(), SaveFailure> {
     let target: PathBuf = match read_link_at(&located.parent, located.name.as_os_str()) {
         Ok(read) => read,
         Err(error) => return Err(changed(located, format!("could not be read as a link ({error})").as_str())),
@@ -256,7 +254,7 @@ fn copy_link(located: &Located, before: &std::fs::Metadata, destination: &Path) 
         let _removed = std::fs::remove_file(destination);
         return Err(changed(located, "was replaced while its link target was copied"));
     }
-    return Ok(Stamp::of(before));
+    return Ok(());
 }
 
 /// Whether the entry still has the stamp it had and still points at `target`.
@@ -271,29 +269,6 @@ fn link_unchanged(located: &Located, before: &std::fs::Metadata, target: &Path) 
         return false;
     };
     return read == target;
-}
-
-/// What:
-///  What a copy leaves behind when its source changes while it is being read.
-/// Why:
-///   The abort family copies such a source again and refuses when it will not hold still,
-///  because the command it protects discards the file;
-///  a conflict-side command replaces a half-resolved file the person asked Git to take a side of,
-///  and a writer that never stops must not hold that command for good either,
-///  so the bytes the source held when the copy opened it are kept and the notice says so.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WhenTheSourceChanges = 'remove' | 'keep';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WhenTheSourceChanges {
-    /// The copy is removed and the caller is told:
-    ///  it may copy the source again or refuse the command.
-    Remove,
-    /// The copy is kept as the bytes the source held when it was opened,
-    ///  and the caller says the source was still being written.
-    Keep,
 }
 
 /// A failure inside the copy:
@@ -386,15 +361,9 @@ fn copy_stream(located: &Located, from: &mut File, to: &mut File, before: Stamp,
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copyEntry({ located, metadata, destination, between, whenTheSourceChanges }): Stamp;
+/// function copyEntry(located: Located, metadata: Metadata, destination: string, between: () => void): void;
 /// ```
-fn copy_entry(
-    located: &Located,
-    metadata: &std::fs::Metadata,
-    destination: &Path,
-    between: &mut dyn FnMut(),
-    when_the_source_changes: WhenTheSourceChanges,
-) -> Result<Stamp, CopyError> {
+fn copy_entry(located: &Located, metadata: &std::fs::Metadata, destination: &Path, between: &mut dyn FnMut()) -> Result<(), CopyError> {
     let shown: String = String::from_utf8_lossy(located.relative.as_slice()).into_owned();
     let mut from: File = open_file_at(&located.parent, located.name.as_os_str())?;
     let opened: std::fs::Metadata = from.metadata()?;
@@ -408,12 +377,9 @@ fn copy_entry(
     let mut to: File = std::fs::OpenOptions::new().write(true).create_new(true).mode_600().open(destination)?;
     let streamed: Result<(), CopyError> = copy_stream(located, &mut from, &mut to, before, between);
     if streamed.is_err() {
-        if when_the_source_changes == WhenTheSourceChanges::Remove {
-            let _removed = std::fs::remove_file(destination);
-        }
-        return Err(streamed.err().unwrap_or(CopyError::Failed(changed(located, "could not be copied"))));
+        let _removed = std::fs::remove_file(destination);
     }
-    return Ok(before);
+    return streamed;
 }
 
 /// What:
@@ -432,20 +398,15 @@ fn copy_entry(
 ///  still lead,
 /// without a link,
 /// to the object that was read;
-/// any difference is a failure,
-/// because a stale or torn copy would pass for the file Git then replaces;
-/// `when_the_source_changes` says whether that copy is removed or kept as the bytes the source held.
+/// any difference removes the copy and fails,
+/// because a stale or
+///  torn copy would pass for the file Git then replaces.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copyLocated({ located, destination, between, whenTheSourceChanges }): Stamp;
+/// function copyLocated(located: Located, destination: string, between: () => void): void;
 /// ```
-pub fn copy_located(
-    located: &Located,
-    destination: &Path,
-    between: &mut dyn FnMut(),
-    when_the_source_changes: WhenTheSourceChanges,
-) -> Result<Stamp, SaveFailure> {
+pub fn copy_located(located: &Located, destination: &Path, between: &mut dyn FnMut()) -> Result<(), SaveFailure> {
     let shown: String = String::from_utf8_lossy(located.relative.as_slice()).into_owned();
     let metadata: std::fs::Metadata = match entry_metadata_at(&located.parent, located.name.as_os_str()) {
         Ok(found) => found,
@@ -457,73 +418,11 @@ pub fn copy_located(
     if !metadata.file_type().is_file() {
         return Err(SaveFailure::io(shown, String::from("it is neither a file nor a symbolic link")));
     }
-    return match copy_entry(located, &metadata, destination, between, when_the_source_changes) {
-        Ok(stamp) => Ok(stamp),
+    return match copy_entry(located, &metadata, destination, between) {
+        Ok(()) => Ok(()),
         Err(CopyError::System(error)) => Err(io_failure(&shown, &error)),
         Err(CopyError::Failed(failure)) => Err(failure),
     };
-}
-
-/// What:
-///  Whether the entry at `relative` below `root` is still the one the copy proved it read,
-///  or why that cannot be asked.
-/// Why:
-///   A command the wrapper hands to Git discards what stands at that path now,
-///  not what stood when the copy was made,
-///  so the same proof the copy made is asked once more immediately before Git starts.
-///  The stamp carries the object,
-///  its size,
-///  both its times and its mode,
-///  so any write,
-///  replacement or removal answers "changed".
-///  A path the worktree no longer holds,
-///  or holds as another kind of entry,
-///  answers "changed" too,
-///  and the caller saves it again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function sourceStillHolds(root: string, relative: Uint8Array, stamp: Stamp): boolean;
-/// ```
-/// What:
-///  Whether the worktree still holds no entry at `relative`,
-///  which is what a path with nothing to copy answered when it was read.
-/// Why:
-///   A path the listing named and the worktree did not hold had nothing to copy;
-///  a file that appears there before Git discards that path is work that would go with no copy.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function stillNothingThere(root: string, relative: Uint8Array): boolean;
-/// ```
-pub fn still_nothing_there(root: &Path, relative: &[u8]) -> bool {
-    return matches!(locate(root, relative), Ok(None));
-}
-
-/// What:
-///  Whether the entry at `relative` below `root` is still the one the copy proved it read.
-/// Why:
-///   A command the wrapper hands to Git discards what stands at that path now,
-///  not what stood when the copy was made,
-///  so the same proof the copy made is asked once more immediately before Git starts.
-///  The stamp carries the object,
-///  its size,
-///  both its times and its mode,
-///  so any write,
-///  replacement or removal answers "changed".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function sourceStillHolds(root: string, relative: Uint8Array, stamp: Stamp): boolean;
-/// ```
-pub fn source_still_holds(root: &Path, relative: &[u8], stamp: Stamp) -> bool {
-    let Ok(Some(located)) = locate(root, relative) else {
-        return false;
-    };
-    let Ok(now) = entry_metadata_at(&located.parent, located.name.as_os_str()) else {
-        return false;
-    };
-    return Stamp::of(&now) == stamp;
 }
 
 /// `OpenOptions` with the private creation mode,

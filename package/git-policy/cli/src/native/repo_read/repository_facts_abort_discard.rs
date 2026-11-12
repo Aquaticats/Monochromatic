@@ -13,6 +13,10 @@
 //!  a pick and an `am` return with a hard reset that keeps nothing.
 //!  Every answer is Git's own;
 //!  nothing here guesses a path.
+//!  The two listings are kept apart rather than merged,
+//!  because a refusal has to say which of the two holds the work it would discard:
+//!  a staged resolution and an edit in the worktree are two different things,
+//!  and one erased index entry is a third.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -44,7 +48,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AbortDiscard = { kind: 'nothing-waiting' } | { kind: 'waiting'; inProgress: AbortOperation; restored: string; paths: string[] };
+/// type AbortDiscard = { kind: 'nothing-waiting' } | { kind: 'waiting'; inProgress: AbortOperation; restored: string; worktree: string[]; index: string[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AbortDiscard {
@@ -63,15 +67,50 @@ pub enum AbortDiscard {
         ///  a name Git resolves,
         ///  or the commit read from the record Git wrote.
         restored: OsString,
-        /// The listed paths whose index holds a whole entry:
-        ///  the command resets the index too,
-        ///  so the content staged there is discarded whatever the worktree holds,
-        ///  and it is copied from the index itself.
-        staged: Vec<Vec<u8>>,
-        /// The repository-relative paths,
+        /// What the two listings below compare each side with:
+        ///  the result Git recorded for a merge,
+        ///  or the state the operation started from.
+        baseline: DiscardBaseline,
+        /// The repository-relative paths where the worktree differs from that baseline,
         ///  in a settled order and each once.
-        paths: Vec<Vec<u8>>,
+        worktree: Vec<Vec<u8>>,
+        /// The repository-relative paths where the index differs from it,
+        ///  in a settled order and each once.
+        index: Vec<Vec<u8>>,
+        /// The listed paths whose index holds a whole entry (stage 0):
+        ///  that is content the command's reset drops from the index itself,
+        ///  as opposed to a staged deletion, which holds no content at all.
+        staged: Vec<Vec<u8>>,
     },
+}
+
+/// What:
+///  What the two listings of a waiting command compare the worktree and the index with.
+/// Why:
+///   Git records the result it computed for the conflict it stopped at (`AUTO_MERGE`),
+///  for a merge and for the rebase,
+///  pick and `am` that use the same merge machinery (measured with Git 2.56.0),
+///  so a path that still holds that result was never touched by the person.
+///  A path whose worktree file still holds the recorded result and whose index entry differs
+///  is content that stands only in the index.
+///  Where Git recorded no result (an older Git, a state it does not write for),
+///  the listings compare each side with the other,
+///  and a staged path's content is in the worktree as well.
+///  A refusal that named the wrong one would tell the person the wrong place to look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DiscardBaseline = 'recorded-result' | 'operation-start';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DiscardBaseline {
+    /// `AUTO_MERGE` holds the result Git computed for the conflict it stopped at,
+    ///  and both listings are read against it.
+    RecordedResult,
+    /// No such result is recorded:
+    ///  the worktree is read against the index,
+    ///  and the index against `HEAD`.
+    OperationStart,
 }
 
 /// What:
@@ -258,20 +297,20 @@ pub fn merge_result_queries(global_prefix: &[OsString]) -> [Vec<OsString>; 2] {
 }
 
 /// What:
-///  The two listings that name every uncommitted change of the tracked files:
+///  The two listings that name every uncommitted change of the tracked files,
+///  for a state where Git recorded no result to compare with:
 ///  the worktree against the index,
 ///  and the index against `HEAD`.
 ///  `&[OsString]` borrows the caller's global options.
 /// Why:
-///   A rebase,
-///  a cherry-pick,
-///  a revert and an `am` return with a hard reset that keeps no uncommitted change at all,
-///  and none of them records the result it staged,
-///  so everything uncommitted is at risk and all of it is saved.
+///   Without a recorded result, everything uncommitted is at risk;
+///  the index side drops the unmerged entries (`--diff-filter=ACDMRTB` keeps every status but `U`),
+///  because a path the operation is still stopped at is the operation's own state and not the person's work.
+///  The worktree side names such a path too, and the caller asks for the unresolved paths separately.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const queries = [diff(['--name-only']), diff(['--cached', '--name-only'])];
+/// const queries = [diff(['--name-only']), diff(['--cached', '--name-only', '--diff-filter=ACDMRTB'])];
 /// ```
 pub fn uncommitted_queries(global_prefix: &[OsString]) -> [Vec<OsString>; 2] {
     let mut worktree: Vec<OsString> = global_prefix.to_vec();
@@ -279,7 +318,7 @@ pub fn uncommitted_queries(global_prefix: &[OsString]) -> [Vec<OsString>; 2] {
         worktree.push(OsString::from(token));
     }
     let mut index: Vec<OsString> = global_prefix.to_vec();
-    for token in ["--no-optional-locks", "diff", "--cached", "--name-only", "-z"] {
+    for token in ["--no-optional-locks", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACDMRTB"] {
         index.push(OsString::from(token));
     }
     return [worktree, index];
@@ -310,6 +349,45 @@ pub fn listed_paths(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
 }
 
 /// What:
+///  The argument list of the query that names the paths the operation is still stopped at,
+///  which are its own state and not the person's work.
+///  `&[OsString]` borrows the caller's global options.
+/// Why:
+///   `--diff-filter=U` selects exactly the unmerged entries
+///  (measured with Git 2.56.0: the worktree listing names such a path twice, once with the status `U`
+///  and once as a modification, so no other filter separates them),
+///  and this is the only reading that does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const args = [...pre, '--no-optional-locks', 'diff', '--name-only', '-z', '--diff-filter=U'];
+/// ```
+pub fn unresolved_query(global_prefix: &[OsString]) -> Vec<OsString> {
+    let mut arguments: Vec<OsString> = global_prefix.to_vec();
+    for token in ["--no-optional-locks", "diff", "--name-only", "-z", "--diff-filter=U"] {
+        arguments.push(OsString::from(token));
+    }
+    return arguments;
+}
+
+/// What:
+///  The paths the operation is still stopped at,
+///  or why Git could not name them.
+/// Why:
+///   The reading that compares each side with the other cannot tell an untouched conflicted path
+///  from an edit, and these paths are exactly the operation's own state;
+///  a listing that failed is a failure and never an empty answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function unresolvedPaths(facts: GitFacts): Promise<Buffer[]>; // throws
+/// ```
+fn unresolved_paths(facts: &mut GitFacts) -> Result<Vec<Vec<u8>>, String> {
+    let answer: MetadataOutput = facts.query(unresolved_query(facts.global_prefix.as_slice()), "the paths the operation still stands at")?;
+    return listed_paths(&answer);
+}
+
+/// What:
 ///  The two listings' paths together,
 ///  each once and in a settled order.
 /// Why:
@@ -329,13 +407,16 @@ pub fn both_listings(worktree: Vec<Vec<u8>>, index: Vec<Vec<u8>>) -> Vec<Vec<u8>
 }
 
 /// What:
-///  Whether the merge result `AUTO_MERGE` can be read at all.
+///  Whether the result Git computed for the conflict it stopped at (`AUTO_MERGE`) can be read.
 ///  `Result<A, B>` is "either success `A` or failure `B`".
 /// Why:
-///   A repository without the ref (an older Git,
-///  a merge the wrapper finished itself)
+///   Every operation that stops at a conflict with the merge machinery records that result,
+///  not only a merge:
+///  a rebase, a pick and an `am` leave `AUTO_MERGE` behind too (measured with Git 2.56.0),
+///  and a path that still holds it was never touched by the person.
+///  A repository without the ref (an older Git)
 ///  has no recorded result to compare with,
-///  so the abort falls back to saving every uncommitted change.
+///  so the readings fall back to comparing each side with the other.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -351,6 +432,112 @@ fn merge_result_readable(facts: &mut GitFacts) -> Result<bool, String> {
 }
 
 /// What:
+///  How many bytes of a record the wrapper reads.
+/// Why:
+///   A record holds one commit id, which is 40 hexadecimal bytes for SHA-1 and 64 for SHA-256;
+///  nothing Git writes there is longer,
+///  and a read that obeyed the file's own length would let whatever stands at that path decide
+///  how much this command spends.
+///  One page is room for either id, its newline and any trailing blank the writer left.
+pub const RECORD_BYTES_READ: u64 = 4096;
+
+/// What:
+///  The record of the commit an abort restores opened for reading,
+///  or the system's own reason for not opening it.
+/// Why:
+///   A record that is a pipe, a socket, a device or a directory is not something Git writes,
+///  and opening one without `O_NONBLOCK` waits for a writer that may never come:
+///  a `git rebase --abort` whose `rebase-merge/orig-head` is a pipe hung there, with nothing able to end it.
+///  `O_NONBLOCK` returns at once for every kind of entry,
+///  `O_NOFOLLOW` refuses a link some other process left at the name,
+///  and the caller refuses whatever is not a regular file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const opened = openTheRecord(path); // never waits
+/// ```
+fn open_the_record(path: &Path) -> std::io::Result<std::fs::File> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        return std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
+            .open(path);
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        return std::fs::File::open(path);
+    }
+}
+
+/// What:
+///  The text of a record of the commit an abort restores,
+///  read from a regular file and never more than `RECORD_BYTES_READ` of it,
+///  or why that cannot be read.
+/// Why:
+///   A record that is not a regular file,
+///  one longer than any commit id,
+///  one that cannot be opened,
+///  and one whose bytes are not text are all failures with their own words,
+///  because the person has to be told which path stands in the way and what is wrong with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = readTheRecord(path); // throws
+/// ```
+fn read_the_record(path: &Path) -> Result<String, String> {
+    use std::io::Read;
+    let file: std::fs::File = match open_the_record(path) {
+        Ok(opened) => opened,
+        Err(error) => {
+            return Err(format!(
+                "could not read the commit this abort restores: Git records it in {} and the file could not be opened ({error}).",
+                path.display()
+            ));
+        }
+    };
+    let kind: std::io::Result<std::fs::Metadata> = file.metadata();
+    let metadata: std::fs::Metadata = match kind {
+        Ok(read) => read,
+        Err(error) => {
+            return Err(format!(
+                "could not read the commit this abort restores: Git records it in {} and that path could not be read ({error}).",
+                path.display()
+            ));
+        }
+    };
+    if !metadata.file_type().is_file() {
+        return Err(format!(
+            "could not read the commit this abort restores: Git records it in {}, which is not a regular file, so the wrapper did not read it.",
+            path.display()
+        ));
+    }
+    let mut bytes: Vec<u8> = Vec::<u8>::new();
+    let mut bounded = file.take(RECORD_BYTES_READ + 1);
+    if let Err(error) = bounded.read_to_end(&mut bytes) {
+        return Err(format!(
+            "could not read the commit this abort restores: Git records it in {} and the file could not be read ({error}).",
+            path.display()
+        ));
+    }
+    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > RECORD_BYTES_READ {
+        return Err(format!(
+            "could not read the commit this abort restores: Git records it in {} and the file holds more than {RECORD_BYTES_READ} bytes, so it holds no commit id.",
+            path.display()
+        ));
+    }
+    return match String::from_utf8(bytes) {
+        Ok(text) => Ok(text),
+        Err(error) => Err(format!(
+            "could not read the commit this abort restores: Git records it in {} and the file is not text ({error}).",
+            path.display()
+        )),
+    };
+}
+
+/// What:
 ///  The commit Git recorded for the tree an abort writes back,
 ///  read from the file its own implementation reads.
 /// Why:
@@ -358,9 +545,10 @@ fn merge_result_readable(facts: &mut GitFacts) -> Result<bool, String> {
 ///  or `rebase-apply/orig-head`,
 ///  and a pick sequence in `sequencer/head`;
 ///  a record that cannot be read,
+///  that is not a regular file,
 ///  or that does not hold a commit id,
 ///  is a failure and never a quiet fall back to `HEAD`,
-///  because the ignored-file refusal it earns must not read as clean.
+///  because the refusal it earns must not read as clean.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -380,24 +568,7 @@ fn recorded_commit(answer: &StateAnswer, record: &OsStr) -> Result<OsString, Str
             record.to_string_lossy()
         ));
     };
-    let bytes: Vec<u8> = match std::fs::read(path) {
-        Ok(read) => read,
-        Err(error) => {
-            return Err(format!(
-                "could not read the commit this abort restores: Git records it in {} and the file could not be read ({error}).",
-                path.display()
-            ));
-        }
-    };
-    let text: String = match String::from_utf8(bytes) {
-        Ok(text) => text,
-        Err(error) => {
-            return Err(format!(
-                "could not read the commit this abort restores: Git records it in {} and the file is not text ({error}).",
-                path.display()
-            ));
-        }
-    };
+    let text: String = read_the_record(path)?;
     let commit: &str = text.trim();
     if commit.is_empty() || !commit.bytes().all(is_hex_digit) {
         return Err(format!(
@@ -457,23 +628,38 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
             RestoredRevision::StateFile(record) => recorded_commit(&answer, record)?,
         },
     };
-    // Only an abort of a merge can know which paths it put back untouched, because Git recorded its result;
-    //  a skip, a rebase, a pick and an `am` reset the worktree and the index outright, so everything uncommitted is at risk.
-    let queries: [Vec<OsString>; 2] = match aborted {
-        AbortOperation::Merge if ends == OperationEnd::Abort && merge_result_readable(facts)? => {
-            merge_result_queries(facts.global_prefix.as_slice())
-        }
-        _ => uncommitted_queries(facts.global_prefix.as_slice()),
+    // Git records the result it computed for the conflict it stopped at, whichever operation stopped there,
+    //  so the person's own work is what differs from that result;
+    //  where no result is recorded, everything uncommitted is at risk except the paths the operation still
+    //  stands at, which are its own state.
+    let recorded: bool = merge_result_readable(facts)?;
+    let (queries, baseline): ([Vec<OsString>; 2], DiscardBaseline) = match recorded {
+        true => (merge_result_queries(facts.global_prefix.as_slice()), DiscardBaseline::RecordedResult),
+        false => (uncommitted_queries(facts.global_prefix.as_slice()), DiscardBaseline::OperationStart),
     };
     let first: MetadataOutput = facts.query(queries[0].clone(), "the paths this command would discard")?;
     let second: MetadataOutput = facts.query(queries[1].clone(), "the staged paths this command would discard")?;
-    let worktree_paths: Vec<Vec<u8>> = listed_paths(&first)?;
+    let mut worktree_paths: Vec<Vec<u8>> = listed_paths(&first)?;
     let index_paths: Vec<Vec<u8>> = listed_paths(&second)?;
-    let paths: Vec<Vec<u8>> = both_listings(worktree_paths, index_paths.clone());
+    if !recorded {
+        // Without a recorded result the worktree listing names every path the operation is still stopped at,
+        //  and those paths are the operation's own state: the listing is read against the other side, not against
+        //  what Git wrote into the worktree. They are asked for on their own and left out.
+        let unresolved: Vec<Vec<u8>> = unresolved_paths(facts)?;
+        worktree_paths.retain(|path| { return !unresolved.contains(path); });
+    }
     // The content a whole index entry holds is work the command would discard,
-    //  and no worktree file holds it: each of those paths is copied from the index itself.
+    //  and the refusal has to tell it apart from a staged deletion, which holds none.
     let staged: Vec<Vec<u8>> = crate::repository_facts_staged_entries::staged_entries(facts, index_paths.as_slice())?;
-    return Ok(AbortDiscard::Waiting { in_progress: in_progress_operation(aborted, state), ends, restored, staged, paths });
+    return Ok(AbortDiscard::Waiting {
+        in_progress: in_progress_operation(aborted, state),
+        ends,
+        restored,
+        baseline,
+        worktree: both_listings(worktree_paths, Vec::new()),
+        index: both_listings(index_paths, Vec::new()),
+        staged,
+    });
 }
 
 /// The queries,

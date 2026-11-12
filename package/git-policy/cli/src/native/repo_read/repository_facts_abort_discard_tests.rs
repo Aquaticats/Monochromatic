@@ -1,6 +1,7 @@
 //! What:
 //!  The queries and readings of "what would this abort discard",
 //!  the record it restores its tree from,
+//!  `src/native/repo_read/repository_facts_abort_discard.rs`,
 //!  and the real repository answers they produce.
 //! Why:
 //!  The listing shapes are what the guard trusts,
@@ -17,8 +18,8 @@
 //! ```
 
 use super::{
-    AbortDiscard, StateAnswer, both_listings, merge_result_queries, recorded_commit, state_answer, state_from_presence,
-    state_query_arguments, uncommitted_queries,
+    AbortDiscard, RECORD_BYTES_READ, StateAnswer, both_listings, merge_result_queries, read_the_record, recorded_commit, state_answer,
+    state_from_presence, state_query_arguments, uncommitted_queries, unresolved_query,
 };
 use crate::rule_abort_operation::{RESTORED_REVISION_NAMES, SEQUENCER_DIRECTORY};
 use crate::rule_linked_worktree::GuardedCommand;
@@ -169,12 +170,26 @@ fn the_merge_result_queries_read_both_sides_against_the_recorded_result() {
     );
 }
 
-/// The fallback queries list every uncommitted tracked change.
+/// The fallback queries list every uncommitted tracked change,
+///  and the index side leaves out the paths the operation is still stopped at.
 #[test]
 fn the_fallback_queries_list_every_uncommitted_change() {
     let queries = uncommitted_queries(&[]);
     assert_eq!(words(queries[0].as_slice()), vec!["--no-optional-locks", "diff", "--name-only", "-z"]);
-    assert_eq!(words(queries[1].as_slice()), vec!["--no-optional-locks", "diff", "--cached", "--name-only", "-z"]);
+    assert_eq!(
+        words(queries[1].as_slice()),
+        vec!["--no-optional-locks", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACDMRTB"]
+    );
+}
+
+/// The paths the operation is still stopped at are asked for on their own,
+///  because no other filter separates the two records the worktree listing gives each of them.
+#[test]
+fn the_unresolved_query_asks_for_exactly_the_unmerged_entries() {
+    assert_eq!(
+        words(unresolved_query(&[]).as_slice()),
+        vec!["--no-optional-locks", "diff", "--name-only", "-z", "--diff-filter=U"]
+    );
 }
 
 /// Two listings become one set of paths,
@@ -187,6 +202,37 @@ fn two_listings_become_one_set() {
     );
     assert_eq!(both, vec![b"a.txt".to_vec(), b"b.txt".to_vec(), b"c.txt".to_vec()]);
     assert!(both_listings(Vec::new(), Vec::new()).is_empty());
+}
+
+/// A record that is not a regular file,
+///  and one longer than any commit id,
+///  are read in bounded time and refused with their own words.
+///  A pipe is what a `mkfifo` leaves at the name,
+///  and reading it by its own length never returns.
+#[test]
+fn a_record_that_is_no_regular_file_is_refused_without_waiting() {
+    let root: PathBuf = fixture("abort-record-kinds");
+    let pipe: PathBuf = root.join("orig-head");
+    let made: std::process::ExitStatus = std::process::Command::new("mkfifo").arg(pipe.as_path()).status().expect("mkfifo");
+    assert!(made.success(), "mkfifo must create {}", pipe.display());
+    let read: Result<String, String> = read_the_record(pipe.as_path());
+    assert!(read.is_err(), "a pipe is not a record: {read:?}");
+    assert!(read.unwrap_err().contains("not a regular file"), "the refusal says what stands there");
+    // A directory at the name, which is not a record either.
+    let directory: PathBuf = root.join("rebase-merge");
+    std::fs::create_dir(directory.as_path()).expect("a directory");
+    assert!(read_the_record(directory.as_path()).is_err(), "a directory is not a record");
+    // A record longer than any commit id is refused rather than read whole.
+    let long: PathBuf = root.join("long-head");
+    let mut text: String = String::with_capacity(usize::try_from(RECORD_BYTES_READ).unwrap_or(0) + 1);
+    for _ in 0..=RECORD_BYTES_READ {
+        text.push('a');
+    }
+    std::fs::write(long.as_path(), text.as_str()).expect("the long record");
+    let too_long: Result<String, String> = read_the_record(long.as_path());
+    assert!(too_long.is_err(), "a record longer than {RECORD_BYTES_READ} bytes holds no commit id: {too_long:?}");
+    assert!(too_long.unwrap_err().contains("holds more than"), "the refusal says the file is too long");
+    remove(root.as_path());
 }
 
 /// A form that aborts no operation asks nothing.

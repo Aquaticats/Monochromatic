@@ -36,14 +36,18 @@ use std::ffi::OsString;
 ///  whatever wildcard or magic characters it holds,
 ///  and `--` ends the options,
 ///  so a path that looks like one is read as a path.
+///  `--full-name` makes Git print each answer as a repository-relative path,
+///  which is how the diff listings name the same files;
+///  without it Git prints paths relative to the directory the command runs in,
+///  and a command run below the top would compare two spellings of one path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const args = [...pre, 'ls-files', '--stage', '-z', '--', ':(top,literal)new.txt'];
+/// const args = [...pre, 'ls-files', '--stage', '--full-name', '-z', '--', ':(top,literal)new.txt'];
 /// ```
 fn listing_arguments(global_prefix: &[OsString], option: &str, paths: &[Vec<u8>]) -> Result<Vec<OsString>, String> {
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
-    for token in ["ls-files", option, "-z", "--"] {
+    for token in ["ls-files", option, "--full-name", "-z", "--"] {
         arguments.push(OsString::from(token));
     }
     for path in paths {

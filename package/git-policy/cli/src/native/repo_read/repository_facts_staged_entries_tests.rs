@@ -22,7 +22,8 @@ fn words(arguments: &[OsString]) -> Vec<String> {
 
 /// Each listing names exactly the paths it was given,
 ///  literally and below the repository root,
-///  after the caller's global options.
+///  after the caller's global options,
+///  and prints each answer from the repository root.
 #[test]
 fn each_listing_names_exactly_the_paths_it_was_given() {
     let global: [OsString; 2] = [OsString::from("-C"), OsString::from("/repo")];
@@ -42,6 +43,7 @@ fn each_listing_names_exactly_the_paths_it_was_given() {
             "/repo",
             "ls-files",
             "--stage",
+            "--full-name",
             "-z",
             "--",
             ":(top,literal)new.txt",

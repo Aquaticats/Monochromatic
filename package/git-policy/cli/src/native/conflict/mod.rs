@@ -40,14 +40,11 @@ pub mod discarded_nested_repository;
 /// cherry-pick or revert.
 pub mod conflict_side_guard;
 
-/// The linked-worktree policy's carve-out for the abort forms during an operation.
+/// The linked-worktree policy's carve-out for the abort and skip forms during an operation.
 pub mod abort_discard_guard;
 
-/// What an abort or a skip copies before it runs.
-pub mod abort_save;
-
-/// The comparison the wrapper makes of those copies immediately before Git starts.
-pub mod abort_save_again;
+/// The second measurement of an abort or a skip, owed immediately before Git starts.
+pub mod abort_recheck;
 
 /// The append-only record of every command form that can discard uncommitted state.
 pub mod discard_audit;
