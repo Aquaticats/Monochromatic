@@ -188,6 +188,21 @@ move its durable facts to their canonical doc and delete it from this page.
   none other since 08:48:12.
 - Agents that were running keep the service of the release that started theirs until it is replaced;
   nothing was restarted.
+- Issue 6286's sequence ran again on the first commit after the install,
+  in the main checkout:
+  the commit of this section (`d09eba599f`, 11:03:22) printed
+  "the commit service of this worktree has answered nothing for 3 seconds, so it is stopped inside its own process; it is asked to restart",
+  and the manager recorded two more reloads,
+  11:03:18 (344 ms) and 11:03:22 (272 ms).
+  The commit landed and was pushed.
+  Sent to the agent for issue 6286 as a reproduction from real use:
+  a newer release installed while an instance of the older one serves the worktree,
+  then a commit there.
+  This session's inference,
+  not yet counted:
+  the same happens once in every worktree whose service predates the install,
+  which is about twenty-five agents' worktrees.
+  The reload records after 11:03:30 are counted at the next pass.
 - What the installed release still has,
   for anyone who meets it:
   the holder scan's read of a descriptor record (issue 6287;
