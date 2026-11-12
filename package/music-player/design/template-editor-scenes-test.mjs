@@ -328,11 +328,21 @@ assert.deepEqual(
     'entry-supporting-1=1 of 16 −1.2 dBTP'
   ]
 );
+// The role families a preview draws under a numbered key. The filter below drops them, because the
+// scene's own expectations list the fixed role order; a prefix list says so without a pattern.
+const previewRoleFamilies = [
+  'preview-supporting',
+  'error',
+  'help',
+  'field-name',
+  'field-value',
+  'field-insert'
+];
 for (const state of scenes.slice(1)) {
   const roles = drawnTexts(state)
     .map(item => item.role);
   assert.deepEqual(
-    roles.filter(role => (!/^(preview-supporting|error|help|field-(name|value|insert))-/u.test(role)) && (!role.startsWith("preview-title-"))),
+    roles.filter(role => (!previewRoleFamilies.some(family => role.startsWith(`${family}-`))) && (!role.startsWith("preview-title-"))),
     [
       'page-title',
       'section-preview',
