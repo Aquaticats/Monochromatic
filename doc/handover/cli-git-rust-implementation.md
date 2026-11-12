@@ -148,7 +148,11 @@ in unit `launch-agents-batch-round-235`;
 and round 236 starts an agent for the package
 (`fix/pi-shared-subagent-driver-batch-starts-from-a-base-and-says-why-a-start-failed`, from `main`):
 find why the ten starts failed, a failed start says its reason, a batch entry names its base, everything is checked before anything is made.
-Until that lands, a batch whose entries need a base goes through the scratch starter, unedited.
+Until that lands and one package start is shown working from a unit, every batch goes through the scratch starter, unedited:
+a probe of the package's retrying start from a shell got as far as a started unit, further than the ten starts in the batch's unit did,
+so the unread base is not shown to be what failed them.
+The restart worked: all ten round 235 units were up at 19:13,
+and `git merge-base --is-ancestor` confirms the dirty-snapshot one sits on its reviewed branch.
 
 A new jam, met while cleaning up the probe that showed the missing-prompt gap.
 `git worktree remove .claude/worktrees/pi-probe-does-not-start` (installed 0.6.1-alpha.10), started about half a minute after the
@@ -191,8 +195,32 @@ A rotated generation of the wrapper's own timing log, appearing after a member w
 Whether every member filled before a rotation is refused, and what a refusal costs the commit, is not measured;
 round 237's brief carries it: the wrapper writing its own log must never spend the pool.
 
-The three qwen reviews are being scored against Kimi's and the fix agents' verdicts by a Claude Code native subagent
-(result in `~/temp/agent/qwen-trials/review-trial-scoring.md`).
+The qwen review trial, scored at 19:17 by a Claude Code native subagent
+(a second pass by the same vendor as the coordinator, not an independent review; `~/temp/agent/qwen-trials/review-trial-scoring.md`).
+Three changes, each reviewed by both models, each finding held against what the round 227 fix agents confirmed or refuted:
+Kimi made 6 findings, 4 confirmed, 1 refuted on a later base than the reviewed commit, 1 mixed;
+qwen made 8, 3 confirmed, none refuted, 5 with no verdict (the fix agents were given Kimi's review only).
+Each model had one confirmed finding the other missed
+(Kimi: `push.default=matching` ignores the pinned commit; qwen: a relative program path started from the worktree, fixed in `70b105bf1c`).
+Two qwen findings nobody ran look real by reading and are unfixed on the fix branch:
+`git commit -m msg --end-of-options -m x` drops the file named `-m` from the commit and exits 0,
+and an abbreviated `--only` (`--on`) reaches Git without its paths and fails.
+Round 239 (`fix/git-policy-cli-commit-options-end-of-options-and-abbreviated-only`,
+on `fix/git-policy-cli-kimi-findings-commit-message-options-round-210-findings`) reproduces and fixes them.
+Limits: three reviews; the qwen blocked-commits review wrote no `review.md` and was scored from its last message;
+two fix agents worked on later bases than the reviewed commits.
+On reviews, unlike on audits, qwen is not behind Kimi in this sample; the owner's "Trial beside Kimi" stands, and more paired reviews would firm it up
+(not started: each qwen review brief is written by hand, and the earlier ones name an owner, which briefs no longer do).
+
+Round 238 (`fix/git-policy-cli-kimi-findings-worktree-remove-audit-ceiling-round-210-findings`) takes the one finding of the
+round 210 review of `fix/git-policy-cli-worktree-remove-does-not-wait-on-a-read-only-git`:
+a read-only `status` whose descendant ignores `SIGTERM` holds a removal 7.2 s, past the audit's two-second ceiling,
+because the watcher's five-second stop grace is waited out afterwards.
+
+Inbox notes sent at 19:18, none changing a task: to the three agents working on the pooled shadow
+(`kimi-findings-pooled-shadow-review-findings`, `kimi-findings-pooled-shadow-symlink-round-210-findings`,
+`kimi-findings-commits-within-5-s-round-208-findings`), the decision that the service hands a commit its shadow and which branch builds it;
+to the port agent (`subagent-driver-takes-the-remaining-scratch-scripts`), that round 236 now changes the batch list and the worktree launcher.
 The 600 s quiet window of an add's inline package repair against "60s is fine for adding worktrees"
 (`~/temp/agent/sonnet-audits/integration-tip-never-stuck/findings.md`, finding 5) is asked once
 the run `worktree-add-within-60-s-on-the-pass-12-tip` reports where an add's time goes.
