@@ -22,7 +22,7 @@ description = "Follow a release run, then the cargo-publish run it started, then
 run = "node bin/await-release.ts"
 
 [tasks."release:run"]
-description = "Run the release command itself: bump, check, dry-run the publish and commit locally. The release workflow runs it on a runner with `--host runner`; running it here compiles the crate on this machine (see README.md)"
+description = "Run the release command itself: bump, lock, dry-run the publish when the version goes to crates.io, and commit locally; an alpha skips the check and the dry run. The release workflow runs it on a runner with `--host runner`; a release that is not an alpha compiles the crate on the machine that runs it (see README.md)"
 run = "node bin/release.ts"
 
 [tasks."release:push"]

@@ -20,7 +20,7 @@ use std::path::PathBuf;
 /// ```ts
 /// const [sync, awaited] = bothAnswers(context, repo, reference, prepared);
 /// ```
-fn both_answers(context: &GitContext, repo: &Path, reference: &str, prepared: &str) -> (WhatTheBranchShows, WhatTheBranchShows) {
+fn both_answers(context: &GitContext, repo: &Path, reference: &crate::ref_name::RefName, prepared: &str) -> (WhatTheBranchShows, WhatTheBranchShows) {
     // The read takes the bytes Git printed for the name, so the control's text becomes one of those here.
     let reference: crate::ref_name::RefName = crate::ref_name::RefName::from_text(reference);
     let synchronous: WhatTheBranchShows = what_the_branch_shows(context, repo, &reference, prepared);
@@ -61,8 +61,9 @@ fn the_awaited_branch_read_answers_what_the_synchronous_one_answers() {
         ("a commit the branch does not hold", elsewhere.as_str(), WhatTheBranchShows::NotMade),
         ("a commit no object store has", "0000000000000000000000000000000000000000", WhatTheBranchShows::Unread),
     ];
+    let main: crate::ref_name::RefName = crate::ref_name::RefName::from_text("refs/heads/main");
     for (label, prepared, expected) in cases {
-        let (synchronous, awaited) = both_answers(&context, repo.as_path(), "refs/heads/main", prepared);
+        let (synchronous, awaited) = both_answers(&context, repo.as_path(), &main, prepared);
         assert_eq!(synchronous, expected, "{label}: the synchronous read is what the two faces are compared on");
         assert_eq!(awaited, synchronous, "{label}: the two faces answer one thing about the branch");
     }
