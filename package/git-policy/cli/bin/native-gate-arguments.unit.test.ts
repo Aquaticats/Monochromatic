@@ -7,6 +7,7 @@ import {
 import {
   containerPidsLimitOption,
   cpuQuotaOption,
+  deadlineMillisecondsOption,
   gateCapsFromOptions,
   gateCapsOptionNames,
   gateOptions,
@@ -28,9 +29,15 @@ function knownOptions(): readonly string[] {
   return [
     '--repository',
     '--poll-milliseconds',
+    deadlineOptionName,
     ...gateCapsOptionNames,
   ];
 }
+
+/**
+ The deadline option the tests read, which the commands that bound a step take.
+ */
+const deadlineOptionName = '--deadline-seconds';
 
 await describe({
   name: 'the command line of a gate command',
@@ -181,6 +188,59 @@ await describe({
             name: '--poll-milliseconds',
             fallback: 1,
           }),).toThrow('is not a whole number from zero',);
+      },
+    }),
+    it({
+      name: 'reads a deadline in milliseconds, and refuses one that gives a command no bound at all',
+      fn: async () => {
+        /**
+         A command line naming a half-minute deadline.
+         */
+        const halfMinute = deadlineMillisecondsOption({
+          options: gateOptions({
+            argv: [
+              deadlineOptionName,
+              '30',
+            ],
+            knownOptions: knownOptions(),
+          }),
+          name: deadlineOptionName,
+          fallbackSeconds: 900,
+        });
+        expect(halfMinute,).toBe(30_000,);
+        // A silent command line keeps the bound the command was written with.
+        expect(deadlineMillisecondsOption({
+          options: gateOptions({
+            argv: [],
+            knownOptions: knownOptions(),
+          }),
+          name: deadlineOptionName,
+          fallbackSeconds: 900,
+        }),).toBe(900_000,);
+        // Node reads `timeout: 0` as no timeout at all, so a zero deadline would wait forever.
+        expect(() => deadlineMillisecondsOption({
+          options: gateOptions({
+            argv: [
+              deadlineOptionName,
+              '0',
+            ],
+            knownOptions: knownOptions(),
+          }),
+          name: deadlineOptionName,
+          fallbackSeconds: 900,
+        }),).toThrow('leaves a command with no deadline at all',);
+        // A delay past a 32-bit signed integer is cut to one millisecond, which stops the first step at once.
+        expect(() => deadlineMillisecondsOption({
+          options: gateOptions({
+            argv: [
+              deadlineOptionName,
+              '2147484',
+            ],
+            knownOptions: knownOptions(),
+          }),
+          name: deadlineOptionName,
+          fallbackSeconds: 900,
+        }),).toThrow('2147483 seconds',);
       },
     }),
     it({
