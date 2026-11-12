@@ -1415,6 +1415,13 @@ fn run_a_ladder_step(main: &Path, step: &GitStep<'_>, name: &str, destination: &
 ///  names it;
 /// the snapshot rung read no record of a copy being made at all (audit of 0.6.1-alpha.12,
 ///  finding F1).
+///  The journal here stands for any copy filling the source.
+/// In use that destination is a linked worktree,
+/// because a copy
+///  fills only destinations Git registers;
+/// the run that measured this defect end to end used an add of its own,
+///  stopped
+///  while it staged the source's ignored files.
 #[test]
 fn btrfs_a_snapshot_add_from_a_source_still_being_filled_names_the_missing_copy() {
     let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("lifecycle-snapshot-source-filling") else { return };

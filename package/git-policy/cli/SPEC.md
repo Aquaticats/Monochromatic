@@ -1071,6 +1071,18 @@ A record that cannot be read
 because the rung cannot tell a whole source from one another copy is filling,
 and the copy
  below names the record it could not read.
+A record the copy itself cannot read stops the copy with the status 2 that every failed copy has,
+which leaves the
+ worktree Git made in place and names the record:
+nothing is installed from a source the wrapper cannot vouch
+ for,
+and the recovery pass moves such a record aside before the copy asks,
+so a record it can move is no
+ failure.
+A claim the recovery moved aside names no destination any more,
+so that source stops being the sign of
+ a half-filled worktree:
+nothing on disk can then say it holds only part of its ignored files.
 A copy that is still staging its source has no journal yet,
 and a copy's own stage claim records no destination,
 so that window alone is not covered.
