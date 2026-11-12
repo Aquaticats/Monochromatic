@@ -86,14 +86,18 @@ and it exits 1 saying:
   which `mise run toolchain:install` makes,
   and that folder has to come before the system one on the session's `PATH`.
 
-`drive-pi-subagent` asks the same question of the environment it is about to hand Pi,
-in the working folder it was given,
-before Pi starts and before it writes the run folder.
-That is what covers a unit a coordinator started by hand rather than through the launcher above.
+The launcher is the only place this is asked.
+`drive-pi-subagent` used to ask the same question of the environment it was about to hand Pi,
+and that second preflight is gone:
+the owner's decision on issue 1768 is "Launcher preflight only"
+(the answers of 2026-11-11T16:35-05:00, recorded in `doc/handover/cli-git-rust-implementation.md`).
+A run started without the launcher, by running the driver by hand,
+therefore relies on the `PATH` it was given holding the wrapper's `git`,
+and nothing in this package checks it.
 
 What this does not decide:
 whether `git-lfs` resolves, which the same incident also needed;
-and work the launcher does before the check (its own `git worktree add`) runs with the launcher's own `PATH`,
+and the launcher's own `git worktree add` runs with the launcher's own `PATH`,
 which a protected session already sets.
 
 ### The provider pools
@@ -387,9 +391,11 @@ each with a limit of its own,
 so a run ends even when Pi answers nothing at the end.
 
 `pi` must be on `PATH`,
-and the `git` this session would run must be this repository's policy wrapper,
-which the driver asks before it starts Pi
+and the `git` this session would run must be this repository's policy wrapper.
+The driver does not ask that itself:
+the launcher that builds the session's environment asks it, once, before it makes anything
 (see the section "The git a session would run").
+
 
 ## Files a run writes
 
