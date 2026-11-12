@@ -769,6 +769,69 @@ a manager that could not be asked says nothing about the unit,
 and it is printed only when it is listed,
 not acted on.
 
+### `list-running-pi-runs-with-their-turns`
+
+`--runs-folder`,
+`~/temp/agent/pi-runs` by default.
+
+```text
+# a run that is working, one that has just started, and the count
+qwen-review-lfs-push-uploads-every-object-the-remote-lacks: turns 97, feed written 0m 11s ago, up 35m 17s; pi-qwen-review-lfs-push-uploads-every-object-the-remote-lacks.service
+optique-scaling-and-attribution-1: up 14m 56s, no run folder yet; pi-optique-scaling-and-attribution-1.service
+25 Pi runs going now
+```
+
+The turns are the driver's own: every `turn_start` record a run's feed holds.
+The quiet is how long ago the feed was last written,
+so a run that started and never took a turn shows beside one that is working,
+and a feed nobody has written to for an hour shows as that hour.
+It reads systemd's list of running units and the feeds under the runs folder,
+and it ends and signals nothing.
+
+### `list-runs-that-ended-since`
+
+`--since`,
+a time `Date.parse` reads, such as `2026-11-12T10:00:00-05:00`,
+and `--runs-folder`,
+`~/temp/agent/pi-runs` by default.
+
+```text
+# --since=2026-11-12T14:27:15Z
+2026-11-12T15:35:45.211Z	pi-driver-wait-check-1	idle	pi 0	First line of `README.md`: ...
+19 runs ended since 2026-11-12T14:27:15.000Z
+```
+
+A run is one whose `summary.json` was written since that time,
+oldest first,
+and the line carries the reason the summary gives,
+the status Pi left with,
+and the head of the last message with its line endings made spaces.
+A run folder with no summary is a run that has not ended,
+and a name in the runs folder that is a batch list or a unit's output file is not a run:
+neither is a failure of the read.
+
+### `wait-for-a-unit-to-become-active`
+
+`--unit`,
+the unit as systemd names it,
+with or without `.service`;
+`--deadline-seconds`,
+which is required;
+and `--period-seconds`,
+five by default.
+
+```text
+# --unit=launch-agents-batch-round-290 --deadline-seconds=5
+launch-agents-batch-round-290.service: active after 0s, 1 look
+```
+
+It exits `0` when the unit came up and `1` when the deadline passed without it,
+saying what the unit was doing then,
+which is the state a coordinator needs before watching a batch it has just asked for.
+Every wait is the shorter of the period and what the deadline leaves,
+so the command ends on its own,
+and it asks the manager only for the unit's state: it ends nothing.
+
 ### `list-running-units-whose-worktree-is-gone`
 
 `--checkout-folder`,

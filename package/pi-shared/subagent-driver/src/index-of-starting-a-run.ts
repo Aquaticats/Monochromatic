@@ -274,3 +274,31 @@ export {
   unitStateOf,
   waitForUnitToEnd,
 } from './wait-for-a-unit-to-end.ts';
+
+/**
+ Reading the runs of a machine: what a running run's feed says, what ended since a time, and waiting for a unit to come up. The
+ commands are `list-running-pi-runs-with-their-turns.ts`, `list-runs-that-ended-since.ts` and
+ `wait-for-a-unit-to-become-active.ts`.
+ */
+export {
+  type FeedOfARunningRun,
+  ageTextOf,
+  feedOfARunningRun,
+  runningRunLineOf,
+  runningRunLinesOf,
+  turnsInFeed,
+} from './turns-of-running-runs.ts';
+export {
+  type EndedRun,
+  endedRunIn,
+  endedRunLineOf,
+  endedRunsSince,
+  timeIn,
+} from './runs-that-ended-since.ts';
+export {
+  type UnitWaitForActive,
+  ACTIVATING_STATE,
+  waitedLineOf,
+  waitForUnitToBecomeActive,
+} from './waiting-for-a-unit-to-become-active.ts';
+export { SUMMARY_FILE_NAME, } from './runs-that-ended-since.ts';

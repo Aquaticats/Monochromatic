@@ -94,3 +94,15 @@ run = "node src/start-reviews-of-finished-branches.ts"
 [tasks."write-a-fix-brief-for-each-review"]
 description = "Write one brief for each review whose defects a fix answers, and the batch list that starts those agents"
 run = "node src/write-a-fix-brief-for-each-review.ts"
+
+[tasks."list-running-pi-runs-with-their-turns"]
+description = "Print one line per Pi run going now, naming its turns and how long its feed has been quiet, so a run that started and never took a turn shows beside one that is working"
+run = "node src/list-running-pi-runs-with-their-turns.ts"
+
+[tasks."list-runs-that-ended-since"]
+description = "Print the Pi runs that ended since a time, oldest first, each with the reason its summary gives, the status Pi left with and the head of its last message"
+run = "node src/list-runs-that-ended-since.ts"
+
+[tasks."wait-for-a-unit-to-become-active"]
+description = "Wait, bounded, until a systemd user unit is active, then say whether it came up and what it was doing if it did not"
+run = "node src/wait-for-a-unit-to-become-active.ts"
