@@ -135,6 +135,103 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The owner's answers of 2026-11-12T12:26:24-05:00, through the question tool: who reviews, a file mode through a merge, what Git refuses, how far publishing reaches; and the first audit of 0.6.1-alpha.14
+
+The answers were read before 12:26:24.
+Each pick is quoted as the owner gave it.
+
+#### Who reviews a change (item 3.5)
+
+- Asked, with what was seen since 2026-11-11
+  (qwen4 once wrote no defect where Kimi reported a blocker; a qwen4 review that read two fifths of a diff and ran nothing;
+  reviews that ended without a review file).
+- The owner: "qwen4 alone, read-checked".
+- So:
+  reviews stay with qwen4 alone.
+  Every review brief demands that the review states how much of the diff it read
+  and what it ran through a built wrapper,
+  and a review that ran nothing is started again.
+  The demand belongs in the package command that writes review briefs
+  (`package/pi-shared/subagent-driver`, `write-a-brief-for-a-review`), not in a scratch script.
+
+#### A file mode a person set, through a merge (item 4.11)
+
+- The owner: "As real Git, both cases (Recommended)".
+- So:
+  the wrapper writes the mode real Git would write in both cases;
+  the one case in the installed release that keeps the person's mode (from `aff52c9e64`) is brought back to Git's behaviour.
+  The stopped run `mode-a-person-set-survives-a-merge-that-changes-the-file` stays stopped.
+
+#### Commands real Git refuses that make a commit through the wrapper (items 3.8 and 3.9)
+
+- The owner: "Refuse as Git does (Recommended)".
+- So:
+  every `git commit` form real Git refuses is refused by the wrapper with Git's own message,
+  `-i` with `-o` among them.
+  The one recorded exception stays: a commit that names an untracked path
+  (`doc/decision/cli-git-policies-platform.md`, "Transactional commit gate").
+
+#### How far the permission to publish reaches (item 4.9)
+
+- The owner: "Standing, alphas, these tools (Recommended)".
+- So, standing in every session:
+  alpha releases of the wrapper and of the tools on its path
+  (the build-folder cleaner `cargo-shadow`, the installer `mpm-shadow`, the Pi driver packages)
+  may be bumped and published without asking;
+  anything that is not an alpha is asked first.
+
+#### Adopted from recorded decisions, not asked, open to veto
+
+- Item 3.11, an operator switch that forces the native route when the commit service misbehaves:
+  none is built.
+  It follows from "A way back is intentionally not given, to avoid agents from becoming lazy." and the refusal of install switches.
+- Item 4.5, the Cargo build directory:
+  the exemption is from the linked-worktree rule only;
+  a discarding command there is refused with an opt-out like anywhere else, by the rule restated at 10:33.
+- Item 3.2, how long an add may take:
+  "60s is fine for adding worktrees" and "nothing should ever wait forever or indefinitely" already decide that a 600-second window does not fit;
+  the branch that takes the repair off the add's path is in pass 18.
+- Item 3.4, the 6,000 ms bound of the agent-settled notification:
+  a notification that did not arrive is a defect, tracked as its own task; no question.
+
+#### The first of the three Sonnet audits of 0.6.1-alpha.14: merge, discarding commands, LFS, package repair
+
+- Ended at about 12:20.
+  The harness refused the auditor's write of its report, so its final text was saved by this session as
+  `~/temp/agent/sonnet-audits/alpha-14-merge-discarding-commands-lfs-and-package-repair/report.md`;
+  scripts and a matrix of 3480 command forms are in the same folder.
+  Its worktree is removed.
+- Findings, in its order:
+  submodule discards (`submodule update --force`, `submodule deinit --force`) are unguarded;
+  the guard misses hidden work (a submodule with `ignore=all`, `skip-worktree`, `assume-unchanged` under `merge --no-commit`);
+  a merge saved behind a live foreign `index.lock` leaves its two records and references for ever
+  and every later command repeats two notices;
+  the opt-out does not give what real Git gives for `checkout` and `switch` (an added `--no-overwrite-ignore`; exit 128 with `--discard-changes`);
+  a refusal of `merge --abort` gives advice the same guard refuses;
+  the advice `git diff > backup.patch` saves nothing for staged or untracked work;
+  refusals name a kind of loss, never a path or a count;
+  low: stash entries dropped through plumbing; displaced `Cargo.lock` copies never pruned.
+- No finding loses data that a refusal had protected: 1551 of 3480 forms were refused and none of those lost anything.
+- Routed by notes at 12:27 (files under `~/temp/agent/notes-to-send/`, names beginning `2026-11-12T1227-audit-of-alpha-14-`):
+  the guard findings to `discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file-1`;
+  the `index.lock` finding and the audit's list of places that save and go on to
+  `guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on-1`;
+  the abort advice to `abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work-1`;
+  the `Cargo.lock` copies and a "recorded-destroys ... cannot be marked" warning to the add and removal agents.
+- Not routed yet, tracked here:
+  after a wrapper is killed (the audit's bound ended its process group during a stalled LFS download),
+  `index.lock` stays with a record naming a process that is gone,
+  and the next commit waits 60 s and is withdrawn.
+  `SPEC.md` describes that as intended; a killed process is normal here, so a leftover the wrapper could prove dead
+  and does not clear is a defect.
+  A fix run is written when the gate lets one start.
+- Carried merge of 215.5 s on this host against 0.9 s in a private process namespace:
+  issue 6287, fixed in 0.6.1-alpha.15.
+
+#### Free space
+
+- 107 GiB at 12:26:24, so the launcher's gate lets round 308 start.
+
 ### The owner's answers of 2026-11-12T12:11:18-05:00, through the question tool: a slow push, finished records, a way back, a foreign subvolume
 
 The answers were read before 12:11:18.
