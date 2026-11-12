@@ -22,9 +22,7 @@ use crate::merge_isolation_message::fetch_head_merge_heads;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// Owned operating-system text.
 use crate::merge_isolation_run_types::{Bail, MergeConfig};
-/// `OsString` is owned operating-system text of raw bytes,
-/// and `Path` is a borrowed filesystem path.
-use std::ffi::OsString;
+/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::Path;
 
 /// Whether one byte is the NUL byte that ends each entry of a `-z` listing.
@@ -135,33 +133,6 @@ impl Session {
         return match run_git(&self.context, &request) {
             Ok(output) => Ok(output),
             Err(error) => Err(format!("git {} could not start: {error}", arguments.join(" "))),
-        };
-    }
-
-    /// What:
-    ///  Run Git with arguments that are bytes rather than text,
-    ///  which a message a person typed may be.
-    /// Why:
-    ///  A merge message is the person's bytes,
-    /// and a child handed a lossy spelling of it would write another
-    ///  reflog entry than native Git's;
-    ///  the failure names the index of the argument that could not be shown as text.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// async function runArguments(words: Uint8Array[]): Promise<GitOutput>;
-    /// ```
-    pub fn run_arguments(&self, arguments: &[OsString]) -> Result<GitOutput, String> {
-        let mut request: GitRequest = GitRequest::new::<&str>(Path::new("."), &[]);
-        request.arguments = arguments.to_vec();
-        // The failure names the command the words stand for, which is the first of them.
-        let named: &[u8] = match arguments.first() {
-            Some(one) => one.as_encoded_bytes(),
-            None => &[],
-        };
-        return match run_git(&self.context, &request) {
-            Ok(output) => Ok(output),
-            Err(error) => Err(format!("git {} could not start: {error}", String::from_utf8_lossy(named))),
         };
     }
 
