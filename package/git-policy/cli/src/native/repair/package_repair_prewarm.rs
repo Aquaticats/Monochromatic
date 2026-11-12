@@ -103,7 +103,8 @@ pub struct PrewarmEntry {
     /// Where the add moved the worktree's own copied build state before it answered,
     /// or nothing when the filling clones one from `from` instead.
     ///
-    /// The path lies beside the build directory it takes, inside the worktree:
+    /// The path lies beside the build directory it takes,
+    /// inside the worktree:
     /// btrfs refuses to rename a directory out of a worktree that is a subvolume (`EXDEV`),
     /// and the repository's `info/exclude` names the staging patterns so the person's `git status`
     /// and `git add -A` never see them.
