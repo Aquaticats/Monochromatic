@@ -137,7 +137,12 @@ fn marker_text(to: &Path, begun_by: &str) -> Result<Vec<u8>, String> {
     let Some(named) = to.to_str() else {
         return Err(format!("{} is not valid UTF-8, so no marker can name the build directory it takes", to.display()));
     };
-    let claimed: String = serde_json::json!({ "repair": CARGO_PREWARM_REPAIR, "to": named, "begunBy": begun_by }).to_string();
+    // The claim is built field by field, the way a record's payload is, so nothing here can panic on a shape the macro refuses.
+    let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    fields.insert(String::from("repair"), serde_json::Value::from(CARGO_PREWARM_REPAIR));
+    fields.insert(String::from("to"), serde_json::Value::from(named));
+    fields.insert(String::from("begunBy"), serde_json::Value::from(begun_by));
+    let claimed: String = serde_json::Value::Object(fields).to_string();
     let mut text: Vec<u8> = Vec::with_capacity(MARKER_LEAD.len() + claimed.len() + 1);
     text.extend_from_slice(MARKER_LEAD.as_bytes());
     text.extend_from_slice(claimed.as_bytes());
