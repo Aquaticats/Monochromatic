@@ -182,12 +182,16 @@ so they are out of scope for this package.
 
 ## Install
 
-The unit file in `~/.config/systemd/user/` is a regular copy of the file in `systemd/`, not a link into the repository:
-the user manager reads it while loading units, and a link into a repository that lives on the 860 drive would leave the
+The unit file in `~/.config/systemd/user/` is a regular copy of the file in `systemd/`,
+not a link into the repository:
+the user manager reads it while loading units,
+and a link into a repository that lives on the 860 drive would leave the
 unit unloaded whenever the drive is not mounted at manager start or at a daemon reload.
 The copy's `ExecStartPre` runs the repository link check installed outside the repository
-(`~/.local/share/monochromatic-dev/repository-link/check.mjs`), so a start before the mount fails with the plain
-message and status 75, and `Restart=on-failure` with `RestartSec=30` and no start limit retries until the mount is
+(`~/.local/share/monochromatic-dev/repository-link/check.mjs`),
+so a start before the mount fails with the plain
+message and status 75,
+and `Restart=on-failure` with `RestartSec=30` and no start limit retries until the mount is
 there.
 Copy again after every edit of the file in `systemd/`:
 

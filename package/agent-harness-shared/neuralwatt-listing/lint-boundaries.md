@@ -22,7 +22,8 @@ mirror-first posture):
   (`providers/model-schema.ts`).
   In those shapes `null` is not absence:
   it is the instruction "level unsupported",
-  distinct from an absent key ("supported, dispatch nothing").
+  distinct from an absent key ("supported,
+  dispatch nothing").
   The expansion must keep both spellings reachable,
   or the pi projection would silently change dispatch behavior.
 - `NeuralWattReasoningEfforts = false | NeuralWattEffortsDict` mirrors

@@ -5250,7 +5250,8 @@ The process limit is 256 per CPU with a floor of 512,
 and the descriptor limit is 4096.
 Every started container also gets the lowest disk weight,
 `--blkio-weight=10` and `--cgroup-conf=io.weight=10`
-(`lowestDiskWeight` and `diskWeightArguments` in the module, which take them from
+(`lowestDiskWeight` and `diskWeightArguments` in the module,
+which take them from
 `package/container-limit/core`;
 repository rule HXR in `AGENTS.md`).
 The first option sets `io.bfq.weight`,
