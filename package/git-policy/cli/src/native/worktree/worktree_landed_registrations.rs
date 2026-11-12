@@ -83,6 +83,23 @@ fn registered_worktree(admin: &Path) -> Option<PathBuf> {
     return root.is_dir().then_some(root);
 }
 
+/// What:
+///  The branch a registration's `HEAD` names,
+///  as a full ref name,
+///  or nothing for a detached `HEAD`.
+/// Why:
+///   A removal that keeps a worktree names it the way the sweep does,
+///  by its path and the branch it has checked out,
+///  and the registration is the only thing that still says which branch that is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// branchOfRegistration(admin) // 'refs/heads/feature' | undefined
+/// ```
+pub(crate) fn branch_of_registration(admin: &Path) -> Option<String> {
+    return head_branch(admin);
+}
+
 /// The branch the registration's `HEAD` names,
 /// as a full ref name,
 /// or nothing for a detached `HEAD`.

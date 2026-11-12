@@ -1113,7 +1113,8 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
 - the worktree does not hold another worktree this repository registers,
    whose files and whose own record a removal would take with it,
    and the registrations are read again as the removal runs,
-   so a worktree a command adds inside it while the sweep works keeps it too;
+   so a worktree a command adds inside it while the sweep works keeps it too,
+   and the commit service reads them again immediately before it destroys the worktree;
 - the worktree is not the one the merge runs in,
    and it is not locked;
 - no merge,
@@ -1159,6 +1160,29 @@ A removal recorded that way finishes after the merge returned,
  so the worktree stands at the prompt until the service has run it;
  `git worktree remove <path>` removes it now if nothing in it is yours.
 
+The service proves every condition above again,
+ in its own process,
+ immediately before it destroys anything:
+ the registrations,
+ the lock,
+ the unfinished marks,
+ the process table,
+ the ignored files (compared again with the worktree the merge ran in,
+ which the sweep names in the worktree's own Git directory),
+ the records its Git directory holds,
+ the record that this program made the worktree,
+ and every commit a reference lock holds.
+A worktree that no longer meets one of them stays,
+ and the next wrapper command in that repository names it once,
+ with the path,
+ the branch and the reason,
+ so nothing is kept in silence.
+The record names one worktree and not a path:
+ it is keyed by the path and by the identity of the registration standing beside it,
+ and the service recomputes that name before it removes anything.
+A worktree you removed by hand and added again at the same path is therefore a different worktree,
+ and the record of the earlier one leaves it exactly as it is.
+
 **What goes with the worktree.**
 The files Git ignores in it go too,
  exactly as they do when a person runs `git worktree remove`:
@@ -1167,6 +1191,10 @@ The files Git ignores in it go too,
 That is the whole reason a worktree is removed only when this program made it:
  a worktree you created by hand is never removed by itself,
  because this program cannot know which ignored files in it are yours.
+An ignored file you write after the merge returned is one the service compares again before it removes the worktree,
+ and it keeps the worktree;
+ what goes with it is a file written in the moment between that reading and Git's deletion,
+ which is the same window any check and the step relying on it leave.
 A worktree this program cannot prove it made is named instead,
  once per merge that lands its branch,
  with the `git worktree remove` line that removes it.

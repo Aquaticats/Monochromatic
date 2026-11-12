@@ -215,6 +215,15 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         //  written stays for the next command.
         let _written = notice.show(&mut std::io::stderr());
     }
+    // A worktree the commit service kept stands in the repository until the person decides about it, and the decision to
+    //  remove it was taken by a merge that has ended: the record is the only thing left that says so, and this is the
+    //  command that shows it. It lives in the common Git directory because the worktree it names is still registered, and
+    //  a person may never run anything in that worktree again.
+    for notice in &crate::worktree_kept_notices::kept_worktree_notices(common_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
+        //  written stays for the next command.
+        let _written = notice.show(&mut std::io::stderr());
+    }
 }
 
 /// What:

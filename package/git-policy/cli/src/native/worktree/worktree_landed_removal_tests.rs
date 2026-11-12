@@ -1205,7 +1205,11 @@ fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
     let table: PathBuf = an_empty_process_table(&landed);
     let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
     let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
-    assert!(matches!(examined, Examined::Removed), "the account is clean, so the worktree is removed");
+    // The removal is Git's own read of every tracked file of the worktree, so the sweep records it and returns, and the
+    //  service's call is where the worktree goes. The snapshot of the records it holds is taken before that record is
+    //  written, which is what carries the failure recorded here.
+    let Examined::Handed(record) = examined else { panic!("the account is clean, so its removal waits for the service: not a handed record") };
+    assert_eq!(crate::worktree_remove_hand_over::delete_subvolume_of(&record), Verdict::Done, "Git removes the worktree the record names");
     assert!(!admin.exists(), "the removal took the record's original with the Git directory");
     // What the next command does with the removal this one made.
     settle_removals(landed.common.as_path());
@@ -1326,9 +1330,13 @@ fn a_landed_worktree_whose_tip_another_branch_was_made_at_is_removed() {
     );
     assert_eq!(head_of(child.as_path()).trim(), tip.trim(), "the branch a person made at the tip starts on the same commit");
     let sweep: LandedSweep = land_feature(&landed);
-    assert_eq!(sweep.removed.len(), 1, "the landed worktree is removed: {sweep:?}");
-    assert_eq!(sweep.removed[0].worktree, landed.worktree);
+    // The removal is Git's own read of every tracked file of the worktree, so the merge records it and returns: the
+    //  service's call is where it happens.
+    assert!(sweep.removed.is_empty(), "no removal runs on the merge's own thread: {sweep:?}");
     assert!(sweep.kept.is_empty(), "nothing keeps it: {sweep:?}");
+    assert_eq!(sweep.handed_over.len(), 1, "the landed worktree waits for the commit service: {sweep:?}");
+    assert_eq!(sweep.handed_over[0].worktree, landed.worktree);
+    assert_eq!(let_the_service_finish(&sweep), vec![Verdict::Done], "the service's own removal succeeds");
     assert!(!landed.worktree.exists(), "the worktree whose branch landed is gone");
     assert!(child.exists(), "the branch made at its tip holds no landed work, so its worktree stays");
 }

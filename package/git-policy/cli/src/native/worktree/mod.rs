@@ -111,6 +111,14 @@ pub mod worktree_remove_hand_over;
 
 pub mod worktree_remove_registry;
 
+/// The record of a worktree a removal kept,
+/// which the next command of the repository shows once.
+pub mod worktree_kept_notices;
+
+/// The proof that a removal may go,
+/// made again immediately before the destruction.
+pub mod worktree_removal_second_look;
+
 /// The three reports a removal can end with.
 pub mod worktree_remove_reports;
 
@@ -393,7 +401,8 @@ pub mod worktree_landed_registrations;
 /// which keep it.
 pub mod worktree_landed_ignored_files;
 
-/// The removal of every wrapper-made worktree whose branch a merge landed.
+/// The removal of every wrapper-made worktree whose branch a merge landed,
+/// which the commit service performs.
 pub mod worktree_landed_removal;
 
 /// The words one landed sweep prints.

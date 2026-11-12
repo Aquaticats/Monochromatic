@@ -45,6 +45,14 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::service_work::Verdict;
+use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
+use crate::worktree_kept_notices::record_kept_worktree;
+use crate::worktree_landed_registrations::branch_of_registration;
+use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
+use crate::worktree_removal_second_look::{SecondLook, why_the_worktree_stays};
+use crate::worktree_remove_registry::{Registration, registered_worktree};
+use crate::worktree_registration_proof::read_record_here;
+use crate::private_storage::write_private_file_unsynced;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt as _;
@@ -58,6 +66,15 @@ const TAG: &str = "worktreeRemoveHandOver";
 /// so it is never mistaken for one,
 /// and one the next commands report when it stays.
 pub const DELETING_PREFIX: &str = "cli-git-deleting-";
+
+/// The process table a removal reads to see whether anything works in the worktree.
+const PROCESS_TABLE: &str = "/proc";
+
+/// The file beside a worktree's registration that names the worktree a landed sweep compared its ignored files with.
+///
+/// It lives in the registration, so a removal of the worktree takes it with the directory,
+/// and a worktree that is kept keeps it for the next reading.
+pub const COMPARED_WITH_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-compared-with";
 
 /// The reference an item of this kind names,
 /// which is no branch:
@@ -144,7 +161,7 @@ pub fn removal_item(common_dir: &Path, parent_path: &Path, id: u64) -> WorkItem 
 /// const worktreeRemovalItem = ({ gitDir, target }) => ({ kind: 'subvolume-delete', repository: dirname(target), gitDir, ref: WORKTREE_REMOVAL_REFERENCE, oid: sha1(pathBytes(target)), parent: target, created: now, tries: 0 });
 /// ```
 pub fn worktree_removal_item(git_dir: &Path, target: &Path, registration: &Path) -> WorkItem {
-    let named: String = crate::hexadecimal_of_bytes::hexadecimal_of_bytes(crate::subvolume_sha::sha1(removal_key(target, registration).as_slice()).as_slice());
+    let named: String = removal_named_by(target, registration);
     return WorkItem {
         kind: WorkKind::SubvolumeDelete,
         // The repository's own Git directory, which is the one directory the record names that outlives the worktree the
@@ -426,17 +443,38 @@ fn recorded_subvolume(oid: &str) -> Option<u64> {
 ///  What became of it is the record's state,
 ///  which the service settles into `done` or `failed` with Git's own words.
 ///
+///  The record names the worktree by its path and by the identity of the registration that stands beside it,
+///  so the service can tell the worktree the proof was made for from one a person added at the same path meanwhile.
+///  The comparison the sweep made of the worktree's ignored files is not repeated at the service by itself:
+///  no command of the merge is there any more,
+///  so the worktree those files were compared with is written beside the registration before the record is queued,
+///  and the service reads it.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await handOverWorktreeRemoval({ context, gitDir, target, registration, told }); // record, then wake; a wake that fails leaves the record
+/// await handOverWorktreeRemoval({ context, gitDir, target, registration, comparedWith, told }); // record, then wake; a wake that fails leaves the record
 /// ```
 /// # Errors
 ///
 /// The words for a record that cannot be written,
-/// and for a worktree whose path is not absolute.
-pub fn hand_over_worktree_removal(context: &GitContext, git_dir: &Path, target: &Path, registration: &Path, told: &dyn Fn(&GitContext, &Path) -> Result<(), String>) -> Result<WorkItem, String> {
+/// and for a worktree whose path is not absolute or not nameable in text.
+pub fn hand_over_worktree_removal(
+    context: &GitContext,
+    git_dir: &Path,
+    target: &Path,
+    registration: &Path,
+    compared_with: Option<&Path>,
+    told: &dyn Fn(&GitContext, &Path) -> Result<(), String>,
+) -> Result<WorkItem, String> {
     if !target.is_absolute() {
         return Err(format!("the removal of {} names no absolute path", target.display()));
+    }
+    // A work item names its paths in text, so a path that is not text would be a record naming another directory.
+    if target.to_str().is_none() {
+        return Err(format!("the path of {} is not valid UTF-8, so no work record can name the worktree to remove", target.display()));
+    }
+    if let Some(source) = compared_with {
+        record_compared_with(registration, source)?;
     }
     let item: WorkItem = worktree_removal_item(git_dir, target, registration);
     enqueue(work_directory(git_dir).as_path(), &item)?;
@@ -460,6 +498,20 @@ pub fn hand_over_worktree_removal(context: &GitContext, git_dir: &Path, target: 
 ///  and never run.
 ///  A registration that cannot be read leaves the path alone,
 ///  which is the record this release wrote before the identity was added.
+///  The bytes are the device,
+///  the inode,
+///  and the time the inode was made:
+///  a change of any of them is a different registration,
+///  which is what a worktree removed and added again at one path gets.
+///  The modification and change times are deliberately not part of it:
+///  every push failure,
+///  every held commit and every marker this program writes inside a registration's own Git directory
+///  would move them,
+///  and the service could then never tell the worktree it was given from the one in front of it.
+///  The filesystem reports when an inode was made separately from its stat fields,
+///  and a filesystem that does not leaves the creation time out,
+///  which is the identity this release shipped before
+///  (`statx`, `STATX_BTIME`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -467,14 +519,120 @@ pub fn hand_over_worktree_removal(context: &GitContext, git_dir: &Path, target: 
 /// ```
 fn removal_key(target: &Path, registration: &Path) -> Vec<u8> {
     let mut key: Vec<u8> = path_bytes(target);
-    use std::os::unix::fs::MetadataExt as _;
-    if let Ok(found) = std::fs::metadata(registration) {
-        key.extend_from_slice(found.dev().to_le_bytes().as_slice());
-        key.extend_from_slice(found.ino().to_le_bytes().as_slice());
-        key.extend_from_slice(found.ctime().to_le_bytes().as_slice());
-        key.extend_from_slice(found.ctime_nsec().to_le_bytes().as_slice());
-    }
+    key.extend_from_slice(identity_of_a_registration(registration).as_slice());
     return key;
+}
+
+/// What:
+///  The bytes that say which registration a path holds now,
+///  which is what tells the worktree a record names from one a person added at the same path.
+/// Why:
+///  A record outlives the worktree it was written for,
+///  and a path names whatever stands there when the service runs.
+///  The device and the inode are the kernel's own answer to "which directory is this",
+///  and the time the inode was made is what stands against an inode number the filesystem has given out again.
+///  Nothing here reads a modification or a change time:
+///  this program writes inside a registration's own Git directory while a record waits,
+///  which moves both, and the answer has to be the same before and after.
+///  A registration that cannot be read answers the empty bytes,
+///  which no record's name matches.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identity = identityOf(registration); // Uint8Array
+/// ```
+fn identity_of_a_registration(registration: &Path) -> Vec<u8> {
+    use std::os::unix::fs::MetadataExt as _;
+    let Ok(found) = std::fs::metadata(registration) else { return Vec::new() };
+    let mut bytes: Vec<u8> = Vec::new();
+    bytes.extend_from_slice(found.dev().to_le_bytes().as_slice());
+    bytes.extend_from_slice(found.ino().to_le_bytes().as_slice());
+    match found.created() {
+        Ok(made) => match made.duration_since(std::time::SystemTime::UNIX_EPOCH) {
+            Ok(since) => {
+                bytes.push(b'b');
+                bytes.extend_from_slice(since.as_secs().to_le_bytes().as_slice());
+                bytes.extend_from_slice(since.subsec_nanos().to_le_bytes().as_slice());
+            }
+            // A creation time before the epoch proves nothing about this directory beyond what the two fields above say.
+            Err(_) => bytes.push(b'-'),
+        },
+        Err(_) => bytes.push(b'-'),
+    }
+    return bytes;
+}
+
+/// What:
+///  The name one worktree removal is recorded under,
+///  as the record's object name,
+///  which is also the proof of which worktree the record was written for.
+/// Why:
+///  The record's id is its idempotency key,
+///  and the digest it is built from is recomputed by the service before it destroys anything:
+///  a value that differs says a worktree a person added at the same path stands there,
+///  and that one was never proven anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = (target, registration) => sha1(removalKey(target, registration)).hex();
+/// ```
+pub fn removal_named_by(target: &Path, registration: &Path) -> String {
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(crate::subvolume_sha::sha1(removal_key(target, registration).as_slice()).as_slice());
+}
+
+/// What:
+///  Write the worktree a landed sweep compared this one's ignored files with,
+///  beside the registration,
+///  unless the same path is written there already.
+/// Why:
+///  The service repeats every reading the sweep made before it destroys anything,
+///  and the worktree the ignored files were compared with is the one fact it cannot read for itself:
+///  no command of the merge is there any more,
+///  and the record has no field for it.
+///  It lives in the registration,
+///  which the removal deletes,
+///  so it needs no cleanup of its own,
+///  and a file already holding that path is left untouched:
+///  a sweep that runs twice writes one record and one of these.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordComparedWith(registration, source);
+/// ```
+fn record_compared_with(registration: &Path, source: &Path) -> Result<(), String> {
+    let record: PathBuf = registration.join(COMPARED_WITH_RECORD_NAME);
+    let mut bytes: Vec<u8> = source.as_os_str().as_bytes().to_vec();
+    bytes.push(b'\n');
+    if let Ok(standing) = read_record_here(record.as_path(), "the worktree a removal compared this one's ignored files with")
+        && standing == bytes
+    {
+        return Ok(());
+    }
+    return match write_private_file_unsynced(record.as_path(), bytes.as_slice()) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("the worktree the ignored files were compared with cannot be recorded in {} ({error})", record.display())),
+    };
+}
+
+/// What:
+///  The worktree a landed sweep compared this one's ignored files with,
+///  as the sweep wrote it beside the registration.
+/// Why:
+///   A registration that holds no such record is one no sweep handed over,
+///  and then nothing proves the ignored files are safe to delete.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const source = comparedWithOf(registration); // Path | undefined
+/// ```
+fn compared_with_of(registration: &Path) -> Option<PathBuf> {
+    let bytes: Vec<u8> = read_record_here(registration.join(COMPARED_WITH_RECORD_NAME).as_path(), "the worktree a removal compared this one's ignored files with").ok()?;
+    let named: &[u8] = bytes.trim_ascii_end();
+    if named.is_empty() {
+        return None;
+    }
+    let path: PathBuf = PathBuf::from(OsStr::from_bytes(named));
+    return path.is_absolute().then_some(path);
 }
 
 /// What:
@@ -489,6 +647,25 @@ fn removal_key(target: &Path, registration: &Path) -> Vec<u8> {
 ///  or the person did.
 ///  A Git that cannot be found or started leaves the record to be tried again,
 ///  because nothing about the worktree was changed.
+///  Everything the sweep proved is proved again here,
+///  because the proof was spent when the record was written and this destruction happens later:
+///  - the registration the record names is still the repository's registration of that path,
+///    and its identity is the one the record was keyed by,
+///    so a worktree a person added at the same path meanwhile is not this one and is left alone;
+///  - the commit a reference lock holds in it reaches `refs/cli-git/kept/<batch>` of the common Git directory,
+///    because the removal deletes the worktree's own reference and Git directory
+///    (`worktree_removal_held_commits.rs`);
+///  - the record that this program made the worktree is still beside the registration;
+///  - and the rest of `worktree_removal_second_look.rs` holds:
+///    no registered worktree inside it,
+///    no lock,
+///    no unfinished operation,
+///    no process working in it,
+///    no ignored file the worktree the proof was made from does not hold,
+///    and every record of its own Git directory copied into a removal snapshot.
+///  A worktree that stays is named in the repository's kept-worktree notices,
+///  which the next command of any worktree shows,
+///  so nothing is kept in silence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -503,6 +680,26 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         debug(TAG, format!("{} is gone already; nothing to remove", target.display()).as_str());
         return Verdict::Done;
     }
+    let registration: Registration = match registered_worktree(item.git_dir.as_path(), target.as_path()) {
+        Ok(found) => found,
+        // A directory the repository does not register under that path is no worktree this record may remove, and Git
+        // would refuse to remove it too.
+        Err(reason) => return Verdict::Failed(format!("nothing was removed: {reason}")),
+    };
+    // The record was keyed by the path and the identity of the registration beside it, so recomputing that name says
+    // whether the worktree in front of this removal is the one the proof was made for. A path a person removed and added
+    // a worktree at again names a different registration, and that worktree was never proven anything.
+    let standing: String = removal_named_by(target.as_path(), registration.admin.as_path());
+    if standing != item.oid {
+        debug(
+            TAG,
+            format!("{} holds a worktree the record was not written for ({} is not {})", target.display(), standing, item.oid).as_str(),
+        );
+        return Verdict::Skipped(format!(
+            "the worktree the record was written for is gone, and another one stands at {} now; it was left exactly as it is",
+            target.display()
+        ));
+    }
     // Read before Git deletes the worktree: the registration names the pool this worktree's shadow lives in, and a path
     //  that is gone names nothing.
     let pool: Option<(PathBuf, PathBuf)> = the_pool_of(target.as_path());
@@ -510,6 +707,35 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         Ok(found) => found,
         Err(reason) => return Verdict::Retry(reason),
     };
+    // A commit a reference lock holds lives on the worktree's own reference and in its own Git directory, and the removal
+    // deletes both. The sweep kept what was held when it ran; a batch that met a reference lock afterwards is held since.
+    // A commit no reference can keep stops the removal, because nothing else would name it once the directory is gone.
+    let kept: KeptCommits = keep_held_commits(item.git_dir.as_path(), &context);
+    for line in &kept.said {
+        crate::service_log!("{line}");
+    }
+    if !kept.refused.is_empty() {
+        return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), kept.refused.join("\n").as_str(), kept.said.as_slice());
+    }
+    if !added_by_the_wrapper(registration.admin.as_path(), target.as_path()) {
+        return keep_the_worktree(
+            item,
+            target.as_path(),
+            registration.admin.as_path(),
+            "nothing records that this program made it, so the files Git ignores in it may be yours",
+            kept.said.as_slice(),
+        );
+    }
+    let source: Option<PathBuf> = compared_with_of(registration.admin.as_path());
+    let look: SecondLook<'_> = SecondLook {
+        context: &context,
+        common_dir: item.git_dir.as_path(),
+        proc_root: Path::new(PROCESS_TABLE),
+        source: source.as_deref(),
+    };
+    if let Some(why) = why_the_worktree_stays(&look, target.as_path(), registration.admin.as_path()) {
+        return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), kept.said.as_slice());
+    }
     let arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove"), target.clone().into_os_string()];
     let output: GitOutput = match run_git(&context, &GitRequest::new(item.repository.as_path(), arguments.as_slice())) {
         Ok(finished) => finished,
@@ -525,6 +751,36 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree(common.as_path(), admin.as_path());
     }
     return Verdict::Done;
+}
+
+/// What:
+///  Keep the worktree,
+///  say why in the repository's kept-worktree notices,
+///  and answer the failing verdict that keeps the record from being read as a removal that happened.
+/// Why:
+///  A worktree this program kept is the person's until they say otherwise,
+///  and the command that would have said so is over:
+///  the record is the only thing left that speaks,
+///  and the notice is what reaches the person on their next command.
+///  The verdict is a failure because a `done` record means the worktree is gone,
+///  which this one is not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepTheWorktree(item, target, registration, why): Verdict
+/// ```
+fn keep_the_worktree(item: &WorkItem, target: &Path, registration: &Path, why: &str, kept_commits: &[String]) -> Verdict {
+    let branch: String = branch_of_registration(registration).unwrap_or_else(|| return String::from("a head with no branch"));
+    // A commit a reference lock held reached a reference of this repository before anything was read here, and a person
+    //  who reads why their worktree stayed should read that too.
+    let said: String = match kept_commits.is_empty() {
+        true => why.to_owned(),
+        false => format!("{}. {why}", kept_commits.join(". ")),
+    };
+    if let Err(reason) = record_kept_worktree(item.git_dir.as_path(), target, branch.as_str(), said.as_str()) {
+        crate::service_warn!("the worktree {} was left in place and the notice about it could not be written: {reason}", target.display());
+    }
+    return Verdict::Failed(format!("the worktree was left in place, and the next command of this repository names it: {said}"));
 }
 
 /// What:
