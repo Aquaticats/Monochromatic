@@ -24,38 +24,47 @@
 use crate::git_metadata::MetadataOutput;
 use crate::repository_facts::GitFacts;
 use crate::rule_abort_operation::{
-    AbortOperation, OPERATION_STATE_NAMES, SEQUENCER_DIRECTORY, OperationState, aborted_operation, aborts_the_waiting_operation,
-    waiting_operation,
+    AbortOperation, OPERATION_STATE_NAMES, RESTORED_REVISION_NAMES, RestoredRevision, SEQUENCER_DIRECTORY, OperationState, abort_is_live,
+    aborted_operation, in_progress_operation, restored_revision,
 };
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_worktree_dirty::nul_separated_paths;
 use std::collections::BTreeSet;
-use std::ffi::OsString;
-use std::path::Path;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  What an abort form would discard,
 ///  from the shape of the repository alone.
 /// Why:
 ///   The guard needs three different answers from this:
-///  no operation waits (Git refuses the command itself),
-///  an operation of another kind waits (also Git's to refuse),
-///  or this operation waits and these paths hold the person's work.
+///  no state of this operation is there (Git refuses the command itself),
+///  the operation this command ends waits and these paths hold the person's work,
+///  or the commit whose tree the abort writes back is recorded somewhere.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AbortDiscard = { kind: 'nothing-waiting' } | { kind: 'waiting'; operation: AbortOperation; paths: string[] };
+/// type AbortDiscard = { kind: 'nothing-waiting' } | { kind: 'waiting'; inProgress: AbortOperation; restored: string; paths: string[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AbortDiscard {
-    /// No operation this command aborts waits,
+    /// The state this command's own operation writes is absent,
     ///  so Git refuses the command and discards nothing.
     NothingWaiting,
-    /// The operation waits,
+    /// The command's operation waits,
     ///  and these paths hold the work its abort would discard besides its own.
     Waiting {
-        /// Which operation waits.
-        operation: AbortOperation,
+        /// Which operation this command ends.
+        in_progress: AbortOperation,
+        /// The revision whose tree the abort writes back into the worktree,
+        ///  as Git's own implementation of this abort finds it:
+        ///  a name Git resolves,
+        ///  or the commit read from the record Git wrote.
+        restored: OsString,
+        /// The listed paths the worktree no longer holds while the index does:
+        ///  the abort resets the index too,
+        ///  so their content would be discarded where no worktree file can be copied.
+        index_only: Vec<Vec<u8>>,
         /// The repository-relative paths,
         ///  in a settled order and each once.
         paths: Vec<Vec<u8>>,
@@ -63,7 +72,8 @@ pub enum AbortDiscard {
 }
 
 /// What:
-///  The argument list that names each state file and directory of an operation.
+///  The argument list that names each state file and directory of an operation,
+///  and each file an abort reads the commit it restores from.
 ///  `&[OsString]` borrows the caller's global options.
 /// Why:
 ///   `--git-path` resolves linked worktrees and `GIT_DIR`,
@@ -84,6 +94,10 @@ pub fn state_query_arguments(global_prefix: &[OsString]) -> Vec<OsString> {
     }
     arguments.push(OsString::from("--git-path"));
     arguments.push(OsString::from(SEQUENCER_DIRECTORY));
+    for name in RESTORED_REVISION_NAMES {
+        arguments.push(OsString::from("--git-path"));
+        arguments.push(OsString::from(name));
+    }
     return arguments;
 }
 
@@ -112,7 +126,31 @@ pub fn state_from_presence(present: [bool; 7]) -> OperationState {
 }
 
 /// What:
-///  The state query's answers as the presence facts `state_from_presence` reads,
+///  The state query's answers:
+///  the presence facts `state_from_presence` reads,
+///  and where Git records the commit each abort form restores.
+///  `[bool; 7]` is one presence fact per name `OPERATION_STATE_NAMES` asks about,
+///  then the sequencer directory.
+/// Why:
+///   The record paths have to come from the same one start of Git as the presence facts,
+///  because a record can change between two starts,
+///  and an abort must read the revision its own implementation will read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await facts.stateAnswer(); // { state, restoredPaths }
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StateAnswer {
+    /// Which operation states are present.
+    pub state: OperationState,
+    /// Where each restored-revision record lives,
+    ///  in `RESTORED_REVISION_NAMES` order.
+    pub restored_paths: Vec<(&'static str, PathBuf)>,
+}
+
+/// What:
+///  The state query's answers as the state and the record paths,
 ///  or why the answer is not one path per name.
 ///  `&[u8]` borrows the query's standard output.
 /// Why:
@@ -121,10 +159,10 @@ pub fn state_from_presence(present: [bool; 7]) -> OperationState {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const present = presence_facts(output.stdout.split('\n')); // throws
+/// const answer = stateAnswer(output.stdout.split('\n')); // throws
 /// ```
-pub fn presence_facts(answer: &[u8]) -> Result<[bool; 7], String> {
-    let names: usize = OPERATION_STATE_NAMES.len() + 1;
+pub fn state_answer(answer: &[u8]) -> Result<StateAnswer, String> {
+    let names: usize = OPERATION_STATE_NAMES.len() + 1 + RESTORED_REVISION_NAMES.len();
     let mut paths: Vec<&[u8]> = Vec::<&[u8]>::with_capacity(names);
     for line in answer.split(is_line_feed) {
         if line.is_empty() {
@@ -134,14 +172,20 @@ pub fn presence_facts(answer: &[u8]) -> Result<[bool; 7], String> {
     }
     if paths.len() != names {
         return Err(String::from(
-            "monochromatic-git-policy-cli could not read the operation state: git rev-parse --git-path did not answer one path per state file.",
+            "could not read the operation state: git rev-parse --git-path did not answer one path per state file.",
         ));
     }
     let mut present: [bool; 7] = [false; 7];
+    let mut records: Vec<(&'static str, PathBuf)> = Vec::with_capacity(RESTORED_REVISION_NAMES.len());
     for (index, path) in paths.iter().enumerate() {
-        present[index] = as_path(path).exists();
+        if index < OPERATION_STATE_NAMES.len() + 1 {
+            present[index] = as_path(path).exists();
+            continue;
+        }
+        let name: &'static str = RESTORED_REVISION_NAMES[index - (OPERATION_STATE_NAMES.len() + 1)];
+        records.push((name, as_path(path).to_path_buf()));
     }
-    return Ok(present);
+    return Ok(StateAnswer { state: state_from_presence(present), restored_paths: records });
 }
 
 /// Whether a byte of the state query's answer ends a path.
@@ -304,12 +348,78 @@ fn merge_result_readable(facts: &mut GitFacts) -> Result<bool, String> {
 }
 
 /// What:
-///  Which paths the abort of `command` would discard besides the operation's own state.
+///  The commit Git recorded for the tree an abort writes back,
+///  read from the file its own implementation reads.
+/// Why:
+///   A rebase records its original head in `rebase-merge/orig-head`
+///  or `rebase-apply/orig-head`,
+///  and a pick sequence in `sequencer/head`;
+///  a record that cannot be read,
+///  or that does not hold a commit id,
+///  is a failure and never a quiet fall back to `HEAD`,
+///  because the ignored-file refusal it earns must not read as clean.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function recordedCommit(answer: StateAnswer, record: 'sequencer/head'): Promise<string>; // throws
+/// ```
+fn recorded_commit(answer: &StateAnswer, record: &OsStr) -> Result<OsString, String> {
+    let mut place: Option<&PathBuf> = None;
+    for (name, path) in &answer.restored_paths {
+        if OsStr::new(name) == record {
+            place = Some(path);
+            break;
+        }
+    }
+    let Some(path) = place else {
+        return Err(format!(
+            "could not read the commit this abort restores: the wrapper asked Git for no record named {}.",
+            record.to_string_lossy()
+        ));
+    };
+    let bytes: Vec<u8> = match std::fs::read(path) {
+        Ok(read) => read,
+        Err(error) => {
+            return Err(format!(
+                "could not read the commit this abort restores: Git records it in {} and the file could not be read ({error}).",
+                path.display()
+            ));
+        }
+    };
+    let text: String = match String::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(error) => {
+            return Err(format!(
+                "could not read the commit this abort restores: Git records it in {} and the file is not text ({error}).",
+                path.display()
+            ));
+        }
+    };
+    let commit: &str = text.trim();
+    if commit.is_empty() || !commit.bytes().all(is_hex_digit) {
+        return Err(format!(
+            "could not read the commit this abort restores: Git records it in {} and the file holds no commit id.",
+            path.display()
+        ));
+    }
+    return Ok(OsString::from(commit));
+}
+
+/// Whether one byte of a record is a hexadecimal digit,
+///  which every commit id's bytes are.
+fn is_hex_digit(byte: u8) -> bool {
+    return byte.is_ascii_hexdigit();
+}
+
+/// What:
+///  Which paths the abort of `command` would discard besides the operation's own state,
+///  and the revision whose tree it writes back.
 ///  `Result<A, B>` is "either success `A` or failure `B`".
 /// Why:
 ///   This is the one question the guard asks before it saves anything:
-///  nothing waits means Git refuses the command itself,
-///  and a waiting operation means these paths are the person's own work.
+///  the command's own operation absent means Git refuses it,
+///  a waiting operation means these paths are the person's own work,
+///  and the revision is the tree the abort writes back over the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -327,24 +437,29 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
             .unwrap_or_default()
             .trim()
             .to_string();
-        return Err(format!("monochromatic-git-policy-cli could not read the operation state: {detail}"));
+        return Err(format!("could not read the operation state: {detail}"));
     }
-    let state: OperationState = state_from_presence(presence_facts(state_output.stdout.as_slice())?);
-    let Some(waiting): Option<AbortOperation> = waiting_operation(state) else {
+    let answer: StateAnswer = state_answer(state_output.stdout.as_slice())?;
+    let state: OperationState = answer.state;
+    if !abort_is_live(aborted, state) {
+        // This command's own state is absent: Git refuses it, and it discards nothing.
         return Ok(AbortDiscard::NothingWaiting);
+    }
+    let restored: OsString = match restored_revision(aborted, state) {
+        RestoredRevision::Named(name) => name.to_os_string(),
+        RestoredRevision::StateFile(record) => recorded_commit(&answer, record)?,
     };
-    if !aborts_the_waiting_operation(aborted, waiting) {
-        // Another operation's state is in the Git directory: this abort is Git's to refuse, and it discards nothing.
-        return Ok(AbortDiscard::NothingWaiting);
-    }
-    let queries: [Vec<OsString>; 2] = match waiting {
+    let queries: [Vec<OsString>; 2] = match aborted {
         AbortOperation::Merge if merge_result_readable(facts)? => merge_result_queries(facts.global_prefix.as_slice()),
         _ => uncommitted_queries(facts.global_prefix.as_slice()),
     };
     let first: MetadataOutput = facts.query(queries[0].clone(), "the paths this command would discard")?;
     let second: MetadataOutput = facts.query(queries[1].clone(), "the staged paths this command would discard")?;
     let paths: Vec<Vec<u8>> = both_listings(listed_paths(&first)?, listed_paths(&second)?);
-    return Ok(AbortDiscard::Waiting { operation: waiting, paths });
+    // A path the worktree lost while the index kept its content is work this abort would discard,
+    //  and no worktree file can be copied for it: the guard refuses the command instead.
+    let index_only: Vec<Vec<u8>> = crate::repository_facts_index_only_paths::index_only_paths(facts, paths.as_slice())?;
+    return Ok(AbortDiscard::Waiting { in_progress: in_progress_operation(aborted, state), restored, index_only, paths });
 }
 
 /// The queries,

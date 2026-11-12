@@ -9,6 +9,7 @@ use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal_encoding_and_validation::*;
 use crate::path_bytes_in_records::hex_of_bytes;
 use crate::worktree_copy_journal_removal::*;
+use crate::private_storage::{take_directory_syncs, take_file_syncs};
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
 
@@ -988,5 +989,49 @@ fn a_journal_keeps_the_bytes_of_its_lists_and_an_earlier_release_refuses_one_tha
         parse_journal(earlier.as_str(), path.as_path(), journal_root.as_path()).is_err(),
         "the earlier release's fields name no list, so it refuses the record: {earlier}"
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A journal,
+/// and the removal that settles it,
+/// are published whole and flush nothing.
+/// Why:
+///   A journal names a copy into a worktree Git has just made,
+/// whose every byte the source still holds,
+/// so a power cut costs the rollback of a partial installation and never a byte of a person's;
+/// native Git flushes nothing for the worktree add it serves,
+/// and a flush here is a commit of the whole btrfs filesystem on the add's waiting path
+/// (`SPEC.md`,
+/// "The records an add writes for itself").
+/// The control that the recorders see a flush is a durable private file and a directory sync.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeJournal(); settle(); expect(fileSyncs()).toEqual([]); expect(directorySyncs()).toEqual([]);
+/// ```
+#[test]
+fn the_journal_and_its_removal_flush_nothing() {
+    let root: PathBuf = fixture("journal-flushes-nothing");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("common");
+    let journal_root: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let journal: Journal = sample(root.as_path());
+    let stage: PathBuf = journal.stage_container.clone();
+    std::fs::create_dir_all(stage.as_path()).expect("stage");
+    let path: PathBuf = journal_root.join("id.json");
+    take_file_syncs();
+    take_directory_syncs();
+    write_journal(path.as_path(), &journal).expect("write");
+    let written: String = std::fs::read_to_string(path.as_path()).expect("the journal is there");
+    assert!(written.contains("\"phase\":\"installing\""), "the journal is published whole: {written}");
+    remove_pending_journal(&PendingJournal { path: path.clone(), journal }).expect("removed");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "a journal flushes no file");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "a journal flushes no directory");
+    assert!(!stage.exists() && !path.exists(), "the journal and its stage are gone");
+    let control: PathBuf = root.join("durable-control");
+    crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
+    crate::private_storage::sync_directory(root.as_path()).expect("control directory");
+    assert!(!take_file_syncs().is_empty() && !take_directory_syncs().is_empty(), "the recorders see a durable write");
     remove(root.as_path());
 }

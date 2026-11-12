@@ -17,6 +17,12 @@ which a process at its thread limit never starts,
 a look that could not be made is made again,
 a line the writer could not take is said again,
 and the line names the process the kernel is actually holding.
+AMENDED 2026-11-12 on
+`fix/git-policy-cli-commit-does-not-fail-when-its-scratch-commit-stalls`:
+the ceiling now stands aside for a held step instead of ending it
+(workaround 1 below),
+so on 2026-11-11 an ordinary commit no longer fails in a disk wait,
+and the line about a stop the kernel has not released is said once.
 The other answers below stay unbuilt,
 as the record of what he chose over.
 
@@ -41,10 +47,16 @@ Since 2026-11-10 the notice's lines stop with a line that names the commit and t
 process the kernel is holding,
 says the stop was sent and the kernel has not released it,
 and says nothing of the person's is at risk;
-the wait that keeps waiting says it again at every notice interval,
+the wait that keeps waiting says it once,
 and the command still returns only when the kernel lets the step go
 (the owner's choice under "Verified workarounds").
-The silence above is what a person saw before that change.
+Since 2026-11-12 the step is not stopped at all while the kernel holds it:
+the ceiling stands aside for it,
+one line says so and names the bound it now runs under,
+and only a step the kernel still holds past that bound is signalled,
+so the state this doc describes is one a commit reaches only after it has been
+waited for far longer than any disk on this host took.
+The silence above is what a person saw before either change.
 
 ## Root cause
 
@@ -151,13 +163,66 @@ not on a reproduction here.
 
 Each is a change to the wrapper,
 not to the kernel.
-The first is what the wrapper does since 2026-11-10:
-the owner chose it
-("Keep waiting and say so")
-over the second,
-and the third was rejected.
+The first two are what the wrapper does:
+the second since 2026-11-10,
+the owner's answer
+("Keep waiting and say so"),
+and the first since 2026-11-11,
+because a step the kernel holds is slow and not stuck.
+The third was the owner's answer to the wait he then had,
+and the fourth was rejected.
 
-1.  **Say what is happening,
+1.  **Stand aside at the ceiling for a step the kernel holds,
+    and wait for it to a measured bound.**
+    BUILT 2026-11-11 on
+    `fix/git-policy-cli-commit-does-not-fail-when-its-scratch-commit-stalls`.
+    A step in an uninterruptible call is waiting for the disk and not stuck in its own work,
+    so the ceiling it reached is not what should end it:
+    on 2026-11-11 two ordinary commits failed that way in this repository,
+    their steps held for 37,153 and 47,978 ms under a 16,332 ms ceiling,
+    and the second one landed when the same command was run again.
+    Both enforcers of the ceiling ask one look whether the kernel holds a process of the
+    step (`commit/scratch_step_look_below.rs`,
+    `the_kernel_holds_the_step`),
+    the ceiling stands aside once for such a step,
+    and the step is waited for to `SCRATCH_COMMIT_STEP_STALL_CEILING`
+    (`service/wait_ceilings.rs`,
+    300,000 ms,
+    five times the ceiling and 6.2 times the slower step the kernel ever held here),
+    which an ordinary slow disk never reaches.
+    One line,
+    said by the wait that owns the step,
+    says the ceiling stood aside,
+    how long the step has lasted,
+    the process the kernel is holding and the bound the step now runs under;
+    the timing record keeps the moment (`heldAfterCeilingMs`) and the bound
+    (`stallCeilingMs`),
+    so a slow step that landed is told from one that was stopped;
+    a step the kernel holds past that bound is ended as any step at its ceiling is,
+    and the stop's words say it was already waited for.
+    Another bound is never needed:
+    no commit is built twice,
+    no scratch state of a stopped attempt is left behind,
+    and a step that cannot be in a disk wait (an editor waiting for input)
+    is ended at the ceiling exactly as before.
+    - Tradeoff:
+      a step nothing will release holds the commit for up to five minutes
+      instead of sixteen seconds.
+      The person sees the elapsed time in every notice line,
+      so the wait is never silent,
+      and the alternative was a failed commit.
+    - Proven by controls that state the kernel's answer about a real signer and a real step
+      (`commit/commit_preparation_tests.rs`:
+      `a_scratch_commit_the_kernel_holds_past_its_ceiling_lands_exactly_one_commit`,
+      `a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message`;
+      `process/child_awaited_until_it_exits_the_stop_or_the_ceiling_tests.rs`:
+      `a_step_the_kernel_holds_past_its_ceiling_lands_when_it_ends`,
+      `a_step_the_kernel_never_releases_is_ended_at_the_bound_it_is_waited_for`,
+      `a_step_the_kernel_holds_that_ends_after_the_bound_is_reported_by_its_own_status`;
+      `commit/native_commit_waiting_notice_tests.rs`:
+      `the_ceiling_stands_aside_for_a_step_the_kernel_holds`),
+      each of which fails with the stand-aside taken out.
+2.  **Say what is happening,
     keep waiting.**
     BUILT 2026-11-10,
     and amended after the review of `62994776ec`.
@@ -175,8 +240,9 @@ and the third was rejected.
     (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`),
     because a process at its thread limit starts no notice thread and such a commit
     then waited in silence;
-    it says the line again at every notice interval until the step is reaped,
-    because a person who reads it once and then sees nothing reads a hang;
+    it says the line once,
+    because a person who met the same sentence three times in one failed commit read nothing
+    new the second time;
     a look that `/proc` refused is made again and never read as the kernel having
     let go;
     a line the writer could not take is handed over again as soon as it can take one;
@@ -201,11 +267,11 @@ and the third was rejected.
       and a step a control states has not been reaped
       (`process/wait_after_the_stop_saying_the_kernel_holds_it_tests.rs`:
       `a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step`,
-      `the_line_is_said_again_for_as_long_as_the_wait_lasts`,
+      `the_line_is_said_once_however_long_the_wait_lasts`,
       `a_look_that_could_not_be_made_is_made_again`,
       `a_line_the_writer_could_not_take_is_said_again_when_it_can`,
       `a_helper_held_below_the_step_is_the_process_the_line_names`).
-2.  **Leave after a bound,
+3.  **Leave after a bound,
     with the child unreaped.**
     The commit's thread stops waiting at the ceiling plus a grace,
     prints the stop's words and exits nonzero,
@@ -225,8 +291,8 @@ and the third was rejected.
       and it changes the exit
       path of a failed commit:
       it needs the owner's decision.
-      He chose the first over it (2026-11-10).
-3.  **No ceiling at all for this step.**
+      He chose the second over it (2026-11-10).
+4.  **No ceiling at all for this step.**
     - Tradeoff:
       rejected.
       It is the state that let a 36,651 ms step land under
