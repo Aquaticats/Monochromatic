@@ -417,6 +417,13 @@ and this is said rather than hidden:
   five times the longest journal write the service log holds;
   a write that outlasts it ends its landing with a failure,
   which is a commit the person runs again and never a commit that lands half recorded.
+- A job of the journal write that panics after its flush was queued loses that flush:
+  the queue the landing settles is the caller's,
+  and the job cannot reach it.
+  The synchronous face's panic leaves the pending in the landing's state,
+  where the deferral's own `Drop` forces it,
+  so this is a difference of the panic path only,
+  and a panic is a defect whose landing answers a failure anyway.
 - `service_durable.rs`'s two carrying faces are one implementation each with the synchronous ones,
   and the synchronous ones were not changed in what they do:
   the same figures in the same order,
