@@ -161,6 +161,11 @@ pub mod worktree_copy_stage_binding;
 #[cfg(unix)]
 pub mod worktree_copy_unfilled_record;
 
+/// The target a copied symbolic link must hold at its new place,
+/// and the rule that tells two links naming one place.
+/// It is path arithmetic only, so every system that copies links compiles it.
+pub mod worktree_copy_symlink_target;
+
 /// The append-only install log of one stage:
 /// per-batch intents and creations,
 /// with resumption.
