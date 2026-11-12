@@ -580,7 +580,8 @@ fn a_matching_push_whose_sibling_the_remote_refused_still_publishes_the_branch()
 /// Why:
 ///  The service is the only pusher of the repositories it serves,
 /// but not the only client of the remote:
-///  a second worktree, a laptop or a colleague can push between this push and the question about it,
+///  a second worktree,
+/// a laptop or a colleague can push between this push and the question about it,
 /// and the remote then holds the commit as an ancestor.
 ///  The backup is the commit's arrival,
 /// which the remote proved either way,

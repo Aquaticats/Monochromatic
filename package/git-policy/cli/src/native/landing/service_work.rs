@@ -478,11 +478,12 @@ impl WorkHandlers for GitHandlers {
             //  service keeps, and the words go to the person's record with the promise that plan keeps.
             Ok(result) if result.outcome == AutoPushOutcome::HeldBack => Verdict::Retry(result.shown),
             Ok(result) if result.exit_code == 0 => {
-                // A matching push can carry a sibling the remote refused while this branch arrived: the branch is done, and the
-                //  refused sibling is published nowhere, so the journal names it here and the record the next command shows carries
-                //  it to the person.
+                // A matching push can carry a sibling the remote refused while this branch arrived, and it can be refused for the
+                //  recorded branch itself while the commit this push sent is already there as an ancestor of what the remote holds.
+                //  Either way an update was refused and Git's own line for that ref is the only place the person can learn it, so the
+                //  journal names the refusal and claims nothing about what the remote holds: the delivery question above did.
                 for line in crate::matching_push_delivered_the_recorded_branch::refused_lines(result.shown.as_str()) {
-                    crate::service_warn!("a branch of this push was refused and was not published: {line}");
+                    crate::service_warn!("the remote refused a ref of this push: {line}");
                 }
                 // A push that exits 0 still holds words the person needs: the server's own `remote:` lines, the account of a
                 //  reconcile it made, and the refusal of a remote-tracking reference it could not update, which is the only sign

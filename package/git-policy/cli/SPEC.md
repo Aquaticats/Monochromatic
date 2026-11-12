@@ -7525,7 +7525,8 @@ in-process reader can) gives every value of the multi-valued keys.
   swept and deleted as the reconcile's is,
   written with `--no-write-fetch-head` so the file every fetch shares is left alone),
   because only the remote that has the object can answer for it.
-  The fetch is held to the push's own patience, like the reconcile's.
+  The fetch is held to the push's own patience,
+  like the reconcile's.
   Neither the remote-tracking ref nor the remote's fetch URL can answer this:
   the tracking ref lags the remote,
   so it still names a commit whose branch the remote deleted and reads a push to an unreachable

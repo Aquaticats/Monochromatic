@@ -484,8 +484,10 @@ Read-only commands,
    One such push can be refused for a sibling branch while the recorded one arrived,
    so after a matching push that failed the service asks each URL that remote pushes to
    what the recorded branch's ref holds there,
-   and a branch every one of them holds at the commit it sent,
-   or at a commit that contains it (a commit that landed while the push ran, or another client's push),
+   and a branch every one of them holds at the commit it sent
+   or at a commit that contains it,
+   such as a commit that landed while the push ran
+   or another client's push,
    is reported as pushed:
    the sibling's refusal is no failure of that branch and does not delay it,
   and the service log names the refused sibling from Git's own line,

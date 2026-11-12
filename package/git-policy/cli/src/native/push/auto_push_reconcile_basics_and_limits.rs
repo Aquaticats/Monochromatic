@@ -24,17 +24,9 @@
 //! ```
 
 use crate::auto_push_single_flight::{
-    PushAttempt, PushGit, SingleFlightError, git_command, git_output_awaiting, run_query, run_query_awaiting,
+    PushAttempt, PushGit, SingleFlightError, git_command, git_output, git_output_awaiting, run_query, run_query_awaiting,
 };
-/// The synchronous reading of a start's output,
-/// which only the controls that compare the two faces still ask.
-#[cfg(test)]
-use crate::auto_push_single_flight::git_output;
-use crate::bounded_push::{STOP_GRACE, run_bounded_push_awaiting};
-/// The synchronous push of the fetch,
-/// which only the control that compares the two faces still asks.
-#[cfg(test)]
-use crate::bounded_push::run_bounded_push;
+use crate::bounded_push::{STOP_GRACE, run_bounded_push, run_bounded_push_awaiting};
 use crate::bounded_query::QueryOutput;
 use crate::push_deadline_and_patience_settings::push_patience;
 use crate::journald_native::{CLIENT_IDENTIFIER, IDENTIFIER};
@@ -379,11 +371,13 @@ fn refs_to_sweep(listing: &[u8], ours: u32) -> Vec<String> {
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
 ///   The landing round's reconcile fetches the remote tip as a task,
-/// and the fetch and the reads around it enter the runtime on the synchronous face and are
-///  refused from there.
+/// and so does the delivery proof of a failed matching push,
+///  whose queries enter the runtime on the synchronous face and are refused from there.
 /// The ref name,
+/// the flags,
 /// what the fetch says and the deletion are the synchronous face's,
-/// so the two cannot leave different scaffolding behind.
+/// so the two cannot leave different scaffolding behind,
+///  and neither writes the `FETCH_HEAD` every fetch in a repository shares.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -399,6 +393,7 @@ pub async fn fetch_remote_tip_awaiting(
     let arguments = argv(&[
         "fetch",
         "--no-tags",
+        "--no-write-fetch-head",
         &destination.remote,
         &refspec,
     ]);
@@ -409,7 +404,7 @@ pub async fn fetch_remote_tip_awaiting(
         return Ok(Err(fetched));
     }
     // The fetch carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
-    record_text(&["fetch", "--no-tags", destination.remote.as_str(), refspec.as_str()], fetched.output.as_str());
+    record_text(&["fetch", "--no-tags", "--no-write-fetch-head", destination.remote.as_str(), refspec.as_str()], fetched.output.as_str());
     let tip = git_output_awaiting(
         git,
         &argv(&[

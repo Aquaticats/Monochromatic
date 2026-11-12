@@ -220,7 +220,9 @@ pub(crate) fn every_url_proved_it(proved: &[Option<bool>]) -> bool {
 
 /// What:
 ///  Whether the commit one push URL names on the recorded branch holds the commit this push sent,
-///  asked of this repository's objects and, when it holds none of them, of that URL itself.
+///  asked of this repository's objects and,
+/// when it holds none of them,
+/// of that URL itself.
 /// Why:
 ///  Equality is the common answer and needs no question of its own:
 /// the ref names the commit.
@@ -286,7 +288,8 @@ async fn holds_the_commit_awaiting(git: &PushGit, url: &str, remote_ref: &str, l
 }
 
 /// What:
-///  The commit one push URL's ref names, fetched into the reconcile's private ref.
+///  The commit one push URL's ref names,
+/// fetched into the reconcile's private ref.
 /// Why:
 ///  The ancestry of an object this repository does not hold can only be learned from the remote that has it,
 /// and the fetch a refused branch already makes is the machinery that does it:

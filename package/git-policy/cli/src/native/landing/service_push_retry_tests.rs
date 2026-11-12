@@ -1370,7 +1370,10 @@ fn a_matching_push_whose_remote_moved_past_the_commit_leaves_no_record_and_no_pl
     assert_eq!(remote_tip(&stage), advanced, "the remote's branch moved past the commit this push sends");
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let planned: Option<Duration> = round_with_real_git(&stage, &mut retries);
-    assert_eq!(notices(&stage), 0, "a commit the remote holds is not a failed backup: {}", notice_text(&stage));
+    let record: String = notice_text(&stage);
+    // A delivered push that carried a refusal keeps Git's line for the person, and says the push was made.
+    assert!(record.contains("was made"), "the record says the push was made: {record}");
+    assert!(!record.contains("may or may not have taken that commit"), "a commit the remote holds is not a failed backup: {record}");
     assert!(retries.directories().is_empty(), "no plan names the repository");
     assert_eq!(planned, None, "nothing is left to try again");
     remove(stage.root.as_path());
