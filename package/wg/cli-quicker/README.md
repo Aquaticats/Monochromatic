@@ -167,8 +167,10 @@ There is no field that names the rule's owner,
 so the program cannot establish that an untagged suppression is its own.
 `down` therefore leaves an untagged suppression in place and warns with the line the rule listing printed
 and the exact command that removes it.
-An interface whose fwmark names a policy table, whose tagged rule is absent and whose family lists an untagged
-`suppress_prefixlength 0` rule, was most likely set up by an earlier build,
+An interface whose fwmark names a policy table,
+whose tagged rule is absent and whose family lists an untagged
+`suppress_prefixlength 0` rule,
+was most likely set up by an earlier build,
 and the person can remove that leftover with the printed command.
 The rule this program writes is listed with the tag:
 
@@ -589,7 +591,9 @@ its order already blocks traffic before it removes routing,
 so a `down` that is killed part way leaves traffic blocked and not outside the tunnel.
 
 Every command `wg-quicker` runs itself ends at a deadline:
-`ip`, `wg`, `nft`,
+`ip`,
+`wg`,
+`nft`,
 `resolvectl` and `sysctl` get sixty seconds,
 and a command still running then is killed and reported as
 `CommandTimeoutError`,
@@ -609,7 +613,8 @@ A command that exits while a process it started still holds its standard output 
 as `sh -c 'something &'` does,
 never reports the close of its pipes,
 so the read ends are closed at the deadline and the call answers then.
-That command did exit, and its own status is what the call reports:
+That command did exit,
+and its own status is what the call reports:
 a timeout is claimed only for a command the deadline ended,
 because reporting one for a hook that already succeeded would run a rollback for nothing.
 The output the command wrote before it exited is kept,
@@ -1517,7 +1522,8 @@ under the identifier `wg-quicker-exempt`.
 
 A watcher leads its own process group (`setsid`),
 and `ip monitor route` and the watcher's own `ip` calls are children in that group.
-A stop signals the group and not only the leader, which is what reaches the monitor.
+A stop signals the group and not only the leader,
+which is what reaches the monitor.
 A `SIGKILL` to the leader alone leaves the monitor behind,
 so a stop whose recorded leader is already gone signals the recorded group as well:
 `down` ends the orphaned monitor instead of leaving it with its netlink socket
