@@ -4,8 +4,13 @@
 //! Why:
 //! Every test of a removal needs a build folder that nothing real depends on.
 
-/// Files and times.
-use std::{fs, fs::File, path::{Path, PathBuf}, time::{Duration, UNIX_EPOCH}};
+/// Files,
+/// times,
+/// and the pipes and channels the controls of a call that must answer need.
+use std::{fs, fs::File, path::{Path, PathBuf}, sync::mpsc, time::{Duration, UNIX_EPOCH}};
+
+/// The pipe a name is given.
+use rustix::fs::{CWD, FileType, Mode, mknodat};
 
 /// The lock file name of a profile directory.
 pub const BUILD_LOCK: &str = ".cargo-build-lock";
@@ -18,6 +23,49 @@ pub const DAY: i64 = 86_400;
 
 /// A moment well after the epoch so ages are positive.
 pub const NOW: i64 = 1_800_000_000;
+
+/// The longest a call that must answer at once may take in these tests:
+/// a call that waits for the other end of a pipe never answers.
+/// Ten seconds is far longer than the answers these fixtures take and short enough that a control that hangs fails
+/// the suite rather than holding it.
+pub const ANSWER_WITHIN: Duration = Duration::from_secs(10);
+
+/// What:
+/// `pub fn within<F, T>(work: F) -> T` is the work's answer,
+/// and a failure when the work has not answered inside `ANSWER_WITHIN`.
+/// Why:
+/// The defect these controls guard is a call that never returns,
+/// so the control cannot wait for it in the test's own thread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function within<T>(work: () => T, limitMs: number): Promise<T>
+/// ```
+pub fn within<F, T>(work: F) -> T
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(work());
+    });
+    return receiver.recv_timeout(ANSWER_WITHIN).expect("the call answered instead of waiting for the other end of a pipe");
+}
+
+/// What:
+/// `pub fn make_pipe(path: &Path)` makes a named pipe with no reader and no writer.
+/// Why:
+/// A pipe at one of the names a pass opens is the shape that holds a blocking open forever,
+/// and only a pipe tests what a symbolic link or another file cannot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const makePipe = (path: string): void => execFileSync('mkfifo', [path]);
+/// ```
+pub fn make_pipe(path: &Path) {
+    mknodat(CWD, path, FileType::Fifo, Mode::from_raw_mode(0o600), 0).expect("a pipe at the name");
+}
 
 /// What:
 /// `pub fn set_time(path: &Path, seconds: i64)` sets the modification time of a file or directory.
@@ -117,6 +165,35 @@ pub fn add_incremental(profile: &Path, name: &str, modified: i64) -> PathBuf {
 /// A guard environment on the real `/proc` for a test of an idle fixture.
 pub fn real_environment() -> crate::lean_guard::GuardEnvironment {
     return crate::lean_guard::GuardEnvironment::real();
+}
+
+/// What:
+/// `pub fn copy_a_program(directory: &Path) -> PathBuf` copies the `sleep` program the search path names into the directory,
+/// with its execute bits,
+/// and answers where it now is.
+/// Why:
+/// A control of "a process is running a program from this entry" needs the program itself inside the entry,
+/// and `sleep` is the one program these fixtures already start.
+/// The file is copied and not linked,
+/// so removing the entry cannot leave the program reachable somewhere else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const copyAProgram = (directory: string): string => { const from = (process.env.PATH ?? '').split(':').map((one) => join(one, 'sleep')).find((one) => existsSync(one)); const to = join(directory, 'fixture-program'); copyFileSync(from, to); return to; };
+/// ```
+pub fn copy_a_program(directory: &Path) -> PathBuf {
+    let searched: std::ffi::OsString = std::env::var_os("PATH").unwrap_or_default();
+    let mut found: Option<PathBuf> = None;
+    for entry in std::env::split_paths(&searched) {
+        let candidate: PathBuf = entry.join("sleep");
+        if candidate.is_file() {
+            found = Some(candidate);
+            break;
+        }
+    }
+    let program: PathBuf = directory.join("fixture-program");
+    fs::copy(found.expect("the search path names a sleep program"), &program).expect("copy the program into the fixture");
+    return program;
 }
 
 /// What:

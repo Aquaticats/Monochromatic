@@ -117,6 +117,40 @@ pub fn environment_value(environment: &[(OsString, OsString)], name: &str) -> Op
 }
 
 /// What:
+///  Look one variable up by the raw bytes the operating system holds for its name,
+///  the first entry winning as C's `getenv` does.
+///  `Option<OsString>` is "an owned value or nothing".
+/// Why:
+///  A `--config-env=<name>=<variable>` option names its variable in bytes that need not be UTF-8,
+///  and Git looks the name up as bytes;
+///  decoding it here would answer for another variable or for none,
+///  and either answer
+///  is a configuration the child never receives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function environmentValueByNameBytes(environment: [string, string][], name: Uint8Array): string | undefined;
+/// ```
+pub fn environment_value_by_name_bytes(environment: &[(OsString, OsString)], name: &[u8]) -> Option<OsString> {
+    // What: `for (key, value) in environment` destructures each borrowed pair.
+    // Why:  The list is small and scanned in its original order.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const [key, value] of environment) { ... }
+    // ```
+    for (key, value) in environment {
+        // `.as_encoded_bytes()` lends the name's raw bytes; nothing is decoded or copied.
+        if key.as_encoded_bytes() == name {
+            // `Some(value.clone())` wraps an owned copy in the "present" variant.
+            return Some(value.clone());
+        }
+    }
+    // `None` is the "absent" variant: no entry of the environment holds that name.
+    return None;
+}
+
+/// What:
 ///  The home directory this invocation's environment names,
 ///  nothing when it names none or names an empty one.
 ///       `&[(OsString, OsString)]` borrows the environment as name/value pairs.
@@ -455,6 +489,31 @@ pub fn never_prompt_overlay() -> Vec<(OsString, OsString)> {
         (OsString::from(ASKPASS_VARIABLE), OsString::new()),
         (OsString::from(TERMINAL_PROMPT_VARIABLE), OsString::from("0")),
     ];
+}
+
+/// What:
+///  Whether a list of variables turns prompting off for a Git or git-lfs child,
+/// by carrying the never-prompt pair.
+/// Why:
+///   The explanation after an upload needed a login says what the wrapper did about prompting,
+/// and this reads that answer from the pair
+///  itself instead of asking `/dev/tty` again:
+/// the pair is exactly what the child was given,
+/// and a child's own answer can differ from the caller's.
+///  The service's overlay always carries it;
+/// a command typed at a terminal does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const promptingDisabled = (variables) => variables.some(([name, value]) => name === 'GIT_ASKPASS' && value === '')
+///   && variables.some(([name, value]) => name === 'GIT_TERMINAL_PROMPT' && value === '0');
+/// ```
+pub fn prompting_disabled(variables: &[(OsString, OsString)]) -> bool {
+    let askpass: Option<OsString> = environment_value(variables, ASKPASS_VARIABLE);
+    let terminal: Option<OsString> = environment_value(variables, TERMINAL_PROMPT_VARIABLE);
+    let askpass_stops: bool = askpass.as_deref().is_some_and(OsStr::is_empty);
+    let terminal_stops: bool = terminal.as_deref() == Some(OsStr::new("0"));
+    return askpass_stops && terminal_stops;
 }
 
 /// What:

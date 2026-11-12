@@ -29,7 +29,7 @@ use crate::lean_identity::Deadline;
 /// Imports the names this file uses from `crate::lean_lock_probe`.
 use crate::lean_lock_probe::LOCK_FILE_NAMES;
 /// Named reads of paths and text.
-use crate::lean_text::{all_hex, extension_is, is_directory, name_of};
+use crate::lean_text::{all_hex, extension_is, is_directory, name_of, read_small_bytes};
 
 /// Directory names inside a profile directory,
 /// never entered when looking for profile directories.
@@ -255,19 +255,20 @@ pub fn last_activity(tree: &Path, deadline: &Deadline) -> Option<i64> {
 /// the registry,
 /// git and the toolchains.
 /// Why:
-/// It is a lead to the workspace the tree was built for.
+/// It is a lead to the workspace the tree was built for,
+/// and the read of the file waits on nothing:
+/// a dependency-information file is a name inside a build tree,
+/// so a pipe or a device at it must not hold the pass,
+/// and the first bytes are all a lead is read from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function leadIn(tree: string, dependencyFile: string): string | undefined
 /// ```
 fn lead_in(tree: &Path, dependency_file: &Path) -> Option<PathBuf> {
-    /// Reads the first bytes of a dependency-information file.
-    use std::io::Read;
-    let mut file: fs::File = fs::File::open(dependency_file).ok()?;
-    let mut buffer: Vec<u8> = vec![0; LEAD_BYTES];
-    let count: usize = file.read(&mut buffer).ok()?;
-    let read: String = String::from_utf8_lossy(&buffer[..count]).to_string();
+    let buffer: Vec<u8> = read_small_bytes(dependency_file, LEAD_BYTES).ok()?;
+    let count: usize = buffer.len();
+    let read: String = String::from_utf8_lossy(&buffer).to_string();
     // A read that filled the buffer may have cut the last token in two:
     // a cut path names nothing and would look gone,
     // so the text is taken only up to the last whitespace.

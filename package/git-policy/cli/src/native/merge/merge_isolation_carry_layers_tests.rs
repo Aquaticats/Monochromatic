@@ -57,6 +57,26 @@ fn agreeing_sides_need_no_object_read() {
 }
 
 /// What:
+///  A mode the person set at a path the merge deletes keeps their side whole,
+/// where an entry equal to the base's
+///  leaves the merger's deletion to stand.
+/// Why:
+///  The equality rules read a mode changed alone as no change at all,
+/// so a deletion took the only part of the
+///  person's entry there and the merge reported itself made
+/// (owner's rule "never discard user data").
+#[test]
+fn a_mode_changed_alone_at_a_path_the_merge_deletes_is_kept() {
+    let base: Option<Side> = Some(Side { mode: String::from("100644"), oid: "a".repeat(40) });
+    let person: Option<Side> = Some(Side { mode: String::from("100755"), oid: "a".repeat(40) });
+    let decided: Decision = decide_without_the_pass(&Layer { base: base.clone(), ours: person, theirs: None }).expect("a mode alone is decided without reading an object");
+    assert_eq!(decided.outcome, Outcome::Kept(MODIFY_DELETE), "the person's side is kept whole");
+    assert_eq!(decided.mode.as_deref(), Some("100755"), "the index and the file end with the mode they set");
+    let untouched: Decision = decide_without_the_pass(&Layer { base: base.clone(), ours: base.clone(), theirs: None }).expect("an unchanged side is decided without reading an object");
+    assert_eq!(untouched.outcome, Outcome::Merges, "nothing of theirs stands at a path whose entry is still the base's");
+}
+
+/// What:
 ///  A mode one side changed and the other left alone is the changed side's.
 /// Why:
 ///  A mode is one bit,
@@ -117,5 +137,81 @@ fn a_binary_both_sides_changed_is_kept_and_named() {
     let decided: Decision = crate::lazy_runtime::run_on_runtime(decide(&runner, b"b.bin", &Layer { base: side(&base), ours: side(&ours), theirs: side(&theirs) })).expect("the runtime").expect("the pass leaves it");
     assert_eq!(decided.outcome, Outcome::Kept(NOT_TEXT));
     assert_eq!(decided.mode.as_deref(), Some("100644"));
+    remove(root.as_path());
+}
+
+/// A side holding a symbolic link,
+/// whose object is its target's text.
+fn link(oid: &str) -> Option<Side> {
+    return Some(Side { mode: String::from("120000"), oid: String::from(oid) });
+}
+
+/// What:
+///  A link on the merge's side and a regular file on the person's keep the person's file whole,
+///  with the person's own mode.
+/// Why:
+///   The word pass reads bytes as text and writes what it makes with one mode;
+/// with the merge's mode a person's
+///  edited file was written as a link whose target was their bytes
+/// (a cross-vendor review,
+/// round 133,
+/// its second finding),
+/// so
+///  the file they had was gone.
+#[test]
+fn a_merge_side_link_keeps_the_persons_regular_file_and_its_mode() {
+    let (root, repo, runner) = place("carry-layers-merge-link");
+    let base: String = blob(repo.as_path(), "a.txt", b"base\n");
+    let ours: String = blob(repo.as_path(), "b.txt", b"the person edited a regular file\n");
+    let theirs: String = blob(repo.as_path(), "c.txt", b"feature-target");
+    let layer: Layer = Layer { base: side(&base), ours: side(&ours), theirs: link(&theirs) };
+    let decided: Decision = crate::lazy_runtime::run_on_runtime(decide(&runner, b"a.txt", &layer)).expect("the runtime").expect("the layer is decided");
+    assert_eq!(decided.outcome, Outcome::Kept(NOT_TEXT));
+    assert_eq!(decided.mode.as_deref(), Some("100644"), "the person's regular file keeps its own mode");
+    remove(root.as_path());
+}
+
+/// What:
+///  A link whose target text equals the old file's bytes is a change of kind,
+///  not an unchanged side.
+/// Why:
+///   The object of a link is its target's text,
+/// so a comparison of object ids alone read the person's link as the
+///  branch's own file and wrote the merge's blob with the link's mode:
+/// the link then pointed at the merge's bytes
+///  (a cross-vendor review,
+/// round 133,
+/// its third finding).
+#[test]
+fn a_link_whose_target_equals_the_old_bytes_keeps_the_persons_link() {
+    let base: Option<Side> = side(&"a".repeat(40));
+    let person: Option<Side> = link(&"a".repeat(40));
+    let merge: Option<Side> = side(&"b".repeat(40));
+    let decided: Decision =
+        decide_without_the_pass(&Layer { base, ours: person, theirs: merge }).expect("a change of kind is decided without reading an object");
+    assert_eq!(decided.outcome, Outcome::Kept(NOT_TEXT));
+    assert_eq!(decided.mode.as_deref(), Some("120000"), "the link keeps pointing where the person pointed it");
+}
+
+/// What:
+///  Two sides that each added a link keep the person's link whole.
+/// Why:
+///  A link's bytes are its target's text,
+/// and a word-level merge of two targets wrote its markers into the link,
+///  so the target became marker text and no longer identified anything
+/// (a cross-vendor review,
+/// round 133,
+/// its fourth
+///  finding).
+#[test]
+fn two_added_links_keep_the_persons_link() {
+    let (root, repo, runner) = place("carry-layers-two-links");
+    let ours: String = blob(repo.as_path(), "a.txt", b"ours-target");
+    let theirs: String = blob(repo.as_path(), "b.txt", b"theirs-target");
+    let layer: Layer = Layer { base: None, ours: link(&ours), theirs: link(&theirs) };
+    let decided: Decision = crate::lazy_runtime::run_on_runtime(decide(&runner, b"a.txt", &layer)).expect("the runtime").expect("the layer is decided");
+    assert_eq!(decided.outcome, Outcome::Kept(NOT_TEXT));
+    assert_eq!(decided.mode.as_deref(), Some("120000"));
+    let Outcome::Kept(_) = decided.outcome else { panic!("the person's link is kept, never merged as text") };
     remove(root.as_path());
 }

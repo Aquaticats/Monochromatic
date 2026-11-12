@@ -10,9 +10,17 @@
  */
 
 import {
+  statfsSync,
+} from 'node:fs';
+import {
   argv,
   env,
 } from 'node:process';
+import {
+  BUILD_VOLUME,
+  type FreeSpace,
+  freeSpaceOnVolume,
+} from './free-space-floor.ts';
 import {
   goingRunsNow,
   LAUNCHER_ENTRY_NAMES,
@@ -38,6 +46,30 @@ import { siblingCommandEntry, } from './sibling-command-entry.ts';
  so no test counts the processes of the machine it runs on.
  */
 const PROCESS_FOLDER = env.PI_RUNS_PROCESS_FOLDER ?? '/proc';
+
+/**
+ The variable that names the room the build volume has, in bytes, instead of reading the volume. A test sets it so that no test
+ depends on how full this machine's disk is.
+ */
+const GIVEN_FREE_SPACE_BYTES_VARIABLE = 'PI_RUNS_FREE_SPACE_BYTES';
+
+/**
+ The room the volume that holds the repository has, which a test may give instead of the machine reading its own disk.
+ */
+const GIVEN_FREE_SPACE_BYTES = env[GIVEN_FREE_SPACE_BYTES_VARIABLE] ?? '';
+
+/**
+ The room the volume that holds the repository has.
+ */
+const freeSpace: FreeSpace = (GIVEN_FREE_SPACE_BYTES === '')
+  ? freeSpaceOnVolume({
+    volume: BUILD_VOLUME,
+    statfs: statfsSync,
+  },)
+  : {
+    volume: BUILD_VOLUME,
+    freeBytes: Number(GIVEN_FREE_SPACE_BYTES,),
+  };
 
 /**
  What this run of the command was asked for.
@@ -79,6 +111,7 @@ const outcome = await gateOutcomeOf({
     runs,
     pools,
   },),
+  freeSpace,
   sessionFileOf: function sessionFileOf(runFolder,) {
     return sessionFileOfRun({
       runsFolder: options.runsFolder,

@@ -9,6 +9,12 @@
 
 import type { GoingRun, } from './going-runs.ts';
 import {
+  type FreeSpace,
+  freeSpaceFloorTextOf,
+  freeSpaceIsUnderTheFloor,
+  freeSpaceTextOf,
+} from './free-space-floor.ts';
+import {
   type LauncherArguments,
   launcherArgumentsOf,
 } from './launcher-arguments.ts';
@@ -19,6 +25,7 @@ import {
   PROVIDER_OF_A_RUN_NAMING_NONE,
   type ProviderPool,
   poolNamed,
+  poolTakesNoNewRun,
 } from './pool-limits.ts';
 import {
   type PoolGateOptions,
@@ -34,7 +41,8 @@ import {
 } from './pool-tallies.ts';
 
 /**
- The status a gate exits with when no pool has room, which the retrying command reads to know it should ask again.
+ The status a gate exits with when it starts nothing for want of room, which is no pool having a slot free or the build volume
+ being under its floor. The retrying command reads it to know it should ask again.
  */
 export const NO_SLOT_EXIT_STATUS = 3;
 
@@ -58,14 +66,16 @@ export type PoolChoice =
 /**
  Reads which pool a run may take.
 
- A run that names a model only one pool takes stays on that pool, and a run that resumes a session stays on the pool it named.
- Every other run takes the first pool of the owner's order that has room, and gets that pool's provider, model and wall clock.
+ A run that names a model only one pool takes stays on that pool, and a run that resumes a session stays on the pool it named
+ while that pool takes new runs. A resume whose pool is closed takes the first pool of the owner's order with room instead,
+ because staying on a pool that takes no new run would refuse it for ever. Every other run takes that first pool with room, and
+ gets its provider, model and wall clock.
 
  @param requested - the pool the run's own options name, or that it names none
 
  @param tallies - how many runs each pool holds
 
- @param resumes - whether the run resumes a session, which keeps it on the pool it named
+ @param resumes - whether the run resumes a session, which keeps it on the pool it named while that pool takes new runs
 
  @returns the pool the run goes on, or that none has room
 
@@ -88,7 +98,7 @@ export function poolChoiceFor({
   }
   if (requested.pool
     .takesDefaultRuns
-    && (!resumes)) {
+    && ((!resumes) || poolTakesNoNewRun({ pool: requested.pool, },))) {
     /**
      The first pool of the owner's order with room.
      */
@@ -147,24 +157,28 @@ export type GateOutcome =
 
  @param tallies - how many runs each pool holds, which were counted from the same runs
 
+ @param freeSpace - the room the volume that holds the repository has, which a run does not start without
+
  @param sessionFileOf - reads the session file of the finished run this run resumes
 
  @returns the action, the lines to print, and the launcher's words when it starts one
 
  @example
  ```ts
- const outcome = await gateOutcomeOf({ options, runs, tallies: talliesOf({ runs, }), sessionFileOf, },);
+ const outcome = await gateOutcomeOf({ options, runs, tallies: talliesOf({ runs, }), freeSpace, sessionFileOf, },);
  ```
  */
 export async function gateOutcomeOf({
   options,
   runs,
   tallies,
+  freeSpace,
   sessionFileOf,
 }: {
   readonly options: PoolGateOptions;
   readonly runs: readonly GoingRun[];
   readonly tallies: PoolTallies;
+  readonly freeSpace: FreeSpace;
   readonly sessionFileOf: (runFolder: string) => Promise<string>;
 },): Promise<GateOutcome> {
   /**
@@ -176,7 +190,7 @@ export async function gateOutcomeOf({
   if (options.countsOnly) {
     return {
       action: 'counts',
-      lines: [summary,],
+      lines: [`${summary}; ${freeSpaceTextOf(freeSpace,)}`,],
     };
   }
   /**
@@ -206,6 +220,17 @@ export async function gateOutcomeOf({
     provider: options.provider ?? PROVIDER_OF_A_RUN_NAMING_NONE,
     model: options.model ?? MODEL_OF_A_RUN_NAMING_NONE,
   },);
+  // The volume that holds the repository, every agent worktree and every build folder filled on 2026-11-11, and every Pi driver
+  // then exited at once with no summary, so a run starts only while the room another agent's build needs is free.
+  if (freeSpaceIsUnderTheFloor(freeSpace,)) {
+    return {
+      action: 'no-room',
+      status: NO_SLOT_EXIT_STATUS,
+      lines: [
+        `NO SLOT: ${freeSpaceTextOf(freeSpace,)}, under the floor of ${freeSpaceFloorTextOf()}; not started: ${runName}`,
+      ],
+    };
+  }
   /**
    Which pool the run may take.
    */

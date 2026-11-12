@@ -121,7 +121,7 @@ fn steps_nest_through_the_thread_recorder() {
     let root: PathBuf = fixture("add-timing-nest");
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("common directory");
-    begin(common.clone());
+    begin(common.clone(), false);
     let outer: bool = begin_step("outer");
     let inner: bool = begin_step("inner");
     end_step(inner);
@@ -139,7 +139,7 @@ fn steps_nest_through_the_thread_recorder() {
 fn a_missing_common_directory_is_not_created() {
     let root: PathBuf = fixture("add-timing-missing");
     let common: PathBuf = root.join("never-made");
-    begin(common.clone());
+    begin(common.clone(), false);
     finish(0);
     assert!(!common.exists());
     remove(root.as_path());
@@ -152,7 +152,7 @@ fn records_append_as_lines() {
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("common directory");
     for _ in 0..2 {
-        begin(common.clone());
+        begin(common.clone(), false);
         finish(0);
     }
     let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the records were appended");
@@ -177,7 +177,7 @@ fn work_on_other_threads_is_summed_by_name() {
     let root: PathBuf = fixture("add-timing-work");
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("common directory");
-    begin(common.clone());
+    begin(common.clone(), false);
     std::thread::scope(|scope| {
         for _worker in 0..2 {
             scope.spawn(|| {
@@ -204,7 +204,7 @@ fn work_without_a_recording_is_forgotten() {
     let root: PathBuf = fixture("add-timing-work-forgotten");
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("common directory");
-    begin(common.clone());
+    begin(common.clone(), false);
     finish(0);
     let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
     let record = parsed(text.lines().next().expect("one line"));

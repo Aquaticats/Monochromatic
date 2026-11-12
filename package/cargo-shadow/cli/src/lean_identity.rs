@@ -63,6 +63,25 @@ pub fn seconds_since_epoch(time: SystemTime) -> i64 {
 }
 
 /// What:
+/// `pub fn missing(path: &Path) -> bool` says whether the entry at a path is confirmed absent.
+/// Why:
+/// `Path::exists()` answers the same for a path that is not there and one whose metadata could not be read
+/// (a directory this user may not search,
+/// an input and output error,
+/// a link that loops),
+/// and a caller that removes what a path stands for must not read a refusal as absence:
+/// only a `NotFound` answer is absence,
+/// and every other answer keeps whatever the caller would remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const missing = (path: string): boolean => { try { lstatSync(path); return false; } catch (error) { return error.code === 'ENOENT'; } };
+/// ```
+pub fn missing(path: &Path) -> bool {
+    return matches!(fs::symlink_metadata(path), Err(error) if error.kind() == io::ErrorKind::NotFound);
+}
+
+/// What:
 /// `pub fn modified_seconds(path: &Path) -> io::Result<i64>` is the modification time of the entry itself in seconds.
 /// Why:
 /// Idle and age rules read file times and nothing else of the entry.

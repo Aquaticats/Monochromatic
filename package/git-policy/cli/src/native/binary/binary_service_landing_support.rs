@@ -20,16 +20,32 @@
 //! the
 //!  references,
 //! the head) is what the person's next command sees.
+//! Every command the harness runs for its own oracle is bounded and names what it waited for,
+//!  so a control that meets a Git or a copy that never answers fails saying which one it was waiting for
+//! instead of holding the run until the runner ends it.
 
 use super::commit::wrapped_commit;
 use super::service_commit::{Running, runtime_for, start_worktree};
-use super::support::{Fixture, Observed, direct, observe};
+use super::support::{Fixture, Observed, REAL_GIT, TIMED_OUT_SIGNAL, hermetic, observe};
 use git_policy_cli::service_journal::DONE_EXTENSION;
+use std::ffi::OsStr;
+use std::os::unix::process::ExitStatusExt as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// The date both runs give their commits.
 const PINNED_DATE: &str = "2026-02-03T04:05:06+0000";
+
+/// The longest one native Git command of this harness runs before the control stops waiting for it,
+/// in seconds.
+/// Why not a smaller number:
+///  The oracle is one native `git commit` or one read of a fixture repository,
+/// and the slowest of the 1,036 reads and 28 native commits the conclusion controls made took 463 ms on 2026-11-11
+/// (`git-policy-cli-service-landing-state-control-times-out-alone`).
+/// Sixty seconds is 130 times that,
+/// so an ordinary read never reaches it even on a host other sessions load,
+/// and what does reach it is a Git waiting on something a control cannot see.
+const NATIVE_GIT_BOUND_SECONDS: &str = "60";
 
 /// The state files a merge,
 /// a cherry-pick or a revert leaves in the Git directory,
@@ -73,19 +89,63 @@ fn pinned(command: &mut Command) {
 }
 
 /// A byte copy of `repo` beside it,
-/// so both copies hold the same objects and the same configuration.
+/// so both copies hold the same objects and the same configuration,
+/// stopped with a failure that names the copy when it takes longer than `NATIVE_GIT_BOUND_SECONDS`.
 pub(super) fn copy_beside(fixture: &Fixture, repo: &Path, name: &str) -> PathBuf {
     let copy: PathBuf = fixture.root.join(name);
-    let status = Command::new("cp").arg("--archive").arg(repo).arg(&copy).status().expect("cp starts");
-    assert!(status.success(), "copying the repository");
+    let status = Command::new("/usr/bin/timeout")
+        .arg("--signal=KILL")
+        .arg(NATIVE_GIT_BOUND_SECONDS)
+        .arg("cp")
+        .arg("--archive")
+        .arg(repo)
+        .arg(&copy)
+        .status()
+        .expect("cp starts");
+    assert!(status.success(), "copying {} to {} for a control failed: it was ended at its {NATIVE_GIT_BOUND_SECONDS} s bound or cp refused ({status:?})", repo.display(), copy.display());
     return copy;
 }
 
+/// A command for native Git in `repo` under `bound`,
+/// without the wrapper and without the person's own configuration,
+/// ready for the environment the caller adds.
+fn native_git_command(fixture: &Fixture, repo: &Path, arguments: &[&str], bound: &str) -> Command {
+    let mut command: Command = Command::new("/usr/bin/timeout");
+    command.arg("--signal=KILL").arg(bound).arg(REAL_GIT).args(arguments);
+    hermetic(&mut command, fixture, OsStr::new("/usr/bin:/bin"));
+    command.current_dir(repo);
+    return command;
+}
+
+/// Runs one prepared native Git command to its end,
+/// failing with the command,
+/// the repository and the bound when Git was ended at that bound instead of answering.
+fn native_git_run(command: &mut Command, repo: &Path, arguments: &[&str], bound: &str) -> std::process::Output {
+    let output: std::process::Output = command.output().expect("native Git starts");
+    assert_ne!(
+        output.status.signal(),
+        Some(TIMED_OUT_SIGNAL),
+        "native Git {} in {} was ended at its {bound} s bound: the control was waiting for the oracle it compares the service against, so no field of this case can be compared",
+        arguments.join(" "),
+        repo.display()
+    );
+    return output;
+}
+
 /// The text of a Git query,
-/// whether or not Git succeeded.
-pub(super) fn text_of(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
-    let output = direct(fixture).current_dir(repo).args(arguments).output().expect("native Git starts");
+/// whether or not Git succeeded,
+/// under `bound`,
+/// as the bytes Git wrote them.
+pub(super) fn text_of_within(fixture: &Fixture, repo: &Path, arguments: &[&str], bound: &str) -> String {
+    let output: std::process::Output = native_git_run(&mut native_git_command(fixture, repo, arguments, bound), repo, arguments, bound);
     return String::from_utf8_lossy(output.stdout.as_slice()).into_owned() + &String::from_utf8_lossy(output.stderr.as_slice());
+}
+
+/// The text of a Git query,
+/// whether or not Git succeeded,
+/// under the bound every ordinary read of this harness gets.
+pub(super) fn text_of(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
+    return text_of_within(fixture, repo, arguments, NATIVE_GIT_BOUND_SECONDS);
 }
 
 /// What the repository holds that a commit decides,
@@ -125,11 +185,13 @@ pub(super) fn left_behind(fixture: &Fixture, repo: &Path) -> Vec<(String, String
     return left;
 }
 
-/// Runs the case natively in `repo`.
+/// Runs the case natively in `repo`,
+/// under the bound of one command of this harness,
+/// with the same input and the same settling the wrapper's own run gets.
 pub(super) fn run_native(fixture: &Fixture, repo: &Path, entry: &Case) -> Outcome {
-    let mut command: Command = direct(fixture);
-    command.current_dir(repo).args(entry.command);
+    let mut command: Command = native_git_command(fixture, repo, entry.command, NATIVE_GIT_BOUND_SECONDS);
     pinned(&mut command);
+    // `observe` ends a command that was killed at its bound and names the command and the directory it ran in.
     return finish(fixture, repo, observe(&mut command, entry.input));
 }
 

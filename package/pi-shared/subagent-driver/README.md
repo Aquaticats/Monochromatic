@@ -54,35 +54,40 @@ Each has a `mise` task of its own name under
 A pool is how many runs one provider account answers at once,
 which is not the work a run does.
 Every limit sits in `src/pool-limits.ts` beside the owner's words or the measured refusal it came from,
-and the commands read them from there:
+and the commands read them from there.
+In the order a run that names no model of its own takes them:
 
+- `qwen-plan-deepseek`:
+  the qwen plan's DeepSeek model (`deepseek-v4.1-flash-1017`),
+  18 runs,
+  which a run that names no model of its own takes first.
 - `neuralwatt`:
   standard DeepSeek,
-  18 runs.
-  The owner,
-  2026-11-11:
-  Change flex concurrency to 22-2=20 per model and normal concurrency to 20-2=18 per model.
-  Neuralwatt said to keep 1 to 2 below the limit because
-  "a slot frees up a moment after your client sees the response finish,
-  so a request sent straight away can land as the 23rd".
+  closed to new runs (limit 0),
+  because `qwen-plan-deepseek` replaced it.
+  Its runs are still counted there,
+  and a run naming the launcher's own default provider and model still reads as a default run.
 - `neuralwatt-flex`:
   DeepSeek flex,
   20 runs.
   Flex answers about 100% slower,
   so a run moved there gets twice the wall clock it asked for.
 - `opencode-go`:
-  20 runs when it is open,
-  taken only once both Neuralwatt pools are full.
-  It is closed now:
-  the owner,
+  closed to new runs (limit 0) until the owner says its week has reset.
+  The owner,
   2026-11-11:
   "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
   20 runs of Kimi K3.1 Pro flex,
   taken only by a run that names that model.
+- `qwen-token-plan`:
+  18 runs of `qwen4-max-preview`,
+  taken only by a run that names that model.
+  Reviews of a change run here.
 
-A closed pool keeps the room it returns to,
-so the count prints it as `opencode-go 0/0` and every other pool as the room it has.
+A closed pool takes no new run at all,
+and keeps its place in the table,
+so the count prints it at zero room (`opencode-go 0/0`) and the runs already on it are still counted where they are.
 Every pool's limit can be set for one command without a code change,
 which is how a pool with a weekly or monthly quota is closed and reopened:
 `PI_RUNS_POOL_LIMITS` holds `<pool name>=<n>` pairs separated by commas,
@@ -100,10 +105,11 @@ A pair naming no pool,
 or holding anything but a whole number,
 is refused rather than counted,
 because a mistyped name would otherwise close nothing and read as though it had.
-
 A run that names a model only one pool takes stays on that pool.
-A run that resumes a session stays on the pool it named,
-with no wall factor.
+A run that resumes a session stays on the pool it named while that pool takes new runs,
+with no wall factor;
+a resume whose pool is closed takes the first pool with room,
+because staying on a closed pool would refuse the run for ever.
 Every other run takes the first pool with room,
 in the order above.
 
@@ -123,6 +129,21 @@ a guessed single pool read that pool full while the others read empty,
 which is how runs sat on standard Neuralwatt while the count said it had room.
 A count can therefore read fuller than the runs really are.
 
+### The room a new run needs
+
+No run starts while the volume that holds the repository,
+every agent worktree and every build folder
+has less than 100 GiB free.
+That volume filled on 2026-11-11 at 13:1x,
+6.5 MB of 3.7 TB,
+and every Pi driver exited at once with no summary.
+Measured that day:
+the pinned nightly's build folders held 372 GB for about 40 agent worktrees,
+so about 9 GB an agent,
+which makes the floor about eleven agents' builds.
+`src/free-space-floor.ts` holds the volume and the floor,
+and a refusal names the room it read and the floor it needed.
+
 ### `start-pi-run-when-a-pool-has-room`
 
 It takes the worktree launcher's options,
@@ -135,7 +156,8 @@ plus these:
   the folder the runs live in,
   `${HOME}/temp/agent/pi-runs` by default.
 - `--counts-only`:
-  print the counts and start nothing.
+  print the counts and the room the build volume has,
+  and start nothing.
   It needs no name and never refuses because a run is already going.
 - `--session-of`:
   a finished run's folder,
@@ -145,9 +167,20 @@ Every other word is the launcher's and is passed on untouched.
 
 It answers one line,
 and exits `0` when it started a run,
-`3` when no pool has room,
+`3` when no pool has room or the build volume is under the floor,
 and `4` when a run of that name is already going,
 which is what the retrying start reads.
+The counts line ends with `<n> GiB free on <volume>`,
+and a refusal under the floor names that room,
+the floor,
+and the run it did not start.
+
+Two environment variables exist so the gate's own tests read nothing of the machine they run on:
+`PI_RUNS_PROCESS_FOLDER` points the process table at a folder the test made,
+and `PI_RUNS_FREE_SPACE_BYTES` gives the build volume's room in bytes instead of reading the disk.
+A caller starting real runs sets neither.
+Either one can only make the gate count a run that is not there,
+or start a run it would refuse.
 
 ### `start-pi-run-in-a-worktree`
 

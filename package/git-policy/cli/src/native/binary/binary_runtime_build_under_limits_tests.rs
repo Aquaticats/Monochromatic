@@ -204,7 +204,8 @@ fn smallest_address_space_that_runs_the_job(fixture: &Fixture) -> u64 {
     );
     return super::fault_limits::smallest_working(ADDRESS_SPACE_SEARCH_FLOOR_MEBIBYTES, ADDRESS_SPACE_SEARCH_CEILING_MEBIBYTES, &|mebibytes| {
         return runs_the_job_in_address_space(fixture, mebibytes);
-    });
+    })
+    .expect("the ceiling above was just proven to run the job, so the search answers a size at which it runs");
 }
 
 /// At every address-space size where Git completes and the wrapper can run a thread,

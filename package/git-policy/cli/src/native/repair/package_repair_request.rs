@@ -88,8 +88,15 @@ impl RepairSwitch {
     /// so the switches are read from the
     ///  arguments themselves:
     /// only the words after `worktree add`,
-    /// up to a lone `--`,
+    /// up to `--` or `--end-of-options`,
     /// and never the value of an option.
+    ///  Both terminators end the options in Git's own `parse-options`,
+    /// and so they do here:
+    /// a destination
+    ///  literally named `--no-checkout` stands after `--end-of-options`,
+    /// where Git checks the worktree out,
+    /// and reading it as
+    ///  the switch would skip the repair of a worktree that has files.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -108,7 +115,9 @@ impl RepairSwitch {
         let mut words = arguments[add_at + 2..].iter();
         while let Some(word) = words.next() {
             let bytes: &[u8] = word.as_encoded_bytes();
-            if bytes == b"--" {
+            // `--` and `--end-of-options` both end Git's options (parse-options.c:1113-1125), as
+            // `src/native/worktree/worktree_add_plan.rs` reads them for the operands of the same command.
+            if bytes == b"--" || bytes == b"--end-of-options" {
                 break;
             }
             let mut takes_value: bool = false;
@@ -216,6 +225,32 @@ impl RepairEnvironment {
         return self.search_path.as_deref();
     }
 }
+
+/// What:
+///  The variables a tool's own children read:
+/// the search path the add resolved the program on.
+/// Why:
+///   A repair's tool is a program that starts others (in this repository the pnpm-shadow runs the real pnpm,
+/// and mpm-shadow runs `pnpm` and `cargo`),
+/// and the owner decided the repair starts what the person's path names.
+/// A service runs on its own path,
+/// which may hold another pnpm or none,
+/// so the recorded path is handed to the tool itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withThePersonsPath = (environment) => environment.searchPath === undefined ? [] : [['PATH', environment.searchPath]];
+/// ```
+pub fn with_the_persons_path(environment: &RepairEnvironment) -> Vec<(OsString, OsString)> {
+    return match environment.path() {
+        None => Vec::new(),
+        Some(search_path) => vec![(OsString::from(PATH_VARIABLE), search_path.to_os_string())],
+    };
+}
+
+/// What:
+///  The variable a tool's children find their programs on.
+const PATH_VARIABLE: &str = "PATH";
 
 /// What:
 ///  Everything one repair needs.

@@ -37,6 +37,8 @@ use crate::command_config::{ConfigFile, ConfigRegion, ConfigWrite, parse_config_
 use crate::command_remote::{RemoteRegion, parse_remote_region};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
+/// `PathBuf` is an owned filesystem path of the same bytes.
+use std::path::PathBuf;
 
 /// What:
 ///  The finding code of a shared-remote-settings refusal.
@@ -98,12 +100,14 @@ const WRITING_SUBCOMMANDS: &[(&[u8], &str)] = &[
 ///   A remote subcommand,
 ///  one configuration key and a whole section are different things to say,
 ///  and
-///       the refusal names the one it is about.
+///       the refusal names the one it is about;
+///  an editor session names none of them and can change
+///       any of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type SharedRemoteWrite = { kind: 'remote-subcommand'; name: string }
-///   | { kind: 'key'; key: string } | { kind: 'section'; section: string };
+///   | { kind: 'key'; key: string } | { kind: 'section'; section: string } | { kind: 'edit' };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SharedRemoteWrite {
@@ -114,6 +118,37 @@ pub enum SharedRemoteWrite {
     Key(String),
     /// A `git config` write to a whole section under `remote.`.
     Section(String),
+    /// `git config --edit`,
+    ///  which names no key and can change every one of them.
+    Edit,
+}
+
+/// What:
+///  The write a command would make to the remote settings every worktree of the repository
+///  shares,
+/// and the file it names for it.
+///  `Option<PathBuf>` is the path the command named,
+///  when it named one.
+/// Why:
+///   One `.git/config` is shared by the main checkout and every linked worktree,
+///  while a
+///       `git config --file` may name that file or a file of its own;
+///  only a caller that knows the
+///       working directory can resolve the path,
+///  so the decision reports it and the caller compares it with
+///       `$GIT_COMMON_DIR/config`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SharedRemoteChange = { setting: SharedRemoteWrite; namedFile?: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SharedRemoteChange {
+    /// The setting the command would change.
+    pub setting: SharedRemoteWrite,
+    /// The file the command names with `--file`,
+    ///  or nothing when it writes the repository's own file.
+    pub named_file: Option<PathBuf>,
 }
 
 /// What:
@@ -197,79 +232,122 @@ fn token_text(token: &OsString) -> String {
 }
 
 /// What:
-///  The `git config` write a region performs on the shared file,
-///  when it is one.
-///  `&ConfigRegion` borrows the region's reading.
+///  The next token Git hands the command as an argument,
+///  when it names a section under `remote.`.
+///  `&[OsString]` borrows the region,
+///  `&mut` borrows the cursor that walks it.
 /// Why:
-///   Only a write to the repository's own file is shared by every worktree,
-///  and only a key or
-///       section under `remote.` changes a remote setting;
-///  a read,
-///  an editor,
-///  a per-worktree
-///       file and a file the command names are none of this rule's business.
+///   A key is written `section.name` and a section `section.name`,
+///  so the section is what both
+///       readings compare,
+///  and a token that names another section is not this rule's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const configWrite = (region: string[], parsed: ConfigRegion): SharedRemoteWrite | undefined => { /* ... */ };
+/// const remoteToken = (region, arguments) => { const token = region[arguments.next()]; return token && namesRemoteSection(token) ? token : undefined; };
 /// ```
-fn config_write(region: &[OsString], parsed: &ConfigRegion) -> Option<SharedRemoteWrite> {
-    if parsed.file != ConfigFile::Shared {
+fn remote_token<'region>(
+    region: &'region [OsString],
+    arguments: &mut std::slice::Iter<'region, usize>,
+) -> Option<&'region OsString> {
+    // `?` takes the next argument, or answers nothing when the region names none.
+    let token: &OsString = region.get(*arguments.next()?)?;
+    if !names_remote_section(token.as_encoded_bytes()) {
         return None;
     }
-    // The tokens Git hands the command as arguments, in order.
-    let mut arguments = parsed.arguments.iter();
-    // `next()` takes the first argument, or answers nothing when there is none.
-    let first: &OsString = region.get(*arguments.next()?)?;
-    return match parsed.write {
-        ConfigWrite::Nothing | ConfigWrite::Edit => None,
-        ConfigWrite::Key => {
-            if names_remote_section(first.as_encoded_bytes()) {
-                return Some(SharedRemoteWrite::Key(token_text(first)));
-            }
-            return None;
-        }
-        ConfigWrite::RemoveSection => {
-            if names_remote_section(first.as_encoded_bytes()) {
-                return Some(SharedRemoteWrite::Section(token_text(first)));
-            }
-            return None;
-        }
-        ConfigWrite::RenameSection => {
-            // Renaming into the `remote` section creates remote settings just as renaming out of it removes them.
-            if names_remote_section(first.as_encoded_bytes()) {
-                return Some(SharedRemoteWrite::Section(token_text(first)));
-            }
-            let second: &OsString = region.get(*arguments.next()?)?;
-            if names_remote_section(second.as_encoded_bytes()) {
-                return Some(SharedRemoteWrite::Section(token_text(second)));
-            }
+    return Some(token);
+}
+
+/// What:
+///  The setting a region writes,
+///  when it writes a remote setting,
+///  and the file it names for it.
+///  `&ConfigRegion` borrows the region's reading.
+/// Why:
+///   Only a write to the repository's own file,
+///  or to the one `--file` names,
+///  is shared by
+///       every worktree,
+///  and only a key,
+///  a section and an edit change a remote setting;
+///  a read,
+///  a per-worktree file,
+///  the per-user file and a file the command names are none of this rule's
+///       business.
+///  An edit names no setting and can change a remote one,
+///  so it is refused as one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const configWrite = (region: string[], parsed: ConfigRegion): SharedRemoteChange | undefined => { /* ... */ };
+/// ```
+fn config_write(region: &[OsString], parsed: &ConfigRegion) -> Option<SharedRemoteChange> {
+    // Which file: the repository's own, or the one the command names for the caller to resolve.
+    let named_file: Option<PathBuf> = match parsed.file {
+        ConfigFile::Shared => None,
+        // `?` answers nothing for a `--blob`, which names no path, and for a path no platform can read.
+        ConfigFile::Named => Some(parsed.named_file.clone()?),
+        ConfigFile::Worktree | ConfigFile::Global | ConfigFile::System | ConfigFile::Contradictory => {
             return None;
         }
     };
+    // The tokens Git hands the command as arguments, in order.
+    let mut arguments = parsed.arguments.iter();
+    let setting: SharedRemoteWrite = match parsed.write {
+        ConfigWrite::Nothing => return None,
+        ConfigWrite::Edit => SharedRemoteWrite::Edit,
+        ConfigWrite::Key => {
+            SharedRemoteWrite::Key(token_text(remote_token(region, &mut arguments)?))
+        }
+        ConfigWrite::RemoveSection => {
+            SharedRemoteWrite::Section(token_text(remote_token(region, &mut arguments)?))
+        }
+        ConfigWrite::RenameSection => {
+            // Renaming into the `remote` section creates remote settings just as renaming out of it removes them.
+            let first: Option<&OsString> = remote_token(region, &mut arguments);
+            if let Some(named) = first {
+                SharedRemoteWrite::Section(token_text(named))
+            } else {
+                // The first section is not remote, so only a rename into `remote.` is this rule's.
+                SharedRemoteWrite::Section(token_text(remote_token(region, &mut arguments)?))
+            }
+        }
+    };
+    return Some(SharedRemoteChange {
+        setting,
+        named_file,
+    });
 }
 
 /// What:
 ///  Decide from the command word and the tokens after it whether this command writes the remote
-///  settings every worktree shares.
+///  settings every worktree shares,
+///  and the file it names for that write.
 ///  `&[u8]` borrows the word,
 ///  `&[OsString]` the region after it.
 /// Why:
 ///   A region Git refuses writes nothing,
 ///  so its refusal is the answer and no measure is made;
 ///       every other command word is none of this rule's business.
+///  A write to a file the command names is decided
+///       by the caller,
+///  which alone knows where the command runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function sharedRemoteWrite(word: string, region: string[]): SharedRemoteWrite | undefined;
+/// function sharedRemoteWrite(word: string, region: string[]): SharedRemoteChange | undefined;
 /// ```
-pub fn shared_remote_write(word: &[u8], region: &[OsString]) -> Option<SharedRemoteWrite> {
+pub fn shared_remote_write(word: &[u8], region: &[OsString]) -> Option<SharedRemoteChange> {
     if word == b"remote" {
         // A region Git refuses runs nothing, and `?` answers nothing for it.
         let parsed: RemoteRegion = parse_remote_region(region).ok()?;
         // `?` unwraps the subcommand word, or answers nothing for a listing.
         let name: &'static str = writing_subcommand(parsed.subcommand?.as_encoded_bytes())?;
-        return Some(SharedRemoteWrite::RemoteSubcommand(name));
+        return Some(SharedRemoteChange {
+            setting: SharedRemoteWrite::RemoteSubcommand(name),
+            // `git remote` writes the repository's own file and names no other.
+            named_file: None,
+        });
     }
     if word != b"config" {
         return None;

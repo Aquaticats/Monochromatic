@@ -13,7 +13,8 @@ use rustix::fs::{FlockOperation, flock};
 use crate::lean_build_trees::{Tree, TreeKind, Workspace, list_trees, profile_dirs_of, workspace_of};
 use crate::lean_identity::Deadline;
 use crate::lean_idle_trees::{IdlePolicy, TreeCollection, TreeOutcome, TreeVerdict, collect_idle_trees};
-use crate::lean_test_support::{DAY, NOW, age_everything, make_tree, real_environment};
+use crate::lean_keyed_folder::LEDGER_FILE;
+use crate::lean_test_support::{DAY, NOW, age_everything, make_pipe, make_tree, real_environment, within};
 use crate::test_scratch::scratch;
 
 /// The idle period of these tests for a tree whose workspace is gone.
@@ -125,6 +126,30 @@ fn a_tree_a_process_uses_is_kept() {
     let outcomes = collect(&base, &[], false);
     assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Skip(ref why) if why.contains("uses")), "{outcomes:?}");
     assert!(tree.exists());
+}
+
+/// A tree a process is running a program from stays,
+/// even when the base is named through a symbolic link.
+/// Why:
+/// `/proc` names the program a process runs with every link resolved,
+/// so a root reached through a link matched none of those names
+/// (measured 2026-11-11 in a throwaway build folder,
+/// `lean_proc_scan_tests`).
+#[test]
+fn a_tree_a_process_runs_a_program_from_is_kept_even_through_a_link() {
+    let root = scratch();
+    let real: PathBuf = root.path().join("real");
+    fs::create_dir_all(&real).expect("the real directory");
+    let linked: PathBuf = root.path().join("link");
+    std::os::unix::fs::symlink(&real, &linked).expect("a link to the real directory");
+    let tree: PathBuf = aged_tree(&real.join("base"), "ab/0000000000000a", &root.path().join("gone"), 5 * DAY);
+    let program: PathBuf = crate::lean_test_support::copy_a_program(&tree.join("debug").join("build"));
+    let child: Child = Command::new(&program).arg("120").spawn().expect("start the program the tree holds");
+    let _holder: Sleeper = Sleeper { child };
+    let outcomes = collect(&linked.join("base"), &[], false);
+    assert!(matches!(verdict_of(&outcomes, &linked.join("base").join("ab/0000000000000a")), TreeVerdict::Skip(ref why) if why.contains("uses")), "{outcomes:?}");
+    assert!(tree.exists(), "{} holds a running program and must stay", tree.display());
+    assert!(program.exists(), "{} is running and must stay", program.display());
 }
 
 #[test]
@@ -286,6 +311,97 @@ fn a_retired_tree_is_kept_while_its_record_guards_a_live_workspace_inside_anothe
     let second: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
     assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Keep(_)), "a later pass keeps the tree the live workspace lies inside: {second:?}");
     assert!(important.exists(), "the live workspace's file is user data and must never be removed by a pass over idle trees: {second:?}");
+}
+
+/// A workspace behind a directory this user may not search has not stopped existing,
+/// so the ledger that names it keeps the tree holding that workspace until the workspace is confirmed absent.
+#[test]
+fn a_workspace_behind_a_directory_this_user_may_not_search_is_not_a_gone_one() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let outer: PathBuf = make_tree(&base, "aa/00000000000001", Some(&root.path().join("gone")));
+    let closed: PathBuf = outer.join("closed");
+    let live: PathBuf = closed.join("live-workspace");
+    fs::create_dir_all(&live).expect("the live workspace");
+    let important: PathBuf = live.join("important.txt");
+    fs::write(&important, b"live user source\n").expect("the live workspace's file");
+    age_everything(&outer, NOW - 5 * DAY);
+    let retired: PathBuf = aged_tree(&base, "toolchain/nightly-old/ab/00000000000002", &live, 5 * DAY);
+    close(&closed, 0o000);
+
+    let first: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&first, &outer), TreeVerdict::Keep(_)), "{first:?}");
+    assert!(matches!(verdict_of(&first, &retired), TreeVerdict::Keep(_)), "the ledger that names a workspace this user may not look for is not thrown away with its tree: {first:?}");
+
+    close(&closed, 0o700);
+    assert_eq!(fs::read_to_string(&important).expect("the live workspace's file survived the first pass"), "live user source\n");
+    close(&closed, 0o000);
+
+    let second: Vec<TreeOutcome> = collect(&base, &["nightly-old"], false);
+    assert!(matches!(verdict_of(&second, &outer), TreeVerdict::Keep(_)), "{second:?}");
+    close(&closed, 0o700);
+    assert!(important.exists(), "a pass over idle trees never removes a live workspace: {second:?}");
+}
+
+/// A tree is kept whenever its workspace cannot be shown to be gone,
+/// which is every answer other than a confirmed absence.
+#[test]
+fn a_tree_whose_workspace_cannot_be_shown_to_be_gone_is_kept() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let closed: PathBuf = root.path().join("closed");
+    let workspace: PathBuf = closed.join("workspace");
+    fs::create_dir_all(&workspace).expect("the workspace behind a closed directory");
+    let tree: PathBuf = aged_tree(&base, "ab/00000000000013", &workspace, 5 * DAY);
+    close(&closed, 0o000);
+    let outcomes: Vec<TreeOutcome> = collect(&base, &[], false);
+    close(&closed, 0o700);
+    assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep(_)), "{outcomes:?}");
+    assert!(tree.exists());
+}
+
+/// A ledger that is a pipe with no writer must not hold the pass:
+/// the guards of the trees before a recorded position are read before any tree is judged,
+/// so a read that waits for the other end waits past the deadline the run was given.
+#[test]
+fn a_pipe_ledger_in_an_earlier_tree_does_not_hold_the_pass_past_its_deadline() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let earlier: PathBuf = make_tree(&base, "aa/00000000000001", None);
+    make_pipe(&earlier.join(LEDGER_FILE));
+    let later: PathBuf = aged_tree(&base, "ab/00000000000002", &root.path().join("gone"), 5 * DAY);
+    let earlier_tree: Tree = Tree { path: earlier, kind: TreeKind::Legacy };
+    let later_tree: Tree = Tree { path: later.clone(), kind: TreeKind::Legacy };
+    let collection_base: PathBuf = base.clone();
+    let collection: TreeCollection = within(move || {
+        let mut log: Vec<String> = Vec::new();
+        return collect_idle_trees(&[later_tree], &[earlier_tree], &collection_base, &HashSet::new(), &POLICY, &real_environment(), NOW, false, &Deadline::after(Duration::ZERO), &mut log);
+    });
+    assert_eq!(collection.judged, 0, "no tree is judged after the deadline: {collection:?}");
+    assert!(collection.outcomes.is_empty(), "{collection:?}");
+    assert!(later.exists(), "a tree the pass never judged is not removed");
+}
+
+/// A dependency-information file that is a pipe with no writer is no lead and holds nothing:
+/// the walk for a lead opens files Cargo and build scripts wrote inside a build tree,
+/// so one of those names must never wait for a writer.
+#[test]
+fn a_pipe_dependency_file_is_no_lead_and_does_not_hold_the_pass() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let tree: PathBuf = make_tree(&base, "ab/00000000000014", None);
+    let out: PathBuf = tree.join("debug").join("build").join("alpha").join("00000000000000aa").join("out");
+    fs::create_dir_all(&out).expect("the unit's output directory");
+    age_everything(&tree, NOW - 5 * DAY);
+    make_pipe(&out.join("alpha.d"));
+    let tree_outcome_path: PathBuf = tree.clone();
+    let collection_base: PathBuf = base.clone();
+    let collection: TreeCollection = within(move || {
+        let mut log: Vec<String> = Vec::new();
+        return collect_idle_trees(&list_trees(&collection_base), &[], &collection_base, &HashSet::new(), &POLICY, &real_environment(), NOW, false, &Deadline::after(Duration::from_secs(60)), &mut log);
+    });
+    assert!(matches!(verdict_of(&collection.outcomes, &tree_outcome_path), TreeVerdict::Keep(_)), "{collection:?}");
+    assert!(tree.exists());
 }
 
 /// A retired tree whose record names a workspace outside the base still goes,

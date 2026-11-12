@@ -90,7 +90,7 @@ fn a_request_for(repo: &Path) -> CommitRequest {
         repository: repo.to_path_buf(),
         common_dir: common.clone(),
         git_dir: common.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: "0".repeat(40),
         changes: Vec::new(),
         message: String::from("a control\n"),

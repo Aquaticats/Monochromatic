@@ -52,7 +52,7 @@ fn selection<'selection>(pathspecs: &'selection [OsString], file: Option<&'selec
 fn refused(repo: &Path, base: &str, pathspecs: &[&str], file: Option<&Path>) -> Vec<String> {
     let specs: Vec<OsString> = pathspecs.iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(specs.as_slice(), file, base);
-    return named_ignored_files(&git_context(), repo, repo.join(".git").join("index").as_path(), &choice)
+    return named_ignored_files(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered")
         .iter()
         .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
@@ -104,13 +104,13 @@ fn a_commit_of_tracked_paths_starts_no_check_ignore() {
     let (recording, log): (GitContext, PathBuf) = recording_context_with_readers_on(root.as_path());
     let tracked: Vec<OsString> = ["a.txt", "lib/_a.js"].iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(tracked.as_slice(), None, base.as_str());
-    let refused: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
+    let refused: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered");
     assert_eq!(refused, Vec::<Vec<u8>>::new(), "no tracked path is refused");
     assert_eq!(check_ignore_starts(log.as_path()), Vec::<String>::new(), "a commit of tracked paths starts no check-ignore");
     let untracked: Vec<OsString> = ["lib/_c.js"].iter().map(OsString::from).collect();
     let other: IndexSelection<'_> = selection(untracked.as_slice(), None, base.as_str());
-    let refused_untracked: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.join(".git").join("index").as_path(), &other)
+    let refused_untracked: Vec<Vec<u8>> = named_ignored_files(&recording, repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &other)
         .expect("the question is answered");
     assert_eq!(refused_untracked, vec![b"lib/_c.js".to_vec()], "a path no entry holds is still refused");
     assert_eq!(check_ignore_starts(log.as_path()).len(), 1, "the recorder sees the question the saved case did not ask");
@@ -206,12 +206,128 @@ fn a_named_file_is_refused_when_the_command_line_selects_another_repository() {
     };
     let specs: Vec<OsString> = ["selected.js", "tracked.txt"].iter().map(OsString::from).collect();
     let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
-    let ignored: Vec<String> = named_ignored_files(&context, nested.as_path(), second.join(".git").join("index").as_path(), &choice)
+    let ignored: Vec<String> = named_ignored_files(&context, nested.as_path(), second.as_path(), second.join(".git").join("index").as_path(), &choice)
         .expect("the question is answered")
         .iter()
         .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
         .collect();
     assert_eq!(ignored, vec!["selected.js".to_owned()], "the file the selected repository's ignore rule matches is refused, and the path it tracks is not");
+    remove(root.as_path());
+}
+
+/// What:
+///  A named file of the worktree the command line selects is refused while the invocation directory
+///  holds nothing at that name,
+///  and a directory of that worktree and a file nothing ignores are still taken.
+/// Why:
+///  `--git-dir` and `--work-tree` name the worktree the command works on,
+/// and Git reads a relative pathspec from that worktree's top when the directory the command runs in
+///  is outside it (`rev-parse --show-prefix` answers nothing,
+/// which the control records).
+///  A reader that asks the invocation directory instead finds no file at the name,
+/// takes the element for a pattern,
+///  and the staging's `git add --update` then fails:
+/// a path the named-ignored finding must refuse,
+///  and an exact path the commit must take,
+/// both end as an engine step's failure instead.
+///  A directory is not an exact path even when an ignore rule matches it,
+/// so the tracked file it holds is still committed:
+/// only files are refused.
+#[test]
+fn a_named_file_of_the_selected_worktree_is_refused_where_the_invocation_directory_has_none() {
+    let root: PathBuf = fixture("named-ignored-selected-worktree-without-a-current-file");
+    let first: PathBuf = repository(root.as_path(), "first");
+    std::fs::write(first.join(".gitignore"), "*.js\n").expect("ignore file");
+    git(first.as_path(), &["add", ".gitignore"]);
+    git(first.as_path(), &["commit", "--quiet", "--message=base"]);
+    let nested: PathBuf = first.join("nested");
+    std::fs::create_dir(&nested).expect("nested");
+    let second: PathBuf = repository(root.as_path(), "second");
+    std::fs::write(second.join(".gitignore"), "*.js\nbuild/\n").expect("ignore file");
+    std::fs::create_dir(second.join("build")).expect("build");
+    std::fs::write(second.join("build").join("keep.txt"), "keep\n").expect("the tracked file of an ignored directory");
+    git(second.as_path(), &["add", "--force", ".gitignore", "build/keep.txt"]);
+    git(second.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(second.join("selected.js"), "ignored\n").expect("the ignored file only the selected worktree holds");
+    std::fs::write(second.join("plain.txt"), "plain\n").expect("the file nothing ignores only the selected worktree holds");
+    let base: String = git_text(second.as_path(), &["rev-parse", "HEAD"]);
+    let git_dir: String = second.join(".git").to_str().expect("a UTF-8 fixture path").to_owned();
+    let work_tree: String = second.to_str().expect("a UTF-8 fixture path").to_owned();
+    let selected: [&str; 4] = ["--git-dir", git_dir.as_str(), "--work-tree", work_tree.as_str()];
+    let prefix: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["rev-parse", "--show-prefix"]].concat().as_slice());
+    assert_eq!(String::from_utf8_lossy(prefix.stdout.as_slice()).trim(), "", "the directory is outside the selected worktree, so Git reads the pathspec from the worktree's top");
+    let asked: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["check-ignore", "-v", "--", "selected.js"]].concat().as_slice());
+    assert_eq!(asked.status.code(), Some(0), "real Git reports the selected worktree's file as ignored: {}", String::from_utf8_lossy(asked.stderr.as_slice()));
+    assert!(String::from_utf8_lossy(asked.stdout.as_slice()).ends_with("\tselected.js\n"), "{}", String::from_utf8_lossy(asked.stdout.as_slice()));
+    let plain: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["check-ignore", "-v", "--", "plain.txt"]].concat().as_slice());
+    assert_eq!(plain.status.code(), Some(1), "nothing ignores the file the commit takes: {}", String::from_utf8_lossy(plain.stdout.as_slice()));
+    let untracked_add: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["add", "--update", "--", "selected.js"]].concat().as_slice());
+    assert_ne!(untracked_add.status.code(), Some(0), "the staging a pattern takes cannot reach the untracked file: {}", String::from_utf8_lossy(untracked_add.stderr.as_slice()));
+    let plain_update: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["add", "--update", "--", "plain.txt"]].concat().as_slice());
+    assert_ne!(plain_update.status.code(), Some(0), "the staging a pattern takes cannot reach the file nothing ignores either: {}", String::from_utf8_lossy(plain_update.stderr.as_slice()));
+    let context: GitContext = GitContext {
+        global_prefix: [OsString::from("--git-dir"), OsString::from(git_dir.as_str()), OsString::from("--work-tree"), OsString::from(work_tree.as_str())].to_vec(),
+        ..git_context()
+    };
+    let specs: Vec<OsString> = ["selected.js", "plain.txt", "build"].iter().map(OsString::from).collect();
+    let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
+    let ignored: Vec<String> = named_ignored_files(&context, nested.as_path(), second.as_path(), second.join(".git").join("index").as_path(), &choice)
+        .expect("the question is answered")
+        .iter()
+        .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
+        .collect();
+    assert_eq!(
+        ignored,
+        vec!["selected.js".to_owned()],
+        "the ignored file the selected worktree holds is refused, and neither the file nothing ignores nor the ignored directory holding a tracked file is"
+    );
+    let exact: std::process::Output = git_output(nested.as_path(), [selected.as_slice(), &["add", "--", "plain.txt"]].concat().as_slice());
+    assert_eq!(exact.status.code(), Some(0), "the exact path the commit must take is one `git add --` takes: {}", String::from_utf8_lossy(exact.stderr.as_slice()));
+    remove(root.as_path());
+}
+
+/// What:
+///  A named file of the selected worktree is read from the directory the command runs in when that directory
+///  is inside the selected worktree,
+///  because Git then reads the pathspec below the worktree's own top.
+/// Why:
+///  Selecting a repository the command's directory belongs to must classify paths exactly as the same name
+///  from a worktree Git finds by itself is classified,
+///  and a reader that jumped to the worktree's top would miss a file below the directory and refuse a directory
+///  where the person named a file.
+///  Real Git on the same command line is the authority:
+/// `--show-prefix` names the directory below the worktree's top,
+///  and `check-ignore` reports the file that is there.
+#[test]
+fn a_named_file_of_a_selected_worktree_is_read_from_the_directory_the_command_runs_in() {
+    let root: PathBuf = fixture("named-ignored-selected-worktree-from-inside");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join(".gitignore"), "*.js\n").expect("ignore file");
+    std::fs::create_dir(repo.join("inside")).expect("inside");
+    git(repo.as_path(), &["add", ".gitignore"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::write(repo.join("inside").join("named.js"), "ignored\n").expect("the ignored file below the directory");
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let git_dir: String = repo.join(".git").to_str().expect("a UTF-8 fixture path").to_owned();
+    let work_tree: String = repo.to_str().expect("a UTF-8 fixture path").to_owned();
+    let selected: [&str; 4] = ["--git-dir", git_dir.as_str(), "--work-tree", work_tree.as_str()];
+    let inside: PathBuf = repo.join("inside");
+    let prefix: std::process::Output = git_output(inside.as_path(), [selected.as_slice(), &["rev-parse", "--show-prefix"]].concat().as_slice());
+    assert_eq!(String::from_utf8_lossy(prefix.stdout.as_slice()).trim(), "inside/", "the directory is inside the selected worktree, so Git reads the pathspec below its top");
+    let asked: std::process::Output = git_output(inside.as_path(), [selected.as_slice(), &["check-ignore", "-v", "--", "named.js"]].concat().as_slice());
+    assert_eq!(asked.status.code(), Some(0), "real Git reports the file below the directory as ignored: {}", String::from_utf8_lossy(asked.stderr.as_slice()));
+    let context: GitContext = GitContext {
+        global_prefix: [OsString::from("--git-dir"), OsString::from(git_dir.as_str()), OsString::from("--work-tree"), OsString::from(work_tree.as_str())].to_vec(),
+        ..git_context()
+    };
+    let specs: Vec<OsString> = ["named.js"].iter().map(OsString::from).collect();
+    let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
+    let ignored: Vec<String> = named_ignored_files(&context, inside.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
+        .expect("the question is answered")
+        .iter()
+        .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
+        .collect();
+    assert_eq!(ignored, vec!["named.js".to_owned()], "the named file below the directory the command runs in is refused");
     remove(root.as_path());
 }
 
@@ -270,7 +386,7 @@ fn a_literal_glob_character_names_the_file_of_that_name() {
     let choice: IndexSelection<'_> = selection(specs.as_slice(), None, base.as_str());
     for context in [&literal, &literal_variable] {
         assert_eq!(
-            named_ignored_files(context, repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
+            named_ignored_files(context, repo.as_path(), repo.as_path(), repo.join(".git").join("index").as_path(), &choice)
                 .expect("the question is answered"),
             vec![b"st*r.js".to_vec()]
         );

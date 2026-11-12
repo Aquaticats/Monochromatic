@@ -361,7 +361,7 @@ fn the_intent_of_a_landing_that_has_not_moved_the_branch_yet_is_left_on_disk() {
     let context: LandContext = new_context(&world, state.as_path());
     let reports: Vec<RecoveryReport> = adopt_open_batches(&context, instance_for(&world).as_str(), empty_proc(&world).as_path());
     assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "the intent stays: {reports:?}");
-    assert!(reports.contains(&RecoveryReport { seq: 2, decision: crate::service_journal::Recovery::Drop, handled: Handled::Left }), "and it is reported as left: {reports:?}");
+    assert!(reports.contains(&RecoveryReport { seq: 2, repository: world.repo.clone(), decision: crate::service_journal::Recovery::Drop, handled: Handled::Left }), "and it is reported as left: {reports:?}");
     assert!(batch_path(world.context.journal.as_path(), 2, INDEXED_EXTENSION).exists(), "its record stays");
     drop(held);
     remove(world.root.as_path());
@@ -642,8 +642,12 @@ fn an_unreadable_table_of_sockets_counts_as_may_be_running() {
 /// and a relative spelling is the folder the process's own
 ///  working directory gives it.
 /// A spelling that names another existing folder is not the journal;
-/// one that cannot be resolved
-///  proves nothing,
+/// an absolute spelling of a folder that is not there is compared by the
+///  path it spells,
+/// so a folder that is not the journal holds nothing back,
+/// and a journal that is not made yet still holds;
+/// a
+///  relative spelling whose working directory cannot be read proves nothing,
 /// so it counts as "may be running".
 #[test]
 fn a_journal_is_compared_by_the_folder_it_names_not_by_its_spelling() {
@@ -675,8 +679,13 @@ fn a_journal_is_compared_by_the_folder_it_names_not_by_its_spelling() {
     assert!(!service_of_instance_may_run(look.clone(), proc_root.as_path()), "a relative spelling of another existing folder");
     std::fs::remove_dir_all(proc_root.join("73")).expect("ended");
     say(74, world.root.join("no-such-folder").to_string_lossy().as_ref());
-    assert!(service_of_instance_may_run(look.clone(), proc_root.as_path()), "a journal that cannot be resolved");
+    assert!(!service_of_instance_may_run(look.clone(), proc_root.as_path()), "an absolute folder that is not there and is not the journal");
     std::fs::remove_dir_all(proc_root.join("74")).expect("ended");
+    // A starting helper shows its journal word before it makes the folder, and the folder it will make is this worktree's.
+    let unmade: ServiceLook = ServiceLook { journals: vec![real.join("not-made-yet"), real.clone()], ..look_for(own) };
+    say(76, world.root.join("alias/not-made-yet").to_string_lossy().as_ref());
+    assert!(service_of_instance_may_run(unmade, proc_root.as_path()), "the journal of the worktree, not made yet, through a link to the folder above it");
+    std::fs::remove_dir_all(proc_root.join("76")).expect("ended");
     say(75, "real/abc");
     assert!(service_of_instance_may_run(look, proc_root.as_path()), "a relative spelling of a process whose working directory cannot be read");
     remove(world.root.as_path());
@@ -705,5 +714,37 @@ fn a_command_line_longer_than_the_bytes_read_counts_as_may_be_running() {
     let exact_program: String = "p".repeat(limit - 1);
     fake_process(proc_root.as_path(), 81, &[exact_program.as_str()]);
     assert!(!service_of_instance_may_run(look_for(4242), proc_root.as_path()), "a command line that ends at the limit was read whole");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A batch an earlier service's journal kept behind a reference lock is reported as held,
+///  and never as dropped.
+/// Why:
+///  `settle_a_recorded_hold` answers `Recovery::Hold` with `Handled::Held` when the lock still stands,
+///  and the line says so in its own words.
+///  A decision word of `drop` beside them tells the person two things at once,
+///  one of them false:
+///  nothing was dropped,
+///  and a commit is waiting for a lock to go
+///  (a Kimi K3.1 Pro review of this branch,
+///  its finding that earlier-service adoption reports a held batch as `decision=drop`).
+#[test]
+fn a_batch_the_earlier_service_kept_behind_a_lock_is_reported_as_held() {
+    let (world, state) = world_with_earlier_journal("adopt-hold", "state");
+    let reports: Vec<RecoveryReport> = vec![RecoveryReport {
+        seq: 3,
+        repository: world.repo.clone(),
+        decision: crate::service_journal::Recovery::Hold,
+        handled: Handled::Held,
+    }];
+    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+        crate::earlier_service_journal_adopted::log_adopted_batches(reports.as_slice(), state.as_path());
+    });
+    let said: Vec<&str> = entries.iter().map(|entry| { return entry.message.as_str(); }).collect();
+    let line: &str = said.iter().copied().find(|line| { return line.contains("batch=3"); }).unwrap_or_else(|| panic!("the held batch is said: {said:?}"));
+    assert!(line.contains("decision=hold"), "the decision word is the one the recovery made: {line}");
+    assert!(!line.contains("decision=drop"), "nothing was dropped: {line}");
+    assert!(line.contains("held behind a reference lock"), "the line says what stands in the way: {line}");
     remove(world.root.as_path());
 }

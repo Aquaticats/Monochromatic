@@ -12,6 +12,7 @@
  */
 export {
   AUDIT_RUN_PREFIX,
+  CLOSED_POOL_LIMIT,
   KIMI_RUN_PREFIX,
   MODEL_OF_A_RUN_NAMING_NONE,
   NEURALWATT_DEEPSEEK_FLEX,
@@ -21,6 +22,8 @@ export {
   POOL_LIMITS_VARIABLE,
   PROVIDER_OF_A_RUN_NAMING_NONE,
   PROVIDER_POOLS,
+  QWEN_PLAN_DEEPSEEK,
+  QWEN_PLAN_QWEN4_MAX_PREVIEW,
   type PoolMembership,
   PoolLimitsError,
   type ProviderPool,
@@ -29,6 +32,7 @@ export {
   poolNamed,
   poolsARunOfThatNameCouldHold,
   poolsWithTheseLimits,
+  poolTakesNoNewRun,
 } from './pool-limits.ts';
 export {
   NO_POOL_HAS_ROOM,
@@ -40,6 +44,19 @@ export {
   summaryTextOf,
   talliesOf,
 } from './pool-tallies.ts';
+export {
+  BUILD_VOLUME,
+  BYTES_IN_A_GIBIBYTE,
+  BYTES_IN_A_KIBIBYTE,
+  type FreeBlocksOfAVolume,
+  type FreeSpace,
+  FREE_SPACE_FLOOR_BYTES,
+  freeSpaceFloorTextOf,
+  freeSpaceIsUnderTheFloor,
+  freeSpaceOnVolume,
+  freeSpaceTextOf,
+  wholeGibibytesOf,
+} from './free-space-floor.ts';
 export {
   type GoingRun,
   LAUNCHER_ENTRY_NAMES,

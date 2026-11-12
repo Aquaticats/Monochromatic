@@ -44,6 +44,8 @@ use crate::repo_read_layout::{RepoLayout, read_layout};
 use crate::repo_read_layout_without::read_layout_without;
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
+/// `Path` is a borrowed filesystem path.
+use std::path::Path;
 
 /// Module tag for diagnostics.
 const TAG: &str = "judgeConflictSides";
@@ -147,10 +149,10 @@ fn read_conflicts(layout: &RepoLayout) -> Result<std::collections::BTreeSet<Vec<
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await pruneAfterSave(layout, copies, milliseconds)
+/// await pruneAfterSave(commonDir, copies, milliseconds)
 /// ```
-fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64, limits: Limits) -> String {
-    let saved_root: std::path::PathBuf = layout.common_dir.join(SAVED_DIRECTORY);
+pub(crate) fn prune_after_save(common_dir: &Path, copies: &[SavedCopy], milliseconds: i64, limits: Limits) -> String {
+    let saved_root: std::path::PathBuf = common_dir.join(SAVED_DIRECTORY);
     let mut keep: Option<String> = None;
     for copy in copies {
         if let Some(place) = copy.saved_to.as_deref() {
@@ -163,7 +165,7 @@ fn prune_after_save(layout: &RepoLayout, copies: &[SavedCopy], milliseconds: i64
     if keep.is_none() {
         return String::new();
     }
-    let outcome = prune(layout.common_dir.as_path(), milliseconds, limits, keep.as_deref());
+    let outcome = prune(common_dir, milliseconds, limits, keep.as_deref());
     return outcome.problems.iter().map(Problem::message).collect();
 }
 
@@ -258,7 +260,7 @@ pub fn judge_conflict_sides(context: &GitContext, arguments: &[OsString], millis
         SideDecision::Allow(paths) => {
             match save_copies(layout.worktree_root.as_path(), layout.common_dir.as_path(), paths.as_slice(), milliseconds) {
                 Ok(copies) => {
-                    let unpruned: String = prune_after_save(&layout, copies.as_slice(), milliseconds, limits);
+                    let unpruned: String = prune_after_save(layout.common_dir.as_path(), copies.as_slice(), milliseconds, limits);
                     return SideVerdict::Allowed { notice: format!("{}{unpruned}", saved_notice(copies.as_slice())), copies };
                 }
                 Err(failure) => {

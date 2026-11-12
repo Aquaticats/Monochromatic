@@ -60,7 +60,7 @@ pub(crate) fn take_index_lock(
         timing.lock_notes = notes.clone();
     }
     // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
-    if let Some(line) = wait_line(seq, waited, &notes, taken.is_ok()) {
+    if let Some(line) = wait_line(seq, repository, waited, &notes, taken.is_ok()) {
         // A lock that was refused fails the commit, so the line stands out from a wait that ended in the lock.
         let priority: Priority = if taken.is_ok() { Priority::Info } else { Priority::Error };
         crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);

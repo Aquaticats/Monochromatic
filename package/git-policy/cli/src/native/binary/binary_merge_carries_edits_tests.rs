@@ -837,6 +837,160 @@ fn a_mode_change_on_a_path_the_merge_changes_is_kept() {
 }
 
 /// What:
+///  The same change of the executable bit alone,
+/// on a path the merge deletes:
+/// the person's file stays with their mode and the line
+///  names the modify/delete decision.
+/// Why:
+///   The entry rules read a mode the person set alone as no change at all,
+/// because a path the merge keeps takes the
+///  merge's bytes with that mode;
+/// a path the merge deletes has none of the merge's bytes to take it,
+///  so the mode was all that stood of their work and the deletion took it
+/// (owner's rule "never discard user data";
+///  `SPEC.md`,
+/// "Carry edits forward").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod('gone.txt', 0o755); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(read('gone.txt')).toBe('gone base\n'); expect(mode('gone.txt')).toBe(0o755);
+/// ```
+#[test]
+fn a_mode_change_on_a_path_the_merge_deletes_is_kept() {
+    let fixture: Fixture = fixture("carry-mode-only-delete");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.join("gone.txt"), std::fs::Permissions::from_mode(0o755)).expect("the person's mode");
+    }
+    assert_eq!(status(&fixture, repo.as_path()), " M gone.txt\n", "the fixture's mode change is unsaved work");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "{}", words);
+    assert_merged(&fixture, repo.as_path(), "mode change on a deleted path");
+    assert_eq!(text_at(repo.as_path(), "gone.txt").as_deref(), Some("gone base\n"), "the person's bytes are kept: {words}");
+    assert_eq!(mode_at(repo.as_path(), "gone.txt"), 0o755, "the person's executable bit stands: {words}");
+    assert!(head_object(&fixture, repo.as_path(), "gone.txt").is_empty(), "the merge's deletion is in the merge commit: {words}");
+    assert!(words.contains("gone.txt"), "the line names the path: {words}");
+    assert!(words.contains("the merge deletes it"), "the line names the modify/delete decision: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  The person staged the same mode change alone:
+/// the file and the `100755` entry they staged both stand after the
+///  merge deletes the path on its own side.
+/// Why:
+///  A staged mode is theirs as a staged edit is,
+/// so dropping the entry reports the merge as made while the index
+///  quietly loses the only record of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod('gone.txt', 0o755); git(['add', '--', 'gone.txt']); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(indexEntry('gone.txt')).toStartWith('100755 '); expect(mode('gone.txt')).toBe(0o755);
+/// ```
+#[test]
+fn a_staged_mode_change_on_a_path_the_merge_deletes_keeps_its_entry() {
+    let fixture: Fixture = fixture("carry-staged-mode-only-delete");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.join("gone.txt"), std::fs::Permissions::from_mode(0o755)).expect("the person's mode");
+    }
+    git(&fixture, repo.as_path(), &["add", "--", "gone.txt"]);
+    assert_eq!(status(&fixture, repo.as_path()), "M  gone.txt\n", "the fixture's mode change is staged work");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "{}", words);
+    assert_merged(&fixture, repo.as_path(), "staged mode change on a deleted path");
+    assert_eq!(text_at(repo.as_path(), "gone.txt").as_deref(), Some("gone base\n"), "the person's bytes are kept: {words}");
+    assert_eq!(mode_at(repo.as_path(), "gone.txt"), 0o755, "the person's executable bit stands: {words}");
+    let staged: String = index_entry(&fixture, repo.as_path(), "gone.txt");
+    assert!(staged.starts_with("100755 "), "the index holds the mode they staged, not {staged:?}: {words}");
+    assert!(head_object(&fixture, repo.as_path(), "gone.txt").is_empty(), "the merge's deletion is in the merge commit: {words}");
+    assert!(words.contains("gone.txt"), "the line names the path: {words}");
+    assert!(words.contains("the merge deletes it"), "the line names the modify/delete decision: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A repository where `feature` adds a path the base's ignore rules cover,
+/// and `main` diverges elsewhere.
+/// Why:
+///   Such a path is invisible to `git status`,
+/// so it never reached the capture set,
+/// and the merge wrote the branch's
+///  bytes over the only copy of the person's file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// base({ '.gitignore': 'added.txt\n', 'base.txt': 'base\n' }); branch('feature', { 'added.txt': 'added by feature\n' }, { forceAdd: true });
+/// ```
+fn diverged_over_an_ignored_path(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join(".gitignore"), b"added.txt\n").expect(".gitignore");
+    std::fs::write(repo.join("base.txt"), b"base\n").expect("base.txt");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "base.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("added.txt"), b"added by feature\n").expect("added.txt");
+    // A branch can track a path its own ignore rules cover; `--force` is how one commits it.
+    git(fixture, repo.as_path(), &["add", "--force", "--", "added.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=feature adds an ignored path"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("base.txt"), b"base changed on main\n").expect("base.txt");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    return repo;
+}
+
+/// What:
+///  An ignored untracked file where the merge adds that path:
+/// the person's bytes stay in the file,
+/// the merge
+///  lands,
+/// and the command names the file.
+/// Why:
+///   `git status` never lists an ignored untracked file,
+/// so the capture heard nothing of the only copy of it and the
+///  merge wrote the branch's bytes over it
+/// (owner's rule "never discard user data";
+/// `SPEC.md`,
+/// "A merge
+///  whose paths hold the person's own work carries it forward"
+/// names untracked files the merge adds without excluding the
+///  ignored ones).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('added.txt', 'the person\'s ignored build output\n'); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(ran.code).toBe(0); expect(read('added.txt')).toContain('the person\'s ignored build output');
+/// ```
+#[test]
+fn an_ignored_untracked_file_where_the_merge_adds_the_path_keeps_the_persons_bytes() {
+    let fixture: Fixture = fixture("carry-ignored-untracked-add");
+    let repo: PathBuf = diverged_over_an_ignored_path(&fixture, "repo");
+    let person: &str = "the person's ignored build output\n";
+    std::fs::write(repo.join("added.txt"), person).expect("the person's ignored file");
+    let ordinary: String = status(&fixture, repo.as_path());
+    assert_eq!(ordinary, "", "ordinary status never lists the fixture's file: {ordinary:?}");
+    let ignored: String =
+        git_text(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]);
+    assert_eq!(ignored, "!! added.txt\0", "the fixture's file is ignored and untracked: {ignored:?}");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "{}", words);
+    assert_merged(&fixture, repo.as_path(), "ignored untracked add");
+    let after: String = text_at(repo.as_path(), "added.txt").expect("added.txt is there");
+    assert!(after.contains("the person's ignored build output"), "the person's ignored bytes are kept: {after:?}");
+    assert!(after.contains("added by feature"), "the merge's bytes are kept: {after:?}");
+    assert!(!head_object(&fixture, repo.as_path(), "added.txt").is_empty(), "the merge's version is in the merge commit");
+    assert!(words.contains("added.txt"), "the command names the file: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
 ///  The same deletion in a linked worktree:
 /// the line names the same command,
 /// and that command runs there too.
@@ -967,5 +1121,302 @@ fn a_staged_directory_on_a_fast_forward_path_keeps_its_entries() {
     assert_eq!(status(&fixture, repo.as_path()), "A  added.txt/nested/file.txt\n", "the entry is still staged");
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "the branch did not move");
     assert!(words.contains("added.txt/nested/file.txt"), "the line names the file of theirs that stands there: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A repository whose base tracks `added.txt/nested/file.txt` and whose `feature` deletes that file and puts a
+///  regular file at `added.txt`,
+/// so merging `feature` into `main` fast-forwards over the directory.
+/// Why:
+///   Git's own two-way update replaces the directory and takes everything below it,
+/// which is the shape the
+///  directory judgement is about,
+/// and the merge deletes every path below it itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// commit({ 'added.txt/nested/file.txt': 'branch version\n' }); branch('feature', { 'added.txt': 'merge file\n' }, { delete: ['added.txt/nested/file.txt'] });
+/// ```
+fn a_feature_that_replaces_a_tracked_directory(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::create_dir_all(repo.join("added.txt/nested")).expect("the branch's directory");
+    std::fs::write(repo.join("added.txt/nested/file.txt"), b"branch version\n").expect("the branch's file");
+    git(fixture, repo.as_path(), &["add", "--", "added.txt/nested/file.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base tracks a directory"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    git(fixture, repo.as_path(), &["rm", "--quiet", "--", "added.txt/nested/file.txt"]);
+    std::fs::write(repo.join("added.txt"), b"merge file\n").expect("the merge's file");
+    git(fixture, repo.as_path(), &["add", "--", "added.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=feature replaces the directory"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    return repo;
+}
+
+/// What:
+///  A staged edit below a tracked directory the merge replaces keeps its file,
+/// its bytes and its index entry.
+/// Why:
+///  The branch deletes that file itself,
+/// so the directory held only paths the merge deletes and was taken as the
+///  branch's own;
+/// the staged bytes went with the fast-forward and the command exited 0 with an empty status
+///  (a cross-vendor review,
+/// round 133,
+/// its first finding;
+/// owner's rule "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('added.txt/nested/file.txt', 'branch version\nthe person staged these bytes\n'); git(['add', '--', ...]);
+/// const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(ran.code).not.toBe(0); expect(status()).toBe('M  added.txt/nested/file.txt\n');
+/// ```
+#[test]
+fn a_staged_edit_below_a_tracked_directory_the_merge_replaces_keeps_its_entry() {
+    let fixture: Fixture = fixture("carry-tracked-directory-replaced-staged");
+    let repo: PathBuf = a_feature_that_replaces_a_tracked_directory(&fixture, "repo");
+    let before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let staged_text: &str = "branch version\nthe person staged these bytes\n";
+    std::fs::write(repo.join("added.txt/nested/file.txt"), staged_text).expect("the person's edit");
+    git(&fixture, repo.as_path(), &["add", "--", "added.txt/nested/file.txt"]);
+    let staged: String = index_entry(&fixture, repo.as_path(), "added.txt/nested/file.txt");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_ne!(observed.code, Some(0), "a fast-forward that would delete the person's staged file is not run: {words}");
+    assert_eq!(text_at(repo.as_path(), "added.txt/nested/file.txt").as_deref(), Some(staged_text), "the person's bytes are where they left them: {words}");
+    assert_eq!(index_entry(&fixture, repo.as_path(), "added.txt/nested/file.txt"), staged, "the index still holds their entry");
+    assert_eq!(status(&fixture, repo.as_path()), "M  added.txt/nested/file.txt\n", "the entry is still staged");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "the branch did not move");
+    assert!(words.contains("added.txt/nested/file.txt"), "the line names the file of theirs that stands there: {words}");
+    assert!(words.contains("was not made"), "the line says the merge was not made: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  An unsaved edit below a tracked directory the merge replaces keeps its bytes.
+/// Why:
+///  The worktree layer is the person's own the same way a staged one is,
+/// and Git's own update deletes it with the
+///  directory;
+/// the merge stops before anything is written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('added.txt/nested/file.txt', 'branch version\nthe person edited this\n');
+/// const ran = await wrapped(['merge', '--no-edit', 'feature']); expect(ran.code).not.toBe(0);
+/// ```
+#[test]
+fn an_unsaved_edit_below_a_tracked_directory_the_merge_replaces_keeps_its_bytes() {
+    let fixture: Fixture = fixture("carry-tracked-directory-replaced-edited");
+    let repo: PathBuf = a_feature_that_replaces_a_tracked_directory(&fixture, "repo");
+    let before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let edited_text: &str = "branch version\nthe person edited this\n";
+    std::fs::write(repo.join("added.txt/nested/file.txt"), edited_text).expect("the person's edit");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_ne!(observed.code, Some(0), "a fast-forward that would delete the person's edit is not run: {words}");
+    assert_eq!(text_at(repo.as_path(), "added.txt/nested/file.txt").as_deref(), Some(edited_text), "the person's bytes are where they left them: {words}");
+    assert_eq!(status(&fixture, repo.as_path()), " M added.txt/nested/file.txt\n", "the edit is still unsaved");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), before, "the branch did not move");
+    assert!(words.contains("added.txt/nested/file.txt"), "the line names the file of theirs that stands there: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A repository where `feature` turns `a.txt` into a symbolic link and `main` diverges through `main.txt`.
+/// Why:
+///   The merge's change is a change of kind on one path,
+/// which is what a carry keeps whole rather than merging as
+///  text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// base({ 'a.txt': 'base\n', 'main.txt': 'base\n' }); branch('feature', { a.txt: symlink('feature-target') });
+/// ```
+fn a_feature_that_turns_a_file_into_a_link(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join("a.txt"), b"base\n").expect("a.txt");
+    std::fs::write(repo.join("main.txt"), b"base\n").expect("main.txt");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt", "main.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base has a regular file"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::remove_file(repo.join("a.txt")).expect("remove a.txt");
+    std::os::unix::fs::symlink("feature-target", repo.join("a.txt")).expect("the merge's link");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=feature turns the file into a link"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("main.txt"), b"main\n").expect("main.txt");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main diverges"]);
+    return repo;
+}
+
+/// What:
+///  The person's edited regular file stays a regular file holding their bytes when the merge's side is a symbolic
+///  link.
+/// Why:
+///   The decision kept the person's object with the three-way mode,
+/// which is the merge's `120000` here,
+/// so the
+///  bytes were written as a link's target and the file they had was gone while the line said it held their bytes
+///  (a cross-vendor review,
+/// round 133,
+/// its second finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('a.txt', 'the person edited a regular file\n'); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(lstat('a.txt').isSymbolicLink()).toBe(false); expect(read('a.txt')).toBe('the person edited a regular file\n');
+/// ```
+#[test]
+fn a_merge_side_link_keeps_the_persons_edited_regular_file_whole() {
+    let fixture: Fixture = fixture("carry-merge-side-link");
+    let repo: PathBuf = a_feature_that_turns_a_file_into_a_link(&fixture, "repo");
+    let person: &str = "the person edited a regular file\n";
+    std::fs::write(repo.join("a.txt"), person).expect("the person's edit");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "the merge is made over the person's edit: {words}");
+    assert_merged(&fixture, repo.as_path(), "merge-side link");
+    let found: std::fs::Metadata = std::fs::symlink_metadata(repo.join("a.txt")).expect("a.txt is there");
+    assert!(!found.file_type().is_symlink(), "the person's regular file stands there: {words}");
+    assert_eq!(text_at(repo.as_path(), "a.txt").as_deref(), Some(person), "the person's bytes are kept whole: {words}");
+    assert_eq!(status(&fixture, repo.as_path()), " T a.txt\n", "their regular file is their unsaved change of kind");
+    let held: String = git_text(&fixture, repo.as_path(), &["ls-tree", "HEAD", "--", "a.txt"]);
+    assert!(held.starts_with("120000 "), "the merge's link is in the merge commit: {held}");
+    assert!(words.contains("a.txt holds your own bytes"), "the line says what stands there: {words}");
+    assert!(words.contains("is in the merge commit"), "the line says where the merge's version is: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A repository whose `a.txt` holds the text `keep.txt` and whose `feature` changes those bytes,
+/// with `main`
+///  diverging through `main.txt`.
+/// Why:
+///   A link to `keep.txt` then holds exactly the old file's bytes as its object,
+/// which is the case object ids alone
+///  cannot tell apart from an unchanged path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// base({ 'a.txt': 'keep.txt', 'keep.txt': 'the target file\n', 'main.txt': 'base\n' }); branch('feature', { 'a.txt': 'feature-target' });
+/// ```
+fn a_feature_that_changes_a_files_bytes(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join("a.txt"), b"keep.txt").expect("a.txt");
+    std::fs::write(repo.join("keep.txt"), b"the target file\n").expect("keep.txt");
+    std::fs::write(repo.join("main.txt"), b"base\n").expect("main.txt");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt", "keep.txt", "main.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("a.txt"), b"feature-target").expect("a.txt");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=feature changes the regular file"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("main.txt"), b"main\n").expect("main.txt");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main diverges"]);
+    return repo;
+}
+
+/// What:
+///  A symbolic link whose target text equals the old file's bytes stays the person's link,
+/// pointing where they
+///  pointed it.
+/// Why:
+///   The object of a link is its target's text,
+/// so the equality by object id read the link as the branch's own
+///  file and wrote the merge's bytes with the link's mode:
+/// the link then pointed at the merge's version
+///  (a cross-vendor review,
+/// round 133,
+/// its third finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rm('a.txt'); symlink('keep.txt', 'a.txt'); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(readlink('a.txt')).toBe('keep.txt'); expect(cat('HEAD:a.txt')).toBe('feature-target');
+/// ```
+#[test]
+fn a_link_whose_target_matches_the_old_bytes_stays_the_persons_link() {
+    let fixture: Fixture = fixture("carry-same-blob-link");
+    let repo: PathBuf = a_feature_that_changes_a_files_bytes(&fixture, "repo");
+    std::fs::remove_file(repo.join("a.txt")).expect("remove a.txt");
+    std::os::unix::fs::symlink("keep.txt", repo.join("a.txt")).expect("the person's link");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "the merge is made over the person's link: {words}");
+    assert_merged(&fixture, repo.as_path(), "link over a file");
+    let found: std::fs::Metadata = std::fs::symlink_metadata(repo.join("a.txt")).expect("a.txt is there");
+    assert!(found.file_type().is_symlink(), "the person's symbolic link stands there: {words}");
+    assert_eq!(std::fs::read_link(repo.join("a.txt")).expect("the link reads").to_str(), Some("keep.txt"), "the link points where the person pointed it: {words}");
+    assert_eq!(status(&fixture, repo.as_path()), " T a.txt\n", "the link is their unsaved change of kind");
+    let held: String = git_text(&fixture, repo.as_path(), &["cat-file", "blob", "HEAD:a.txt"]);
+    assert_eq!(held, "feature-target", "the merge's bytes are in the merge commit, not in the person's link");
+    assert!(words.contains("a.txt is your own symbolic link"), "the line says what stands there: {words}");
+    assert!(words.contains("is in the merge commit"), "the line says where the merge's version is: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A repository whose `feature` adds `a.txt` as a symbolic link and whose `main` diverges through `main.txt`.
+/// Why:
+///   Two added links have no ancestor to merge from,
+/// and the person's untracked link is the only side of it
+///  that is in the checkout.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// base({ 'main.txt': 'base\n' }); branch('feature', { a.txt: symlink('theirs-target') });
+/// ```
+fn a_feature_that_adds_a_link(fixture: &Fixture, name: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    std::fs::write(repo.join("main.txt"), b"base\n").expect("main.txt");
+    git(fixture, repo.as_path(), &["add", "--", "main.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::os::unix::fs::symlink("theirs-target", repo.join("a.txt")).expect("the merge's link");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=feature adds a link"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("main.txt"), b"main\n").expect("main.txt");
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main diverges"]);
+    return repo;
+}
+
+/// What:
+///  Two added symbolic links keep the person's link,
+/// and no line sends them to conflict markers in it.
+/// Why:
+///   A link's bytes are its target's text,
+/// and the word pass wrote its markers into the link,
+/// so the
+///  target became marker text and the link pointed nowhere the person meant
+/// (a cross-vendor review,
+/// round 133,
+///  its fourth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlink('ours-target', 'a.txt'); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(readlink('a.txt')).toBe('ours-target'); expect(ran.stderr).not.toContain('conflict markers');
+/// ```
+#[test]
+fn two_added_links_keep_the_persons_link_and_no_line_names_markers() {
+    let fixture: Fixture = fixture("carry-two-added-links");
+    let repo: PathBuf = a_feature_that_adds_a_link(&fixture, "repo");
+    std::os::unix::fs::symlink("ours-target", repo.join("a.txt")).expect("the person's link");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "the merge is made over the person's link: {words}");
+    assert_merged(&fixture, repo.as_path(), "two added links");
+    let found: std::fs::Metadata = std::fs::symlink_metadata(repo.join("a.txt")).expect("a.txt is there");
+    assert!(found.file_type().is_symlink(), "the person's symbolic link stands there: {words}");
+    assert_eq!(std::fs::read_link(repo.join("a.txt")).expect("the link reads").to_str(), Some("ours-target"), "the link points where the person pointed it: {words}");
+    assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the link is their unsaved change");
+    let held: String = git_text(&fixture, repo.as_path(), &["cat-file", "blob", "HEAD:a.txt"]);
+    assert_eq!(held, "theirs-target", "the merge's link is in the merge commit");
+    assert!(words.contains("a.txt is your own symbolic link"), "the line says what stands there: {words}");
+    assert!(!words.contains("conflict markers"), "the line does not send the person to markers in a link: {words}");
     remove_settled(&fixture);
 }

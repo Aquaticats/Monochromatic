@@ -174,6 +174,7 @@ pub fn snapshot_from_journal(
         stage_container: pending.journal.stage_container.clone(),
         stage_root: stage_root.to_path_buf(),
         unreadable: Vec::new(),
+        uncopiable: Vec::new(),
         unsettled: Vec::new(),
     });
 }
@@ -245,6 +246,7 @@ impl SnapshotSource<'_> {
 fn install_recorded(
     pending: PendingJournal,
     snapshot: &SnapshotSource<'_>,
+    ceiling: &crate::worktree_copy_ceiling::CopyCeiling,
 ) -> Result<(PendingJournal, Outcome), WorktreeCopyError> {
     let opened = open_install_log(pending.journal.stage_container.as_path())?;
     let mut intended: BTreeSet<Vec<u8>> = pending.journal.intended_entries.iter().cloned().collect();
@@ -306,6 +308,7 @@ fn install_recorded(
         &claimed,
         prior.as_slice(),
         &mut state,
+        ceiling,
     );
     // A finished installation keeps nothing of that promise, and a removal that fails leaves the journal so the
     // next command installs nothing twice and tries the removal again. An installation that ended names what ended it, so
@@ -349,9 +352,10 @@ fn install_recorded(
 pub fn complete_journal(
     pending: PendingJournal,
     snapshot: &SnapshotSource<'_>,
+    ceiling: &crate::worktree_copy_ceiling::CopyCeiling,
 ) -> Result<Outcome, WorktreeCopyError> {
     let started: std::time::Instant = std::time::Instant::now();
-    let (latest, outcome) = install_recorded(pending, snapshot)?;
+    let (latest, outcome) = install_recorded(pending, snapshot, ceiling)?;
     let recorded: std::time::Duration = started.elapsed();
     remove_pending_journal(&latest)?;
     debug(

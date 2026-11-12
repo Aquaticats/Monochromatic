@@ -77,31 +77,21 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 /// Time spans and the monotonic clock.
 use std::time::Duration;
 pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, Patience, positive_seconds, push_deadline, push_patience, strip_one_line_break};
+/// The window a run whose connection is open may stay silent for,
+/// which `lfs_upload` reads for the upload it waits on itself.
+pub use crate::push_deadline_and_patience_settings::connected_window;
+/// The server a wait and a stop name,
+/// and the word a command gave as its destination.
+pub use crate::push_server_naming::{ServerNaming, first_word};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
-
-/// What a person is told when a push is ended for showing no progress:
-/// the owner's answer of 2026-11-03,
-/// "Bound it,
-/// keep retrying
-///  (Recommended)",
-/// is that the service's retry plan keeps the push and tries it again,
-/// and the line says so.
-pub const PUSH_QUEUED_LINE: &str = "The push is queued: the commit service keeps it in its retry plan and tries it again.";
-
-/// What a person is told about the remote when a push was stopped:
-/// that the wrapper does not know,
-/// and that the retry is what settles it.
-///  A stopped push proves nothing about the remote:
-/// the wrapper cannot know which object Git really sent,
-/// which of a
-///  remote's push URLs went first or which configuration shaped the attempt,
-/// so the report says what is known and the retry
-///  answers the question,
-/// because a push of something the remote already has succeeds.
-pub const STOPPED_DELIVERY_IS_NOT_KNOWN: &str = "the remote may or may not have taken the push, and only the next push settles which";
+/// The causes and reports of a stop,
+/// and the line a stalled one prints,
+/// which `stop_cause_and_words.rs` owns.
+pub use crate::stop_cause_and_words::{PUSH_QUEUED_LINE, STOPPED_DELIVERY_IS_NOT_KNOWN, STOPPED_EXIT_CODE, StopCause, StopReport, StopWindow};
+use crate::stop_cause_and_words::stalled_reason;
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 ///  Citation:
@@ -128,10 +118,6 @@ pub const STOP_GRACE: Duration = Duration::from_secs(5);
 ///  size of a push's output is logged;
 /// the audit lists it as a memory bound to be measured.
 pub const MAX_PUSH_OUTPUT: u64 = 4 * 1024 * 1024;
-
-/// Exit code recorded for a push that this wrapper stopped,
-///  the convention of `timeout(1)`.
-pub const STOPPED_EXIT_CODE: i64 = 124;
 
 /// What the line a push's output gains has after the name of the program,
 /// when it waited with its connection open.
@@ -199,33 +185,6 @@ fn read_output(file: &mut File) -> Result<String, SingleFlightError> {
         .read_to_end(&mut bytes)
         .map_err(SingleFlightError::Start)?;
     return Ok(String::from_utf8_lossy(&bytes).into_owned());
-}
-
-/// What a stop reports:
-/// the limit that was hit,
-/// what the push had moved and how long it had run.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct StopReport {
-    /// The limit that was hit:
-    /// the stall window.
-    pub limit: Duration,
-    /// The bytes the push and everything it started had read and written.
-    pub moved: u64,
-    /// How long the push had run.
-    pub elapsed: Duration,
-}
-
-/// Why a push or query was stopped.
-pub enum StopCause {
-    /// The fixed deadline passed.
-    Deadline,
-    /// The push moved no data for the stall window.
-    Stalled(StopReport),
-    /// The output grew past the cap.
-    Flood,
-    /// The service was stopped,
-    /// and its shutdown told every waiter to end its child.
-    ServiceStopped,
 }
 
 /// What:
@@ -316,8 +275,9 @@ pub async fn wait_until_done_noting(
     label: &str,
     waits: &mut Vec<WaitReport>,
     stop: Option<&StopArm>,
+    window: Duration,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    let clock: Clock = Clock::start(child.id(), patience);
+    let clock: Clock = Clock::start(child.id(), patience).with_connected_window(window);
     let mut unused: Option<Duration> = None;
     return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
 }
@@ -382,19 +342,10 @@ async fn wait_with_clock(
 pub fn command_label(command: &Command) -> String {
     let program: String = command.get_program().to_string_lossy().rsplit('/').next().unwrap_or_default().to_owned();
     let mut arguments = command.get_args();
-    while let Some(argument) = arguments.next() {
-        let word: String = argument.to_string_lossy().into_owned();
-        // `-c name=value` and `-C directory` take the next word as their value.
-        if word == "-c" || word == "-C" {
-            let _value = arguments.next();
-            continue;
-        }
-        if word.starts_with('-') {
-            continue;
-        }
-        return format!("{program} {word}");
-    }
-    return program;
+    return match first_word(&mut arguments) {
+        Some(word) => format!("{program} {word}"),
+        None => program,
+    };
 }
 
 /// What:
@@ -424,9 +375,9 @@ fn shortened_output_line() -> String {
 ///   The person or the journal reads that the run is not stuck:
 /// the connection to the remote is open,
 /// and what ends the wait.
-///  No time ends it:
-/// only the remote's answer,
-/// the connection closing or TCP giving up.
+///  A wait that shows no sign of work ends at the connected window,
+/// which the report carries,
+/// so the line names the same limit the run will be stopped by.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -436,9 +387,10 @@ fn wait_line(label: &str, report: &WaitReport) -> String {
     return format!(
         "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing has moved for {} seconds \
          (elapsed_seconds={}); the remote may be checking the push or preparing its answer. It is waited for until it answers or \
-         the connection closes; no time limit applies while the connection is open.",
+         the connection closes, and a connection that stays open with nothing moving for {} seconds is stopped as a stall.",
         report.silent.as_secs(),
         report.elapsed.as_secs(),
+        report.window.as_secs(),
     );
 }
 
@@ -528,14 +480,19 @@ pub async fn run_bounded_push_awaiting(
         .stdin(Stdio::null())
         .stdout(Stdio::from(for_stdout))
         .stderr(Stdio::from(for_stderr));
+    let label: String = command_label(&command);
+    // How a stop names the server, read from the command before it is given to the child; asked for only if a stop needs it,
+    //  so a push that lands pays nothing for it.
+    let mut naming: ServerNaming<'_> = ServerNaming::of(&command, environment);
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
-    let label: String = command_label(&command);
     let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
     let mut child: OwnedChild = adopt(started);
     let mut waits: Vec<WaitReport> = Vec::new();
-    let ended: Result<ExitStatus, StopCause> = wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref()).await?;
+    let ended: Result<ExitStatus, StopCause> =
+        wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref(), connected_window(environment))
+            .await?;
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }
@@ -577,15 +534,11 @@ pub async fn run_bounded_push_awaiting(
                     },
                     extend_clause()
                 ),
-                StopCause::Stalled(report) => format!(
-                    "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
-                     elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} {STOPPED_DELIVERY_IS_NOT_KNOWN}. Hint: if you were pushing over a slow or \
-                     offline connection, your commit is already saved; push again when the connection works.",
-                    report.limit.as_secs(),
-                    report.moved,
-                    report.elapsed.as_secs(),
-                    extend_clause()
-                ),
+                StopCause::Stalled(report) => {
+                    // The server is asked for here, once, because a run that was not stopped never needed it.
+                    naming.ask().await;
+                    stalled_reason(label.as_str(), &report, naming.server())
+                }
                 StopCause::ServiceStopped => format!(
                     "monochromatic-git-policy-cli: git push was ended because the service was stopped (limit=service-stop); \
                      {PUSH_QUEUED_LINE}"

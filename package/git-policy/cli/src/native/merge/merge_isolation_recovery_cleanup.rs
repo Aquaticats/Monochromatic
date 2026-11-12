@@ -302,3 +302,55 @@ pub fn an_installed_merge_behind_a_held_index(target: &str, root: &Path, lock: &
         record.display()
     ));
 }
+
+/// What:
+///  Settle a merge saved behind an index lock whose paths hold the person's own edits newer than the capture it keeps,
+///  by
+///  removing the record and naming the ref that keeps the merge.
+/// Why:
+///   Nothing of the merge is in the index or the checkout,
+/// so it cannot be installed without writing over bytes only the
+///  person holds;
+/// the record must go or every command meets it again,
+/// and the merge's commit must stay where they can reach it,
+///  which the side ref does and the record did.
+/// The words name the ref and the command that makes the merge on what the files hold now,
+/// so the way forward is one they
+///  can type rather than a decision only the wrapper could make
+/// (`merge_isolation_recovery.rs`, the paths that are nobody's).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settled = await settleASavedMergeOverNewerEdits({ place, root, record, intent, foreign, stderr }); // drops the record, keeps the side ref
+/// ```
+pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
+    place: &RecoveryPlace,
+    root: &Path,
+    record: &Path,
+    intent: &MergeIntent,
+    foreign: &[String],
+    out: &mut W,
+) -> Result<crate::merge_isolation_recovery_steps::MergeRecoveryAction, MergeRefusal> {
+    let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its side ref");
+    let _noted = out.write_all(
+        format!(
+            "monochromatic-git-policy-cli: the merge saved on {side_ref} was not made: {} hold your own edits, which were saved after \
+             that merge saved the work it carries, so installing it would write over them. Nothing was changed and the record {} was \
+             removed; the merge commit {} is kept on {side_ref}, which nothing removes. Run `git merge {}` to make the merge on the bytes \
+             your files hold now, or delete the ref once you have decided.\n",
+            foreign.join(", "),
+            record.display(),
+            intent.new_oid,
+            intent.new_oid
+        )
+        .as_bytes(),
+    );
+    if let Err(error) = remove_merge_intent(record) {
+        return Err(MergeRefusal { error: RecoveryError(format!("{} could not be removed: {error}", record.display())), began: true });
+    }
+    // The capture's bytes are the person's files' own, so the ref that kept them is not one more name to clean up by hand.
+    if let Some(capture) = intent.carried.as_ref() {
+        crate::merge_isolation_carry::drop_capture_ref_awaiting(&place.git, root, capture).await;
+    }
+    return Ok(crate::merge_isolation_recovery_steps::MergeRecoveryAction::DeferredRefused);
+}

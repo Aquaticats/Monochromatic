@@ -13,8 +13,8 @@
 //! the destination comes from the command line,
 //! the copy is a transaction of its own
 //!  (a journal and a stage claim that name their owner process),
-//! and a copy a dead process left is recovered first by the
-//!  next command.
+//! and a copy a dead process left is recovered first by a command in the worktree it fills,
+//!  under a ceiling, and never by a command in another worktree.
 //! Concurrent adds in one repository never wait for one another (the owner's decision of 2026-11-03).
 //!
 //! Integrator contract:
@@ -46,7 +46,7 @@ use crate::json_record::quote;
 use crate::transaction_git::GitContext;
 use crate::worktree_copy_after_refusal::settle_refused_destination;
 use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure};
-use crate::worktree_copy_recovery::recover_pending_worktree_copies;
+use crate::worktree_copy_recovery::{RecoveryDestinations, recover_pending_worktree_copies};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_owed_copy::owed_selection_of;
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_creation};
@@ -559,7 +559,7 @@ fn settle_invocation(
     // The record of an add's steps covers a creating command the ladder serves; every other command is forwarded unrecorded.
     let recorded: bool = invocation.creates && invocation.add_plan.is_some();
     if recorded {
-        begin_timing(observation.common_dir.clone());
+        begin_timing(observation.common_dir.clone(), matches!(&invocation.add_plan, Some(plan) if plan.quiet));
     }
     let settled: Result<Settlement, WorktreeCopyError> = settle_observed(invocation, &observation, run_git, stderr);
     if recorded {
@@ -591,8 +591,14 @@ fn settle_observed(
     stderr: &mut (dyn Write + Send),
 ) -> Result<Settlement, WorktreeCopyError> {
     // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.
+    // A copy is finished only into the worktree this command runs in, so no command pays for another worktree's ignored
+    // state ("Agents should never wait on each other on commits or merges").
+    let destinations: RecoveryDestinations<'_> = match crate::worktree_identity::worktree_root(&invocation.identity) {
+        Some(root) => RecoveryDestinations::OnlyThisWorktree(root),
+        None => RecoveryDestinations::NoWorktree,
+    };
     let recover_entered: bool = begin_step("recover");
-    let recover_outcome = recover_pending_worktree_copies(observation.common_dir.as_path(), &invocation.context, stderr);
+    let recover_outcome = recover_pending_worktree_copies(observation.common_dir.as_path(), destinations, &invocation.context, stderr);
     end_step(recover_entered);
     recover_outcome?;
     if !invocation.creates {
