@@ -15,8 +15,13 @@
 //! Both directories the clean reads and writes are named here,
 //! so the filling deletes nothing from the worktree itself:
 //! its only effects there are the one rename that publishes a directory the worktree did not have
-//! and `Cargo.lock` put back as checked out,
+//! and the `Cargo.lock` the checked-out one goes back over,
 //! because Cargo resolves the worktree's workspace for the clean.
+//! That lock is never written by the clean:
+//! it runs with `--locked`,
+//! a lock such a clean refuses is resolved by Cargo first,
+//! and the checked-out bytes go back only when the file still holds exactly what that resolution wrote,
+//! so a write of the person's lands in their own file and stays there.
 //! A destination that exists means a build got there first,
 //! so the staging copy is dropped and the build keeps everything it made.
 //! The staging directory,
@@ -31,8 +36,10 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::package_repair_cargo::clean_arguments;
-use crate::package_repair_cargo_lock::{read_lock, restore_lock};
+use crate::package_repair_cargo::{locked_clean_arguments, manual_command};
+/// The lock file the filling's report names,
+/// and the faces that read it and put the checked-out bytes back over a resolution's.
+use crate::package_repair_cargo_lock::{LOCK_FILE, read_lock, restore_only_the_cleans_own};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, find_program, run_tool_awaiting};
 use crate::package_repair_prewarm::{BUILD_DIRECTORY_VARIABLE, PrewarmEntry, STAGING_SUFFIX, TARGET_DIRECTORY_VARIABLE, decode};
 use crate::package_repair_request::RepairEnvironment;
@@ -171,19 +178,30 @@ Both are the wrapper's own and are removed or published when the filling ends.\n
 
 /// What:
 ///  Whether a marker is this job's:
-/// the exact text its own filling wrote.
+/// the exact text its own filling wrote,
+/// read only from a name that holds a regular file,
+/// through an open that cannot wait.
 /// Why:
 ///   The name alone is a convention anyone can type,
 /// and only the text this job writes is proof that it made the directories the name is derived from.
 /// The marker is published whole by an exclusive write,
 /// so a file at that name either holds that text or is somebody else's.
+/// A named pipe at that name would hold a plain read for ever,
+/// because opening one for reading waits for a writer that may never come,
+/// and one foreign object at the name would then stop the service's filling with no end
+/// (SPEC.md,
+/// "Every wait has a bound").
+/// `read_regular_file` opens without waiting and reads only what the descriptor proves is a file,
+/// so a pipe,
+/// a socket or a link is somebody else's and answers at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const markerClaims = (marker) => readFileSync(marker).equals(MARKER_TEXT);
+/// const markerClaims = (marker) => readRegularFile(marker, MARKER_TEXT.length + 1)?.equals(MARKER_TEXT) ?? false;
 /// ```
 fn marker_claims(marker: &Path) -> bool {
-    return matches!(std::fs::read(marker), Ok(text) if text == MARKER_TEXT);
+    let limit: u64 = (MARKER_TEXT.len() as u64).saturating_add(1);
+    return matches!(crate::private_storage::read_regular_file(marker, limit), Ok(text) if text == MARKER_TEXT);
 }
 
 /// What:
@@ -222,6 +240,10 @@ struct TheNames {
 /// same path while its first record is still queued,
 /// and then the second one removes the first one's staging copy and the first one reports a failure;
 /// the loser touches nothing but directories this job made.
+/// Another command can create the marker name between this run's look at it and its own exclusive
+/// write of it,
+/// and that write then answers that somebody's file is there:
+/// this run writes nothing there and stages under names of its own.
 ///
 /// # Errors
 ///
@@ -239,12 +261,35 @@ fn names_for(destination: &Path) -> Result<TheNames, String> {
     }
     if usual.exists() || usual_target.exists() || marker.exists() {
         // Somebody else's file or directory holds one of the names, so this run stages under names of its own.
-        let own: PathBuf = a_name_of_this_runs_own(usual.as_path());
-        let own_target: PathBuf = target_of(own.as_path());
-        return Ok(TheNames { staging: own, target: own_target, marker: None });
+        return Ok(names_of_this_runs_own(usual.as_path()));
     }
-    write_marker(marker.as_path())?;
-    return Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker) });
+    return match write_marker(marker.as_path())? {
+        TheMarkersAnswer::WrittenByThisRun => Ok(TheNames { staging: usual, target: usual_target, marker: Some(marker) }),
+        // Another command has the name: what is there is not this run's to remove, and this run stages
+        //  under names of its own.
+        TheMarkersAnswer::WrittenByAnother => Ok(names_of_this_runs_own(usual.as_path())),
+    };
+}
+
+/// What:
+///  The three names a filling of one workspace uses when another file or directory holds the usual
+/// ones:
+/// a staging name of this run's own,
+/// its target beside it,
+/// and no marker,
+/// because this run wrote none.
+/// Why:
+///   A run that removes only names it chose itself cannot delete somebody else's work,
+/// and a marker this run did not write is never its to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesOfThisRunsOwn = (usual) => { const staging = anOwnName(usual); return { staging, target: targetOf(staging) }; };
+/// ```
+fn names_of_this_runs_own(usual: &Path) -> TheNames {
+    let own: PathBuf = a_name_of_this_runs_own(usual);
+    let own_target: PathBuf = target_of(own.as_path());
+    return TheNames { staging: own, target: own_target, marker: None };
 }
 
 /// What:
@@ -269,21 +314,41 @@ fn a_name_of_this_runs_own(usual: &Path) -> PathBuf {
     return PathBuf::from(named);
 }
 
+/// What a run's exclusive write of one marker came to.
+/// Why:
+///   The marker is removed when the filling ends,
+///   and removing the name is this run's only when the write that made it was this run's:
+/// a name somebody else took is theirs,
+/// whatever it holds.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TheMarkersAnswer {
+    /// This run created the marker,
+    /// so it is this run's to remove.
+    WrittenByThisRun,
+    /// Another writer had the name already,
+    /// so this run wrote nothing there.
+    WrittenByAnother,
+}
+
 /// What:
-///  Write the marker that claims the two names of one workspace.
+///  Write the marker that claims the two names of one workspace,
+/// and say whether it is this run's.
 /// Why:
 ///   An exclusive write makes two fillings of one workspace agree on one marker instead of replacing
 /// each other's,
-/// and a marker that is already there is this job's own either way.
+/// and the answer says which of them made it:
+/// `AlreadyExists` means another command's file is at that name,
+/// which may be a person's own note,
+/// so this run neither treats it as its claim nor removes it later.
 ///
 /// # Errors
 ///
 /// A marker that cannot be written,
 /// because what the names might hold can then no longer be told from somebody's work.
-fn write_marker(marker: &Path) -> Result<(), String> {
+fn write_marker(marker: &Path) -> Result<TheMarkersAnswer, String> {
     return match crate::private_storage::write_private_file_unsynced(marker, MARKER_TEXT) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Ok(()) => Ok(TheMarkersAnswer::WrittenByThisRun),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(TheMarkersAnswer::WrittenByAnother),
         Err(error) => Err(format!("{} could not be written, so nothing of this workspace was filled ({error})", marker.display())),
     };
 }
@@ -336,6 +401,58 @@ fn remove_if_any(path: &Path) -> Result<(), String> {
     };
 }
 
+/// What the clean is told about the worktree's lock,
+/// so the report of a clean it stopped names the flag to look up.
+/// Why:
+///   The switch itself is one place,
+/// in `package_repair_cargo::locked_clean_arguments`,
+/// and the words a person reads are another,
+/// so the report spells the same flag these words name.
+const LOCK_FLAG: &str = "--locked";
+
+/// What:
+///  Why a tool ended as it did,
+/// in the words a person reads.
+/// Why:
+///   A report names what stopped the clean,
+/// and the tool's own last words name the manifest or lock it refused,
+/// so a variant's name alone is not the answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endReason = (end) => end.kind === 'failed' ? end.reason : end.kind === 'timedOut' ? 'it showed no sign of work for its quiet window and was stopped' : ceilingReason(Tool.cargo, end.ceiling);
+/// ```
+fn end_reason(end: &ToolEnd) -> String {
+    return match end {
+        ToolEnd::Succeeded => String::from("it succeeded"),
+        ToolEnd::Failed(reason) => reason.clone(),
+        ToolEnd::TimedOut => String::from("it showed no sign of work for its quiet window and was stopped"),
+        ToolEnd::CeilingReached(ceiling) => crate::package_repair_report::ceiling_reason(crate::package_repair_report::Tool::Cargo, *ceiling),
+    };
+}
+
+/// What:
+///  What a person does next when the filling's clean stopped,
+/// in the words they read.
+/// Why:
+///   The one failure this job causes by itself is a lock Cargo would have had to change,
+/// and its remedy is the lock's own command or the clean the add would have run;
+/// any other reason is the tool's,
+/// and the tool's own words name it.
+/// A person is told where their bytes went either way,
+/// so a stopped filling never leaves them guessing whether the worktree was written.
+fn what_to_do_next(entry: &PrewarmEntry, reason: &str) -> String {
+    if !reason.contains(LOCK_FILE) {
+        return String::from("The reason above names what to fix, and the next add fills the copy.");
+    }
+    return format!(
+        "Update the lock in {} (for example `cargo update --offline --workspace` there) and the next add fills the copy, or clean the worktree's \
+         own crates with `{}`, which may update the lock as your own clean would",
+        entry.root.display(),
+        manual_command(entry.root.as_path(), entry.members.as_slice()),
+    );
+}
+
 /// What:
 ///  Clean the worktree's own crates out of the staging copy.
 /// Why:
@@ -343,7 +460,9 @@ fn remove_if_any(path: &Path) -> Result<(), String> {
 /// so they must not reach the worktree,
 /// while the dependency builds hold nothing path-specific and are the reason the copy exists.
 /// Both directories are this job's own,
-/// which is what keeps the clean away from the workspace's live state.
+/// which is what keeps the clean away from the workspace's live state,
+/// and the clean itself is told to leave `Cargo.lock` alone,
+/// which is what keeps the clean out of the worktree's files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -351,13 +470,35 @@ fn remove_if_any(path: &Path) -> Result<(), String> {
 /// ```
 async fn clean_the_copy(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -> ToolRun {
     let command: ToolCommand = ToolCommand {
-        arguments: clean_arguments(entry.members.as_slice()),
+        arguments: locked_clean_arguments(entry.members.as_slice()),
         directory: entry.root.clone(),
         set: vec![
             (OsString::from(BUILD_DIRECTORY_VARIABLE), names.staging.as_os_str().to_os_string()),
             (OsString::from(TARGET_DIRECTORY_VARIABLE), names.target.as_os_str().to_os_string()),
         ],
     };
+    return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
+}
+
+/// What:
+///  Ask Cargo to resolve the worktree's workspace,
+/// which is what writes the `Cargo.lock` the clean itself must not write.
+/// Why:
+///   `cargo clean` resolves the workspace,
+/// and for a lock that no longer matches its manifest that rewrite is part of the clean;
+///  `--locked` keeps it out of the clean,
+/// so the resolution is asked for as a step of its own.
+/// The bytes it writes are Cargo's own,
+/// which is what lets the caller tell Cargo's rewrite from a person's newer write
+/// (`package_repair_cargo_lock.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runTool(cargo, { arguments: ['metadata', '--offline', '--format-version', '1'], directory: entry.root });
+/// ```
+async fn resolve_the_lock(fill: &Fill, entry: &PrewarmEntry) -> ToolRun {
+    let arguments: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"].iter().map(OsString::from).collect();
+    let command: ToolCommand = ToolCommand { arguments, directory: entry.root.clone(), set: Vec::new() };
     return run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
 }
 
@@ -475,18 +616,35 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
         return Ok(Filled::Kept);
     }
     // Cargo resolves the worktree's workspace for this clean even though it deletes only from directories of this job's
-    //  own, and that rewrites a `Cargo.lock` that no longer matches its manifest or creates one that is missing. The
-    //  worktree must stay as Git wrote it, so the lock is put back exactly as the add's own clean puts it back, keeping the
-    //  bytes the clean displaced first (`package_repair_cargo_lock.rs`).
+    //  own, and that rewrites a `Cargo.lock` that no longer matches its manifest or creates one that is missing. This job
+    //  runs after the add returned, when the person may be working in the worktree, so the clean itself must never write
+    //  that lock (`--locked`): a lock it refuses is resolved by Cargo first, and the checked-out lock goes back only when
+    //  the file still holds exactly the bytes that resolution wrote (`package_repair_cargo_lock.rs`).
     let lock_before: Option<Vec<u8>> = read_lock(entry.root.as_path());
-    let run: ToolRun = clean_the_copy(fill, entry, names).await;
-    match restore_lock(entry.root.as_path(), lock_before.as_deref(), fill.kept_in.as_deref()) {
-        None => {}
-        Some(said) => debug(TAG, format!("{}: {said}", entry.root.display()).as_str()),
+    let mut run: ToolRun = clean_the_copy(fill, entry, names).await;
+    if !matches!(run.end, ToolEnd::Succeeded) {
+        let resolved: ToolRun = resolve_the_lock(fill, entry).await;
+        if matches!(resolved.end, ToolEnd::Succeeded) {
+            let the_cleans_own: Option<Vec<u8>> = read_lock(entry.root.as_path());
+            run = clean_the_copy(fill, entry, names).await;
+            if let Some(written) = the_cleans_own.as_deref() {
+                match restore_only_the_cleans_own(entry.root.as_path(), lock_before.as_deref(), fill.kept_in.as_deref(), written) {
+                    None => {}
+                    Some(said) => debug(TAG, format!("{}: {said}", entry.root.display()).as_str()),
+                }
+            }
+        }
     }
     if !matches!(run.end, ToolEnd::Succeeded) {
         let _removed = remove_if_any(names.staging.as_path());
-        return Err(format!("the copy of {} could not be cleaned ({:?})", entry.from.display(), run.end));
+        let reason: String = end_reason(&run.end);
+        return Err(format!(
+            "the copy of {} could not be cleaned ({reason}), so nothing was published and everything staged for it was removed. The clean itself \
+             never writes the worktree's {LOCK_FILE} (`{LOCK_FLAG}`): a lock it refuses is resolved by Cargo first, and the checked-out bytes go \
+             back over bytes only that resolution wrote, so a write of yours stays yours. {}",
+            entry.from.display(),
+            what_to_do_next(entry, reason.as_str()),
+        ));
     }
     return match publish(names.staging.as_path(), entry.to.as_path()) {
         Ok(true) => Ok(Filled::Published),

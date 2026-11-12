@@ -10,6 +10,7 @@ import { setTimeout as wait, } from 'node:timers/promises';
 import { compactionPlays, } from './stand-in-pi-compaction-plays-fixture.ts';
 import { scenario, } from './stand-in-pi-log-fixture.ts';
 import { modelErrorPlays, } from './stand-in-pi-model-error-plays-fixture.ts';
+import { rateLimitPlays, } from './stand-in-pi-rate-limit-plays-fixture.ts';
 import {
   answer,
   emit,
@@ -119,10 +120,11 @@ export async function playPrompt(id: unknown,): Promise<void> {
     return;
   }
   /**
-   The scenario's play if it has one, whether it answers at once or fails first.
+   The scenario's play if it has one, whether it answers at once, fails first, or meets a rate limit.
    */
   const play = scenarioPlays.get(scenario,)
-    ?? modelErrorPlays.get(scenario,);
+    ?? modelErrorPlays.get(scenario,)
+    ?? rateLimitPlays.get(scenario,);
   if (play !== undefined) {
     play(id,);
     return;

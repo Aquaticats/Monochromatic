@@ -4,20 +4,27 @@
 //! Why:
 //!  A clean may rewrite the lock file,
 //! and a new worktree must stay as checked out;
-//! the two steps need nothing from
-//!  either clean,
+//! the two steps need nothing from either clean,
 //! so they live in a file of their own that both import:
 //! `package_repair_cargo.rs`,
 //! which cleans what the worktree already has,
 //! and `package_repair_prewarm_job.rs`,
 //! which cleans the copy the commit service fills a build directory from after the add returns.
+//! The add's clean runs while the worktree it fills was made by the same command and nobody has it yet,
+//! which `SPEC.md` records as the reason its put-back stands
+//! ("A committed `Cargo.lock` that disagrees with its manifest"),
+//! so it puts the checked-out lock back over whatever the clean left (`restore_lock`).
+//! The filling runs after the add has returned and the person may be working in the worktree,
+//! so it accepts the checked-out bytes back only over bytes its own resolution wrote
+//! (`restore_only_the_cleans_own`),
+//! and the clean it runs is the one given `--locked` (`package_repair_prewarm_job.rs`).
 //!   The clean rewrites the lock because the committed one no longer matches its manifest,
-//! and it runs in a worktree another command may already be working in,
+//! and the worktree it runs in may be one another command is already working in,
 //! so the bytes standing there when it ends can be Cargo's own rewrite
 //!  or a command or person's newer write,
 //! and nothing at that moment can tell the two apart.
 //! A comparison of the file with the snapshot cannot say who wrote it,
-//!  so the bytes that stand there are kept whole under the worktree's Git directory
+//!  so the bytes that stand there are kept whole under the repository's Git directory
 //!  before the checked-out ones are put back
 //! (the owner's rule "never discard user data";
 //! a review of `ee545033ad`,
@@ -47,7 +54,7 @@ use std::path::{Path, PathBuf};
 const TAG: &str = "packageRepairCargoLock";
 
 /// The lock file beside a workspace's root manifest.
-const LOCK_FILE: &str = "Cargo.lock";
+pub const LOCK_FILE: &str = "Cargo.lock";
 
 /// The directory,
 /// under the worktree's Git directory,
@@ -105,10 +112,60 @@ pub fn read_lock(root: &Path) -> Option<Vec<u8>> {
 /// const said = restoreLock({ root, before, keptIn }); // string | undefined
 /// ```
 pub fn restore_lock(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>) -> Option<String> {
+    return put_the_checkout_back(root, before, kept_in, None);
+}
+
+/// What:
+///  Put `Cargo.lock` back as `before` read it only when the bytes standing there are the ones the clean's own
+/// resolution of the workspace wrote,
+/// and leave whatever else stands there exactly as it is found.
+/// Why:
+///   This face is the commit service's,
+/// and it runs after the add returned,
+/// when the person may be working in the worktree:
+/// a write standing there when the clean ends may be theirs,
+/// and replacing it would be the repair discarding what a person wrote.
+/// `cargo clean` rewrites a lock that no longer matches its manifest,
+/// so its caller asks Cargo for that resolution before the clean runs and gives the clean `--locked`,
+/// which keeps the clean itself from writing the lock at all;
+/// the bytes that resolution wrote are Cargo's,
+/// so a file equal to them is the clean's own and the checked-out bytes may go back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = restoreOnlyTheCleansOwn({ root, before, keptIn, theCleansOwn }); // string | undefined
+/// ```
+pub fn restore_only_the_cleans_own(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>, the_cleans_own: &[u8]) -> Option<String> {
+    return put_the_checkout_back(root, before, kept_in, Some(the_cleans_own));
+}
+
+/// What:
+///  `restore_lock`'s work,
+/// with the write it may displace judged first when the caller knows which bytes its own clean wrote.
+/// Why:
+///   Both faces keep the bytes they displace and put the checked-out lock back;
+/// only the service can tell a clean's own write from a person's,
+///  and that answer is read before anything is written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function putTheCheckoutBack({ root, before, keptIn, onlyWhen }): string | undefined;
+/// ```
+fn put_the_checkout_back(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>, only_when: Option<&[u8]>) -> Option<String> {
     let path: PathBuf = root.join(LOCK_FILE);
     let after: Option<Vec<u8>> = std::fs::read(&path).ok();
     if after.as_deref() == before {
         return None;
+    }
+    // A chained condition keeps the two readings of one write together: whose bytes stand there, and whether they are ours.
+    if let Some(the_cleans_own) = only_when
+        && after.as_deref() != Some(the_cleans_own)
+    {
+        return Some(format!(
+            "the {LOCK_FILE} of {} was written while the clean ran and does not hold what that clean's own resolution wrote, so it is left exactly as \
+             it is found; `git diff -- {LOCK_FILE}` in that worktree shows it",
+            path.display()
+        ));
     }
     let kept: Option<PathBuf> = match (kept_in, after.as_deref()) {
         // Nothing stands there, so nothing is displaced and nothing has to be kept.
@@ -171,8 +228,8 @@ fn put_back(path: &Path, before: Option<&[u8]>) {
 /// Why:
 ///   The copy is outside the worktree,
 ///  so the checked-out tree stays clean,
-///  and inside its Git directory,
-///  so it belongs to the worktree that lost them.
+///  and inside the repository's Git directory,
+///  so a removal of the worktree that lost them does not take it with it.
 /// Its name is the lock's own path in hexadecimal
 ///  under a directory per path,
 ///  so two workspaces of one worktree never write over each other,

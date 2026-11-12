@@ -22,6 +22,14 @@
 //! the person's failure record is not the plan,
 //! since the
 //!  person's next command shows it and removes it.
+//! The workers of a round write and remove the plan's own files,
+//! each on the thread that decided its branch's push needs a new try or none,
+//! and the loop only changes the list it reads,
+//! so a round that reaches storage late cannot undo a later round's statement.
+//! A start whose read of the journal gave no answer keeps the list's directory,
+//! writes its own tries there,
+//! and reads the journal again after a pause that doubles with each read whose job outlasted its ceiling,
+//! because that read is still holding a place of the blocking bound.
 //! What a failed push's own words mean (whether it is final,
 //! whether it is counted)
 //! and the words the person reads are in `push_retry_failure.rs`;
@@ -34,8 +42,10 @@
 
 /// The positive-seconds reading shared by the wait limits.
 use crate::push_deadline_and_patience_settings::positive_seconds;
-/// The plan on disk.
-use crate::push_retry_store::{StoredPlan, load, name_of, remove_except, save};
+/// The plan on disk:
+/// what a start reads,
+/// and what the workers write.
+use crate::push_retry_store::LoadedPlans;
 /// What the retry pushes again.
 use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
@@ -185,7 +195,7 @@ impl Retrying {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; onlyWhileUnreachable } };
+/// type RetryChange = { plan: { gitDir; item; attempt; due } } | { forget: { gitDir; branchRef; onlyWhileUnreachable; taken } };
 /// ```
 #[derive(Clone, Debug)]
 pub enum RetryChange {
@@ -214,6 +224,11 @@ pub enum RetryChange {
         /// the proof that the repository is gone,
         /// whose plans are dropped only while it still is.
         only_while_unreachable: bool,
+        /// The plan the reading ended,
+        /// which the round took out of the list before the reading,
+        /// so that a repository that is back when this change lands keeps it.
+        /// Nothing for a forget that is the final word.
+        taken: Option<Due>,
     },
 }
 
@@ -250,55 +265,6 @@ fn stopped_after(applied: usize) -> bool {
 }
 
 /// What:
-///  Whether the round plans the same branch of the same Git directory again after `at`.
-/// Why:
-///   The last plan of a branch is the round's statement about it;
-/// publishing an earlier one would remove the
-///  file the worker of the last one already wrote.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// changes.slice(at + 1).some((c) => c.plan && c.plan.gitDir === gitDir && c.plan.item.branchRef === branchRef)
-/// ```
-fn planned_again_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_ref: &str) -> bool {
-    for change in &changes[at + 1..] {
-        if let RetryChange::Plan { git_dir: planned_dir, item, .. } = change
-            && planned_dir == git_dir
-            && item.branch_ref == branch_ref
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
-///  The file name of the last plan the changes after `at` write for one branch of one Git directory,
-/// or nothing.
-/// Why:
-///   A forget replayed before that plan must not remove it,
-/// and the name is known before the plan is written;
-///  only the last plan of a branch is ever published,
-/// so its name is the one to keep.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// changes.slice(at + 1).filter((c) => c.plan && sameBranch(c.plan)).map(planName).at(-1)
-/// ```
-fn last_plan_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_ref: &str) -> Option<String> {
-    let mut name: Option<String> = None;
-    for change in &changes[at + 1..] {
-        if let RetryChange::Plan { git_dir: planned_dir, item, attempt, .. } = change
-            && planned_dir == git_dir
-            && item.branch_ref == branch_ref
-        {
-            name = Some(name_of(&StoredPlan { git_dir: planned_dir.clone(), item: item.clone(), attempt: *attempt }));
-        }
-    }
-    return name;
-}
-
-/// What:
 ///  The branches whose push is waiting for a new try,
 /// with the first pause.
 /// Why:
@@ -306,15 +272,22 @@ fn last_plan_after(changes: &[RetryChange], at: usize, git_dir: &Path, branch_re
 /// so it needs no cell and no lock;
 /// workers get what is due
 ///  as owned values (`Retrying`) and hand their changes back (`RetryChange`).
-/// The list is cloned into a job of the blocking pool when the loop that owns it is a task,
-///  because a job may not borrow it;
-/// the job hands the changed list back and the clone is dropped,
-/// so only one list is ever the
-///  owner's.
+/// Only the owner of the list changes it,
+/// so a change needs no lock either;
+///  the workers never hold it.
+/// The list writes nothing:
+/// the file of a plan is written or removed by the worker that decided it,
+/// on the thread that decided it
+///  (`Replanning::keep_the_plan` and `Replanning::forget`),
+/// so no round replays a stale statement onto the journal,
+///  while the owner of the list applies the same changes to its memory here.
+/// A read that gave no answer is made again after a pause,
+///  because the plan's files stand in the journal
+/// and nothing else would try the pushes they name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class PushRetries { schedule(); forget(); takeDue(); nextWait(); apply(changes); }
+/// class PushRetries { schedule(); forget(); takeDue(); nextWait(); apply(changes); restore(); }
 /// ```
 #[derive(Clone, Debug)]
 pub struct PushRetries {
@@ -323,10 +296,18 @@ pub struct PushRetries {
     /// The waiting pushes,
     /// one per branch of a Git directory.
     waiting: Vec<Waiting>,
-    /// The directory the plan is kept in,
-    /// so that a restarted service rebuilds it;
+    /// The directory the plan's files are read from,
+    /// so that a restarted service rebuilds the list;
     /// nothing for a list kept in memory only.
+    /// The workers are told the same directory in their request,
+    /// and they are the ones that write there.
     store: Option<PathBuf>,
+    /// Whether the journal holds plans this process has not read,
+    /// so that the read is made again after a pause.
+    unread: bool,
+    /// How many reads in a row have failed,
+    /// for the growth of the pause.
+    read_failures: u32,
 }
 
 /// Methods over the list.
@@ -338,7 +319,7 @@ impl PushRetries {
 
     /// A list with this first pause.
     pub fn with_first_pause(first: Duration) -> Self {
-        return Self { first, waiting: Vec::new(), store: None };
+        return Self { first, waiting: Vec::new(), store: None, unread: false, read_failures: 0 };
     }
 
     /// What:
@@ -346,24 +327,31 @@ impl PushRetries {
     /// whose plan is kept in `directory`:
     /// the plan the service that stopped before this one
     ///  left there is rebuilt,
-    /// each branch due after its pause counted from now.
+    /// each branch due after its pause counted from now,
+    /// and a journal that could not be read is read again after a pause.
     /// Why:
     ///   A pause that was running when the service stopped starts again,
     /// so a service restarted in a loop does not push every few
     ///  seconds;
     /// the try number is kept,
     /// so the pauses go on growing.
+    ///  A read that met a file it could not read leaves pushes it did not see,
+    /// and their plans stand in the journal:
+    /// the directory is read again (`restore`),
+    /// so the service does not run its whole life without the tries an earlier one promised.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const retries = new PushRetries(first, dir); for (const saved of await load(dir)) retries.plan(saved, now + pauseBefore(saved.attempt, first));
+    /// const retries = new PushRetries(first, dir); const read = await loadReporting(dir); for (const saved of read.plans) retries.plan(saved, now + pauseBefore(saved.attempt, first)); retries.unread = read.unread;
     /// ```
     pub fn restored(first: Duration, directory: &Path) -> Self {
-        let mut list: Self = Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()) };
+        let mut list: Self = Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()), unread: false, read_failures: 0 };
+        let read: LoadedPlans = crate::push_retry_store::load_reporting(directory);
         let now: Instant = Instant::now();
-        for saved in load(directory) {
+        for saved in read.plans {
             list.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, first) });
         }
+        list.unread = read.unread;
         return list;
     }
 
@@ -373,20 +361,134 @@ impl PushRetries {
         return Self::restored(first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()), directory);
     }
 
+    /// What:
+    ///  A list for a service that starts now without having read its journal:
+    /// nothing is known about the pushes an earlier service left,
+    /// the list knows where they are kept,
+    /// and the read is made again after a pause.
+    /// Why:
+    ///   The read of a journal that stopped answering is bounded,
+    /// so a service starts without it rather than never starting;
+    /// the plan's files stand there all the same,
+    /// so the service starts with what it can do now
+    /// and asks again,
+    /// instead of leaving those pushes to a start that nothing requires to arrive.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// new PushRetries(first, dir, { unread: true, failures: 1 })
+    /// ```
+    pub fn unread(first: Duration, directory: &Path) -> Self {
+        return Self { first, waiting: Vec::new(), store: Some(directory.to_path_buf()), unread: true, read_failures: 1 };
+    }
+
+    /// `unread` with the first pause the variable gives or the default.
+    pub fn unread_from_environment(directory: &Path) -> Self {
+        return Self::unread(first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()), directory);
+    }
+
     /// The pause before the first new try.
     pub fn first(&self) -> Duration {
         return self.first;
     }
 
-    /// The directory the plan is kept in,
+    /// The directory the plan's files are kept in,
     /// or nothing for a list kept in memory only.
     pub fn plans(&self) -> Option<&Path> {
         return self.store.as_deref();
     }
 
+    /// Whether the journal holds plans this process has not read,
+    /// so that the loop keeps a wake for reading it again.
+    pub fn needs_restore(&self) -> bool {
+        return self.unread;
+    }
+
+    /// How long to wait before the next read:
+    /// the first pause,
+    /// doubled for each read that failed in a row,
+    /// never past the longest pause between two tries.
+    pub fn restore_pause(&self) -> Duration {
+        return pause_before(self.read_failures.max(1), self.first);
+    }
+
+    /// What:
+    ///  Note that a read of the journal outlasted its ceiling and gave no answer,
+    /// so it is owed again at the next pause.
+    /// Why:
+    ///   The read is tried again rather than given up on,
+    /// and that job is still holding a place of the blocking bound until the journal answers,
+    /// so a journal that stopped answering may not be read at the shortest pause for ever:
+    /// the pause grows as it does for a plan and the attempts thin out.
+    /// A job the system gave no thread for promises that nothing ran and holds no place,
+    /// so that answer does not come here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// retries.restoreCameToNothing(); // the next read is owed at pauseBefore(++readFailures, first)
+    /// ```
+    pub fn restore_came_to_nothing(&mut self) {
+        self.unread = true;
+        self.read_failures = self.read_failures.saturating_add(1);
+    }
+
+    /// What:
+    ///  Reads the journal again and plans what it holds that this process does not,
+    /// each branch due after its pause counted from now;
+    /// gives the Git directories this made known.
+    /// Why:
+    ///   The read a service makes as it starts has a ceiling,
+    /// and a journal that gave no answer then may answer now;
+    /// the pushes it names are the ones an earlier service promised to try,
+    /// so nothing else would try them.
+    /// A plan this process already holds is newer than any file,
+    /// because this process wrote nothing to the journal since that plan,
+    ///  so it is never replaced by a read.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const found = retries.restore(); for (const dir of found) await drain(dir);
+    /// ```
+    pub fn restore(&mut self) -> Vec<PathBuf> {
+        if !self.unread {
+            return Vec::new();
+        }
+        let Some(directory) = self.store.clone() else {
+            self.unread = false;
+            return Vec::new();
+        };
+        let read: LoadedPlans = crate::push_retry_store::load_reporting(directory.as_path());
+        let now: Instant = Instant::now();
+        let mut found: Vec<PathBuf> = Vec::new();
+        for saved in read.plans {
+            if self.holds(saved.git_dir.as_path(), saved.item.branch_ref.as_str()) {
+                continue;
+            }
+            if !found.contains(&saved.git_dir) {
+                found.push(saved.git_dir.clone());
+            }
+            self.waiting.push(Waiting { git_dir: saved.git_dir, item: saved.item, attempt: saved.attempt, due: now + pause_before(saved.attempt, self.first) });
+        }
+        self.unread = read.unread;
+        self.read_failures = if self.unread { self.read_failures.saturating_add(1) } else { 0 };
+        return found;
+    }
+
+    /// Whether the list already plans a try of this branch of this Git directory.
+    fn holds(&self, git_dir: &Path, branch_ref: &str) -> bool {
+        for entry in &self.waiting {
+            if entry.git_dir == git_dir && entry.item.branch_ref == branch_ref {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// Plan try number `attempt` of the branch of `item`,
     /// replacing any plan for the same branch;
     /// gives the pause.
+    /// Writes nothing:
+    /// the worker that decided the try keeps the file (`Replanning::keep_the_plan`).
     pub fn schedule(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, now: Instant) -> Duration {
         let pause: Duration = pause_before(attempt, self.first);
         self.plan(git_dir, item, attempt, now + pause);
@@ -398,99 +500,84 @@ impl PushRetries {
     fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, item.branch_ref.as_str());
         self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due });
-        if let Some(directory) = self.store.as_deref()
-            && let Err(reason) = save(directory, &StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt })
-        {
-            crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
-        }
     }
 
     /// Drop the plan of a branch:
     /// its push landed,
     /// or the person must act.
+    /// Writes nothing:
+    /// the worker that decided it removes the file (`Replanning::forget`).
     pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.forget_keeping(git_dir, branch_ref, &[]);
-    }
-
-    /// `forget` for a branch whose plan the rest of this round keeps,
-    /// under the file names in `keep`:
-    /// those are newer statements than the forget and stay on disk.
-    pub fn forget_keeping(&mut self, git_dir: &Path, branch_ref: &str, keep: &[String]) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
-        if let Some(directory) = self.store.as_deref() {
-            remove_except(directory, git_dir, branch_ref, keep);
-        }
     }
 
     /// What:
-    ///  Apply what the workers of a round asked,
+    ///  Apply what the workers of a round asked to the list this process reads,
     /// in the order they asked it.
     /// Why:
-    ///   A forget is applied after the round,
-    /// so a plan another worker of the same round kept on disk is already there;
-    /// its
-    ///  file name is known,
-    /// so the forget keeps it and the round's own plan stays.
-    ///  A plan the same round plans again later is not published at all:
-    /// the last plan of a branch is the round's statement,
-    ///  and publishing an earlier one would remove the file the last one's worker already wrote,
-    /// leaving a forget
-    ///  replayed between them nothing to keep
-    /// and a restarted service no plan where a notice promised a retry.
+    ///   The workers told the journal what each change is when they made it:
+    /// the file of a plan is published before the notice that promises the try,
+    /// and the file of a branch that needs no try goes with the record that says so.
+    /// So this applies the same changes to the list and touches no file:
+    ///  a change replayed here late
+    /// cannot take away a plan a later round wrote,
+    /// and a change that never reached a thread here
+    ///  leaves the journal holding what the worker itself wrote.
+    ///  A forget that rests on a reading of the filesystem,
+    /// the proof that a repository is gone,
+    /// is applied only while that directory is still missing:
+    ///  a repository renamed back by now is reachable,
+    /// and its plan is the only scheduled backup of its commits.
+    /// A forget whose reading went stale puts the plan that reading ended back,
+    ///  because the round took it out of this list before it drained the directory:
+    /// without that,
+    ///  the running service keeps no plan and no wake for a repository that is there again,
+    /// and the promised
+    ///  push waits for a service restart.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// for (const [at, change] of changes.entries()) {
-    ///   if (change.forget) forgetKeeping(branch, lastPlanName(changes.slice(at + 1)))
-    ///   else if (!plannedAgainAfter(changes, at)) plan(change)
+    /// for (const change of changes) {
+    ///   if (change.forget && change.onlyWhileUnreachable && isDirectory(change.gitDir)) {
+    ///     plan(change.forget.taken);
+    ///     continue;
+    ///   }
+    ///   change.forget ? forget(change) : plan(change);
     /// }
     /// ```
     pub fn apply(&mut self, changes: Vec<RetryChange>) {
-        for index in 0..changes.len() {
+        // How many of the changes this call has applied, for the control that kills a service inside it; nothing outside one.
+        #[cfg(test)]
+        let mut applied: usize = 0;
+        for change in changes {
             // A service killed here has applied the changes before this one and nothing after it.
             #[cfg(test)]
-            if stopped_after(index) {
-                return;
-            }
-            match &changes[index] {
-                RetryChange::Plan { git_dir, item, attempt, due } => {
-                    if planned_again_after(changes.as_slice(), index, git_dir, item.branch_ref.as_str()) {
-                        continue;
-                    }
-                    self.plan(git_dir.as_path(), item, *attempt, *due)
+            {
+                if stopped_after(applied) {
+                    return;
                 }
-                RetryChange::Forget { git_dir, branch_ref, only_while_unreachable } => {
+                applied += 1;
+            }
+            match change {
+                RetryChange::Plan { git_dir, item, attempt, due } => self.plan(git_dir.as_path(), &item, attempt, due),
+                RetryChange::Forget { git_dir, branch_ref, only_while_unreachable, taken } => {
                     // The plan a proof of a missing repository ends was read before this change was applied, and a repository
                     //  renamed back is there again: a plan that may still run is not dropped on a stale reading.
-                    if *only_while_unreachable && git_dir.is_dir() {
+                    if only_while_unreachable && git_dir.is_dir() {
+                        // The plan this reading ended is the one the round took out of the list before its drain
+                        //  (`service_work_run_round.rs`, `plan_the_round`), so putting it back is what leaves the running
+                        //  service with the push it promised; the try that plan was for never ran, so it is due now.
+                        //  Only a drain of an unreachable directory asks for this kind of forget, and such a drain runs no
+                        //  push and asks nothing else of that branch, so the plans of a branch here are this one's alone.
+                        if let Some(plan) = taken {
+                            self.plan(git_dir.as_path(), &plan.item, plan.attempt, Instant::now());
+                        }
                         continue;
                     }
-                    let keep: Vec<String> = last_plan_after(changes.as_slice(), index, git_dir, branch_ref).into_iter().collect();
-                    self.forget_keeping(git_dir.as_path(), branch_ref.as_str(), keep.as_slice());
+                    self.forget(git_dir.as_path(), branch_ref.as_str());
                 }
             }
         }
-    }
-
-    /// What:
-    ///  Apply what the workers of a round asked,
-    /// without writing the plan's own files:
-    /// the list changes here and the journal keeps what it holds.
-    /// Why:
-    ///   A caller that polls the runtime may not write storage itself,
-    /// and a job the system gave no thread for wrote nothing,
-    ///  while the worker of each plan already wrote the file it promised:
-    /// the list is what this call must keep,
-    /// and the next round writes the plan's files again when a thread can start.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// applyWithoutWriting(changes) // the store is out of the way for the length of the apply
-    /// ```
-    pub fn apply_without_writing(&mut self, changes: Vec<RetryChange>) {
-        let store: Option<PathBuf> = self.store.take();
-        self.apply(changes);
-        self.store = store;
     }
 
     /// Remove and return the plans of this Git directory that are due at `now`.

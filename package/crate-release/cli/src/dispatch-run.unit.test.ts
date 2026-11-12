@@ -489,6 +489,65 @@ await describe({
               },
             }),
             it({
+              name: 'skips the gate for an alpha and says a real release of one does not wait for it either',
+              fn: async () => {
+                const result = await record({
+                  dispatchOptions: {
+                    ...options,
+                    to: '0.6.1-alpha.11',
+                    dispatchGate: gateCall,
+                  },
+                  result: { status: 0, stdout: 'https://github.com/o/r/actions/runs/8\n', stderr: '' },
+                });
+                expect(result.status).toBe(0);
+                expect(result.gateCalls).toHaveLength(0);
+                expect(result.calls).toHaveLength(1);
+                const text = result.printed.join('\n');
+                expect(text).toContain('no dispatch gate: an alpha release does not wait for node bin/host-controls.ts');
+                expect(text).not.toContain('Waiting for node bin/host-controls.ts');
+                expect(result.printed.at(-1)).toBe('RELEASE STARTED https://github.com/o/r/actions/runs/8');
+              },
+            }),
+            it({
+              name: 'tells the truth in an alpha dry run: it claims no missing evidence about a gate a real alpha skips',
+              fn: async () => {
+                const result = await record({
+                  dispatchOptions: {
+                    ...options,
+                    to: '0.6.1-alpha.11',
+                    dryRun: true,
+                    dispatchGate: gateCall,
+                  },
+                  result: { status: 0, stdout: 'https://github.com/o/r/actions/runs/9\n', stderr: '' },
+                });
+                expect(result.status).toBe(0);
+                expect(result.gateCalls).toHaveLength(0);
+                const text = result.printed.join('\n');
+                expect(text).toContain('no dispatch gate: an alpha release does not wait for node bin/host-controls.ts');
+                expect(text).not.toContain('proves nothing about it');
+                expect(result.printed.at(-1)).toBe('RELEASE DRY RUN STARTED https://github.com/o/r/actions/runs/9');
+              },
+            }),
+            it({
+              name: 'still waits for the gate of a beta, a release candidate and a plain number',
+              fn: async () => {
+                const runs = await Promise.all(['0.6.1-beta.1', '0.6.1-rc.1', '0.6.1', '0.6.1-dev.1'].map(async function dispatched(to) {
+                  return await record({
+                    dispatchOptions: {
+                      ...options,
+                      to,
+                      dispatchGate: gateCall,
+                    },
+                  });
+                }));
+                for (const result of runs) {
+                  expect(result.status).toBe(0);
+                  expect(result.gateCalls).toEqual([gateCall]);
+                  expect(result.printed.join('\n')).toContain('Waiting for node bin/host-controls.ts');
+                }
+              },
+            }),
+            it({
               name: 'runs the gate through the streaming runner when the caller supplies one, so an hour of controls stays visible',
               fn: async () => {
                 /**

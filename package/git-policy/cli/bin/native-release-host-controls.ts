@@ -1,6 +1,7 @@
 /**
- The btrfs controls a wrapper release waits for: judgement of one run, the gate around it, and the entry point a release
- calls.
+ The btrfs controls a release that is not an alpha waits for: judgement of one run, the gate around it, and the entry
+ point a release calls. An alpha release never runs it (the owner's standing rule of 2026-11-11, "make the release
+ pipeline avoid running any extra work for alphas"), so the task stays the one a person can repeat on its own.
 
  A green run is judged by names, not by an exit status alone: the run must print the status line of each control the
  requirements name, so a run that silently skipped them is no evidence (rule `TRV` in `AGENTS.md`). The one `BTRFS

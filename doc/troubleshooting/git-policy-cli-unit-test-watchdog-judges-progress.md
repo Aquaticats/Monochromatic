@@ -217,7 +217,10 @@ the unit-test run showed no sign of work for 120.1 s (no task able to run or wai
 Since 2026-11-11 the line ends `and no process or task started`:
 a figure that fell is a task that ended or one the look could not read,
 and neither is the run working,
-so only a figure that grew counts (`Judge::observe`).
+so only a task whose own figures grew counts (`Judge::observe`,
+amended later that day by the review of pass 9 below:
+the totals a look adds up fall when a task ends,
+so the tasks themselves are compared).
 
 A test that hangs from its start ends after the window plus up to the runner's own 60-second line:
 libtest prints `has been running for over 60 seconds` at 60 s,
@@ -421,6 +424,41 @@ and 0.092 s and 0.095 s inside the whole library suite.
   The install log's flush of a torn tail (`worktree_copy_install_log.rs:253`) is still not exercised under the skip
   answer,
   because the controls that open a log always open a whole one.
+
+### The whole library suite on this host
+
+`mise exec -- cargo nextest run --locked --offline --lib --no-fail-fast` in one 600% CPU,
+12 GiB cgroup took 1311 s and printed
+`6607 tests run: 6603 passed (10 slow), 3 failed, 1 timed out, 19 skipped`.
+
+Four problems came out of it.
+
+- `testing::run_progress::tests::a_stuck_run_ends_its_process` hit nextest's `300.010 s`
+  timeout,
+  because it waited for its child with `run_child`,
+  which had no bound at all.
+  Every control's child is now waited for inside `CHILD_DEADLINE`
+  (both `run_child` callers use `run_child_with_stderr_until`).
+  With that child arming no watcher the control fails after `45.123 s` with
+  `the watchdog ended the child that stopped moving`,
+  where the same runaway child held the test to the runner's limit before.
+- `a_stuck_run_ends_its_process_though_its_report_cannot_be_written` failed at 45.071 s
+  and `a_wait_does_not_keep_the_watchdog_alive` at 45.068 s:
+  both waited out `CHILD_DEADLINE`,
+  so no watcher ended those children in 45 s.
+  The same controls pass alone (1.61 s each),
+  in the `testing::` family (`31 tests run: 31 passed`),
+  and beside the `subvolume::` family at 2 CPUs and at 6 CPUs,
+  where six traced children all ended at 1.5 s with `working: false` and one unchanged figure.
+  What held them in that one run is not measured.
+  A look that is never taken cannot end anything,
+  so a child the host never schedules is one candidate;
+  the accounting change cannot be the cause,
+  because it removes one term from the figure judged and leaves every other read where it
+  was,
+  so a run can only be judged quiet sooner than before.
+- `repair::package_repair_prewarm::tests::a_worktree_added_again_at_the_same_path_gets_its_own_filling`
+  failed in 0.028 s and belongs to another family.
 
 ### What is not claimed
 
@@ -670,8 +708,277 @@ Measured on this host on 2026-11-09:
 The watchdog controls after both fixes:
 `14 tests run: 14 passed`.
 
-## What does not work
+## The two-watchers control in the alpha.10 gate (2026-11-11)
 
+### Symptom
+
+The wrapper's 0.6.1-alpha.10 release gate failed one test of 7574.
+The unit is `gpc-gate-wrapper-alpha-10-on-b96767962c-20261111T053330-0500`:
+the suite in a 2-CPU container of 2 GiB beside other sessions' builds.
+
+```text
+FAIL [   5.214s] (5603/7574) monochromatic-git-policy-cli testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive
+thread 'testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive' (89663) panicked at src/native/testing/run_progress_tests.rs:386:5:
+assertion `left == right` failed: a watcher ended the process:
+
+  left: None
+ right: Some(6)
+```
+
+That quoted line is `run_progress_tests.rs:386` of the gate's own commit;
+on this branch the same assertion sits at `run_progress_tests.rs:455`.
+
+`left: None` is a child that ended with no signal,
+so the control's first two assertions had already passed:
+the child had printed `watchers: 2`
+and then slept its five seconds to the end,
+and neither of its two watchers ended it in time.
+
+### What was measured
+
+A standalone probe repeated the same reads:
+a thread read its own `/proc/self/task/<tid>/stat` and then `io` every 500 ms,
+and took the second figure off the first as the look did.
+Its judged figure moved 4 times in 20 looks of a thread doing nothing,
+every move exactly one byte,
+and every move at a look where that stat line's own length changed:
+330 to 331 bytes,
+with `minflt` and `utime` gaining a digit.
+
+The arithmetic says why.
+Every file a look reads has its length taken off the next look
+(`Tally::read_bytes` and `note_a_reader_s_own_readings`),
+so the figure a look judged was `R0 + s_k + sum(R_j - a_j)`,
+where `s_k` is the length of the caller's own stat line.
+That line was read before the `io` read that measures the caller,
+so it was the one length that never cancelled.
+`R_j - a_j` measured 0:
+an admitted read's length equals the bytes the read returned.
+
+The real child ran ten times on this host,
+in a 2-CPU cgroup capped at 3 GiB beside the package's own `subvolume::` family,
+and never under synthetic load.
+A trace of every look named each ending:
+
+```text
+abort times: 1.5 1.5 2.0 2.0 2.0 2.5 2.5 2.5 2.7 s
+the tenth run exited normally after 5.0 s
+```
+
+A passing run's trace,
+cut to the figures that matter:
+
+```text
+watch tid=2005277 window_ms=1000 own_stat_len=332
+look tid=2005277 ms=500 taken=Some(Look { bytes: 8738, ticks: 0, working: false, members: 2 }) own_stat_len=333
+look tid=2005277 ms=1001 taken=Some(Look { bytes: 8739, ticks: 0, working: false, members: 2 }) own_stat_len=333
+look tid=2005277 ms=1501 taken=Some(Look { bytes: 8739, ticks: 0, working: false, members: 2 }) own_stat_len=333
+look tid=2005277 ms=2001 taken=Some(Look { bytes: 8739, ticks: 0, working: false, members: 2 }) ending=Some(Quiet(1.000698561s))
+```
+
+The judged figure moved by a byte between two looks of a run that did nothing,
+and the probe shows such a move is the stat line's own length change.
+Each move restarted the one-second quiet clock.
+
+The run that exited normally shows the rest,
+verbatim:
+
+```text
+watch tid=1986573 window_ms=1000 own_stat_len=333
+look tid=1986573 ms=4108 taken=Some(Look { bytes: 8739, ticks: 0, working: false, members: 2 }) previous=Some(Look { bytes: 8739, ticks: 0, working: false, members: 2 }) ending=None readers=[1986572, 1986573] own_stat_len=333
+look tid=1986573 ms=4609 taken=Some(Look { bytes: 8739, ticks: 0, working: false, members: 2 }) previous=Some(Look { bytes: 8739, ticks: 0, working: false, members: 2 }) ending=None readers=[1986572, 1986573] own_stat_len=333
+look tid=1986573 ms=5109 taken=Some(Look { bytes: 8738, ticks: 0, working: false, members: 2 }) previous=Some(Look { bytes: 8738, ticks: 0, working: false, members: 2 }) ending=None readers=[1986572, 1986573] own_stat_len=332
+```
+
+Both watchers' first look came at 4108 ms,
+so the process was not scheduled for four seconds of its five.
+Of the two looks that followed,
+the last one moved:
+the figure 8739 to 8738,
+with that thread's stat line 333 to 332.
+Without that move the look at 5109 ms would have judged 1.502 s quiet and ended the child.
+
+### Root cause
+
+Two defects,
+and the control needed both removed.
+
+- The look judged the length of the reader's own stat line.
+  `package/git-policy/cli/src/native/testing/run_progress.rs` read the caller's stat first
+  and its `io` second,
+  so the stat read sat inside the figure the `io` read measured and was never taken off:
+
+  ```rust
+  let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return 0 };
+  self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
+  ...
+  let io: String = std::fs::read_to_string(task.join("io")).unwrap_or_default();
+  let work: u64 = bytes_in(io.as_str()).saturating_sub(own_reads);
+  ```
+
+  A reader's counters gain digits as it works,
+  so the figure moved more often the more loaded the box was,
+  and a sleeping run looked like it kept moving.
+  `look` now reads the caller's own `io` before anything else it reads
+  (`run_progress.rs:381`, through `look`'s first call at `run_progress.rs:573`).
+  `add_the_callers_own_work` sat at `run_progress.rs:319` on this branch;
+  the merge of this branch with the one-reader-per-thread fix left the same accounting in
+  `add_the_readers_own_counters` (`run_progress.rs:380`).
+  That is the only moment its counters hold the reader's work with none of its readings,
+  and every other read of the look is a known length taken off the next look.
+- The control raced its own child.
+  `child_that_sleeps_under_two_watchers` slept five seconds and then returned,
+  and the parent ran it with `run_child`,
+  which has no deadline.
+  So the control passed or failed on whether a watcher judged the run quiet inside those five
+  seconds,
+  never on whether two watchers can keep each other alive.
+  The child now waits for ever on a channel nothing sends to,
+  and the parent runs it with `run_child_with_stderr_until`,
+  whose `CHILD_DEADLINE` (45 s in `run_progress_tests.rs:254`) turns a watcher that never ends it
+  into the control's failure.
+
+### The controls now
+
+- `a_readers_own_stat_line_is_not_the_runs_work` (`run_progress_tests.rs:494`) asks the
+  accounting directly and needs no load.
+  The test thread registers as a reader,
+  takes a look,
+  renames itself with `prctl(PR_SET_NAME)` (a known shorter `comm` and no read or write at all),
+  takes a second look,
+  and requires the judged bytes not to move.
+  The stat line's own shrink is asserted beside it,
+  so a rename that changed nothing cannot pass the control.
+- `two_watchers_do_not_keep_each_other_alive` (`run_progress_tests.rs:448`) asks what it always
+  asked,
+  and only a watcher can answer it now.
+
+### Verification
+
+With the old read order planted back in `look`:
+
+```text
+thread 'testing::run_progress::tests::a_readers_own_stat_line_is_not_the_runs_work' panicked at src/native/testing/run_progress_tests.rs:454:5:
+assertion `left == right` failed: the reader's own stat line shrank from 333 to 320 bytes between the two looks and the run showed nothing, so the figures judged must not move
+  left: 17907
+ right: 17920
+Summary [   0.015s] 1 test run: 0 passed, 1 failed, 6625 skipped
+```
+
+13 bytes were the `comm` field.
+The run showed nothing at all.
+
+With `look` leaving out only the calling reader,
+so that two watchers count each other's readings:
+
+```text
+thread 'testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive' (2830503) panicked at src/native/testing/run_progress_tests.rs:392:46:
+a watcher ended the child waiting under two of them
+FAIL [  45.057s] (1/1) monochromatic-git-policy-cli testing::run_progress::tests::two_watchers_do_not_keep_each_other_alive
+Summary [  45.069s] 1 test run: 0 passed, 1 failed, 6625 skipped
+```
+
+Restored and run on the branch:
+`16 tests run: 16 passed` (`testing::run_progress`),
+`31 tests run: 31 passed` (`testing::`),
+and the two-watchers control in 1.610 to 1.615 s.
+The same ten runs in the same loaded cgroup aborted 10 of 10 (`status 134`) after the fix,
+against 9 of 10 before it.
+
+### What is not claimed
+
+- Which of the two ingredients tipped the gate's own run is not measured.
+  The reproduction's failing run had both:
+  four seconds without a look,
+  and a one-byte move at the look that could still have ended the child.
+- A thread that takes a look without registering is judged with its whole `rchar`,
+  so its own readings move the figure at every look.
+  Every reader in the wrapper registers before it looks:
+  a watcher in `watch`,
+  and a wait in `test_support`.
+  and no control exercises that path's figures.
+- The loaded family run also failed
+  `subvolume::fs_beneath_directory_chain::tests::a_path_deeper_than_a_chain_may_keep_is_walked_one_descriptor_at_a_time`
+  once with `Os { code: 24, kind: TooManyOpenFiles, message: "Too many open files" }`.
+  It passed alone in 1.650 s and in a repeat of the same 331-test family (`331 passed`).
+  It measures its own descriptor budget while the fixture's watchdog reads `/proc`,
+  and that race belongs to whoever owns that test.
+
+### The read-error accounting audit, 2026-11-11T09:15:03-05:00
+
+A cross-vendor audit read the source of `426c4022f4` and `bbee0cd9e8`
+in a worktree of its own and confirmed the read order:
+everything before the caller's `io` read is memory work.
+`the_readers` clones the mutex-protected vector (`run_progress.rs:216`),
+and `look` formats paths and copies reader identifiers (`run_progress.rs:561` to `572`)
+before the first filesystem read (`run_progress.rs:381`, through `look`'s call at `run_progress.rs:573`).
+It found two gaps on read-error paths,
+and both held.
+
+#### Root cause
+
+A read whose text cannot be decoded delivered bytes that the decode threw away,
+so those bytes were never taken off the next look.
+The caller's stat read was written this way (`run_progress.rs:349` as it stood before this fix,
+which is the commit the audit read; the file has moved since):
+
+```rust
+let Ok(stat) = std::fs::read_to_string(task.join("stat")) else { return };
+self.read_bytes = self.read_bytes.saturating_add(stat.len() as u64);
+```
+
+A Linux task name may hold a byte that is not UTF-8 (`prctl(PR_SET_NAME)` takes any bytes),
+and `read_to_string` then returns an error after consuming the whole stat line.
+The same shape sat in `add_a_readers_disk_wait` and in `add_task`,
+and in `children_of`.
+The second gap was the same family:
+a look that judged nothing returned before `note_a_reader_s_own_readings`,
+so the reads it had already made were never booked.
+
+#### The fixes
+
+- `read_a_tasks_file` (`run_progress.rs:236`) reads the bytes and decodes them lossily,
+  and the length booked is the length of the read,
+  including what a read delivered before it failed.
+  Every `/proc` read of the look goes through it
+  (`run_progress.rs:381`
+  and `385`
+  and `407`
+  and `417`
+  and `425`
+  and `523`).
+- The booking moved before the look is judged readable (`run_progress.rs:591`),
+  so no look leaves its own readings behind,
+  whatever it could read.
+
+#### Verification
+
+- `a_task_name_that_is_not_utf8_is_still_the_readers_own_reading`
+  (`run_progress_tests.rs:529`) renames the reader's own thread to `reader` plus a byte that
+  no UTF-8 sequence holds,
+  takes two looks,
+  renames it back,
+  and requires the judged bytes not to move.
+  With `read_to_string` planted back for the caller's stat it failed in 0.011 s with
+  `both looks read the same undecodable stat line and the run showed nothing, so the figures
+  judged must not move`,
+  `left: 17579`,
+  `right: 17254`:
+  325 bytes were the stat line it could not decode.
+  With the byte read it passes.
+- `testing::run_progress` after both fixes:
+  `17 tests run: 17 passed`.
+  `testing::`:
+  `32 tests run: 32 passed`.
+- The audit's own probe patch,
+  which it had kept beside this record,
+  is deleted:
+  its two controls asserted the behaviour of the two defects,
+  so applying it after the fixes would have failed for the right reason and been read as a
+  regression.
+  Its measured outputs are quoted above and its findings live here.
+
+## What does not work
 - Raising the wall clock:
   it only moves the load at which a working test dies.
   At load 70 the heaviest test took 69 s,
@@ -742,8 +1049,8 @@ and that control passed alone:
 
 The cause is not measured to a line.
 `look` takes the bytes each reader recorded for its own readings off the counters
-(`Reader::own_reads`,
-`note_a_reader_s_own_reads`),
+(`Reader::own_readings`,
+`note_a_reader_s_own_readings`),
 so a reading by another reader that lands between the two counter readings of one look
 is not taken off,
 and two readers can then look like work at every window.
@@ -898,6 +1205,181 @@ each with the watchdog file it guards put back:
   What this change fixes is that a control no longer depends on it to end a hung child.
 - The two falling-figure and two-registration controls are driven by made-up looks and by a real thread,
   not by a task that vanished under a load average of 100.
+
+## The cross-vendor review of pass 9 and what it found (2026-11-11T14:18:00-05:00)
+
+A reviewer of another vendor read the watchdog of this tree
+(`package/git-policy/cli/src/native/testing/run_progress.rs` and its sidecar)
+and reported three defects.
+All three held on `fc9f7f5f4b`,
+each was shown by a control that failed before its fix,
+and each is fixed here.
+Nothing of the shipped wrapper changes:
+all three are in the test-only module that arms the watchdog and in the controls that start a child of their own.
+
+### The judgment read the totals, so a task that ended hid one that moved
+
+`Judge::observe` compared the totals of the look
+(`run_progress.rs`,
+the `moved` line of `observe`).
+A total is a sum over the tasks one look found,
+and a task that ends takes every byte and tick it moved out of that sum,
+so a worker that moves less than the task the look before found makes every total smaller than the one before it.
+Only growth counted,
+so such a worker was never movement,
+and the run was ended once the window passed.
+
+Measured on this host on 2026-11-11 through the real look of that tree,
+with a worker task that wrote 64 KiB and then waited for its next order
+and a task that wrote 3 MB,
+2.2 MB and
+1.4 MB and was then let go:
+
+```text
+look 0: bytes=3093960 ticks=0 members=2 working=false | the worker moved 65536 bytes of its own
+look 1: bytes=2374539 ticks=0 members=2 working=false | the worker moved 65630 bytes of its own
+look 2: bytes=1655121 ticks=0 members=2 working=false | the worker moved 65632 bytes of its own
+judgment over a 1 s window: Some(Quiet(1s))
+```
+
+No task was able to run or waiting for the disk at any of those looks,
+and that state is the only other sign the judge reads,
+so the run that moved 64 KiB between every pair of looks was judged quiet.
+At the shipped 120 s window the same shape aborts a test that never stopped working.
+
+`Look` now carries what each task had moved (`TaskFigures`,
+`testing/run_progress_look_figures.rs`),
+and `Judge::observe` compares every task with the figures that task showed in the look before:
+
+- a task whose own bytes or ticks grew is work;
+- a task a look finds where the look before found none is a task that started;
+- a task that ended is not work,
+  so the totals may fall without ending the run.
+
+Both directions are controlled:
+
+- `a_run_whose_figures_only_fall_is_ended` still ends a run whose tasks each moved less;
+- `a_task_that_keeps_moving_keeps_the_run_alive_though_the_totals_fall` is the new control.
+  With the totals read back (planted in `observe`),
+  it failed with
+  `assertion left == right failed: step 5: the worker moved`,
+  `left: Some(Quiet(2s))`,
+  `right: None`;
+  with the tasks read it passes.
+
+The totals stay in `Look` because the report and the controls name them,
+and one place adds a task's figures to the totals and to the tasks (`Tally::note_task`),
+so the two cannot disagree.
+The shipped wait for a push already judged this way,
+by process number and start time
+(`push/push_progress.rs`,
+`Meter::observe`),
+so the two judges read the same evidence again.
+
+### A look without a registration forgot its own readings
+
+`look_now` registered the calling thread for the look it took,
+and the registration carried the bytes that look read
+(`Reader::own_readings` before this change).
+The registration was dropped when `look_now` returned,
+so its readings were forgotten,
+and the next look counted the bytes of the look before as the run's work.
+Every look then grew the run's figure,
+so a run that only reads it was never judged quiet,
+which is a wait with no bound of its own.
+
+Measured on 2026-11-11 on the tree of `fc9f7f5f4b`,
+with the control `a_look_without_a_registration_does_not_count_its_own_readings_as_work`:
+
+```text
+assertion `left == right` failed: the readings the look before took are the run's work, so an idle thread looks busy at every look
+  left: 19013
+ right: 18156
+```
+
+857 bytes is what one look of this host reads from `/proc`.
+
+The readings are a thread-local figure now (`OWN_READINGS`),
+so they belong to the thread and not to a registration,
+and a look taken with no registration of its own is taken off the next look of that thread.
+The control passes,
+and so does `a_thread_inside_two_waits_is_left_out_of_the_run_once`,
+which is the registration's own case.
+
+### A control's output collection waited for a process it never started
+
+`run_child_with_stderr_until` waited for its child through `CHILD_DEADLINE`
+and then read the child's output with `wait_with_output`
+(`run_progress_tests.rs`).
+`wait_with_output` reads a pipe to its end,
+and a pipe ends only when every process holding its write end lets go:
+a process the child started inherits the child's standard output and keeps that end open after the child ends,
+so the collection waited for that process's whole life,
+and for one that never ends it waited for ever.
+The deadline bound the child and not the collection.
+
+Measured on 2026-11-11 on the tree of `fc9f7f5f4b`,
+with the old collection planted back in the helper
+and a child that leaves a `sleep 60` holding its output:
+
+```text
+FAIL [  60.026s] (1/1) monochromatic-git-policy-cli testing::run_progress::tests::a_child_that_leaves_a_pipe_holder_does_not_hold_the_collection_of_its_output
+thread '...' panicked at src/native/testing/run_progress_tests.rs:628:5:
+the collection of a child's output waited for a process that holds the pipe after the child ended: it returned after 60.009529093s, its whole life being 60s
+```
+
+A probe of the same call outside the crate showed the mechanism without the module:
+`wait_with_output` returned after `5.002007565s` for a child that ended in `1.709804ms`
+and left a `sleep 5` holding its standard output.
+
+The pipes are read once the child has ended and with `O_NONBLOCK` set
+(`read_a_pipe_until_it_ends`),
+so the read takes every byte that is already there,
+stops at the first moment there is nothing more,
+and never waits for a holder.
+The control passes in 0.12 s,
+and it ends the holder by the number the child printed,
+so nothing of the run outlives the control.
+
+### The runs after the three fixes
+
+- `mise run //package/git-policy/cli:native:test:host -- --no-fail-fast testing::run_progress`:
+  `Summary [3.426s] 20 tests run: 20 passed, 6852 skipped`.
+- The controls of the fixtures and of the conversion that judge a wait on the same evidence
+  (`testing::test_support::`,
+  `worktree::worktree_convert::safety_tests`):
+  `Summary [36.711s] 38 tests run: 38 passed, 6834 skipped`.
+- `mise run //package/git-policy/cli:native:clippy`:
+  clean.
+- `mise run //package/git-policy/cli:native:check` (`--all-targets`):
+  clean.
+- `monochromatic-lint` on the three files of this module:
+  no findings.
+- `mise run //package/git-policy/cli:lint` reports findings that were on the branch before this change
+  (39 in files of `worktree/` and `worktree_copying/`),
+  and none in the files this change touches.
+- The whole library suite,
+  `mise run //package/git-policy/cli:native:test:host -- --no-fail-fast`,
+  while other sessions ran suites of their own:
+  `Summary [2091.162s] 6852 tests run: 6851 passed (7 slow), 1 failed, 20 skipped`.
+  The one failure is
+  `landing::service_work::tests::a_retryable_answer_keeps_the_record_for_a_later_round`
+  (`assertion left == right failed: snapshot-ahead: the record waits for the next round`,
+  `left: []`),
+  and it fails the same way with this module's two files put back to `fc9f7f5f4b`,
+  so it does not come from this change and is left where it is.
+
+### What is not claimed
+
+- The aborted run of the first finding was not produced by the whole suite:
+  it is three real looks of a real task set,
+  judged by the module's own `Judge`.
+- The holder of the third finding wrote nothing while it held the pipe,
+  and a descendant that writes into a child's output after the child ends is not collected,
+  because the read stops when the pipe has nothing more at that moment.
+  Nothing the child itself wrote is lost,
+  because a child writes its report before it ends.
+- The 39 findings of the last run are outside this change and are left where they are.
 
 ## Records this changes
 

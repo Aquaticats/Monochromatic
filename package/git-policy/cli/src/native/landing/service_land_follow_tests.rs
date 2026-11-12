@@ -9,11 +9,12 @@ use crate::recording_git::{recorded_starts, recording_context};
 use crate::repo_read_hook::SWITCH_VARIABLE;
 use crate::index_reset_file::support::git_with;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
+use crate::transaction_git::GitOutput;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 
 /// A repository whose index is at the first commit while the branch is at a second commit that adds the given files.
-fn index_behind(name: &str, files: &[Vec<u8>]) -> (PathBuf, PathBuf, String, String) {
+pub(super) fn index_behind(name: &str, files: &[Vec<u8>]) -> (PathBuf, PathBuf, String, String) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
@@ -31,7 +32,7 @@ fn index_behind(name: &str, files: &[Vec<u8>]) -> (PathBuf, PathBuf, String, Str
 
 
 /// What the index still differs from the commit by.
-fn differs(repo: &Path, commit: &str) -> bool {
+pub(super) fn differs(repo: &Path, commit: &str) -> bool {
     return !git_output(repo, &["diff", "--cached", "--quiet", commit]).status.success();
 }
 
@@ -317,7 +318,7 @@ fn concluded_merge_with_the_scratch_gone(name: &str) -> (PathBuf, PathBuf, Clean
     let cleanup: Cleanup = Cleanup { git_dir, scratch: scratch.clone(), reftable: false };
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(journal.as_path()).expect("journal");
-    let kept: PathBuf = crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 7).expect("the landing keeps what the cleanup compares");
+    let kept: PathBuf = crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 7, repo.as_path()).expect("the landing keeps what the cleanup compares");
     std::fs::remove_dir_all(scratch.as_path()).expect("the service removes the client's scratch directory");
     return (root, repo, cleanup, kept);
 }
@@ -340,7 +341,7 @@ fn a_copy_of_the_conclusion_state_that_fails_half_way_publishes_nothing() {
     let cleanup: Cleanup = Cleanup { git_dir, scratch, reftable: false };
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir_all(journal.as_path()).expect("journal");
-    assert!(crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 9).is_none(), "a copy that cannot be made keeps nothing");
+    assert!(crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 9, repo.as_path()).is_none(), "a copy that cannot be made keeps nothing");
     assert!(!crate::conclusion_state_copy::path_of(&journal, 9).exists(), "the name the cleanup reads is never taken by a partial copy");
     assert!(!journal.join("9.cleanup.tmp").exists(), "the staging copy goes with the failure");
     remove(root.as_path());

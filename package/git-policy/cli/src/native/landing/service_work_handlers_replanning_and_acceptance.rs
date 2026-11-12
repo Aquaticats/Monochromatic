@@ -20,12 +20,11 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
-use crate::push_retry::{RetryChange, Retrying, pause_before};
+use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
 use crate::push_retry_cause_line::cause_line;
 use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, protected_branch_refusal};
 use crate::service_instance::GitDirUnreachable;
 use crate::unreachable_git_dir_proven_gone::Gone;
-use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use crate::service_claim_renewal::HeldClaims;
 use crate::service_review_key::ReviewKey;
 use crate::service_timing::log_entry;
@@ -338,94 +337,6 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
 }
 
 /// What:
-///  Whether a common Git directory belongs to a repository with no main worktree,
-/// which `core.bare` in its own `config`,
-/// or in its
-///  `config.worktree` when `extensions.worktreeConfig` turns that file on,
-/// says.
-/// Why:
-///   A bare repository has no instance whose Git directory is the common one,
-/// so the instances of its linked worktrees are the
-///  only ones that can run the records left there;
-/// a repository with a main worktree has that instance,
-/// which owns them.
-///   Git moves `core.bare` into `config.worktree` when the extension is enabled (`git help config`,
-/// "extensions.worktreeConfig"),
-///  and reads that file after `config` only while the extension is on and the repository has a format version
-///  (`repo_read_layout.rs`),
-/// so the last `core.bare` of the two decides.
-/// An unreadable or unparsable file,
-/// or a spelling this
-///  reader leaves to Git,
-/// reads as not bare,
-/// and the records then stay for the main worktree's instance,
-/// which is the safe side
-///  of a wrong answer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// isBareCommonDirectory(commonDir)
-/// ```
-pub(crate) fn is_bare_common_directory(common: &Path) -> bool {
-    let Ok(text) = std::fs::read(common.join("config")) else {
-        return false;
-    };
-    let Some(mut entries) = parse_config_text(text.as_slice()) else {
-        return false;
-    };
-    let worktree_config: bool = matches!(last_entry(entries.as_slice(), "extensions.worktreeconfig"), Some(entry) if parse_bool(entry.value.as_deref()) == Some(true))
-        && last_entry(entries.as_slice(), "core.repositoryformatversion").is_some();
-    if worktree_config {
-        // A missing file is an empty file; one that is there and cannot be read or parsed leaves the answer to Git.
-        match std::fs::read(common.join("config.worktree")) {
-            Ok(bytes) => match parse_config_text(bytes.as_slice()) {
-                Some(more) => entries.extend(more),
-                None => return false,
-            },
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(_) => return false,
-        }
-    }
-    return matches!(last_entry(entries.as_slice(), "core.bare"), Some(entry) if parse_bool(entry.value.as_deref()) == Some(true));
-}
-
-/// What:
-///  The common directory a linked worktree's Git directory names in its `commondir` file,
-/// or nothing for any other directory.
-/// Why:
-///   The drains of directories and the rounds that call them both need this answer
-/// (`service_work.rs`,
-/// `service_work_drains_awaiting.rs`),
-/// so it sits in the file that uses neither.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// commonDirectoryOf(gitDir) ?? undefined
-/// ```
-pub(crate) fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
-    let text: String = std::fs::read_to_string(git_dir.join("commondir")).ok()?;
-    let named: &Path = Path::new(text.trim_end_matches(['\n', '\r']));
-    if named.as_os_str().is_empty() {
-        return None;
-    }
-    // Resolved by the text alone, so the result spells the path the way the worktree's own Git directory does, which is how the
-    //  records name their directory.
-    let mut resolved: PathBuf = PathBuf::new();
-    for part in git_dir.join(named).components() {
-        match part {
-            std::path::Component::ParentDir => {
-                if !resolved.pop() {
-                    return None;
-                }
-            }
-            std::path::Component::CurDir => {}
-            other => resolved.push(other.as_os_str()),
-        }
-    }
-    return Some(resolved);
-}
-
-/// What:
 ///  Leaves a notice for each push the service gave up on without ever finishing it:
 /// its holder was stopped,
 /// or lost,
@@ -457,7 +368,11 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool
             item.branch_ref
         );
         if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
-            crate::service_error!("the abandoned push of {} could not be recorded for the person: {problem}", item.oid);
+            crate::service_error!(
+                "the abandoned push of {} {} could not be recorded for the person: {problem}",
+                item.oid,
+                crate::service_timing::in_the_repository_at(item.repository.as_path())
+            );
             told = false;
         }
     }
@@ -528,43 +443,83 @@ pub(crate) struct Replanning {
     pub(crate) first: Option<Duration>,
     /// What was asked of the plan.
     pub(crate) changes: Vec<RetryChange>,
-    /// The directory a plan is kept in,
+    /// The directory the plan's files are kept in,
+    /// which is where this drain writes the plan it promises and removes the one it forgets,
     /// or nothing for a plan kept in memory only.
     pub(crate) plans: Option<PathBuf>,
 }
 
 /// Methods over the state.
 impl Replanning {
-    /// Ask the plan to drop the branch:
-    /// its push landed,
-    /// or the person must act.
-    pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.push_forget(git_dir, branch_ref, false);
-    }
-
     /// What:
-    ///  Ask the plan to drop a branch whose repository a reading of the filesystem proved gone.
+    ///  Ask the plan to drop the branch,
+    /// and take its file out of the journal now.
     /// Why:
-    ///   That reading is a point in time,
-    /// and the change is applied after it:
-    /// a repository renamed back by then is there again,
-    ///  so its plan must not be dropped on the stale proof.
-    /// The applier asks the filesystem once more
-    /// (`push_retry.rs`,
-    /// `Retrying::apply`).
+    ///   The file is what a restarted service rebuilds the plan from,
+    /// so a forget that reached only the list of this process would leave the next service trying a push that has already landed
+    ///  (finding 3 of the review of `bc3d54f9cd`).
+    /// It goes here,
+    /// on the thread that decided the branch needs no new try,
+    /// as the plan a worker promises is already written here,
+    ///  and not by a round that may reach the journal later,
+    /// when a newer plan of the branch may have been written since
+    ///  (finding 4 of the same review).
+    /// A removal that fails is said,
+    /// and the next start reads the file again.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// replanning.forgetWhenUnreachable(gitDir, branchRef); // the plan goes only while the directory is still missing
+    /// forget(gitDir, branch): removePlans(this.plans, gitDir, branch); this.changes.push({ forget: { gitDir, branch } });
     /// ```
-    pub(crate) fn forget_when_unreachable(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.push_forget(git_dir, branch_ref, true);
+    pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        self.take_the_plan_file(git_dir, branch_ref);
+        self.push_forget(git_dir, branch_ref, false, None);
+    }
+
+    /// What:
+    ///  Ask the plan to drop the branch of a push whose repository a reading of the filesystem proved gone,
+    /// and take its file out of the journal unless the repository is back.
+    /// Why:
+    ///   That reading is a point in time,
+    /// and this runs after it:
+    /// a repository renamed back by then is there again,
+    ///  so its plan must not be dropped on the stale proof.
+    /// The file goes where every forget's file goes,
+    /// on the thread that decided the branch needs no new try,
+    /// so this is the last place the filesystem can be asked before the file is gone;
+    /// the applier asks it once more before it drops the branch from the list
+    /// (`push_retry.rs`,
+    /// `PushRetries::apply`),
+    ///  which is what keeps a repository that came back during the round trying,
+    /// and the plan this reading ended travels with the ask,
+    /// so the repository that is back keeps the try the round took out of the plan
+    ///  rather than only its on-disk file.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// forgetWhenUnreachable(gitDir, due):
+    ///   if (!isDirectory(gitDir)) removePlans(this.plans, gitDir, due.item.branchRef);
+    ///   this.changes.push({ forget: { gitDir, branchRef: due.item.branchRef, onlyWhileUnreachable: true, taken: due } });
+    /// ```
+    pub(crate) fn forget_when_unreachable(&mut self, git_dir: &Path, due: &Due) {
+        if !git_dir.is_dir() {
+            self.take_the_plan_file(git_dir, due.item.branch_ref.as_str());
+        }
+        self.push_forget(git_dir, due.item.branch_ref.as_str(), true, Some(due.clone()));
+    }
+
+    /// Removes the plan's file of a branch from the journal,
+    /// where a directory keeps one at all.
+    fn take_the_plan_file(&mut self, git_dir: &Path, branch_ref: &str) {
+        if let Some(directory) = self.plans.as_deref() {
+            crate::push_retry_store::remove(directory, git_dir, branch_ref);
+        }
     }
 
     /// The one place a forget is added,
     /// so both kinds name the directory and the branch the same way.
-    fn push_forget(&mut self, git_dir: &Path, branch_ref: &str, only_while_unreachable: bool) {
-        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable });
+    fn push_forget(&mut self, git_dir: &Path, branch_ref: &str, only_while_unreachable: bool, taken: Option<Due>) {
+        self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string(), only_while_unreachable, taken });
     }
 
     /// What:
@@ -578,7 +533,8 @@ impl Replanning {
     /// and a notice that says the service keeps trying would be the only statement left and it would be false.
     /// A worker writes only its own branch's plan,
     /// whose file name the branch key and the try number make,
-    /// and the loop writes the same file again when it applies the change.
+    /// and the loop writes no file:
+    /// what it applies is the list it reads.
     ///  A plan that cannot be written answers that it is not kept,
     /// so the caller promises nothing the next service cannot keep.
     ///
@@ -594,7 +550,11 @@ impl Replanning {
         return match crate::push_retry_store::save(directory, &crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt }) {
             Ok(()) => true,
             Err(reason) => {
-                crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
+                crate::service_warn!(
+                    "the plan to push {:?} again {} could not be kept for a restart: {reason}",
+                    item.branch_ref,
+                    crate::service_timing::in_the_repository_at(item.repository.as_path())
+                );
                 false
             }
         };
@@ -670,14 +630,26 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
             attempt + 1
         ),
     };
-    let fields: [(&str, String); 3] = [
+    let fields: [(&str, String); 4] = [
         ("CLI_GIT_BRANCH", item.branch_ref.clone()),
         ("CLI_GIT_OID", item.oid.clone()),
         ("CLI_GIT_OUTCOME", String::from("retrying")),
+        ("CLI_GIT_REPOSITORY", item.repository.to_string_lossy().into_owned()),
     ];
+    // The line names the repository: one journal covers every worktree of the machine, and a branch name is the same in all of
+    //  them, so a retry line without it cannot say which worktree's push it plans.
     log_entry(
         Priority::Warning,
-        format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), cause_line(text).unwrap_or_default()).as_str(),
+        format!(
+            "push will be tried again branch={:?} oid={} repository={:?} next_try={} in_seconds={} cause: {}",
+            item.branch_ref,
+            item.oid,
+            item.repository,
+            attempt + 1,
+            pause.as_secs(),
+            cause_line(text).unwrap_or_default()
+        )
+        .as_str(),
         &fields,
     );
     // A plan that could not be kept is not promised: the service of this run still tries the push, and a service started in
@@ -719,10 +691,11 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
             continue;
         }
         named.push(format!("{} of {}", due.item.branch_ref, due.item.oid));
-        replanning.forget_when_unreachable(git_dir, due.item.branch_ref.as_str());
+        replanning.forget_when_unreachable(git_dir, due);
     }
-    // Nothing of this drain ran, so the caller has nothing to wait for; the changes it applies drop the plans of the branch from the
-    //  store as well as from memory.
+    // Nothing of this drain ran, so the caller has nothing to wait for; the file of each ended plan goes here while its
+    //  repository is still missing, and the change drops the branch from the list the loop reads. A repository that is
+    //  back by the time the change lands keeps its file, and the change puts its plan back (`PushRetries::apply`).
     if !named.is_empty() {
         crate::service_warn!("{} ({unreachable})", crate::unreachable_git_dir_proven_gone::gone_line(git_dir, gone, named.as_slice()));
     }

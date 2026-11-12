@@ -104,6 +104,33 @@ fn a_failed_clean_leaves_no_staging_directory_and_no_destination() {
 }
 
 /// What:
+///  A build directory whose own folder is not there yet is still filled:
+/// the folder Cargo's layout names before the hash is made before the marker and the staging copy beside it.
+/// Why:
+///  `build.build-dir` writes an external build directory as `<root>/<two characters>/<hash>`,
+/// and a worktree that has
+///  never been built has neither,
+/// so the marker the filling writes first was refused with `No such file or directory` and
+///  nothing of the workspace was filled
+///  (the binary suite's `package_repair::real_cargo_rebuilds_own_crates_with_an_external_build_directory`,
+/// 2026-11-11).
+#[test]
+fn a_build_directory_beside_a_folder_that_is_not_there_yet_is_still_filled() {
+    let root: PathBuf = fixture("prewarm-missing-folder");
+    let mut entry: PrewarmEntry = entry_of(root.as_path());
+    // The two characters Cargo's own layout puts above the hash.
+    entry.to = root.join("worktree-build/6f/0123456789abcd");
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &entry);
+    let Err(reason) = filled else { panic!("a clean that cannot run is reported: {filled:?}") };
+    assert!(reason.starts_with("the copy of"), "the filing got as far as the clean, so the marker and the staging copy were made: {reason}");
+    assert!(!entry.to.exists(), "a clean that failed publishes nothing");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A staging copy is published under the build directory's name when nothing is there,
 /// and a second publish over an existing directory answers that it was not published.
 /// Why:
@@ -305,7 +332,8 @@ fn item_for(common: &Path, worktree: &Path, entry: &PrewarmEntry) -> WorkItem {
 
 /// What:
 ///  The worktree's `Cargo.lock` is as checked out after the service's clean,
-/// whether it was there and stale or absent.
+/// whether it was there and stale or absent,
+/// when nothing else writes it.
 /// Why:
 ///   `cargo clean` resolves the worktree's workspace even when it deletes only from directories of
 /// this job's own,
@@ -313,6 +341,9 @@ fn item_for(common: &Path, worktree: &Path, entry: &PrewarmEntry) -> WorkItem {
 /// The add's own clean puts the lock back (`package_repair_cargo_lock.rs`),
 /// and the service's clean runs after the add has returned,
 /// so a lock it left rewritten would change a tracked file in the person's worktree behind their back.
+/// The clean itself is given `--locked`,
+/// the rewrite is asked for as a resolution of its own,
+/// and the checked-out bytes go back over it.
 #[test]
 fn the_filling_puts_the_lock_back_as_checked_out() {
     // The two states a checked-out lock can be in.
@@ -340,6 +371,123 @@ fn the_filling_puts_the_lock_back_as_checked_out() {
         assert_eq!(after.as_deref(), checked_out.as_deref(), "the worktree's {LOCK_FILE} is as checked out after the clean ({state}): {described}");
         remove(root.as_path());
     }
+}
+
+/// What the clean's own resolution writes into the worktree's lock,
+/// and what the person's own `cargo add` writes while that clean runs.
+/// Why:
+///   The filling's clean runs after the add returned,
+/// so the two texts say which one stands in the file afterwards:
+/// the person's must.
+const THE_RESOLUTIONS_LOCK: &str = "# what the worktree resolution wrote";
+
+/// The text the person's own write leaves,
+/// which is never Cargo's rewrite.
+const THE_PERSONS_LOCK: &str = "# what the person wrote instead";
+
+/// What:
+///  A stand-in Cargo for the controls about the lock:
+/// its resolution writes Cargo's rewrite,
+/// its first clean refuses the stale lock,
+/// and its second clean has the person's own write land while it runs.
+/// Why:
+///   The sequence is the whole rule:
+/// a clean that refuses starts no write,
+/// the resolution is what writes the lock,
+/// and the clean that runs afterwards cannot write it.
+/// None of that needs a real Cargo,
+/// and a stand-in makes a person's write land at a known moment inside the clean.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const program = standIn({ metadata: resolutionsLock, refusesOnce: true, thenPersonWrites: personsLock });
+/// ```
+fn cargo_that_takes_the_persons_lock_as_it_runs(root: &Path) -> PathBuf {
+    let record: PathBuf = root.join("cargo-record");
+    let program: PathBuf = root.join("cargo-that-resolves");
+    let body: String = format!(
+        "#!/bin/sh\necho \"$*\" >> '{record}'\nif [ \"$1\" = metadata ]; then\n  printf '%s' '{resolved}' > Cargo.lock\n  exit 0\nfi\nif [ ! -e refused-once ]; then\n  : > refused-once\n  echo 'error: cannot update the lock file because --locked was passed to prevent this' >&2\n  exit 101\nfi\nprintf '%s' '{persons}' > Cargo.lock\nexit 0\n",
+        record = record.display(),
+        resolved = THE_RESOLUTIONS_LOCK,
+        persons = THE_PERSONS_LOCK,
+    );
+    crate::test_support::executable(program.as_path(), body.as_bytes());
+    return program;
+}
+
+/// The lines a stand-in Cargo recorded.
+fn recorded(record: &Path) -> Vec<String> {
+    return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
+}
+
+/// What:
+///  A lock the person writes while the filling's clean runs,
+///  stale before or not there at all,
+///  is left exactly as they wrote it,
+/// and the copy is still filled and published.
+/// Why:
+///   This clean runs after the add returned,
+/// so the person is working in the worktree and a write standing there when the clean ends may be theirs,
+/// and replacing it or removing it would discard a file they wrote.
+/// The clean is `--locked` and the resolution is a step of its own,
+/// so the file is only ever put back over bytes that resolution wrote.
+#[test]
+fn a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it() {
+    // The two states the checked-out worktree can be in when the person starts.
+    const LOCK_STATES: [&str; 2] = ["stale", "absent"];
+    for state in LOCK_STATES {
+        let root: PathBuf = fixture(format!("prewarm-person-lock-{state}").as_str());
+        let entry: PrewarmEntry = entry_of(root.as_path());
+        std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+        std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+        std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+        let lock: PathBuf = entry.root.join(LOCK_FILE);
+        if state == "stale" {
+            std::fs::write(lock.as_path(), b"# a lock that no longer matches its manifest\n").expect("the checked-out lock");
+        }
+        let program: PathBuf = cargo_that_takes_the_persons_lock_as_it_runs(root.as_path());
+        let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")) };
+        let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is filled");
+        assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name ({state})");
+        let after: Option<Vec<u8>> = std::fs::read(lock.as_path()).ok();
+        assert_eq!(after.as_deref(), Some(THE_PERSONS_LOCK.as_bytes()), "the person's own lock is exactly what stands there ({state})");
+        let lines: Vec<String> = recorded(root.join("cargo-record").as_path());
+        assert_eq!(lines.len(), 3, "a refused clean, the resolution, and the clean that runs ({state}): {lines:?}");
+        assert!(lines[0].starts_with("clean ") && lines[1].starts_with("metadata ") && lines[2].starts_with("clean "), "the lock is resolved between the two cleans ({state}): {lines:?}");
+        assert!(lines[0].contains("--locked") && lines[2].contains("--locked"), "neither clean may write the lock ({state}): {lines:?}");
+        remove(root.as_path());
+    }
+}
+
+/// What:
+///  A lock that still matches its manifest costs no resolution and is never written.
+/// Why:
+///   Most worktrees have a lock Cargo agrees with,
+/// and asking for a resolution there would start a second Cargo for nothing;
+/// the clean alone runs,
+/// with `--locked`,
+///  so the person's file is not opened for writing at all.
+#[test]
+fn a_lock_that_is_current_costs_no_resolution_and_is_never_written() {
+    let root: PathBuf = fixture("prewarm-lock-current");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    std::fs::write(lock.as_path(), THE_RESOLUTIONS_LOCK.as_bytes()).expect("a lock the clean agrees with");
+    let record: PathBuf = root.join("cargo-record");
+    let program: PathBuf = root.join("cargo-that-cleans-once");
+    let body: String = format!("#!/bin/sh\necho \"$*\" >> '{record}'\nexit 0\n", record = record.display());
+    crate::test_support::executable(program.as_path(), body.as_bytes());
+    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")) };
+    let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is filled");
+    assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
+    assert_eq!(std::fs::read(lock.as_path()).ok().as_deref(), Some(THE_RESOLUTIONS_LOCK.as_bytes()), "a current lock is left exactly as it was");
+    let lines: Vec<String> = recorded(record.as_path());
+    assert_eq!(lines.len(), 1, "one clean and no resolution: {lines:?}");
+    assert!(lines[0].starts_with("clean ") && lines[0].contains("--locked"), "the clean runs with the lock held still: {lines:?}");
+    remove(root.as_path());
 }
 
 /// A Cargo that succeeds without deleting anything,
@@ -482,5 +630,136 @@ fn the_worktrees_own_cargo_link_is_found_from_the_worktree_root_for_a_nested_wor
     let item: WorkItem = item_for(root.as_path(), worktree.as_path(), &entry);
     let verdict: Verdict = crate::lazy_runtime::run_on_runtime(super::prewarm_awaiting_with(&item, &an_environment_with_no_programs())).expect("the filling runs");
     assert_eq!(verdict, Verdict::Done, "the worktree's own Cargo link is found from the worktree root");
+    remove(root.as_path());
+}
+
+
+/// The deadline one control gives a filling whose whole work is a fixture's clone and a stand-in
+/// Cargo,
+/// so a filling that waits on something it must not wait on fails here instead of holding the suite.
+const FILLING_DEADLINE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// What:
+///  Make a named pipe at `path`.
+/// Why:
+///   A named pipe is the one foreign object whose plain open waits for a writer that may never come,
+///   which is what the filling must never do at a name anyone can write.
+fn named_pipe_at(path: &Path) {
+    /// The bytes of a pathname,
+    /// for the C interface.
+    use std::os::unix::ffi::OsStrExt as _;
+    let named: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a fixture path holds no NUL byte");
+    // SAFETY: the string is NUL-terminated and outlives the call, and the name is a fresh path in the fixture.
+    let made: libc::c_int = unsafe { libc::mkfifo(named.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "make a named pipe at {}: {}", path.display(), std::io::Error::last_os_error());
+}
+
+/// What:
+///  An entry whose source build directory holds one dependency build,
+///  so a clone has something to copy,
+///  and whose workspace exists,
+///  so the clean has a directory to run in.
+/// Why:
+///   The controls below are about a name beside the destination,
+/// and neither of them reads a manifest.
+fn an_entry_with_a_source_build(root: &Path) -> PrewarmEntry {
+    let entry: PrewarmEntry = entry_of(root);
+    std::fs::create_dir_all(entry.root.as_path()).expect("the workspace the clean runs in");
+    std::fs::create_dir_all(entry.from.join("debug/deps")).expect("the source's dependency build");
+    std::fs::write(entry.from.join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
+    return entry;
+}
+
+/// What:
+///  A named pipe at the marker name,
+///  which this filling did not make,
+///  never holds the filling:
+///  the copy is published under names of this run's own and the pipe stays where it is.
+/// Why:
+///   The marker name is this job's by convention,
+/// and anyone can put anything there.
+/// A reader-less pipe blocks a plain read inside `open` for ever,
+/// so one foreign object at that name would hold the service's filling with no end
+/// (the owner's "nothing should ever wait forever or indefinitely"),
+/// and the worktree would keep waiting for a build directory nothing fills.
+#[test]
+fn a_named_pipe_at_the_marker_name_never_holds_the_filling() {
+    let root: PathBuf = fixture("prewarm-marker-pipe");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    let staged: PathBuf = staging_of(entry.to.as_path());
+    let marker: PathBuf = super::marker_of(staged.as_path());
+    named_pipe_at(marker.as_path());
+    let covered: PathBuf = root.clone();
+    let waiting: Option<Result<Filled, String>> = crate::test_support::finished_within_at(FILLING_DEADLINE, move || {
+        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None };
+        return super::fill_one_in_a_control(&fill, &entry);
+    });
+    let filled: Result<Filled, String> = waiting.expect("the filling must not wait on a named pipe at the marker name");
+    assert_eq!(filled, Ok(Filled::Published), "the copy is published under names of this run's own");
+    assert!(marker.exists(), "the named pipe this filling did not make is left where it is");
+    remove(covered.as_path());
+}
+
+/// What:
+///  A file that another command writes at the marker name,
+///  after this filling has looked at the name and before it publishes its own marker there,
+///  is never removed,
+///  and the worktree is filled under names of this run's own.
+/// Why:
+///   The filling looks at the three usual names once and then claims the marker by an exclusive
+/// write,
+/// and another command can create that name in between.
+/// An exclusive write that answers "it is there already" proves only that somebody's file is there,
+/// never that this run's is,
+/// so removing it would delete a file this job never wrote
+/// ("never discard user data").
+#[test]
+fn a_file_that_wins_the_race_to_the_marker_name_is_never_removed() {
+    /// What the other command writes at the marker name.
+    const ANOTHER_COMMANDS_FILE: &[u8] = b"a person's own note";
+    let root: PathBuf = fixture("prewarm-marker-race");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    let staged: PathBuf = staging_of(entry.to.as_path());
+    let marker: PathBuf = super::marker_of(staged.as_path());
+    let planted: PathBuf = marker.clone();
+    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            std::fs::write(planted.as_path(), ANOTHER_COMMANDS_FILE)?;
+            return Ok(());
+        }));
+    });
+    let covered: PathBuf = root.clone();
+    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None };
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    assert_eq!(filled, Ok(Filled::Published), "the worktree is filled under names of this run's own");
+    assert_eq!(std::fs::read(marker.as_path()).expect("the other command's file"), ANOTHER_COMMANDS_FILE, "a file this filling did not write is never removed");
+    remove(covered.as_path());
+}
+
+/// What:
+///  A clean stopped because Cargo refused the lock names the lock's own command,
+///  the workspace and the clean the add would have run,
+///  and a clean stopped for any other reason says only what the tool said.
+/// Why:
+///   The remedy is chosen from Cargo's own words,
+/// and a later Cargo that stops naming the lock there would send every lock refusal to the generic
+/// sentence without anything failing,
+/// so which words take which branch is pinned here.
+#[test]
+fn a_stopped_clean_names_the_lock_command_only_when_cargo_named_the_lock() {
+    let root: PathBuf = fixture("prewarm-remedy-branches");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    // What Cargo prints for a lock it would have had to change, measured on this host.
+    let cargo_refusal: String = format!("error: cannot update the lock file {}/{LOCK_FILE} because --locked was passed to prevent this", entry.root.display());
+    let remedy: String = super::what_to_do_next(&entry, cargo_refusal.as_str());
+    let own_clean: String = manual_command(entry.root.as_path(), entry.members.as_slice());
+    assert!(remedy.contains("cargo update --offline --workspace"), "the remedy names the lock's own command: {remedy}");
+    assert!(remedy.contains(entry.root.to_string_lossy().as_ref()), "the remedy names the workspace whose lock it is: {remedy}");
+    assert!(remedy.contains(own_clean.as_str()), "the remedy names the clean the add would have run ({own_clean}): {remedy}");
+    let elsewhere: String = super::what_to_do_next(&entry, "a program that is not there");
+    assert!(!elsewhere.contains("cargo update"), "a failure that names no lock is not answered with one: {elsewhere}");
+    assert!(!elsewhere.contains(own_clean.as_str()), "a failure that names no lock is not answered with the clean: {elsewhere}");
+    assert!(elsewhere.contains("the next add fills the copy"), "a failure that names no lock still says the copy is filled next time: {elsewhere}");
     remove(root.as_path());
 }

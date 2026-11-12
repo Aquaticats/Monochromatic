@@ -28,6 +28,7 @@ import {
   type EnvironmentWithoutCredentials,
   stripCredentialsFromEnvironment,
 } from './environment-without-credentials.ts';
+import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
 import {
   DRIVER_USAGE,
   DriverOptionsError,
@@ -43,6 +44,7 @@ import type {
 } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { putTheRunAway, } from './put-the-run-away.ts';
+import { runCommandWithChildProcess, } from './run-command.ts';
 import { endReasonOfRun, } from './take-the-first-prompt.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
@@ -118,6 +120,31 @@ function attemptsOf(summary: RunSummary,): string {
 }
 
 /**
+ Says what Pi's own automatic retry reported when it gave up on the model error the run ended with, so the reason the driver
+ prints names the layer that answered that error rather than leaving a reader to think nothing tried.
+
+ @param summary - what the caller reads
+
+ @returns the note, in words, or nothing when Pi reported giving up on nothing
+ */
+function piRetryNoteOf(summary: RunSummary,): string {
+  /**
+   What Pi reported when it stopped retrying.
+   */
+  const exhausted = summary.piRetryGaveUp;
+  if (exhausted === undefined) {
+    return '';
+  }
+  /**
+   How many attempts Pi's retry made, as text.
+   */
+  const attempts = String(exhausted.attempts,);
+  return (exhausted.attempts === 1)
+    ? ', and Pi\'s own automatic retry gave up on it after 1 attempt'
+    : `, and Pi's own automatic retry gave up on it after ${attempts} attempts`;
+}
+
+/**
  Says what Pi reported of a compaction, when one kept the run's prompt waiting, so the message names why Pi took nothing rather
  than leaving a reader to guess.
 
@@ -143,6 +170,9 @@ function compactionNoteOf(summary: RunSummary,): string {
  @returns the summary, which is also in `summary.json`
 
  @throws NestedDriverError when started by a Pi that a driver runs
+
+ @throws GitWrapperPreflightError when the git this session would run is not this repository's policy wrapper, which is decided
+ before Pi starts and before the run folder is written
 
  @throws PiRunEndedEarlyError when the run did not end on its own terms, after the summary is written
 
@@ -172,6 +202,16 @@ export async function supervisePiRun(
   if ((!Number.isFinite(wallMilliseconds,)) || (!Number.isFinite(Date.now() + wallMilliseconds,))) {
     throw new DriverOptionsError(`--wall-seconds must be a number of seconds whose milliseconds stay finite; it was "${String(options.wallSeconds,)}".\nUsage: ${DRIVER_USAGE}`,);
   }
+  // The git a session would run is asked before Pi starts, because a session whose git is the system binary commits past every
+  // policy the wrapper enforces and no later check can give those commits back (issue 1768). It is asked under the environment Pi
+  // is about to get and in the folder Pi works in, so the answer is the one this session's own commands would find.
+  await refuseUnlessTheWrapperAnswersGit({
+    run: runCommandWithChildProcess,
+    // A session with no PATH is refused by the check itself, so its absence is passed on rather than papered over with an empty
+    // string.
+    ...(environment.PATH === undefined ? {} : { sessionPath: environment.PATH }),
+    workingFolder: options.workingFolder,
+  },);
   /**
    When the run must be over, counted from before Pi starts so that Pi's start-up is inside the limit.
    */
@@ -318,7 +358,7 @@ export async function supervisePiRun(
   },);
   if (!CLEAN_END_REASONS.has(summary.endReason,)) {
     throw new PiRunEndedEarlyError(
-      `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${compactionNoteOf(summary,)}. The summary is in ${join(
+      `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}. The summary is in ${join(
         options.runFolder,
         'summary.json',
       )} and Pi's standard error in ${

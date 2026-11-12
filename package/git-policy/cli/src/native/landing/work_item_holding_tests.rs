@@ -91,6 +91,35 @@ fn a_refusal_that_cannot_be_written_keeps_the_held_record() {
     remove(root.as_path());
 }
 
+/// What:
+///  A push record the queue has already settled is not held again,
+///  so no command names a commit as held once the push that carried it was made.
+/// Why:
+///   A batch is replayed after a restart,
+///  and a recovery that re-holds the push of a commit whose record already reached `done` writes a second record nothing can
+///  promote:
+/// the command that would have promoted it answered long before,
+///  so the line stays on every command in the worktree while the commit is on the remote
+///  (`held_push_line` in `service_handoff.rs`).
+/// The queue's own states are the proof that the work was done,
+/// so the hold answers that nothing is owed.
+#[test]
+fn a_settled_push_is_not_held_again() {
+    let root: PathBuf = fixture("work-item-holding-settled-push");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    let done: PathBuf = state_directory(work.as_path(), DONE);
+    create_private_directory_all(done.as_path()).expect("the done directory");
+    std::fs::write(done.join(item.id()), item.encode()).expect("the settled record");
+    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the hold answers that nothing is owed");
+    assert!(
+        !state_directory(work.as_path(), HELD).join(item.id()).exists(),
+        "a push that was made is not held again: a hold here would name a published commit on every command"
+    );
+    assert!(done.join(item.id()).exists(), "the settled record is left where it is");
+    remove(root.as_path());
+}
+
 /// What a refusal that is written does:
 /// keeps the verdict with the gate's words,
 /// gives the held record up,

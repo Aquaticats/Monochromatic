@@ -18,6 +18,10 @@
 /// beside the landing loop.
 pub mod service_scratch_release_removal;
 
+/// The collection of the repository scratch directory a killed command left,
+/// beside the landing loop.
+pub mod service_repository_scratch_sweep;
+
 /// The fill of the shadow pool a commit takes its private repository from,
 /// beside the landing loop.
 pub mod service_shadow_pool_fill;
@@ -64,6 +68,10 @@ pub mod service_journal;
 /// The text form of a batch intent:
 /// written and parsed.
 pub mod service_journal_intent_text_and_parse;
+
+/// How old a finished batch's record is,
+/// read from the clocks the record itself carries.
+pub mod service_journal_record_age;
 
 /// Test-only fault points of the commit service.
 pub mod service_fault;
@@ -125,6 +133,10 @@ pub mod service_server_land_group_owed_pushes;
 /// Handles one client connection of the commit service.
 pub mod service_server_connection_handling;
 
+/// How the service's own runtime was built,
+/// and the words a task that cannot get a worker ends the service with.
+pub mod service_runtime_build_report;
+
 /// The acceptor of connections:
 /// one task that starts a task per connection.
 pub mod service_server_accept_connections_as_tasks;
@@ -144,6 +156,14 @@ pub mod service_client_waiting_words;
 
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
+
+/// The signals a waiting commit answers by withdrawing its request,
+/// and the flag they set for the wait.
+pub mod service_client_interrupted;
+
+/// Why a request a commit sent is given up,
+/// and the failure that says what became of the commit.
+pub mod service_client_why_withdrawn;
 
 /// Connecting to the service,
 /// reading one line from it,
@@ -203,6 +223,10 @@ pub mod service_files_of_a_stopped_instance;
 /// whether it is gone,
 /// and the stop of its units through the manager.
 pub mod service_units_of_removed_worktrees;
+
+/// The pushes a service owes a repository that no longer exists:
+/// the retry plan of each branch whose Git directory is proven gone ends.
+pub mod service_plans_of_a_gone_repository;
 
 /// The journal folder the unit gives an instance,
 /// and the state folder that holds it.

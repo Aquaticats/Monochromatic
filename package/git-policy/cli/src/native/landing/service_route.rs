@@ -17,13 +17,22 @@
 //! because the service is the only
 //!  writer of a commit.
 //! The decision reads the file system only and starts no process.
+//! The Git directory has two faces:
+//! the synchronous one a caller on a thread asks (`worktree_git_dir`),
+//! and the awaited one a task of the runtime
+//!  asks (`worktree_git_dir_awaiting`),
+//! which reads the repository's layout as a job of the blocking pool,
+//! awaited no longer than
+//!  `ROUTE_STATE_CEILING`,
+//! and awaits its Git child on the runtime.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const route = chooseRoute({ runtimeDir, busAddress, configHome, homeDir, ownExecutable, realGit }); // undefined: no route
 //! ```
 
-use crate::repo_read_layout::read_layout_in;
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
+use crate::repo_read_layout::{RepoLayout, read_layout_in};
 /// A pathname from the bytes Git printed for it,
 ///  and one answer without its terminating line feed.
 use crate::hooks_path_values::{path_answer, without_the_terminator};
@@ -31,8 +40,12 @@ use crate::service_instance::{SOCKET_DIRECTORY, socket_path, try_instance_of};
 use crate::service_provision::{ProvisionHost, RETIREMENT_WAIT};
 use crate::service_server::Bind;
 use crate::systemd_dbus::session_bus_path;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git_awaiting::run_git_awaiting;
+use crate::wait_ceilings::ROUTE_STATE_CEILING;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 static OWN_EXECUTABLE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
@@ -166,6 +179,115 @@ pub struct StatusReport {
 }
 
 /// What:
+///  The two facts one layout question names,
+/// owned so that a job of the blocking pool can take them.
+/// Why:
+///  The reader walks up from the start directory and reads the configuration and the directory entries it finds,
+/// so it
+///  runs as a job of the pool and never on the task that asks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LayoutQuestion = { directory: string; overlay: [string, string][] };
+/// ```
+struct LayoutQuestion {
+    /// The directory the reader starts walking up from.
+    directory: PathBuf,
+    /// The environment the reader judges the layout under.
+    overlay: Vec<(OsString, OsString)>,
+}
+
+/// The reading one job of the pool does:
+/// `read_layout_in` over the question's own directory and environment.
+fn layout_of(question: LayoutQuestion) -> Option<RepoLayout> {
+    return read_layout_in(question.directory.as_path(), question.overlay.as_slice());
+}
+
+/// What:
+///  The repository's layout as a job of the blocking pool,
+/// awaited no longer than `ceiling`.
+/// Why:
+///   A task of the runtime may not read the file system:
+/// the walk up from the start directory,
+/// the configuration
+///  files it reads and the directory entries it checks wait in the kernel on a mount that stopped answering,
+/// which would
+///  hold a worker the runtime needs,
+/// and no timer on that worker can end it.
+/// A reading the ceiling or a refused
+///  thread leaves without an answer answers nothing,
+/// which is what the files answer when the layout is not one the reader
+///  models,
+/// so the caller asks Git and the person reads Git's own answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function layoutWithin(ceilingMs: number, question: LayoutQuestion): Promise<RepoLayout | undefined>;
+/// ```
+async fn layout_within(ceiling: Duration, directory: &Path, overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
+    let question: LayoutQuestion = LayoutQuestion { directory: directory.to_path_buf(), overlay: overlay.to_vec() };
+    return match run_a_job_awaited_no_longer_than(ceiling, question, layout_of).await {
+        TheAnswerOfAJobAwaited::Ran(answer) => answer,
+        // No thread was given, or the job outlasted its ceiling: the files said nothing this task may wait for.
+        TheAnswerOfAJobAwaited::NotRun | TheAnswerOfAJobAwaited::NoAnswer => None,
+    };
+}
+
+/// What:
+///  The question both faces ask Git for the worktree's Git directory.
+/// Why:
+///   A command line that names its repository selects the instance of that one,
+/// so the question carries the selection and
+///  asks without the inherited prefix;
+/// one request serves both faces,
+/// so neither can select another repository than the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const request = { cwd, arguments: ['rev-parse', '--path-format=absolute', '--absolute-git-dir'], withoutPrefix: named, repositorySelection: selection };
+/// ```
+fn git_directory_request(cwd: &Path, selection: &[OsString], named: bool) -> GitRequest {
+    let mut request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
+    if named {
+        request.without_prefix = true;
+        request.repository_selection = selection.to_vec();
+    }
+    return request;
+}
+
+/// What:
+///  The Git directory Git's answer to `git_directory_request` names,
+///  and nothing when it named none.
+/// Why:
+///  Both faces read Git's answer through this one function,
+/// so a question Git could not answer and an answer that
+///  named nothing leave both of them without a directory.
+///  The answer is a pathname,
+/// so it is read as the bytes Git printed it as,
+/// with only Git's one terminating line
+///  feed removed:
+/// a spelling of it named a directory that does not exist when the name was not UTF-8,
+/// and taking
+///  every ASCII whitespace byte after that terminator read a directory named `metadata `,
+/// or one whose name ends in
+///  a line feed,
+/// as `metadata`,
+/// so the route named a directory that does not exist and the commit found no instance
+///  to hand its work to instead of reaching the service of the repository the person selected.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function gitDirectoryAnswered(answered: GitOutput): string | undefined { if (!answered.succeeded) return undefined; const printed = withoutTheTerminator(answered.out); return printed.length ? pathAnswer(printed) : undefined; }
+/// ```
+fn git_directory_answered(output: &GitOutput) -> Option<PathBuf> {
+    if !output.succeeded() {
+        return None;
+    }
+    let printed: &[u8] = without_the_terminator(output.stdout.as_slice());
+    return if printed.is_empty() { None } else { Some(path_answer(printed)) };
+}
+
+/// What:
 ///  The real path of the Git directory of the worktree a command runs in,
 /// read from the file system when the layout is a plain
 ///  one and from Git otherwise.
@@ -189,20 +311,37 @@ pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
     {
         return Some(layout.git_dir);
     }
-    let mut request: GitRequest = GitRequest::new(cwd, &["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
-    if named {
-        request.without_prefix = true;
-        request.repository_selection = selection;
+    let output = run_git(context, &git_directory_request(cwd, selection.as_slice(), named)).ok()?;
+    return git_directory_answered(&output);
+}
+
+/// What:
+///  `worktree_git_dir` with the layout read as a job of the blocking pool and its Git child awaited on the
+///  runtime.
+/// Why:
+///   A task of the runtime may wait on neither a file system nor a child it starts itself,
+/// and the Git directory is what the
+///  route to the service is chosen from once the commit path is a task.
+/// The order of the two answers (the files
+///  first,
+/// then Git's own) and the selection each of them honours are the synchronous face's,
+/// so the two cannot name different
+///  directories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gitDir = await worktreeGitDirAwaiting(context, cwd); // undefined outside a repository
+/// ```
+pub async fn worktree_git_dir_awaiting(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
+    let selection: Vec<std::ffi::OsString> = crate::repository_selection::from_global_options(cwd, context.global_prefix.as_slice());
+    let named: bool = !selection.is_empty();
+    if !named
+        && let Some(layout) = layout_within(ROUTE_STATE_CEILING, cwd, context.overlay.as_slice()).await
+    {
+        return Some(layout.git_dir);
     }
-    let output = run_git(context, &request).ok()?;
-    if !output.succeeded() {
-        return None;
-    }
-    // The answer is a pathname, so it is read as the bytes Git printed it as; a spelling of it named a directory
-    //  that does not exist when the name was not UTF-8, and the route then had no instance to reach.
-    //  Only the one line feed Git ends the answer with goes, so a name that ends in a space keeps it.
-    let printed: &[u8] = without_the_terminator(output.stdout.as_slice());
-    return if printed.is_empty() { None } else { Some(path_answer(printed)) };
+    let output = run_git_awaiting(context, &git_directory_request(cwd, selection.as_slice(), named)).await.ok()?;
+    return git_directory_answered(&output);
 }
 
 /// What:
@@ -349,3 +488,8 @@ pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> Sta
 #[cfg(test)]
 #[path = "service_route_tests.rs"]
 mod tests;
+
+/// Controls for the awaited Git directory stay out of the release executable.
+#[cfg(test)]
+#[path = "service_route_awaiting_tests.rs"]
+mod awaiting_tests;

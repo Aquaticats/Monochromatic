@@ -43,22 +43,55 @@ pub(crate) struct PushRunner<'a> {
 /// the size and the line feed.
 const CAT_FILE_HEADER_BYTES: u64 = 128;
 
-/// The most bytes one `merge-file` of the second pass may print:
+/// The most bytes the content of one `merge-file` answer of the second pass may take:
 /// the three stages it is given,
-/// the text Git settled around its regions,
-/// and room for the marker lines of many regions.
+/// and the text Git settled around its regions.
 /// Why:
 ///   A stage the pass takes is at most `LARGEST_STAGE_BYTES`,
-/// and its answer holds the text Git settled plus the three sides of every region,
-/// so it is at most those three stages and the settled text,
-/// four stages;
-/// each region adds four marker lines of about fifty bytes,
-/// and the push report's own cap leaves room for about twenty-six thousand of them.
-/// An answer larger than that is refused and the path stays as Git left it,
-/// for the person to resolve;
-/// the report's own cap alone refused merges the pass resolves
+/// and its answer holds the text Git settled plus the three sides of every region;
+/// each line of a stage lands in the answer once,
+/// either in the settled text or in a region's side,
+/// so three stages hold the content and the fourth is the room a line can shift between them.
+const MERGE_ANSWER_CONTENT_BYTES: u64 = 4 * LARGEST_STAGE_BYTES;
+
+/// The most bytes the marker lines of one `merge-file` answer of the second pass may take:
+/// eight stages,
+/// which is about four hundred thousand regions.
+/// Why:
+///   Each region adds four marker lines,
+/// which with the pass's labels are fifty,
+/// fifty,
+/// fifty-one and eight bytes for `ours-` and a 36-character UUID;
+/// the number of regions is bounded by the lines of the stages and never by a margin of their bytes,
+/// so a triple of near-limit stages with a conflict every other line holds a hundred and three thousand regions
+/// and prints a 37.9 MB answer although its content is under four stages
+/// (measured 2026-11-11 with Git 2.56.0:
+/// stages of 7,605,777 bytes each,
+/// 103,000 regions,
+/// 37,871,557 bytes of answer;
+/// cross-vendor review of round 198,
+/// finding 2).
+/// An answer is held whole and then cut,
+/// so the answer of a merge at this ceiling costs its own bytes twice,
+/// about 190 MB,
+/// plus the merged file and its parts,
+/// under the 352 MB the pass's own word merge of three 8 MiB texts already costs
 /// (`merge_second_pass.rs`).
-const MERGE_FILE_ANSWER_BYTES: u64 = 4 * LARGEST_STAGE_BYTES + MAX_PUSH_OUTPUT;
+/// This ceiling is a memory backstop and not the bound of what eligible stages can print:
+/// marker bytes grow with the lines of the stages and not with their bytes,
+/// so a stage filled with two-byte lines holds more regions,
+/// and more marker lines,
+/// than any ceiling can take,
+/// and such an answer is refused and the path stays as Git left it,
+/// for the person to resolve.
+/// A merge this ceiling newly admits costs the merge its own time in Git before the pass reads anything:
+/// `merge-tree` took 192 seconds on the fixture above in one run under a 3-CPU scope on a host at load 66 to 75,
+/// so the 300-second ceiling of the merge step is what ends the slowest of them.
+const MERGE_ANSWER_MARKER_BYTES: u64 = 8 * LARGEST_STAGE_BYTES;
+
+/// The most bytes one `merge-file` of the second pass may print:
+/// its content and its marker lines.
+const MERGE_FILE_ANSWER_BYTES: u64 = MERGE_ANSWER_CONTENT_BYTES + MERGE_ANSWER_MARKER_BYTES;
 
 /// What:
 ///  The largest answer one command of the second pass may print.
@@ -288,12 +321,43 @@ pub(crate) async fn commit_merge_awaiting(
         full_message.push_str("\n\n");
         full_message.push_str(report("", &second_pass_files).join("\n").as_str());
     }
-    let mut commit_tree = vec!["commit-tree"];
+    let mut commit_tree: Vec<String> = vec![String::from("commit-tree")];
     if signs_commits_awaiting(git).await? {
-        commit_tree.push("-S");
+        commit_tree.push(String::from("-S"));
     }
-    commit_tree.extend(["-p", local, "-p", remote, "-m", &full_message, &tree]);
-    let oid = git_output_awaiting(git, &argv(&commit_tree)).await?;
+    for word in ["-p", local, "-p", remote, "-F", "-", tree.as_str()] {
+        commit_tree.push(String::from(word));
+    }
+    // What: the message goes on the standard input, not in `-m`,
+    // and it ends with a line feed the way `-m` made it end.
+    // Why: the kernel bounds one argument at about 128 KiB, and a merge of many parts lists one line per part
+    // (`report`), so a merge whose every region resolved failed its commit with "Argument list too long" instead of
+    // publishing (cross-vendor review of round 198, finding 2). `-F -` reads the same bytes, the runner feeds them,
+    // and the failure names the command without them; `-m` completes the message's last line (`strbuf_complete_line`)
+    // and `-F` does not, so the line feed is added here to keep the same commit message.
+    if !full_message.ends_with('\n') {
+        full_message.push('\n');
+    }
+    let shown: Vec<&str> = commit_tree.iter().map(String::as_str).collect();
+    let description: String = format!("commit-tree -p {local} -p {remote} -F - {tree}");
+    let created: GitReply = match runner.run(shown.as_slice(), Some(full_message.as_bytes()), None).await {
+        Ok(reply) => reply,
+        Err(reason) => {
+            return Err(SingleFlightError::Git {
+                arguments: description,
+                code: None,
+                stderr: reason,
+            });
+        }
+    };
+    if created.code != Some(0) {
+        return Err(SingleFlightError::Git {
+            arguments: description,
+            code: created.code,
+            stderr: String::from_utf8_lossy(&created.stderr).into_owned(),
+        });
+    }
+    let oid: String = String::from_utf8_lossy(&created.stdout).trim().to_owned();
     return Ok(Ok(CommittedMerge { oid, merged: second_pass_files }));
 }
 
@@ -389,3 +453,9 @@ pub async fn signs_commits_awaiting(git: &PushGit) -> Result<bool, SingleFlightE
     }
     return Ok(asked.stdout.trim_ascii() == b"true");
 }
+
+/// The ceilings of the second pass's commands,
+/// and the answer they cover.
+#[cfg(test)]
+#[path = "auto_push_reconcile_merge_commit_tests.rs"]
+mod tests;

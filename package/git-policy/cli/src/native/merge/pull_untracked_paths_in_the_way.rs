@@ -17,6 +17,8 @@
 //!  so the wrapper copies those files first,
 //! a plain file with its permission bits and a
 //!  symbolic link as a link,
+//! a file or a link standing on the way to an added path included,
+//!  because the move needs a folder there and the reset replaces it,
 //! and names every copy,
 //!  and it offers the worktree guard's hatch only where it kept everything the move would
 //!  have overwritten.
@@ -33,26 +35,16 @@
 
 use crate::diagnostic_log::debug;
 use crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
-use crate::kept_names_in_the_git_directories::data_folder_for_reading;
 use crate::path_bytes::{os_from_path_bytes, path_bytes_of};
-use crate::plain_file::open_plain_file;
+use crate::pull_untracked_paths_in_the_way_kept_copies::{fresh_kept_folder, holds_nothing, keep_one};
 use crate::shell_quote::shell_quote;
+use crate::repository_selection::of_paths;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 /// Module tag for diagnostics.
 const TAG: &str = "pullUntrackedPathsInTheWay";
-
-/// The folder,
-/// inside the Git directory's data folder,
-/// that holds one numbered folder per
-/// pull whose move could not run.
-const KEPT_FOLDER_NAME: &str = "pull-kept";
-
-/// How many numbered folders a keep is willing to look at.
-/// A number no attempt found is reported instead,
-/// so a folder tree nobody cleans costs one message and never a wait.
-const KEPT_FOLDER_ATTEMPTS: u32 = 1000;
 
 /// How many paths one sentence names before it says how many the folder holds besides.
 /// Five is the bound the wrapper's other messages use for a list of paths.
@@ -157,21 +149,56 @@ fn git_diff_tree_could_not_start(error: std::io::Error) -> String {
 }
 
 /// What:
-///  The paths the move from `from` to `to` adds,
-///  as the bytes Git prints for them.
+///  The paths the move from `from` to `to` takes:
+/// the ones it adds,
+///  and the ones the old commit tracked and it stops tracking.
 /// Why:
-///   A path the new commit adds is the only kind of path at which a reset removes bytes Git
-///  does not track:
-///  a path both commits hold is tracked,
-/// and its worktree copy is what `git diff` holds.
+///   An added path is where the reset removes bytes Git does not track;
+///  a path the old commit tracked and the move takes away
+///  is where the same reset removes bytes `git diff <old head>`
+///  holds,
+///  so the two lists together say which entry standing there is the person's to keep.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// exec('git', ['diff-tree', '-r', '--no-renames', '--name-only', '--diff-filter=A', '-z', from, to]);
+/// type PathsTheMoveTakes = { added: Uint8Array[]; gone: Set<Uint8Array> };
 /// ```
-fn paths_the_move_adds(context: &GitContext, cwd: &Path, from: &str, to: &str) -> Result<Vec<Vec<u8>>, String> {
-    let arguments: [&str; 8] = ["diff-tree", "-r", "--no-renames", "--name-only", "--diff-filter=A", "-z", from, to];
-    let output: GitOutput = run_git(context, &GitRequest::new(cwd, &arguments)).map_err(git_diff_tree_could_not_start)?;
+struct PathsTheMoveTakes {
+    /// The paths the new commit adds,
+    /// as the bytes Git prints for them.
+    added: Vec<Vec<u8>>,
+    /// The paths the old commit tracked and the new one does not.
+    gone: HashSet<Vec<u8>>,
+}
+
+/// What:
+///  The paths the move from `from` to `to` adds,
+///  and those it stops tracking,
+///  as the bytes Git prints for them.
+/// Why:
+///   The request runs from the top of the worktree,
+///  which is a directory Git answered,
+///  so it keeps none of the caller's global options:
+///  a relative `-C` or a relative `--git-dir` there is read from the directory Git starts in,
+///  and starting Git anywhere but the caller's own directory applies it a second time
+///  and names a repository that does not exist
+///  (`repository_selection`,
+///  "The repository a global prefix selects").
+///  The repository itself is named by its absolute paths instead,
+///  so the query reads the one the caller selected
+///  from a directory the wrapper already resolved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// request.inTheCallersRepository(repositorySelectionOfPaths(gitDir, root))
+/// const request = gitRequest(root, ['diff-tree', '-r', '--no-renames', '--name-status', '--diff-filter=AD', '-z', from, to]).withoutPrefix();
+/// ```
+fn paths_the_move_takes(context: &GitContext, worktree_root: &Path, git_dir: &Path, from: &str, to: &str) -> Result<PathsTheMoveTakes, String> {
+    let arguments: [&str; 8] = ["diff-tree", "-r", "--no-renames", "--name-status", "--diff-filter=AD", "-z", from, to];
+    let selection: Vec<std::ffi::OsString> = of_paths(git_dir, worktree_root);
+    let mut request: GitRequest = GitRequest::new(worktree_root, &arguments).in_the_callers_repository(selection);
+    request.without_prefix = true;
+    let output: GitOutput = run_git(context, &request).map_err(git_diff_tree_could_not_start)?;
     if output.code != Some(0) {
         let status: String = match output.code {
             Some(code) => code.to_string(),
@@ -179,196 +206,177 @@ fn paths_the_move_adds(context: &GitContext, cwd: &Path, from: &str, to: &str) -
         };
         return Err(format!("git diff-tree answered status {status}"));
     }
-    let mut names: Vec<Vec<u8>> = Vec::new();
-    for name in output.stdout.split(is_nul_byte) {
-        if name.is_empty() {
+    let mut takes: PathsTheMoveTakes = PathsTheMoveTakes { added: Vec::new(), gone: HashSet::new() };
+    // Each entry of `--name-status -z` is the status byte, a NUL, the path, and a NUL.
+    let fields: Vec<&[u8]> = output.stdout.split(is_nul_byte).collect();
+    for pair in fields.chunks(2) {
+        let (Some(status), Some(name)) = (pair.first(), pair.get(1)) else { break };
+        let code: u8 = match status.first() {
+            Some(byte) => *byte,
+            None => break,
+        };
+        match code {
+            b'A' => takes.added.push(name.to_vec()),
+            b'D' => {
+                takes.gone.insert(name.to_vec());
+            }
+            other => return Err(format!("git diff-tree answered a status this does not read: {}", char::from(other))),
+        }
+    }
+    return Ok(takes);
+}
+
+/// What:
+///  Whether one byte separates two components of a path Git listed.
+/// Why:
+///   A tree writes every path with `/` on every platform,
+///  and its components are never empty,
+///  so a name splits into exactly its folders and its own last component.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0x2f
+/// ```
+fn is_path_separator(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
+/// What:
+///  The first entry along one added path that the move would remove,
+///  or nothing when nothing Git does not track stands there.
+/// Why:
+///   The move needs a folder at every component above the path it writes,
+///  and the reset Git's words offer deletes an untracked file or link standing at one of them,
+///  so such an entry is the person's to keep exactly as the added path itself is.
+///  A component the old commit tracked as a file is replaced on purpose,
+///  and its bytes are in `git diff <old head>`,
+///  so nothing is kept for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StandingInTheWay = { kind: 'nothing' } | { kind: 'copy'; below: string } | { kind: 'name'; below: string; why: string };
+/// ```
+enum StandingInTheWay {
+    /// Nothing Git does not track stands where the move writes.
+    Nothing,
+    /// An entry the move would remove,
+    /// by its path below the worktree root;
+    /// `keep_one` copies it or says why it cannot.
+    Copy(PathBuf),
+    /// A path the wrapper cannot copy,
+    /// by its path below the worktree root,
+    /// and why.
+    Name(PathBuf, String),
+}
+
+/// What:
+///  The first entry along `name` the move from `from` to `to` would remove.
+/// Why:
+///   A folder on the way is walked through,
+///  an empty folder where the new commit writes a file holds no bytes,
+///  and everything else is the entry the person's bytes stand in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function standingInTheWay(root, name, gone) { let below = ''; const parts = name.split('/'); for (const [at, part] of parts.entries()) { below = below ? `${below}/${part}` : part; if (at + 1 < parts.length && gone.has(below)) return { kind: 'nothing' }; const seen = lstat(join(root, below)); if (missing(seen)) return { kind: 'nothing' }; if (seen.isDirectory() && (at + 1 < parts.length || holdsNothing(join(root, below)))) continue; return { kind: 'copy', below }; } return { kind: 'nothing' }; }
+/// ```
+fn standing_in_the_way(worktree_root: &Path, name: &[u8], gone: &HashSet<Vec<u8>>) -> StandingInTheWay {
+    let components: Vec<&[u8]> = name.split(is_path_separator).collect();
+    let mut below: PathBuf = PathBuf::new();
+    for (position, component) in components.iter().enumerate() {
+        below.push(os_from_path_bytes(component));
+        let is_the_path_itself: bool = position + 1 == components.len();
+        if !is_the_path_itself && gone.contains(path_bytes_of(below.as_path())) {
+            return StandingInTheWay::Nothing;
+        }
+        let in_the_worktree: PathBuf = worktree_root.join(below.as_path());
+        let stands: std::fs::Metadata = match std::fs::symlink_metadata(in_the_worktree.as_path()) {
+            Ok(seen) => seen,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return StandingInTheWay::Nothing,
+            Err(error) => return StandingInTheWay::Name(below, format!("the wrapper could not read it: {error}")),
+        };
+        if stands.is_dir() && (!is_the_path_itself || holds_nothing(in_the_worktree.as_path())) {
             continue;
         }
-        names.push(name.to_vec());
+        return StandingInTheWay::Copy(below);
     }
-    return Ok(names);
+    return StandingInTheWay::Nothing;
 }
 
 /// What:
-///  A fresh numbered folder under the Git directory's data folder that this pull's copies go into.
+///  Whether the list of paths nothing was copied from already names this path.
 /// Why:
-///   A numbered folder is made with a create that fails when it exists,
-///  so two pulls never write one folder,
-///  and nothing this command writes replaces anything already there.
+///   Two added paths below one entry both walk to it,
+///  and the person reads one line for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (let number = 1; number <= KEPT_FOLDER_ATTEMPTS; number += 1) { try { mkdir(`${parent}/${number}`); return `${parent}/${number}`; } catch (e) { if (e.code !== 'EEXIST') throw e; } }
+/// left.some((one) => one.path === path)
 /// ```
-fn fresh_kept_folder(git_dir: &Path) -> std::io::Result<PathBuf> {
-    let parent: PathBuf = data_folder_for_reading(git_dir).join(KEPT_FOLDER_NAME);
-    std::fs::create_dir_all(&parent)?;
-    for number in 1..=KEPT_FOLDER_ATTEMPTS {
-        let candidate: PathBuf = parent.join(number.to_string());
-        match std::fs::create_dir(&candidate) {
-            Ok(()) => return Ok(candidate),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error),
+fn names_the_path(left: &[PathLeftInTheWay], in_the_worktree: &Path) -> bool {
+    for one in left {
+        if one.in_the_worktree == in_the_worktree {
+            return true;
         }
     }
-    return Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "every numbered folder this command can make already exists"));
+    return false;
 }
 
 /// What:
-///  Whether a directory holds no entry at all.
+///  Whether the list of copies already holds this path.
 /// Why:
-///   A directory standing where the new commit writes a file holds no bytes when it is empty,
-///  so the message does not ask the person to move one.
+///   Two added paths below one entry both walk to it,
+///  and one copy of it is what the person restores.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// readdirSync(path).length === 0
+/// kept.some((one) => one.path === path)
 /// ```
-fn holds_nothing(directory: &Path) -> bool {
-    return match std::fs::read_dir(directory) {
-        Ok(mut listing) => listing.next().is_none(),
-        Err(_unreadable) => false,
-    };
+fn keeps_the_path(kept: &[KeptPath], in_the_worktree: &Path) -> bool {
+    for one in kept {
+        if one.in_the_worktree == in_the_worktree {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
-///  The folders that hold `in_the_copy`.
+///  One path nothing was copied from,
+///  named once however many added paths stand behind it.
 /// Why:
-///   A copy keeps the path's own place under the folder,
-///  so a path in a subdirectory needs its folders made.
+///   Two added paths below one entry both walk to it,
+///  and the person reads one line for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// mkdirSync(dirname(target), { recursive: true });
+/// if (!left.some((one) => one.path === path)) left.push({ path, why });
 /// ```
-fn make_the_copy_folder(in_the_copy: &Path) -> Result<(), String> {
-    let Some(parent): Option<&Path> = in_the_copy.parent() else { return Ok(()) };
-    if let Err(error) = std::fs::create_dir_all(parent) {
-        return Err(format!("the folder {} of its copy could not be made: {error}", parent.display()));
+fn name_the_path_once(left: &mut Vec<PathLeftInTheWay>, in_the_worktree: PathBuf, why: String) {
+    if names_the_path(left.as_slice(), in_the_worktree.as_path()) {
+        return;
     }
-    return Ok(());
+    left.push(PathLeftInTheWay { in_the_worktree, why });
 }
+
 
 /// What:
-///  A copy of one plain file,
-///  opened the way every plain file of a worktree is opened:
-///  without blocking and without following a link.
-/// Why:
-///   A name swapped for a named pipe between the look and the open would otherwise wait for a
-///  writer that may never come,
-///  and the pull holds nothing while it copies.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// copyFileSync(openPlain(source), target);
-/// ```
-fn copy_plain_file(from: &Path, to: &Path, metadata: &std::fs::Metadata) -> Result<(), String> {
-    let mut source: std::fs::File = match open_plain_file(from) {
-        Ok(opened) => opened,
-        Err(error) => return Err(format!("the wrapper could not open {}: {error}", from.display())),
-    };
-    let mut destination: std::fs::File = match std::fs::File::create(to) {
-        Ok(made) => made,
-        Err(error) => return Err(format!("its copy at {} could not be made: {error}", to.display())),
-    };
-    if let Err(error) = std::io::copy(&mut source, &mut destination) {
-        return Err(format!("its copy at {} could not be written: {error}", to.display()));
-    }
-    return copy_the_mode(metadata, to);
-}
-
-/// What:
-///  Give the copy the permission bits the original holds.
-/// Why:
-///   An entry a person runs is its bytes and its mode,
-///  so a copy that is not executable would not be the file they had.
-#[cfg(unix)]
-fn copy_the_mode(metadata: &std::fs::Metadata, to: &Path) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt as _;
-    let mode: u32 = metadata.permissions().mode() & 0o777;
-    if let Err(error) = std::fs::set_permissions(to, std::fs::Permissions::from_mode(mode)) {
-        return Err(format!("the mode of its copy at {} could not be set: {error}", to.display()));
-    }
-    return Ok(());
-}
-
-/// The same on a platform whose permissions are not Unix bits:
-///  the copy keeps what `std::fs::File::create` gave it.
-#[cfg(not(unix))]
-fn copy_the_mode(_metadata: &std::fs::Metadata, _to: &Path) -> Result<(), String> {
-    return Ok(());
-}
-
-/// What:
-///  Copy what stands at one path the move would overwrite into `in_the_copy`.
-/// Why:
-///   A plain file is copied byte for byte and a symbolic link is made again with its own target,
-///  so the copy stands for the person's entry as the worktree held it;
-///  anything else is answered with what stands there,
-///  because a directory's contents and a named pipe are not one file this can keep.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const metadata = lstatSync(path); if (metadata.isDirectory()) throw 'it is a directory'; if (metadata.isSymbolicLink()) symlinkSync(readlinkSync(path), target); else copyPlainFile(path, target);
-/// ```
-fn keep_one(in_the_worktree: &Path, in_the_copy: &Path) -> Result<(), String> {
-    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(in_the_worktree) {
-        Ok(seen) => seen,
-        Err(error) => return Err(format!("the wrapper could not read {}: {error}", in_the_worktree.display())),
-    };
-    let kind: std::fs::FileType = metadata.file_type();
-    if kind.is_dir() {
-        return Err(String::from("it is a directory, and the wrapper copies plain files and symbolic links"));
-    }
-    make_the_copy_folder(in_the_copy)?;
-    if kind.is_symlink() {
-        return copy_symbolic_link(in_the_worktree, in_the_copy);
-    }
-    if kind.is_file() {
-        return copy_plain_file(in_the_worktree, in_the_copy, &metadata);
-    }
-    return Err(String::from("it is neither a plain file nor a symbolic link"));
-}
-
-/// What:
-///  The link at `in_the_copy` that names what the link at `in_the_worktree` named.
-/// Why:
-///   A symbolic link's bytes are its target's text,
-///  so the copy is made with that text and never by following it.
-#[cfg(unix)]
-fn copy_symbolic_link(in_the_worktree: &Path, in_the_copy: &Path) -> Result<(), String> {
-    let target: PathBuf = match std::fs::read_link(in_the_worktree) {
-        Ok(named) => named,
-        Err(error) => return Err(format!("the wrapper could not read the link target of {}: {error}", in_the_worktree.display())),
-    };
-    if let Err(error) = std::os::unix::fs::symlink(target, in_the_copy) {
-        return Err(format!("the link at {} could not be made: {error}", in_the_copy.display()));
-    }
-    return Ok(());
-}
-
-/// The same for a platform without Unix links,
-///  which keeps the words and refuses the entry:
-///  no gate builds this crate there.
-#[cfg(not(unix))]
-fn copy_symbolic_link(_in_the_worktree: &Path, _in_the_copy: &Path) -> Result<(), String> {
-    return Err(String::from("it is a symbolic link, which this platform's copy cannot make"));
-}
-
-/// What:
-///  Keep every file Git does not track that stands where the move from `from` to `to` writes.
+///  Keep every file Git does not track that stands where the move from `from` to `to` writes,
+///  or on the way to it.
 /// Why:
 ///   The pull stops where Git's own does,
 ///  and the person keeps the bytes their file held,
 ///  named by the sentence `recovery_words` builds.
+///  A file or a link standing where the move needs a folder is kept the same way,
+///  because the reset Git's words offer replaces it with that folder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const added = pathsTheMoveAdds(context, worktreeRoot, from, to); for (const name of added) { const path = join(root, name); ... }
+/// const takes = pathsTheMoveTakes(context, worktreeRoot, gitDir, from, to); for (const name of takes.added) { const below = standingInTheWay(worktreeRoot, name, takes.gone); ... }
 /// ```
 pub fn keep_the_untracked_paths_in_the_way(context: &GitContext, worktree_root: &Path, git_dir: &Path, from: &str, to: &str) -> UntrackedInTheWay {
-    let added: Vec<Vec<u8>> = match paths_the_move_adds(context, worktree_root, from, to) {
-        Ok(names) => names,
+    let takes: PathsTheMoveTakes = match paths_the_move_takes(context, worktree_root, git_dir, from, to) {
+        Ok(taken) => taken,
         Err(why) => {
             debug(TAG, format!("the paths the move would overwrite could not be listed: {why}").as_str());
             return UntrackedInTheWay { listing_failure: Some(why), kept: Vec::new(), left: Vec::new(), folder: None };
@@ -377,34 +385,35 @@ pub fn keep_the_untracked_paths_in_the_way(context: &GitContext, worktree_root: 
     let mut kept: Vec<KeptPath> = Vec::new();
     let mut left: Vec<PathLeftInTheWay> = Vec::new();
     let mut folder: Option<PathBuf> = None;
-    for name in added {
-        let in_the_worktree: PathBuf = worktree_root.join(os_from_path_bytes(name.as_slice()));
-        match std::fs::symlink_metadata(&in_the_worktree) {
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => {
-                left.push(PathLeftInTheWay { in_the_worktree, why: format!("the wrapper could not read it: {error}") });
+    for name in takes.added {
+        let below: PathBuf = match standing_in_the_way(worktree_root, name.as_slice(), &takes.gone) {
+            StandingInTheWay::Nothing => continue,
+            StandingInTheWay::Name(below, why) => {
+                name_the_path_once(&mut left, worktree_root.join(below.as_path()), why);
                 continue;
             }
-            // An empty directory holds no bytes to keep, and Git's reset removes it with nothing lost.
-            Ok(stands) if stands.is_dir() && holds_nothing(in_the_worktree.as_path()) => continue,
-            Ok(_stands) => {}
+            StandingInTheWay::Copy(below) => below,
+        };
+        let in_the_worktree: PathBuf = worktree_root.join(below.as_path());
+        if keeps_the_path(kept.as_slice(), in_the_worktree.as_path()) || names_the_path(left.as_slice(), in_the_worktree.as_path()) {
+            continue;
         }
         if folder.is_none() {
             match fresh_kept_folder(git_dir) {
                 Ok(made) => folder = Some(made),
                 Err(error) => {
-                    left.push(PathLeftInTheWay { in_the_worktree, why: format!("the folder for its copy could not be made: {error}") });
+                    name_the_path_once(&mut left, in_the_worktree, format!("the folder for its copy could not be made: {error}"));
                     continue;
                 }
             }
         }
         let in_the_copy: PathBuf = match &folder {
-            Some(made) => made.join(os_from_path_bytes(name.as_slice())),
+            Some(made) => made.join(below.as_path()),
             None => continue,
         };
         match keep_one(&in_the_worktree, &in_the_copy) {
             Ok(()) => kept.push(KeptPath { in_the_worktree, in_the_copy }),
-            Err(why) => left.push(PathLeftInTheWay { in_the_worktree, why }),
+            Err(why) => name_the_path_once(&mut left, in_the_worktree, why),
         }
     }
     debug(

@@ -17,10 +17,12 @@
 //! ```
 
 use crate::fs_btrfs_ioctl::subvolume_create_at;
-use crate::test_support::{age, git};
+use crate::test_support::{age, git, git_output};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
+use std::os::unix::fs::MetadataExt;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Write a tracked file with its parents and age it.
 pub(crate) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
@@ -70,4 +72,76 @@ pub(crate) fn main_identity(repo: &Path) -> WorktreeIdentity {
 /// with the insertion point after `worktree add`.
 pub(crate) fn plan_to(destination: PathBuf) -> AddPlan {
     return AddPlan { destination, insert_at: 2, quiet: false };
+}
+
+/// The modification time every fixture that hides an edit gives its file:
+/// a whole second in the past,
+/// so the
+///  entry is not racy against the index file.
+pub(crate) const HIDDEN_EDIT_SECONDS: u64 = 1_577_934_245;
+
+/// What:
+///  Give `path` the modification time `seconds`.
+/// Why:
+///   A fixture that hides an edit puts the file's times back after writing it,
+/// so nothing about the file's
+///  length or modification time says it changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seconds = 1_577_934_245; const when = new Date(seconds * 1000); utimesSync(path, when, when);
+/// ```
+fn set_modified(path: &Path, seconds: u64) {
+    let when: SystemTime = UNIX_EPOCH + Duration::from_secs(seconds);
+    let times: std::fs::FileTimes = std::fs::FileTimes::new().set_modified(when);
+    std::fs::File::open(path).expect("the file whose times are put back").set_times(times).expect("the modification time");
+}
+
+/// Wait until a new whole second of the wall clock has begun.
+fn wait_for_a_new_second() {
+    let now: Duration = SystemTime::now().duration_since(UNIX_EPOCH).expect("a clock after 1970");
+    std::thread::sleep(Duration::from_secs(1) - Duration::from_nanos(u64::from(now.subsec_nanos())) + Duration::from_millis(2));
+}
+
+/// What:
+///  Replace the tracked file `relative` with `edited`,
+/// which is as long as `original`,
+/// in a way Git's
+///  stat check cannot see,
+/// and answer whether it cannot.
+/// Why:
+///   Git decides whether a tracked file changed by its length,
+/// its modification time and the second of its
+///  change time.
+/// A file written at the start of a whole second,
+/// recorded in the index and then replaced with bytes
+///  of the same length and the same modification time keeps all three,
+/// so `git status`,
+/// `git diff-files`,
+///  `read-tree --reset -u` and `reset --hard` all take it for the entry's content.
+/// The write and the
+///  index record are retried when the second rolled over between them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function hideAnEdit(repo, relative, original, edited) { ...; return git(repo, ['diff-files', '--quiet']).status === 0 }
+/// ```
+pub(crate) fn hide_an_edit(repo: &Path, relative: &str, original: &[u8], edited: &[u8]) -> bool {
+    assert_eq!(original.len(), edited.len(), "an edit the stat check cannot see keeps the length of the file it replaces");
+    let path: PathBuf = repo.join(relative);
+    for _attempt in 0..5 {
+        std::fs::write(path.as_path(), original).expect("the file before the edit");
+        wait_for_a_new_second();
+        set_modified(path.as_path(), HIDDEN_EDIT_SECONDS);
+        git(repo, &["add", "--", relative]);
+        let recorded: std::fs::Metadata = std::fs::metadata(path.as_path()).expect("the file's stat when the index recorded it");
+        std::fs::write(path.as_path(), edited).expect("the edit");
+        set_modified(path.as_path(), HIDDEN_EDIT_SECONDS);
+        let hidden: bool = git_output(repo, &["diff-files", "--quiet"]).status.success();
+        let same_second: bool = std::fs::metadata(path.as_path()).expect("the file's stat after the edit").ctime() == recorded.ctime();
+        if hidden && same_second {
+            return true;
+        }
+    }
+    return false;
 }

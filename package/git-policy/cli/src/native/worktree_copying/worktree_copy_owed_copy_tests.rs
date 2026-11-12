@@ -157,6 +157,128 @@ fn a_source_that_is_no_worktree_ends_the_copy_with_the_reason() {
 }
 
 /// What:
+///  A record whose source was removed altogether ends the copy with the unfilled record and its reason,
+/// so the worktree is named on every later command instead of promising a copy no command can make.
+/// Why:
+///   The listing that decides whether a source is registered runs inside the source's own directory,
+/// so a
+///  source that is not there any more cannot even be asked;
+/// before this it left the claim and a line saying the
+///  copy was still owed,
+/// which the first command in that worktree never made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owed = { source: join(root, 'gone'), selection: 'ignored' }; claimStageForAddAsOwing(...);
+/// const said = toldIn(common, destination); expect(said).toMatch(/no longer a worktree/); expect(unfilledRecordsExist(common)).toBe(true);
+/// ```
+#[test]
+fn a_source_whose_directory_was_removed_ends_the_copy_with_the_unfilled_record() {
+    let root: PathBuf = fixture("owed-copy-source-directory-gone");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join(".gitignore"), b"cache/\n").expect("gitignore");
+    std::fs::create_dir_all(repo.join("cache")).expect("cache");
+    std::fs::write(repo.join("cache/data"), b"payload").expect("data");
+    git(repo.as_path(), &["add", ".gitignore"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=ignored"]);
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("canonical destination");
+    let common: PathBuf = repo.join(".git");
+    // The worktree the add was copying from was removed with its directory, as `git worktree remove` alone
+    //  does not: nothing is there to be asked about.
+    let source: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("removed-source");
+    std::fs::create_dir(source.as_path()).expect("a source that is removed after the add was killed");
+    let owed: OwedCopy = OwedCopy { source: source.clone(), selection: OwedSelection::Ignored };
+    let claim: StageClaim = crate::worktree_copy_stage_claim::claim_stage_for_add_as_owing(
+        common.as_path(),
+        destination.as_path(),
+        &dead_copy_owner(),
+        Some(&owed),
+    )
+    .expect("claim");
+    std::mem::forget(claim);
+    std::fs::remove_dir(source.as_path()).expect("the source's directory is gone");
+    let said: String = told_in(common.as_path(), destination.as_path());
+    assert!(said.contains("no longer a worktree of this repository"), "the line says why nothing was copied: {said}");
+    assert!(unfilled_records_exist(common.as_path()).expect("records"), "the worktree stays named by a durable record: {said}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "and the claim that would stage it again is settled");
+    assert!(!destination.join("cache/data").exists(), "nothing was staged from a path that is no worktree");
+    let again: String = told_in(common.as_path(), destination.as_path());
+    assert!(again.contains("no longer a worktree of this repository"), "every later command says the reason: {again}");
+    assert!(!again.contains("git worktree add") || again.contains("remove --force"), "and names the commands that settle it: {again}");
+    remove(root.as_path());
+}
+
+/// What:
+///  When the unfilled record cannot be written,
+/// the claim and its record are still there,
+/// so the worktree is
+///  still named.
+/// Why:
+///   A command can be killed between the record and the claim,
+/// and the record's own write can fail;
+/// both are
+///  the same order,
+/// and a claim settled first would leave nothing at all on disk,
+/// so no later
+///  command could tell that worktree from a whole one.
+/// The settlement is called directly,
+/// so a record that cannot be read cannot make the pass fail
+///  before the order it is asked about is reached.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdirSync(unfilledPathOf(claim)); const refused = settleUnfilled(add, reason); expect(refused).toBeInstanceOf(Error); expect(existsSync(claim)).toBe(true);
+/// ```
+#[test]
+fn an_unfilled_record_that_cannot_be_written_keeps_the_claim_that_names_the_worktree() {
+    let (root, repo, destination) = interrupted_add("owed-copy-unfilled-unwritable");
+    let common: PathBuf = repo.join(".git");
+    let claim_path: PathBuf = claim_path_of(journal_root(common.as_path()).as_path());
+    let (container, _owner) = read_claim(claim_path.as_path()).expect("claim").expect("named");
+    let add = owed_add_of(claim_path.as_path(), container.as_path()).expect("the add's own state");
+    // A directory at the record's own name makes the write fail the way a full or closed filesystem does:
+    //  a rename publishes nothing onto a directory.
+    let record: PathBuf = crate::worktree_copy_unfilled_record::unfilled_path_of(claim_path.as_path());
+    std::fs::create_dir(record.as_path()).expect("a record name a write cannot take");
+    let refused: Result<Option<String>, crate::worktree_copy_error::WorktreeCopyError> = settle_unfilled(&add, "the source is gone");
+    assert!(refused.is_err(), "the record that cannot be written is a failure this pass reports: {refused:?}");
+    assert!(claim_path.exists(), "the claim stays, so every later command still names the worktree");
+    assert!(stage_claims_exist(common.as_path()).expect("claims"), "and so does the record beside it");
+    assert!(!destination.join("cache/data").exists(), "nothing was staged");
+    remove(root.as_path());
+}
+
+/// What:
+///  A copy that is given up writes the record that names the worktree before it settles the claim.
+/// Why:
+///   The record is the only durable line that names a worktree holding less than its source ignores;
+/// the
+///  claim settled first would leave a kill between the two with nothing at all,
+/// so the order is part of what the
+///  settlement promises.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notice = settleUnfilled(add, 'the source is gone'); expect(notice).toBeUndefined(); expect(existsSync(record)).toBe(true); expect(existsSync(claim)).toBe(false);
+/// ```
+#[test]
+fn a_settled_unfilled_copy_writes_the_record_before_it_settles_the_claim() {
+    let (root, repo, destination) = interrupted_add("owed-copy-unfilled-record-first");
+    let common: PathBuf = repo.join(".git");
+    let claim_path: PathBuf = claim_path_of(journal_root(common.as_path()).as_path());
+    let (container, _owner) = read_claim(claim_path.as_path()).expect("claim").expect("named");
+    let add = owed_add_of(claim_path.as_path(), container.as_path()).expect("the add's own state");
+    let record: PathBuf = crate::worktree_copy_unfilled_record::unfilled_path_of(claim_path.as_path());
+    let notice: Option<String> = settle_unfilled(&add, "the source is gone").expect("settled");
+    assert!(notice.is_none(), "the record's own line is what names the worktree: {notice:?}");
+    assert!(record.exists(), "the record that names the worktree is written");
+    assert!(!claim_path.exists(), "and the claim that would stage the source again is settled");
+    assert!(!destination.join("cache/data").exists(), "nothing was staged");
+    remove(root.as_path());
+}
+
+/// What:
 ///  The stage a kill left is removed and the copy is made when the wrapper can tell nothing in it can be lost,
 /// and a container holding anything else is left where it is.
 /// Why:
@@ -227,8 +349,10 @@ fn a_stage_bound_to_another_destination_is_not_this_copy_s_own() {
 /// a command in another linked worktree of the same repository names the worktree that is short of
 /// files and starts nothing.
 /// Why:
-///  Before this, any command of the repository finished the copy and waited for it:
-/// 63.5 s for a `git merge` and 119.8 s for a `git push` in another worktree, silently,
+///  Before this,
+/// any command of the repository finished the copy and waited for it:
+/// 63.5 s for a `git merge` and 119.8 s for a `git push` in another worktree,
+/// silently,
 /// after an add was killed while copying 15,151 ignored entries
 /// (`doc/planning/cli-git-owed-copy-off-other-commands-path.md`).
 #[test]
@@ -367,5 +491,52 @@ fn a_record_that_names_a_copy_is_kept_by_a_command_in_another_worktree() {
     let said: String = told_in(common.as_path(), destination.as_path());
     assert_eq!(std::fs::read(destination.join("cache/data")).expect("the ignored file arrived"), b"payload", "{said}");
     assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the records go with the copy: {said}");
+    remove(root.as_path());
+}
+
+/// A destination that holds the object the add's own snapshot became owes no copy,
+/// and the directory Git made at the
+/// stage name goes with the add's records.
+///
+/// This is the kill point right after the exchange that publishes an add:
+/// the record still names the copy the add owed,
+/// so every command of the repository used to finish a copy nobody needed and to say the worktree was missing files it
+/// already held,
+/// and the stage name held Git's own directory for ever (sonnet audit of alpha.10,
+/// F6).
+#[test]
+fn a_destination_that_holds_the_adds_snapshot_owes_no_copy_and_leaves_no_stage() {
+    let (root, repo, destination) = interrupted_add("owed-copy-snapshot-placed");
+    let common: PathBuf = repo.join(".git");
+    let claim_path: PathBuf = claim_path_of(crate::worktree_copy_journal::journal_root(common.as_path()).as_path());
+    let (container, _owner): (PathBuf, Option<String>) = read_claim(claim_path.as_path()).expect("a claim that reads").expect("one claim");
+    let record: PathBuf = claim_path.with_extension("add");
+    let owed: OwedCopy = crate::worktree_add_binding::owed_copy_of(std::fs::read_to_string(record.as_path()).expect("the record").as_str()).expect("the record names the copy the add owed");
+    let admin: PathBuf = registration_directory(destination.as_path()).expect("the worktree's registration");
+    let placed = crate::worktree_add_binding::path_identity(destination.as_path()).expect("the identity of the published snapshot");
+    crate::worktree_copy_stage_made_object::record_made(common.as_path(), container.as_path(), placed).expect("the record of the snapshot");
+    // The exchange put the snapshot at the destination and the directory Git made at the stage name, holding the pointer
+    // Git wrote there.
+    let pointer: Vec<u8> = std::fs::read(destination.join(".git")).expect("the pointer Git wrote");
+    std::fs::create_dir_all(container.as_path()).expect("the directory Git made");
+    std::fs::write(container.join(".git"), pointer.as_slice()).expect("Git's pointer");
+    let git_made = crate::worktree_add_binding::path_identity(container.as_path()).expect("the identity of the directory Git made");
+    std::fs::write(
+        record.as_path(),
+        crate::worktree_add_binding::registered_record_with(
+            &Binding { destination: destination.clone(), destination_id: git_made, admin: admin.clone(), admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"), pointer },
+            Some(&owed),
+            None,
+        )
+        .as_bytes(),
+    )
+    .expect("the add's record");
+    let said: String = told_in(common.as_path(), destination.as_path());
+    assert!(!destination.join("cache/data").exists(), "nothing is copied into a worktree whose snapshot already holds the ignored files: {said}");
+    assert!(!said.contains("finishing the ignored-state copy"), "and no copy is started: {said}");
+    assert!(!said.contains("still owed"), "nothing is said to be owed: {said}");
+    assert!(!said.contains("may be missing"), "a snapshot that is in place is not missing the files its source ignores: {said}");
+    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the add's records settle, because the snapshot is whole: {said}");
+    assert!(!container.exists(), "the directory Git made is removed with them: {said}");
     remove(root.as_path());
 }
