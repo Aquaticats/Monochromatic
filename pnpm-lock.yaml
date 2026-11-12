@@ -121,11 +121,11 @@ catalogs:
       specifier: '>=0.7.9'
       version: 0.7.9
     '@inquirer/checkbox':
-      specifier: '>=5.2.8'
-      version: 5.2.8
+      specifier: '>=5.3.0'
+      version: 5.3.0
     '@inquirer/input':
-      specifier: '>=5.1.9'
-      version: 5.1.9
+      specifier: '>=5.2.0'
+      version: 5.2.0
     '@lezer/common':
       specifier: '>=1.5.5'
       version: 1.5.5
@@ -256,8 +256,8 @@ catalogs:
       specifier: '>=10.2.0'
       version: 10.2.0
     electron:
-      specifier: '>=45.2.3'
-      version: 45.2.3
+      specifier: '>=45.3.0'
+      version: 45.3.0
     env-paths:
       specifier: '>=4.0.0'
       version: 4.0.0
@@ -443,7 +443,7 @@ catalogs:
       version: 2.1.0
 
 overrides:
-  '@anthropic-ai/sdk': '>=1.7.0'
+  '@anthropic-ai/sdk': '>=1.8.0'
   '@earendil-works/pi-ai>@aws-sdk/client-bedrock-runtime': '-'
   '@earendil-works/pi-ai>@google/genai': '-'
   '@earendil-works/pi-ai>@mistralai/mistralai': '-'
@@ -2089,6 +2089,9 @@ importers:
       '@deepseek-ai/dsh-settings':
         specifier: 'catalog:'
         version: 0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-brand@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0))(@deepseek-ai/dsh-session@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)(@deepseek-ai/dsh-scope@0.2.2-rc.1(@deepseek-ai/cordis@4.1.0)))(@deepseek-ai/schemastery@3.19.0)
+      '@monochromatic-dev/async-time-core':
+        specifier: workspace:*
+        version: link:../../async-time/core
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -2110,6 +2113,9 @@ importers:
       '@monochromatic-dev/agent-harness-shared-qwen-token-plan-individual-listing':
         specifier: workspace:*
         version: link:../../agent-harness-shared/qwen-token-plan-individual-listing
+      '@monochromatic-dev/async-time-core':
+        specifier: workspace:*
+        version: link:../../async-time/core
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -2168,7 +2174,7 @@ importers:
         version: 26.6.6
       electron:
         specifier: 'catalog:'
-        version: 45.2.3
+        version: 45.3.0
       rolldown:
         specifier: 'catalog:'
         version: 1.3.1
@@ -2186,7 +2192,7 @@ importers:
         version: link:../../ownership-marker/foreign-borrowed
       electron:
         specifier: 'catalog:'
-        version: 45.2.3
+        version: 45.3.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -2326,7 +2332,7 @@ importers:
         version: 26.6.6
       electron:
         specifier: 'catalog:'
-        version: 45.2.3
+        version: 45.3.0
       rolldown:
         specifier: 'catalog:'
         version: 1.3.1
@@ -2946,8 +2952,8 @@ importers:
   package/llm/token-count:
     dependencies:
       '@anthropic-ai/sdk':
-        specifier: '>=1.7.0'
-        version: 1.7.0(zod@4.6.7)
+        specifier: '>=1.8.0'
+        version: 1.8.0(zod@4.6.7)
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
@@ -3414,10 +3420,10 @@ importers:
     dependencies:
       '@inquirer/checkbox':
         specifier: 'catalog:'
-        version: 5.2.8(@types/node@26.6.6)
+        version: 5.3.0(@types/node@26.6.6)
       '@inquirer/input':
         specifier: 'catalog:'
-        version: 5.1.9(@types/node@26.6.6)
+        version: 5.2.0(@types/node@26.6.6)
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -3778,6 +3784,9 @@ importers:
 
   package/pi-plugin/agent-settled-notification:
     dependencies:
+      '@monochromatic-dev/async-time-core':
+        specifier: workspace:*
+        version: link:../../async-time/core
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
@@ -3787,9 +3796,6 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
@@ -8800,8 +8806,8 @@ importers:
 
 packages:
 
-  '@anthropic-ai/sdk@1.7.0':
-    resolution: {integrity: sha512-Z+0c1iHQozlt4ymMHapPXEXfFnSbPEWGnSKbkavt+qeyaMQ3Sd6QNxfQj7vyhHYqiqYadC9shrXub8ISKf7xjQ==, tarball: https://registry.npmjs.org/@anthropic-ai/sdk/-/sdk-1.7.0.tgz}
+  '@anthropic-ai/sdk@1.8.0':
+    resolution: {integrity: sha512-yDOArk2+Qpd/djEKmZjrv7JZ+pn5iBHARJ9PAdvfhGf4H5wNqTgY/2K0/yDKdQdm8G8hrNQchMlBAHpPK7yBfg==, tarball: https://registry.npmjs.org/@anthropic-ai/sdk/-/sdk-1.8.0.tgz}
     hasBin: true
     peerDependencies:
       zod: '>=4.6.6'
@@ -9433,44 +9439,44 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@inquirer/ansi@2.0.10':
-    resolution: {integrity: sha512-dwrc+1aqVZpHNkNDswXGtn1typ+Pxpo5FHZRyBw1le7onEJUkPUkYOY1FIFC1LvFMYUqqLuWBwElhAmencL7MQ==, tarball: https://registry.npmjs.org/@inquirer/ansi/-/ansi-2.0.10.tgz}
-    engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
+  '@inquirer/ansi@2.1.0':
+    resolution: {integrity: sha512-63GU5AD9KhNbWM0jlhHoMJTEFck2upFOPxHlnCKf3xYTV3rjTUUQfodihmTnfYQzMLS29oy8lK/gA1eJgu4bhA==, tarball: https://registry.npmjs.org/@inquirer/ansi/-/ansi-2.1.0.tgz}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
 
-  '@inquirer/checkbox@5.2.8':
-    resolution: {integrity: sha512-NY/S1EalQhlonqhwwsarrcnkH7s9ByQuvjWYdk1jB2Gb9EPQJjKkhCTWjM3yQ0UpHaLm1XbIL89b+32G8rhO5w==, tarball: https://registry.npmjs.org/@inquirer/checkbox/-/checkbox-5.2.8.tgz}
-    engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
+  '@inquirer/checkbox@5.3.0':
+    resolution: {integrity: sha512-3QQSO87A+JoRtOtjtsgX2enwTL+3+VBVrkUpdqrIxMOgn5+W5sE57PcCPAiNUIESHxV4Q6mNEGxq2xLmRa0/yw==, tarball: https://registry.npmjs.org/@inquirer/checkbox/-/checkbox-5.3.0.tgz}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
     peerDependencies:
       '@types/node': '>=18'
     peerDependenciesMeta:
       '@types/node':
         optional: true
 
-  '@inquirer/core@12.0.6':
-    resolution: {integrity: sha512-5yxn2LsJ8Tu4ei2a+yNkmFRhM/cb+JMEsEs/AW6CCOnBnpMy4IjYiPMFyHtYq8weOmlTyqqCx40y0DsD7OsEPw==, tarball: https://registry.npmjs.org/@inquirer/core/-/core-12.0.6.tgz}
-    engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
+  '@inquirer/core@12.1.0':
+    resolution: {integrity: sha512-6H7usRWw4Gdjgpaem10CA5MfZ/xoYPGyInriR1Xubqjv+SVo8LIJ1erpFxW5JgCza6VZVZiKLTko7RtUU3AQMg==, tarball: https://registry.npmjs.org/@inquirer/core/-/core-12.1.0.tgz}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
     peerDependencies:
       '@types/node': '>=18'
     peerDependenciesMeta:
       '@types/node':
         optional: true
 
-  '@inquirer/figures@2.0.10':
-    resolution: {integrity: sha512-51elrUJV3jZpvD0ygz8+U10Kc6+Lzqln+/tYmnbhy6jo5oXpE6hMCcv+OTBC0enwJXsb3JIuT3VtEinRNCSK2A==, tarball: https://registry.npmjs.org/@inquirer/figures/-/figures-2.0.10.tgz}
-    engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
+  '@inquirer/figures@2.1.0':
+    resolution: {integrity: sha512-CR9u2PME23jxy2SOyTb117efwAAPm98Zr+LoWI+PiQ55D6U8Yeu/HyFTxwytKhPa6oxAGzdsm2Kg7oLS6B9z8w==, tarball: https://registry.npmjs.org/@inquirer/figures/-/figures-2.1.0.tgz}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
 
-  '@inquirer/input@5.1.9':
-    resolution: {integrity: sha512-2Vd5T7lTxfgJMpAd3aOu6bQpbUnCU7tBgvTQIZkP/7juJzmRmTM2t5XfOCuirFduWLTSJI/WZp32Cq1E01TVeg==, tarball: https://registry.npmjs.org/@inquirer/input/-/input-5.1.9.tgz}
-    engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
+  '@inquirer/input@5.2.0':
+    resolution: {integrity: sha512-sIUPnN2X7M+7dq3RUd+e9QRacYnM+6B+kSucwQgj5VC5Eo/f+CIr2NyPBumxsViI+wzfokkgop/3x3KfHxNyJw==, tarball: https://registry.npmjs.org/@inquirer/input/-/input-5.2.0.tgz}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
     peerDependencies:
       '@types/node': '>=18'
     peerDependenciesMeta:
       '@types/node':
         optional: true
 
-  '@inquirer/type@4.2.1':
-    resolution: {integrity: sha512-lDkPsnv5M5CcYB2T1qTc3dobNTPkVr4DU3Ic2Q6SW8/qVRHgvzdRdmVZ6YqG9Ag1aJTeMsLU0s0WPRh3CZWDQQ==, tarball: https://registry.npmjs.org/@inquirer/type/-/type-4.2.1.tgz}
-    engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
+  '@inquirer/type@4.3.0':
+    resolution: {integrity: sha512-/IA8q2nyjgyl0NGSjqiRXB8gh3We7Pzx9C0c+6Zoolu905jFc79anerrUG7+n65+qs310DRK43yi2WDI8nY59A==, tarball: https://registry.npmjs.org/@inquirer/type/-/type-4.3.0.tgz}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
     peerDependencies:
       '@types/node': '>=18'
     peerDependenciesMeta:
@@ -9991,8 +9997,8 @@ packages:
   '@sinonjs/samsam@10.0.2':
     resolution: {integrity: sha512-8lVwD1Df1BmzoaOLhMcGGcz/Jyr5QY2KSB75/YK1QgKzoabTeLdIVyhXNZK9ojfSKSdirbXqdbsXXqP9/Ve8+A==, tarball: https://registry.npmjs.org/@sinonjs/samsam/-/samsam-10.0.2.tgz}
 
-  '@smithy/core@3.39.0':
-    resolution: {integrity: sha512-JJ/46AWQ4ipS1N2eZmUj7yzIhH8NhQIfAE+dce7NSB6dmFh+7hvD4pbofcoT4I0Xzfy/LNhZx3V2QhwYyAiqdg==, tarball: https://registry.npmjs.org/@smithy/core/-/core-3.39.0.tgz}
+  '@smithy/core@3.40.0':
+    resolution: {integrity: sha512-DssGno52pzZ5m6RlDtyKuBIpZNPg9pqgs0CnNDKz9IatxCsmvNmJNn5Zn6rf77MthZo9wf89OvZFhTY/RwxhxQ==, tarball: https://registry.npmjs.org/@smithy/core/-/core-3.40.0.tgz}
     engines: {node: '>=18.0.0'}
 
   '@smithy/node-http-handler@4.12.1':
@@ -10565,11 +10571,11 @@ packages:
   earcut@2.2.4:
     resolution: {integrity: sha512-/pjZsA1b4RPHbeWZQn66SWS8nZZWLQQ23oE3Eam7aroEFGEvwKAsJfZ9ytiEMycfzXWpca4FA9QIOehf7PocBQ==, tarball: https://registry.npmjs.org/earcut/-/earcut-2.2.4.tgz}
 
-  electron-to-chromium@1.5.479:
-    resolution: {integrity: sha512-uAJdJQ7vHa4TvPfzt1TOqoRgHmav5gwmqHMPLxBH6m8Cbj5R9/z/rygTOQiZ8pe5g0ZAEogga1bP6HoKcOzx/Q==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.479.tgz}
+  electron-to-chromium@1.5.481:
+    resolution: {integrity: sha512-dNUsbAP6E2S1dHIYEuN3cQ0dViThjMtpVRheGdvv5HgHFtzLi4Cu4Mbzms85YggP3Eh2VVZTl5+XxEN8ofCbmQ==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.481.tgz}
 
-  electron@45.2.3:
-    resolution: {integrity: sha512-Vurzu5UOA5nTGT4LqIwXD16QFGrOZdiXxF+1UP4KNsAOo/YtDcT3/u0jhP4WSwNJ0iLrLDi85hzBJ0arnGDhyw==, tarball: https://registry.npmjs.org/electron/-/electron-45.2.3.tgz}
+  electron@45.3.0:
+    resolution: {integrity: sha512-JpSzTaZkNaai4B3pUSICIfXiKwl+a7XyvHpWmA3O7SZbWDXNgYSyc7cmhNhlAARMzNAh9nOdZq5DgTZ/T9rlfA==, tarball: https://registry.npmjs.org/electron/-/electron-45.3.0.tgz}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -11159,8 +11165,8 @@ packages:
     resolution: {integrity: sha512-VP79XUPxV2CigYP3jWwAUFSku2aKqBH7uTAapFWCBqutsbmDo96KY5o8uh6U+/YSIn5OxJnXp73beVkpqMIGhA==, tarball: https://registry.npmjs.org/mimic-function/-/mimic-function-5.0.1.tgz}
     engines: {node: '>=18'}
 
-  minimatch@11.0.5:
-    resolution: {integrity: sha512-snPlVppFcYWfLLFQGhDxUyBcHNtMlWmn3jtj7pEaO+DP8pqL0IvAzXhMYmn1z9ASNtgmwLBdFxSf4tMUB0OTKA==, tarball: https://registry.npmjs.org/minimatch/-/minimatch-11.0.5.tgz}
+  minimatch@11.0.7:
+    resolution: {integrity: sha512-Tnk+M9mPjqKDZlUd77eMSjPjhnlBIa1mABOwetMryIshUwi1YmOBdGFfQnHgn4Z8A66eLT8ENzJrxwYmKfqrZg==, tarball: https://registry.npmjs.org/minimatch/-/minimatch-11.0.7.tgz}
     engines: {node: 20 || >=22}
 
   minimist@1.2.8:
@@ -11179,9 +11185,9 @@ packages:
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==, tarball: https://registry.npmjs.org/ms/-/ms-2.1.3.tgz}
 
-  mute-stream@3.0.0:
-    resolution: {integrity: sha512-dkEJPVvun4FryqBmZ5KhDo0K9iDXAwn08tMLDinNdRBNPcYEDiWYysLcc6k3mjTMlbP9KyylvRpd4wFtwrT9rw==, tarball: https://registry.npmjs.org/mute-stream/-/mute-stream-3.0.0.tgz}
-    engines: {node: ^20.17.0 || >=22.9.0}
+  mute-stream@4.0.0:
+    resolution: {integrity: sha512-gSrprq0fJ3EiOErzjdIZrjysVVmJ4uu1QWfCDss5LypA5OXvrMje5Ym5z6V6RLyJ2eF87lasX7t6a0AnFvZblg==, tarball: https://registry.npmjs.org/mute-stream/-/mute-stream-4.0.0.tgz}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
 
   nano-spawn@2.1.0:
     resolution: {integrity: sha512-yTW+2okrElHiH4fsiz/+/zc0EDo9BDDoC3iKk8dpv1GeRc9nUWzUZHx6TofMWErchhUQR8hY9/Eu1Uja9x1nqA==, tarball: https://registry.npmjs.org/nano-spawn/-/nano-spawn-2.1.0.tgz}
@@ -11845,7 +11851,7 @@ packages:
 
 snapshots:
 
-  '@anthropic-ai/sdk@1.7.0(zod@4.6.7)':
+  '@anthropic-ai/sdk@1.8.0(zod@4.6.7)':
     dependencies:
       '@opentelemetry/api': 1.10.0
       json-schema-to-ts: 3.1.1
@@ -12324,7 +12330,7 @@ snapshots:
 
   '@earendil-works/pi-ai@1.5.2(undici@8.12.4)(zod@4.6.7)':
     dependencies:
-      '@anthropic-ai/sdk': 1.7.0(zod@4.6.7)
+      '@anthropic-ai/sdk': 1.8.0(zod@4.6.7)
       '@earendil-works/pi-schema': 1.5.2
       '@earendil-works/pi-telemetry': 1.5.2
       '@smithy/node-http-handler': 4.12.1
@@ -12363,7 +12369,7 @@ snapshots:
       ignore: 7.0.8
       jiti: 2.7.0
       lovely-mermaid: 0.3.3
-      minimatch: 11.0.5
+      minimatch: 11.0.7
       proper-lockfile: link:package/pnpm-override/shim-proper-lockfile
       quickjs-wasi: 3.6.2
       semver: 7.8.6
@@ -12398,7 +12404,7 @@ snapshots:
   '@electron/asar@4.3.1':
     dependencies:
       glob: 14.0.4
-      minimatch: 11.0.5
+      minimatch: 11.0.7
 
   '@electron/get@5.1.0':
     dependencies:
@@ -12603,39 +12609,39 @@ snapshots:
   '@img/sharp-win32-x64@0.35.5':
     optional: true
 
-  '@inquirer/ansi@2.0.10': {}
+  '@inquirer/ansi@2.1.0': {}
 
-  '@inquirer/checkbox@5.2.8(@types/node@26.6.6)':
+  '@inquirer/checkbox@5.3.0(@types/node@26.6.6)':
     dependencies:
-      '@inquirer/ansi': 2.0.10
-      '@inquirer/core': 12.0.6(@types/node@26.6.6)
-      '@inquirer/figures': 2.0.10
-      '@inquirer/type': 4.2.1(@types/node@26.6.6)
+      '@inquirer/ansi': 2.1.0
+      '@inquirer/core': 12.1.0(@types/node@26.6.6)
+      '@inquirer/figures': 2.1.0
+      '@inquirer/type': 4.3.0(@types/node@26.6.6)
     optionalDependencies:
       '@types/node': 26.6.6
 
-  '@inquirer/core@12.0.6(@types/node@26.6.6)':
+  '@inquirer/core@12.1.0(@types/node@26.6.6)':
     dependencies:
-      '@inquirer/ansi': 2.0.10
-      '@inquirer/figures': 2.0.10
-      '@inquirer/type': 4.2.1(@types/node@26.6.6)
+      '@inquirer/ansi': 2.1.0
+      '@inquirer/figures': 2.1.0
+      '@inquirer/type': 4.3.0(@types/node@26.6.6)
       cli-width: 4.1.0
       fast-wrap-ansi: 0.2.2
-      mute-stream: 3.0.0
+      mute-stream: 4.0.0
       signal-exit: 4.1.0
     optionalDependencies:
       '@types/node': 26.6.6
 
-  '@inquirer/figures@2.0.10': {}
+  '@inquirer/figures@2.1.0': {}
 
-  '@inquirer/input@5.1.9(@types/node@26.6.6)':
+  '@inquirer/input@5.2.0(@types/node@26.6.6)':
     dependencies:
-      '@inquirer/core': 12.0.6(@types/node@26.6.6)
-      '@inquirer/type': 4.2.1(@types/node@26.6.6)
+      '@inquirer/core': 12.1.0(@types/node@26.6.6)
+      '@inquirer/type': 4.3.0(@types/node@26.6.6)
     optionalDependencies:
       '@types/node': 26.6.6
 
-  '@inquirer/type@4.2.1(@types/node@26.6.6)':
+  '@inquirer/type@4.3.0(@types/node@26.6.6)':
     optionalDependencies:
       '@types/node': 26.6.6
 
@@ -13137,14 +13143,14 @@ snapshots:
       '@sinonjs/commons': 3.0.1
       type-detect: 4.1.0
 
-  '@smithy/core@3.39.0':
+  '@smithy/core@3.40.0':
     dependencies:
       '@smithy/types': 4.20.0
       tslib: 2.9.1
 
   '@smithy/node-http-handler@4.12.1':
     dependencies:
-      '@smithy/core': 3.39.0
+      '@smithy/core': 3.40.0
       '@smithy/types': 4.20.0
       tslib: 2.9.1
 
@@ -13435,7 +13441,7 @@ snapshots:
     dependencies:
       baseline-browser-mapping: 2.11.35
       caniuse-lite: 1.0.30001823
-      electron-to-chromium: 1.5.479
+      electron-to-chromium: 1.5.481
       node-releases: 2.0.63
       update-browserslist-db: 1.3.4(browserslist@4.29.5)
 
@@ -13546,9 +13552,9 @@ snapshots:
 
   earcut@2.2.4: {}
 
-  electron-to-chromium@1.5.479: {}
+  electron-to-chromium@1.5.481: {}
 
-  electron@45.2.3:
+  electron@45.3.0:
     dependencies:
       '@electron-internal/extract-zip': 1.0.8
       '@electron/get': 5.1.0
@@ -13747,7 +13753,7 @@ snapshots:
 
   glob@14.0.4:
     dependencies:
-      minimatch: 11.0.5
+      minimatch: 11.0.7
       minipass: 7.1.3
       path-scurry: 3.0.0
 
@@ -14470,7 +14476,7 @@ snapshots:
 
   mimic-function@5.0.1: {}
 
-  minimatch@11.0.5:
+  minimatch@11.0.7:
     dependencies:
       '@isaacs/nonrecursive-glob-match': 1.1.0
       brace-expansion: 5.0.12
@@ -14485,7 +14491,7 @@ snapshots:
 
   ms@2.1.3: {}
 
-  mute-stream@3.0.0: {}
+  mute-stream@4.0.0: {}
 
   nano-spawn@2.1.0: {}
 

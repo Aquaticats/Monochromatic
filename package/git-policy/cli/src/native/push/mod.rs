@@ -31,11 +31,28 @@ mod push_slow_server_tests;
 /// planned and run inside the running wrapper.
 pub mod stacked_merge_push;
 
+/// The remote-tracking reference a successful push delivered,
+/// brought up to date when Git could not write it.
+pub mod push_tracking_ref_repair;
+
 /// The service's own retry of a push it stopped or that failed:
 /// the pauses,
-/// the waiting branches,
-/// the final failure.
+/// and the waiting branches.
 pub mod push_retry;
+
+/// What a failed push's own words mean for that retry:
+/// whether the failure is final,
+/// how many tries the one counted cause gets,
+/// and the words the person reads.
+pub mod push_retry_failure;
+
+/// The two signs one look at a process of a push finds,
+/// and the identities a holder is remembered by.
+pub mod push_progress_signs;
+
+/// The server a push waits for,
+/// named from the command's own destination.
+pub mod push_server_naming;
 
 /// The first of Git's own lines that gives a reason for a push's failure.
 pub mod push_retry_cause_line;
@@ -192,6 +209,10 @@ pub mod auto_push;
 
 /// The same automatic push as a task of the runtime.
 pub mod auto_push_awaiting;
+
+/// Whether a push Git reported as failed published the recorded branch all the same,
+/// which `push.default=matching` makes possible by carrying every branch the remote has in one push.
+pub mod matching_push_delivered_the_recorded_branch;
 
 /// Where the automatic push stops when a post-commit gate kept one of a branch's commits local,
 /// and the decision a verdict makes.

@@ -236,6 +236,95 @@ pub fn cargo_build_script_output_dir(
     return None;
 }
 
+/// The names an invocation's environment can give Cargo's build directory,
+///  in the order the wrapper asks them.
+/// Why:
+///  The owner's answer of 2026-11-11 names `CARGO_BUILD_DIR` first;
+///  `CARGO_BUILD_BUILD_DIR` is Cargo's own environment spelling of the `build.build-dir`
+///  setting;
+/// and `build.build-dir` defaults to `build.target-dir`,
+///  which `CARGO_TARGET_DIR` names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const CARGO_BUILD_DIRECTORY_VARIABLES = ['CARGO_BUILD_DIR', 'CARGO_BUILD_BUILD_DIR', 'CARGO_TARGET_DIR'];
+/// ```
+const CARGO_BUILD_DIRECTORY_VARIABLES: [&str; 3] =
+    ["CARGO_BUILD_DIR", "CARGO_BUILD_BUILD_DIR", "CARGO_TARGET_DIR"];
+
+/// What:
+///  Cargo's build directory as the invocation's environment names it:
+///  `CARGO_BUILD_DIR`,
+///  then `CARGO_BUILD_BUILD_DIR`,
+///  then `CARGO_TARGET_DIR`;
+///  an empty value counts as unset,
+///  and a relative value names nothing.
+/// Why:
+///   A crate that vendors another project clones it under this directory and runs Git there
+/// (`libghostty-vt-sys` cloned Ghostty under the build directory),
+///  and a step that runs Git in that clone works in the build's own tree,
+///  so the directory is exempt as uv's cache and mise's data directory are
+///  (`#3024`,
+/// the owner's answer of 2026-11-11).
+///  The three names are not the same setting to Cargo:
+///  Cargo never reads `CARGO_BUILD_DIR`,
+///  which the answer names;
+///  `CARGO_BUILD_BUILD_DIR` is the environment spelling of `build.build-dir`
+///  (Cargo's config reference),
+/// and `build.build-dir` defaults to `build.target-dir`,
+///  whose own variable is `CARGO_TARGET_DIR`.
+///  A relative value names nothing because Cargo resolves one against a directory this
+///  invocation cannot know:
+///  `CARGO_TARGET_DIR` against Cargo's own working directory,
+///  and a configuration value against the directory of the file that set it.
+///  A Git process a build script starts works in that script's package directory,
+///  so exempting a guess could cover a repository nobody named.
+///  The environment is injected so tests never read the real one.
+/// Limit:
+///  The exemption covers every repository under the build directory,
+///  including one a person deliberately keeps there,
+///  which then gets no worktree policies at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cargoBuildDir(environment: [string, string][]): { path: string; namedBy: string } | undefined;
+/// ```
+pub fn cargo_build_dir(
+    environment: &[(OsString, OsString)],
+) -> Option<ToolCacheDirectory> {
+    // `for named_by in CARGO_BUILD_DIRECTORY_VARIABLES` asks each name in the order the answer ranks them.
+    for named_by in CARGO_BUILD_DIRECTORY_VARIABLES {
+        // What: `let Some(value) = ... else { continue; };` moves on when this name is absent.
+        // Why:  The next name still describes the same directory.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const value = environment.get(name); if (value === undefined) continue;
+        // ```
+        let Some(value) = environment_value(environment, named_by) else {
+            continue;
+        };
+        // An empty value is unset: an empty path would exempt whatever the current directory is.
+        if value.is_empty() {
+            continue;
+        }
+        let path: PathBuf = PathBuf::from(value);
+        // What: `path.is_absolute()` decides whether the value can be used at all.
+        // Why:  Cargo resolves a relative value against its own base, which this invocation does not know,
+        //       so a guess could exempt a directory nobody named.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (!path.isAbsolute()) return undefined;
+        // ```
+        if !path.is_absolute() {
+            return None;
+        }
+        return Some(ToolCacheDirectory { path, named_by });
+    }
+    return None;
+}
+
 /// What:
 ///  The tool directories exempt from worktree enforcement on this machine.
 ///       `Vec<PathBuf>` is an owned list of owned paths.
@@ -246,6 +335,8 @@ pub fn cargo_build_script_output_dir(
 ///       compiled in rather than configured.
 ///  Each entry is a directory whose Git clones a tool
 ///       creates and discards itself.
+///  The Cargo build directory is the widest of them,
+///  and its own doc states the limit that width costs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -263,9 +354,15 @@ pub fn default_allowed_worktree_dirs(
     if let Some(mise) = mise_data_dir(environment, home) {
         directories.push(mise);
     }
-    // Cargo's build-script directory is the narrowest of the three: one build step's own output, not a whole cache.
+    // Cargo's build-script directory is the narrowest of its two: one build step's own output, not a whole build
+    //  directory.
     if let Some(cargo) = cargo_build_script_output_dir(environment) {
         directories.push(cargo);
+    }
+    // The whole build directory covers the same clone when a step runs Git there without `OUT_DIR` in its
+    //  environment; it is asked after `OUT_DIR` so the notice names the narrower directory when both cover the clone.
+    if let Some(build_directory) = cargo_build_dir(environment) {
+        directories.push(build_directory);
     }
     return directories;
 }

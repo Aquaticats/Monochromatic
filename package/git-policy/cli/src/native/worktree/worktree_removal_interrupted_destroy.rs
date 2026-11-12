@@ -31,10 +31,11 @@
 //! ```
 
 use crate::diagnostic_log::{debug, warn};
-use crate::fs_beneath::{ObjectId, identity_of, open_directory_at, open_root, remove_at};
+use crate::fs_beneath::{ObjectId, handle_path, identity_of, open_directory_at, open_root, remove_at};
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::subvolume_file_write_steps::write_beside_then_rename;
+use crate::worktree_removal_clears_the_ahead_pool::clear_the_snapshots_ahead;
 use crate::process_identity::{current_birth_identity, process_birth_identity};
 use crate::plain_file::read_plain_file;
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, snapshot_one};
@@ -407,6 +408,12 @@ fn remove_recorded_registration(worktrees: &File, id: &OsStr, admin: &Path, reco
     if found != *recorded {
         return Err(format!("{} is not the registration the destroy was recorded for, so it is left alone", admin.display()));
     }
+    // The snapshots ahead of an add are this program's own and stand in the registration, and the walk below refuses every
+    // nested subvolume, so they go first: a removal this program began on an earlier build left them here, and nothing a
+    // person put in the registration is touched by this clear.
+    if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held).as_path()) {
+        return Err(format!("its snapshots ahead of an add cannot be removed ({reason}): {}", admin.display()));
+    }
     step_reason(verify_below(&held, admin), admin, "it holds something this command does not delete")?;
     step_reason(empty_directory(&held, admin), admin, "its content cannot be removed")?;
     drop(held);
@@ -552,3 +559,8 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
         promote_snapshot(common_dir, snapshot.as_path(), problems);
     }
 }
+
+/// Finish controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_removal_interrupted_destroy_tests.rs"]
+mod tests;

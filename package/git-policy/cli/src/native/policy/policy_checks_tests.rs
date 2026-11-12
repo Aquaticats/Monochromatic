@@ -18,6 +18,7 @@
 ///  the engine types it returns and the scripted facts.
 use super::{ShippedChecks, shipped_checks};
 use crate::candidate_prediction::CandidateRequest;
+use crate::command_clean::UNREADABLE_CLEAN_DELETION;
 use crate::command_test_support::os_arguments;
 use crate::diagnostics::EngineFailureCode;
 use crate::policy_content::LifecycleContent;
@@ -365,6 +366,70 @@ fn linked_worktree_exempts_a_cargo_build_script_output_directory() {
     let mut guarded: ShippedChecks<ScriptedFacts> = checks(&["checkout", "bebca846"], facts);
     assert_eq!(
         guarded.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
+        one(
+            "linked-worktree-required",
+            &dirty_worktree_message(GuardedCommand::CheckoutMove)
+        )
+    );
+    remove(root.as_path());
+}
+
+/// linked-worktree-only:
+///  a repository under the invocation's Cargo build directory is exempt,
+/// and the same repository keeps its guard when the variable is unset or names a directory beside it.
+/// Why:
+///  The owner's answer of 2026-11-11 exempts the Cargo build directory,
+///  where a crate that vendors another project keeps that clone (`#3024`),
+///  so the exemption covers the build step's tree and nothing a person works in.
+#[test]
+fn linked_worktree_exempts_a_cargo_build_directory() {
+    let root: PathBuf = fixture("checks-cargo-build-dir");
+    let build_dir: PathBuf = root.join("cargo-build/aa/0123456789abcd");
+    let clone: PathBuf = build_dir.join("debug/build/libghostty-vt-sys-1/out/ghostty-src");
+    std::fs::create_dir_all(clone.join(".git")).expect("vendored clone");
+    let worktree: &str = clone.to_str().expect("fixture paths are UTF-8");
+    let facts: ScriptedFacts = dirty_in(main_worktree(worktree, ""), true);
+    // The variable names the build directory: the discard runs, and the notice names the variable that chose it.
+    let mut exempt: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts.clone(),
+        os_arguments(&["reset", "--hard"]),
+        LifecycleContent::None,
+        default_allowed_worktree_dirs(
+            &[(OsString::from("CARGO_TARGET_DIR"), build_dir.as_os_str().to_owned())],
+            None,
+        ),
+    );
+    assert_eq!(exempt.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward), clean());
+    assert_eq!(exempt.notices, vec![exemption_notice("CARGO_TARGET_DIR", build_dir.as_path())]);
+    // An unset variable exempts nothing: the same clone is refused while it holds changes.
+    let mut unset: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts.clone(),
+        os_arguments(&["checkout", "bebca846"]),
+        LifecycleContent::None,
+        default_allowed_worktree_dirs(&[], None),
+    );
+    assert_eq!(
+        unset.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
+        one(
+            "linked-worktree-required",
+            &dirty_worktree_message(GuardedCommand::CheckoutMove)
+        )
+    );
+    // A directory beside the build directory is not exempt.
+    let mut beside: ShippedChecks<ScriptedFacts> = shipped_checks(
+        facts.clone(),
+        os_arguments(&["checkout", "bebca846"]),
+        LifecycleContent::None,
+        default_allowed_worktree_dirs(
+            &[(
+                OsString::from("CARGO_TARGET_DIR"),
+                root.join("another-build").into_os_string(),
+            )],
+            None,
+        ),
+    );
+    assert_eq!(
+        beside.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
         one(
             "linked-worktree-required",
             &dirty_worktree_message(GuardedCommand::CheckoutMove)
@@ -951,6 +1016,68 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
     }
 }
 
+/// What:
+///  linked-worktree-only:
+///  a clean with a second force asks Git what it would delete,
+///  stops when that reading never answered,
+///  and asks nothing for one force or for an interactive clean.
+/// Why:
+///   A reading that never answered could hide a repository the clean would delete,
+///  so the clean stops rather than running on a guess;
+///  one force is Git's own protection of every nested repository,
+///  and an interactive clean is answered after Git starts,
+///  so its repositories are kept out of that menu by the fixed transform instead of being moved before it.
+#[test]
+fn a_clean_with_a_second_force_asks_what_git_would_delete() {
+    let two_forces: Vec<&str> = vec!["clean", "-f", "-f", "-d", "-X"];
+    // Git refuses the clean itself, so it deletes nothing and Git's own refusal is the answer the person gets.
+    let mut refused: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    refused.clean_deletes = Err(format!("{UNREADABLE_CLEAN_DELETION} fatal: options '-x' and '-X' cannot be used together"));
+    let (refused_outcome, refused_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), refused);
+    assert_eq!(refused_outcome, clean(), "{refused_questions:?}");
+    // A reading that never answered is not a refusal: the clean stops rather than deleting a repository it could not see.
+    let unanswered_text: &str =
+        "Git never answered what the clean would delete: the read ended without an exit status, so the clean was not judged";
+    let mut unanswered: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    unanswered.clean_deletes = Err(String::from(unanswered_text));
+    let (unanswered_outcome, unanswered_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), unanswered);
+    assert_eq!(
+        unanswered_outcome,
+        one("linked-worktree-required", unanswered_text),
+        "{unanswered_questions:?}"
+    );
+    // One force is Git's own protection of every nested repository, so the wrapper asks nothing.
+    let one_force: Vec<&str> = vec!["clean", "-f", "-d", "-X"];
+    let (one_outcome, one_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, one_force.as_slice(), dirty_in(linked_worktree("/r", "/w"), false));
+    assert_eq!(one_outcome, clean(), "{one_questions:?}");
+    assert!(
+        one_questions.iter().all(|question| { return !question.starts_with("clean-would-delete:"); }),
+        "{one_questions:?}"
+    );
+    // A menu is answered after Git starts: the repositories are kept out of it by the transform, never moved first.
+    let interactive: Vec<&str> = vec!["clean", "-i", "-f", "-f", "-d", "-X"];
+    let (interactive_outcome, interactive_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, interactive.as_slice(), dirty_in(linked_worktree("/r", "/w"), false));
+    assert_eq!(interactive_outcome, clean(), "{interactive_questions:?}");
+    assert!(
+        interactive_questions
+            .iter()
+            .all(|question| { return !question.starts_with("clean-would-delete:"); }),
+        "{interactive_questions:?}"
+    );
+    // The main checkout refuses the same clean before any of this is asked.
+    let (main_outcome, main_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, two_forces.as_slice(), dirty_in(main_worktree("/r", ""), false));
+    assert!(matches!(main_outcome, PolicyOutcome::Findings(_)), "{main_questions:?}");
+    assert!(
+        main_questions.iter().all(|question| { return !question.starts_with("clean-would-delete:"); }),
+        "{main_questions:?}"
+    );
+}
+
 /// linked-worktree-only:
 ///  a command that changes the remote settings every worktree shares is refused in a linked
 ///  worktree,
@@ -974,6 +1101,18 @@ fn linked_worktree_refuses_the_shared_remote_settings_only_in_a_linked_worktree(
             vec!["config", "remove-section", "remote.origin"],
             SharedRemoteWrite::Section(String::from("remote.origin")),
         ),
+        // A `--file` write that names the shared file is the same write, and an editor session
+        //  names no key and can change any of them.
+        (
+            vec!["config", "--file", "/r/.git/config", "remote.origin.url", "https://example.invalid/two.git"],
+            SharedRemoteWrite::Key(String::from("remote.origin.url")),
+        ),
+        (
+            vec!["config", "--file", "/r/.git/config", "--remove-section", "remote.origin"],
+            SharedRemoteWrite::Section(String::from("remote.origin")),
+        ),
+        (vec!["config", "--edit"], SharedRemoteWrite::Edit),
+        (vec!["config", "edit"], SharedRemoteWrite::Edit),
     ] {
         assert_eq!(
             pre_forward(
@@ -1008,10 +1147,29 @@ fn linked_worktree_refuses_the_shared_remote_settings_only_in_a_linked_worktree(
         vec!["remote", "get-url", "origin"],
         vec!["config", "--get", "remote.origin.url"],
         vec!["config", "--worktree", "remote.origin.url", "own"],
+        vec!["config", "--global", "--edit"],
+        vec!["config", "--system", "--edit"],
+        vec!["config", "edit", "user.name"],
     ] {
         assert_eq!(
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unlocatable()),
             (clean(), Vec::<String>::new()),
+            "{values:?}"
+        );
+    }
+    // A `--file` write that names a file of its own is no write to the settings every worktree shares:
+    //  the location decides that, and nothing else is asked.
+    for values in [
+        vec!["config", "--file", "/elsewhere/other.config", "remote.origin.url", "https://example.invalid/two.git"],
+        vec!["config", "--file", "/elsewhere/other.config", "--edit"],
+    ] {
+        assert_eq!(
+            pre_forward(
+                PolicyId::LinkedWorktreeOnly,
+                values.as_slice(),
+                located(linked_worktree("/r", "/w"))
+            ),
+            (clean(), location_only()),
             "{values:?}"
         );
     }

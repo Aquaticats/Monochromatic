@@ -39,7 +39,7 @@ use crate::transaction_git::GitContext;
 use crate::push_failure_notice::{CommitNamer, Notice, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, orphaned_push_failures, push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
 use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
-use crate::worktree_trash_dispose::name_unaccounted_trash;
+use crate::worktree_trash_unaccounted::name_unaccounted_trash;
 use crate::rule_linked_worktree::LinkedWorktreeDecision;
 /// The two forms that are recorded and never refused.
 use crate::policy_audited::record_audited;
@@ -127,17 +127,23 @@ pub(crate) fn record_escape_use<F: RepositoryFacts>(stripped: &StrippedInvocatio
 ///  A command whose output a program reads shows nothing and takes
 ///  nothing,
 /// and neither does a command run where the repository is not found without starting Git.
+///  Its worktree's held records are still settled:
+/// a record whose command died after it recorded a pass is
+///  the only statement that the push may run,
+/// and a workflow of scripts types no other kind of command,
+/// so leaving
+///  the settlement to one leaves an approved push waiting for ever.
 /// When nothing
 ///  failed the check is one directory read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!isMachineRead(command)) for (const text of takePushFailures(gitDir)) stderr.write(text + '\n');
+/// settleHeldPushes(gitDir); if (!isMachineRead(command)) for (const text of takePushFailures(gitDir)) stderr.write(text + '\n');
 /// ```
 pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
-    if is_machine_read(command_word(stripped), command_region(stripped)) {
-        return;
-    }
+    // A notice is the person's, so a command whose output a program reads shows none and takes none; the held records are not a
+    //  notice, and the state they settle is not the command's to keep from the repository.
+    let silent: bool = is_machine_read(command_word(stripped), command_region(stripped));
     // The records are the worktree's own, so a notice shows in the worktree whose push failed.
     let Some(git_dir) = checks.facts.known_git_dir() else { return };
     // Without a known common directory, the worktree's own Git directory stands in.
@@ -145,6 +151,17 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         Some(known) => known,
         None => git_dir.clone(),
     };
+    // The directory every question of this step is asked in: the command's own, or the Git directory when it cannot be read.
+    let cwd: PathBuf = match std::env::current_dir() {
+        Ok(directory) => directory,
+        Err(_unreadable) => git_dir.clone(),
+    };
+    let context: GitContext = checks.facts.transaction_context();
+    if silent {
+        // The lines are the person's, and this command shows none; the settlement is made all the same.
+        let _settled: Vec<String> = held_push_lines(git_dir.as_path(), &context, cwd.as_path());
+        return;
+    }
     // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next. What could not be kept
     //  for the person is said here, each time, until it can be.
     for problem in settle_removals(common_dir.as_path()) {
@@ -160,24 +177,19 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     // The trash of the worktree this command runs in is named here when no record accounts for it: an add hands it to the
     // commit service of the repository, whose records live under the common directory, so a trash nothing there accounts for
     // is one no service will empty, and nothing else mentions it.
+    // A record that scan writes is work only a woken service looks at, so the scan tells the service exactly as a
+    //  hand-over does, once for the command.
     if let Ok(location) = checks.facts.location()
         && let Some(worktree) = crate::worktree_identity::worktree_root(&location.identity)
     {
         let mut stderr = std::io::stderr();
-        name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr);
+        name_unaccounted_trash(common_dir.as_path(), worktree, &mut stderr, &crate::held_push_release_wakes_the_service::AskTheService { context: &context });
     }
-    // The directory every question of this step is asked in: the command's own, or the Git directory when it cannot be read.
-    let cwd: PathBuf = match std::env::current_dir() {
-        Ok(directory) => directory,
-        Err(_unreadable) => git_dir.clone(),
-    };
     // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
     //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.
     //  A held record whose commit Git already holds in the branch's remote is settled here instead of being named
     //  (`held_push_commit_on_the_remote.rs`).
-    let context: GitContext = checks.facts.transaction_context();
-    let record: GitRemoteRecord<'_> = GitRemoteRecord { context: &context, cwd: cwd.as_path() };
-    for line in crate::service_handoff::held_push_notices(git_dir.as_path(), &record, &crate::held_push_release_wakes_the_service::AskTheService { context: &context }) {
+    for line in held_push_lines(git_dir.as_path(), &context, cwd.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }
@@ -203,6 +215,23 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         //  written stays for the next command.
         let _written = notice.show(&mut std::io::stderr());
     }
+}
+
+/// What:
+///  Settles the worktree's held push records and answers the lines to show.
+/// Why:
+///   Both kinds of command settle from one call,
+/// so a silent one cannot settle less than a speaking one,
+/// and the remote
+///  question and the wake are made the same way for both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// heldPushLines(gitDir, context, cwd) // heldPushNotices with the repository's record and the service's wake
+/// ```
+fn held_push_lines(git_dir: &Path, context: &GitContext, cwd: &Path) -> Vec<String> {
+    let record: GitRemoteRecord<'_> = GitRemoteRecord { context, cwd };
+    return crate::service_handoff::held_push_notices(git_dir, &record, &crate::held_push_release_wakes_the_service::AskTheService { context });
 }
 
 /// What:
@@ -381,6 +410,35 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
         }
     }
     return None;
+}
+
+/// What:
+///  Removes the shadow pool of every worktree Git no longer lists,
+///  before the command runs.
+/// Why:
+///  A worktree removed by a route this program cannot see
+/// (`git worktree prune`,
+/// a registration deleted by hand)
+///  leaves the pool its commits filled,
+///  and that pool is named after the worktree's own Git directory:
+///  no commit can claim a member once the directory is gone
+/// (`shadow_pool.rs`,
+/// `sweep_gone_worktrees`).
+///  The command is the named event that collects it,
+/// so the next command in the repository removes what the prune left,
+///  and no timer and no age is needed for a folder that is provably dead.
+///  It reads the common directory and the pool folder and starts no Git,
+///  so a command that has no pool pays one `read_dir` that finds nothing.
+///  A folder that cannot be removed is left for the next command:
+///  nothing here can fail the command the person asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sweepShadowPoolsOfGoneWorktrees(checks); // unknown folders and live worktrees stay
+/// ```
+pub(crate) fn sweep_shadow_pools_of_gone_worktrees<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) {
+    let Some(common_dir) = checks.facts.known_common_dir() else { return };
+    let _removed: Vec<PathBuf> = crate::shadow_pool::sweep_gone_worktrees(common_dir.as_path());
 }
 
 /// What:

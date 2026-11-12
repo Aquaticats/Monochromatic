@@ -3,7 +3,7 @@
 //!  the branch and its two values,
 //!  the commits,
 //!  the journal whose intent holds the batch,
-//!  the locks that refused the write,
+//!  the locks that held the write off,
 //!  and when it was held.
 //! Why:
 //!  Git refuses a reference update at once when a lock file stands,
@@ -63,8 +63,9 @@ pub struct Held {
     /// The worktree's own Git directory,
     /// which holds this record.
     pub git_dir: PathBuf,
-    /// The branch.
-    pub reference: String,
+    /// The branch,
+    /// by the bytes Git printed for its name.
+    pub reference: crate::ref_name::RefName,
     /// The branch before the batch.
     pub old: String,
     /// The branch after the batch.
@@ -77,7 +78,7 @@ pub struct Held {
     /// The message the branch move writes in the reflog,
     /// byte for byte.
     pub reflog: Vec<u8>,
-    /// The locks that stood when the write was refused.
+    /// The locks that stood when the branch write did not happen.
     pub locks: Vec<PathBuf>,
     /// When the commit was held,
     /// as ISO 8601.
@@ -108,14 +109,15 @@ pub struct Holding<'a> {
     pub git_dir: &'a Path,
     /// The real index whose entries the batch updates.
     pub index: &'a Path,
-    /// The branch.
-    pub reference: &'a str,
+    /// The branch,
+    /// by the bytes Git printed for its name.
+    pub reference: &'a crate::ref_name::RefName,
     /// The batch number.
     pub seq: u64,
     /// The batch's intent,
     /// as the landing wrote it before the branch write.
     pub intent: &'a crate::service_journal::Intent,
-    /// The locks that stood when the write was refused.
+    /// The locks that stood when the branch write did not happen.
     pub locks: Vec<PathBuf>,
     /// The message the branch move writes in the reflog,
     /// byte for byte.
@@ -146,7 +148,7 @@ pub fn hold(holding: Holding<'_>) -> std::io::Result<Held> {
         repository: holding.repository.to_path_buf(),
         common_dir: holding.common_dir.to_path_buf(),
         git_dir: holding.git_dir.to_path_buf(),
-        reference: holding.reference.to_string(),
+        reference: holding.reference.clone(),
         old: holding.intent.old.clone(),
         new: holding.intent.new.clone(),
         commits: holding.intent.commits.clone(),
@@ -200,7 +202,9 @@ fn items_of_paths(paths: &[PathBuf]) -> String {
 fn text(held: &Held) -> String {
     let lines: Vec<String> = vec![
         format!("seq={}", held.seq),
-        format!("ref={}", held.reference),
+        // A name that is not text keeps its whole self in `refHex`; the plain field is written only when text spells every
+        //  byte of it, because a reader that predates the bytes field would move the branch it names (`path_bytes_in_records`).
+        field_of_ref("ref", &held.reference),
         format!("old={}", held.old),
         format!("new={}", held.new),
         format!("commits={}", held.commits.join(ITEM)),
@@ -214,6 +218,25 @@ fn text(held: &Held) -> String {
         field_of_path("index", held.index.as_path()),
     ];
     return format!("{}\n", lines.join("\n"));
+}
+
+/// What:
+///  The one field a reference name takes in a record,
+///  as the pair of `key` and `keyHex` lines the bytes form needs.
+/// Why:
+///   A recovery reads this name to move the branch,
+/// so the plain text form is written only when it is the whole name,
+///  and the bytes form is always there for a reader of this release.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fieldOfRef = (key, name) => name.isText ? `${key}=${name}\n${key}Hex=${name.hex}` : `${key}Hex=${name.hex}`
+/// ```
+fn field_of_ref(key: &str, reference: &crate::ref_name::RefName) -> String {
+    return match reference.is_text() {
+        true => format!("{key}={}\n{key}{HEX_SUFFIX}={}", reference, reference.hex()),
+        false => format!("{key}{HEX_SUFFIX}={}", reference.hex()),
+    };
 }
 
 /// The value of a field of a record's text.
@@ -258,7 +281,7 @@ fn paths(text: &str, key: &str) -> Option<Vec<PathBuf>> {
 fn parse(text: &str) -> Option<Held> {
     return Some(Held {
         seq: value_of(text, "seq")?.parse::<u64>().ok()?,
-        reference: value_of(text, "ref")?.to_string(),
+        reference: read_ref(text)?,
         old: value_of(text, "old")?.to_string(),
         new: value_of(text, "new")?.to_string(),
         commits: items(text, "commits"),
@@ -271,6 +294,26 @@ fn parse(text: &str) -> Option<Held> {
         git_dir: path_of_hex(value_of(text, "gitdirHex")?)?,
         index: path_of_hex(value_of(text, "indexHex")?)?,
     });
+}
+
+/// What:
+///  The reference name a record holds,
+///  from its bytes field when it has one and from its text otherwise.
+/// Why:
+///   A record written before the bytes field existed holds text,
+/// and a record whose bytes do not decode is damage,
+///  which no reader takes for text:
+/// a name read wrongly moves another branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readRef = (text) => text.refHex !== undefined ? refNameOfHex(text.refHex) ?? damaged() : refNameOf(text.ref)
+/// ```
+fn read_ref(text: &str) -> Option<crate::ref_name::RefName> {
+    if let Some(hexadecimal) = value_of(text, "refHex") {
+        return crate::ref_name::RefName::from_hex(hexadecimal);
+    }
+    return Some(crate::ref_name::RefName::from_text(value_of(text, "ref")?));
 }
 
 /// What:

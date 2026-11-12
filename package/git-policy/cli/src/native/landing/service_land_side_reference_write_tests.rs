@@ -29,10 +29,12 @@
 
 use super::*;
 use super::tests::{World, built_request, world};
-use crate::service_land_side_reference_write::keep_on_a_side_ref;
+use crate::service_land_side_reference_write::{
+    ASideRefWrite, keep_on_a_side_ref, keep_on_the_scratch_reference, keep_on_the_scratch_reference_awaiting, keep_unlanded, keep_unlanded_awaiting,
+};
 use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_dropped_batch, kept_ref, scratch_ref};
 use crate::service_index_lock::{Announce, Announcer};
-use crate::test_support::{git, git_text, remove, while_test_lives};
+use crate::test_support::{fixture, git, git_context, git_text, remove, repository, while_test_lives};
 use crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD;
 use std::cell::RefCell;
 use std::os::unix::fs::PermissionsExt;
@@ -463,4 +465,82 @@ fn a_scratch_reference_another_command_wrote_after_the_read_is_not_removed() {
     assert_eq!(removal, ScratchRefRemoval::Left, "the scratch name is taken, so it is not removed");
     assert_eq!(scratch_still, competing, "the scratch reference another command wrote is not removed");
     assert!(surviving.status.success(), "the commit that other command wrote survives a maintenance that drops what no reference names");
+}
+/// What:
+///  The side reference a landing keeps its batch on is written by both faces the same way,
+///  and the
+///  write runs inside the runtime.
+/// Why:
+///  The reference is what keeps a commit reachable while its branch write meets a lock,
+/// so a face that
+///  failed to write it would leave a commit no reference holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert.equal(awaited, synchronous); assert.equal(git(repo, ['rev-parse', name]).trim(), tip);
+/// ```
+#[test]
+fn the_awaited_side_reference_write_keeps_what_the_synchronous_one_keeps() {
+    let root: PathBuf = fixture("land-steps-awaiting-side-ref");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let tip: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(1);
+    let synchronous: ASideRefWrite = keep_on_the_scratch_reference(&context, repo.as_path(), scratch.as_str(), tip.as_str());
+    assert_eq!(synchronous, ASideRefWrite::Written, "the synchronous face writes the batch's side reference");
+    assert_eq!(
+        git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]),
+        tip,
+        "the synchronous reference names the batch's commit"
+    );
+    // The reference goes, so the awaited face writes the name nothing holds rather than reading one the synchronous face made.
+    git(repo.as_path(), &["update-ref", "-d", scratch.as_str()]);
+    let awaited: ASideRefWrite =
+        crate::lazy_runtime::run_on_runtime(keep_on_the_scratch_reference_awaiting(&context, repo.as_path(), scratch.as_str(), tip.as_str())).expect("the runtime");
+    assert_eq!(awaited, synchronous, "the two faces answer the write of a side reference the same way");
+    assert_eq!(
+        git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]),
+        tip,
+        "the reference the awaited face wrote names the batch's commit"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  The line that tells a person where their commit was kept is the one both faces write,
+///  and the reference
+///  it names holds the batch's commit.
+/// Why:
+///  A landing that ended before its branch write leaves a commit no branch names,
+/// and this line is what hands it to
+///  the person;
+/// a face that kept the commit at another name,
+/// or kept nothing and said it did,
+/// loses the commit the
+///  wrapper promised to keep (the owner's rule is "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = keepUnlanded(git, repo, seq, tip); git(repo, ['update-ref', '-d', refs/kept/seq]); assert.equal(await keepUnlandedAwaiting(git, repo, seq, tip), line);
+/// ```
+#[test]
+fn the_awaited_kept_commit_is_the_one_the_synchronous_line_names() {
+    const BATCH: u64 = 7;
+    let root: PathBuf = fixture("land-steps-awaiting-kept");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let tip: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let kept: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(BATCH);
+    let synchronous: String = keep_unlanded(&context, repo.as_path(), BATCH, tip.as_str());
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", kept.as_str()]), tip, "the synchronous line names a reference the commit is kept on");
+    // The reference goes, so the awaited face keeps the commit on a name nothing holds yet.
+    git(repo.as_path(), &["update-ref", "-d", kept.as_str()]);
+    let awaited: String = crate::lazy_runtime::run_on_runtime(keep_unlanded_awaiting(&context, repo.as_path(), BATCH, tip.as_str())).expect("the runtime");
+    assert_eq!(awaited, synchronous, "both faces tell the person one thing about where their commit is kept");
+    assert_eq!(
+        git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", kept.as_str()]),
+        tip,
+        "the reference the awaited face wrote names the batch's commit"
+    );
+    remove(root.as_path());
 }

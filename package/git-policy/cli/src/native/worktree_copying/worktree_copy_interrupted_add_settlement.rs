@@ -187,6 +187,33 @@ fn destination_is_gone(destination: &Path) -> bool {
 }
 
 /// What:
+///  Whether the add's own snapshot became the worktree at `destination`,
+/// so the ignored state the record still names is already there.
+/// Why:
+///   A snapshot rung swaps its finished stage with the destination,
+/// and the record of the object its creation made then names the
+///  object standing at the destination.
+/// That object carries the source's ignored state with the files,
+/// so nothing is missing there
+///  and no copy is owed:
+/// saying either would send a person to rebuild a worktree that is whole.
+/// The destination must still be one of
+///  this repository's registrations,
+/// because a worktree nobody registers is named to the person instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const snapshotIsInPlace = (record, destination) => theMadeObjectStandsAt(claimOf(record), destination) && registrationDirectory(destination) !== undefined;
+/// ```
+fn the_snapshot_is_in_place(record: &Path, destination: &Path) -> bool {
+    let claim: PathBuf = record.with_extension("stage");
+    if !crate::worktree_copy_stage_made_object::the_made_object_stands_at(claim.as_path(), destination) {
+        return false;
+    }
+    return registration_directory(destination).is_some();
+}
+
+/// What:
 ///  The report of an add whose Git checkout finished and whose ignored-state copy was never marked complete.
 /// Why:
 ///   The record of an add exists because a copy of the source's ignored state was owed,
@@ -316,7 +343,7 @@ pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
 ///  What finishes or removes an interrupted add,
 /// with the stale lock named first when one stands in the way.
 /// Why:
-///   `git -C <destination> reset --no-enforce-worktree --hard` cannot start while that lock exists,
+///   `git -C <destination> reset --no-enforce-worktree --hard --no-recurse-submodules` cannot start while that lock exists,
 /// and Git refuses it with
 /// `fatal: Unable to create '.../index.lock': File exists`;
 /// so the report names the file and the condition for removing it;
@@ -460,6 +487,11 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
                 }
                 PointerPresence::Present => {}
             }
+            // A snapshot that was swapped in is the whole worktree: its ignored state arrived with it, so nothing is owed and
+            // nothing is missing, and the records settle without a word (the kill point right after the exchange).
+            if the_snapshot_is_in_place(record, destination.as_path()) {
+                return Settlement { notice: None, keep: false };
+            }
             // A kill between real Git's registration and the wrapper's record of the binding leaves the pointer without the
             //  plan, so the pointer is what names the administrative directory the proof reads.
             let registered: Option<PathBuf> = registration_directory(destination.as_path());
@@ -492,6 +524,10 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             //  that recorded no completion; everything else keeps its record so the next command says the same again,
             //  because nothing else names the worktree, the stage or what finishes them.
             if destination_is_gone(binding.destination.as_path()) {
+                return Settlement { notice: None, keep: false };
+            }
+            // The same proof as above, on a record that was bound before the command died.
+            if the_snapshot_is_in_place(record, binding.destination.as_path()) {
                 return Settlement { notice: None, keep: false };
             }
             let owes_a_copy: bool = crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some();

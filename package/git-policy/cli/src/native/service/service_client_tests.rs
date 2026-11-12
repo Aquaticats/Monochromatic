@@ -105,7 +105,7 @@ fn a_request(id: &str) -> CommitRequest {
         repository: std::path::PathBuf::from("/nowhere"),
         common_dir: std::path::PathBuf::from("/nowhere/.git"),
         git_dir: std::path::PathBuf::from("/nowhere/.git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: "a".repeat(40),
         changes: Vec::new(),
         message: String::from("m\n"),
@@ -239,4 +239,99 @@ fn a_request_that_was_never_sent_keeps_the_answer_that_nothing_answered() {
     let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("never-sent"), &mut std::io::sink())
         .expect_err("nothing listens at this address");
     assert_eq!(failure, ClientFailure::DidNotStart, "nothing was sent, so nothing landed");
+}
+
+/// What:
+///  A stand-in service that takes one request,
+///  says why the commit is waiting when it is asked about it,
+///  and answers the withdrawal of the request with `answer`.
+/// Why:
+///  The interrupt arrives while the client waits,
+///  so the commit must be one the service has not landed:
+///  the answer to the withdrawal is what decides whether the person is told the commit was not made or that it landed.
+fn a_service_that_withdraws(
+    name: &str,
+    wait_line: &str,
+    answer: ServiceMessage,
+) -> (std::sync::mpsc::Receiver<()>, std::thread::JoinHandle<()>) {
+    let service: UnixListener = a_listener_on(name);
+    let (arrived, seen) = std::sync::mpsc::channel::<()>();
+    let line: String = wait_line.to_string();
+    let serving = std::thread::spawn(move || {
+        use std::io::BufRead as _;
+        // The connection the request came on: it stays open, so the client's wait is on this service's silence.
+        let (requested, _address) = service.accept().expect("the client connects");
+        greet_and_read(&requested);
+        let _sent = arrived.send(());
+        // The connection the withdrawal comes on, which the client opens itself.
+        let (withdrawing, _withdrawn) = service.accept().expect("the client asks to withdraw");
+        let _greeting = (&withdrawing).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
+        let mut asked: String = String::new();
+        std::io::BufReader::new(&withdrawing).read_line(&mut asked).expect("the withdrawal reaches the service");
+        assert!(asked.contains("withdraw"), "the line the client sends asks to withdraw: {asked}");
+        let _waiting = (&withdrawing).write_all(the_line(&ServiceMessage::Waiting { text: line }).as_slice());
+        let _answer = (&withdrawing).write_all(the_line(&answer).as_slice());
+    });
+    return (seen, serving);
+}
+
+/// What:
+///  A commit the person interrupts is withdrawn,
+///  and the person is told that it was not made.
+/// Why:
+///   The request this command sent is the service's,
+///  so ending the process where the signal arrives would leave it to land with nobody to read the answer;
+///  the wrapper's own words for such a commit are "nothing lands later by itself".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [seen] = aServiceThatWithdraws('withdrawn', ServiceMessage.withdrawn(id)); stopOnArrival(seen); const failure = submit(...); expect(failure.kind).toBe('interrupted');
+/// ```
+#[test]
+fn a_commit_the_person_interrupts_is_withdrawn_and_never_lands() {
+    let name: String = an_address("interrupted");
+    let (seen, serving) = a_service_that_withdraws(name.as_str(), "the commit waits for another program's index lock", ServiceMessage::Withdrawn { id: String::from("interrupted") });
+    let interrupting = std::thread::spawn(move || {
+        seen.recv_timeout(Duration::from_secs(30)).expect("the request reaches the service");
+        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT);
+    });
+    let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("interrupted"), &mut std::io::sink()).expect_err("the service gave the request up");
+    interrupting.join().expect("the interrupt is sent");
+    drop(serving);
+    let expected: ClientFailure = ClientFailure::Interrupted { signal: libc::SIGINT, blocker: Some(String::from("the commit waits for another program's index lock")) };
+    assert_eq!(failure, expected, "the person is told the commit was not made");
+    let words: String = crate::service_messages::render(&failure);
+    assert!(words.contains("interrupted") && words.contains("was not made"), "{words}");
+    assert!(words.contains(crate::service_messages::NOTHING_CHANGED), "{words}");
+}
+
+/// What:
+///  A commit that landed before the signal came stays landed,
+///  and the command says so.
+/// Why:
+///  The withdrawal is answered by the service between two landings,
+/// and a request that landed first is answered as landed:
+///  a commit that is on the branch is never reported as one that was not made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [seen] = aServiceThatWithdraws('landed', ServiceMessage.landed('interrupted', commit)); stopOnArrival(seen); expect(submit(...)).toEqual({ kind: 'landed', already: true });
+/// ```
+#[test]
+fn a_commit_that_landed_before_the_signal_came_stays_landed() {
+    let name: String = an_address("interrupted-after-landing");
+    let commit: String = String::from("b".repeat(40));
+    let (seen, serving) = a_service_that_withdraws(
+        name.as_str(),
+        "the commit waits for another program's index lock",
+        ServiceMessage::Landed { id: String::from("interrupted-after-landing"), commit: commit.clone(), already: false, landing: None },
+    );
+    let interrupting = std::thread::spawn(move || {
+        seen.recv_timeout(Duration::from_secs(30)).expect("the request reaches the service");
+        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT);
+    });
+    let submitted: Submitted = submit(&reach_settings(name.as_str()), &a_request("interrupted-after-landing"), &mut std::io::sink()).expect("the commit landed");
+    interrupting.join().expect("the interrupt is sent");
+    drop(serving);
+    assert_eq!(submitted, Submitted::Landed { commit, already: true }, "a commit on the branch is reported as landed");
 }

@@ -23,7 +23,6 @@ import {
   MODEL_ERROR_TEXT,
   modelErrorPlay,
   PERMANENT_ERROR_TEXT,
-  RATE_LIMIT_ERROR_TEXT,
   RECOVERED_REPLY,
   TRANSIENT_ERROR_TEXT,
 } from './stand-in-pi-records-fixture.ts';
@@ -116,13 +115,6 @@ export const modelErrorPlays: ReadonlyMap<string, (id: unknown,) => void> = new 
     modelErrorPlay({
       error: LONG_WAIT_ERROR_TEXT,
       recovers: false,
-    }),
-  ],
-  [
-    'rate-limit-then-success',
-    modelErrorPlay({
-      error: RATE_LIMIT_ERROR_TEXT,
-      recovers: true,
     }),
   ],
   [

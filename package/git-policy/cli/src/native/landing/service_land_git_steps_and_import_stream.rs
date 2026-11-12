@@ -2,7 +2,6 @@
 //!  The Git steps of a landing and the text it feeds Git:
 //! running one step and telling a step ended at its ceiling from other
 //!  failures,
-//! keeping an unlanded commit on a side ref,
 //! the `fast-import` stream of a batch and the marks it exports,
 //! and the
 //!  tests of which requests of a batch touch the same paths.
@@ -10,22 +9,73 @@
 //!  `service_land.rs` holds the landing itself;
 //! these steps depend on nothing in it,
 //! so they are a file it uses.
+//! Each Git step has two faces:
+//! the synchronous one a caller on a thread asks (`run`,
+//! `checked`,
+//! `checked_bytes`,
+//! `requests_that_land`),
+//! and the awaited one a task of the runtime asks,
+//! which awaits every
+//!  child on the runtime.
+//!  A landing's own side references,
+//! and every write of one,
+//! are in a file of their own
+//!  (`service_land_side_reference_write.rs`),
+//! so the write a step and a removal share has one home.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await run(git, repository, args, input); importStream(scratch, old, batch, amendedParents); commitsFromMarks(text, count)
+//! await runAwaiting(git, repository, args, input); importStream(scratch, old, batch, amendedParents); commitsFromMarks(text, count)
 //! ```
 
 use crate::service_land_follow::classify;
-use crate::service_land_side_reference_write::{StepAnswer, answering, keep_unlanded, take_ceiling_step};
+use crate::service_land_side_reference_write::{StepAnswer, answering, answering_awaiting, keep_unlanded, take_ceiling_step};
 use crate::service_protocol::{CommitRequest, FailureCode};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING};
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
-pub(crate) fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
+pub(crate) fn run<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
+    return run_words(git, repository, owned_words(arguments).as_slice(), input);
+}
+
+/// What:
+///  One command line as the owned words a byte-native start takes.
+/// Why:
+///   The words may hold bytes that are not text,
+/// so each one is taken as the operating system has it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ownedWords = (arguments) => arguments.map((word) => Buffer.from(word))
+/// ```
+fn owned_words<S: AsRef<std::ffi::OsStr>>(arguments: &[S]) -> Vec<std::ffi::OsString> {
+    let mut words: Vec<std::ffi::OsString> = Vec::with_capacity(arguments.len());
+    for argument in arguments {
+        words.push(argument.as_ref().to_os_string());
+    }
+    return words;
+}
+
+/// What:
+///  `run` with its Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child
+/// (`transaction_git_awaiting.rs`),
+/// and every step of a landing runs from
+///  the landing once that landing is a task.
+/// The question and the failure a step stands for are the synchronous face's,
+/// so the
+///  two cannot run another command or answer it differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await runAwaiting(git, repository, args, input);
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn run_awaiting(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
     let words: Vec<std::ffi::OsString> = arguments.iter().map(std::ffi::OsString::from).collect();
-    return run_words(git, repository, words.as_slice(), input);
+    return run_words_awaiting(git, repository, words.as_slice(), input).await;
 }
 
 /// What:
@@ -40,20 +90,101 @@ pub(crate) fn run(git: &GitContext, repository: &Path, arguments: &[&str], input
 /// git(['update-ref', '-m', message, '--stdin'], { input: transaction })
 /// ```
 pub(crate) fn run_words(git: &GitContext, repository: &Path, arguments: &[std::ffi::OsString], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
+    return answered_step(answering(git, words_request(repository, arguments, input)));
+}
+
+/// What:
+///  `run_words` with its Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child,
+/// and the branch move of a landing is a step of that\n///  landing once it is a task;
+/// the message of a commit whose text is not UTF-8 reaches Git as its own bytes on
+///  both faces.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await runWordsAwaiting(git, repository, arguments, input);
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn run_words_awaiting(
+    git: &GitContext,
+    repository: &Path,
+    arguments: &[std::ffi::OsString],
+    input: Option<Vec<u8>>,
+) -> Result<GitOutput, FailureCode> {
+    return answered_step(answering_awaiting(git, words_request(repository, arguments, input)).await);
+}
+
+/// The question both faces of `run_words` ask Git.
+fn words_request(repository: &Path, arguments: &[std::ffi::OsString], input: Option<Vec<u8>>) -> GitRequest {
     let mut request: GitRequest = GitRequest::new(repository, arguments);
     request.input = input;
-    return match answering(git, request) {
+    return request;
+}
+
+/// What:
+///  Git's output of one step,
+///  and the failure a step that could not run stands for.
+/// Why:
+///  Both faces read the run through this one function,
+/// so a step the system refused is the same answer for both of them,
+/// and what the answer holds is read here for each face
+///  (`answering`,
+///  `answering_awaiting`).
+///  A step whose wait ended is left running,
+/// and nothing that reads this answer can tell:
+///  `Unavailable` is the code for a step the landing cannot resolve,
+///  and a write that asks the reference itself reads the answer whole
+///  (`service_land_side_reference_write.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answeredStep = (answer) => answer.answered ? answer.output : { ended: answer.ended ?? 'unavailable' }
+/// ```
+fn answered_step(answer: StepAnswer) -> Result<GitOutput, FailureCode> {
+    return match answer {
         StepAnswer::Answered(output) => Ok(output),
-        // A step whose wait ended is left running, and nothing that reads this answer can tell: `Unavailable` is the code for a step
-        //  the landing cannot resolve. A write that asks the reference itself reads `answering` instead
-        //  (`write_until_the_reference_names`).
         StepAnswer::LeftRunning => Err(FailureCode::Unavailable),
         StepAnswer::Ended(code) => Err(code),
     };
 }
 
-pub(crate) fn checked(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
-    let output: GitOutput = run(git, repository, arguments, input)?;
+pub(crate) fn checked<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
+    return checked_text(run(git, repository, arguments, input)?);
+}
+
+/// What:
+///  `checked` with its Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child,
+/// and the landing asks its questions from one
+///  once it is a task.
+/// The step and the reading of its answer are the synchronous face's,
+/// so the two cannot
+///  answer different text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const text = await checkedAwaiting(git, repository, args, input);
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn checked_awaiting(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
+    return checked_text(run_awaiting(git, repository, arguments, input).await?);
+}
+
+/// What:
+///  The text a step that must succeed answered,
+///  and the failure code of one that did not.
+/// Why:
+///  Both faces read a step's answer through this one function,
+/// so a step Git refused is classified the same whichever
+///  face ran it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const checkedText = (output) => output.succeeded ? output.out.trim() : classify(output);
+/// ```
+fn checked_text(output: GitOutput) -> Result<String, FailureCode> {
     if !output.succeeded() {
         return Err(classify(&output));
     }
@@ -67,179 +198,77 @@ pub(crate) fn checked(git: &GitContext, repository: &Path, arguments: &[&str], i
 ///   `checked` answers with trimmed text,
 /// which is right for an object name and wrong for a listing of paths:
 /// a listing with a name that is not text has to reach the caller as the name Git wrote.
-pub(crate) fn checked_bytes(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<Vec<u8>, FailureCode> {
-    let output: GitOutput = run(git, repository, arguments, input)?;
+pub(crate) fn checked_bytes<S: AsRef<std::ffi::OsStr>>(git: &GitContext, repository: &Path, arguments: &[S], input: Option<Vec<u8>>) -> Result<Vec<u8>, FailureCode> {
+    return checked_stdout(run(git, repository, arguments, input)?);
+}
+
+/// What:
+///  `checked_bytes` with its Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child,
+/// and the listing a batch's paths are read from is asked
+///  from the landing once it is a task;
+/// the listing reaches the caller as the bytes Git wrote on both faces,
+/// so
+///  a name that is not text survives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listing = await checkedBytesAwaiting(git, repository, args, input);
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn checked_bytes_awaiting(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<Vec<u8>, FailureCode> {
+    return checked_stdout(run_awaiting(git, repository, arguments, input).await?);
+}
+
+/// What:
+///  The bytes a step that must succeed wrote,
+///  and the failure code of one that did not.
+/// Why:
+///  Both faces read a listing through this one function,
+/// so a step Git refused classifies the same way whichever face ran it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const checkedStdout = (output) => output.succeeded ? output.out : classify(output);
+/// ```
+fn checked_stdout(output: GitOutput) -> Result<Vec<u8>, FailureCode> {
     if !output.succeeded() {
         return Err(classify(&output));
     }
     return Ok(output.stdout);
 }
 
-/// A path in the quoted form `fast-import` reads,
-/// so no byte of a name can end the line or the field.
-/// Why:
-///   A name is bytes,
-/// so the quoted form is built as bytes:
-/// `fast-import` reads a byte outside the printable range as the octal escape `\\ooo`,
-/// and a byte that is text may be written as itself.
-/// Writing the name as a Rust string would encode every byte above 0x7f as two,
-/// which is another name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const quoted = (path: Uint8Array) => '"' + [...path].map((b) => b === 0x22 || b === 0x5c || b < 0x20 || b === 0x7f ? '\\' + b.toString(8).padStart(3, '0') : String.fromCharCode(b)).join('') + '"'
-/// ```
-pub(crate) fn quoted(path: &[u8]) -> Vec<u8> {
-    let mut text: Vec<u8> = vec![b'"'];
-    for byte in path {
-        if *byte == b'"' || *byte == b'\\' || *byte < b' ' || *byte == 0x7f {
-            text.extend(format!("\\{byte:03o}").as_bytes());
-        } else {
-            text.push(*byte);
-        }
-    }
-    text.push(b'"');
-    return text;
-}
-
-/// Whether a byte ends a field of Git's `-z` output.
-fn ends_a_field(byte: &u8) -> bool {
-    return *byte == b'\0';
-}
-
-/// Whether two repository paths touch the same file or one contains the other.
-/// Why:
-///   Both are the bytes Git listed,
-/// so a name that is not text is compared as itself and never as a spelling that two names can share.
-pub(crate) fn overlaps(path: &[u8], changed: &[u8]) -> bool {
-    return path == changed || is_below(path, changed) || is_below(changed, path);
-}
-
-/// Whether `directory` holds `path`,
-/// which is the same test as `path.startsWith(directory + '/')` on the bytes.
-fn is_below(path: &[u8], directory: &[u8]) -> bool {
-    return path.len() > directory.len() && path.starts_with(directory) && path[directory.len()] == b'/';
-}
-
-/// The stream that makes one commit per request on a scratch branch that starts at `old`,
-/// or,
-/// for an amend,
-/// one commit
-///  whose parents are `amended_parents` and whose whole tree is the request's tree.
-pub(crate) fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest], amended_parents: &[String]) -> Vec<u8> {
-    let mut bytes: Vec<u8> = Vec::new();
-    for (index, request) in requests.iter().enumerate() {
-        bytes.extend(format!("commit {scratch}\nmark :{}\n", index + 1).as_bytes());
-        if let Some(author) = &request.author {
-            bytes.extend(format!("author {author}\n").as_bytes());
-        }
-        bytes.extend(format!("committer {}\ndata {}\n", request.committer, request.message.len()).as_bytes());
-        bytes.extend(request.message.as_bytes());
-        bytes.push(b'\n');
-        if request.amend
-            && let Some(tree) = request.tree.as_deref()
-        {
-            // An amend replaces the tip: its parents are the base's parents, and its tree is the one the client wrote.
-            for (position, parent) in amended_parents.iter().enumerate() {
-                bytes.extend(format!("{} {parent}\n", if position == 0 { "from" } else { "merge" }).as_bytes());
-            }
-            bytes.extend(format!("M 040000 {tree} \"\"\n").as_bytes());
-            bytes.push(b'\n');
-            continue;
-        }
-        if index == 0 {
-            bytes.extend(format!("from {old}\n").as_bytes());
-        }
-        for change in &request.changes {
-            let path: Vec<u8> = quoted(crate::path_bytes::path_bytes_of(change.path.as_path()));
-            match &change.blob {
-                Some(blob) => bytes.extend(format!("M {:o} {blob} ", change.mode).as_bytes()),
-                None => bytes.extend(b"D "),
-            }
-            bytes.extend(path);
-            bytes.push(b'\n');
-        }
-        bytes.push(b'\n');
-    }
-    bytes.extend(b"done\n");
-    return bytes;
-}
-
-/// The object names `fast-import` recorded for the marks,
-/// in request order.
-pub(crate) fn commits_from_marks(text: &str, count: usize) -> Option<Vec<String>> {
-    let mut commits: Vec<Option<String>> = vec![None; count];
-    for line in text.lines() {
-        let mut parts = line.split(' ');
-        let (Some(mark), Some(name)) = (parts.next(), parts.next()) else { continue };
-        let slot: usize = mark.trim_start_matches(':').parse::<usize>().ok()?;
-        if slot >= 1 && slot <= count {
-            commits[slot - 1] = Some(name.to_string());
-        }
-    }
-    return commits.into_iter().collect();
-}
+/// The `fast-import` stream of a batch and the tests of which requests touch the same paths,
+/// kept in a file of their own to stay under the file-size limit.
+#[path = "service_land_batch_import_stream_and_overlaps.rs"]
+mod batch_text;
+pub(crate) use self::batch_text::{commits_from_marks, ids_of, import_stream};
+/// The forms a control of the batch's paths reads the stream and the comparisons by.
+#[cfg(test)]
+pub(crate) use self::batch_text::{overlaps, quoted};
+use self::batch_text::{ends_a_field, landing_of};
 
 /// What:
-///  The identities of the requests of a batch.
+///  The command each request of a batch says will decide its commit's post-commit checks,
+///  in the order of the commits.
 /// Why:
-///  The intent of a batch names the requests it lands.
+///   The intent of a batch is the only record a restart has of the command that will promote the landed commits'
+///  held pushes,
+/// and a hold that names no command says a published commit may still be held (`held_push_holder_and_verdict.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// batch.map((request) => request.id)
+/// batch.map((request) => request.holder)
 /// ```
-pub(crate) fn ids_of(batch: &[&CommitRequest]) -> Vec<String> {
-    let mut ids: Vec<String> = Vec::new();
+pub(crate) fn holders_of(batch: &[&CommitRequest]) -> Vec<String> {
+    let mut holders: Vec<String> = Vec::new();
     for request in batch {
-        ids.push(request.id.clone());
+        holders.push(request.holder.clone());
     }
-    return ids;
+    return holders;
 }
 
-/// What:
-///  Whether a change of the request touches a path that changed on the branch since the request's base.
-/// Why:
-///  A request whose paths changed meanwhile is sent back to be prepared again against the new tip.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// request.changes.some((change) => changedSince?.some((name) => overlaps(change.path, name)))
-/// ```
-pub(crate) fn changes_overlap_names(request: &CommitRequest, names: Option<&BTreeSet<Vec<u8>>>) -> bool {
-    let Some(changed) = names else {
-        return false;
-    };
-    for change in &request.changes {
-        for name in changed {
-            if overlaps(crate::path_bytes::path_bytes_of(change.path.as_path()), name.as_slice()) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-/// What:
-///  Whether a change of the request touches a path that a change of an earlier request of the batch also touches.
-/// Why:
-///  A later request would replace the earlier one's bytes in the import stream,
-/// so it lands only when it captured later.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// request.changes.some((c) => earlier.changes.some((m) => overlaps(c.path, m.path)))
-/// ```
-pub(crate) fn changes_overlap_members(request: &CommitRequest, earlier: &CommitRequest) -> bool {
-    for change in &request.changes {
-        for member in &earlier.changes {
-            if overlaps(crate::path_bytes::path_bytes_of(change.path.as_path()), crate::path_bytes::path_bytes_of(member.path.as_path())) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
 
 /// What:
 ///  The requests of a batch that land against the tip `old`,
@@ -256,35 +285,61 @@ pub(crate) fn changes_overlap_members(request: &CommitRequest, earlier: &CommitR
 /// ```
 pub(crate) fn requests_that_land<'a>(git: &GitContext, repository: &Path, requests: &'a [CommitRequest], old: &str) -> Result<Vec<(usize, &'a CommitRequest)>, FailureCode> {
     let mut changed_since: HashMap<&str, BTreeSet<Vec<u8>>> = HashMap::new();
-    let mut landing: Vec<(usize, &CommitRequest)> = Vec::new();
-    for (index, request) in requests.iter().enumerate() {
+    for request in requests {
         if request.base != old && !changed_since.contains_key(request.base.as_str()) {
-            let listing: Vec<u8> = checked_bytes(git, repository, &["diff-tree", "-r", "--name-only", "-z", request.base.as_str(), old], None)?;
-            let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
-            for name in listing.split(ends_a_field) {
-                if !name.is_empty() {
-                    names.insert(name.to_vec());
-                }
-            }
-            changed_since.insert(request.base.as_str(), names);
-        }
-        let conflicts: bool = request.base != old && changes_overlap_names(request, changed_since.get(request.base.as_str()));
-        // A member of this batch that an earlier member overlaps would replace that member's bytes in the stream below. It
-        //  stays in the batch only when it captured the worktree (a batch has one) later than that member, so its bytes
-        //  hold the member's edit; any other request is sent back and merged against the member's landed commit.
-        let mut shadowed: bool = false;
-        for (_earlier_index, earlier) in &landing {
-            let later_capture: bool = earlier.captured != 0 && request.captured > earlier.captured;
-            if !later_capture && changes_overlap_members(request, earlier) {
-                shadowed = true;
-                break;
-            }
-        }
-        if !conflicts && !shadowed {
-            landing.push((index, request));
+            let listing: Vec<u8> = checked_bytes(git, repository, &names_since_request(request.base.as_str(), old), None)?;
+            changed_since.insert(request.base.as_str(), names_of(listing.as_slice()));
         }
     }
-    return Ok(landing);
+    return Ok(landing_of(requests, old, &changed_since));
+}
+
+/// What:
+///  `requests_that_land` with every listing awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child,
+/// and the requests one batch lands are chosen from the landing
+///  once it is a task.
+/// The questions,
+/// the fold and the answers are the synchronous face's,
+/// so the two cannot land another
+///  set of requests.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const landing = await requestsThatLandAwaiting(git, repository, requests, old);
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn requests_that_land_awaiting<'a>(
+    git: &GitContext,
+    repository: &Path,
+    requests: &'a [CommitRequest],
+    old: &str,
+) -> Result<Vec<(usize, &'a CommitRequest)>, FailureCode> {
+    let mut changed_since: HashMap<&str, BTreeSet<Vec<u8>>> = HashMap::new();
+    for request in requests {
+        if request.base != old && !changed_since.contains_key(request.base.as_str()) {
+            let listing: Vec<u8> = checked_bytes_awaiting(git, repository, &names_since_request(request.base.as_str(), old), None).await?;
+            changed_since.insert(request.base.as_str(), names_of(listing.as_slice()));
+        }
+    }
+    return Ok(landing_of(requests, old, &changed_since));
+}
+
+/// The question that lists the paths a request's base changed since `old`.
+fn names_since_request<'a>(base: &'a str, old: &'a str) -> Vec<&'a str> {
+    return vec!["diff-tree", "-r", "--name-only", "-z", base, old];
+}
+
+/// The paths one listing of Git's `-z` output names.
+fn names_of(listing: &[u8]) -> BTreeSet<Vec<u8>> {
+    let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
+    for name in listing.split(ends_a_field) {
+        if !name.is_empty() {
+            names.insert(name.to_vec());
+        }
+    }
+    return names;
 }
 
 /// What:
@@ -314,3 +369,8 @@ pub fn keep_what_an_ended_step_built(context: &crate::service_land_context::Land
         let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
     }
 }
+
+/// Controls for the awaited Git steps of a landing stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_git_steps_awaiting_tests.rs"]
+mod awaiting_tests;

@@ -68,12 +68,19 @@ struct StandIn {
     /// Whether the unit the manager holds names an executable an upgrade removed,
     /// so no start can bring it back until the manager reads the units again.
     unit_executable_gone: bool,
+    /// Whether the service of the stand-in accepts connections and greets none of them,
+    /// which is what a service stopped inside its own process looks like;
+    /// a restart is what clears it.
+    wedged: bool,
+    /// Whether the thread of a stand-in service keeps accepting,
+    /// which a control clears so no thread waits on a test that ended.
+    keep_serving: bool,
 }
 
 impl StandIn {
     /// A manager that holds nothing and answers nothing.
     const fn empty() -> Self {
-        return Self { socket: None, state: None, release: None, asked: Vec::new(), unit_executable_gone: false };
+        return Self { socket: None, state: None, release: None, asked: Vec::new(), unit_executable_gone: false, wedged: false, keep_serving: true };
     }
 }
 
@@ -98,6 +105,23 @@ fn stand_in_state(_bus: &Path, unit: &str) -> Option<String> {
 /// recorded and taken from the stand-in.
 fn stand_in_reset(_bus: &Path, unit: &str) -> bool {
     MANAGER.lock().expect("lock").asked.push(format!("reset-failed {unit}"));
+    return true;
+}
+
+/// What:
+///  The restart the client asks for,
+/// recorded and performed from the stand-in:
+/// the service stops and a fresh one greets the next connection.
+/// Why:
+///  A unit the manager reports as running that greets nothing is one whose program stopped inside its own process,
+/// so the
+///  stand-in answers the restart by making its service greet again,
+/// which is what the manager's restart does.
+fn stand_in_restart(_bus: &Path, unit: &str) -> bool {
+    let mut manager = MANAGER.lock().expect("lock");
+    manager.asked.push(format!("restart {unit}"));
+    manager.wedged = false;
+    manager.state = Some(String::from("active"));
     return true;
 }
 
@@ -202,6 +226,7 @@ fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
             state: stand_in_state,
             start: stand_in_start,
             reset: stand_in_reset,
+            restart: stand_in_restart,
             reload: stand_in_reload,
         }),
         keep_fresh: None,
@@ -464,6 +489,227 @@ fn a_service_that_never_greets_because_the_units_program_is_gone_is_repaired_by_
     crate::test_support::remove(runtime.as_path());
 }
 
+/// What:
+///  The stand-in service that accepts every connection and greets none until the stand-in is restarted,
+/// which is what a service stopped inside its own process looks like.
+/// Why:
+///   The client could not tell this from a service that is still starting before the restart,
+/// and the commit it held failed with "the commit service did not start" where nothing had stopped the service.
+/// A connection is taken and closes at once while `wedged` stands,
+/// so the client meets silence and never a greeting,
+/// exactly as it does against a frozen program that the manager's socket still holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listener = listen_at(address); serve(listener, () => MANAGER.wedged ? close() : greet());
+/// ```
+fn serve_silent_until_restarted(listener: UnixListener) -> std::thread::JoinHandle<()> {
+    return std::thread::spawn(move || {
+        let _set = listener.set_nonblocking(true);
+        while MANAGER.lock().expect("lock").keep_serving {
+            match listener.accept() {
+                Ok((mut stream, _address)) => {
+                    if MANAGER.lock().expect("lock").wedged {
+                        continue;
+                    }
+                    let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) });
+                    line.push('\n');
+                    let _sent = stream.write_all(line.as_bytes());
+                }
+                Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
+    });
+}
+
+/// What:
+///  A unit the manager reports `active` whose service greets nothing is asked to restart,
+/// once,
+/// and the commit is reached after it does.
+/// Why:
+///  A service greets a connection before it restores anything,
+/// so a running unit that greets nothing is one whose program
+///  stopped inside its own process:
+/// a frozen control group,
+/// a debugger,
+/// a suspended machine,
+/// a wait in the kernel nothing ends.
+/// The client waited `START_WAIT` (ten seconds) and then reported "The commit service did not start",
+/// which is not what happened and
+///  sends the person to a log that holds nothing about it
+/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`,
+/// finding 3 of the after-alpha.9 audit).
+/// A restart is the one repair,
+/// and the service survives being ended by design.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await reach(config)).toBeDefined(); expect(asked).toContain('restart monochromatic-git-policy-cli@….service');
+/// ```
+#[test]
+fn a_running_unit_that_greets_nothing_is_asked_to_restart_once_and_the_service_is_reached() {
+    let socket: String = address("client-reach-wedged");
+    let listener: UnixListener = listen_at(socket.as_str()).expect("the service's address is bound");
+    {
+        let mut manager = MANAGER.lock().expect("lock");
+        manager.socket = Some(socket.clone());
+        manager.state = Some(String::from("active"));
+        manager.wedged = true;
+        manager.asked.clear();
+    }
+    let serving: std::thread::JoinHandle<()> = serve_silent_until_restarted(listener);
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
+    settings.start_ceiling = Duration::from_secs(30);
+    let mut announced: bool = false;
+    let mut notices: Vec<u8> = Vec::new();
+    let reached = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
+    let asked_of_the_manager: Vec<String> = asked();
+    let (_reader, version, _release) = reached.unwrap_or_else(|failure| {
+        panic!("the restart must make the service answer: {failure:?} after {asked_of_the_manager:?}, notices {:?}", String::from_utf8_lossy(notices.as_slice()))
+    });
+    assert_eq!(version, PROTOCOL_VERSION);
+    let restarts: Vec<&String> = asked_of_the_manager.iter().filter(|call| { return call.starts_with("restart "); }).collect();
+    assert_eq!(restarts.len(), 1, "one restart, and one only: {asked_of_the_manager:?}");
+    // The wait says what it waits for before it acts, so a commit held for a restart is not a commit held in silence.
+    let said: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
+    assert!(said.contains("nothing has answered at"), "the wait names what it waits for and where: {said:?}");
+    assert!(said.contains("asked to restart"), "the restart is said: {said:?}");
+    MANAGER.lock().expect("lock").keep_serving = false;
+    serving.join().expect("the stand-in service's thread");
+    MANAGER.lock().expect("lock").wedged = false;
+    MANAGER.lock().expect("lock").keep_serving = true;
+}
+
+
+/// What:
+///  A service that accepts every connection and greets none,
+/// for the length of a control.
+/// Why:
+///  A connection that is taken and never answered is what a service stopped inside its own process looks like,
+/// and a
+///  control must be able to make it without a manager and without a real service.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = takeEveryConnectionAndSayNothing(listener);
+/// ```
+fn take_connections_and_greet_nothing(listener: UnixListener) -> (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::Arc<std::sync::Mutex<Vec<UnixStream>>>, std::thread::JoinHandle<()>) {
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let serving_finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+    let held: std::sync::Arc<std::sync::Mutex<Vec<UnixStream>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let serving_held: std::sync::Arc<std::sync::Mutex<Vec<UnixStream>>> = std::sync::Arc::clone(&held);
+    let serving = std::thread::spawn(move || {
+        let _set = listener.set_nonblocking(true);
+        while !serving_finished.load(std::sync::atomic::Ordering::Relaxed) {
+            match listener.accept() {
+                // The connection is held open and nothing is written on it: silence, never a close.
+                Ok((stream, _address)) => serving_held.lock().expect("held").push(stream),
+                Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
+    });
+    return (finished, held, serving);
+}
+
+/// What:
+///  Where a manager could not be asked and nothing answered,
+/// the failure says what the wait proved and never that the service did not start.
+/// Why:
+///  `DidNotStart` was printed in this state,
+/// where the service had started and then stopped inside its own process,
+/// and it sent the
+///  person to a log that holds nothing about it
+/// (`~/.claude/../sonnet-audits/integration-tip-never-stuck/report.md`,
+/// finding 3 of the after-alpha.9 audit).
+/// The wait says what it waits for and where within a second,
+/// so a commit held here is never a commit held in
+///  silence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await reach(config)).toEqual({ nothingAnswered: { address, waited } }); expect(notices).toContain(address);
+/// ```
+#[test]
+fn an_address_that_answers_nothing_with_no_manager_to_ask_is_named_truly() {
+    let socket: String = address("client-reach-silent-no-manager");
+    let listener: UnixListener = listen_at(socket.as_str()).expect("the address is bound");
+    let (finished, held, serving) = take_connections_and_greet_nothing(listener);
+    let settings: ClientConfig = ClientConfig {
+        address: Bind::Abstract(socket.clone()),
+        activation: Activation::Managed,
+        // Past the notice grace, so this control also reads the line the wait prints.
+        start_wait: Duration::from_millis(1_200),
+        heartbeat_silence: Duration::from_millis(200),
+        start_watch: None,
+        keep_fresh: None,
+        answer_ceiling: Duration::from_secs(5),
+        withdraw_ceiling: Duration::from_secs(5),
+        waiting_notice_after: Duration::from_secs(60),
+        extra_wait: Duration::from_secs(1),
+        start_ceiling: Duration::from_secs(5),
+        units_record_dir: None,
+    };
+    let mut announced: bool = false;
+    let mut notices: Vec<u8> = Vec::new();
+    let began: std::time::Instant = std::time::Instant::now();
+    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false).expect_err("nothing answered, so nothing is reached");
+    assert!(began.elapsed() < Duration::from_secs(3), "the wait ends at its own bound: {:?}", began.elapsed());
+    let ClientFailure::NothingAnswered { address: named, waited } = &failure else { panic!("the failure says what the wait proved: {failure:?}") };
+    assert!(named.contains(socket.as_str()), "the address is named: {named}");
+    // The wait that ended is the one the wait counted: it lasts the start wait and no longer than the pause after the last
+    //  look, so a reader of the record is told what the wait came to and never the bound it was granted.
+    assert!(*waited >= settings.start_wait, "the wait lasted its bound: {waited:?}");
+    assert!(*waited < settings.start_wait + Duration::from_millis(200), "and no longer than that plus one pause: {waited:?}");
+    let rendered: String = crate::service_messages::render(&failure);
+    assert!(rendered.contains(socket.as_str()), "the person reads the address: {rendered}");
+    assert!(rendered.contains("signal") || rendered.contains("stopped") || rendered.contains("frozen"), "the words name what a silent address means: {rendered}");
+    assert!(!rendered.contains("did not start"), "the service did start: {rendered}");
+    let said: String = String::from_utf8_lossy(notices.as_slice()).into_owned();
+    assert!(said.contains(socket.as_str()), "the wait names the address before it ends: {said:?}");
+    assert!(said.contains("no service manager"), "and says whom it cannot ask: {said:?}");
+    finished.store(true, std::sync::atomic::Ordering::Relaxed);
+    serving.join().expect("the stand-in service's thread");
+    drop(held);
+}
+
+/// What:
+///  An address nothing listens on is still the service that did not start.
+/// Why:
+///   The two states have different next steps,
+/// and a word that covers both sends the person to the wrong one:
+/// nothing
+///  listening means no service was started,
+/// and a connection nothing answers means one was and stopped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await reach(unboundAddress)).toEqual({ didNotStart: true });
+/// ```
+#[test]
+fn an_address_nothing_listens_on_is_the_service_that_did_not_start() {
+    let socket: String = address("client-reach-nothing-listening");
+    let settings: ClientConfig = ClientConfig {
+        address: Bind::Abstract(socket),
+        activation: Activation::Managed,
+        start_wait: Duration::from_millis(200),
+        heartbeat_silence: Duration::from_millis(200),
+        start_watch: None,
+        keep_fresh: None,
+        answer_ceiling: Duration::from_secs(5),
+        withdraw_ceiling: Duration::from_secs(5),
+        waiting_notice_after: Duration::from_secs(60),
+        extra_wait: Duration::from_secs(1),
+        start_ceiling: Duration::from_secs(5),
+        units_record_dir: None,
+    };
+    let mut announced: bool = false;
+    let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false).expect_err("nothing listens, so nothing is reached");
+    assert_eq!(failure, ClientFailure::DidNotStart);
+}
+
+
 /// The instance name every control's unit carries,
 /// in the shape systemd's instance units use.
 const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
@@ -526,4 +772,106 @@ fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_re
     // The socket unit is required by the service unit, so its failed state is forgotten in the same repair.
     let socket_reset: String = format!("reset-failed {socket_unit}");
     assert!(asked_of_the_manager.iter().any(|call| { return *call == socket_reset; }), "the socket unit's failed state is forgotten too: {asked_of_the_manager:?}");
+}
+
+/// What:
+///  A sink of the notice lines that keeps the line and the moment it was written,
+/// so a control reads when the person saw it and not only what it said.
+/// Why:
+///   The audit's finding was the silence of the wait and not only its words:
+/// a line the person reads when the
+///  command is already over says nothing about the ten seconds before it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const times = timesOfLines(); reach(config, times, ...); expect(times.lines()[0][0]).toBeLessThan(1500);
+/// ```
+struct TimesOfLines {
+    /// When the wait began.
+    began: std::time::Instant,
+    /// Every line,
+    /// with the moment it was written.
+    lines: std::sync::Arc<std::sync::Mutex<Vec<(Duration, String)>>>,
+}
+
+impl TimesOfLines {
+    /// A sink that records every line from now on.
+    fn start() -> Self {
+        return Self { began: std::time::Instant::now(), lines: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())) };
+    }
+
+    /// The lines written so far,
+    /// each with the moment of its writing.
+    fn lines(&self) -> Vec<(Duration, String)> {
+        return self.lines.lock().expect("lines").clone();
+    }
+}
+
+impl std::io::Write for TimesOfLines {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.lines.lock().expect("lines").push((self.began.elapsed(), String::from_utf8_lossy(bytes).into_owned()));
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A wait with no service manager to ask says what it waits for while it is still waiting,
+/// never only when it ends.
+/// Why:
+///   The ten seconds of silence the audit measured were one socket read:
+/// the attempt waited the whole start wait,
+///  so the loop that says the line only reached it at the bound that ended the wait.
+/// The wait still says the same thing within the grace,
+/// and still
+///  ends at the bound it was granted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(times.lines()).toHaveLength(1); expect(times.lines()[0][0]).toBeLessThan(startWait / 2);
+/// ```
+#[test]
+fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends() {
+    let socket: String = address("client-reach-notice-while-waiting");
+    let listener: UnixListener = listen_at(socket.as_str()).expect("the address is bound");
+    let (finished, held, serving) = take_connections_and_greet_nothing(listener);
+    let settings: ClientConfig = ClientConfig {
+        address: Bind::Abstract(socket.clone()),
+        activation: Activation::Managed,
+        // Twice the notice grace, so the line and the end of the wait are a second apart at the least.
+        start_wait: Duration::from_millis(2_400),
+        heartbeat_silence: Duration::from_millis(200),
+        start_watch: None,
+        keep_fresh: None,
+        answer_ceiling: Duration::from_secs(5),
+        withdraw_ceiling: Duration::from_secs(5),
+        waiting_notice_after: Duration::from_secs(60),
+        extra_wait: Duration::from_secs(1),
+        start_ceiling: Duration::from_secs(5),
+        units_record_dir: None,
+    };
+    let mut notices: TimesOfLines = TimesOfLines::start();
+    let mut announced: bool = false;
+    let began: std::time::Instant = std::time::Instant::now();
+    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+        .expect_err("nothing answered, so nothing is reached");
+    let waited: Duration = began.elapsed();
+    // A formatting call may hand the sink the text and its line feed in two writes, so the text is read as one and the
+    //  moment is the first write's.
+    let said: Vec<(Duration, String)> = notices.lines();
+    let text: String = said.iter().map(|(_when, line)| { return line.as_str(); }).collect();
+    let telling: Vec<&(Duration, String)> = said.iter().filter(|(_when, line)| { return line.contains("nothing has answered at"); }).collect();
+    assert_eq!(telling.len(), 1, "one line, and one only: {text:?}");
+    let (when, _line): &(Duration, String) = telling[0];
+    assert!(text.contains(socket.as_str()), "the line names the address: {text}");
+    assert!(*when < Duration::from_millis(1_500), "the line is read while the wait goes on ({when:?} of {waited:?}): {text}");
+    assert!(waited >= settings.start_wait, "and the wait still ends at its own bound: {waited:?}");
+    assert!(waited < settings.start_wait + Duration::from_millis(200), "and no later than that plus one pause: {waited:?}");
+    assert!(matches!(failure, ClientFailure::NothingAnswered { .. }), "the end says what the wait proved: {failure:?}");
+    finished.store(true, std::sync::atomic::Ordering::Relaxed);
+    serving.join().expect("the stand-in service's thread");
+    drop(held);
 }

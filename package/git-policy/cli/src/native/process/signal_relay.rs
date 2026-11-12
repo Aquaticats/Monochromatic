@@ -259,6 +259,11 @@ extern "C" fn relay_handler(
         return;
     };
     PENDING[slot].store(signal, std::sync::atomic::Ordering::SeqCst);
+    // The two signals a waiting commit answers are noted as well, because the child this one is relayed to may be gone, and
+    //  the command that waits must still learn that the person stopped it (`signal_relay_relayed_stop.rs`).
+    if signal == libc::SIGINT || signal == libc::SIGTERM {
+        crate::signal_relay_relayed_stop::note(signal);
+    }
     relay_pending();
 }
 

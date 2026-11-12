@@ -16,9 +16,9 @@ fn what_the_branch_shows_is_read_from_the_branch() {
     let other: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD~0"]).trim().to_string();
     let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     // An object that is not there at all: Git answers 128, which is neither "yes" nor "no", so nothing is claimed.
-    let at_the_commit: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", made.as_str());
-    let no_such_commit: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", "0000000000000000000000000000000000000000");
-    let no_such_branch: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/absent", other.as_str());
+    let at_the_commit: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), &crate::ref_name::RefName::from_text("refs/heads/main"), made.as_str());
+    let no_such_commit: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), &crate::ref_name::RefName::from_text("refs/heads/main"), "0000000000000000000000000000000000000000");
+    let no_such_branch: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), &crate::ref_name::RefName::from_text("refs/heads/absent"), other.as_str());
     crate::test_support::remove(root.as_path());
     assert_eq!(at_the_commit, WhatTheBranchShows::Made, "the branch holds the commit this command prepared");
     assert_eq!(no_such_commit, WhatTheBranchShows::Unread, "a commit that is not there is not a fact either way");
@@ -47,9 +47,9 @@ fn a_commit_a_later_commit_sits_on_top_of_was_made() {
         made
     };
     let context: crate::transaction_git::GitContext = crate::test_support::git_context();
-    let on_top: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", earlier.as_str());
-    let the_tip: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", later.as_str());
-    let elsewhere: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), "refs/heads/main", off_the_branch.as_str());
+    let on_top: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), &crate::ref_name::RefName::from_text("refs/heads/main"), earlier.as_str());
+    let the_tip: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), &crate::ref_name::RefName::from_text("refs/heads/main"), later.as_str());
+    let elsewhere: WhatTheBranchShows = what_the_branch_shows(&context, root.as_path(), &crate::ref_name::RefName::from_text("refs/heads/main"), off_the_branch.as_str());
     crate::test_support::remove(root.as_path());
     assert_eq!(on_top, WhatTheBranchShows::Made, "a commit the branch's tip sits on top of was made by this command");
     assert_eq!(the_tip, WhatTheBranchShows::Made, "the tip itself is the commit this command prepared");
@@ -88,9 +88,9 @@ fn a_silence_the_branch_shows_as_made_is_not_a_failure() {
     let made: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
     let context: crate::transaction_git::GitContext = crate::test_support::git_context();
     let at_the_commit: Option<crate::service_messages::ClientFailure> =
-        the_silent_service_after_a_prepare(&context, root.as_path(), "refs/heads/main", Some(made.as_str()));
+        the_silent_service_after_a_prepare(&context, root.as_path(), &crate::ref_name::RefName::from_text("refs/heads/main"), Some(made.as_str()));
     let elsewhere: Option<crate::service_messages::ClientFailure> =
-        the_silent_service_after_a_prepare(&context, root.as_path(), "refs/heads/main", Some("0000000000000000000000000000000000000000"));
+        the_silent_service_after_a_prepare(&context, root.as_path(), &crate::ref_name::RefName::from_text("refs/heads/main"), Some("0000000000000000000000000000000000000000"));
     crate::test_support::remove(root.as_path());
     assert!(at_the_commit.is_none(), "the command has nothing to report when the branch holds its commit");
     assert!(elsewhere.is_some(), "a commit the branch does not show still has to be reported");

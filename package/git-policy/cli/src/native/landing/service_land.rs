@@ -245,3 +245,8 @@ mod finish_held_settlement_tests;
 #[cfg(test)]
 #[path = "service_land_index_stat_tests.rs"]
 mod index_stat_tests;
+
+/// Controls for a commit whose client is gone before it lands stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_client_gone_tests.rs"]
+mod client_gone_tests;

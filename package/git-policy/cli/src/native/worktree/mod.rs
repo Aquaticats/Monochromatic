@@ -21,6 +21,14 @@ pub mod checkout_workers;
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 
+/// The folder a taken worktree folder is kept in when the name it came from is taken,
+/// and the cleanup that must leave it alone.
+pub mod worktree_kept_folders;
+
+/// The line a `git worktree add` prints while it is still running,
+/// naming the step it is in.
+pub mod add_standing_notice;
+
 /// The record of where one wrapped `git worktree add` spent its time,
 /// step by step,
 /// appended beside the commit timing record.
@@ -90,6 +98,11 @@ pub mod worktree_clean_content_attribute_sources;
 #[cfg(unix)]
 pub mod worktree_remove_plan;
 
+/// The directories one removal holds open,
+/// the last look at them before the destroy,
+/// and the lock that keeps a worktree.
+pub mod worktree_removal_holds_the_worktree;
+
 /// The removal of a clean subvolume worktree by one ioctl,
 /// and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
@@ -120,6 +133,14 @@ pub mod worktree_removal_stops_units;
 /// The removal of the shadow pool a removed worktree's commits were served from,
 /// taken after the removal proved the worktree is gone.
 pub mod worktree_removal_clears_the_pool;
+
+/// The snapshots this program made ahead of an add,
+/// taken out of a worktree's administrative directory before that worktree is removed.
+pub mod worktree_removal_clears_the_ahead_pool;
+
+/// The refusal of a removal for a worktree that holds a subvolume or a mount point of its own,
+/// which the kernel can never destroy in one step.
+pub mod worktree_removal_refuses_a_nested_volume;
 
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
@@ -218,6 +239,11 @@ pub mod worktree_slow_route;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
 
+/// The record of the trash a snapshot's leave-out made,
+/// written before the rung that published the worktree returns.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_trash_record;
+
 /// The restore of a snapshot of a main checkout with uncommitted changes,
 /// and its proof.
 #[cfg(target_os = "linux")]
@@ -252,6 +278,10 @@ pub mod worktree_convert_inspection;
 /// The journaled phases of one worktree conversion.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_phases;
+
+/// What a conversion does about a stage container another command is filling below the tree it would swap or delete.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_filled_stages;
 
 /// The empty stage a conversion created and did not record,
 /// and whether the object at the converting name is it.
@@ -327,6 +357,12 @@ pub mod worktree_trash_manifest;
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_own_manifest;
 
+/// What every later command in a worktree says about the trash left there:
+///  which directory nothing will empty,
+///  which trash it records again,
+///  and the wake that tells the service so.
+pub mod worktree_trash_unaccounted;
+
 /// Removal of a directory tree beneath a held parent handle,
 /// never following a link.
 #[cfg(target_os = "linux")]
@@ -335,6 +371,15 @@ pub mod worktree_trash_remove;
 /// The record that says the wrapper made one linked worktree,
 /// which every automatic removal asks for first.
 pub mod worktree_added_by_the_wrapper;
+
+/// The commits a branch's own reflog says it moved between,
+/// which is what says whether a branch a merge brought in holds work of its own.
+pub mod worktree_branch_reflog;
+
+/// Whether a directory is one of this repository's linked worktrees,
+/// proved from the pointer and the registration Git wrote there,
+/// which every command that changes state in a recorded worktree asks for first.
+pub mod worktree_registration_proof;
 
 /// The commit and the branch one merge stood between,
 /// and the sweep of the worktrees whose branches it landed.

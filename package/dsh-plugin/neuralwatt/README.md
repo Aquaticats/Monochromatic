@@ -43,6 +43,12 @@ Activation is one settings write plus one bounded async fetch:
 4.  A write whose stored route already matches the mapped one is skipped,
     so an
     unchanged profile document is never rewritten.
+5.  A write the host refuses because its reload transaction is still open
+    (`HMR transactions cannot be nested`)
+    is deferred, not failed: the whole mount refresh is re-run from the
+    plugin-manager's `plugin-manager/changed` dispatch, which lands outside
+    that transaction, so a `set_plugin`, `install_bundle`, or `set_bundle`
+    re-trigger still lands the full route.
 
 The plugin never applies a second pi-ai adapter.
 The shipped `llm-pi-ai`

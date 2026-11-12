@@ -41,13 +41,16 @@ use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
 use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
 /// The clock that reads the signs of work of a process tree.
 use crate::push_progress::Clock;
-/// The start that rides out a refused start of a child.
-use crate::start_retry::spawn_retrying_without_blocking;
+/// The bounded start of the tool,
+/// and the stop of the group it leads.
+use crate::package_repair_start::{ToolStart, start_within, stop_group};
 /// The longest quiet gap of each tool,
 /// kept for the timing records.
 use crate::output_capture::Capture;
 use crate::quiet_ledger;
+use crate::wait_ceilings::REPAIR_TOOL_NOTICE_AFTER;
 use std::ffi::{OsStr, OsString};
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -169,11 +172,17 @@ const OUTPUT_TAIL_BYTES: usize = 600;
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// What:
-///  The first executable file named `name` in a search path.
+///  The first executable file named `name` in a search path,
+///  named by its absolute path.
 /// Why:
 ///   The program is the one the person's environment resolves;
 /// a missing one is a verdict,
 /// not a failure to start.
+/// An entry without a leading slash names a directory of the directory this lookup happens in,
+/// and every repair starts its tool in the worktree,
+/// so the file is named where it was found rather than with a path the child would read from its own directory.
+/// A directory of this process that cannot be read names no file to start,
+/// which is the same answer as a program the search path does not hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -193,7 +202,8 @@ pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> 
             Err(_) => false,
         };
         if runnable {
-            return Some(candidate);
+            // A name that is already absolute is kept as the person wrote it; only a relative one needs this directory.
+            return std::path::absolute(candidate).ok();
         }
     }
     return None;
@@ -365,7 +375,25 @@ fn no_place_for_output(program: &Path, started: Instant, error: &std::io::Error)
 /// a control sees that the stop path reaps through it.
 ///  The wait for the tool is awaited on its pidfd,
 /// and the looks at the clock and the ceiling are made at `POLL_INTERVAL`.
+///  The start itself is bounded by `REPAIR_TOOL_START_CEILING`;
+/// `run_tool_reaping_started_within` takes that bound from its caller.
 pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &Path, command: &ToolCommand, limits: ToolLimits, reap: &Reap) -> ToolRun {
+    return run_tool_reaping_started_within(program, command, limits, crate::wait_ceilings::REPAIR_TOOL_START_CEILING, reap).await;
+}
+
+/// What:
+///  `run_tool_reaping` with the bound on the start given,
+/// which a control reaches in milliseconds.
+/// Why:
+///   The bound is one a person chooses through no setting and a control cannot wait for,
+/// so the run that ships gives it a
+///  named constant and a control names its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runToolReapingStartedWithin(program, command, limits, startMs, reap): Promise<ToolRun>;
+/// ```
+pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> bool>(program: &Path, command: &ToolCommand, limits: ToolLimits, start: Duration, reap: &Reap) -> ToolRun {
     use std::os::unix::process::CommandExt;
     let started: Instant = Instant::now();
     let mut starting: Command = Command::new(program);
@@ -382,16 +410,26 @@ pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &
         Err(error) => return no_place_for_output(program, started, &error),
     };
     starting.args(&command.arguments).current_dir(&command.directory).stdin(Stdio::null()).process_group(0);
+    // A control holds the child before its own exec, which is the only way a test can make a start take time.
+    #[cfg(test)]
+    crate::package_repair_start::hold_the_start_before_its_exec(&mut starting);
     for (name, value) in &command.set {
         starting.env(name, value);
     }
-    let mut child: OwnedChild = match spawn_retrying_without_blocking(&mut starting).await {
-        Ok(running) => adopt(running),
-        Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
+    let mut child: OwnedChild = match start_within(start, starting).await {
+        ToolStart::Running(running) => adopt(running),
+        ToolStart::Refused(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
+        ToolStart::NoAnswer => {
+            // Nothing reads what the tool writes: the run says it did not start here, and the child it finally starts is stopped.
+            captured.discard();
+            return ToolRun { end: ToolEnd::Failed(format!("{} could not start: it gave no answer within {start:?}, so nothing of it ran", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
+        }
     };
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
     let mut at_ceiling: bool = false;
     let mut wait_failure: Option<std::io::Error> = None;
+    // Whether the person has been told what this tool waits for, which is said once per run and never for a tool that ends quickly.
+    let mut noticed: bool = false;
     let status: Option<std::process::ExitStatus> = loop {
         match wait_status(&mut child).await {
             Ok(Some(done)) => break Some(done),
@@ -407,6 +445,14 @@ pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &
                 wait_failure = Some(error);
                 break None;
             }
+        }
+        // What: A tool that is still running after the notice bound says what it is,
+        //       where it runs and what ends it.
+        // Why:  An add whose `pnpm` never ended printed its last line at two seconds and said nothing for the next 613 s, though the
+        //       quiet window and the ceiling above it were both running (`wait_ceilings.rs`, `REPAIR_TOOL_NOTICE_AFTER`).
+        if !noticed && started.elapsed() >= REPAIR_TOOL_NOTICE_AFTER {
+            noticed = true;
+            say_what_it_waits_for(program, command, limits);
         }
     };
     // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
@@ -444,6 +490,91 @@ pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &
     let disclosed: String = if shown.notes.is_empty() { String::new() } else { format!(" ({})", shown.notes.join("; ")) };
     return ToolRun { end: ToolEnd::Failed(format!("{}: {text}{disclosed}", describe_status(finished))), millis, stdout: Vec::new(), notes: shown.notes };
 }
+
+/// What:
+///  The line that says a repair tool is still running,
+/// what it runs,
+/// where,
+/// and what ends it.
+/// Why:
+///   The two bounds that end a tool (the quiet window and the ceiling) are the only thing that ends it,
+/// and a person who
+///  sees nothing for ten minutes cannot tell a tool that works from one the wrapper lost;
+/// the tool,
+/// its
+///  arguments and the worktree it runs in are what tells them apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sayWhatItWaitsFor(pnpm, { arguments: ['install', '--offline'], directory: worktree }, { window: 600, ceiling: 1080 })
+/// ```
+fn say_what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimits) {
+    let words: String = what_it_waits_for(program, command, limits);
+    #[cfg(test)]
+    NOTICES_SAID.lock().expect("notices").push(words.clone());
+    // Terminal output: this line is the person's, not a log record, and there is nowhere to report a closed standard error.
+    let _written = writeln!(std::io::stderr(), "{words}");
+}
+
+/// What:
+///  The words of that line,
+/// which a control reads without touching the process's standard error.
+/// Why:
+///   A repair's waits are announced on standard error,
+/// which a control of a test binary that runs its tests side by side cannot
+///  take for itself;
+/// the words are built here and printed by the caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = whatItWaitsFor(pnpm, command, limits);
+/// ```
+fn what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimits) -> String {
+    let arguments: Vec<String> = command.arguments.iter().map(argument_text).collect();
+    return format!(
+        "monochromatic-git-policy-cli: {} {} is still running in {} for the repair of the new worktree; it is stopped when it shows no sign of work for {} seconds, or after {} minutes at the latest.",
+        program.display(),
+        arguments.join(" "),
+        command.directory.display(),
+        limits.window.as_secs(),
+        limits.ceiling.as_secs() / 60
+    );
+}
+
+/// What:
+///  One argument of a tool's command line,
+/// as the text a person reads.
+/// Why:
+///  The parameters of a repair are what tells two runs of the same tool apart
+/// (`--offline`,
+/// `--frozen-lockfile`),
+/// and the notice is the only place a person sees them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// argumentText(OsString('--offline')) // '--offline'
+/// ```
+fn argument_text(word: &OsString) -> String {
+    return word.to_string_lossy().into_owned();
+}
+
+/// What:
+///  What the waiting notices said,
+/// so a control reads them without taking the process's standard error.
+/// Why:
+///   A tool's wait runs as a task of the process's runtime,
+/// on a worker of its own,
+/// so a record of one thread would miss it;
+/// a control of a test process that runs its tests side by side reads its own line by the
+///  fixture path in it.
+#[cfg(test)]
+pub(crate) fn notices_said() -> Vec<String> {
+    return NOTICES_SAID.lock().expect("notices").clone();
+}
+
+/// The notices the controls read.
+#[cfg(test)]
+static NOTICES_SAID: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
 
 /// The child's end if it comes within `POLL_INTERVAL`,
 /// awaited on its pidfd,
@@ -521,22 +652,6 @@ fn tool_step(program: &Path, command: &ToolCommand) -> String {
         Some(first) => format!("{name} {}", first.to_string_lossy()),
         None => name,
     };
-}
-
-/// What:
-///  Stop the child's whole process group.
-/// Why:
-///   pnpm and Cargo start helpers;
-/// stopping only the leader would leave them running against the worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// process.kill(-child.pid, 'SIGKILL');
-/// ```
-fn stop_group(leader_id: u32) {
-    let Ok(leader) = libc::pid_t::try_from(leader_id) else { return };
-    // SAFETY: `kill` takes a process-group id and a signal number and touches no memory; the group was made by this process.
-    let _stopped = unsafe { libc::kill(-leader, libc::SIGKILL) };
 }
 
 /// Command controls stay out of the release executable.

@@ -24,7 +24,7 @@ use crate::service_server_work_loop_awaiting::work_loop_awaiting;
 use crate::service_work::{GitHandlers, Verdict, work_directory};
 use crate::service_work_handlers_replanning_and_acceptance::{PUSH_KINDS, SERVICE_KINDS, WorkHandlers};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository, wait_until};
-use crate::work_item::{DONE, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_trash_dispose_awaiting::INSIDE_A_SLOW_STEP;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
@@ -214,7 +214,7 @@ fn the_lane_runs_the_slow_kinds_the_round_left() {
     );
     let counted: Counted = Counted::default();
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
-    runtime.block_on(drain_the_slow_work_awaiting(world.common.as_path(), &counted));
+    let _left: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(world.common.as_path(), &counted, HOUSEKEEPING_OF_ONE_ROUND));
     assert_eq!(counted.trashes.load(Ordering::SeqCst), 1, "the lane took the trash");
     assert_eq!(counted.reviews.load(Ordering::SeqCst), 1, "the lane took the review");
     assert_eq!(counted.pushes.load(Ordering::SeqCst), 0, "the lane takes no push");
@@ -451,5 +451,76 @@ fn the_lane_settles_the_trash_the_loop_was_woken_for() {
     assert!(wait_until(&|| { return settled("failed") || settled(DONE); }), "the lane settled the trash");
     drop(wake);
     assert!(wait_until(&|| { return running.is_finished(); }), "the after-commit work ends when its queue is closed");
+    remove(staged.root.as_path());
+}
+
+/// The slice one look of the lane's control may start housekeeping for:
+/// nothing,
+/// so a look has spent it before it reaches the housekeeping it finds and every item after the first of a look asks to be
+///  looked at again.
+const A_SLICE_ONE_LOOK_SPENDS: Duration = Duration::ZERO;
+
+/// The trash the lane's control holds its look inside.
+const THE_HELDS_TRASH: &str = "9999999999999999999999999999999999999999";
+
+/// The trash that look does not start,
+/// which only the look after it can settle.
+const THE_LEFT_TRASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+/// What:
+///  A look that could not start every housekeeping item it found leaves the rest `pending`,
+/// and the lane looks at that repository again by itself after the pause the drain asked for,
+/// with no second wake.
+/// Why:
+///   A trash of one removed worktree is hundreds of thousands of removals,
+/// and a look that ran every one of them in turn would keep the lane from every other repository's work for as long as it
+///  took
+/// (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// The slice bounds what one look starts
+/// (`housekeeping_of_one_round.rs`),
+/// so a record it did not start goes back to `pending` and the drain names the pause it wants;
+/// the lane is the only thing that will look again,
+/// so a lane that dropped that answer would leave the trash waiting for the next wake of any kind.
+/// The slice here is nothing rather than a duration to wait out,
+/// because the state the control needs is "this look has spent its slice before the housekeeping",
+/// which a bound of nothing reaches at every look.
+/// The first item of a look starts all the same,
+/// and these records are all trashes,
+/// so a look that spent its first start on the empty deletion step would defer both of them for ever and the control would
+///  never see one settle.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lane.ask([gitDir, null]); await held; release(); expect(await settled(first)).toBe(true); expect(await settled(second)).toBe(true)
+/// ```
+#[test]
+fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
+    let staged: Stage = stage("slow-lane-a-slice-then-again");
+    let git_dir: PathBuf = staged.repo.join(".git");
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &a_trash_record(&staged, THE_HELDS_TRASH)).expect("the held trash is written");
+    enqueue(work.as_path(), &a_trash_record(&staged, THE_LEFT_TRASH)).expect("the left trash is written");
+    let held: HeldTrash = hold_inside_a_trash();
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let lane: SlowLane =
+        crate::merge_second_pass::tests::await_it(async move { return SlowLane::start_with_slice(&handlers, busy, A_SLICE_ONE_LOOK_SPENDS); });
+    lane.ask((git_dir, None));
+    assert!(wait_until(&|| { return held.arrived.load(Ordering::SeqCst); }), "the lane is inside the first trash");
+    // The slice is already spent while that trash is held, so the trash behind it is not started by this look.
+    let _let_go = held.let_go.send(());
+    // The step settles the record for what it holds, which is what this control reads.
+    let settled = |oid: &str| -> bool {
+        let wanted: String = format!("trash-{oid}");
+        return [DONE, FAILED].iter().any(|state| {
+            return names_in_at(work.as_path(), *state).iter().any(|name| { return name.starts_with(wanted.as_str()); });
+        });
+    };
+    assert!(wait_until(&|| { return settled(THE_HELDS_TRASH); }), "the first trash of a look starts however spent its slice is");
+    assert!(
+        wait_until(&|| { return settled(THE_LEFT_TRASH); }),
+        "the trash the first look did not start is run by the look the lane takes by itself, with no second wake"
+    );
+    drop(lane);
     remove(staged.root.as_path());
 }

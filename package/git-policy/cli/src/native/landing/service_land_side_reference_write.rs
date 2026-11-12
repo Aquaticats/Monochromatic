@@ -38,8 +38,9 @@ use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_stat
 use crate::service_index_lock::{Announce, Announcer};
 use crate::service_land_context::LandContext;
 use crate::service_protocol::{CommitRequest, FailureCode};
-use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, value_of};
+use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, value_of, value_of_awaiting};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING, run_git};
+use crate::transaction_git_awaiting::run_git_awaiting;
 use std::path::Path;
 
 /// Keeps the sentence of a step that was ended at its ceiling,
@@ -125,6 +126,35 @@ pub(crate) fn answering(git: &GitContext, request: GitRequest) -> StepAnswer {
         Err(error) => {
             // A step ended at its ceiling, or by the service's stop, is told apart from every other failure, and its sentence is kept
             //  for the answer; the commit it belongs to is kept on a side ref and not made (`land_batch_timed`).
+            if is_ceiling(&error) || is_ended_by_stop(&error) {
+                on_the_landing_state(error.to_string(), keep_the_ceiling_step);
+                return StepAnswer::Ended(FailureCode::StepTooSlow);
+            }
+            StepAnswer::Ended(FailureCode::Unavailable)
+        }
+    };
+}
+
+/// What:
+///  `answering` with the step's Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child
+/// (`transaction_git_awaiting.rs`),
+///  and a side reference is written from the landing once the landing is a task;
+/// the three answers and the sentence kept for a step that was ended
+///  are the synchronous face's,
+/// so a commit one face keeps is kept by the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function answeringAwaiting(git, request): StepAnswer { try { return { answered: await runGitAwaiting(git, request) } } catch (error) { if (isNotKnown(error)) return 'left-running'; if (isCeiling(error) || isEndedByStop(error)) { rememberCeilingStep(error.message); return { ended: 'StepTooSlow' } } return { ended: 'Unavailable' } } }
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn answering_awaiting(git: &GitContext, request: GitRequest) -> StepAnswer {
+    return match run_git_awaiting(git, &request).await {
+        Ok(output) => StepAnswer::Answered(output),
+        Err(error) if is_not_known(&error) => StepAnswer::LeftRunning,
+        Err(error) => {
             if is_ceiling(&error) || is_ended_by_stop(&error) {
                 on_the_landing_state(error.to_string(), keep_the_ceiling_step);
                 return StepAnswer::Ended(FailureCode::StepTooSlow);
@@ -226,6 +256,57 @@ fn write_until_the_reference_names(git: &GitContext, repository: &Path, name: &s
     return ASideRefWrite::LeftRunning;
 }
 
+/// What:
+///  `write_until_the_reference_names` with every Git child awaited on the runtime,
+///  and the same create-only attempts.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child,
+/// and a side reference is written from the landing once the landing is a task;
+/// the attempts,
+/// the read of the reference after a write that gave no answer and the four answers a caller tells
+///  apart are the synchronous face's,
+/// so a commit one face keeps is kept by the other,
+/// and neither can replace a name another command wrote.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let attempt = 0; attempt < 2; attempt++) { const made = await writeRefOnlyIfFreeAwaiting(name, tip); if (made.succeeded) return 'written'; if (await valueOfAwaiting(name).names === tip) return 'written'; if (made.answered) return { refused: wordsOf(made) }; leftRunning = !made.answered } return leftRunning ? 'left-running' : { refused: words }
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+async fn write_until_the_reference_names_awaiting(git: &GitContext, repository: &Path, name: &str, tip: &str) -> ASideRefWrite {
+    for _attempt in 0..SIDE_REF_WRITE_ATTEMPTS {
+        let made: StepAnswer = answering_awaiting(git, GitRequest::new(repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name, tip, ""])).await;
+        if matches!(&made, StepAnswer::Answered(output) if output.succeeded()) {
+            return ASideRefWrite::Written;
+        }
+        if the_reference_itself_names_awaiting(git, repository, name, tip).await {
+            return ASideRefWrite::Written;
+        }
+        match made {
+            StepAnswer::Answered(output) => return ASideRefWrite::Refused(refused_words_of(&output)),
+            StepAnswer::LeftRunning => {}
+            StepAnswer::Ended(code) => return ASideRefWrite::Ended(code),
+        }
+    }
+    return ASideRefWrite::LeftRunning;
+}
+
+/// What:
+///  `the_reference_itself_names` with its read awaited on the runtime.
+/// Why:
+///  A task of the runtime cannot enter it to wait for a child,
+/// and the answer a write rests on is the reference's own value,
+/// which is read from that task;
+/// the question and what counts as the answer are the synchronous face's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theReferenceItselfNamesAwaiting = async (git, repository, name, tip) => (await valueOfAwaiting(git, repository, name)).names === tip
+/// ```
+async fn the_reference_itself_names_awaiting(git: &GitContext, repository: &Path, name: &str, tip: &str) -> bool {
+    return matches!(value_of_awaiting(git, repository, name).await, RefValue::Names(named) if named == tip);
+}
+
 /// What became of one write of one of the wrapper's own side references.
 /// Why:
 ///  The write answers four different things,
@@ -299,6 +380,24 @@ pub(crate) fn keep_the_batches_commit(git: &GitContext, repository: &Path, seq: 
 }
 
 /// What:
+///  `keep_the_batches_commit` with every Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child,
+/// and a commit a landing could not put on a branch is kept on its
+///  own kept reference once the landing is a task;
+/// the name and the write are the synchronous face's,
+/// so a commit one face keeps is kept where the other keeps it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await keepTheBatchesCommitAwaiting(git, repo, 1, tip)).toBeUndefined()
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn keep_the_batches_commit_awaiting(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> Option<String> {
+    return keep_on_a_side_ref_awaiting(git, repository, kept_ref(seq).as_str(), tip).await;
+}
+
+/// What:
 ///  Writes the per-worktree reference `refs/worktree/cli-git-service/<seq>` at `tip`,
 ///  the reference that keeps the objects of a batch reachable until its branch write,
 ///  and answers what became of the write.
@@ -315,6 +414,26 @@ pub(crate) fn keep_the_batches_commit(git: &GitContext, repository: &Path, seq: 
 /// ```
 pub(crate) fn keep_on_the_scratch_reference(git: &GitContext, repository: &Path, scratch: &str, tip: &str) -> ASideRefWrite {
     return write_until_the_reference_names(git, repository, scratch, tip);
+}
+
+/// What:
+///  `keep_on_the_scratch_reference` with every Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child,
+/// and the reference that keeps a batch's objects reachable is written
+///  from the landing once it is a task;
+/// the write,
+/// its two attempts and the read that answers a wait which ended are the
+///  synchronous face's,
+/// so the two cannot disagree about what the reference names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await keepOnTheScratchReferenceAwaiting(git, repo, scratchRef(seq), tip)).toEqual('written')
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn keep_on_the_scratch_reference_awaiting(git: &GitContext, repository: &Path, scratch: &str, tip: &str) -> ASideRefWrite {
+    return write_until_the_reference_names_awaiting(git, repository, scratch, tip).await;
 }
 
 /// What:
@@ -339,6 +458,26 @@ pub(crate) fn keep_on_the_scratch_reference(git: &GitContext, repository: &Path,
 /// ```
 pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, name: &str, tip: &str) -> Option<String> {
     return write_until_the_reference_names(git, repository, name, tip).refusal();
+}
+
+/// What:
+///  `keep_on_a_side_ref` with every Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child,
+/// and a commit a landing could not put on a branch is kept on its
+///  side reference once the landing is a task;
+/// the name,
+/// the create-only write and the words a refusal gives are the synchronous face's,
+/// so a commit is kept at one name either way,
+///  and a name another command wrote is replaced by neither.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = await keepOnASideRefAwaiting(git, repo, name, tip);
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn keep_on_a_side_ref_awaiting(git: &GitContext, repository: &Path, name: &str, tip: &str) -> Option<String> {
+    return write_until_the_reference_names_awaiting(git, repository, name, tip).await.refusal();
 }
 
 /// What:
@@ -381,6 +520,32 @@ fn refused_words_of(output: &GitOutput) -> String {
 pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
     let name: String = kept_ref(seq);
     if keep_the_batches_commit(git, repository, seq, tip).is_some() {
+        return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
+    }
+    return format!(
+        "monochromatic-git-policy-cli: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+    );
+}
+
+/// What:
+///  `keep_unlanded` with the write of the kept reference awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child,
+/// and the line that tells the person where their commit is kept is
+///  written when a landing that ended at a step ends;
+/// the reference,
+/// the two sentences and the reason each of them is
+///  said are the synchronous face's,
+/// so the person is told the same thing on both faces.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = await keepUnlandedAwaiting(git, repository, seq, tip);
+/// ```
+#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) async fn keep_unlanded_awaiting(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
+    let name: String = kept_ref(seq);
+    if keep_the_batches_commit_awaiting(git, repository, seq, tip).await.is_some() {
         return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
     }
     return format!(

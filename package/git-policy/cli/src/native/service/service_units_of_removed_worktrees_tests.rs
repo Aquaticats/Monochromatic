@@ -7,7 +7,7 @@
 use super::*;
 use crate::service_instance::{instance_of, socket_path};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::service_units_fixture_test_support::{Machine, machine};
+use crate::service_units_fixture_test_support::{Machine, age_a_journal, machine};
 use crate::test_support::{git, remove, repository};
 
 /// The units of a worktree that was removed are stopped by name through the manager,
@@ -56,9 +56,46 @@ fn a_linked_worktree_is_gone_when_its_directory_is_missing_under_a_common_direct
     remove(machine.root.as_path());
 }
 
+/// What:
+///  A worktree whose whole repository was deleted is gone:
+///  the Git directory is missing,
+///  the directory that held it is missing too,
+///  and the directory above that one holds other entries.
+/// Why:
+///   This is the state a throwaway repository is left in when a proof deletes it:
+/// on 2026-11-11 a deleted `/tmp/lfs-login-proof-*/repository-a` kept its units listening and its service retrying pushes,
+/// because a missing place read as one a drive may still fill.
+#[test]
+fn a_worktree_whose_whole_repository_was_deleted_is_gone() {
+    let machine: Machine = machine("units-gone-repository-deleted");
+    let holder: PathBuf = machine.root.join("work");
+    let repository: PathBuf = holder.join("repository-a");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory of a repository");
+    std::fs::write(holder.join("kept.txt"), "another entry").expect("an entry beside it");
+    assert!(!worktree_is_gone(git_dir.as_path()), "a repository that is there is not gone");
+    std::fs::remove_dir_all(repository.as_path()).expect("the repository is deleted");
+    assert!(
+        worktree_is_gone(git_dir.as_path()),
+        "the directory that held the repository holds other entries, so the repository was deleted and nothing is left to serve"
+    );
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A worktree in a repository that cannot be reached is not gone:
+///  its mount point is there and holds nothing,
+///  as a drive that is not mounted leaves it.
+/// Why:
+///   The proof that a repository is gone rests on the nearest directory above the Git directory that exists
+///  (`unreachable_git_dir_proven_gone.rs`):
+/// an empty one may be waiting for a drive,
+/// and a directory holding other entries is one a repository was deleted from.
 #[test]
 fn a_worktree_in_a_repository_that_cannot_be_reached_is_not_gone() {
     let machine: Machine = machine("units-gone-unreachable");
+    // The mount point is there and empty, as it is when a drive was not mounted: every path below it is missing.
+    std::fs::create_dir_all(machine.root.join("drive-not-mounted")).expect("mount point");
     let unreachable: PathBuf = machine.root.join("drive-not-mounted/repository/.git/worktrees/topic");
     assert!(!worktree_is_gone(unreachable.as_path()));
     remove(machine.root.as_path());
@@ -238,10 +275,16 @@ fn the_sweep_stops_the_units_of_gone_worktrees_only() {
     remove(machine.root.as_path());
 }
 
-/// A service that starts for a worktree that is gone stops its own socket and serves nothing:
-/// the socket goes first so no connection starts it again,
-/// and the service unit is never asked to stop,
-/// because the service's own end is what stops it.
+/// What:
+///  A service that starts for a worktree that is gone stops its own socket and serves nothing:
+///  the socket goes first so no connection starts it again,
+///  and the service unit is never asked to stop,
+///  because the service's own end is what stops it.
+/// Why:
+///   The journal is not removed here,
+/// because this process is still one of its writers;
+/// the note and the socket file stay so the sweep that asks the manager whether the service is gone
+/// finds the instance and removes the journal then.
 #[test]
 fn a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing() {
     let machine: Machine = machine("units-own-gone");
@@ -253,8 +296,8 @@ fn a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing() {
     let gone: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
     assert_eq!(gone, Some(removed));
     assert_eq!(recorder.stops(), vec![format!("stop-alone {}", socket_unit_instance(instance.as_str()))]);
-    assert!(!note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note goes with the socket, so the doctor counts no leftover");
-    assert!(!socket_path(machine.runtime.as_path(), instance.as_str()).exists(), "the stopped socket's file is removed");
+    assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note stays, so the sweep that follows this process's exit finds the instance");
+    assert!(socket_path(machine.runtime.as_path(), instance.as_str()).exists(), "the socket file stays with the note, and a later sweep removes both");
     remove(machine.root.as_path());
 }
 
@@ -296,6 +339,113 @@ fn a_service_whose_worktree_cannot_be_told_serves() {
     assert_eq!(stop_own_socket_of_a_gone_worktree(&machine.folders(), kept_instance.as_str(), &mut recorder), Ok(None));
     assert_eq!(stop_own_socket_of_a_gone_worktree(&machine.folders(), unknown.as_str(), &mut recorder), Ok(None));
     assert!(recorder.stops().is_empty(), "{:?}", recorder.stops());
+    remove(machine.root.as_path());
+}
+
+/// A journal as a service of a worktree that committed long ago leaves it,
+/// with one plan of a push waiting for a new try.
+/// Why:
+///   A journal younger than `A_FINISHED_RECORD_IS_READ` is kept for the client that may still read its landed batches,
+/// so a control that judges what happens to a journal once those records may go needs one older than that,
+/// and the plan is then the only entry that keeps it at all.
+/// The journal is aged after the plan is written into it,
+/// because writing that entry is a write to the journal's own folder.
+fn a_journal_with_a_plan(machine: &Machine, instance: &str, git_dir: &Path, repository: &Path, oid: &str) -> PathBuf {
+    let journal: PathBuf = machine.settled_journal_of(instance);
+    let plan: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan {
+        git_dir: git_dir.to_path_buf(),
+        item: crate::work_item::WorkItem {
+            kind: crate::work_item::WorkKind::Push,
+            repository: repository.to_path_buf(),
+            git_dir: git_dir.to_path_buf(),
+            branch_ref: String::from("refs/heads/main"),
+            oid: String::from(oid),
+            parent: String::from("fedcba9876543210fedcba9876543210fedcba98"),
+            created: String::from("2026-11-11T08:55:00.000-05:00"),
+            tries: 148,
+        },
+        attempt: 149,
+    };
+    crate::push_retry_store::save(journal.join(crate::push_retry::PLAN_DIRECTORY).as_path(), &plan).expect("the plan is kept");
+    age_a_journal(journal.as_path());
+    return journal;
+}
+
+/// One repository that is then deleted,
+/// beside an entry that keeps the directory that held it holding something.
+fn a_deleted_repository_under(machine: &Machine, name: &str) -> (PathBuf, PathBuf) {
+    let holder: PathBuf = machine.root.join("work");
+    let repository: PathBuf = holder.join(name);
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory of a repository");
+    std::fs::write(holder.join("kept.txt"), "another entry").expect("an entry beside it");
+    std::fs::remove_dir_all(repository.as_path()).expect("the repository is deleted");
+    return (git_dir, repository);
+}
+
+/// What:
+///  The pushes a service kept for a repository that is gone end with it,
+///  and the journal goes once nothing else is in it.
+/// Why:
+///   A plan that stayed would be read by a service of this instance started later,
+/// which would spend a try on a directory nothing can reach,
+/// and a journal holding only the records of landed batches no client may still read is the memory of a service that never
+/// runs again.
+#[test]
+fn a_service_of_a_gone_worktree_ends_the_plan_of_that_repository_and_the_journal_goes() {
+    let machine: Machine = machine("units-own-gone-plans");
+    let (git_dir, repository) = a_deleted_repository_under(&machine, "repository-a");
+    let instance: String = instance_of(git_dir.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), git_dir.as_path()).expect("note");
+    machine.socket_of(instance.as_str());
+    let journal: PathBuf = a_journal_with_a_plan(&machine, instance.as_str(), git_dir.as_path(), repository.as_path(), "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    let mut recorder: Recorder = Recorder::default();
+    let gone: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
+    assert_eq!(gone, Some(git_dir));
+    assert!(!journal.exists(), "the journal held nothing but the records of landed batches that no client may still read and the ended plan, so it goes with the units");
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A plan of a repository that is still there keeps the journal,
+///  and the plan of the gone repository beside it ends.
+/// Why:
+///   A commit a person made is never discarded on a guess:
+/// the journal of an instance may hold the work of a repository that exists,
+/// and that work stays and is named.
+#[test]
+fn a_journal_that_keeps_a_plan_of_a_repository_that_is_there_stays() {
+    let machine: Machine = machine("units-own-gone-plans-kept");
+    let (git_dir, repository) = a_deleted_repository_under(&machine, "repository-a");
+    let alive_repository: PathBuf = machine.root.join("alive");
+    let alive_git_dir: PathBuf = alive_repository.join(".git");
+    std::fs::create_dir_all(alive_git_dir.as_path()).expect("a repository that is there");
+    let instance: String = instance_of(git_dir.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), git_dir.as_path()).expect("note");
+    machine.socket_of(instance.as_str());
+    let journal: PathBuf = a_journal_with_a_plan(&machine, instance.as_str(), git_dir.as_path(), repository.as_path(), "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    let kept_plan: crate::push_retry_store::StoredPlan = crate::push_retry_store::StoredPlan {
+        git_dir: alive_git_dir.clone(),
+        item: crate::work_item::WorkItem {
+            kind: crate::work_item::WorkKind::Push,
+            repository: alive_repository.clone(),
+            git_dir: alive_git_dir.clone(),
+            branch_ref: String::from("refs/heads/main"),
+            oid: String::from("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            parent: String::new(),
+            created: String::from("2026-11-11T08:55:00.000-05:00"),
+            tries: 0,
+        },
+        attempt: 1,
+    };
+    crate::push_retry_store::save(journal.join(crate::push_retry::PLAN_DIRECTORY).as_path(), &kept_plan).expect("the plan of a repository that is there");
+    let mut recorder: Recorder = Recorder::default();
+    let gone: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
+    assert_eq!(gone, Some(git_dir));
+    assert!(journal.exists(), "the plan of a repository that is there keeps the journal");
+    let plans: Vec<crate::push_retry_store::StoredPlan> = crate::push_retry_store::load(journal.join(crate::push_retry::PLAN_DIRECTORY).as_path());
+    assert_eq!(plans.len(), 1, "only the plan of the gone repository ended: {plans:?}");
+    assert_eq!(plans[0].git_dir, alive_git_dir, "the plan that stays is the one of the repository that is there");
     remove(machine.root.as_path());
 }
 

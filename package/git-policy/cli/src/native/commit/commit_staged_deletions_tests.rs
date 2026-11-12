@@ -2,7 +2,9 @@
 //! which selected paths it names and what the message offers.
 
 use super::*;
+use crate::commit_selection_staging::ITEMS_BYTES_LIMIT;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::transaction_git::GitContext;
 use std::path::PathBuf;
 
 /// A repository with `a.txt`,
@@ -25,18 +27,31 @@ fn committed_repository(name: &str) -> (PathBuf, PathBuf, String) {
 /// for the given pathspecs.
 fn present(repo: &Path, base: &str, pathspecs: &[&str]) -> Vec<String> {
     let specs: Vec<OsString> = pathspecs.iter().map(OsString::from).collect();
+    return present_with(&git_context(), repo, base, specs.as_slice());
+}
+
+/// The same answer for one pathspec context,
+/// so a control can set the modes the caller wrote.
+fn present_with(context: &GitContext, repo: &Path, base: &str, specs: &[OsString]) -> Vec<String> {
     return staged_deletions_present_on_disk(
-        &git_context(),
+        context,
         repo,
         repo,
         repo.join(".git").join("index").as_path(),
         base,
-        specs.as_slice(),
+        specs,
     )
     .expect("the read succeeds")
     .iter()
     .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
     .collect();
+}
+
+/// The context of a command that wrote `--literal-pathspecs` as a global option.
+fn literal_context() -> GitContext {
+    let mut context: GitContext = git_context();
+    context.global_prefix.push(OsString::from("--literal-pathspecs"));
+    return context;
 }
 
 /// A deletion staged with `git rm --cached` while the file stays on disk is named.
@@ -100,6 +115,58 @@ fn a_staged_modification_is_not_named() {
     std::fs::write(repo.join("a.txt"), "changed\n").expect("edit");
     git(repo.as_path(), &["add", "--", "a.txt"]);
     assert_eq!(present(repo.as_path(), base.as_str(), &["a.txt"]), Vec::<String>::new());
+    remove(root.as_path());
+}
+
+/// A literal pathspec names one file and never a glob,
+/// so the staged deletion of another file is not the caller's selection:
+/// `--literal-pathspecs` makes `literal*.txt` the file of that name.
+#[test]
+fn a_literal_pathspec_does_not_name_the_deletion_of_a_glob_match() {
+    let root: PathBuf = fixture("staged-deletion-literal");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("literal*.txt"), "star\n").expect("star");
+    std::fs::write(repo.join("literal-other.txt"), "other\n").expect("other");
+    git(repo.as_path(), &["add", "literal*.txt", "literal-other.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "literal-other.txt"]);
+    // The glob reading names the other file, which is the answer this guard gave before the mode reached it.
+    assert_eq!(present(repo.as_path(), base.as_str(), &["literal*.txt"]), vec!["literal-other.txt".to_owned()]);
+    assert_eq!(present_with(&literal_context(), repo.as_path(), base.as_str(), &[OsString::from("literal*.txt")]), Vec::<String>::new());
+    remove(root.as_path());
+}
+
+/// A selection past one command line is asked in bounded starts,
+/// and the path named only in a later start is still named.
+#[test]
+fn a_selection_past_one_command_line_names_the_deletion_of_its_last_element() {
+    let (root, repo, base) = committed_repository("staged-deletion-chunks");
+    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
+    let mut specs: Vec<OsString> = Vec::new();
+    let copies: usize = usize::try_from(ITEMS_BYTES_LIMIT).expect("the bound fits a machine word") / "b.txt".len();
+    for _ in 0..copies {
+        specs.push(OsString::from("b.txt"));
+    }
+    specs.push(OsString::from("a.txt"));
+    assert_eq!(present_with(&git_context(), repo.as_path(), base.as_str(), specs.as_slice()), vec!["a.txt".to_owned()]);
+    remove(root.as_path());
+}
+
+/// Every start of a selection past one command line carries the elements that subtract paths,
+/// so an exclusion narrows the elements of a later start too.
+#[test]
+fn an_exclusion_narrows_every_start_of_a_selection_past_one_command_line() {
+    let (root, repo, base) = committed_repository("staged-deletion-chunks-excluded");
+    git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "a.txt"]);
+    let mut specs: Vec<OsString> = Vec::new();
+    let copies: usize = usize::try_from(ITEMS_BYTES_LIMIT).expect("the bound fits a machine word") / "b.txt".len();
+    for _ in 0..copies {
+        specs.push(OsString::from("b.txt"));
+    }
+    specs.push(OsString::from("a.txt"));
+    specs.push(OsString::from(":(exclude)a.txt"));
+    assert_eq!(present_with(&git_context(), repo.as_path(), base.as_str(), specs.as_slice()), Vec::<String>::new());
     remove(root.as_path());
 }
 

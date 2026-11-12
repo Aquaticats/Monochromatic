@@ -5,12 +5,17 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  isQwenTokenPlanIndividualSettingsWriteDeferral,
+  isTransientQwenTokenPlanIndividualSettingsWriteFailure,
   mapQwenTokenPlanIndividualProviders,
   qwenTokenPlanIndividualListingSnapshot,
   QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
+  QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_ATTEMPTS,
+  QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_DELAY_MS,
   QWEN_TOKEN_PLAN_INDIVIDUAL_ROUTE,
   QWEN_TOKEN_PLAN_INDIVIDUAL_SETTINGS_NAMESPACE,
   refreshQwenTokenPlanIndividualRoute,
+  type QwenTokenPlanIndividualCredentialsLookupResult,
   type QwenTokenPlanIndividualCredentialsTarget,
   type QwenTokenPlanIndividualSettingsTarget,
   type QwenTokenPlanListingEntry,
@@ -24,6 +29,47 @@ import {
 //region Test fixtures
 
 /**
+ Exact contention text `@deepseek-ai/dsh-atomic-write` `withFileLock` throws
+ when its `DEFAULT_LOCK_WAIT_MS` wait on the profile writer lock expires
+ (`dsh-atomic-write` `lib/index.js`), path suffix included. Quoted here rather
+ than derived from the plugin's markers so marker drift fails this test.
+ */
+const UPSTREAM_WRITER_LOCK_TIMEOUT_MESSAGE = 'atomic-write: timed out waiting for the writer lock at /fixture/profile/package.json.lock';
+
+/**
+ Exact text `@deepseek-ai/dsh-config-editor` `ConfigEditor.edit` throws when
+ the entry registry recomposed under the edit (`dsh-config-editor`
+ `lib/index.js`).
+ */
+const UPSTREAM_ENTRY_CHANGED_MESSAGE = 'Configuration entry changed during reload';
+
+/**
+ Exact text `@deepseek-ai/dsh-config-editor` `ConfigEditor.edit` throws when
+ the entry vanished under the edit (`dsh-config-editor` `lib/index.js`).
+ */
+const UPSTREAM_ENTRY_UNAVAILABLE_MESSAGE = 'Configuration entry is no longer available';
+
+/**
+ Exact text `@deepseek-ai/dsh-config-editor` `ConfigEditor.edit` throws when
+ the plugin fiber stopped under the edit (`dsh-config-editor` `lib/index.js`).
+ */
+const UPSTREAM_PLUGIN_INACTIVE_MESSAGE = 'Configuration plugin is no longer active';
+
+/**
+ Exact refusal `@deepseek-ai/dsh-settings` throws when the profile mounts no
+ such entry: a permanent shape the retry must not burn budget on.
+ */
+const UPSTREAM_MISSING_ENTRY_MESSAGE = 'No configurable plugin entry "llm-pi-ai"';
+
+/**
+ Exact refusal `@deepseek-ai/dsh-hmr` `runExclusive` throws when a settings
+ write is issued while the caller's chain already runs inside a reload
+ transaction (`dsh-hmr` `lib/index.js`). Quoted here rather than derived from
+ the plugin's markers so marker drift fails this test.
+ */
+const UPSTREAM_NESTED_TRANSACTION_MESSAGE = 'HMR transactions cannot be nested';
+
+/**
  One recorded settings merge write.
  */
 type RecordedWrite = {
@@ -34,11 +80,14 @@ type RecordedWrite = {
 /**
  Recording fake of the settings seam: serves a fixed form value through
  `describe`, records every accepted merge write, and can refuse writes at the
- given zero-based call indices to reach the failure branches.
+ given zero-based call indices to reach the failure branches. Refusals throw
+ `refuseWith`, so a test decides between a permanent refusal and the exact
+ contention text an upstream tool throws.
 
- @param options - stored form value and refusing call indices
+ @param options - stored form value, refusing call indices, and the failure
+ those refusals throw
 
- @returns fake target plus the writes it accepted
+ @returns fake target plus the writes it accepted and every call it saw
 
  @example
  ```ts
@@ -48,12 +97,15 @@ type RecordedWrite = {
 function fakeSettingsOf({
   stored,
   failWrites = [],
+  refuseWith = new Error('settings entry unavailable'),
 }: {
   readonly stored?: unknown;
   readonly failWrites?: readonly number[];
+  readonly refuseWith?: Error;
 } = {}): {
   readonly target: QwenTokenPlanIndividualSettingsTarget;
   readonly writes: RecordedWrite[];
+  readonly attempts: RecordedWrite[];
 } {
   /**
    Writes the fake accepted.
@@ -75,11 +127,41 @@ function fakeSettingsOf({
          */
         const attempt = attempts.length;
         attempts.push({ ns, patch });
-        if (failWrites.includes(attempt)) throw new Error('settings entry unavailable');
+        if (failWrites.includes(attempt)) throw refuseWith;
         writes.push({ ns, patch });
       },
     },
     writes,
+    attempts,
+  };
+}
+
+/**
+ Delay primitive stand-in recording every requested delay, so a test reaches
+ the retry branches without waiting out the mount-race budget in real time.
+
+ @returns recorded sleep plus the delays it was asked for
+
+ @example
+ ```ts
+ const sleeper = recordingSleepOf();
+ await writeQwenTokenPlanIndividualRoute({ settings, listing, sleep: sleeper.sleep });
+ ```
+ */
+function recordingSleepOf(): {
+  readonly sleep: (ms: number) => Promise<undefined>;
+  readonly delays: number[];
+} {
+  /**
+   Delays the sleep was asked to wait.
+   */
+  const delays: number[] = [];
+  return {
+    sleep: async function sleep(ms: number): Promise<undefined> {
+      delays.push(ms);
+      return undefined;
+    },
+    delays,
   };
 }
 
@@ -313,6 +395,148 @@ await describe({
               },);
           },
         },),
+        it({
+          name: 'retries a writer-lock timeout and lands the write',
+          fn: async () => {
+            /**
+             Sleep the retry loop used, recorded instead of waited out.
+             */
+            const sleeper = recordingSleepOf();
+            const fake = fakeSettingsOf({
+              failWrites: [0,],
+              refuseWith: new Error(UPSTREAM_WRITER_LOCK_TIMEOUT_MESSAGE),
+            },);
+            await writeQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              listing: [{ id: 'seed', },],
+              sleep: sleeper.sleep,
+            },);
+            expect(fake.writes.length,)
+              .toBe(1,);
+            expect(fake.attempts.length,)
+              .toBe(2,);
+            expect(sleeper.delays)
+              .toEqual([QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_DELAY_MS,],);
+          },
+        },),
+        it({
+          name: 'gives up after the mount-race attempt budget when the writer lock never frees',
+          fn: async () => {
+            const sleeper = recordingSleepOf();
+            const fake = fakeSettingsOf({
+              failWrites: Array.from({
+                length: QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_ATTEMPTS,
+              }, function byAttempt(_value, index) {
+                return index;
+              },),
+              refuseWith: new Error(UPSTREAM_WRITER_LOCK_TIMEOUT_MESSAGE),
+            },);
+            await expect(writeQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              listing: [{ id: 'seed', },],
+              sleep: sleeper.sleep,
+            },),)
+              .rejects
+              .toHaveProperty('message', UPSTREAM_WRITER_LOCK_TIMEOUT_MESSAGE,);
+            expect(fake.attempts.length,)
+              .toBe(QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_ATTEMPTS,);
+            expect(sleeper.delays.length,)
+              .toBe(QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_ATTEMPTS - 1,);
+            expect(fake.writes.length,)
+              .toBe(0,);
+          },
+        },),
+        it({
+          name: 'does not retry a permanent settings refusal',
+          fn: async () => {
+            const sleeper = recordingSleepOf();
+            const fake = fakeSettingsOf({
+              failWrites: [0,],
+              refuseWith: new Error(UPSTREAM_MISSING_ENTRY_MESSAGE),
+            },);
+            await expect(writeQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              listing: [{ id: 'seed', },],
+              sleep: sleeper.sleep,
+            },),)
+              .rejects
+              .toHaveProperty('message', UPSTREAM_MISSING_ENTRY_MESSAGE,);
+            expect(fake.attempts.length,)
+              .toBe(1,);
+            expect(sleeper.delays)
+              .toEqual([]);
+          },
+        },),
+        it({
+          name: 'does not retry a nested reload-transaction refusal in-chain, where no retry can ever land',
+          fn: async () => {
+            const sleeper = recordingSleepOf();
+            const fake = fakeSettingsOf({
+              failWrites: [0,],
+              refuseWith: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },);
+            await expect(writeQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              listing: [{ id: 'seed', },],
+              sleep: sleeper.sleep,
+            },),)
+              .rejects
+              .toHaveProperty('message', UPSTREAM_NESTED_TRANSACTION_MESSAGE,);
+            expect(fake.attempts.length,)
+              .toBe(1,);
+            expect(sleeper.delays)
+              .toEqual([]);
+          },
+        },),
+        it({
+          name: 'classifies every upstream contention message as transient and the missing-entry refusal as permanent',
+          fn: async () => {
+            for (
+              const message of [
+                UPSTREAM_WRITER_LOCK_TIMEOUT_MESSAGE,
+                UPSTREAM_ENTRY_CHANGED_MESSAGE,
+                UPSTREAM_ENTRY_UNAVAILABLE_MESSAGE,
+                UPSTREAM_PLUGIN_INACTIVE_MESSAGE,
+              ]
+            ) {
+              expect(isTransientQwenTokenPlanIndividualSettingsWriteFailure({
+                error: new Error(message),
+              },))
+                .toBe(true,);
+            }
+            expect(isTransientQwenTokenPlanIndividualSettingsWriteFailure({
+              error: new Error(UPSTREAM_MISSING_ENTRY_MESSAGE),
+            },))
+              .toBe(false,);
+            expect(isTransientQwenTokenPlanIndividualSettingsWriteFailure({
+              error: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },))
+              .toBe(false,);
+          },
+        },),
+        it({
+          name: 'classifies the nested reload-transaction refusal as a deferral and every other refusal as not one',
+          fn: async () => {
+            expect(isQwenTokenPlanIndividualSettingsWriteDeferral({
+              error: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },))
+              .toBe(true,);
+            for (
+              const message of [
+                UPSTREAM_WRITER_LOCK_TIMEOUT_MESSAGE,
+                UPSTREAM_ENTRY_CHANGED_MESSAGE,
+                UPSTREAM_ENTRY_UNAVAILABLE_MESSAGE,
+                UPSTREAM_PLUGIN_INACTIVE_MESSAGE,
+                UPSTREAM_MISSING_ENTRY_MESSAGE,
+              ]
+            ) {
+              expect(isQwenTokenPlanIndividualSettingsWriteDeferral({
+                error: new Error(message),
+              },))
+                .toBe(false,);
+            }
+          },
+        },),
       ],
     },),
 
@@ -330,7 +554,7 @@ await describe({
             const credentials = fakeCredentialsOf({ value: 'test-key', });
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async () => [{ id: 'live-a', }, { id: 'live-b', },],
             },);
             expect(fake.writes.length,)
@@ -359,7 +583,7 @@ await describe({
             const seen: { baseUrl?: string; apiKey?: string; } = {};
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async (options) => {
                 seen.baseUrl = options.baseUrl;
                 if (options.apiKey !== undefined) {
@@ -379,7 +603,7 @@ await describe({
             const credentials = fakeCredentialsOf({ value: 'test-key', });
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async () => {
                 throw new Error('offline',);
               },
@@ -398,7 +622,7 @@ await describe({
             const credentials = fakeCredentialsOf({ value: 'test-key', });
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async () => [
                 { id: 'wan3.0-video', },
                 { id: 'probe-image', },
@@ -418,7 +642,7 @@ await describe({
             const credentials = fakeCredentialsOf({ value: 'test-key', });
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async () => [],
             },);
             expect(fake.writes.length,)
@@ -429,7 +653,7 @@ await describe({
           },
         },),
         it({
-          name: 'keeps the served snapshot when no credentials service is mounted',
+          name: 'keeps the served snapshot when no credentials lookup is provided',
           fn: async () => {
             const fake = fakeSettingsOf();
             /**
@@ -453,6 +677,88 @@ await describe({
           },
         },),
         it({
+          name: 'keeps the served snapshot when no credentials service appears within the mount-race budget',
+          fn: async () => {
+            const sleeper = recordingSleepOf();
+            const fake = fakeSettingsOf();
+            /**
+             Lookup calls the refresh made; the budget must bound the wait for
+             a service the loader registers late.
+             */
+            let lookupCalls = 0;
+            let fetchCalls = 0;
+            await refreshQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              getCredentials: function getCredentials(): QwenTokenPlanIndividualCredentialsLookupResult {
+                lookupCalls += 1;
+                return {};
+              },
+              fetchListing: async () => {
+                fetchCalls += 1;
+                return [{ id: 'live-a', },];
+              },
+              sleep: sleeper.sleep,
+            },);
+            expect(fake.writes.length,)
+              .toBe(1,);
+            expect(fake.writes[0]
+              ?.patch,)
+              .toEqual({ providers: expectedSnapshotProviders(), },);
+            expect(fetchCalls).toBe(0,);
+            expect(lookupCalls).toBe(QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_ATTEMPTS,);
+            expect(sleeper.delays.length)
+              .toBe(QWEN_TOKEN_PLAN_INDIVIDUAL_MOUNT_RACE_RETRY_ATTEMPTS - 1,);
+          },
+        },),
+        it({
+          name: 'lands the live listing when the credentials service mounts after the refresh starts',
+          fn: async () => {
+            const sleeper = recordingSleepOf();
+            const fake = fakeSettingsOf();
+            const credentials = fakeCredentialsOf({ value: 'late-key', });
+            /**
+             Mount moment the lookup saw nothing, then a mounted service; the
+             loader can register the service after this plugin's `apply`.
+             */
+            const ABSENT_LOOKUPS = 2;
+            let lookupCalls = 0;
+            /**
+             API keys the fetch received; the delayed lookup must deliver the
+             resolved one.
+             */
+            const seenApiKeys: string[] = [];
+            await refreshQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              getCredentials: function getCredentials(): QwenTokenPlanIndividualCredentialsLookupResult {
+                lookupCalls += 1;
+                return lookupCalls <= ABSENT_LOOKUPS
+                  ? {}
+                  : { credentials: credentials.target, };
+              },
+              fetchListing: async (options) => {
+                if (options.apiKey !== undefined) {
+                  seenApiKeys.push(options.apiKey);
+                }
+                return [{ id: 'live-a', },];
+              },
+              sleep: sleeper.sleep,
+            },);
+            expect(fake.writes.length,)
+              .toBe(2,);
+            expect(fake.writes[1]
+              ?.patch,)
+              .toEqual({
+                providers: mapQwenTokenPlanIndividualProviders({
+                  listing: [{ id: 'live-a', },],
+                },),
+              },);
+            expect(seenApiKeys).toEqual(['late-key',],);
+            expect(lookupCalls).toBe(ABSENT_LOOKUPS + 1,);
+            expect(sleeper.delays.length)
+              .toBe(ABSENT_LOOKUPS,);
+          },
+        },),
+        it({
           name: 'keeps the served snapshot when the credential reference resolves no value',
           fn: async () => {
             const fake = fakeSettingsOf();
@@ -460,7 +766,7 @@ await describe({
             let fetchCalls = 0;
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async () => {
                 fetchCalls += 1;
                 return [{ id: 'live-a', },];
@@ -484,7 +790,7 @@ await describe({
             let fetchCalls = 0;
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async () => {
                 fetchCalls += 1;
                 return [{ id: 'live-a', },];
@@ -505,7 +811,7 @@ await describe({
             const credentials = fakeCredentialsOf({ value: 'test-key', });
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async () => [{ id: 'live-a', },],
             },);
             expect(credentials.askedAbout)
@@ -519,7 +825,7 @@ await describe({
             const credentials = fakeCredentialsOf({ value: 'test-key', });
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async () => [{ id: 'live-a', },],
             },);
             expect(fake.writes.length,)
@@ -540,7 +846,7 @@ await describe({
             const credentials = fakeCredentialsOf({ value: 'test-key', });
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async () => [{ id: 'live-a', },],
             },);
             expect(fake.writes.length,)
@@ -551,13 +857,145 @@ await describe({
           },
         },),
         it({
+          name: 'stops before the listing fetch and hands one retry to the deferral sink when the snapshot write is refused inside the reload transaction',
+          fn: async () => {
+            const fake = fakeSettingsOf({
+              failWrites: [0,],
+              refuseWith: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },);
+            const credentials = fakeCredentialsOf({ value: 'test-key', });
+            /**
+             Retries the deferral sink was handed.
+             */
+            const retries: (() => Promise<void>)[] = [];
+            /**
+             Listing fetch calls seen; the deferred run must not fetch.
+             */
+            const fetches: number[] = [];
+            await refreshQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
+              fetchListing: async () => {
+                fetches.push(1,);
+                return [{ id: 'live-a', },];
+              },
+              onWriteDeferral: function onWriteDeferral(retry) {
+                retries.push(retry,);
+              },
+            },);
+            expect(retries.length,)
+              .toBe(1,);
+            expect(fake.writes.length,)
+              .toBe(0,);
+            expect(fetches)
+              .toEqual([]);
+            expect(credentials.askedAbout)
+              .toEqual([]);
+          },
+        },),
+        it({
+          name: 're-runs the whole mount refresh from the deferral retry, snapshot first and live listing second',
+          fn: async () => {
+            const fake = fakeSettingsOf({
+              failWrites: [0,],
+              refuseWith: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },);
+            const credentials = fakeCredentialsOf({ value: 'test-key', });
+            /**
+             Retries the deferral sink was handed.
+             */
+            const retries: (() => Promise<void>)[] = [];
+            await refreshQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
+              fetchListing: async () => [{ id: 'live-a', },],
+              onWriteDeferral: function onWriteDeferral(retry) {
+                retries.push(retry,);
+              },
+            },);
+            /**
+             Retry the deferral sink was handed, before the premise check.
+             */
+            const [retry] = retries;
+            if (retry === undefined) {
+              throw new Error('expected one deferred mount refresh retry');
+            }
+            await retry();
+            expect(fake.writes.length,)
+              .toBe(2,);
+            expect(fake.writes[0]
+              ?.patch,)
+              .toEqual({ providers: expectedSnapshotProviders(), },);
+            expect(fake.writes[1]
+              ?.patch,)
+              .toEqual({
+                providers: mapQwenTokenPlanIndividualProviders({
+                  listing: [{ id: 'live-a', },],
+                },),
+              },);
+          },
+        },),
+        it({
+          name: 'hands the deferral sink one retry when the live write is refused inside the reload transaction',
+          fn: async () => {
+            const fake = fakeSettingsOf({
+              failWrites: [1,],
+              refuseWith: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },);
+            const credentials = fakeCredentialsOf({ value: 'test-key', });
+            /**
+             Retries the deferral sink was handed.
+             */
+            const retries: (() => Promise<void>)[] = [];
+            await refreshQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
+              fetchListing: async () => [{ id: 'live-a', },],
+              onWriteDeferral: function onWriteDeferral(retry) {
+                retries.push(retry,);
+              },
+            },);
+            expect(retries.length,)
+              .toBe(1,);
+            expect(fake.writes.length,)
+              .toBe(1,);
+            expect(fake.writes[0]
+              ?.patch,)
+              .toEqual({ providers: expectedSnapshotProviders(), },);
+          },
+        },),
+        it({
+          name: 'runs the live listing write anyway when no deferral sink is given for a nested reload-transaction refusal',
+          fn: async () => {
+            const fake = fakeSettingsOf({
+              failWrites: [0,],
+              refuseWith: new Error(UPSTREAM_NESTED_TRANSACTION_MESSAGE),
+            },);
+            const credentials = fakeCredentialsOf({ value: 'test-key', });
+            await refreshQwenTokenPlanIndividualRoute({
+              settings: fake.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
+              fetchListing: async () => [{ id: 'live-a', },],
+            },);
+            expect(fake.writes.length,)
+              .toBe(1,);
+            expect(fake.writes[0]
+              ?.patch,)
+              .toEqual({
+                providers: mapQwenTokenPlanIndividualProviders({
+                  listing: [{ id: 'live-a', },],
+                },),
+              },);
+          },
+        },),
+        it({
           name: 'writes the full measured serviceable membership with the media ids absent',
           fn: async () => {
             const fake = fakeSettingsOf();
             const credentials = fakeCredentialsOf({ value: 'test-key', });
             await refreshQwenTokenPlanIndividualRoute({
               settings: fake.target,
-              credentials: credentials.target,
+              getCredentials: () => ({ credentials: credentials.target, }),
               fetchListing: async (): Promise<readonly QwenTokenPlanListingEntry[]> => {
                 throw new Error('offline',);
               },

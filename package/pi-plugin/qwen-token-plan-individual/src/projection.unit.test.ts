@@ -109,7 +109,7 @@ function readBuiltinCatalogRows(): Record<string, Record<string, unknown>> {
    Data directory beside pi-ai's bundled providers entry.
    */
   const dataDirectory = fileURLToPath(new URL(
-    './data/',
+    'data/',
     import.meta.resolve('@earendil-works/pi-ai/providers/all'),
   ),);
   /**
@@ -236,16 +236,20 @@ await describe({
     it({
       name: 'is true when the resolved facts carry an efforts dict',
       fn: async () => {
-        expect(hasResolvedEfforts(resolvedFactsFixture({
-          reasoning: true,
-          efforts: { high: 'high', },
-        },),),).toBe(true);
+        expect(
+          hasResolvedEfforts(resolvedFactsFixture({
+            reasoning: true,
+            efforts: { high: 'high', },
+          },),),
+        ).toBe(true);
       },
     },),
     it({
       name: 'is false when the resolved facts carry no dict',
       fn: async () => {
-        expect(hasResolvedEfforts(resolvedFactsFixture({ reasoning: true, },),),)
+        expect(
+          hasResolvedEfforts(resolvedFactsFixture({ reasoning: true, },),),
+        )
           .toBe(false);
       },
     },),

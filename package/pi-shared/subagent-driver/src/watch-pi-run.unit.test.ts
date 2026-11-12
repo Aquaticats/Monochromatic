@@ -81,6 +81,12 @@ const FAILURE_TEXT = 'Request timed out.';
 const PERMANENT_FAILURE_TEXT = 'Provider is not configured: neuralwatt';
 
 /**
+ The 429 a real run met on 2026-11-11, in the shape gateways send it: a rate limit Pi's own automatic retry answers, which the
+ watch has nothing of its own to do about.
+ */
+const RATE_LIMIT_FAILURE_TEXT = '429 {"error":{"message":"Too many requests"}}';
+
+/**
  How many attempts may follow a model error, for a run whose retries are spent before the error even settles.
  */
 const NO_RETRIES = 0;
@@ -229,11 +235,19 @@ async function startRunWithAMessage(): Promise<RunUnderTest> {
 
  @param atWork - whether Pi is at work on a run that did not produce an assistant message
 
+ @param text - what the model said when the message ended in the error
+
  @returns the run, and the folder that goes with it
  */
-async function startRunThatFailed({ atWork }: { readonly atWork: boolean },): Promise<RunUnderTest> {
+async function startRunThatFailed({
+  atWork,
+  text = FAILURE_TEXT,
+}: {
+  readonly atWork: boolean;
+  readonly text?: string
+},): Promise<RunUnderTest> {
   const run = await startRunAtWork();
-  observeFailedAttempt(run.record, FAILURE_TEXT,);
+  observeFailedAttempt(run.record, text,);
   if (atWork) {
     run.record.observe({
       event: { type: 'agent_start', },
@@ -537,6 +551,54 @@ await describe({
         expect(summary.modelError,).toBe(FAILURE_TEXT,);
         expect(summary.retries,).toBe(1,);
         expect(summary.modelErrorAttempts,).toBe(2,);
+      },
+    },),
+    it({
+      name: 'ends a run on a 429 with no attempt of its own, whatever retries the run would allow',
+      fn: async () => {
+        await using run = await startRunThatFailed({
+          atWork: false,
+          text: RATE_LIMIT_FAILURE_TEXT,
+        },);
+        /**
+         The messages the watch sent, which a 429 leaves to Pi's own retry.
+         */
+        const sent: string[] = [];
+        /**
+         When the run must be over: past the looks an attempt would have gone in, had the watch scheduled one.
+         */
+        const deadline = Date.now() + HOLD_MILLISECONDS;
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+            retryCap: 3,
+            retryBaseSeconds: NO_WAIT_SECONDS,
+          },),
+          inbox: run.inbox,
+          deadline,
+        },);
+        expect(endReason,).toBe('model-error',);
+        expect(sent,).toEqual([],);
+        expect(run.record.retriesTaken(),).toBe(0,);
+        /**
+         What the run's feed holds.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        // The hand-off is written plainly, so a person reading the run sees why the driver made no attempt at it.
+        expect(String(feed.find((entry,) => entry.kind === 'problem')?.problem,),).toContain('rate limit',);
+        const summary = run.record.summarize({
+          endReason: 'model-error',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.modelError,).toBe(RATE_LIMIT_FAILURE_TEXT,);
+        expect(summary.retries,).toBe(0,);
+        expect(summary.rateLimitErrors,).toBe(1,);
       },
     },),
     it({

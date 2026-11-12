@@ -421,7 +421,7 @@ fn rendered(answer: &RoundAnswer, directories: &[Assignment]) -> Vec<String> {
     for change in &answer.changes {
         said.push(match change {
             RetryChange::Plan { git_dir, item, attempt, .. } => format!("plan {} {} {attempt}", index_of(git_dir.as_path()), item.branch_ref),
-            RetryChange::Forget { git_dir, branch_ref } => format!("forget {} {branch_ref}", index_of(git_dir.as_path())),
+            RetryChange::Forget { git_dir, branch_ref, .. } => format!("forget {} {branch_ref}", index_of(git_dir.as_path())),
         });
     }
     return said;
@@ -759,4 +759,78 @@ fn a_common_directory_that_gives_no_answer_does_not_hold_the_rounds_worker() {
     assert!(ran_beside, "the task beside a common directory that gives no answer still runs, so no worker is held by that read");
     assert!(matches!(answered, TheAnswerOfAJobAwaited::Ran(_)), "the reading gave the lane of the directory once the pipe was let go");
     crate::test_support::remove(root.as_path());
+}
+
+/// How long the control of a drain's step lets the whole measurement run before it calls the step lost.
+/// Why:
+///  The control has to fail where the defect is,
+/// and the defect is a wait with no end:
+/// a control that waited on that one would be ended by the runner's per-test limit instead of saying what it found.
+/// The work itself reaches its own answers within a second on any host,
+/// so this is the control's deadline,
+/// not a clock the claim rests on.
+const THE_STEPS_DEADLINE: Duration = Duration::from_secs(30);
+
+/// The ceiling the control gives the lane read and the drain's own step,
+/// well inside `THE_STEPS_DEADLINE`,
+/// so the step's own answer is what the deadline waits for rather than the read's ceiling.
+const THE_STEPS_CEILING: Duration = Duration::from_millis(200);
+
+/// What:
+///  A `commondir` read that outlasted its ceiling holds the only place of the blocking bound,
+///  and the step the drain runs next still answers instead of waiting for that place for ever.
+/// Why:
+///  A place is held by the job that took it until that job ends,
+/// and a job whose read outlasted its ceiling is left behind still holding it
+///  (`blocking_jobs_within_the_budget.rs`).
+/// The drain's storage steps awaited a place without an end,
+/// so one stalled read with the process held to one place left the round waiting for ever:
+/// no later push,
+/// no upkeep round,
+/// and the idle exit never ran
+///  (finding 4 of the review of `5686c7bb29`).
+/// The place the control's read holds is the process's only one,
+/// so the step's answer can only come from the bound the step itself keeps.
+#[test]
+fn a_lane_read_that_outlasted_its_ceiling_does_not_hold_the_drains_next_storage_step() {
+    use crate::parallel_test_support::ONE_PLACE;
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    let root: PathBuf = fixture("round-lane-read-holds-the-only-place");
+    let git_dir: PathBuf = root.join("worktree/.git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("a linked worktree's Git directory");
+    let stalled: PathBuf = git_dir.join("commondir");
+    stall_a_file(stalled.as_path());
+    let work_dir: PathBuf = root.join("work");
+    let measured: PathBuf = root.clone();
+    let let_go: PathBuf = stalled.clone();
+    let answered = crate::parallel_test_support::finished_within_at(THE_STEPS_DEADLINE, move || {
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime for the control");
+        let (read, step) = runtime.block_on(async move {
+            // The round's lane read, which the round awaits no longer than this ceiling.
+            let read = run_a_job_awaited_no_longer_than(THE_STEPS_CEILING, vec![git_dir], lane_keys_in_a_job).await;
+            // The drain's first storage step, given the same ceiling here so the control reaches its bound in a moment.
+            let step = crate::service_work_storage_awaited::claim_all_within_awaiting(THE_STEPS_CEILING, work_dir.as_path(), &crate::service_work_handlers_replanning_and_acceptance::SERVICE_KINDS).await;
+            return (read, step);
+        });
+        // The place the read holds cannot go back while the read waits, and a runtime's own drop waits for the job that
+        // reads it: the pipe is let go here, after the step has answered against the place the read still held.
+        release_the_pipe(let_go.as_path());
+        drop(runtime);
+        return (read, step);
+    });
+    if answered.is_none() {
+        // A run that reached the deadline left its read behind; the writer ends it so the fixture goes.
+        release_the_pipe(stalled.as_path());
+    }
+    let (read, step) = answered.expect(
+        "the drain's first storage step never answered within the control's deadline, so it waited for the place the abandoned lane read holds and the round never ends",
+    );
+    assert!(
+        matches!(read, TheAnswerOfAJobAwaited::NoAnswer),
+        "the lane read reached its ceiling, so the job that read the common directory is still holding the only place of the bound"
+    );
+    let said: String = step.expect_err("the drain's first storage step answered, so no round waits for a place nothing gives back");
+    assert!(said.contains("did not run"), "the step says it did not run, so nothing it would have claimed was claimed: {said}");
+    assert!(said.contains("no place"), "the step names the place it waited for: {said}");
+    crate::test_support::remove(measured.as_path());
 }

@@ -764,6 +764,38 @@ fn open_no_follow(path: &Path) -> std::io::Result<File> {
 }
 
 /// What:
+///  Open a record for reading:
+///  a regular file,
+///  never through a final link,
+///  and without waiting for a writer when the name holds a named pipe.
+/// Why:
+///   Some readers answer a waiting client,
+/// so an open that waited for a writer would hold back the proof of life
+///  and no timer could end it;
+///  a link planted at a record path must be refused,
+///  never read through;
+///  and the type of the handle's own metadata is the only answer a swap between the open and the check cannot
+///  change.
+///  A caller that also bounds how much it reads is `read_regular_file`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = await open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK); if (!(await file.stat()).isFile()) throw 'not regular';
+/// ```
+pub fn open_regular_file(path: &Path) -> Result<File, ReadRefusal> {
+    let file: File = match open_no_follow(path) {
+        Ok(opened) => opened,
+        Err(error) => return Err(open_refusal(error)),
+    };
+    // The handle's own metadata, so a swap between the check and the read is impossible.
+    let metadata: std::fs::Metadata = file.metadata().map_err(ReadRefusal::Io)?;
+    if !metadata.is_file() {
+        return Err(ReadRefusal::NotRegular);
+    }
+    return Ok(file);
+}
+
+/// What:
 ///  Read a whole regular file without following links,
 ///  up to `limit` bytes.
 ///       `u64` is an unsigned 64-bit size;
@@ -775,21 +807,17 @@ fn open_no_follow(path: &Path) -> std::io::Result<File> {
 ///  a link or a directory must be named as unsafe,
 ///  and a
 ///       runaway file must not be read into memory.
+///  The open is `open_regular_file`'s,
+/// so a named pipe at the record's name is refused instead of waited on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function readPrivateFile(path: string, limit: number): Promise<Uint8Array>; // throws ReadRefusal
 /// ```
 pub fn read_regular_file(path: &Path, limit: u64) -> Result<Vec<u8>, ReadRefusal> {
-    let file: File = match open_no_follow(path) {
-        Ok(opened) => opened,
-        Err(error) => return Err(open_refusal(error)),
-    };
+    let file: File = open_regular_file(path)?;
     // The handle's own metadata, so a swap between the check and the read is impossible.
     let metadata: std::fs::Metadata = file.metadata().map_err(ReadRefusal::Io)?;
-    if !metadata.is_file() {
-        return Err(ReadRefusal::NotRegular);
-    }
     if metadata.len() > limit {
         return Err(ReadRefusal::TooLarge);
     }

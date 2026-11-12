@@ -12,6 +12,11 @@ import {
 import { once, } from 'node:events';
 import type { Readable, } from 'node:stream';
 
+import {
+  type CommandDeadline,
+  stopAtDeadline,
+} from './command-deadline.ts';
+
 /**
  Largest stdout or stderr a captured command may produce: 64 MiB.
  The former synchronous runners passed this bound as `maxBuffer`; overflow stops the command and fails the step.
@@ -93,6 +98,113 @@ async function readCapturedStream({
 }
 
 /**
+ How waiting for one command, its streams and its close ended.
+ */
+type CommandWait =
+  | { readonly kind: 'ended', }
+    | {
+      readonly kind: 'refused',
+      readonly cause: unknown,
+    };
+
+/**
+ Wait for one command, its streams and its close, and report how it ended instead of raising it.
+
+ The wait is kept whole because the deadline a caller gave the command is read before this wait's own failure: a command
+ stopped at its deadline reports the deadline, never the broken pipe the stop left behind.
+
+ @param stdout - the command's standard output being read
+
+ @param stderr - the command's standard error being read
+
+ @param closed - the close event of the command
+
+ @returns that all three ended, or what refused them
+
+ @example
+ ```ts
+ const waited = await waitForCommand({ stdout, stderr, closed });
+ ```
+ */
+async function waitForCommand({
+  stdout,
+  stderr,
+  closed,
+}: {
+  readonly stdout: Promise<CapturedStream>;
+  readonly stderr: Promise<CapturedStream>;
+  readonly closed: Promise<unknown>;
+},): Promise<CommandWait> {
+  try {
+    await Promise.all([
+      stdout,
+      stderr,
+      closed,
+    ],);
+    return { kind: 'ended', };
+  }
+  catch (cause) {
+    return {
+      kind: 'refused',
+      cause,
+    };
+  }
+}
+
+/**
+ Wait for one command under its deadline, and leave the wait at the grace even when something the stop cannot end is
+ still there.
+
+ A process the kernel cannot end, or a child that escaped the stopped process group while holding the command's output,
+ keeps the streams and the close of the command open, and nothing the stop sends can free them. The grace releases the
+ caller anyway, because "nothing should ever wait forever or indefinitely".
+
+ @param stdout - the command's standard output being read
+
+ @param stderr - the command's standard error being read
+
+ @param closed - the close event of the command
+
+ @param deadline - the stop this command's deadline makes, whose grace releases this wait
+
+ @returns that all three ended, or what refused them
+
+ @example
+ ```ts
+ const waited = await waitForStop({ stdout, stderr, closed, deadline });
+ ```
+ */
+async function waitForStop({
+  stdout,
+  stderr,
+  closed,
+  deadline,
+}: {
+  readonly stdout: Promise<CapturedStream>;
+  readonly stderr: Promise<CapturedStream>;
+  readonly closed: Promise<unknown>;
+  readonly deadline: CommandDeadline;
+},): Promise<CommandWait> {
+  try {
+    await Promise.race([
+      Promise.all([
+        stdout,
+        stderr,
+        closed,
+      ],),
+      deadline.released(),
+    ],);
+    return { kind: 'ended', };
+  }
+  catch (cause) {
+    return {
+      kind: 'refused',
+      cause,
+    };
+  }
+}
+
+/**
  Run one complete argument array with no shell interpretation.
 
  @param command - executable to start
@@ -107,7 +219,14 @@ async function readCapturedStream({
  
  @param env - environment, which defaults to this process's
 
+ @param deadlineMilliseconds - how long the command may run before it and everything it started are stopped, absent
+   when the caller has no bound for it; a bound also releases the wait at the stop's grace, for output that something
+   the stop cannot end still holds
+
  @returns exit state and captured output for steps that read either
+
+ @throws NativeVerificationError when the command could not run, when it ran past a deadline it was given, or when it
+   exited nonzero without `allowFailure`
 
  @example
  ```ts
@@ -121,6 +240,7 @@ export async function runCommand({
   allowFailure = false,
   cwd = process.cwd(),
   env = process.env,
+  deadlineMilliseconds,
 }: {
   readonly command: string;
   readonly args: readonly string[];
@@ -128,6 +248,7 @@ export async function runCommand({
   readonly allowFailure?: boolean;
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
+  readonly deadlineMilliseconds?: number;
 }): Promise<CommandOutcome> {
   /**
    Command and first argument, enough to name the step in an error without echoing every argument.
@@ -136,7 +257,13 @@ export async function runCommand({
     ? command
     : `${command} ${args[0]}`;
   /**
+   The bound this command is given, absent when it has none, so one narrowed value decides the stop below.
+   */
+  const bound = deadlineMilliseconds;
+  /**
    The started command; a command that cannot start surfaces through its streams and its close event.
+   A bounded command leads a process group of its own, so its deadline stops everything it started and not only the
+   program named here: a `podman run` client stopped alone leaves its container running.
    */
   const child = spawn(
     command,
@@ -144,6 +271,7 @@ export async function runCommand({
     {
       cwd,
       env,
+      detached: bound !== undefined,
       stdio: capture
         ? [
           'ignore',
@@ -185,17 +313,39 @@ export async function runCommand({
     child,
     'close',
   );
-  try {
-    await Promise.all([
+  /**
+   The stop this command's deadline makes, absent when the caller gave it no bound.
+   */
+  const deadline = bound === undefined
+    ? undefined
+    : stopAtDeadline({
+      child,
+      deadlineMilliseconds: bound,
+      refusal: `${step} was still running after ${String(bound)} ms, the bound it is given, so it and everything it started were stopped.`,
+    },);
+  /**
+   How the wait for the command ended, kept whole so the deadline is read before the wait's own failure is reported.
+   */
+  const waited = deadline === undefined
+    ? await waitForCommand({
       stdout,
       stderr,
       closed,
-    ]);
-  }
-  catch (error) {
+    },)
+    : await waitForStop({
+      stdout,
+      stderr,
+      closed,
+      deadline,
+    },);
+  if (deadline !== undefined)
+    deadline.end();
+  if ((deadline !== undefined) && deadline.stoppedTheCommand())
+    throw new NativeVerificationError(deadline.refusal);
+  if (waited.kind === 'refused') {
     throw new NativeVerificationError(
       `${step} could not start or its output could not be read.`,
-      { cause: error },
+      { cause: waited.cause, },
     );
   }
   /**

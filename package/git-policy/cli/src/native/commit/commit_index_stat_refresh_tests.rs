@@ -40,6 +40,54 @@ fn records_the_file_now(repo: &Path, name: &str) -> bool {
     return listing.contains(format!("ino: {inode}").as_str());
 }
 
+/// The refresh the commit asks for looks at the entries the walk named and no others:
+/// a path the commit stages from the worktree is written afresh by `git add`,
+/// so its record costs the commit nothing and the refresh leaves it alone.
+/// Why:
+///   Refreshing the whole index asked the file system about every entry of the index,
+/// tens of thousands of questions on a worktree of this repository,
+/// where the entries that lost their stat data are the files the person changed since the landing before.
+#[test]
+fn the_refresh_looks_at_the_entries_the_walk_named_and_no_other() {
+    let root: PathBuf = fixture("commit-index-refresh-named-only");
+    let repo: PathBuf = committed_repository(root.as_path());
+    // Both files lose their recorded stat data, and the commit stages `a.txt` from the worktree, so the walk names
+    // `b.txt` alone.
+    renew_inode(repo.join("a.txt").as_path());
+    renew_inode(repo.join("b.txt").as_path());
+    let index: PathBuf = repo.join(".git").join("index");
+    let staged: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from("a.txt")];
+    assert_eq!(
+        refresh_stat_data_when_stale(&git_context(), repo.as_path(), index.as_path(), WorktreeStaging::Named(staged.as_slice())),
+        StatRefresh::Kept,
+        "the entry the walk named is refreshed"
+    );
+    assert!(records_the_file_now(repo.as_path(), "b.txt"), "the entry the walk named is refreshed in the index");
+    assert!(
+        !records_the_file_now(repo.as_path(), "a.txt"),
+        "the entry the commit stages from the worktree is left to `git add`, which writes its stat data there"
+    );
+    remove(root.as_path());
+}
+
+/// A file the worktree no longer holds is refreshed without removing its entry:
+/// a refresh reports a path that needs an update and never records a deletion nobody asked for.
+#[test]
+fn a_named_refresh_keeps_the_entry_of_a_file_the_worktree_lost() {
+    let root: PathBuf = fixture("commit-index-refresh-gone");
+    let repo: PathBuf = committed_repository(root.as_path());
+    std::fs::remove_file(repo.join("b.txt")).expect("the worktree loses b.txt");
+    let index: PathBuf = repo.join(".git").join("index");
+    let before: String = git_text(repo.as_path(), &["--no-optional-locks", "ls-files", "--stage"]);
+    assert!(refresh_named_stat_data(&git_context(), repo.as_path(), index.as_path(), &[b"b.txt".to_vec()]), "the refresh is kept");
+    assert_eq!(
+        git_text(repo.as_path(), &["--no-optional-locks", "ls-files", "--stage"]),
+        before,
+        "every entry is still there, the lost file's included"
+    );
+    remove(root.as_path());
+}
+
 /// A stale entry is refreshed in the file the refresh names,
 /// so the commit that reads that index does not read the file again.
 #[test]

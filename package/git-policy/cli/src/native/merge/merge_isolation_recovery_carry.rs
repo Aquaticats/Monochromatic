@@ -51,6 +51,9 @@ pub(crate) async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
 ) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let changes: Vec<Change> = merge_changes_awaiting(place, root, intent).await.map_err(partly_installed)?;
+    // What the command that moved the checkout read, which is the one thing that tells the file Git wrote from a save whose
+    //  bytes accept the whole merge: a reading that names no path leaves the bytes as all the evidence, as before
+    //  (`merge_isolation_carry_landed.rs`).
     match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, landed, intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
             for line in report_lines("", &report) {
@@ -74,12 +77,22 @@ pub(crate) async fn carry_the_capture_awaiting<W: std::io::Write + ?Sized>(
 ///   A carry onto the old merge's own commit would leave the moved head's later changes out of the files,
 /// and a
 ///  carry onto the moved head keeps them.
+///  Each line names the command the person typed,
+/// which is the merge itself for a command that is still running
+///  and the branch a recovery finished the merge on otherwise.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function carryOnto({ place, root, intent, end, out }): Promise<boolean>;
+/// async function carryOnto({ place, root, intent, end, command, out }): Promise<boolean>;
 /// ```
-pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, intent: &MergeIntent, end: &str, out: &mut W) -> Result<bool, MergeRefusal> {
+pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(
+    place: &RecoveryPlace,
+    root: &Path,
+    intent: &MergeIntent,
+    end: &str,
+    command: &str,
+    out: &mut W,
+) -> Result<bool, MergeRefusal> {
     let Some(capture) = intent.carried.as_ref() else { return Ok(true) };
     let mut changes: Vec<Change> =
         changes_between_awaiting(&place.git, root, intent.old_oid.as_str(), end).await.map_err(the_changes_could_not_be_read)?;
@@ -94,9 +107,19 @@ pub(crate) async fn carry_onto_awaiting<W: std::io::Write + ?Sized>(place: &Reco
             changes.push(change.clone());
         }
     }
-    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, &[], intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
+    // The reading this carry judges against is the one taken now,
+    //  never the one the merge published: the settling before it wrote the moved head's entries into these files itself, so the
+    //  published entries stand no longer and every captured path would be read as someone else's write. A path written again
+    //  between this read and the carry's own read of it is caught by `the_file_git_landed` and kept as it is
+    //  (`merge_isolation_carry_landed.rs`).
+    let mut written_paths: Vec<Vec<u8>> = Vec::with_capacity(capture.paths.len());
+    for entry in &capture.paths {
+        written_paths.push(entry.path.clone());
+    }
+    let written: Vec<LandedFile> = crate::merge_isolation_carry_landed::landed_of(root, written_paths.as_slice());
+    match carry_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), capture, written.as_slice(), intent.owner.transaction_id.as_str(), LockWait::WhileFinishing, out).await {
         Ok(report) => {
-            for line in report_lines(intent.target_ref.as_deref().unwrap_or("HEAD"), &report) {
+            for line in report_lines(command, &report) {
                 let _noted = out.write_all(format!("{line}\n").as_bytes());
             }
             return Ok(true);
@@ -171,7 +194,7 @@ pub(crate) fn the_work_could_not_be_carried(failure: &CarryFailure) -> String {
 /// ```
 pub(crate) async fn drop_capture_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
     if let Some(capture) = intent.carried.as_ref() {
-        drop_capture_ref_awaiting(&place.git, root, capture).await;
+        drop_capture_ref_awaiting(&place.git, place.git_dir.as_path(), root, capture).await;
     }
 }
 

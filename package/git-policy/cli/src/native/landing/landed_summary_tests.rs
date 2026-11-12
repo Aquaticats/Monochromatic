@@ -12,12 +12,12 @@ const NAME: &str = "30b2211a4c";
 /// a root commit and a detached head are worded as `git commit` words them.
 #[test]
 fn the_line_words_the_branch_the_root_and_the_detached_head_as_git_does() {
-    assert_eq!(summary_line("refs/heads/main", "abc", NAME, "subject"), format!("[main {NAME}] subject"));
-    assert_eq!(summary_line("refs/heads/feature/x", "abc", NAME, "s"), format!("[feature/x {NAME}] s"));
-    assert_eq!(summary_line("refs/heads/main", "", NAME, "s"), format!("[main (root-commit) {NAME}] s"));
+    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("refs/heads/main"), "abc", NAME, "subject"), format!("[main {NAME}] subject"));
+    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("refs/heads/feature/x"), "abc", NAME, "s"), format!("[feature/x {NAME}] s"));
+    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("refs/heads/main"), "", NAME, "s"), format!("[main (root-commit) {NAME}] s"));
     let zero: String = "0".repeat(40);
-    assert_eq!(summary_line("refs/heads/main", zero.as_str(), NAME, "s"), format!("[main (root-commit) {NAME}] s"));
-    assert_eq!(summary_line("HEAD", "abc", NAME, "s"), format!("[detached HEAD {NAME}] s"));
+    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("refs/heads/main"), zero.as_str(), NAME, "s"), format!("[main (root-commit) {NAME}] s"));
+    assert_eq!(summary_line(&crate::ref_name::RefName::from_text("HEAD"), "abc", NAME, "s"), format!("[detached HEAD {NAME}] s"));
 }
 
 /// The subject is the first paragraph on one line,

@@ -4,7 +4,11 @@ import {
 } from 'node:path';
 
 import { buildCommitMessage } from './commit-message.ts';
-import { goesToCratesIo } from './crates-io-version-label.ts';
+import {
+  cratesIoRoute,
+  goesToCratesIo,
+  isAlphaVersion,
+} from './crates-io-version-label.ts';
 import {
   cargoProgram,
   gitProgram,
@@ -314,8 +318,108 @@ function publishDryRunStep({
 }
 
 /**
+ Whether a release of this version compiles the crate before it commits.
+
+ An alpha release does not: the owner's standing rule of 2026-11-11 is "make the release pipeline avoid running any
+ extra work for alphas", after "Alphas don't even have to resolve all flakes". Every other release, a beta included,
+ still checks here, because the check is the last compile before a version that can never be taken back exists.
+
+ What an alpha gets instead depends on the crate it releases: for a crate that ships a binary, `cargo-publish.yml`
+ builds that binary of the same commit on both Linux targets, so the compile evidence follows the push; a crate that
+ ships none is compiled nowhere before its bump reaches `main`, and the next release's check is its first compile. A
+ version bump alone cannot break a compile, and the lockfile refresh (`lockTheCrateStep`) keeps the locked build
+ resolvable, so an alpha's evidence is deferred and never invented.
+
+ @param version - version being released
+
+ @returns false for `-alpha.N`, true for every other version
+
+ @example
+ ```ts
+ releaseRunsCargoCheck('0.2.7-alpha.1');
+ ```
+ */
+export function releaseRunsCargoCheck(version: string): boolean {
+  return !isAlphaVersion(version);
+}
+
+/**
+ The step that records the crate's own changed version in the `Cargo.lock` beside its manifest.
+
+ A released crate needs it whichever version it moves to: the bump moves the crate's own version in the lockfile, and two
+ `--locked` cargo calls refuse a lockfile the bump left stale. Both were measured on a throwaway crate on 2026-11-11:
+ the push command's `cargo metadata --locked` fails with "cannot update the lock file ... because --locked was passed"
+ (status 101), and `cargo build --release --locked` fails the same way when `cargo-publish.yml` builds the pushed commit;
+ `cargo update --workspace` clears both. A release that checks the crate gets the refresh for free, because `cargo check`
+ rewrites the lockfile; an alpha, which checks nothing, runs this instead, so skipping the check never costs the alpha
+ its push or its release.
+
+ Every entry of `releasable-crates.json` is the root of its own workspace with its own `Cargo.lock` beside the manifest
+ (read with `cargo metadata --no-deps` for all sixteen on 2026-11-11), so this refresh rewrites exactly the lockfile the
+ commit names, never a lockfile of some parent workspace that nothing commits.
+
+ @param options - validated release options
+
+ @param crateRoot - absolute directory of the crate
+
+ @returns the step, named for what it records
+
+ @example
+ ```ts
+ lockTheCrateStep({ options, crateRoot: '/r/package/c' });
+ ```
+ */
+function lockTheCrateStep({
+  options,
+  crateRoot,
+}: {
+  readonly options: ReleaseOptions;
+  readonly crateRoot: string;
+}): ReleaseStep {
+  return {
+    label: 'lock the crate',
+    program: cargoProgram,
+    args: buildLockArguments(options.host),
+    cwd: crateRoot,
+  };
+}
+
+/**
+ Say what a release of this version leaves out of the full plan, and why, for the person reading the run.
+
+ The plan itself omits these steps (`buildReleaseSteps`), and the lines are printed before the first step runs, so a
+ real release and a `--dry-run` describe the same run. A step that silently disappears would make a log look like a
+ release that checked and dry-ran its publish.
+
+ @param options - validated release options
+
+ @returns one line per omitted step; empty when the plan is whole
+
+ @example
+ ```ts
+ releasePlanNotes(options);
+ ```
+ */
+export function releasePlanNotes(options: ReleaseOptions): readonly string[] {
+  /**
+   Where the version goes with respect to crates.io, which decides the publish dry run.
+   */
+  const route = cratesIoRoute(options.to);
+  return [
+    ...(releaseRunsCargoCheck(options.to)
+      ? []
+      : ['no cargo check: an alpha is committed without compiling here, and cargo-publish.yml builds the binary of the pushed commit on both Linux targets (the crate\'s own lockfile is still refreshed)']),
+    ...(route.goes
+      ? []
+      : [`no publish dry run: ${route.reason}`]),
+  ];
+}
+
+/**
  Plan the program calls of a release, in the order they run: check, lockfile refreshes, publish dry run, commit. A
- version that never goes to crates.io (alpha, beta, and every form the label rule does not name) has no publish dry run.
+ version that never goes to crates.io (alpha, beta, and every form the label rule does not name) has no publish dry run,
+ and an alpha has no check either, so it lands its crate's own version in the lockfile with a refresh instead
+ (`releaseRunsCargoCheck`).
 
  A local host keeps cargo offline and runs the dry run in a capped transient unit; a runner lets cargo use the network
  and runs the dry run directly, because the runner is a disposable machine of its own.
@@ -338,15 +442,22 @@ export function buildReleaseSteps(options: ReleaseOptions): readonly ReleaseStep
     options.crateDirectory
   );
   return [
-    {
-      label: 'cargo check',
-      program: cargoProgram,
-      args: buildCheckArguments({
-        checkBins: options.checkBins,
-        host: options.host
-      }),
-      cwd: crateRoot,
-    },
+    ...(releaseRunsCargoCheck(options.to)
+      ? [{
+        label: 'cargo check',
+        program: cargoProgram,
+        args: buildCheckArguments({
+          checkBins: options.checkBins,
+          host: options.host
+        }),
+        cwd: crateRoot,
+      }]
+      // The check records the new member version as a side effect; without it an alpha must do that itself, or the
+      // locked build of the pushed commit fails and the alpha gets no GitHub release.
+      : [lockTheCrateStep({
+        options,
+        crateRoot
+      })]),
     ...options.lockDirectories
       .map(function lockStep(directory): ReleaseStep {
         return {

@@ -51,6 +51,11 @@ type RecordedLogCalls = {
    Messages logged at warn level.
    */
   readonly warn: readonly string[];
+
+  /**
+   Messages logged at error level.
+   */
+  readonly error: readonly string[];
 };
 
 /**
@@ -191,20 +196,28 @@ function createAgentSettledEvent(
  Creates the handler context Pi passes alongside every lifecycle event.
 
  Pi's `ExtensionContext` has no complete stand-in short of a live Pi runtime, so
- this returns an empty object asserted to the contract. That stays safe only
- while the settled handler reads nothing from the context, which the extension
- does not.
+ this returns an object carrying only the fields the settled handler reads,
+ asserted to the contract. That stays safe only while the handler reads nothing
+ else from the context, which the extension does not.
 
- @returns extension context stub, which the settled handler deliberately ignores
+ @param cwd - working folder Pi reports for the settled agent
+
+ @returns extension context stub carrying the agent's working folder
 
  @example
  ```ts
- createExtensionContext();
+ createExtensionContext({ cwd: '/work/agent-7', });
  ```
  */
-function createExtensionContext(): ExtensionContext {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mirrors Pi's ExtensionContext at the fixture boundary; the settled handler reads nothing from the context, so an empty stand-in keeps the handler's real call shape.
-  return {} as unknown as ExtensionContext;
+function createExtensionContext(
+  {
+    cwd = '/work/agent-7',
+  }: {
+    readonly cwd?: string;
+  } = {},
+): ExtensionContext {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mirrors Pi's ExtensionContext at the fixture boundary; the settled handler reads only the working folder, so a stand-in carrying it keeps the handler's real call shape.
+  return { cwd, } as unknown as ExtensionContext;
 }
 
 /**
@@ -234,10 +247,10 @@ function flushNothing(): Promise<void> {
 }
 
 /**
- Creates a logger that records warn and debug messages instead of writing them.
+ Creates a logger that records debug, warn and error messages instead of writing them.
 
- Delivery outcomes are the only levels this package decides on, so the fixture
- keeps them and discards the rest, which keeps a suite off the desktop sinks.
+ Delivery outcomes and defects are the only levels this package decides on, so the
+ fixture keeps them and discards the rest, which keeps a suite off the desktop sinks.
 
  @returns logger handed to the code under test plus the record it appends to
 
@@ -258,13 +271,20 @@ function createRecordingLogger(): RecordingLoggerHarness {
   const warn: string[] = [];
 
   /**
+   Messages logged at error level, appended in call order.
+   */
+  const error: string[] = [];
+
+  /**
    Logger whose recorded levels stay inspectable after the call returns.
    */
   const logger: Logger = {
     debug: function recordDebug(message: string,): void {
       debug.push(message,);
     },
-    error: discardMessage,
+    error: function recordError(message: string,): void {
+      error.push(message,);
+    },
     fatal: discardMessage,
     flush: flushNothing,
     info: discardMessage,
@@ -279,6 +299,7 @@ function createRecordingLogger(): RecordingLoggerHarness {
     calls: {
       debug,
       warn,
+      error,
     },
   };
 }

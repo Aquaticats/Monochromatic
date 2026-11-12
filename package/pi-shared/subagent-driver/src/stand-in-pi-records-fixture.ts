@@ -46,6 +46,12 @@ export const LONG_WAIT_ERROR_TEXT = '503 {"error":{"message":"Service Unavailabl
 export const RATE_LIMIT_ERROR_TEXT = '429 {"error":{"message":"Too many requests"}}';
 
 /**
+ How many attempts Pi's own automatic retry makes at a failed turn, which is the `retry.maxRetries` default of Pi 1.5.2
+ (`docs/settings.md`). A scenario writes them so the driver meets what a real Pi's retry leaves behind.
+ */
+export const PI_AUTOMATIC_RETRIES = 3;
+
+/**
  The text the standard-error scenario writes, so a test can see the copy reach its file.
  */
 export const STANDARD_ERROR_TEXT = 'the stand-in wrote this to its standard error';

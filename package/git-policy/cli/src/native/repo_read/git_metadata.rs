@@ -105,18 +105,32 @@ pub const READ_CEILING: Duration = PLUMBING_STEP_CEILING;
 ///  and a pathname can hold the text a scan
 ///       exists to keep out of output,
 ///  so only an alphabetic word before `--` is named.
+///  A global option's value is stepped over and never named,
+///  so a read the wrapper starts as
+///       `git -C <directory> status` is announced as `git status`
+///  and not as an unnamed query,
+///  which is the read a removal of a linked
+///       worktree waits on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const subject = `${git} ${word}`; // word: /^[a-z][a-z-]*$/
+/// const subject = `${git} ${word}`; // word: /^[a-z][a-z-]*$/, past the values of the global options
 /// ```
 fn read_subject(real_git: &Path, arguments: &[OsString]) -> String {
-    // `for argument in arguments` visits each in order, so the first word names the read.
-    for argument in arguments {
+    // `while let` visits each argument in order and lets an option's value be stepped over, so the first word
+    //  that names a subcommand is the one that is named.
+    let mut remaining: std::slice::Iter<'_, OsString> = arguments.iter();
+    while let Some(argument) = remaining.next() {
         let bytes: &[u8] = argument.as_encoded_bytes();
         // `--` ends the command line the subcommand can be in; everything after it is a path.
         if bytes == b"--" {
             break;
+        }
+        // A global option that takes its value as the next argument hands that value over unnamed: it can be a
+        //  pathname, and the subcommand follows it.
+        if takes_the_next_word(argument) {
+            remaining.next();
+            continue;
         }
         if bytes.is_empty() || bytes[0] == b'-' {
             continue;
@@ -135,6 +149,23 @@ fn read_subject(real_git: &Path, arguments: &[OsString]) -> String {
         break;
     }
     return format!("{} (a read-only Git query)", real_git.display());
+}
+
+/// What:
+///  Whether a Git global option takes its value as the next argument.
+/// Why:
+///   Stepping over the value is what lets the subcommand after `-C <directory>` be named,
+///  and the list is
+///       the one the wrapper already locates command boundaries with,
+///  so a new option is not missed here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// VALUE_OPTIONS.includes(word)
+/// ```
+fn takes_the_next_word(argument: &OsString) -> bool {
+    let bytes: &[u8] = argument.as_encoded_bytes();
+    return crate::global_arguments::VALUE_OPTIONS.contains(&bytes);
 }
 
 /// What:
@@ -181,6 +212,29 @@ pub fn read_stopped_text(fact: &str, error: &std::io::Error) -> Option<String> {
 /// ```ts
 /// async function runMetadataGit(realGit, args, overlay): Promise<MetadataOutput>;
 /// ```
+/// The locale variable every read the wrapper parses is pinned with.
+/// Why:
+///  Git writes its own words in the locale it is given,
+///  and the wrapper matches those words;
+///  pinning the one variable overrides every other locale setting the person's command carries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const QUERY_LOCALE_VARIABLE = 'LC_ALL';
+/// ```
+pub const QUERY_LOCALE_VARIABLE: &str = "LC_ALL";
+
+/// The locale every read the wrapper parses runs in.
+/// Why:
+///  The C locale is the untranslated one,
+///  so a printed message is the message the wrapper matches.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const QUERY_LOCALE = 'C';
+/// ```
+pub const QUERY_LOCALE: &str = "C";
+
 pub fn run_metadata_git(
     real_git: &Path,
     arguments: &[OsString],
@@ -270,6 +324,17 @@ pub fn run_metadata_git_without_within(
     for name in remove {
         command.env_remove(name);
     }
+    // What: Every read the wrapper parses runs in the C locale, whatever locale the person's command carries.
+    // Why:  The words the wrapper matches are Git's own (`Would remove <path>` in `builtin/clean.c`), and Git translates
+    //       them: under `fr_FR` the same answer reads `Supprimerait nested/`, which matched no prefix, so a nested
+    //       repository below that name was deleted unsaved. Messages are the only thing a locale changes in these
+    //       answers (paths stay bytes), and a message the wrapper reports is English already.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // command.env('LC_ALL', 'C');
+    // ```
+    command.env(QUERY_LOCALE_VARIABLE, QUERY_LOCALE);
     // The wrapper reads the repository itself here, with the output captured and the input closed, so nothing of the
     //  person's runs under this start and a wrapper that arrives as its Git came from the file that Git is
     //  (`started_as_git.rs`).

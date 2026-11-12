@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.6.1-alpha.9"
+version = "0.6.1-alpha.12"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -181,7 +181,7 @@ hyper = { version = ">=1.12.0", default-features = false }
 hyper-rustls = { version = ">=0.27.10", default-features = false }
 hyper-util = { version = ">=0.1.21", default-features = false }
 ignore = ">=0.4.34"
-jiff = { version = ">=0.2.41", default-features = false }
+jiff = { version = ">=0.2.42", default-features = false }
 libc = ">=0.2.191"
 miniz_oxide = { version = ">=0.9.1", default-features = false }
 rustix = ">=1.1.6"
@@ -194,7 +194,7 @@ sysinfo = { version = ">=0.40.1", default-features = false }
 tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
 tower-service = ">=0.3.3"
-webpki-roots = ">=1.0.11"
+webpki-roots = ">=1.0.12"
 zbus = { version = ">=6.2.1", default-features = false }
 
 # Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.

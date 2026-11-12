@@ -42,8 +42,21 @@
 //!    (device and inode),
 //!    because the same folder has several spellings (a symbolic link such as `/home` for `/var/home`,
 //!    a
-//!    relative path);
-//!    a spelling that cannot be resolved proves nothing,
+//!    relative path).
+//!    When that folder is not there,
+//!    the word is compared by the path it spells,
+//!    resolved as far as the file system
+//!    knows it,
+//!    because an earlier helper of the worktree shows its journal word before it makes the folder;
+//!    a folder that is not there
+//!    holds no batch of the worktree,
+//!    so another program that takes a `--journal` option holds nothing back.
+//!    A command line that also names this worktree's instance still holds:
+//!    the earlier release's unit started
+//!    a helper of one worktree with that instance,
+//!    and a link in the journal spelling it was given may have been removed after that start,
+//!    while the folder the helper writes is still there.
+//!    A spelling that cannot be resolved that far proves nothing,
 //!    so it counts as "may be running".
 //!  - A command line is read up to a limit;
 //!    one that fills it has words that were not looked at,
@@ -68,6 +81,8 @@
 use crate::earlier_service_command_line_read::UnreadableProcess;
 #[cfg(unix)]
 use crate::earlier_service_command_line_read::{CommandLine, command_line_of};
+#[cfg(unix)]
+use crate::earlier_service_look_paths::{journal_identities, path_word, resolved_as_far_as_the_file_system_knows};
 use crate::scan_awaited_under_a_ceiling::scan_under_ceiling_to_its_end;
 use crate::earlier_service_unsure_program::UnsureProgram;
 #[cfg(unix)]
@@ -184,6 +199,37 @@ enum ServiceFound {
     Unsure { word: Vec<u8>, relative: bool, reason: String },
 }
 
+/// What one journal word of a command line says about the process that carries it.
+/// Why:
+///   A word that names no earlier journal is not one answer but two:
+/// a folder that is there and is
+///  another program's proves that the program writes there,
+/// while a folder that is not there proves nothing about
+///  the folder an earlier helper writes,
+/// because the word may be a spelling whose link another command removed after
+///  that helper was started.
+/// The rest of the command line decides which of the two a program is
+///  ([`is_service_of`]).
+#[cfg(unix)]
+enum JournalWord {
+    /// The word names one of the earlier journals,
+    /// of the kind the reason names.
+    Names(Hold),
+    /// The word is an absolute path whose folder is not there,
+    /// and the path it spells,
+    /// resolved as far as the file system knows it,
+    /// is no earlier journal's.
+    AbsentAndElsewhere,
+    /// The word names a folder that is there and is no earlier journal's.
+    Elsewhere,
+    /// The word could not be resolved,
+    /// so it may name one:
+    /// the word,
+    /// whether it is relative,
+    /// and the system's answer.
+    Unsure { word: Vec<u8>, relative: bool, reason: String },
+}
+
 /// What a look needs to know to recognise a service of one worktree.
 #[derive(Clone, Debug)]
 pub struct ServiceLook {
@@ -235,28 +281,6 @@ fn is_word_end(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// The bytes of a path,
-/// as a command line word spells it.
-#[cfg(unix)]
-fn path_word(path: &Path) -> Vec<u8> {
-    use std::os::unix::ffi::OsStrExt;
-    return path.as_os_str().as_bytes().to_vec();
-}
-
-/// The bytes of a path,
-/// as a command line word spells it,
-/// for a platform whose paths are not bytes.
-#[cfg(not(unix))]
-fn path_word(path: &Path) -> Vec<u8> {
-    return path.to_string_lossy().into_owned().into_bytes();
-}
-
-/// The identity of a folder or file:
-/// the device it is on and its inode,
-/// which every spelling of one folder shares.
-#[cfg(unix)]
-type FileIdentity = (u64, u64);
-
 /// The folders of the earlier journals as the look knows them,
 /// and where the process that is looked at keeps its files.
 #[cfg(unix)]
@@ -281,8 +305,8 @@ fn hold_of_journal_at(index: usize) -> Hold {
 /// the instance's own (the first of the look's journals),
 /// the
 ///  shared one (the second),
-/// or one that cannot be resolved;
-/// nothing when it names another folder.
+/// no earlier journal's,
+/// or one that cannot be resolved.
 /// Why:
 ///   The word is compared as it is spelled,
 /// then by the folder it resolves to (device and inode):
@@ -293,36 +317,65 @@ fn hold_of_journal_at(index: usize) -> Hold {
 ///  relative word means the folder in the working directory of the process that was started with it,
 /// which `/proc/<pid>/cwd`
 ///  gives (the kernel follows it).
-/// A stat that fails says nothing about which folder the word names,
-/// and an open question must
+/// A stat that fails for a reason other than the folder being absent says nothing about which folder the word names,
+///  and neither does a relative word whose working directory cannot be read:
+/// an open question must
 ///  not start a second service on the journal.
-/// Which journal it is decides what the person is told to stop.
+/// An absolute word whose folder is not there is the one case that is settled without the folder:
+/// it is
+///  compared by the path it spells,
+/// and a folder that is not there holds no batch of this worktree,
+/// so the
+///  word alone holds nothing back.
+/// Which of these it is decides what the person is told to stop,
+/// and
+///  [`is_service_of`] decides what the rest of a command line makes of a word that names no earlier journal:
+/// a
+///  folder that is there is another program's,
+/// while a folder that is not there may be a spelling whose link another
+///  command removed after an earlier helper of this worktree was started with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const journalNamed = (word: string, names: JournalNames) => spelled(word) ?? sameFolderAs(resolve(word, names.process + '/cwd')) ?? (resolvable(word) ? undefined : unsure(word, whyNot(word)))
+/// const journalWord = (word: string, names: JournalNames): JournalWord => names.find(j => spelled(j) === word)?.hold ?? sameFolderAs(resolve(word, names.process + '/cwd')) ?? (!resolvable(word) ? unsure(word, whyNot(word)) : !absent(word) ? { elsewhere: true } : samePathAs(resolvedSoFar(word))?.hold ?? { absentAndElsewhere: true })
 /// ```
 #[cfg(unix)]
-fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<ServiceFound> {
+fn journal_word_names(names: &JournalNames, word: &[u8]) -> JournalWord {
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::MetadataExt;
     for (index, journal) in names.spellings.iter().enumerate() {
         if path_word(journal.as_path()).as_slice() == word {
-            return Some(ServiceFound::Hold(hold_of_journal_at(index)));
+            return JournalWord::Names(hold_of_journal_at(index));
         }
     }
     let spelled: &Path = Path::new(std::ffi::OsStr::from_bytes(word));
-    let resolved: PathBuf = if spelled.is_absolute() { spelled.to_path_buf() } else { names.process.join("cwd").join(spelled) };
+    let absolute: bool = spelled.is_absolute();
+    let resolved: PathBuf = if absolute { spelled.to_path_buf() } else { names.process.join("cwd").join(spelled) };
     let found = match std::fs::metadata(resolved.as_path()) {
         Ok(found) => found,
-        Err(error) => return Some(ServiceFound::Unsure { word: word.to_vec(), relative: !spelled.is_absolute(), reason: error.to_string() }),
+        // An absolute word whose folder is not there names a folder that holds no batch now,
+        // and a starting earlier helper of the worktree is in that state until it makes its folder:
+        // the path it spells says whether it is one of this worktree's journals.
+        Err(error) if absolute && error.kind() == std::io::ErrorKind::NotFound => {
+            let named: PathBuf = match resolved_as_far_as_the_file_system_knows(spelled) {
+                Ok(named) => named,
+                Err(unknown) => return JournalWord::Unsure { word: word.to_vec(), relative: false, reason: unknown.to_string() },
+            };
+            for (index, journal) in names.spellings.iter().enumerate() {
+                if journal.is_absolute() && matches!(resolved_as_far_as_the_file_system_knows(journal), Ok(known) if known == named) {
+                    return JournalWord::Names(hold_of_journal_at(index));
+                }
+            }
+            return JournalWord::AbsentAndElsewhere;
+        }
+        Err(error) => return JournalWord::Unsure { word: word.to_vec(), relative: !absolute, reason: error.to_string() },
     };
     for (index, journal) in names.spellings.iter().enumerate() {
         if matches!(std::fs::metadata(journal), Ok(known) if (known.dev(), known.ino()) == (found.dev(), found.ino())) {
-            return Some(ServiceFound::Hold(hold_of_journal_at(index)));
+            return JournalWord::Names(hold_of_journal_at(index));
         }
     }
-    return None;
+    return JournalWord::Elsewhere;
 }
 
 /// Whether the earlier release's mode words start at any place of `words`.
@@ -330,6 +383,22 @@ fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<ServiceFound>
 fn has_earlier_mode(words: &[&[u8]]) -> bool {
     for at in 0..words.len() {
         if is_earlier_mode_at(words, at) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Whether this release's mode words start at any place of `words` behind its own command word:
+/// the service of this release,
+/// which serves the worktree's new journal.
+#[cfg(unix)]
+fn has_current_mode(words: &[&[u8]]) -> bool {
+    for at in 1..words.len() {
+        let Some(pair) = words.get(at..at + SERVICE_MODE_WORDS.len()) else {
+            continue;
+        };
+        if words[at - 1] == COMMAND_WORD.current.as_bytes() && pair[0] == SERVICE_MODE_WORDS[0].as_bytes() && pair[1] == SERVICE_MODE_WORDS[1].as_bytes() {
             return true;
         }
     }
@@ -353,33 +422,78 @@ fn has_earlier_mode(words: &[&[u8]]) -> bool {
 /// A process with the journal option followed by a word that may name one of the
 ///  earlier folders is a service of the worktree;
 /// so is one with the mode words and the instance option followed by the instance.
+/// A word that names no earlier journal is read with the rest of the command line:
+/// a folder that is there is another program's,
+/// so the program writes its batches there;
+/// a folder that is
+///  not there is read as this worktree's helper when the same command line names this worktree's
+///  instance,
+/// because that is how the earlier release's unit started a helper of one worktree
+///  (`service_units/cli-git@.service`,
+/// tag `monochromatic-git-policy-cli-v0.5.34`),
+/// and a link in the journal spelling it
+///  was given may have been removed after that start.
+/// This release's own service is no earlier helper:
+/// its
+///  mode words follow this release's command word,
+/// and its journal is the new folder,
+/// so it holds nothing back
+///  whatever word it carries.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isServiceOf = (words: string[], names: JournalNames, look: ServiceLook) =>
-///   words.some((w, i) => w === '--journal' && mayName(words[i + 1], names))
-///   || (hasPair(words, 'service', 'run') && hasPair(words, '--instance', look.instance))
+/// const isServiceOf = (words: string[], names: JournalNames, look: ServiceLook) => {
+///   const word = firstJournalWord(words, names)
+///   if (word?.names) return word.names
+///   if (word?.unsure) return word.unsure
+///   if (word?.absentAndElsewhere && namesInstance(words, look) && !hasCurrentMode(words)) return { hold: 'InstanceHelperRuns' }
+///   return hasPair(words, 'service', 'run') && namesInstance(words, look) ? { hold: 'InstanceHelperRuns' } : undefined
+/// }
 /// ```
 #[cfg(unix)]
 fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> Option<ServiceFound> {
     let mode_in_a_row: bool = has_earlier_mode(words);
     let mut instance_named: bool = false;
-    let mut journal_named: Option<ServiceFound> = None;
+    let mut journal_named: Option<JournalWord> = None;
+    let mut journal_elsewhere: Option<JournalWord> = None;
     for pair in words.windows(2) {
         if pair[0] == INSTANCE_OPTION.as_bytes() && pair[1] == look.instance.as_bytes() {
             instance_named = true;
         }
-        if pair[0] == JOURNAL_OPTION.as_bytes()
-            && journal_named.is_none()
-            && let Some(named) = journal_word_names(names, pair[1])
-        {
-            journal_named = Some(named);
+        if pair[0] != JOURNAL_OPTION.as_bytes() {
+            continue;
+        }
+        let named: JournalWord = journal_word_names(names, pair[1]);
+        // A word that names one of the earlier journals,
+        // or that cannot be resolved,
+        // is stronger evidence than one that names no earlier journal,
+        // wherever it stands on the command line.
+        if matches!(named, JournalWord::Names(_) | JournalWord::Unsure { .. }) {
+            if journal_named.is_none() {
+                journal_named = Some(named);
+            }
+        } else if journal_elsewhere.is_none() {
+            journal_elsewhere = Some(named);
         }
     }
-    if journal_named.is_some() {
-        return journal_named;
-    }
-    return if mode_in_a_row && instance_named { Some(ServiceFound::Hold(Hold::InstanceHelperRuns)) } else { None };
+    // The helper shape of this release's earlier units:
+    // the mode words and this worktree's instance.
+    let helper_shape: bool = mode_in_a_row && instance_named;
+    let helper_of_this_worktree: bool = instance_named && !has_current_mode(words);
+    let Some(named) = journal_named.or(journal_elsewhere) else {
+        return if helper_shape { Some(ServiceFound::Hold(Hold::InstanceHelperRuns)) } else { None };
+    };
+    return match named {
+        JournalWord::Names(hold) => Some(ServiceFound::Hold(hold)),
+        JournalWord::Unsure { word, relative, reason } => Some(ServiceFound::Unsure { word, relative, reason }),
+        // A folder that is not there holds no batch by itself,
+        // but the word may be a spelling the command line's instance says was this worktree's.
+        JournalWord::AbsentAndElsewhere if helper_of_this_worktree => Some(ServiceFound::Hold(Hold::InstanceHelperRuns)),
+        // A folder that is there and is another's says where the program writes,
+        // so only the helper shape of the mode words counts for it.
+        JournalWord::AbsentAndElsewhere | JournalWord::Elsewhere if helper_shape => Some(ServiceFound::Hold(Hold::InstanceHelperRuns)),
+        JournalWord::AbsentAndElsewhere | JournalWord::Elsewhere => None,
+    };
 }
 
 /// What:
@@ -417,22 +531,6 @@ fn earlier_socket_that_listens(look: &ServiceLook, proc_root: &Path) -> Option<H
             ListeningSockets::None => None,
         },
     };
-}
-
-/// The identity of each earlier journal that exists,
-/// or `None` when one cannot be looked at for a reason other than its absence.
-#[cfg(unix)]
-fn journal_identities(journals: &[PathBuf]) -> Option<Vec<FileIdentity>> {
-    use std::os::unix::fs::MetadataExt;
-    let mut identities: Vec<FileIdentity> = Vec::new();
-    for journal in journals {
-        match std::fs::metadata(journal) {
-            Ok(found) => identities.push((found.dev(), found.ino())),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(_) => return None,
-        }
-    }
-    return Some(identities);
 }
 
 /// What:

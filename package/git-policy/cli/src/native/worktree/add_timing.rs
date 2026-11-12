@@ -278,13 +278,25 @@ thread_local! {
     /// and when it began;
     /// none outside an add.
     static ACTIVE: RefCell<Option<(Instant, Recorder)>> = const { RefCell::new(None) };
+    /// The notice this thread's add prints while it runs,
+    /// which the recording's own end drops;
+    /// none outside an add.
+    static NOTICE: RefCell<Option<crate::add_standing_notice::StandingNotice>> = const { RefCell::new(None) };
 }
 
 /// Begin recording the add of the repository whose common Git directory is `common_dir`,
 /// replacing any earlier recording
 ///  of this thread.
-pub fn begin(common_dir: PathBuf) {
+pub fn begin(common_dir: PathBuf, quiet: bool) {
     ACTIVE.set(Some((Instant::now(), Recorder::new(common_dir))));
+    // An add that is still running after a few seconds says which step it is in,
+    // on a thread of its own,
+    // so the wait is never
+    //  silent and the add never waits for the line (owner:
+    // "nothing should ever wait forever or indefinitely").
+    // The steps published below are what it
+    //  names, so the recording is what starts and ends it.
+    NOTICE.set(Some(crate::add_standing_notice::begin_for(quiet)));
     if let Ok(mut work) = WORK.lock() {
         *work = Some(Vec::new());
     }
@@ -310,14 +322,20 @@ pub fn begin(common_dir: PathBuf) {
 pub fn begin_step(name: &str) -> bool {
     // The recording is taken out of its cell while it is updated and put back at once, so the body never runs with the cell borrowed.
     let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
+    let mut standing: Option<(Instant, Option<String>)> = None;
     let entered: bool = match recording.as_mut() {
         Some((began, recorder)) => {
             recorder.enter(name, began.elapsed());
+            standing = Some((*began, innermost_step(recorder)));
             true
         }
         None => false,
     };
     ACTIVE.set(recording);
+    // The step is published for the notice a long wait prints, so the add's own thread never holds a stream for it.
+    if let Some((began, innermost)) = standing {
+        crate::add_standing_notice::a_step_began(innermost.as_deref(), began);
+    }
     return entered;
 }
 
@@ -336,11 +354,32 @@ pub fn begin_step(name: &str) -> bool {
 pub fn end_step(entered: bool) {
     if entered {
         let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
+        let mut standing: Option<(Instant, Option<String>)> = None;
         if let Some((began, recorder)) = recording.as_mut() {
             recorder.leave(began.elapsed());
+            standing = Some((*began, innermost_step(recorder)));
         }
         ACTIVE.set(recording);
+        if let Some((began, innermost)) = standing {
+            crate::add_standing_notice::a_step_began(innermost.as_deref(), began);
+        }
     }
+}
+
+/// What:
+///  The innermost step the recorder has entered and not left,
+/// or nothing between two steps.
+/// Why:
+///   The step a long wait is in is read by the notice on another thread,
+/// so the recorded stack is read through one function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const innermostStep = (recorder) => recorder.open.at(-1)?.name;
+/// ```
+fn innermost_step(recorder: &Recorder) -> Option<String> {
+    let frame: &Frame = recorder.open.last()?;
+    return Some(frame.name.clone());
 }
 
 /// What:
@@ -458,6 +497,8 @@ pub fn note(key: &str, value: &str) {
 /// finish(exitCode);
 /// ```
 pub fn finish(exit_code: i32) {
+    // The add answered, so its notice ends here and nothing it says can outlive the answer.
+    NOTICE.set(None);
     let taken: Option<(Instant, Recorder)> = ACTIVE.take();
     let drained: Option<Vec<(String, Duration)>> = match WORK.lock() {
         Ok(mut work) => work.take(),
@@ -468,6 +509,8 @@ pub fn finish(exit_code: i32) {
         recorder.add_work(name.as_str(), spent);
     }
     recorder.quiet = drain();
+    // No step is published once the add answered, so a notice that arrives after the answer cannot name one.
+    crate::add_standing_notice::the_add_ended();
     let target: PathBuf = recorder.common_dir().join(ADD_TIMING_FILE);
     let line: String = recorder.line(began.elapsed(), exit_code);
     if let Err(error) = append_line(target.as_path(), line.as_bytes(), &UNPINNED_LOG) {

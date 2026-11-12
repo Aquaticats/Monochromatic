@@ -26,7 +26,7 @@
 //! for (const line of reportLines('feature', report)) stderr.write(`${line}\n`);
 //! ```
 
-use crate::merge_isolation_carry_kept_path::{Kept, kept_line};
+use crate::merge_isolation_carry_kept_path::{Kept, Staged, kept_line, kept_path};
 
 /// What:
 ///  Everything one carry did,
@@ -56,6 +56,63 @@ pub struct Report {
     pub changed: Vec<Vec<u8>>,
 }
 
+impl Report {
+    /// What:
+    ///  Name the paths a write left alone,
+    /// and take back every line a path's own step built before that write.
+    /// Why:
+    ///   A line is built from what stood at the path when its step judged it,
+    /// and a path another program wrote after that holds the
+    ///  program's bytes:
+    /// the merge wrote nothing to it,
+    /// so the earlier line is false about the checkout this command leaves,
+    ///  and beside the line that names the change it contradicts it.
+    /// The path keeps one line,
+    /// the one that says the merge wrote nothing to it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// report.aPathWrittenAgain(written.changed);
+    /// ```
+    pub(crate) fn a_path_written_again(&mut self, paths: Vec<Vec<u8>>) {
+        for path in paths {
+            self.merged = without_path(std::mem::take(&mut self.merged), path.as_slice());
+            self.conflicts = without_path(std::mem::take(&mut self.conflicts), path.as_slice());
+            self.kept = without_kept(std::mem::take(&mut self.kept), path.as_slice());
+            self.changed.push(path);
+        }
+    }
+}
+
+/// What:
+///  The entries of a list that are not this path's,
+/// in the order the list held them.
+/// Why:
+///  The lines of one path are the ones a later write takes back;
+/// a loop with a named function keeps that reading
+///  plain,
+/// where a closure would keep the path it compares against.
+fn without_path(entries: Vec<Vec<u8>>, path: &[u8]) -> Vec<Vec<u8>> {
+    let mut kept: Vec<Vec<u8>> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if entry.as_slice() != path {
+            kept.push(entry);
+        }
+    }
+    return kept;
+}
+
+/// The kept entries of a list that are not this path's.
+fn without_kept(entries: Vec<Kept>, path: &[u8]) -> Vec<Kept> {
+    let mut kept: Vec<Kept> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        if entry.path.as_slice() != path {
+            kept.push(entry);
+        }
+    }
+    return kept;
+}
+
 /// What:
 ///  The lines a carried merge adds to standard error,
 /// after Git's own.
@@ -83,7 +140,7 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
             "monochromatic-git-policy-cli: {command}: your changes to {} touch the lines the merge changes, so the file \
              holds both sides between conflict markers and the merge was made. Resolve the markers in that file, then run `git add -- {}`.",
             text(path),
-            text(path)
+            quoted(path)
         ));
     }
     for path in &report.merged {
@@ -100,7 +157,7 @@ pub fn report_lines(reference: &str, report: &Report) -> Vec<String> {
             "monochromatic-git-policy-cli: {command}: {} changed while the merge ran, so this merge wrote nothing to it and \
              left that change in place. The merge's version is in the merge commit; `git diff HEAD -- {}` shows the difference.",
             text(path),
-            text(path)
+            quoted(path)
         ));
     }
     return lines;
@@ -142,7 +199,59 @@ fn text(path: &[u8]) -> String {
     return crate::path_bytes::path_message_text(path);
 }
 
+/// What:
+///  The same path spelled for a shell,
+/// which every command a line prints takes.
+/// Why:
+///   The person copies the command out of the line,
+/// and a name with a space reaches the program as several arguments otherwise
+///  (`crate::shell_quote`,
+/// the one owner of that spelling).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const quoted = (path: Uint8Array) => shellQuote(path);
+/// ```
+fn quoted(path: &[u8]) -> String {
+    return crate::shell_quote::shell_quote(path);
+}
+
 /// The words a carry adds.
 #[cfg(test)]
 #[path = "merge_isolation_carry_notice_tests.rs"]
 mod tests;
+
+/// What:
+///  Put one written path into the report the lines are made from,
+///  or into the paths the command left alone.
+/// Why:
+///  The decision about one path and the line it earns are one answer,
+/// and the caller that writes the step is
+///  at its file's code-line limit,
+/// so the choice of which list a path joins lives here with the words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// addToTheReport({ report, entry, change, note, staged, written: worktreeIsOurs && !keepThePlannedBytes });
+/// ```
+pub(crate) fn add_to_the_report(
+    report: &mut Report,
+    entry: &crate::merge_isolation_carry_parts::CapturedPath,
+    change: &crate::merge_isolation_changes::Change,
+    note: crate::merge_isolation_carry_plans::Note,
+    staged: Staged,
+    written: bool,
+) {
+    if !written {
+        // The layer is someone else's, or the file is one nothing proves is Git's own write; either way nothing is written over
+        //  it, and the line about it says so.
+        report.changed.push(entry.path.clone());
+        return;
+    }
+    match note {
+        crate::merge_isolation_carry_plans::Note::Merged => report.merged.push(entry.path.clone()),
+        crate::merge_isolation_carry_plans::Note::Conflict => report.conflicts.push(entry.path.clone()),
+        crate::merge_isolation_carry_plans::Note::Kept(why) => report.kept.push(kept_path(entry, change, why, staged)),
+        crate::merge_isolation_carry_plans::Note::None => {}
+    }
+}

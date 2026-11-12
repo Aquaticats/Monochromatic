@@ -1141,13 +1141,19 @@ Six mechanisms
   a layout it does not know is left untouched and reported.
 - C,
   verified-idle trees of the host build base.
-  A tree goes only when its workspace is gone (ledger,
+  A tree goes only when its workspace is confirmed gone (ledger,
   or a lead from dependency information),
   or its toolchain is retired,
   or nothing identifies it and it has been idle longer;
   no other tree's workspace lies inside it;
   every profile directory yields its build locks;
   and no process uses anything under it.
+  A workspace counts as gone only when its absence is confirmed:
+  a path whose metadata cannot be read (a directory this user may not search,
+  an I/O error)
+  may be a live workspace,
+  so the tree stays,
+  and the ledger that names such a workspace keeps the tree holding it.
   "Other tree" means every tree of the base,
   including the ones a pass that continues after a recorded position
   does not judge again.
@@ -1199,17 +1205,45 @@ Six mechanisms
   size caps per profile directory with oldest-first eviction.
   Entries touched within the grace period are never evicted.
 - F,
-  a systemd user timer.
-  `cargo-shadow lean timer-install` writes `cargo-shadow-lean.service` and `cargo-shadow-lean.timer` into
-  `~/.config/systemd/user` and enables the timer.
-  The timer fires once a day at 04:30 local time and at no other moment:
-  `Persistent=false` (a missed run is not made up at boot or login),
-  the service has no `[Install]` section,
-  and nothing in cargo-shadow starts itself.
-  The service runs `<repository>/.cache/toolchain-bin/cargo-shadow lean run` with disk weight 5,
+  a systemd user service that runs the cleanups continuously.
+  The owner,
+  2026-11-11:
+  "Make the cleanups a systemd service that runs continuously."
+  `cargo-shadow lean service-install` writes `cargo-shadow-lean.service` into
+  `~/.config/systemd/user` and enables it,
+  and each pass of `lean run` ends on its own deadline while the next starts a minute after it,
+  for as long as the user's manager runs.
+  It replaces the once-a-day timer of the first install:
+  the install stops and disables `cargo-shadow-lean.timer`,
+  removes its unit file and writes no timer again,
+  because on 2026-11-11 the build volume held 6.5 MB free at 13:13,
+  hours before the daily pass,
+  and a manual pass hit its own deadline before it reached every profile directory.
+  `cargo-shadow lean timer-install` still works and says what it does now.
+  The service has `Restart=always`,
+  `RestartSec=60s` and `StartLimitIntervalSec=0`,
+  so a pass that finds nothing never stops the loop,
+  and `RuntimeMaxSec` kills a pass that outlasts the run's own deadline.
+  It is installed for `default.target`,
+  so the user's manager starts it at login,
+  and nothing in cargo-shadow starts itself:
+  the unit runs only after a person installed and enabled it.
+  It runs `<repository>/.cache/toolchain-bin/cargo-shadow lean run` with disk weight 5,
   two threads of CPU,
-  4 GiB of memory and a start timeout above the run's own deadline,
+  4 GiB of memory and 512 tasks,
   and shows nothing on the desktop.
+  The minute between passes is sized from a measurement of a pass that finds nothing
+  (`PAUSE_BETWEEN_PASSES_SECONDS` in `src/lean_policy.rs`):
+  measured 2026-11-11,
+  such a pass over a world with nothing to clean cost 0.052 s at best and 0.054 s at the median of five runs,
+  and over 500 in-tree profile directories it kept,
+  0.177 s,
+  so a minute keeps the loop at work under a thousandth of the time there,
+  where systemd's default 100 ms restart delay would put it at work about a third of the time.
+  On this machine an idle pass costs at least 27 minutes
+  (398 s for the run records on 2026-11-08,
+  334 s for Podman and 880 s to list 68,755 profile directories on 2026-11-10),
+  so the pause is a twenty-seventh of the shortest one.
 
 Beyond the build folders,
 `lean run` also retires dated nightly toolchains that no checkout pins
@@ -1266,16 +1300,19 @@ and each of the two long passes continues where it stopped:
 - The file is replaced by an atomic rename and a dry run never writes it,
   so a run killed in the middle leaves the position it last recorded,
   and `lean run --dry-run` never moves it.
-- Neither name of the record is ever opened through a link or waited on as a pipe.
-  A symbolic link,
-  a hard link (a second name for a file this run does not own),
-  or a pipe at `lean-progress.new` is removed and this run writes its own file there,
-  so the text never lands in the file a link names and no open waits for the other end of a pipe;
-  a pipe at `lean-progress` itself is read for what it already holds,
-  which is not this version's header,
-  so the run starts at the front and says so.
+- Neither name of the record is ever followed through a link or waited on as a pipe.
+  The record is written into a staging name this run makes for itself
+  (`lean-progress.<process>-<count>.new`)
+  and creates in one open that cannot open a name that is already there,
+  so no link and no second name of a file is written through,
+  and no open waits for the other end of a pipe.
+  A file a killed run of another version left at `lean-progress.new` is neither opened nor removed.
+  The record is read as a regular file and never through a link,
+  and at most 64 KiB of it are read,
+  so a link,
+  a pipe or a device at `lean-progress` means the front of the list and says so.
   Both files are created readable and writable by this user alone (`0600`).
-  A name that cannot be used after that is reported once and costs the run its position,
+  A staging name that cannot be created is reported once and costs the run its position,
   never the run itself.
 - A resumed idle-trees pass still holds the whole base's workspaces as guards.
   The trees before the recorded position are not judged again,
@@ -1320,13 +1357,13 @@ A pass over both lists is therefore about seventeen hours today,
 so no bound a person would accept makes one run cover it.
 
 `RUN_DEADLINE_SECONDS` is 5 h (`src/lean_policy.rs`),
-the service's `TimeoutStartSec` is that plus thirty minutes,
-both written by the next `cargo-shadow lean timer-install`,
-while the unit installed today still holds the old bound's 12,600 s,
-and a run that starts at the timer's 04:30 ends at 09:30 at the latest,
-or 30 minutes past that at worst,
-when one large tree's deletion outlasts the run's own bound.
-The trees pass at 6.6 h then needs a second night,
+the service's `RuntimeMaxSec` is that plus thirty minutes,
+both written by the next `cargo-shadow lean service-install`,
+while the unit installed today still holds the old bound's 12,600 s.
+A pass that runs out of its own deadline ends there,
+or up to thirty minutes later when one large tree's deletion outlasts it,
+and the next pass starts a minute later.
+The trees pass at 6.6 h then needs a second pass,
 whose last 3.4 h the units pass takes,
 and the two continue that way while a whole pass costs more than the bound.
 What the bound costs a person is small:
@@ -1356,8 +1393,21 @@ recorded in the log line of every removal:
   a file system that cannot lock and a directory with no lock file all skip it.
 - A scan of `/proc` finds no process whose working directory,
   program,
-  open file or mapped file lies under the entry;
-  processes in another mount namespace are judged by the device and inode of what they hold.
+  open file or mapped file lies under the entry.
+  Every root is compared twice:
+  as the run spelled it,
+  and with its symbolic links resolved,
+  because `/proc` names a held file the way the kernel holds it and no link is left in that name.
+  Without the second spelling a base reached through a linked path matched none of those names
+  (measured 2026-11-11 in a throwaway build folder:
+  the unit holding the program a live process was running went with `0 uses under the roots`,
+  and the same fixture spelled without the link kept it with `pid N uses ... as exe`).
+  Processes in another mount namespace are judged by the device and inode of what they hold,
+  by the paths that namespace spells,
+  and by the program they run and the files they mapped;
+  a use matched by device and inode is one of the entry's own build locks,
+  which a container's cargo holds while it builds,
+  so it keeps the whole entry and not only one path under it.
   A process whose entries cannot be read is classified from its `/proc/<pid>/status`,
   which every process shows:
   a kernel thread (`Kthread: 1`) and an ended process (`State: Z`) hold no file and are counted as such,
@@ -1402,12 +1452,57 @@ every walk obeys the run's deadline and every `podman`,
 never starts itself,
 and takes no lock of its own (the claim is the rename).
 
+### What still takes a binary a run is using
+
+The proof answers one question at one moment:
+what a process holds now.
+It cannot keep a file that a runner will ask for next,
+and it is not the only writer in a build folder:
+
+- A test runner holds no build lock.
+  `cargo nextest` lists the test binaries,
+  then starts one process per test,
+  each with `--exact`.
+  Nothing it holds when the scan runs names the binaries it has not started yet,
+  and one started a moment after the scan finds its file gone.
+  Measured 2026-11-11 in a throwaway workspace:
+  `nextest run` over thirty generated tests,
+  with one shadowed `cargo build --tests` of the same workspace during it,
+  26 passed and four failed with
+  `error: [double-spawn] failed to exec ... No such file or directory`.
+- A cargo run of the same workspace relinks in place.
+  Cargo replaces `deps/<unit>-<hash>` and `build/<package>/<hash>/out/...` by rename when a source,
+  a flag or the compiler behind a toolchain name changed,
+  and a process that already has the old file mapped keeps running while the path names the new one
+  (its `/proc/<pid>/exe` then ends in ` (deleted)`).
+  Mechanism A keys a build folder by the toolchain's name,
+  so two dated nightlies both called `nightly` share one folder,
+  and every unit of it is relinked the first time the newer one builds.
+  That is what mechanism B sweeps afterwards,
+  and it is what replaced a test binary under a run:
+  the sweep's pass of 2026-11-11 ended by 07:31:34,
+  and the build folder the failing run used was first written at 09:16:55 the same day,
+  so no lean pass had ever judged it.
+- A container that mounts the base somewhere else is judged by the device and inode of the build locks,
+  never by path:
+  this tool cannot translate one mount namespace's spelling into another's.
+  A container's build is protected by the build lock it holds;
+  a test binary that container runs from a bind mount at another path is not protected,
+  and the same holds for any process of another namespace whose view of the base is not the base's own path.
+  Closing that needs the namespace's own spelling of the entry,
+  which is not read here today.
+
+What a person can do about the first two:
+run the tests before a second build of the same workspace,
+or give that build its own `CARGO_BUILD_BUILD_DIR`,
+or pin the toolchain by its date (`nightly-2026-11-11`) so a nightly update cannot relink in place.
+
 ```sh
 # package/cargo-shadow/cli/README.md
 cargo-shadow lean run --dry-run
 cargo-shadow lean run --only units,records
 cargo-shadow lean records target/verification --dry-run
-cargo-shadow lean timer-install
+cargo-shadow lean service-install
 ```
 
 ## Containers and the tasks that run cargo outside the shadow

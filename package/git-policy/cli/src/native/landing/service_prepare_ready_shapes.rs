@@ -147,8 +147,9 @@ pub struct NativeInputs {
     /// The arguments after the policies' fixed transforms.
     pub arguments: Vec<OsString>,
     /// The positional pathspecs of the command line,
-    /// which the private index already holds.
-    pub pathspecs: Vec<String>,
+    /// which the private index already holds,
+    /// each with its own bytes.
+    pub pathspecs: Vec<OsString>,
     /// Whether the line commits named paths or the index.
     pub mode: TransactionMode,
     /// Whether `-a` staged tracked changes into the private index.
@@ -170,7 +171,9 @@ pub struct Ready {
     pub common_dir: PathBuf,
     /// The branch,
     /// or `HEAD` for a detached head.
-    pub reference: String,
+    /// The branch reference,
+    /// by the bytes Git printed for its name.
+    pub reference: crate::ref_name::RefName,
     /// The commit prepared against;
     /// the all-zero name for a branch that does not exist yet.
     pub base: String,
@@ -265,8 +268,9 @@ pub struct Ready {
 /// const ready = byGit(shape, taken, events, changes, records, args, scratch);
 /// ```
 pub(crate) struct ReadyShape {
-    /// The positional pathspecs as text.
-    pub(crate) pathspecs: Vec<String>,
+    /// The positional pathspecs,
+    /// each with its own bytes.
+    pub(crate) pathspecs: Vec<OsString>,
     /// Whether the line commits named paths or the index.
     pub(crate) mode: TransactionMode,
     /// Whether `-a` staged tracked changes into the private index.
@@ -275,8 +279,9 @@ pub(crate) struct ReadyShape {
     pub(crate) selected_privately: bool,
     /// The private index the commit is built from.
     pub(crate) commit_index: PathBuf,
-    /// The branch reference the preparation announced.
-    pub(crate) reference: String,
+    /// The branch reference the preparation announced,
+    /// by the bytes Git printed for its name.
+    pub(crate) reference: crate::ref_name::RefName,
     /// The base the preparation announced.
     pub(crate) announced_base: String,
     /// The conclusion state to remove after the landing.

@@ -4,7 +4,7 @@
 //! each case below reproduces one of its cases.
 
 use super::*;
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{fixture, git, git_text, remove};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -125,7 +125,7 @@ fn head_ref(repo: &Path) -> String {
 /// Push the checked-out branch the way the service does and capture the terminal text it prints to `err`.
 fn run(repo: &Path, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(repo), &head_ref(repo), landed, &[], &mut err);
+    let result = push_once(&push_git(repo), &head_ref(repo), landed, &[], &[], &mut err);
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
@@ -312,7 +312,7 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
     ));
     let mut err: Vec<u8> = Vec::new();
     let started = std::time::Instant::now();
-    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &mut err).expect("auto-push");
+    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &[], &mut err).expect("auto-push");
     let elapsed = started.elapsed();
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert!(elapsed >= Duration::from_secs(1), "{elapsed:?}");
@@ -381,7 +381,7 @@ fn a_push_keeps_the_low_speed_variables_the_person_set() {
         OsString::from("5"),
     ));
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &mut err).expect("auto-push");
+    let result = push_once(&git, &head_ref(&repo), &head_oid(&repo), &[], &[], &mut err).expect("auto-push");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed);
     assert_eq!(read_log(&seen), "5 \n");
     remove(&root);
@@ -562,7 +562,7 @@ fn a_named_branch_whose_tracked_remote_branch_moved_is_reconciled() {
 /// Run the service's push of a named branch and capture the text it prints.
 fn run_for_branch(repo: &Path, branch_ref: &str, landed: &str) -> (Result<AutoPushResult, SingleFlightError>, String) {
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(repo), branch_ref, landed, &[], &mut err);
+    let result = push_once(&push_git(repo), branch_ref, landed, &[], &[], &mut err);
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
@@ -721,7 +721,7 @@ fn a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed
     let mut pushing = push_git(&repo);
     pushing.real_git = switching_git(&root, "other");
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&pushing, &format!("refs/heads/{default}"), &landed, &[], &mut err).expect("push");
+    let result = push_once(&pushing, &format!("refs/heads/{default}"), &landed, &[], &[], &mut err).expect("push");
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert!(root.join("switched").exists(), "the switch happened inside the window");
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
@@ -748,7 +748,7 @@ fn a_recorded_branch_with_an_unnamed_destination_is_pushed_to_its_tracked_branch
     commit_change(&repo, "default work\n");
     let landed = head_oid(&repo);
     let mut err: Vec<u8> = Vec::new();
-    let result = push_once(&push_git(&repo), &format!("refs/heads/{default}"), &landed, &[], &mut err).expect("push");
+    let result = push_once(&push_git(&repo), &format!("refs/heads/{default}"), &landed, &[], &[], &mut err).expect("push");
     let shown = String::from_utf8_lossy(&err).into_owned();
     assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{shown}");
     assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()), "the tracked branch reached the remote: {shown}");
@@ -932,6 +932,7 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
         &head_ref(awaited_repo.as_path()),
         awaited_landed.as_str(),
         &[],
+        &[],
         &mut awaited_err,
     ))
     .expect("the runtime runs the work");
@@ -960,6 +961,7 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
             &head_ref(awaited_repo.as_path()),
             awaited_landed.as_str(),
             &[],
+            &[],
             &mut refused_err,
         );
     })
@@ -970,4 +972,80 @@ fn the_awaited_push_answers_what_the_synchronous_push_answers() {
     };
     assert!(refusal.contains("was asked for from inside itself"), "{refusal}");
     remove(root.as_path());
+}
+
+/// What:
+///  A push whose tracking reference could not be written says so,
+///  and the reference is written once the lock that refused it is gone.
+/// Why:
+///   Git delivers such a push,
+/// prints `cannot lock ref`,
+/// and exits `0`,
+///  so the service records the push as made while the reference names an older commit.
+/// The reference is what every later question about the branch's remote is answered from,
+/// so a silent one makes `git status` and the wrapper disagree for as long as nothing else writes it.
+/// A lock nobody proves gone is not cleared (`stale_ref_locks.rs`),
+/// so the state is said instead.
+/// The fixture kills a real push at the moment it holds that lock (`stale_ref_lock_killed_git`),
+/// which is exactly the state:
+/// the remote took the commit and the reference names the commit before it.
+#[test]
+fn a_push_whose_tracking_reference_could_not_be_written_says_so() {
+    let stage: crate::stale_ref_lock_killed_git::Stage = crate::stale_ref_lock_killed_git::stage("auto-push-tracking-ref-locked", true);
+    let mut held: crate::stale_ref_lock_killed_git::Held = crate::stale_ref_lock_killed_git::hold_push(&stage);
+    assert!(stage.lock_of("refs/remotes/origin/main").exists(), "the killed push holds the tracking reference");
+    held.kill();
+    // The branch tracks the remote, which is what makes the reference a push's own to write.
+    git(stage.repo.as_path(), &["branch", "--set-upstream-to=origin/main", "main"]);
+    // The fixture's own state: the branch tracks the reference the push updates, and that reference is behind the branch.
+    //  The question Git answers for a branch's upstream abbreviates the reference to `origin/main`, which is the name the push
+    //  plan carries and the name the repair resolves to its full ref before writing it.
+    let upstream: String = git_text(stage.repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "main@{upstream}"]);
+    assert_eq!(upstream, "origin/main", "the branch tracks the reference a push of it writes");
+    let tip: String = head_oid(stage.repo.as_path());
+    let tracked: String = git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]);
+    assert_ne!(tracked, tip, "the fixture starts with the reference behind the branch, as the refused update left it");
+    // The lock the killed push left still stands, so nothing may write the reference, and the push says where it stands.
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&push_git(stage.repo.as_path()), "refs/heads/main", tip.as_str(), &[], &[], &mut err).expect("auto-push");
+    let shown: String = String::from_utf8_lossy(err.as_slice()).into_owned();
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "the commits were delivered, so the push itself is a success: {shown}");
+    assert_eq!(
+        git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]),
+        tracked,
+        "nothing writes a reference another Git holds"
+    );
+    assert!(
+        shown.contains("could not update the tracking reference refs/remotes/origin/main"),
+        "the push names the reference it could not write: {shown}"
+    );
+    // The person clears the lock the notice names, and the next push of the branch writes the reference.
+    std::fs::remove_file(stage.lock_of("refs/remotes/origin/main")).expect("the lock goes");
+    let mut again: Vec<u8> = Vec::new();
+    let second = push_once(&push_git(stage.repo.as_path()), "refs/heads/main", tip.as_str(), &[], &[], &mut again).expect("auto-push");
+    assert_eq!(second.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(again.as_slice()));
+    assert_eq!(git_text(stage.repo.as_path(), &["rev-parse", "refs/remotes/origin/main"]), tip, "the next push leaves the reference naming its own commit");
+    stage.finish();
+}
+
+/// What:
+///  The reference a push may write by hand is the one its own remote updates.
+/// Why:
+///   `push.default=current` sends the branch to `branch.<name>.pushRemote`,
+/// which may be no remote the branch tracks:
+///  writing the tracked remote's reference there would name a commit that remote never received.
+/// The two shapes that write nothing are a push that matches the branches itself and a push to another remote.
+#[test]
+fn only_a_push_to_the_branchs_own_tracked_remote_names_a_reference_to_write() {
+    let own: Sent = Sent { remote: String::from("origin"), targets: vec![String::from("refs/heads/main")] };
+    // The push plan keeps the name Git answers the upstream question with, which is abbreviated; both spellings name one reference.
+    assert_eq!(pushed_tracking_ref(Some("origin/main"), &own, "refs/heads/main"), Some("origin/main"), "the abbreviated name the plan carries");
+    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &own, "refs/heads/main"), Some("refs/remotes/origin/main"), "the full name");
+    let elsewhere: Sent = Sent { remote: String::from("mirror"), targets: vec![String::from("refs/heads/main")] };
+    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &elsewhere, "refs/heads/main"), None, "the tracked remote is not the one this push wrote");
+    let matching: Sent = Sent { remote: String::from("origin"), targets: Vec::new() };
+    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &matching, "refs/heads/main"), None, "a push that matches branches itself names no one reference");
+    let tagged: Sent = Sent { remote: String::from("origin"), targets: vec![String::from("refs/tags/v1")] };
+    assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &tagged, "refs/heads/main"), None, "a push to another ref writes no branch reference");
+    assert_eq!(pushed_tracking_ref(None, &own, "refs/heads/main"), None, "a branch with no upstream has no reference to write");
 }
