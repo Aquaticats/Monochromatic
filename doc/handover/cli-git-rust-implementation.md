@@ -135,6 +135,184 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The owner is away for eight hours, and the first commits on 0.6.1-alpha.11 (2026-11-11T20:05:00-05:00)
+
+The owner, at about 20:03: "I'll be away for 8h, you keep working. Make decisions I'd definitely approve (based on my apparent taste) yourself."
+And, on reading that the first commit on alpha.11 spent 17.6 s starting the new release's commit service:
+"Also, I believe stopping the old commit service can be made async."
+
+`native:install -- 0.6.1-alpha.11` finished at 20:02:14:
+`monochromatic-git-policy-cli 0.6.1-alpha.11, shadowing git at /usr/bin/git`, the lock committed as
+`chore(toolchain): monochromatic-git-policy-cli 0.6.1-alpha.11` (only the wrapper's entry and the digest moved).
+The machine at the time: load average about 121, `/proc/pressure/io` `some avg10=58.91`, `full avg10=36.66`
+(the gate's container build, the install and several dozen agents writing).
+
+Three commits on alpha.11 in the main checkout, each one file:
+
+- The install's sample commit, 28,662 ms. Its timing line: `provisionMs` 17,621 ("Starting the commit service..."),
+  `submitMs` 6,937 (`reachMs` 1,746, `answerWaitMs` 5,190), `prepareMs` 3,580 (index copy 2,395, index stat check 777),
+  `buildMs` 266 with one "shadow pool refused".
+- The handover commit started 20:02:58 failed at 20:04:15 with nothing committed:
+  "the `git commit` this commit runs in its scratch repository was stopped after 21 seconds, the most a commit whose message came
+  with the command may take (16 seconds, three times the slowest `git commit` step this repository's commit timing log holds)".
+  The scratch child was in uninterruptible sleep (state `D`), waiting for the disk, and the line about `SIGKILL` printed three times.
+  The ceiling was 16,332 ms, taken from a timing log of 52 lines.
+- The same command again, 20:04:39 to 20:04:50, committed (`c9d2b92aaf`).
+
+One failed commit in three is against "Commits should never fail."
+
+Every agent's commits, from the timing log (`monochromatic-git-policy-cli-commit-timing.jsonl` and its generations), read at 20:14:
+
+- 0.6.1-alpha.10, its last hour (00:00 to 01:02Z, 52 commits, the gate's build running for the last eleven minutes):
+  `totalMs` median 2,645, ninetieth percentile 14,391; `provisionMs` median 0, ninetieth percentile 21, largest 2,771;
+  all landed but three ended on a policy finding.
+- 0.6.1-alpha.10 over its whole life (667 commits, 12.5 hours): median 2,711, ninetieth percentile 16,718, 234 over 5 s;
+  641 landed, 10 ended on a finding, 16 stopped (14 of kind "unidentified", one at the scratch `git commit` ceiling at 16:54Z).
+- 0.6.1-alpha.11, its first ten minutes (01:02 to 01:12Z, 17 commits): median 14,619, ninetieth percentile 28,616, 15 over 5 s;
+  14 landed, 3 stopped: the scratch ceiling once (not new: alpha.10 has one), and two commits in two agent worktrees
+  in the same second (01:11:32Z) at `provisionMs` 20,000 and 20,002, kind "unidentified", exit 1.
+  `provisionMs` was over a second in 8 of the 17, on worktrees whose service had already been started on the new release
+  (the main checkout paid 17,621, then 7,822, then 3,521; the user journal shows its unit started once).
+
+So provisioning costs seconds again and again on alpha.11 where it cost nothing on alpha.10, and it failed two agent commits.
+Ten minutes during a change of release, with every worktree's service being started anew, is a small and unfair sample:
+the same numbers are read again at each hourly pass.
+
+There is no tested way back. Only `0.6.1-alpha.11` is left under the toolchain folder
+(`mpm-shadow`: "older repository tools are never kept once a newer one is installed"),
+and `native:install -- --dry-run 0.6.1-alpha.10` shows it would run `toolchain:update`, which resolves the newest release, and then refuse.
+So alpha.11 stays, and what it does badly is fixed forward:
+round 246's two agents (the provision agent has the seventeen commits' table by inbox note, with the requirement that a commit
+never fails because provisioning is slow), and alpha.12 from pass 15.
+Decided under the owner's delegation; for the owner's return: whether the toolchain should keep the previous release of the wrapper
+so that a bad release can be undone.
+
+The first two qwen4 reviews under the new rule ended within about forty-five minutes, each with its `review.md`
+(`~/temp/agent/qwen-trials/qwen-review-<name>/`):
+
+- `merge-commit-landing-in-a-busy-checkout` (`64fdb815c1`): "No concrete defects found", with its evidence per fix.
+- `merge-abort-is-allowed-during-a-merge` (`5588dc50f1`, released in alpha.11): four data-loss findings, each said reproduced.
+  An abort whose form does not match the waiting operation runs with no copy saved
+  (`git rebase --abort` during a `--rebase-merges` merge step, `git am --abort` during an apply-backend rebase),
+  and the ignored-file check reads `ORIG_HEAD` where three of the four abort forms restore another revision.
+  Before that change every abort was refused while an operation waited, so these losses are new with alpha.11.
+  Round 248 (`fix/git-policy-cli-review-findings-abort-saves-a-copy-before-every-abort`, from `main`) reproduces and fixes them,
+  and reads Kimi's review of the same commit when it appears.
+  Weighed as worth an agent at once: reproduced, loses a person's work, and in the installed release.
+
+Pools at 20:17 (the package's count): qwen plan DeepSeek 18 of 18, DeepSeek flex 13 of 20, Kimi flex 17 of 20, qwen4 10 of 18
+(three reviews running and others waiting on the scratch gate's four).
+
+A worktree add on alpha.11, for pass 15's own worktree: started about 20:09:40, the folder was there at 20:12,
+and at 20:16 the add was still running `cargo clean --offline --package ...` and `cargo metadata` for the new worktree
+(the package repair, inline in the add), six and a half minutes in.
+Six stage folders `.cli-git-worktree-copy-<uuid>` of other adds made between 20:14 and 20:16 stood beside it, and one from 20:01.
+
+Pushes on alpha.11: the lock commit `cda4585cf2` and the handover commit `c9d2b92aaf` were both on the remote at 20:07:00
+with no hand push, where alpha.10's `d9580168f5` had sat unpushed for three and a half minutes.
+Two commits are a small sample; the hourly pass looks again.
+
+Round 246, both from `main`:
+
+- `fix/git-policy-cli-commit-does-not-fail-when-its-scratch-commit-stalls`:
+  a scratch step that passes its ceiling while it waits for the disk is slow, not stuck, and the commit goes on;
+  the ceiling gets a floor or a wider memory than a freshly rotated log; the `SIGKILL` line is said once.
+- `perf/git-policy-cli-first-commit-after-an-install-does-not-wait-for-the-old-service`:
+  split the 17.6 s by its steps, then take off the commit's wait what need not be on it,
+  the old service's stop first (the owner's suggestion, stated in the brief as the project's direction to be checked by measurement).
+
+A fourth commit on alpha.11 (this section's own, 20:07:25 to 20:07:47) landed in 22 s and printed
+"The commit service has not said where this commit stands yet; it has waited 10 seconds."
+
+Decided under the owner's delegation while away, each open to veto:
+
+- alpha.11 stays installed (reason and the condition for going back are in this section).
+- Integration pass 15 for 0.6.1-alpha.12 started at 20:09 (round 247, `integrate/git-policy-cli-pass-15-for-alpha-12`, from `main`):
+  the twelve finished branches pass 14 did not hold, among them the two that fix the day's worst jams
+  (`fix/git-policy-cli-landed-sweep-spares-a-new-worktree-and-never-holds-the-merge`,
+  `perf/git-policy-cli-service-runs-independent-work-side-by-side`),
+  the Clippy fix, and the shadow pool planning record. It compiles the code and the tests and runs Clippy once; no suite.
+  When it ends with a compiling tip, alpha.12 is released the way alpha.11 was. Reviews of those branches run on qwen4 beside it
+  and do not hold the release (the owner: "didn't I also say reviews and mutation testings don't block publishing?").
+- The long audits (Kimi and Sonnet side by side) are run on the alpha.12 code, not on alpha.11:
+  the fixes for the alpha.10 audits' findings are still landing (round 235 and the branches in pass 15),
+  so an audit of alpha.11 would mostly find again what is already being fixed.
+
+Also: every Git command printed `mpm-shadow`'s warning that the machine's global lock still named 0.6.1-alpha.10.
+Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`, again did not run as printed
+(`bash: command not found: mpm-shadow`), so the installed binary was run by its full path, as after alpha.9.
+The fix that puts `mpm-shadow` on `PATH` (`fix/mpm-shadow-printed-global-lock-remedy-runs-as-printed`) is not in the installed `mpm-shadow`.
+
+### 0.6.1-alpha.11 dispatched, and the third cull pass (2026-11-11T19:51:30-05:00)
+
+The integration branch `integrate/git-policy-cli-jam-fixes-after-alpha-9` was fast-forwarded to pass 14's tip `e33452755e`
+and `main` merged into it (`7e3b74281a`, 19:35:38; no Rust source of the wrapper differs from the tip pass 14 built).
+`main` was fast-forwarded to `7e3b74281a` and pushed at 19:50:59.
+`native:release -- 0.6.1-alpha.10 0.6.1-alpha.11` ran in unit `gpc-release-0-6-1-alpha-11`
+(log `${HOME}/temp/agent/gate/release-0.6.1-alpha.11.log`): it printed
+"no dispatch gate: an alpha release does not wait for node bin/native-release-host-controls.ts, which every other release does"
+and started `crate-release.yml` run 43130367751, which completed with success;
+`cargo-publish.yml` run 43130519508 followed (built from `c434449377`), watched by unit `gpc-release-wait-0-6-1-alpha-11`
+(log `${HOME}/temp/agent/gate/release-wait-0.6.1-alpha.11.log`).
+The full gate runs beside it, not waited for:
+unit `gpc-gate-wrapper-next-alpha-on-7e3b74281a-20261111T195115-0500`, log of the same name under `${HOME}/temp/agent/gate/`.
+Published at 19:59:41: `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.11`, with the x86_64 and aarch64 Linux tarballs
+(crates.io skipped, as for every alpha).
+Timings against the estimate for an alpha with no extra work (about 64 to 71 s for the release job and 342 s for the publish):
+`crate-release.yml` 77 s (00:51:35Z to 00:52:52Z), `cargo-publish.yml` 411 s (00:52:50Z to 00:59:41Z),
+486 s from the first run's creation to the second's end. No host gate ran and no `cargo check` step held the release.
+The publish run's time is the compile of the two binaries, which a release cannot do without:
+detection 36 s, then the x86_64 build 355 s and the aarch64 build 301 s side by side (the crate job beside them took 40 s).
+The earlier release with the btrfs gate waited 3,286 s before it dispatched anything.
+`native:install -- 0.6.1-alpha.11` started at 20:00:52 in unit `gpc-install-0-6-1-alpha-11`
+(log `${HOME}/temp/agent/gate/install-0.6.1-alpha.11.log`).
+Still to do: read the install's sample commit, watch whether a commit's push leaves by itself on alpha.11,
+the gate's verdict when it comes, and the Kimi and Sonnet audits of the released commit.
+
+Whether a queued push leaves by itself, on alpha.10: the handover commit `d9580168f5` (19:57:14) was made without a hand push,
+and was still not on the remote at 19:58:10 and at 20:00:43, three and a half minutes later,
+while every Git command in the checkout kept saying a commit "is queued for its push".
+The commit before it had gone out with its own command
+("push: origin/main had new commits, so the merge 46dc24847a... of main and origin/main was published").
+So on alpha.10 a queued push can sit for minutes; the same watch is repeated on alpha.11.
+
+A measurement of the installed 0.6.1-alpha.10 from this landing:
+`git merge --ff-only` of the integration branch in the main checkout had moved `refs/heads/main` by 19:50,
+and the command, started at 19:36:15, went on with its after-merge work, starting one short Git child after another,
+until 19:56:13: twenty minutes for a fast-forward.
+During it, at about 19:54:20, a one-file docs commit in the same checkout printed
+"The commit service stopped answering; asking it again with the same commit, which cannot land twice." and then landed;
+round 240's agent has that timed occurrence by inbox note.
+The same fast-forward in the integration worktree took about four and a half minutes.
+The fix that takes the landed-worktree sweep off the merge's wait
+(`fix/git-policy-cli-landed-sweep-spares-a-new-worktree-and-never-holds-the-merge`, 552 ms where the release took 25 s)
+is not in alpha.11; it goes into the next pass.
+
+The fast-forward also brought the sections agents wrote into this file on the integration branch,
+which now sit between this section and "Reviews go to qwen4 instead of Kimi, and pass 14 ended".
+
+The third cull pass (19:50). Decisions since the second pass: the service hands a commit its shadow (19:12),
+reviews go to qwen4 and running Kimi reviews finish (19:27 and 19:31), and pass 14 is on `main` (19:50).
+
+- Reframed by inbox note (19:53): the three agents that started from pass 14's branch while it stood at `7c0583c34c`,
+  where the package's tests do not compile
+  (`worktree-removal-finishes-while-its-dependencies-are-being-linked`, `commit-service-hands-a-commit-its-shadow`,
+  `commit-service-silence-on-an-ordinary-commit`): merge `main`, which holds the two later repairs.
+- Reframed by inbox note (19:34): the port agent (review commands model-neutral, qwen4 the default) and round 236 (the base option first).
+  The port agent ended at 19:49 having read both notes and reached neither the review commands nor the brief writers
+  (ported: the listing commands, the launcher lister, `remove-finished-worktrees` with the in-use check,
+  `start-a-batch-in-its-own-unit`, the wake step inside the launcher, a pool-limit override from the environment; 119 suites pass).
+  Round 244 (`feat/pi-shared-subagent-driver-review-commands-on-qwen4`, on the port branch) merges `main`,
+  ports the review starter and brief writer with qwen4 as the default and no model in any name, then the fix-brief writer and the rest.
+- No Kimi review is queued: 18 of round 231 are running and one has finished; the other two of that round were never started,
+  because their branches change nothing under `package/git-policy/cli/src/native`
+  (`open-issues-next-batch`, `pass-11-gate-failures`).
+  The one worktree made for them (`pi-kimi-review-open-issues-next-batch-round-231`) is removed;
+  the removal logged `worktreeRemovalInterruptedDestroy` and then removed the subvolume in one step.
+- Kept: every running fix agent (none rests on a changed decision), the four landing agents of round 241,
+  the four qwen4 reviews running and the four queued (round 243: landed sweep, service side by side, merge-asides findings, landed-sweep findings).
+- Nothing was stopped.
+
 ### The integration tip's two compile breaks, and the snapshot identity no record names (2026-11-11T17:57:56-05:00)
 
 Branch `fix/git-policy-cli-pass-13-tip-builds`,
