@@ -692,3 +692,30 @@ fn the_record_keeps_what_the_push_came_to() {
     }
     remove(root.as_path());
 }
+
+/// What:
+///  A failure record whose replacement cannot be written leaves the record it would have replaced.
+/// Why:
+///   A push that is tried again writes its record again,
+/// and a kill or a full disk in that write must leave one of the two records:
+/// a record removed before the new one is published leaves the person nothing about a commit whose backup the remote refused,
+/// and the change this control guards replaced a record by removing it first.
+#[test]
+fn a_failure_record_whose_replacement_is_refused_keeps_the_record_it_replaces() {
+    use crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN;
+    const FIRST: &str = "the first refusal, which nobody has read";
+    const SECOND: &str = "the second refusal, which could not be written";
+    let root: PathBuf = fixture("notice-replacement-refused");
+    record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, FIRST).expect("the first record");
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the disk filled")); }));
+    });
+    let refused: Result<(), String> = record_push_failure(root.as_path(), BRANCH, COMMIT, PushOutcome::Refused, SECOND);
+    AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    refused.expect_err("a write the disk refused");
+    let shown: Vec<String> = take_push_failures(root.as_path());
+    assert_eq!(shown.len(), 1, "the record that stood there is gone: {shown:?}");
+    assert!(shown[0].contains(FIRST), "the words nobody had read were kept: {:?}", shown[0]);
+    assert!(!shown[0].contains(SECOND), "the refused words are not the record: {:?}", shown[0]);
+    remove(root.as_path());
+}

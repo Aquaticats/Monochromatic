@@ -23,8 +23,8 @@
 //! ```
 
 use crate::auto_push_branch_key::encode_branch_key;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use crate::push_failure_notice::{BRANCH_FIELD, COMMIT_FIELD, LONGEST_KEY, NAME_SEPARATOR, clean_reason, fnv_hex, notice_directory};
+use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
+use crate::push_failure_notice::{BRANCH_FIELD, COMMIT_FIELD, LONGEST_KEY, NAME_SEPARATOR, clean_words, fnv_hex, notice_directory};
 use std::path::{Path, PathBuf};
 
 /// First line of a record of what a push that succeeded did,
@@ -67,6 +67,16 @@ fn report_name(branch_ref: &str, commit: &str) -> String {
 /// The record carries them to the
 ///  next command,
 /// which shows it once.
+///  It keeps every line the push chose to show,
+/// because nothing makes an accepted push say it again:
+/// a push of what the
+///  remote already holds prints `Everything up-to-date` and runs no hook,
+/// so a line cut here is a line lost
+///  (`SPEC.md`,
+/// "Reconcile and bounds").
+///  The record is replaced in one rename,
+/// so a kill while a second try writes its record leaves the first record whole
+///  rather than none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,11 +88,14 @@ pub fn record_push_report(git_dir: &Path, branch_ref: &str, commit: &str, said: 
         return Err(format!("creating the notice directory failed: {error}"));
     }
     let path: PathBuf = directory.join(report_name(branch_ref, commit));
-    // A repeat of the same report replaces its record.
-    let _removed = std::fs::remove_file(path.as_path());
-    let text: String = format!("{REPORT_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
-    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+    let text: String = format!("{REPORT_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_words(said));
+    return match replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
     };
 }
+
+/// Record controls stay out of the release executable.
+#[cfg(test)]
+#[path = "push_failure_notice_reports_tests.rs"]
+mod tests;
