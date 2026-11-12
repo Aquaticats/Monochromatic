@@ -262,6 +262,95 @@ The runs behind these are under
 and `unit-before-mine.log` (the five controls failing against
 `02a9416b39`'s three plan files).
 
+## The push the commit service runs finds its programs where the shell does
+
+### The defect
+
+A note of 2026-11-12T09:06-05:00 added a third finding.
+After the desktop session was lost on 2026-11-12 and a new one began,
+two worktrees' commits landed and their pushes were refused because the commit service could not find `git-lfs`:
+the service runs under the user manager and takes the manager's environment,
+and that `PATH` (`/usr/local/sbin:/usr/local/bin:/usr/bin`)
+held no folder `git-lfs` is installed in,
+while the shells that committed had one.
+The person committing could neither see that list nor change it from their shell.
+
+Where each program of a push comes from,
+read from the code:
+
+- real Git:
+  the absolute path the unit passes (`--git`),
+  never a search.
+- `git-lfs`:
+  `PATH` of the environment the push is handed (`lfs_pre_push::find_program`,
+  `program_on_path`).
+- a credential helper:
+  `PATH` of the same environment plus the repository's configuration.
+- `ssh` and a proxy command:
+  `PATH` and `GIT_SSH`,
+  `GIT_SSH_COMMAND`,
+  `GIT_PROXY_COMMAND`.
+- an askpass program:
+  never located,
+  because every service push carries the never-prompt pair by the owner's decision
+  (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
+
+That environment was `std::env::vars_os()` of the service:
+the manager's.
+
+### The fix
+
+The client that commits records the list its own shell searches
+at `<git-dir>/monochromatic-git-policy-cli/push-programs.json`,
+in the folder the durable work records already use,
+before every submit (`service_client_program_search`):
+its `PATH`,
+`GIT_EXEC_PATH`,
+`GIT_SSH`,
+`GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND`,
+one rename over the name so a push never reads half a list.
+The service reads it before every push and lays it over its own environment
+(`service_work_push_environment`),
+and marks which list it used
+(`MONOCHROMATIC_PUSH_PROGRAM_SEARCH_RECORD`,
+or `..._MISSING` with the record's path),
+so the refusal names the program,
+every folder of the list it searched,
+and where that list came from
+(`lfs_pre_push::ProgramSearch`).
+It is per worktree and refreshed by every commit,
+so a push retried after the client exits still uses the shell that made the commit;
+its reason is written in the module header.
+
+The control,
+`lfs_pre_push::a_commit_whose_service_lacks_the_shells_path_finds_git_lfs_through_the_shells_search_list`,
+fails against the code before the fix at
+`the service's push published the commit ... left: "absent" right: "8bc4667d9d..."`,
+with the service's push saying `\`git-lfs\` was not found in any directory of PATH`
+and the remote empty;
+it passes now.
+
+### Checks after this change
+
+- `mise run //package/git-policy/cli:native:clippy`:
+  no warning.
+- `native:test:host -- --no-fail-fast lfs service_work`:
+  `215 tests run: 215 passed, 7229 skipped`,
+  naming `service_client_program_search::tests::*`,
+  `the_service_push_searches_the_list_the_client_recorded`
+  and the two message controls.
+- `native:test:binary:host -- --no-fail-fast lfs`:
+  `55 tests run: 55 passed, 1030 skipped`.
+- Nine controls of `service_replay`,
+  `service_lane::a_landing_waiting`,
+  `fault_trace::lock_without_links` and `wait_notice::a_commit_that_waits`
+  fail or time out at this machine,
+  and fail the same way at `f059a5367a` in a clean worktree of its own,
+  with this change disabled and with a copy of the record never read:
+  they are `main`'s at the merge,
+  and they are the lock-holder search the coordinator named
+  (the wrapper reads `/proc/<pid>/fdinfo` of the IDE's watcher).
+
 ## Open work
 
 - The plan's evidence is about the destination's git commits,
