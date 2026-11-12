@@ -283,8 +283,8 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     //  back (`F13` of the alpha.12 audit). It is ended at the bound of a bulk step instead, because the wrapper puts back
     //  every path it changed, and the branch it has not moved
     //  (`SPEC.md`, "The bounds of a merge's steps"; `merge_isolation_apply_stops.rs`).
-    // The invocation's own global options carry a relative , so the step runs in the directory the command runs in,
-    // as every other step of the merge does (), and not in a root the  would be applied to twice.
+    // The invocation's own global options carry a relative `-C`, so the step runs in the directory the command runs in,
+    // as every other step of the merge does (`.`), and not in a root the `-C` would be applied to twice.
     let mover_request = GitRequest::new(Path::new("."), &["merge", "--ff-only", "--no-edit", new_oid]).ended_at_its_bound();
     let ended: bool;
     let moved: GitOutput = match mover.run_request(&mover_request) {
