@@ -6527,7 +6527,8 @@ on the commit path:
   That keep follows the rule a withdrawal behind the index lock follows:
   a kept reference that cannot be written leaves the batch's own reference where it is,
   the person is told the commit's name and that reference,
-  and the batch's own reference is let go of only after the kept reference names the commit and only while it still does.
+  and the batch's own reference is let go of only after the kept reference names the commit,
+  and only while it still does.
   A step of the landing never ends a hook of the person:
   every Git it starts carries the hooks-off options,
   and the one place a hook of the person runs below a step of the wrapper is a push to a local path
@@ -8806,7 +8807,8 @@ the reference its transaction deletes beside it,
 A lock on another reference can refuse neither the move nor the delete,
 and native Git commits on a branch while another branch's lock stands,
 so a held commit is never kept held behind a lock that is not in its way.
-The landing's own wait for a reference lock is unchanged and still looks at every reference lock of the repository.
+The landing's own wait for a reference lock is unchanged,
+and still looks at every reference lock of the repository.
 
 The settlement reads the branch and moves it by one compare-and-swap,
 with the side reference removed in the same transaction.
