@@ -169,6 +169,7 @@ export {
   type BatchEntry,
   ENTRY_LINE_CHARACTERS,
   ENTRY_OUTPUT_KEPT_CHARACTERS,
+  type StartedBatch,
   type StartedEntry,
   batchEntriesIn,
   entryLineOf,
