@@ -269,8 +269,8 @@ fn difference(wrapped: &Ended, direct: &Ended, expectation: Expectation) -> Opti
     if !objects_agree {
         differences.push(format!(
             "commit object bytes:\n  wrapped {}\n  direct  {}",
-            wrapped.object.as_deref().map_or_else(|| String::from("none"), escaped),
-            direct.object.as_deref().map_or_else(|| String::from("none"), escaped)
+            wrapped.object.as_deref().map_or_else(|| { return String::from("none"); }, escaped),
+            direct.object.as_deref().map_or_else(|| { return String::from("none"); }, escaped)
         ));
     }
     if wrapped.tree != direct.tree {
@@ -296,7 +296,7 @@ fn difference(wrapped: &Ended, direct: &Ended, expectation: Expectation) -> Opti
             differences.push(format!("standard output:\n  wrapped {wrapped_shown:?}\n  direct  {direct_shown:?}"));
         }
     }
-    return (!differences.is_empty()).then(|| differences.join("\n"));
+    return (!differences.is_empty()).then(|| { return differences.join("\n"); });
 }
 
 /// What:

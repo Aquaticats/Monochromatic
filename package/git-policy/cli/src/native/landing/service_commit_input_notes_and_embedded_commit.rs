@@ -207,8 +207,8 @@ pub(crate) fn embedded_commit(invocation: &CommitInvocation<'_>, parsed: Service
     };
     let previous: Option<&str> = source.as_ref().map(message_of_source);
     let Some(built) = build_message(invocation, &parsed, committer.as_str(), previous)? else { return Ok(None) };
-    let (message, message_repaired): (Option<String>, bool) = repaired_text_bytes(built.message.as_bytes());
-    let Some(message) = message else { return Ok(None) };
+    let (repaired_message, message_repaired): (Option<String>, bool) = repaired_text_bytes(built.message.as_bytes());
+    let Some(message) = repaired_message else { return Ok(None) };
     let (author, author_repaired): (String, bool) = match built.reused_author {
         Some(reused) => (reused, false),
         None => match source.as_ref() {
