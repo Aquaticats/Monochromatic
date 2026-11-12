@@ -71,8 +71,13 @@ well above the 72 ms it took in this checkout on 2026-11-11,
 because a session starts unattended and nothing here waits forever.
 A program that does not answer is refused as well as one that answers wrongly.
 
-`start-pi-run-in-a-worktree` asks after it has made the worktree and before it links dependencies,
-so a refused launch has started no unit, written no run folder and linked nothing,
+`start-pi-run-in-a-worktree` asks it first, before any other check and before anything is made,
+because the base a run starts at is read with git:
+when git is the wrong program,
+"the base `main` names no commit" would name a symptom of the wrong git and hide the cause.
+The question is asked in the checkout rather than in the run's own worktree,
+which does not exist yet and must not be made for a start that is refused.
+A refused launch has made no worktree, started no unit, written no run folder and linked nothing,
 and it exits 1 saying:
 
 - the path of the `git` the session would run,
@@ -80,10 +85,6 @@ and it exits 1 saying:
 - and the fix: the wrapper is the `git` link in `.cache/monochromatic-git-policy-cli-bin` under the checkout,
   which `mise run toolchain:install` makes,
   and that folder has to come before the system one on the session's `PATH`.
-
-A worktree it made stays as it is:
-the refusal line names that folder,
-and nothing here removes a worktree that may be an earlier run's.
 
 `drive-pi-subagent` asks the same question of the environment it is about to hand Pi,
 in the working folder it was given,
@@ -255,7 +256,9 @@ It used to wait on `systemd-run --wait` alone,
 and while an impostor manager held the session bus name on 2026-11-11,
 sixteen launchers never heard their units end and waited about ten hours.
 
-Nothing is made before three checks pass:
+Nothing is made before four checks pass,
+the first of which is the one above:
+the `git` the session would run is this repository's policy wrapper,
 the prompt file exists and can be read,
 the base names a commit,
 and no unit of the run's name is there.
