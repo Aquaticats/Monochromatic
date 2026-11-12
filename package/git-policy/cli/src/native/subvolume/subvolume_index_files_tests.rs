@@ -370,6 +370,34 @@ fn a_recorded_zero_nanosecond_count_matches_any_and_a_non_zero_one_must_agree() 
     assert!(matches_stored(&now, &stored), "equal non-zero counts agree");
 }
 
+/// What:
+///  An entry that recorded no nanoseconds never proves which bytes its file holds,
+/// even when every field it
+///  recorded agrees.
+/// Why:
+///   Zero is what a Git without nanosecond support wrote for a count it could not express,
+/// and the recorded
+///  comparison reads it as "any value";
+/// such an entry equals a file of the same length,
+/// inode and second even
+///  after an edit,
+/// so only a comparison of that kind may use it and a caller that would skip reading the
+///  file may not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(matchesStoredExactly(now, stored)).toBe(true); expect(matchesStoredExactly(now, { ...stored, mtimeNanos: 0 })).toBe(false);
+/// ```
+#[test]
+fn an_entry_that_recorded_no_nanoseconds_never_proves_its_files_bytes() {
+    let (now, stored) = recorded_and_present();
+    assert!(matches_stored_exactly(&now, &stored), "positive control: every recorded field, counts included, agrees");
+    assert!(!matches_stored_exactly(&now, &StoredStat { mtime_nanos: 0, ..stored }), "a modification time recorded as zero proves nothing");
+    assert!(!matches_stored_exactly(&now, &StoredStat { ctime_nanos: 0, ..stored }), "a change time recorded as zero proves nothing");
+    assert!(!matches_stored_exactly(&StatFields { mtime_nanos: now.mtime_nanos + 1, ..now }, &stored), "a different count proves the file is not the entry's");
+    assert!(matches_stored(&now, &StoredStat { mtime_nanos: 0, ..stored }), "the recorded comparison still reads zero as any value");
+}
+
 /// A seed index of a one-file repository,
 /// and an administrative directory with no index.
 fn seed_and_admin(name: &str) -> (PathBuf, Vec<u8>, PathBuf, std::fs::File, StatFields) {

@@ -10,12 +10,14 @@
 //! operation in progress,
 //! submodule,
 //!  racy entry) is refused with its reason,
-//! while an ignored file changes nothing.
+//! while an ignored file changes nothing;
+//! an entry that recorded no nanoseconds is settled by content and never trusted.
 
 use super::*;
 use crate::parallel_test_support::{PATIENCE, hold_the_only_place};
 use crate::subvolume_index::StatFields;
 use crate::test_support::{age, fixture, git, git_context, git_text, remove, repository};
+use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
 /// A repository with two tracked files,
@@ -255,11 +257,17 @@ staged
     remove(root.as_path());
 }
 
+/// The stat data and the parsed entries of the index `bytes`,
+/// with the stat data the walk compares files with.
+fn walk_inputs_of(bytes: &[u8]) -> (Vec<StatEntry>, Vec<crate::repo_read_index::IndexEntry>) {
+    let entries: Vec<StatEntry> = stored_stats(bytes, 20).expect("entries");
+    let indexed: Vec<crate::repo_read_index::IndexEntry> = crate::repo_read_index::parse_index(bytes, crate::repo_read_layout::ObjectFormat::Sha1).expect("the index of the fixture is a plain one");
+    return (entries, indexed);
+}
+
 /// The entries of a clean fixture and the index the walk compares them with.
 fn walk_inputs(clean: &CleanSource) -> (Vec<StatEntry>, Vec<crate::repo_read_index::IndexEntry>) {
-    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
-    let indexed: Vec<crate::repo_read_index::IndexEntry> = crate::repo_read_index::parse_index(clean.index_bytes.as_slice(), crate::repo_read_layout::ObjectFormat::Sha1).expect("the index of the fixture is a plain one");
-    return (entries, indexed);
+    return walk_inputs_of(clean.index_bytes.as_slice());
 }
 
 /// The content decision's target for a fixture worktree,
@@ -413,5 +421,54 @@ fn a_worktree_that_is_not_clean_is_still_refused_where_no_thread_can_start() {
     crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises again");
     let why: CleanRefusal = refused.expect_err("a staged change is not clean");
     assert!(why.reason.contains("a.txt is staged with a change"), "{}", why.reason);
+    remove(root.as_path());
+}
+
+/// What:
+///  An entry that recorded no nanoseconds never proves which bytes its file holds,
+/// and both content walks
+///  settle it by reading the file.
+/// Why:
+///   Zero is how a Git built without nanosecond support writes the counts it cannot express,
+/// and the stat data
+///  comparison reads zero as "any value":
+/// such an entry equals a file of the same length,
+/// inode and second even after an
+///  edit of the same length,
+/// so a walk that trusted it would certify bytes the committed blob does not name.
+/// The walks
+///  exist to find exactly those files,
+/// and the restore then writes the commit's bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hideAnEdit(repo, 'a.txt', 'alpha\n', 'ALPHA\n'); zeroTheRecordedNanoseconds(entries);
+/// expect(pathsWhoseContentDiffers(...)).toEqual(['a.txt']); expect(() => treeFieldsByContent(...)).toThrow(/a.txt/);
+/// ```
+#[test]
+fn an_entry_that_recorded_no_nanoseconds_is_never_taken_as_proof_of_its_files_bytes() {
+    let root: PathBuf = fixture("clean-zero-nanoseconds");
+    let repo: PathBuf = aged_repository(root.as_path());
+    assert!(check(repo.as_path()).is_ok(), "the fixture is clean before the edit");
+    assert!(crate::worktree_ladder_test_support::hide_an_edit(repo.as_path(), "a.txt", b"alpha\n", b"ALPHA\n"), "the fixture hides its edit from Git's own check");
+    let index_path: PathBuf = repo.join(".git/index");
+    let index_seconds: u32 = std::fs::metadata(index_path.as_path()).expect("the index is there").mtime() as u32;
+    let index_bytes: Vec<u8> = std::fs::read(index_path.as_path()).expect("the index the fixture carries");
+    let (mut entries, indexed) = walk_inputs_of(index_bytes.as_slice());
+    // An index written by a Git without nanosecond support records the same seconds, inode and size and zero for the counts
+    //  it could not express, so the entry is what such a Git leaves for a file it recorded before the edit.
+    for entry in &mut entries {
+        entry.stored.ctime_nanos = 0;
+        entry.stored.mtime_nanos = 0;
+    }
+    let environment = crate::fixture_content_decision::content_environment();
+    let canonical: PathBuf = std::fs::canonicalize(repo.as_path()).expect("canonical");
+    let git_dir: PathBuf = canonical.join(".git");
+    let target: ContentTarget<'_> = content_target(canonical.as_path(), git_dir.as_path(), &environment);
+    let named: Vec<Vec<u8>> = paths_whose_content_differs(&target, entries.as_slice(), indexed.as_slice(), index_seconds).expect("the content walk runs");
+    assert_eq!(named, vec![b"a.txt".to_vec()], "the edited bytes are named for removal");
+    let refused: CleanRefusal = tree_fields_by_content(&target, entries.as_slice(), indexed.as_slice(), index_seconds).expect_err("the walk refuses the edit rather than trusting the entry");
+    assert!(refused.reason.contains("a.txt"), "{}", refused.reason);
+    assert_eq!(refused.kind, CleanRefusalKind::FileChanged);
     remove(root.as_path());
 }

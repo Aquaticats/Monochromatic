@@ -188,6 +188,29 @@ pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
 }
 
 /// What:
+///  Whether a file's present stat equals what an entry recorded,
+/// with the change and modification times to the
+///  nanosecond,
+/// so the file is provably the one the entry described.
+/// Why:
+///   An index written by a Git built without nanosecond support records zero for both counts,
+/// and zero matches any
+///  present value;
+/// such an entry says the file is of its size,
+/// its inode and its second,
+/// never that its
+///  bytes are the ones the entry names,
+/// so a caller that would skip reading the file cannot take it as proof.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// matchesStoredExactly(now, stored); // every recorded field, the nanosecond counts included, is known and equal
+/// ```
+pub(crate) fn matches_stored_exactly(now: &StatFields, stored: &StoredStat) -> bool {
+    return stored.ctime_nanos != 0 && stored.mtime_nanos != 0 && matches_stored(now, stored);
+}
+
+/// What:
 ///  Rewrite one index file in place and report what happened in one line.
 /// Why:
 ///   A missing index is not an error (a worktree never checked out has none);

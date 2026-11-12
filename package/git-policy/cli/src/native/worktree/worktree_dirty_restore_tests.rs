@@ -4,13 +4,15 @@
 //! the Git runs are exactly the two the design lists,
 //! the ignored files of the source survive a commit that ignores nothing,
 //! an edit the reset cannot see is replaced by the commit's bytes,
+//! also when the index recorded no nanoseconds,
 //! and a restore never runs in the source.
 
 use super::*;
 use crate::test_support::{REAL_GIT, fixture, git, git_context, git_output, remove, repository};
+use crate::worktree_clean::StatEntry;
 use crate::worktree_copy::{GitStatus, GitStep};
 use crate::worktree_copy_error::WorktreeCopyError;
-use crate::worktree_ladder_test_support::hide_an_edit;
+use crate::worktree_ladder_test_support::{as_a_git_without_nanoseconds_wrote_it, hide_an_edit};
 use crate::worktree_snapshot_index_step::install_index;
 use std::path::{Path, PathBuf};
 
@@ -395,6 +397,85 @@ fn a_collapsed_untracked_directory_is_carried_only_when_all_of_it_is() {
     remove(root.as_path());
 }
 
+/// The bytes the fixture commits, and the same-length bytes an edit puts in their place.
+const COMMITTED: &[u8] = b"first\n";
+const EDITED: &[u8] = b"other\n";
+
+/// What:
+///  A stage whose index and files are one instant,
+///  with an edit Git's own stat check cannot see,
+/// and the
+///  pieces a restore of it is told about.
+/// Why:
+///   Both controls of the hidden edit need the same stage,
+/// its administrative directory,
+/// the index
+///  the snapshot carries,
+/// the source and the target;
+/// they differ only in the index they install.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stage, admin, seed, source, target } = hiddenEditFixture(root);
+/// ```
+fn hidden_edit_fixture(root: &Path) -> (PathBuf, PathBuf, Vec<u8>, SnapshotSource, Target) {
+    let repo: PathBuf = repository(root, "stage");
+    std::fs::write(repo.join("a.txt"), COMMITTED).expect("the tracked file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let admin: PathBuf = admin_of(root.join("topic").as_path());
+    // The edit is made after the index recorded the file, and Git's own check cannot see it.
+    assert!(hide_an_edit(repo.as_path(), "a.txt", COMMITTED, EDITED), "the fixture hides its edit from Git's stat check");
+    assert_eq!(std::fs::read(repo.join("a.txt")).expect("the edit"), EDITED);
+    assert!(git_output(repo.as_path(), &["diff-files", "--quiet"]).status.success(), "the fixture's edit is hidden from Git's own check");
+    let seed: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("the index the snapshot carries");
+    let head: String = commit_of(repo.as_path(), "HEAD");
+    let elsewhere_git: PathBuf = elsewhere_git_dir(root);
+    let elsewhere: PathBuf = elsewhere_git.parent().expect("the Git directory's parent").to_path_buf();
+    let source = SnapshotSource {
+        root: elsewhere.clone(),
+        git_dir: elsewhere_git.clone(),
+        common_dir: elsewhere_git,
+        clean: crate::worktree_clean::CleanSource { head_commit: head.clone(), head_tree: Vec::new(), tracked: 1, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: seed.clone() },
+        nested: Vec::new(),
+        config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
+        trash_ignored: false,
+        dirty: None,
+    };
+    let target: Target = Target { admin: admin.clone(), pointer: Vec::new(), commit: head, differs: false, line: String::new() };
+    return (repo, admin, seed, source, target);
+}
+
+/// The assertions a restore of a hidden edit has to hold:
+/// the stage holds the commit's bytes,
+/// and Git's own check of the
+///  installed index calls the stage clean.
+/// Why:
+///   Both controls publish the same state and differ only in the entry the index records,
+/// so the judgement of
+///  that state is written once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(readFileSync(join(stage, 'a.txt'))).toEqual(COMMITTED); expect(git(stage, ['diff-files', '--quiet'])).toBeClean();
+/// ```
+fn assert_the_stage_holds_the_commits_bytes(repo: &Path, admin: &Path) {
+    assert_eq!(std::fs::read(repo.join("a.txt")).expect("the restored file"), COMMITTED, "the copy holds the commit's bytes, as Git's own checkout makes them");
+    // The stage carries the new worktree's Git pointer in the product, so Git reads the installed index there and not
+    //  the source's own.
+    let in_the_stage: [String; 4] = ["--git-dir", admin.to_string_lossy().as_ref(), "--work-tree", repo.to_string_lossy().as_ref()].map(String::from);
+    let differences: Vec<String> = in_the_stage.iter().cloned().chain(["diff-files"].map(String::from)).collect();
+    let after: std::process::Output = git_output(repo, differences.as_slice());
+    let recorded: Vec<String> = in_the_stage.iter().cloned().chain(["ls-files", "--debug"].map(String::from)).collect();
+    assert!(
+        after.status.success() && after.stdout.is_empty(),
+        "the restored worktree is clean, but Git says {}; the index records {}",
+        String::from_utf8_lossy(after.stdout.as_slice()),
+        String::from_utf8_lossy(git_output(repo, recorded.as_slice()).stdout.as_slice())
+    );
+}
+
 /// What:
 ///  A restore replaces a file an edit changed in a way the reset cannot see with the commit's bytes,
 /// and its
@@ -423,51 +504,55 @@ fn a_collapsed_untracked_directory_is_carried_only_when_all_of_it_is() {
 #[test]
 fn a_restore_replaces_an_edit_that_keeps_its_files_size_and_times() {
     let root: PathBuf = fixture("restore-hidden-edit");
-    let original: &[u8] = b"first\n";
-    let edited: &[u8] = b"other\n";
-    let repo: PathBuf = repository(root.as_path(), "stage");
-    std::fs::write(repo.join("a.txt"), original).expect("the tracked file");
-    git(repo.as_path(), &["add", "--", "a.txt"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
-    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
-    let admin: PathBuf = admin_of(root.join("topic").as_path());
-    // The edit is made after the index recorded the file, and Git's own check cannot see it.
-    assert!(hide_an_edit(repo.as_path(), "a.txt", original, edited), "the fixture hides its edit from Git's stat check");
-    assert_eq!(std::fs::read(repo.join("a.txt")).expect("the edit"), edited);
-    assert!(git_output(repo.as_path(), &["diff-files", "--quiet"]).status.success(), "the fixture's edit is hidden from Git's own check");
-    let seed: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("the index the snapshot carries");
-    let head: String = commit_of(repo.as_path(), "HEAD");
-    let elsewhere_git: PathBuf = elsewhere_git_dir(root.as_path());
-    let elsewhere: PathBuf = elsewhere_git.parent().expect("the Git directory's parent").to_path_buf();
-    let source = SnapshotSource {
-        root: elsewhere.clone(),
-        git_dir: elsewhere_git.clone(),
-        common_dir: elsewhere_git.clone(),
-        clean: crate::worktree_clean::CleanSource { head_commit: head.clone(), head_tree: Vec::new(), tracked: 1, index_seconds: 0, hash_length: 20, attribute_blobs: Vec::new(), index_bytes: seed.clone() },
-        nested: Vec::new(),
-        config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
-        trash_ignored: false,
-        dirty: None,
-    };
-    let target: Target = Target { admin: admin.clone(), pointer: Vec::new(), commit: head, differs: false, line: String::new() };
+    let (repo, admin, seed, source, target) = hidden_edit_fixture(root.as_path());
     let held: std::fs::File = open_root(admin.as_path()).expect("the administrative directory opens");
     install_index(&source, repo.as_path(), &held, Some(seed.as_slice()), &crate::fixture_content_decision::content_environment(), None).expect("the index installs");
     drop(held);
     let mut steps = real_steps(root.as_path());
     let outcome: Result<(), String> = restore_dirty(&source, &target, repo.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment());
     assert_eq!(outcome, Ok(()), "the restore and its proof hold");
-    assert_eq!(std::fs::read(repo.join("a.txt")).expect("the restored file"), original, "the copy holds the commit's bytes, as Git's own checkout makes them");
-    // The stage carries the new worktree's Git pointer in the product, so Git reads the installed index there and not
-    //  the source's own.
-    let in_the_stage: [String; 4] = ["--git-dir", admin.to_string_lossy().as_ref(), "--work-tree", repo.to_string_lossy().as_ref()].map(String::from);
-    let differences: Vec<String> = in_the_stage.iter().cloned().chain(["diff-files"].map(String::from)).collect();
-    let after: std::process::Output = git_output(repo.as_path(), differences.as_slice());
-    let recorded: Vec<String> = in_the_stage.iter().cloned().chain(["ls-files", "--debug"].map(String::from)).collect();
-    assert!(
-        after.status.success() && after.stdout.is_empty(),
-        "the restored worktree is clean, but Git says {}; the index records {}",
-        String::from_utf8_lossy(after.stdout.as_slice()),
-        String::from_utf8_lossy(git_output(repo.as_path(), recorded.as_slice()).stdout.as_slice())
-    );
+    assert_the_stage_holds_the_commits_bytes(repo.as_path(), admin.as_path());
+    remove(root.as_path());
+}
+
+/// What:
+///  A restore replaces a hidden edit even when the index recorded no nanoseconds,
+/// which is how a Git built
+///  without nanosecond support writes its entries.
+/// Why:
+///   The recorded stat data of such an entry equals a file of the same length,
+/// inode and second even after an
+///  edit,
+/// because zero is written for the counts it cannot express and matches any present count;
+/// the entry proves
+///  nothing about the bytes,
+/// so the walk must read the file instead of trusting the fields,
+/// or the restore publishes
+///  an edit the commit does not hold.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// installIndex({ ...fixture, ownIndex: asAGitWithoutNanosecondsWroteIt(seed, 20) });
+/// await restoreDirty({ ... });
+/// expect(readFileSync(join(stage, 'a.txt'))).toEqual(COMMITTED);
+/// ```
+#[test]
+fn a_restore_replaces_a_hidden_edit_when_the_index_recorded_no_nanoseconds() {
+    let root: PathBuf = fixture("restore-hidden-edit-zero-nanos");
+    let (repo, admin, seed, mut source, target) = hidden_edit_fixture(root.as_path());
+    let without_nanoseconds: Vec<u8> = as_a_git_without_nanoseconds_wrote_it(seed.as_slice(), 20);
+    source.clean.index_bytes = without_nanoseconds.clone();
+    let held: std::fs::File = open_root(admin.as_path()).expect("the administrative directory opens");
+    install_index(&source, repo.as_path(), &held, Some(without_nanoseconds.as_slice()), &crate::fixture_content_decision::content_environment(), None).expect("the index installs");
+    drop(held);
+    // The installed entry is the one the fixture wrote: the counts are zero, so the entry's stat data proves nothing about the bytes.
+    let installed: Vec<u8> = std::fs::read(admin.join("index")).expect("the installed index");
+    let recorded: Vec<StatEntry> = stored_stats(installed.as_slice(), 20).expect("the entries are plain");
+    let edited: &StatEntry = recorded.iter().find(|entry: &&StatEntry| { return entry.path == b"a.txt"; }).expect("the entry of the edited file");
+    assert_eq!((edited.stored.ctime_nanos, edited.stored.mtime_nanos), (0, 0), "the installed index records no nanoseconds");
+    let mut steps = real_steps(root.as_path());
+    let outcome: Result<(), String> = restore_dirty(&source, &target, repo.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment());
+    assert_eq!(outcome, Ok(()), "the restore and its proof hold");
+    assert_the_stage_holds_the_commits_bytes(repo.as_path(), admin.as_path());
     remove(root.as_path());
 }
