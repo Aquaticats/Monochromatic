@@ -372,6 +372,10 @@ pub mod worktree_trash_remove;
 /// which every automatic removal asks for first.
 pub mod worktree_added_by_the_wrapper;
 
+/// The commits a branch's own reflog says it moved between,
+/// which is what says whether a branch a merge brought in holds work of its own.
+pub mod worktree_branch_reflog;
+
 /// Whether a directory is one of this repository's linked worktrees,
 /// proved from the pointer and the registration Git wrote there,
 /// which every command that changes state in a recorded worktree asks for first.

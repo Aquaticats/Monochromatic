@@ -172,11 +172,17 @@ const OUTPUT_TAIL_BYTES: usize = 600;
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// What:
-///  The first executable file named `name` in a search path.
+///  The first executable file named `name` in a search path,
+///  named by its absolute path.
 /// Why:
 ///   The program is the one the person's environment resolves;
 /// a missing one is a verdict,
 /// not a failure to start.
+/// An entry without a leading slash names a directory of the directory this lookup happens in,
+/// and every repair starts its tool in the worktree,
+/// so the file is named where it was found rather than with a path the child would read from its own directory.
+/// A directory of this process that cannot be read names no file to start,
+/// which is the same answer as a program the search path does not hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -196,7 +202,8 @@ pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> 
             Err(_) => false,
         };
         if runnable {
-            return Some(candidate);
+            // A name that is already absolute is kept as the person wrote it; only a relative one needs this directory.
+            return std::path::absolute(candidate).ok();
         }
     }
     return None;

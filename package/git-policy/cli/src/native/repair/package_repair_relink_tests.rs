@@ -396,6 +396,34 @@ fn a_hand_over_with_no_service_leaves_its_record_queued() {
 }
 
 /// What:
+///  A search path this process cannot spell back as one search path names no record.
+/// Why:
+///   A colon separates the entries of a search path and cannot be escaped in one,
+/// so an entry of the add's own directory whose absolute name holds a colon names no search path a record can carry.
+/// The add then relinks the worktree itself,
+/// which costs it the time and leaves the links right;
+/// a record that kept the relative text would hand the service an entry it reads from its own directory,
+/// where the program the add resolved is not,
+/// and the worktree would keep the copied links while the add reported a hand-over.
+#[test]
+fn a_search_path_that_cannot_be_written_names_no_record() {
+    use std::ffi::OsString;
+    let root: PathBuf = fixture("relink-search-path-a-colon:in-its-directory");
+    let common: PathBuf = root.join("common");
+    let destination: PathBuf = root.join("topic");
+    std::fs::create_dir_all(&common).expect("the common directory");
+    std::fs::create_dir_all(&destination).expect("the worktree");
+    let written: RelinkEntry = RelinkEntry { root: destination.clone(), search_path: SearchPathOfTheAdd::Set(OsString::from("bin")), tools: vec![RelinkTool::Pnpm] };
+    let started: PathBuf = std::env::current_dir().expect("the directory this control started in");
+    std::env::set_current_dir(root.as_path()).expect("the fixture is the directory the add resolves its search path in");
+    let recorded: Result<WorkItem, String> = item_of(common.as_path(), destination.as_path(), &written);
+    std::env::set_current_dir(started.as_path()).expect("leave the fixture");
+    let Err(reason) = recorded else { panic!("a record carries a search path no entry of which could be written: {recorded:?}") };
+    assert!(reason.contains("search path") && reason.contains("cannot be recorded"), "{reason}");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A relative search path is recorded against the add's directory.
 /// Why:
 ///   `PATH=bin` names the add's own `bin`,

@@ -464,7 +464,10 @@ Read-only commands,
 - After a landed commit.
   The wrapper checks the committed bytes again,
    then pushes the branch.
-  A branch without an upstream is pushed to `origin` with `--set-upstream` when that remote exists.
+  A branch without an upstream is pushed to `origin` with `--set-upstream` when that remote exists,
+   unless a post-commit verdict stops it before the branch's tip:
+  that push sends the commit below the refused one,
+  and the upstream is set by the first push that can name the branch.
   A branch with an upstream is pushed to it,
    including a branch whose upstream has another name,
   such as a linked worktree branch created from `origin/main`:
@@ -492,6 +495,10 @@ Read-only commands,
    (`branch.<name>.pushRemote` or `remote.pushDefault`)
    is asked as that URL,
    since `git remote get-url` answers nothing for one.
+   It runs only while the recorded branch still names the commit the push read:
+  a branch that moved sends nothing,
+  says so once,
+  and its retry plan tries it again.
    When Git refuses the setting or would push the branch nowhere
    (several `branch.<name>.merge` values under `simple` or `upstream`,
   `push.default=nothing`,
@@ -854,7 +861,7 @@ Read-only commands,
    identities of everything moved into it,
      and it sits under the common directory,
      so one repository's service empties
-   its trashes one at a time whichever worktree holds each of them;
+   one worktree's trashes one at a time and different worktrees' side by side;
      the claim the drain takes is the lease every other
    kind of work already uses,
      so no lock is added.
@@ -1097,8 +1104,16 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    because a merge of another branch brings every branch sitting on its commits along;
    a repository that keeps no reflog for that branch proves nothing about it,
    so its worktree is examined as it was before this rule;
+   a branch moved onto a commit another branch had already moved onto holds no commit of its own either,
+   which is the state `git reset --hard main` leaves in a task worktree;
+   a branch merely made at a commit records no commit before its first reflog line,
+   so a tip another branch was created at still holds this branch's work;
+   a branch moved onto a commit this one made keeps the worktree,
+   because Git records no owner of a commit;
 - the worktree does not hold another worktree this repository registers,
-   whose files and whose own record a removal would take with it;
+   whose files and whose own record a removal would take with it,
+   and the registrations are read again as the removal runs,
+   so a worktree a command adds inside it while the sweep works keeps it too;
 - the worktree is not the one the merge runs in,
    and it is not locked;
 - no merge,
@@ -1110,6 +1125,8 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    an unfinished bisect moves nothing a removal would notice,
    and Git's own `git worktree remove` deletes the worktree and that log without a word);
 - no process is working in it or in a folder below it,
+   and no process holds a file open in it while working elsewhere,
+   an editor or a build started with `-C` from another directory being the same case,
    the command that ran the merge included:
    `-C` names the repository a command works on,
    never its own working folder,
@@ -1123,13 +1140,24 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
 
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
- elsewhere,
- or when the mount does not allow that call,
- real `git worktree remove` runs instead.
+ that call runs in the commit service,
+ behind one rename the merge does not wait for.
+Every other case is real `git worktree remove`,
+ which reads every tracked and untracked file of the worktree,
+ refuses what Git would keep,
+ and can take minutes on a large tree.
+That removal never runs on the merge's own thread:
+ the merge records it for the commit service of the worktree it ran in,
+ and the line it prints names the record,
+ where `done` means the worktree is gone and `failed` means Git kept it,
+ with Git's own sentence in the service's journal.
 Either way,
  **the branch is kept**,
  and so is every commit on it;
  only the checked-out copy goes.
+A removal recorded that way finishes after the merge returned,
+ so the worktree stands at the prompt until the service has run it;
+ `git worktree remove <path>` removes it now if nothing in it is yours.
 
 **What goes with the worktree.**
 The files Git ignores in it go too,
@@ -1152,6 +1180,12 @@ So a removal copies them first,
  and the next command shows what the worktree could no longer say:
  the failed push with Git's words,
  and an unfinished push as one that may not have finished.
+The copy is made again for the worktree a removal is about to take,
+ because the push service records a refused push at any moment,
+ and a record written after the sweep's one copy would go with the directory.
+A worktree whose records could not all be copied stays,
+ and the notice names its Git directory,
+ which is where those records still are.
 A commit a reference lock held in that worktree is kept the same way,
  on `refs/cli-git/kept/<batch>` of this repository,
  before anything is removed.
@@ -1170,6 +1204,7 @@ not as one left in place:
  and the report that follows names the registration and the commands that finish it.
 A worktree whose branch holds no commit of its own is no candidate at all,
  so a merge that brings in another branch's commits leaves it where it is.
+A worktree kept for records that could not be copied says which Git directory still holds them.
 When no kept reference can be written for a commit a reference lock holds,
  the removal is stopped and the notice names the `git worktree remove` line that finishes it:
  running the merge again removes nothing,
@@ -1498,7 +1533,15 @@ or run the command again after it ends.
 A word that is an absolute path to a folder that is not there is the one exception:
  such a folder holds none of the worktree's batches,
 so the program holds nothing back unless the path names one of the worktree's earlier journals,
- which is how a starting helper is recognised before it makes that folder.
+ which is how a starting helper is recognised before it makes that folder,
+or the same command line names this worktree's instance (the 32 hexadecimal digits of its commit service).
+The earlier release's unit started a helper of one worktree with that instance,
+ so a program that also names it is read as that helper:
+a link in the journal spelling it was given may have
+ been removed after it started,
+while the folder it writes is still there with the batch it may be finishing.
+A word that resolves to a folder that is there and is no earlier journal's holds nothing back:
+ the program writes its batches in that folder.
 Its other arguments are never printed or logged,
 because any of them can be a secret.
 It offers to wait for a helper's idle exit (three hours after its last client) only when no socket is left listening,
@@ -2999,13 +3042,15 @@ After the branch moved,
  no subvolume of its own stands below its root,
  and Git would remove it without `--force`.
 Each worktree the merge removes,
+ hands to the commit service,
  leaves,
  cannot prove it made,
  or removed the files of without removing its registration is named on standard error with its branch,
  the reason,
  and,
  for the last,
- the report that finishes the registration.
+ the report that finishes the registration;
+ a handed-over removal is named with the record its outcome is read from.
 See "What a worktree snapshot holds,
  and when the wrapper removes one".
 
@@ -4576,6 +4621,15 @@ Each line names what the command waits for,
   A place belongs to the connection that named it:
   a request sent again after its service went away starts with no place,
   so a stale one is never printed as this wait's.
+  The lines this client says about a long wait,
+  its place and the words of a write it is inside,
+  are said only while that wait is still on:
+  the client reads what the service has already sent before it says one,
+  because a message it has not read yet can be the landing,
+  so a command whose answer is already here prints neither a place nor the words of a write.
+  A line the service sends itself,
+  such as one naming a lock's holder,
+  is said when it arrives.
   Every line is written by a thread of its own and dropped when the terminal stops taking lines,
   so a reader that stopped draining costs the commit no more than `WARNING_WRITE_CEILING` (250 ms) at its end
   and never its answer.
