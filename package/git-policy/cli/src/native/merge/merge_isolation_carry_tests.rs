@@ -73,7 +73,7 @@ fn the_capture_is_kept_on_a_ref_and_the_ref_goes() {
     assert!(reference.starts_with(CARRIED_REF_PREFIX), "{reference}");
     assert_eq!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", CARRIED_REF_PREFIX]).trim(), reference);
     assert_eq!(git_text(repo.as_path(), &["cat-file", "-t", capture.commit.as_str()]).trim(), "commit");
-    drop_capture_ref(&context, repo.as_path(), &capture);
+    drop_capture_ref(&context, repo.join(".git").as_path(), repo.as_path(), &capture);
     assert_eq!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", CARRIED_REF_PREFIX]).trim(), "");
     remove(root.as_path());
 }

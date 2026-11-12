@@ -7,15 +7,17 @@
  @module
  */
 
-import type {
-  CheckEffects,
-  CheckOutcome,
-  DailyUpdateEffects,
-  GhRequest,
-  GhResult,
-  PackageCheck,
-  RenderedIssue,
-  UpdateCommand,
+import {
+  type CheckEffects,
+  type CheckOutcome,
+  type DailyUpdateEffects,
+  type GhRequest,
+  type GhResult,
+  type PackageCheck,
+  type RenderedIssue,
+  type UpdateCommand,
+  firstErrorOf,
+  NO_ERROR_IN_OUTPUT,
 } from '../dist/final/node/testing.mjs';
 
 /**
@@ -533,11 +535,15 @@ export function packageCheckEffects({
        */
       const seconds = script?.seconds ?? 1;
       running.clock += seconds * MILLISECONDS_PER_REPORTED_SECOND;
+      /**
+       The error the scripted output starts, which the package's own reading of an output answers the same way.
+       */
+      const found = firstErrorOf(script?.output ?? '',);
       return {
         exitCode: script?.exitCode ?? 0,
         timedOut: script?.timedOut ?? false,
         seconds,
-        outputHead: script?.output ?? '',
+        ...(found === NO_ERROR_IN_OUTPUT ? {} : { firstError: found, }),
       };
     },
     fileAt: function fileAt({

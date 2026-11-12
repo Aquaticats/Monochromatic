@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-cargo-shadow"
-version = "0.1.5-alpha.9"
+version = "0.1.5-alpha.10"
 dependencies = [
  "clap",
  "flate2",

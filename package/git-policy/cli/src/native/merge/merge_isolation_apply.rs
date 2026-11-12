@@ -192,7 +192,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         Err(error) => {
             // A capture whose record could not be written names the merge nothing runs, so it goes.
             if let Some(capture) = plan.carried {
-                drop_capture_ref(&session.context, root, capture);
+                drop_capture_ref(&session.context, git_dir, root, capture);
             }
             return Err(Bail::from(format!("the merge record could not be written: {error}")));
         }
@@ -314,7 +314,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         }
         // The record was the last thing that named the capture, so its bytes are in the checkout and the ref can go.
         if let Some(capture) = plan.carried {
-            drop_capture_ref(&session.context, root, capture);
+            drop_capture_ref(&session.context, git_dir, root, capture);
         }
     }
     // The fast-forward carries no `--quiet`, and what Git says of it ("Updating a..b", "Fast-forward", its diffstat) is about

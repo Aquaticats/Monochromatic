@@ -390,6 +390,8 @@ fn a_commit_the_service_places_after_a_wait_says_how_many_go_before_it() {
         std::thread::sleep(FAKE_BEAT);
     }
     (&stream).write_all(&line(&ServiceMessage::Position { number: place.0, of: place.1 })).expect("the place");
+    // A landing is work that follows the place the service names, never the same instant as it: the two share no write.
+    std::thread::sleep(FAKE_BEAT * 2);
     let commit: String = "f".repeat(40);
     (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, notices, trace) = waiting.join().expect("client thread");
@@ -905,6 +907,9 @@ fn said_while_beating(name: &str, config: ClientConfig, at_once: Vec<ServiceMess
     for notice in &after {
         (&stream).write_all(&line(notice)).expect("a notice after the wait");
     }
+    // A write that is still stuck says its newer words while it is stuck, and the landing comes only once the write returns:
+    //  words sent from a timer and the answer to the request never share one write, as the words sent when the write begins do.
+    std::thread::sleep(FAKE_BEAT * 2);
     let commit: String = "c".repeat(40);
     (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false, landing: None })).expect("answer");
     let (answered, said, trace) = waiting.join().expect("client thread");
@@ -962,6 +967,74 @@ fn the_new_words_of_a_write_that_stayed_stuck_are_said_at_once() {
         assert!(first < later, "the newer words come after the older ones: {said}");
     }
     assert_eq!(said.matches("has been inside a write for 1 minutes").count(), 1, "{said}");
+}
+
+/// What:
+///  A fake service that says nothing while the wait matters,
+/// then sends `queued` in one write,
+/// and what the client printed.
+/// Why:
+///   One write is what a service that lands a commit at once leaves on the connection:
+/// both lines are here when the client reads either of them,
+/// as they are for a client the machine held up after its request was written.
+fn said_after_a_quiet_wait_then_the_queued_lines(name: &str, quiet: Duration, queued: Vec<ServiceMessage>) -> String {
+    let service: UnixListener = listen(name);
+    // The quiet is longer than the notice's wait and shorter than the silence bound that would end the wait.
+    let config: ClientConfig = ClientConfig { heartbeat_silence: PATIENCE, ..config(name) };
+    let waiting = client(config);
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    std::thread::sleep(quiet);
+    let mut burst: Vec<u8> = Vec::new();
+    for message in &queued {
+        burst.extend_from_slice(&line(message));
+    }
+    (&stream).write_all(&burst).expect("the queued lines reach the client");
+    let (answered, said) = waiting.join().expect("client thread");
+    let commit: String = "c".repeat(40);
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{said}");
+    return said;
+}
+
+/// What:
+///  The landing of the commit already queued behind the words about a write is read before they are said,
+/// so the command that landed says nothing of that write.
+/// Why:
+///   The words wait for the wait that matters,
+/// but that wait can be over before the client reads them:
+/// a client the machine held stopped read its
+///  answer only after it had spoken,
+/// and a commit that landed printed "this commit is inside a write of the commit service".
+#[test]
+fn a_landing_already_queued_behind_the_words_of_a_write_is_not_called_inside_a_write() {
+    let name: String = address("inside-write-already-landed");
+    let commit: String = "c".repeat(40);
+    let said: String = said_after_a_quiet_wait_then_the_queued_lines(
+        name.as_str(),
+        QUICK_NOTICE * 2,
+        vec![inside_write_notice(), ServiceMessage::Landed { id: String::from("heartbeat-control"), commit, already: false, landing: None }],
+    );
+    assert!(!said.contains("this commit is inside a write of the commit service"), "a commit the service had landed printed the words of its write: {said:?}");
+}
+
+/// What:
+///  The landing already queued behind the place the service named is read before the place is printed,
+/// so a commit that landed in the meantime says nothing of where it stood.
+/// Why:
+///   A place belongs to a wait that is still on,
+/// and a client that was held up reads the place and the landing together:
+/// the place of a commit that is already on the branch is news of a wait that is over.
+#[test]
+fn a_place_the_client_reads_after_the_landing_is_already_here_is_not_printed() {
+    let name: String = address("place-already-landed");
+    let commit: String = "c".repeat(40);
+    let said: String = said_after_a_quiet_wait_then_the_queued_lines(
+        name.as_str(),
+        QUICK_NOTICE * 2,
+        vec![ServiceMessage::Position { number: 1, of: 1 }, ServiceMessage::Landed { id: String::from("heartbeat-control"), commit, already: false, landing: None }],
+    );
+    assert!(!said.contains(position_notice(1, 1).as_str()), "a commit the service had landed printed its place: {said:?}");
 }
 
 /// A wait for a holder proven alive is recorded as one,

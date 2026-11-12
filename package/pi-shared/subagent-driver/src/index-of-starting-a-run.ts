@@ -19,15 +19,19 @@ export {
   NEURALWATT_KIMI_FLEX,
   NEURALWATT_STANDARD,
   OPENCODE_GO,
-  POOL_OF_A_RUN_NAMING_NO_POOL,
+  POOL_LIMITS_VARIABLE,
   PROVIDER_OF_A_RUN_NAMING_NONE,
   PROVIDER_POOLS,
-  type PoolMembership,
-  type ProviderPool,
   QWEN_PLAN_DEEPSEEK,
   QWEN_PLAN_QWEN4_MAX_PREVIEW,
+  type PoolMembership,
+  PoolLimitsError,
+  type ProviderPool,
+  limitsIn,
   membershipOf,
   poolNamed,
+  poolsARunOfThatNameCouldHold,
+  poolsWithTheseLimits,
   poolTakesNoNewRun,
 } from './pool-limits.ts';
 export {
@@ -35,6 +39,8 @@ export {
   type PoolTallies,
   firstDefaultPoolWithRoom,
   poolHasRoom,
+  poolsHeldBy,
+  roomIn,
   summaryTextOf,
   talliesOf,
 } from './pool-tallies.ts';
@@ -229,7 +235,6 @@ export { optionIn, } from './option-in.ts';
  `save-the-final-message-of-a-review-that-wrote-no-review-file.ts`.
  */
 export {
-  REVIEW_FILE_NAME,
   SAVED_REVIEW_NOTE,
   type SavedReview,
   lastAssistantTextIn,

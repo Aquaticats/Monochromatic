@@ -100,3 +100,93 @@ run = """
 {{vars.run_pi_command}}
 runPiCommand('save-the-final-message-of-a-review-that-wrote-no-review-file')
 """
+
+[tasks."list-processes-whose-command-line-holds-text"]
+description = "List every process whose command line holds a text, with its number, its parent, its age and the head of its command line"
+usage = 'arg "[args]" var=#true help="--text=<text> [--command-characters=<n>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('list-processes-whose-command-line-holds-text')
+"""
+
+[tasks."list-running-units-whose-worktree-is-gone"]
+description = "Name every running unit whose worktree folder is gone, and count the units listed"
+usage = 'arg "[args]" var=#true help="[--checkout-folder=<folder>] [--unit-pattern=<pattern>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('list-running-units-whose-worktree-is-gone')
+"""
+
+[tasks."print-the-final-report-of-the-newest-run-of-each-agent"]
+description = "Print the newest finished run of each agent named, why it ended, and the head of the report it ended with"
+usage = 'arg "[args]" var=#true help="--agent=<name> [--agent=<name>]... [--runs-folder=<folder>] [--lines=<n>] [--width=<n>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('print-the-final-report-of-the-newest-run-of-each-agent')
+"""
+
+[tasks."list-launchers-whose-unit-has-ended"]
+description = "Name every launcher still running although its unit has ended, and with --stop end each of them, children first"
+usage = 'arg "[args]" var=#true help="[--launcher-entry=<basename>]... [--minimum-age-seconds=<n>] [--stop]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('list-launchers-whose-unit-has-ended')
+"""
+
+[tasks."remove-finished-worktrees"]
+description = "Remove the worktree of every finished Pi run, saying why each other one is left alone; without --apply it only lists them"
+usage = 'arg "[args]" var=#true help="[--checkout-folder=<folder>] [--runs-folder=<folder>] [--review-folder=<folder>] [--paused-file=<file>] [--process-folder=<folder>] [--apply] [--clean-folder=<path>] [--clean-word=<word>]..."'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('remove-finished-worktrees')
+"""
+
+[tasks."start-a-batch-in-its-own-unit"]
+description = "Start a batch list in a systemd user unit of its own, so its launchers outlive the process that asked for them"
+usage = 'arg "[args]" var=#true help="--batch-file=<file> [--deadline-seconds=<n>] [--output-file=<file>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('start-a-batch-in-its-own-unit')
+"""
+
+[tasks."write-a-brief-for-a-review"]
+description = "Write what one review of a change reads: the diff of its ranges under the reviewed source folder, the brief naming its files, and its reproductions folder"
+usage = 'arg "[args]" var=#true help="--review=<change> --commit=<commit> --range=<a>...<b>... --source=<folder> [--focus=<text>] [--reviews-folder=<folder>] [--runs-folder=<folder>] [--rules-file=<file>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('write-a-brief-for-a-review')
+"""
+
+[tasks."start-reviews-of-finished-branches"]
+description = "Write and start one review of each finished branch, on the review pool, and save the last message of a review that wrote no review file"
+usage = 'arg "[args]" var=#true help="--branch=<branch>... --integration=<branch> --source=<folder> [--reviews-folder=<folder>] [--runs-folder=<folder>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('start-reviews-of-finished-branches')
+"""
+
+[tasks."write-a-fix-brief-for-each-review"]
+description = "Write one brief for each review whose defects a fix answers, and the batch list that starts those agents"
+usage = 'arg "[args]" var=#true help="--review=<name>... --base=<commit or branch> --branch-prefix=<prefix> --package=<folder> [--reviews-folder=<folder>] [--runs-folder=<folder>] [--batch-file=<file>] [--wall-seconds=<n>]"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('write-a-fix-brief-for-each-review')
+"""

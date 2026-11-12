@@ -38,9 +38,14 @@ use crate::merge_isolation_kept_copies::{KeptCopy, forget_the_copy, keep_the_cop
 /// The lines a copy earns,
 /// which say what stands at its path and what ends it.
 use crate::merge_isolation_kept_copies_words::{say_the_copy_stays, say_the_copy_stays_because};
-use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys, stale_carry_names_of};
+use crate::merge_isolation_take_aside_names::{Aside, asides_of, live_merge_keys, merge_key_of_a_record, stale_carry_names_of};
+/// The records still there,
+/// and whether the merge each names still runs.
+use crate::merge_isolation_journal::{list_merge_intents, parse_merge_intent};
+use crate::transaction_owner::OwnerLiveness;
 /// Reading the bytes of a file through Git.
-use crate::merge_isolation_take_asides::{may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
+use crate::merge_isolation_changes::{FileIdentity, file_identity};
+use crate::merge_isolation_take_asides::{CopyRemoval, may_remove_the_copy_awaiting, raw_bytes_of_awaiting, the_file_form_of_awaiting};
 /// The person's own work a merge captured,
 /// which holds the bytes of a path the take of a carry moved aside.
 use crate::merge_isolation_carry_parts::Capture;
@@ -227,7 +232,8 @@ async fn the_file_holds_them_awaiting(context: &GitContext, root: &Path, locatio
 /// a copy that is executable where its path is not is the only executable
 ///  copy of those bytes,
 /// and removing it loses the person's mode
-/// (`SPEC.md`, the copy whose bytes the file at its path holds again).
+/// (`SPEC.md`,
+/// the copy whose bytes the file at its path holds again).
 ///  A symbolic link's permissions are the platform's and say nothing about the link,
 /// so two links holding one target are one entry.
 ///
@@ -255,9 +261,18 @@ fn the_permissions_are_the_copies(location: &Path, aside: &Path) -> bool {
 }
 
 /// The permission bits a copy carries,
-/// which are every bit a person can see and set on an entry.
+/// which are every bit a person can see and set on an entry:
+/// the read,
+/// write and execute bits of each of the owner,
+/// the group and everyone,
+/// and the setuid,
+/// setgid and sticky bits above them.
+/// A copy that carries setuid where its path does not is the only entry with that bit,
+/// and Git records none of these but the execute bits,
+/// so removing it would lose a mode the person set (a Kimi K3.1 Pro review of `1a98764d1f`,
+/// its sixth finding).
 #[cfg(unix)]
-const PERMISSION_BITS: u32 = 0o777;
+const PERMISSION_BITS: u32 = 0o7777;
 
 /// What one decision about a kept copy came to.
 ///
@@ -330,13 +345,21 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
         // One run of bytes is not one file: the entries differ in their permissions, which Git does not record outside the
         //  executable bit, or a program still holds the copy open, and a write through that descriptor lands in the file an
         //  unlink would leave with no name at all. Both are the person's, so the copy goes only when neither holds.
+        // The entry at the path is read before the comparison ends, and the removal asks for it again as its last look: a save
+        //  or a chmod that arrives after the comparison leaves the copy the only name of the older bytes or the older mode.
+        let the_file: Option<FileIdentity> = file_identity(copy.location.as_path());
         let permissions_differ: bool = !the_permissions_are_the_copies(copy.location.as_path(), copy.aside.as_path());
-        if !permissions_differ && may_remove_the_copy_awaiting(context, root, copy.aside.as_path()).await {
-            Fate::TheFileHoldsThem
-        } else if permissions_differ {
+        if permissions_differ {
             Fate::KeptBecause("the two entries do not have the same permissions")
         } else {
-            Fate::KeptBecause("a program still holds the copy open")
+            match the_file {
+                Some(standing) => match may_remove_the_copy_awaiting(context, root, copy.aside.as_path(), copy.location.as_path(), standing).await {
+                    CopyRemoval::Proven => Fate::TheFileHoldsThem,
+                    CopyRemoval::HeldOpen => Fate::KeptBecause("a program still holds the copy open"),
+                    CopyRemoval::Changed => Fate::KeptBecause("the file at its path or the copy changed after they were compared"),
+                },
+                None => Fate::KeptBecause("the file at its path changed after they were compared"),
+            }
         }
     } else if let Some(Held::BranchCommit(object)) = held {
         Fate::GitHoldsThem(object)
@@ -494,7 +517,9 @@ fn remove_the_copy_because_git_holds_it<W: Write + ?Sized>(git_dir: &Path, copy:
 /// and putting one back under it makes Git refuse the checkout the merge was about to
 ///  make,
 /// so a command that has nothing to do with that merge would fail it (the owner's "Agents should never
-///  wait on each other on commits or merges", and `SPEC.md`, the record of a merge whose owner still runs).
+///  wait on each other on commits or merges",
+/// and `SPEC.md`,
+/// the record of a merge whose owner still runs).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -519,9 +544,47 @@ pub(crate) async fn sweep_kept_copies_awaiting<W: Write + ?Sized>(place: &Recove
         if an_unfinished_merge_names_it_of(named.as_ref(), running) {
             continue;
         }
+        // A merge that wrote its record after the caller read the owners is not in `running`, and its copies are as much its
+        //  own as a running merge's: putting one back under the path it cleared makes its own checkout fail. The names are read
+        //  again here, beside the copy they decide, so a merge that started in between keeps what it took.
+        if named.is_some() && an_unfinished_merge_names_it_of(named.as_ref(), merges_whose_owner_runs(place.git_dir.as_path()).as_slice()) {
+            continue;
+        }
         settle_kept_copy_awaiting(&place.git, place.cwd.as_path(), place.git_dir.as_path(), &copy, named.as_ref(), None, None, live.as_slice(), out).await;
     }
     return;
+}
+
+/// What:
+///  The keys of the merges whose records are there at this instant and whose owner still runs.
+/// Why:
+///  A copy names the merge that took it,
+/// and only that merge may decide it while it runs:
+/// a command beside
+///  a live merge that put the copy back under the path the merge cleared would make its own checkout fail
+/// (`SPEC.md`,
+///  "a copy whose merge still runs is left for that merge to finish").
+/// The list a caller built is a reading of the
+///  records,
+/// and a merge that wrote its record after it is not in it,
+/// so the copy's own name is looked up against a reading taken here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mergesWhoseOwnerRuns(gitDir: string): string[]; // listMergeIntents().filter(isAlive).map(nameKey)
+/// ```
+fn merges_whose_owner_runs(git_dir: &Path) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    let Ok(records) = list_merge_intents(git_dir) else { return keys };
+    for record in records {
+        let Ok(bytes) = std::fs::read(record.as_path()) else { continue };
+        let Some(intent) = parse_merge_intent(bytes.as_slice()) else { continue };
+        let liveness = crate::merge_isolation_recovery_records::owner_liveness(&intent, record.as_path());
+        if matches!(liveness, Ok(OwnerLiveness::Alive)) {
+            keys.push(merge_key_of_a_record(record.as_path()));
+        }
+    }
+    return keys;
 }
 
 /// What:
