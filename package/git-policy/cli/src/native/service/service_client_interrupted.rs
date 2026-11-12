@@ -41,12 +41,24 @@ static STOP_SENDER: AtomicI32 = AtomicI32::new(0);
 /// and shutting this read down is how a stop that arrives on another thread reaches the wait.
 static READING: AtomicI32 = AtomicI32::new(-1);
 
-/// The signals a waiting commit answers by withdrawing its request:
-/// the interrupt a terminal sends (Ctrl-C) and the one a stop sends.
-/// A `SIGKILL` cannot be caught at all;
-/// its request is dropped by the service when the connection closes
-/// (`service_server_land_group.rs`).
-const WATCHED: [std::os::raw::c_int; 2] = [libc::SIGINT, libc::SIGTERM];
+/// What:
+///  The signals a waiting commit answers by withdrawing its request:
+///  the interrupt a terminal sends (Ctrl-C),
+///  the stop a caller sends at its own bound,
+///  the hang-up a closing terminal and a session that ends send,
+///  and the quit a person sends.
+/// Why:
+///  Each one means the person or the caller is gone,
+///  and a commit that is not made must say why it was not:
+///  the default action of a hang-up and of a quit ends the process where it arrives,
+///  so a commit that was waiting left no record at all
+///  (a closing terminal's hang-up and `loginctl terminate-session`'s are the same signal).
+///  The command still ends by the signal afterwards,
+///  so a quit keeps its core file where the system would make one.
+///  A `SIGKILL` cannot be caught at all;
+///  its request is dropped by the service when the connection closes
+///  (`service_server_land_group.rs`).
+const WATCHED: [std::os::raw::c_int; 4] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
 ///  Notes the stop the person asked for,
