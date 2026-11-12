@@ -94,6 +94,19 @@ pub const SHARED_ENTRY_NAMES: [&str; 9] = [
 ];
 
 /// What:
+///  The one shared entry a creation makes even when the repository has not got it yet.
+/// Why:
+///  `lfs` is where a clean filter of the commit stores the object it writes,
+///  so a shadow that links nothing there,
+/// or a link that reaches nothing,
+///  gives the filter nowhere to write:
+/// native Git then fails the commit (`fatal: payload.dat: clean filter 'lfs' failed`),
+///  and an object a filter did write into the private tree is released with that tree.
+///  `git-lfs` makes the directory on its first write,
+///  so a creation that makes it first holds what the next command in the real repository would hold.
+pub const LFS_STORE_ENTRY_NAME: &str = "lfs";
+
+/// What:
 ///  Reports whether a common-directory entry is one a shadow shares.
 /// Why:
 ///   The link step,
@@ -299,6 +312,8 @@ fn shared_entry_at(directory: &Path, name: &str) -> std::io::Result<Option<Share
 ///  is no reason to refuse a member.
 ///  A worktree that keeps its own `info` builds its own `info` directory and copies a sparse checkout into it,
 /// so its shadows are made where the commit is and never taken from a pool.
+///  The store a clean filter writes into is listed whether the repository holds it or not,
+/// because the creation makes it (`LFS_STORE_ENTRY_NAME`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -314,7 +329,17 @@ pub fn shared_entries_of(
         if own_info && name == "info" {
             continue;
         }
-        let Some(entry) = shared_entry_at(common_dir, name)? else { continue };
+        let found: Option<SharedEntry> = match shared_entry_at(common_dir, name)? {
+            Some(entry) => Some(entry),
+            // The store a filter writes into is the creation's to make, so it is always linked.
+            None if name == LFS_STORE_ENTRY_NAME => Some(SharedEntry {
+                name: std::ffi::OsString::from(name),
+                source: common_dir.join(name),
+                directory: true,
+            }),
+            None => None,
+        };
+        let Some(entry) = found else { continue };
         entries.push(entry);
     }
     return Ok((entries, own_info));
@@ -325,9 +350,15 @@ pub fn shared_entries_of(
 /// Why:
 ///   The entries are the ones `shared_entries_of` lists,
 /// so the two never disagree.
-///  An entry that vanishes between the listing and the link is linked by no creation,
-/// so it is not an error:
-/// a removal of `lfs` or `rr-cache` while a commit runs must not fail the commit.
+///  An entry that vanishes between the listing and the link is not an error:
+/// a removal of `rr-cache` or `modules` while a commit runs must not fail the commit,
+/// on Unix a link to that name is made and resolves to nothing,
+/// and a pooled member that still holds such a link is refused at a claim
+/// (`shadow_pool_member.rs`,
+/// `refusal`).
+///  `lfs` is the exception the other way:
+/// a filter of the commit writes its object there,
+/// so a creation makes that directory first and never links one that is not there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -336,6 +367,10 @@ pub fn shared_entries_of(
 fn link_directory_entries(entries: &[SharedEntry], shadow_directory: &Path) -> std::io::Result<()> {
     for entry in entries {
         let destination: PathBuf = shadow_directory.join(&entry.name);
+        if entry.name == std::ffi::OsStr::new(LFS_STORE_ENTRY_NAME) {
+            // The filter that writes there needs the directory itself, and `git-lfs` would have made it.
+            std::fs::create_dir_all(entry.source.as_path())?;
+        }
         // `git init` may have created a template entry of the same name; the real one replaces it.
         match share_replacing_template(entry.source.as_path(), destination.as_path(), entry.directory) {
             Ok(()) => {}
@@ -408,6 +443,32 @@ fn shared_entry_of(entry: std::fs::DirEntry) -> SharedEntry {
 }
 
 /// What:
+///  The entries of a real `info` directory a shadow links,
+///  or the error one entry's reading reported.
+/// Why:
+///   A linked worktree's `info` mixes the entries every commit reads with its own sparse pattern,
+///  and a listing that fails partway must not pass for a directory that holds fewer entries:
+/// an `info/attributes` left out of the shadow is a commit whose filters,
+/// excludes and grafts are not the person's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await sharedInfoEntries(listed) // { name, source, directory }[]
+/// ```
+fn shared_info_entries(
+    listed: impl Iterator<Item = std::io::Result<std::fs::DirEntry>>,
+) -> std::io::Result<Vec<SharedEntry>> {
+    let mut shared: Vec<SharedEntry> = Vec::new();
+    for read in listed {
+        let entry: std::fs::DirEntry = read?;
+        if is_not_the_per_worktree_pattern(&entry) {
+            shared.push(shared_entry_of(entry));
+        }
+    }
+    return Ok(shared);
+}
+
+/// What:
 ///  Links the real common directory into the shadow and copies the per-worktree entries.
 /// Why:
 ///   A linked worktree's `info/sparse-checkout` lives outside the common directory,
@@ -433,11 +494,7 @@ pub fn link_shadow_entries(shadow: &Path, common_dir: &Path, git_dir: &Path) -> 
     set_private_directory(shadow_info.as_path())?;
     let shared_info: PathBuf = common_dir.join("info");
     let shared: Vec<SharedEntry> = match std::fs::read_dir(shared_info.as_path()) {
-        Ok(listed) => listed
-            .flatten()
-            .filter(is_not_the_per_worktree_pattern)
-            .map(shared_entry_of)
-            .collect(),
+        Ok(listed) => shared_info_entries(listed)?,
         // Only an absent shared `info` is tolerated: a per-worktree sparse checkout is then the whole of it.
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(error),

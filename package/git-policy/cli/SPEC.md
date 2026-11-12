@@ -13163,6 +13163,13 @@ such as a linked worktree's `info/sparse-checkout`,
 is copied;
 a directory that mixes shared and per-worktree entries becomes a private directory
 whose shared entries are linked individually.
+`lfs`,
+where `git-lfs` keeps its objects and logs,
+is linked whether the repository holds it or not:
+the creation makes it first when it is absent,
+because a clean filter of the commit writes its object there,
+and a filter that finds nothing to write into leaves the object in the private tree,
+which is released with that tree.
 The shadow has no `index`;
 `GIT_INDEX_FILE` names the private commit index.
 
@@ -13265,13 +13272,19 @@ from this invocation's own capture.
   its `HEAD` must be the creation's own placeholder,
   every directory of the skeleton must be there,
   every entry a commit reads that the repository holds now must be a link to this repository's own entry,
+  the store a clean filter writes into must be a link there whether the repository held it at the fill or not,
   every entry the member holds must be one a creation makes or a link at one of those names,
+  and a link at one of those names must reach the entry it names,
   and no pack and no ref.
   An entry a commit reads that the repository has gained since the fill is a refusal,
   because the member would give the commit the view of the moment it was made;
-  an entry it has lost is not,
-  because a link to a name that is no longer there resolves to nothing,
-  which is the view a creation of this moment gives.
+  an entry it has lost is a refusal as well when the member still links it,
+  because a creation of this moment links no name the repository does not hold,
+  and makes the store a filter writes into,
+  and a filter or a hook that writes into the directory a link names fails on one that resolves to nothing
+  (`git-lfs`'s clean filter writes its object into `<git-dir>/lfs`).
+  The check follows each link it accepts once,
+  so a member filled while `lfs` or `rr-cache` was there and claimed after it went is removed rather than trusted.
   A member that fails the check is removed and the next one is tried,
   and a pool with none left leaves the commit making its creation.
 - A refusal is the wrapper's own cache being repaired,
