@@ -170,6 +170,35 @@ move its durable facts to their canonical doc and delete it from this page.
   as recorded at 10:10:08.
 - No commit goes to `main` between the release's dispatch and its publication.
 
+#### 0.6.1-alpha.14 published and installed (2026-11-12T11:03:05-05:00)
+
+- Dispatched 10:53:42 with no gate (an alpha),
+  workflow run 43252725638;
+  published 11:02:03 with both Linux archives,
+  eight minutes and twenty-one seconds after the dispatch.
+  The release's own commit on `main` is `b1cdc4a842`;
+  the local `main` was fast-forwarded to it at 11:02:48.
+- Installed 11:02:54.
+  The install's own sample commit (the toolchain lock) took 2,581 ms and landed.
+  `git --version` names `monochromatic-git-policy-cli 0.6.1-alpha.14`.
+  The global tool entry moved from alpha.13 to alpha.14.
+- One reload of the user manager at the install,
+  11:02:50,
+  487 ms;
+  none other since 08:48:12.
+- Agents that were running keep the service of the release that started theirs until it is replaced;
+  nothing was restarted.
+- What the installed release still has,
+  for anyone who meets it:
+  the holder scan's read of a descriptor record (issue 6287;
+  scopes that run a wrapper keep a cap of at least 4G),
+  the manager-wide reload from the commit path (issue 6286),
+  and the false "interrupted removal" line in unrelated commands.
+- Next for this release:
+  audits by Sonnet and Kimi side by side,
+  briefed with what is already known and in work,
+  and with the rule on destructive commands as the owner restated it today.
+
 ### The owner: "Remove systemd as a hard dependency. Bazel doesn't need it." (2026-11-12, about 10:40; round 297 started 10:41:51)
 
 Two messages of the owner,
