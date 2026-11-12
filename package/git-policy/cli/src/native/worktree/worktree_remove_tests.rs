@@ -277,7 +277,7 @@ fn btrfs_a_worktree_added_between_the_walk_and_the_destroy_is_refused_and_nothin
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let plan: RemovePlan = plan_for(&outer);
     let operations = PlantedAtTheHandOver { repo: repo.as_path(), folder: planted.as_path(), branch: "inner", planted: std::cell::Cell::new(false) };
-    let outcome: RemoveOutcome = remove_with(&operations, &RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path() });
+    let outcome: RemoveOutcome = remove_with(&operations, &RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
     let RemoveOutcome::Refused(report) = outcome else { panic!("a worktree Git's removal would delete a person's files from is refused, but it was {outcome:?}") };
     assert!(report.contains(planted.to_str().expect("UTF-8")), "the report names the worktree that appeared: {report}");
     assert!(report.contains("git worktree remove"), "and the command that keeps its work: {report}");
