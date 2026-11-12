@@ -991,24 +991,31 @@ fn a_removal_this_release_handed_over_and_an_earlier_service_failed_is_removed_b
 }
 
 /// What:
-///  A service round reads the removals a service of an earlier release failed and performs them,
+///  The service's slow lane reads the removals a service of an earlier release failed and performs them,
 ///  with no command of the repository in between.
 /// Why:
 ///  A machine that replaces the release and starts its service again may never run another command:
-///  the round is then the only thing that can put back a record nothing would ever read.
+///  the lane is then the only thing that can put back a record nothing would ever read.
 ///  Without it the landed worktree stands for ever and the person is told nothing
 ///  (an audit of the release changeover,
 ///  finding 2).
+///  The record is put back immediately before the lane's own look at the slow kinds,
+///  so that look claims it: a record queued after its listing waits for a wake nothing sends.
 #[test]
-fn a_service_round_queues_a_removal_an_earlier_release_failed_and_performs_it() {
+fn the_slow_lane_queues_a_removal_an_earlier_release_failed_and_performs_it() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-round-requeues");
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     std::fs::remove_file(work_of(linked.common.as_path()).join("pending").join(item.id())).expect("the record a claim takes out of the queue");
     put_a_record(linked.common.as_path(), "failed", &item);
     let handlers: crate::service_work::GitHandlers = crate::service_work::GitHandlers::new(git_context());
-    let _wait: Option<std::time::Duration> = crate::service_work::drain(linked.common.as_path(), &handlers, &crate::claim_time::ClaimTime::read());
+    let _wait: Option<std::time::Duration> = crate::lazy_runtime::run_on_runtime(crate::service_work_slow_lane::drain_the_slow_work_awaiting(
+        linked.common.as_path(),
+        &handlers,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    ))
+    .expect("the runtime the lane runs on");
     let done: PathBuf = work_of(linked.common.as_path()).join("done").join(item.id());
-    assert!(done.is_file(), "the round takes the failed record, performs the removal, and settles it done");
+    assert!(done.is_file(), "the lane takes the failed record, performs the removal, and settles it done");
     assert!(!linked.worktree.exists(), "the landed worktree is gone");
     remove(linked.root.as_path());
 }

@@ -229,6 +229,14 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
 /// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS, housekeeping)
 /// ```
 async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
+    // A whole-worktree removal a service of an earlier release failed is a record nothing reads again, and a machine that
+    // ran that release may never run another command. It is put back here, immediately before this look at the slow kinds,
+    // so the record it queues is claimed by this very look: the command path does the same and wakes the service after it
+    // (`requeue_removals_an_earlier_release_refused`), and a look that queued it after its own listing would leave it for a
+    // wake nothing sends.
+    for line in crate::worktree_remove_hand_over::requeue_removals_an_earlier_release_refused(git_dir) {
+        crate::service_log!("{line}");
+    }
     let mut nothing_to_plan: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
     return drain_pending_awaiting(git_dir, handlers, CLAIM_LEASE, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
 }

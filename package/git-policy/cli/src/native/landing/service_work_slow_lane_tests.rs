@@ -524,3 +524,75 @@ fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
     drop(lane);
     remove(staged.root.as_path());
 }
+
+/// How long this control holds the lane inside one trash's slow step.
+/// Why:
+///   The hold is what a real trash of one worktree is:
+/// a step whose length is the worktree's size and not a ceiling of the service.
+/// The number is this control's own window,
+/// long enough that a removal kept behind it cannot be within the spread of two readings,
+/// and short enough that a lane which does not keep it costs the suite nothing.
+const THE_HOLD: Duration = Duration::from_millis(400);
+
+/// The commit-free trash record of this control's other repository,
+/// named with the shape the service reads a trash by.
+const THE_HELD_TRASH_BESIDE_A_REMOVAL: &str = "4444444444444444444444444444444444444444";
+
+/// The commit-free record of a removal whose path is already gone,
+/// which the service settles as done at once.
+fn a_removal_of_a_path_that_is_gone(world: &World) -> WorkItem {
+    return WorkItem {
+        kind: WorkKind::SubvolumeDelete,
+        repository: world.root.clone(),
+        git_dir: world.common.clone(),
+        branch_ref: String::from(crate::worktree_remove_hand_over::WORKTREE_REMOVAL_REFERENCE),
+        oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+        parent: world.root.join("a-worktree-that-is-gone").display().to_string(),
+        created: String::from("2026-11-10T18:16:51.000Z"),
+        tries: 0,
+    };
+}
+
+/// What:
+///  A removal handed over while the lane is inside another repository's trash waits for that trash,
+///  and starts as soon as it ends.
+/// Why:
+///  The lane is one repository at a time,
+/// and a trash of one worktree is a step whose length is that worktree's size:
+/// a wave of trashes held eight deletions for thirty-one to sixty-five minutes on the release before this branch
+/// (a run's report of the service's rounds).
+///  The bound a person can be told is therefore the step the lane is inside and not a number the service keeps,
+/// so this measures it:
+/// the lane is held inside a trash of one repository,
+/// a removal of another repository is handed over,
+/// and the time from that hand-over to the removal's own turn is the hold.
+#[test]
+fn a_removal_waits_for_the_trash_the_lane_is_inside() {
+    let trash_world: World = world("slow-lane-removal-behind-a-trash", &[(WorkKind::Trash, THE_HELD_TRASH_BESIDE_A_REMOVAL)]);
+    let removal_world: World = world("slow-lane-removal-after-the-trash", &[]);
+    let trash_work: PathBuf = trash_world.work.clone();
+    let removal_work: PathBuf = removal_world.work.clone();
+    assert!(trash_work.is_dir(), "the trash world's work directory stands");
+    enqueue(removal_work.as_path(), &a_removal_of_a_path_that_is_gone(&removal_world)).expect("the removal record");
+    let held: HeldTrash = hold_inside_a_trash();
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let lane: SlowLane = crate::merge_second_pass::tests::await_it(async move { return SlowLane::start(&handlers, busy); });
+    lane.ask((trash_world.common.clone(), None));
+    assert!(wait_until(&|| { return held.arrived.load(Ordering::SeqCst); }), "the lane is inside the trash");
+    let handed_over: std::time::Instant = std::time::Instant::now();
+    lane.ask((removal_world.common.clone(), None));
+    std::thread::sleep(THE_HOLD);
+    let settled = |work: &Path| -> bool {
+        return [DONE, FAILED].iter().any(|state| { return !names_in_at(work, *state).is_empty(); });
+    };
+    assert!(!settled(removal_work.as_path()), "the removal waited: the lane was inside the trash of another repository");
+    let _let_go = held.let_go.send(());
+    assert!(wait_until(&|| { return settled(removal_work.as_path()); }), "the removal runs once the trash ends");
+    let waited: Duration = handed_over.elapsed();
+    eprintln!("a handed-over removal waited {} ms behind one trash of another repository, held for {} ms", waited.as_millis(), THE_HOLD.as_millis());
+    assert!(waited >= THE_HOLD, "the removal's wait is the step the lane was inside: {waited:?}");
+    drop(lane);
+    remove(trash_world.root.as_path());
+    remove(removal_world.root.as_path());
+}
