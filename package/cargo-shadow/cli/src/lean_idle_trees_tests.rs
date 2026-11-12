@@ -512,3 +512,23 @@ fn a_tree_whose_workspace_is_still_there_is_kept_because_something_uses_it() {
     }
     assert!(tree.exists());
 }
+
+/// Among the trees whose ledger already shows they qualify, the one whose last write is oldest is judged first.
+/// Why:
+/// A pass that is cut by its deadline judges only the front of its order,
+/// and the trees that qualify are the ones that free space:
+/// measured 2026-11-12 on this host,
+/// a pass that ordered its candidates by path judged 10,805 trees in 1,095 s,
+/// and every one of them was younger than its idle period, so it freed nothing.
+#[test]
+fn the_candidate_whose_last_write_is_oldest_is_judged_first() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let gone: PathBuf = root.path().join("no-longer-here");
+    let recently_built: PathBuf = aged_tree(&base, "aa/00000000000001", &gone, 8 * DAY);
+    let long_idle: PathBuf = aged_tree(&base, "ab/00000000000002", &gone, 60 * DAY);
+    let outcomes: Vec<TreeOutcome> = collect(&base, &[], false);
+    let judged: Vec<PathBuf> = outcomes.iter().map(|outcome| { return outcome.tree.clone(); }).collect();
+    assert_eq!(judged, vec![long_idle.clone(), recently_built.clone()], "the oldest last write comes first however its path sorts");
+    assert!(!long_idle.exists() && !recently_built.exists(), "{outcomes:?}");
+}

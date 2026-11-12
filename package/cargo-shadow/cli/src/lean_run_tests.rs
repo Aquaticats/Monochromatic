@@ -65,14 +65,19 @@ fn the_two_long_passes_keep_a_position_and_the_short_mechanisms_do_not() {
 }
 
 /// A run of one mechanism over a fixture base.
+/// Why the trees here have no ledger:
+/// a tree whose ledger names a workspace that is gone is a candidate,
+/// and the candidates are judged from the front on every pass,
+/// so the recorded position only orders the trees a pass reaches by walking the whole list.
+/// A tree with no ledger and no dependency information is judged on its age alone,
+/// which is what the position orders.
 #[test]
 fn a_trees_pass_continues_after_the_recorded_tree_and_starts_at_the_front_without_one() {
     let root = scratch();
     let base: PathBuf = root.path().join("base");
-    let gone: PathBuf = root.path().join("no-longer-here");
-    let first: PathBuf = make_tree(&base, "ab/00000000000001", Some(&gone));
-    let second: PathBuf = make_tree(&base, "ab/00000000000002", Some(&gone));
-    let third: PathBuf = make_tree(&base, "ab/00000000000003", Some(&gone));
+    let first: PathBuf = make_tree(&base, "ab/00000000000001", None);
+    let second: PathBuf = make_tree(&base, "ab/00000000000002", None);
+    let third: PathBuf = make_tree(&base, "ab/00000000000003", None);
     for tree in [&first, &second, &third] {
         age_everything(tree, now_seconds() - 30 * DAY);
     }
@@ -96,6 +101,35 @@ fn a_trees_pass_continues_after_the_recorded_tree_and_starts_at_the_front_withou
     };
     assert!(!first.exists(), "without a record the pass starts at the front: {front:?}");
     assert!(!front.lines.iter().any(|line| { return line.contains("this pass started after"); }), "{:?}", front.lines);
+}
+
+/// A tree whose own ledger already shows it qualifies is judged on every pass, whatever position the last pass left.
+/// Why:
+/// The recorded position is what keeps a pass that is cut by its deadline from starving the trees after it,
+/// and the candidates are the trees that free the space:
+/// a candidate that is kept is kept because its last write is too recent,
+/// so it can only move forward in the order and is removed on a later pass,
+/// and holding it behind a position recorded before it would delay the one thing the pass is for.
+#[test]
+fn a_tree_its_ledger_names_as_gone_is_judged_even_when_the_recorded_position_is_past_it() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let gone: PathBuf = root.path().join("no-longer-here");
+    let first: PathBuf = make_tree(&base, "ab/00000000000001", Some(&gone));
+    let second: PathBuf = make_tree(&base, "ab/00000000000002", Some(&gone));
+    for tree in [&first, &second] {
+        age_everything(tree, now_seconds() - 30 * DAY);
+    }
+    let options: RunOptions = RunOptions { dry_run: false, only: vec![Mechanism::Trees], deadline: Duration::from_secs(120), start: root.path().to_path_buf() };
+    let environment: GuardEnvironment = GuardEnvironment::real();
+    let pinned: HashSet<String> = HashSet::new();
+    let checkouts: Vec<PathBuf> = vec![root.path().to_path_buf()];
+    let mut progress: Progress = Progress::default();
+    progress.set(LongPass::Trees, Some(second.clone()));
+    let context = RunContext { options: &options, deadline: Deadline::after(options.deadline), environment: &environment, checkouts: &checkouts, pinned: &pinned, base: Some(&base), rustup_home: root.path(), progress: &progress };
+    let report: MechanismReport = run_mechanism(Mechanism::Trees, &context);
+    assert!(!first.exists() && !second.exists(), "both candidates went, though the position named one of them: {report:?}");
+    assert_eq!(report.resume_after, None, "no position is left behind when the list is finished: {report:?}");
 }
 
 /// The units pass continues after the profile directory the last run stopped at,

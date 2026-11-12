@@ -39,7 +39,7 @@ use crate::lean_run_report::{emit, gib, log_line};
 use std::{collections::HashSet, path::{Path, PathBuf}, time::Instant};
 
 /// The tree readers.
-use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, workspace_of};
+use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, recent_write_hint, workspace_of};
 /// The ledger that names the workspace a tree was built for.
 use crate::lean_keyed_folder::read_ledger;
 /// The proof and the removal.
@@ -152,6 +152,14 @@ pub struct Survey {
     /// This is the guard list:
     /// a tree that holds one of these workspaces is never removed.
     pub roots: Vec<(PathBuf, PathBuf)>,
+    /// One hint per tree,
+    /// in the order it was given:
+    /// the newest time among its root,
+    /// its profile directories and their working directories,
+    /// or nothing when the deadline stopped the survey before it read that tree's.
+    /// It orders the candidates;
+    /// it never decides anything.
+    pub hints: Vec<Option<i64>>,
     /// How many trees the survey read.
     pub read: usize,
     /// Whether the deadline stopped the survey before the last tree,
@@ -237,17 +245,23 @@ fn qualifies(now: i64, activity: i64, needed: i64, why: &str) -> Result<String, 
 }
 
 /// What:
-/// `pub fn survey(trees: &[Tree], retired: &HashSet<String>, deadline: &Deadline) -> Survey` reads the ledger of every tree once.
+/// `pub fn survey(trees: &[Tree], retired: &HashSet<String>, deadline: &Deadline) -> Survey` reads the ledger of every tree once,
+/// and the time of the directories of the trees whose ledger already shows they qualify.
 /// Why:
 /// Two things need it before a single tree is judged:
 /// the guard against removing a tree that holds another tree's workspace must cover the whole base,
 /// including the trees this pass does not reach,
 /// and the order the pass judges in puts the trees whose ledger already shows they qualify first,
 /// so the space a pass frees comes before the pass has read every tree.
-/// Only the ledger is read here,
+/// Only the ledger is read for every tree,
 /// never the dependency information,
 /// so a survey costs one small file read and one `stat` per tree,
 /// and a tree whose ledger names a workspace that is gone is a candidate without a walk.
+/// A candidate also gets a hint of its age,
+/// which is one `stat` per profile directory and a few more beside it,
+/// because a pass that judged its candidates in path order freed nothing:
+/// measured 2026-11-12,
+/// 10,805 of 55,881 trees judged in 1,095 s and every one of them younger than its idle period.
 /// Reading stops at the deadline:
 /// a guard list that is short of one tree may not be used to remove anything.
 ///
@@ -256,7 +270,7 @@ fn qualifies(now: i64, activity: i64, needed: i64, why: &str) -> Result<String, 
 /// export function survey(trees: Tree[], retired: Set<string>, deadline: Deadline): Survey
 /// ```
 pub fn survey(trees: &[Tree], retired: &HashSet<String>, deadline: &Deadline) -> Survey {
-    let mut found: Survey = Survey { candidates: vec![false; trees.len()], ..Survey::default() };
+    let mut found: Survey = Survey { candidates: vec![false; trees.len()], hints: vec![None; trees.len()], ..Survey::default() };
     for (index, tree) in trees.iter().enumerate() {
         if deadline.passed() {
             found.cut = true;
@@ -269,46 +283,55 @@ pub fn survey(trees: &[Tree], retired: &HashSet<String>, deadline: &Deadline) ->
         let Some(root) = read_ledger(&tree.path) else {
             found.candidates[index] = toolchain_retired;
             found.read += 1;
+            if toolchain_retired {
+                found.hints[index] = recent_write_hint(&tree.path, deadline);
+            }
             continue;
         };
         found.candidates[index] = toolchain_retired || missing(&root);
         found.roots.push((tree.path.clone(), root));
         found.read += 1;
+        if found.candidates[index] {
+            found.hints[index] = recent_write_hint(&tree.path, deadline);
+        }
     }
     return found;
 }
 
 /// What:
-/// `fn judging_order(trees: &[Tree], candidates: &[bool]) -> Vec<usize>` is the indexes of the trees in the order the pass judges
-/// them:
+/// `fn judging_order(trees: &[Tree], survey: &Survey) -> Vec<usize>` is the indexes of the trees in the order the pass judges them:
 /// the candidates first,
-/// and each group in path order.
+/// oldest hint first and path order within one time,
+/// then everything else in path order.
 /// Why:
 /// A pass that is cut by its deadline judges only the front of this order,
 /// so putting the trees that already qualify there is what makes the space come out of the pass while it runs instead of
-/// at the end of a survey of every tree.
-/// The order is a function of the trees and their ledgers alone,
-/// so the position the last pass recorded names the same place on the next one as long as those ledgers say the same thing.
+/// at the end of a survey of every tree,
+/// and ordering those by the last time anything was written into them puts the trees that qualify first:
+/// measured 2026-11-12,
+/// the same pass in path order freed nothing in twenty minutes.
+/// A candidate whose hint the deadline stopped is judged after the ones with a time,
+/// because the pass has no answer about it and the ones with an answer are the ones it can free now.
+/// The candidates are judged from the front on every pass and hold no position:
+/// they are re-derived from the ledgers,
+/// and a candidate that is kept becomes older,
+/// so it moves further forward and is removed on a later pass.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const judgingOrder = (trees: Tree[], candidates: boolean[]): number[] => { const at = trees.map((_, index) => index).sort((a, b) => trees[a].path < trees[b].path ? -1 : trees[a].path > trees[b].path ? 1 : 0); return [...at.filter((index) => candidates[index]), ...at.filter((index) => !candidates[index])]; };
+/// const judgingOrder = (trees: Tree[], survey: Survey): number[] => { const candidates = trees.map((_, index) => index).filter((index) => survey.candidates[index]); candidates.sort((a, b) => (survey.hints[a] ?? Infinity) - (survey.hints[b] ?? Infinity) || (trees[a].path < trees[b].path ? -1 : 1)); const rest = trees.map((_, index) => index).filter((index) => !survey.candidates[index]).sort((a, b) => trees[a].path < trees[b].path ? -1 : 1); return [...candidates, ...rest]; };
 /// ```
-fn judging_order(trees: &[Tree], candidates: &[bool]) -> Vec<usize> {
-    let mut by_path: Vec<usize> = (0..trees.len()).collect();
-    by_path.sort_by(|left, right| { return trees[*left].path.cmp(&trees[*right].path); });
-    let mut order: Vec<usize> = Vec::with_capacity(trees.len());
-    for index in &by_path {
-        if candidates[*index] {
-            order.push(*index);
-        }
-    }
-    for index in &by_path {
-        if !candidates[*index] {
-            order.push(*index);
-        }
-    }
-    return order;
+fn judging_order(trees: &[Tree], survey: &Survey) -> Vec<usize> {
+    let mut candidates: Vec<usize> = (0..trees.len()).filter(|index| { return survey.candidates[*index]; }).collect();
+    candidates.sort_by(|left, right| {
+        let left_hint: i64 = survey.hints[*left].unwrap_or(i64::MAX);
+        let right_hint: i64 = survey.hints[*right].unwrap_or(i64::MAX);
+        return left_hint.cmp(&right_hint).then_with(|| { return trees[*left].path.cmp(&trees[*right].path); });
+    });
+    let mut rest: Vec<usize> = (0..trees.len()).filter(|index| { return !survey.candidates[*index]; }).collect();
+    rest.sort_by(|left, right| { return trees[*left].path.cmp(&trees[*right].path); });
+    candidates.extend(rest);
+    return candidates;
 }
 
 /// What:
@@ -550,13 +573,13 @@ pub fn collect_idle_trees(
         collection.resume_after = after.map(Path::to_path_buf);
         return collection;
     }
-    // The order is judged from the recorded position: the candidates after it first, then the rest after it.
-    // Comparing paths inside each group keeps the position a single key a person can read,
-    // and the pass that reaches the end of both groups leaves no position, so the next one starts at the front.
-    let order: Vec<usize> = judging_order(trees, &found.candidates);
+    // The recorded position indexes the trees that are not candidates:
+    // those are the ones a pass reaches only by walking the whole list,
+    // where the candidates are re-derived from the ledgers on every pass and age forward until they are removed.
+    let order: Vec<usize> = judging_order(trees, &found);
     let mut to_judge: Vec<usize> = Vec::with_capacity(order.len());
     for index in order {
-        if after.is_none_or(|recorded| trees[index].path.as_path() > recorded) {
+        if found.candidates[index] || after.is_none_or(|recorded| trees[index].path.as_path() > recorded) {
             to_judge.push(index);
         }
     }
@@ -666,10 +689,13 @@ pub fn collect_idle_trees(
     }
     let _ = std::fs::remove_dir(&trash);
     // A pass that judged nothing keeps the position it started at, unless the list held nothing after it.
-    collection.resume_after = if collection.judged > 0 && collection.judged < collection.given {
-        Some(collection.outcomes[collection.judged - 1].tree.clone())
-    } else if collection.judged == 0 && collection.given > 0 {
-        after.map(Path::to_path_buf)
+    // A candidate never becomes the position: the candidates are judged from the front on every pass.
+    let last_of_the_rest: Option<PathBuf> = collection.outcomes[..collection.judged].iter().rev().map(|outcome| { return outcome.tree.clone(); }).find(|path| { return !found.candidates.iter().zip(trees.iter()).any(|(candidate, tree)| { return *candidate && tree.path == *path; }); });
+    collection.resume_after = if collection.judged < collection.given {
+        match last_of_the_rest {
+            Some(last) => Some(last),
+            None => after.map(Path::to_path_buf),
+        }
     } else {
         None
     };

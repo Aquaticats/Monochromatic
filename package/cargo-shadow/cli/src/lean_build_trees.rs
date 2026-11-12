@@ -272,6 +272,52 @@ pub fn last_activity(tree: &Path, deadline: &Deadline) -> Option<i64> {
     return Some(newest);
 }
 
+/// The directory names inside a profile directory whose own time a build changes:
+/// artifacts are relinked in `deps`,
+/// units are added in `.fingerprint`,
+/// and incremental state is written under `incremental`.
+const WORKING_DIRECTORIES: [&str; 3] = ["deps", ".fingerprint", "incremental"];
+
+/// What:
+/// `pub fn recent_write_hint(tree: &Path, deadline: &Deadline) -> Option<i64>` is the newest time among a tree's root,
+/// its profile directories and their working directories,
+/// and answers nothing when the deadline passed first.
+/// Why:
+/// The order a pass judges trees in decides when the space it frees comes out,
+/// and the trees whose last write is oldest are the ones that qualify:
+/// measured 2026-11-12 on this host,
+/// a pass ordered by path judged 10,805 trees in 1,095 s and freed nothing,
+/// because every tree it reached was younger than its idle period.
+/// Reading the time of a directory is one `stat` where reading the time of everything Cargo wrote in it is a walk over
+/// thousands of units,
+/// so the pass orders by this answer and still decides from the walk.
+/// It is a hint and not a proof:
+/// a write inside a unit's fingerprint directory changes none of these times,
+/// so a tree may look older than it is and the walk then keeps it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function recentWriteHint(tree: string, deadline: Deadline): number | undefined
+/// ```
+pub fn recent_write_hint(tree: &Path, deadline: &Deadline) -> Option<i64> {
+    let mut newest: i64 = 0;
+    match fs::symlink_metadata(tree) {
+        Ok(metadata) => newest = newest.max(metadata.mtime()),
+        Err(_) => return None,
+    }
+    for profile in profile_dirs_of(tree, deadline)? {
+        for directory in [profile.clone(), profile.join(WORKING_DIRECTORIES[0]), profile.join(WORKING_DIRECTORIES[1]), profile.join(WORKING_DIRECTORIES[2])] {
+            if deadline.passed() {
+                return None;
+            }
+            if let Ok(metadata) = fs::symlink_metadata(&directory) {
+                newest = newest.max(metadata.mtime());
+            }
+        }
+    }
+    return Some(newest);
+}
+
 /// What:
 /// `fn lead_in(tree: &Path, dependency_file: &Path) -> Option<PathBuf>` is the first source path a dependency-info file names
 /// outside the tree,
