@@ -367,18 +367,25 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
 ///  The remote-tracking reference a branch's pushes update,
 /// and nothing when it has no upstream.
 /// Why:
-///   `@{upstream}` is Git's own answer,
+///   The upstream is Git's own answer,
 /// so a branch whose upstream was never set is not guessed at from the settings,
 /// and
 ///  the same answer decides where the push goes and whether a blocked commit is already published.
+///   The question is asked of the branch's configuration rather than of the reference's own revision:
+/// `x@{upstream}` is a revision,
+/// so Git answers nothing for it while the remote-tracking reference is absent,
+/// which is exactly the state this push may leave behind when another Git holds that reference's lock;
+/// `for-each-ref` answers the name the configuration and the remote's fetch refspec make,
+/// whether the reference is there or not
+/// (measured with Git 2.56.0 on 2026-11-11).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const upstreamOf = (git, short) => querySuccess(git, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${short}@{upstream}`]) || undefined;
+/// const upstreamOf = (git, short) => (query(git, ['for-each-ref', '--format=%(upstream:short)', `refs/heads/${short}`]).stdout.trim() || undefined);
 /// ```
 fn upstream_of(git: &PushGit, short: &str) -> Result<Option<String>, SingleFlightError> {
-    let asked: String = format!("{short}@{{upstream}}");
-    let arguments: Vec<OsString> = ["rev-parse", "--abbrev-ref", "--symbolic-full-name", asked.as_str()].iter().map(OsString::from).collect();
+    let asked: String = format!("refs/heads/{short}");
+    let arguments: Vec<OsString> = ["for-each-ref", "--format=%(upstream:short)", asked.as_str()].iter().map(OsString::from).collect();
     let output = run_query(git, &arguments)?;
     if output.code != Some(0) {
         return Ok(None);
@@ -479,13 +486,14 @@ pub fn push_once(
     if attempt.exit_code == 0
         && let Some(of) = pushed_tracking_ref(upstream.as_deref(), &sent, pushed_ref.as_str())
     {
-        // The reference is written by its full name: the name a branch's upstream is answered with, `origin/main`, is no ref.
+        // The reference is written by its full name: the name a branch's upstream is answered with, `origin/main`, is no ref. A reference
+        //  that is absent is created, as Git creates it on this push, and one that could not be written is said with what stopped it.
         let full: String = match crate::push_tracking_ref_repair::resolve(git, of) {
             Some(named) => named,
             None => of.to_owned(),
         };
-        if !crate::push_tracking_ref_repair::bring_up_to_date(git, full.as_str(), source.as_str()) {
-            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), source.as_str());
+        if let Some(impediment) = crate::push_tracking_ref_repair::bring_up_to_date(git, full.as_str(), source.as_str()) {
+            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), source.as_str(), impediment);
         }
     }
     // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would

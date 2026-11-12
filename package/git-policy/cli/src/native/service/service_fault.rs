@@ -73,6 +73,20 @@ pub const AFTER_PROMOTE: &str = "after-promote";
 /// (`held_push_holder_and_verdict.rs`).
 pub const AFTER_THE_VERDICT: &str = "after-the-verdict";
 
+/// The instant a push's held record is about to be written,
+/// after the look that asked whether the queue already has that push and before the record exists:
+/// a control stops here to let the queue take the item in that window,
+/// which is the state a recovery that re-holds a push the queue already approved or settled lands in
+/// (`work_item_holding.rs`).
+pub const BEFORE_THE_HELD_WRITE: &str = "before-the-held-write";
+
+/// The instant a repair of the tracking reference is about to read it,
+/// on every attempt it makes:
+/// a control stops here to move the reference as another push or a fetch does between the read and the write,
+/// which is the window a reference another writer advanced would be rewound in
+/// (`push_tracking_ref_repair.rs`).
+pub const TRACKING_REF_BEFORE_THE_READ: &str = "tracking-ref-before-the-read";
+
 /// The instant after `index.lock` was created by exclusive creation
 /// (where the filesystem places no file whole)
 /// and before its marker is written:

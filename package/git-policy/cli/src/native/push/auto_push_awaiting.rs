@@ -114,15 +114,17 @@ pub(crate) async fn plan_named_push_awaiting(
 ///   The awaited plan asks the same question the synchronous one does,
 /// and the query enters the runtime from inside it.
 /// The answer decides where the
-///  push goes and whether a blocked commit is already published.
+///  push goes and whether a blocked commit is already published,
+/// and it is asked of the branch's configuration so it is answered while the remote-tracking reference is absent
+/// (`upstream_of`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const upstreamOf = async (git, short) => (await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${short}@{upstream}`])).ok || undefined;
+/// const upstreamOf = async (git, short) => ((await git(['for-each-ref', '--format=%(upstream:short)', `refs/heads/${short}`])).stdout.trim() || undefined);
 /// ```
 async fn upstream_of_awaiting(git: &PushGit, short: &str) -> Result<Option<String>, SingleFlightError> {
-    let asked: String = format!("{short}@{{upstream}}");
-    let arguments: Vec<OsString> = ["rev-parse", "--abbrev-ref", "--symbolic-full-name", asked.as_str()].iter().map(OsString::from).collect();
+    let asked: String = format!("refs/heads/{short}");
+    let arguments: Vec<OsString> = ["for-each-ref", "--format=%(upstream:short)", asked.as_str()].iter().map(OsString::from).collect();
     let output = run_query_awaiting(git, &arguments).await?;
     if output.code != Some(0) {
         return Ok(None);
@@ -198,13 +200,14 @@ pub async fn push_once_awaiting(
     if attempt.exit_code == 0
         && let Some(of) = pushed_tracking_ref(upstream.as_deref(), &sent, pushed_ref.as_str())
     {
-        // The reference is written by its full name: the name a branch's upstream is answered with, `origin/main`, is no ref.
+        // The reference is written by its full name: the name a branch's upstream is answered with, `origin/main`, is no ref. A reference
+        //  that is absent is created, as Git creates it on this push, and one that could not be written is said with what stopped it.
         let full: String = match crate::push_tracking_ref_repair::resolve_awaiting(git, of).await {
             Some(named) => named,
             None => of.to_owned(),
         };
-        if !crate::push_tracking_ref_repair::bring_up_to_date_awaiting(git, full.as_str(), source.as_str()).await {
-            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), source.as_str());
+        if let Some(impediment) = crate::push_tracking_ref_repair::bring_up_to_date_awaiting(git, full.as_str(), source.as_str()).await {
+            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), source.as_str(), impediment);
         }
     }
     // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would

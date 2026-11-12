@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::auto_push_single_flight::PushGit;
+use crate::service_fault::hooks;
 use crate::test_support::{REAL_GIT, fixture, git, git_text, remove};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -84,6 +85,20 @@ fn tracking(repo: &Path) -> String {
     return git_text(repo, &["rev-parse", TRACKING]);
 }
 
+/// Every reference the repository has.
+fn references(repo: &Path) -> String {
+    return git_text(repo, &["for-each-ref", "--format=%(refname)"]);
+}
+
+/// The lock of the tracking reference,
+/// as a Git that was killed leaves one,
+/// with the directory that holds it made when the reference is not there.
+fn the_lock_of_the_reference(repo: &Path) -> PathBuf {
+    let lock: PathBuf = repo.join(".git").join(format!("{TRACKING}.lock"));
+    std::fs::create_dir_all(lock.parent().expect("the lock's directory")).expect("the lock's directory");
+    return lock;
+}
+
 /// What:
 ///  One more commit on the branch, pushed,
 ///  so the tracking reference names it,
@@ -126,11 +141,56 @@ fn another_push_commit(world: &World) -> String {
 fn a_tracking_reference_behind_the_delivered_commit_is_brought_up_to_date() {
     let world: World = world("tracking-ref-repair-behind");
     assert_eq!(tracking(world.repo.as_path()), world.before, "the reference is behind before the repair");
-    assert!(bring_up_to_date(&push_git(world.repo.as_path()), TRACKING, world.delivered.as_str()), "the repair names the delivered commit");
+    assert_eq!(bring_up_to_date(&push_git(world.repo.as_path()), TRACKING, world.delivered.as_str()), None, "the repair names the delivered commit");
     assert_eq!(tracking(world.repo.as_path()), world.delivered, "the reference names what the remote holds");
     // The row Git writes for a push is the row this write leaves, so a reader of the reflog cannot tell the two apart.
     let reflog: String = git_text(world.repo.as_path(), &["reflog", "show", "--format=%gs", TRACKING]);
     assert!(reflog.contains(UPDATE_BY_PUSH), "the reflog names the update as a push's: {reflog}");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A reference that is not there is created,
+///  as Git creates it on a push whose fetch refspec maps the branch,
+///  and nothing else under that name is made.
+/// Why:
+///   A push whose reference update another Git's lock refused can leave no reference at all,
+///  where the branch's upstream was read before the reference went;
+/// every later question about the branch's remote then answers nothing,
+///  and Git itself creates the reference on the next push it can update.
+#[test]
+fn a_tracking_reference_that_is_absent_is_created() {
+    let world: World = world("tracking-ref-repair-absent");
+    git(world.repo.as_path(), &["update-ref", "-d", TRACKING]);
+    let git: PushGit = push_git(world.repo.as_path());
+    assert_eq!(resolve(&git, "origin/main"), Some(String::from(TRACKING)), "the name of the reference is known while the reference is not there");
+    assert_eq!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), None, "the absent reference is created");
+    assert_eq!(tracking(world.repo.as_path()), world.delivered, "the created reference names what the remote holds");
+    let reflog: String = git_text(world.repo.as_path(), &["reflog", "show", "--format=%gs", TRACKING]);
+    assert!(reflog.contains(UPDATE_BY_PUSH), "the created reference has a push's reflog row: {reflog}");
+    assert_eq!(references(world.repo.as_path()).lines().filter(|name| { return name.contains("origin"); }).collect::<Vec<&str>>(), vec![TRACKING], "no other reference was made");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The awaited repair creates an absent reference as the synchronous one does.
+/// Why:
+///   The service's push runs on the runtime,
+/// so the face it uses must do what the command's face does,
+///  including the creation Git itself makes.
+#[test]
+fn the_awaited_repair_creates_a_reference_that_is_absent() {
+    let world: World = world("tracking-ref-repair-absent-awaiting");
+    git(world.repo.as_path(), &["update-ref", "-d", TRACKING]);
+    let git: PushGit = push_git(world.repo.as_path());
+    let runtime: tokio::runtime::Runtime =
+        tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    assert_eq!(
+        runtime.block_on(bring_up_to_date_awaiting(&git, TRACKING, world.delivered.as_str())),
+        None,
+        "the awaited face creates the absent reference"
+    );
+    assert_eq!(tracking(world.repo.as_path()), world.delivered, "the created reference names what the remote holds");
     remove(world.root.as_path());
 }
 
@@ -144,15 +204,15 @@ fn a_tracking_reference_behind_the_delivered_commit_is_brought_up_to_date() {
 fn a_tracking_reference_that_already_holds_the_commit_is_left_alone() {
     let world: World = world("tracking-ref-repair-already-there");
     git(world.repo.as_path(), &["update-ref", TRACKING, world.delivered.as_str()]);
-    let lock: PathBuf = world.repo.join(".git").join(format!("{TRACKING}.lock"));
+    let lock: PathBuf = the_lock_of_the_reference(world.repo.as_path());
     std::fs::write(lock.as_path(), "").expect("a held lock");
-    assert!(bring_up_to_date(&push_git(world.repo.as_path()), TRACKING, world.delivered.as_str()), "nothing had to be written");
+    assert_eq!(bring_up_to_date(&push_git(world.repo.as_path()), TRACKING, world.delivered.as_str()), None, "nothing had to be written");
     assert_eq!(tracking(world.repo.as_path()), world.delivered, "the reference is as it was");
     remove(world.root.as_path());
 }
 
 /// What:
-///  A reference whose lock still stands is reported,
+///  A reference whose lock still stands is reported as a lock,
 ///  and it is written once the lock goes.
 /// Why:
 ///   The push delivered either way,
@@ -161,29 +221,72 @@ fn a_tracking_reference_that_already_holds_the_commit_is_left_alone() {
 #[test]
 fn a_tracking_reference_whose_lock_stands_is_reported_and_then_written() {
     let world: World = world("tracking-ref-repair-locked");
-    let lock: PathBuf = world.repo.join(".git").join(format!("{TRACKING}.lock"));
+    let lock: PathBuf = the_lock_of_the_reference(world.repo.as_path());
     std::fs::write(lock.as_path(), "").expect("a held lock");
-    assert!(!bring_up_to_date(&push_git(world.repo.as_path()), TRACKING, world.delivered.as_str()), "the lock refused the write");
+    assert_eq!(
+        bring_up_to_date(&push_git(world.repo.as_path()), TRACKING, world.delivered.as_str()),
+        Some(Impediment::Locked),
+        "the lock refused the write, and the answer names the lock"
+    );
     assert_eq!(tracking(world.repo.as_path()), world.before, "the reference is where the refused push left it");
     std::fs::remove_file(lock.as_path()).expect("the lock goes");
-    assert!(bring_up_to_date(&push_git(world.repo.as_path()), TRACKING, world.delivered.as_str()), "the reference is written once the lock is gone");
+    assert_eq!(
+        bring_up_to_date(&push_git(world.repo.as_path()), TRACKING, world.delivered.as_str()),
+        None,
+        "the reference is written once the lock is gone"
+    );
     assert_eq!(tracking(world.repo.as_path()), world.delivered, "the reference names what the remote holds");
     remove(world.root.as_path());
 }
 
 /// What:
-///  A reference this program cannot write is named,
-///  and the words say what becomes of it.
+///  A reference whose lock stands is a reference that is not there at all,
+///  and the creation meets the same lock.
 /// Why:
-///   Silently leaving a reference behind is the state a later command cannot explain;
-/// the sentence names the reference,
-/// the commit the push
-///  delivered and the one thing that writes the reference next.
+///   The absent reference is created by a compare-and-swap,
+/// which takes the same lock another Git holds,
+/// so the answer must name the lock rather than report a reference that was made.
 #[test]
-fn a_reference_that_could_not_be_written_is_named_with_what_writes_it() {
-    let said: String = still_behind(TRACKING, "b".repeat(40).as_str());
-    assert!(said.contains("could not update the tracking reference refs/remotes/origin/main"), "{said}");
-    assert!(said.contains("until a push or a fetch writes it"), "{said}");
+fn an_absent_reference_whose_lock_stands_is_reported_as_a_lock() {
+    let world: World = world("tracking-ref-repair-absent-locked");
+    git(world.repo.as_path(), &["update-ref", "-d", TRACKING]);
+    let lock: PathBuf = the_lock_of_the_reference(world.repo.as_path());
+    std::fs::write(lock.as_path(), "").expect("a held lock");
+    assert_eq!(
+        bring_up_to_date(&push_git(world.repo.as_path()), TRACKING, world.delivered.as_str()),
+        Some(Impediment::Locked),
+        "the absent reference could not be created while another Git held its lock"
+    );
+    assert!(!references(world.repo.as_path()).lines().any(|name| { return name == TRACKING; }), "no reference was made");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  Every refusal of this repair says what stopped it,
+///  and only the lock is called a lock.
+/// Why:
+///   A person who reads "another Git holds its lock" when no lock stands is told to wait for something that will not
+///  end,
+/// and the other states have their own cause and their own next step.
+#[test]
+fn a_repair_that_could_not_write_says_what_stopped_it() {
+    let delivered: String = "b".repeat(40);
+    let locked: String = still_behind(TRACKING, delivered.as_str(), Impediment::Locked);
+    assert!(locked.contains("another Git held the lock"), "{locked}");
+    assert!(locked.contains(TRACKING), "{locked}");
+    let other: String = still_behind(TRACKING, delivered.as_str(), Impediment::AnotherWriter);
+    assert!(other.contains("another process wrote"), "{other}");
+    assert!(!other.contains("lock"), "a value another writer keeps is no lock: {other}");
+    let unreadable: String = still_behind(TRACKING, delivered.as_str(), Impediment::Unreadable);
+    assert!(unreadable.contains("could not read"), "{unreadable}");
+    assert!(!unreadable.contains("lock"), "a reference Git cannot read is no lock: {unreadable}");
+    let not_tracking: String = still_behind("origin/main", delivered.as_str(), Impediment::NotATrackingReference);
+    assert!(not_tracking.contains("is not a remote-tracking reference"), "{not_tracking}");
+    let not_a_commit: String = still_behind(TRACKING, "refs/heads/main", Impediment::NotACommit);
+    assert!(not_a_commit.contains("is not a commit name"), "{not_a_commit}");
+    for said in [&locked, &other, &unreadable, &not_tracking, &not_a_commit] {
+        assert!(said.starts_with("the push delivered"), "{said}");
+    }
 }
 
 /// What:
@@ -199,8 +302,8 @@ fn the_awaited_repair_writes_the_reference_the_synchronous_one_does() {
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
     let resolved: Option<String> = runtime.block_on(resolve_awaiting(&git, "origin/main"));
     assert_eq!(resolved, Some(String::from(TRACKING)), "the awaited face resolves the same shorthand");
-    let wrote: bool = runtime.block_on(bring_up_to_date_awaiting(&git, TRACKING, world.delivered.as_str()));
-    assert!(wrote, "the awaited repair writes the reference");
+    let wrote: Option<Impediment> = runtime.block_on(bring_up_to_date_awaiting(&git, TRACKING, world.delivered.as_str()));
+    assert_eq!(wrote, None, "the awaited repair writes the reference");
     assert_eq!(tracking(world.repo.as_path()), world.delivered, "the reference names what the remote holds");
     remove(world.root.as_path());
 }
@@ -216,14 +319,11 @@ fn a_reference_named_short_is_written_by_its_full_name() {
     let world: World = world("tracking-ref-repair-short-name");
     let git: PushGit = push_git(world.repo.as_path());
     assert_eq!(resolve(&git, "origin/main"), Some(String::from(TRACKING)), "the shorthand a branch's upstream is answered with is resolved to its ref");
-    assert!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), "the full reference is written");
+    assert_eq!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), None, "the full reference is written");
     assert_eq!(tracking(world.repo.as_path()), world.delivered, "the full reference names what the remote holds");
-    let about_origin: Vec<String> = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)"])
-        .lines()
-        .filter(|name| { return name.contains("origin"); })
-        .map(str::to_owned)
-        .collect();
-    assert_eq!(about_origin, vec![String::from("refs/remotes/origin/main")], "no other reference took the short name");
+    let about_origin: Vec<String> =
+        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)"]).lines().filter(|name| { return name.contains("origin"); }).map(str::to_owned).collect();
+    assert_eq!(about_origin, vec![String::from(TRACKING)], "no other reference took the short name");
     remove(world.root.as_path());
 }
 
@@ -239,8 +339,42 @@ fn a_repair_leaves_a_reference_that_already_names_a_newer_commit() {
     let world: World = world("tracking-ref-repair-newer-synchronous");
     let newer: String = another_push(&world);
     let git: PushGit = push_git(world.repo.as_path());
-    assert!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), "a reference that holds a commit above the delivered one needs no write");
+    assert_eq!(
+        bring_up_to_date(&git, TRACKING, world.delivered.as_str()),
+        None,
+        "a reference that holds a commit above the delivered one needs no write"
+    );
     assert_eq!(tracking(world.repo.as_path()), newer, "the synchronous repair leaves the newer commit another push wrote");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A reference another writer moves at the instant this repair reads it is left where that writer put it.
+/// Why:
+///   The repair reads the reference once and asks its ancestry question about that value,
+/// so a value that arrives between the look and the write is the value it decides about.
+/// A repair that decided about the reference and then read it again would write the delivered commit over the newer one,
+/// which is the rewind this control stops the code in the middle of:
+/// the hook is another push or a fetch,
+/// and it runs at the instant before the read.
+#[test]
+fn a_repair_leaves_a_reference_another_writer_moved_before_its_read() {
+    let world: World = world("tracking-ref-repair-moved-before-the-read");
+    let newer: String = another_push(&world);
+    // The reference is put back where the refused push left it, so the move the hook makes is the only one that arrives.
+    git(world.repo.as_path(), &["update-ref", TRACKING, world.before.as_str()]);
+    let (hook_repo, hook_value): (PathBuf, String) = (world.repo.clone(), newer.clone());
+    hooks::set(
+        TRACKING_REF_BEFORE_THE_READ,
+        std::rc::Rc::new(move || {
+            // As a fetch or another push does: the reference is advanced between the reader's look and its write.
+            git(hook_repo.as_path(), &["update-ref", TRACKING, hook_value.as_str()]);
+        }),
+    );
+    let git: PushGit = push_git(world.repo.as_path());
+    let _answer: Option<Impediment> = bring_up_to_date(&git, TRACKING, world.delivered.as_str());
+    hooks::clear();
+    assert_eq!(tracking(world.repo.as_path()), newer, "the reference keeps the commit another writer put there rather than moving back to an older one");
     remove(world.root.as_path());
 }
 
@@ -254,11 +388,12 @@ fn the_awaited_repair_leaves_a_reference_that_already_names_a_newer_commit() {
     let world: World = world("tracking-ref-repair-newer-awaited");
     let newer: String = another_push(&world);
     let git: PushGit = push_git(world.repo.as_path());
-    assert!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), "the synchronous face reads the newer commit as already there");
+    assert_eq!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), None, "the synchronous face reads the newer commit as already there");
     assert_eq!(tracking(world.repo.as_path()), newer, "the synchronous face leaves the newer commit");
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
-    assert!(
+    assert_eq!(
         runtime.block_on(bring_up_to_date_awaiting(&git, TRACKING, world.delivered.as_str())),
+        None,
         "the awaited face reads the same newer commit as already there"
     );
     assert_eq!(tracking(world.repo.as_path()), newer, "the awaited face leaves the newer commit the synchronous one leaves");
@@ -279,12 +414,17 @@ fn a_repair_asked_for_a_name_instead_of_a_commit_writes_nothing() {
     let local_only: String = a_commit_the_remote_never_received(&world);
     assert_ne!(local_only, world.delivered, "the commit the branch names is not the one the remote holds");
     let git: PushGit = push_git(world.repo.as_path());
-    assert!(!bring_up_to_date(&git, TRACKING, "refs/heads/main"), "the branch is no statement of what the push delivered");
+    assert_eq!(
+        bring_up_to_date(&git, TRACKING, "refs/heads/main"),
+        Some(Impediment::NotACommit),
+        "the branch is no statement of what the push delivered"
+    );
     assert_eq!(tracking(world.repo.as_path()), world.before, "the reference still names what the remote holds");
     assert_ne!(tracking(world.repo.as_path()), local_only, "the reference never names the commit the remote never received");
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
-    assert!(
-        !runtime.block_on(bring_up_to_date_awaiting(&git, TRACKING, "refs/heads/main")),
+    assert_eq!(
+        runtime.block_on(bring_up_to_date_awaiting(&git, TRACKING, "refs/heads/main")),
+        Some(Impediment::NotACommit),
         "the awaited face refuses a name as the synchronous one does"
     );
     assert_eq!(tracking(world.repo.as_path()), world.before, "the awaited face writes nothing either");
@@ -303,14 +443,14 @@ fn a_local_branch_named_like_the_upstream_is_never_the_reference_written() {
     git(world.repo.as_path(), &["branch", "origin/main", world.before.as_str()]);
     git(world.repo.as_path(), &["update-ref", "-d", TRACKING]);
     let git: PushGit = push_git(world.repo.as_path());
-    assert_eq!(resolve(&git, "origin/main"), None, "with the tracking reference gone this name is no reference of the repair's");
     assert_eq!(resolve(&git, "refs/heads/origin/main"), None, "a local branch is never resolved to a reference the repair writes");
-    assert!(
-        !bring_up_to_date(&git, "refs/heads/origin/main", world.delivered.as_str()),
+    assert_eq!(
+        bring_up_to_date(&git, "refs/heads/origin/main", world.delivered.as_str()),
+        Some(Impediment::NotATrackingReference),
         "the repair writes a remote-tracking reference and no other"
     );
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/origin/main"]), world.before, "the person's branch is where they left it");
-    let names: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)"]);
+    let names: String = references(world.repo.as_path());
     assert!(!names.lines().any(|name| { return name == TRACKING; }), "no tracking reference was written under the name: {names}");
     remove(world.root.as_path());
 }
@@ -327,7 +467,7 @@ fn a_tracking_reference_beside_a_local_branch_of_the_same_name_is_the_one_repair
     git(world.repo.as_path(), &["branch", "origin/main", world.before.as_str()]);
     let git: PushGit = push_git(world.repo.as_path());
     assert_eq!(resolve(&git, "origin/main"), Some(String::from(TRACKING)), "the derived name is the tracking reference Git holds");
-    assert!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), "the tracking reference is brought up to date");
+    assert_eq!(bring_up_to_date(&git, TRACKING, world.delivered.as_str()), None, "the tracking reference is brought up to date");
     assert_eq!(tracking(world.repo.as_path()), world.delivered, "the reference names what the remote holds");
     assert_eq!(
         git_text(world.repo.as_path(), &["rev-parse", "refs/heads/origin/main"]),
@@ -338,19 +478,24 @@ fn a_tracking_reference_beside_a_local_branch_of_the_same_name_is_the_one_repair
 }
 
 /// What:
-///  A name that is no reference writes nothing.
+///  A name that is not a remote-tracking reference is answered by nothing and written by nothing.
 /// Why:
-///   The write names what the caller asked for,
-/// so a name this repository does not have must leave the repository exactly as it is
+///   The repair writes the branch's remote-tracking reference and no other,
+/// so a name outside `refs/remotes/` must leave the repository exactly as it is
 ///  rather than create a reference nobody named.
 #[test]
-fn a_name_that_is_no_reference_is_not_written() {
+fn a_name_that_is_no_tracking_reference_is_not_written() {
     let world: World = world("tracking-ref-repair-not-a-ref");
     let git: PushGit = push_git(world.repo.as_path());
-    assert_eq!(resolve(&git, "no-such-reference"), None, "a name this repository does not have is no reference");
-    assert!(!bring_up_to_date(&git, "no-such-reference", world.delivered.as_str()), "nothing is written under it");
+    assert_eq!(resolve(&git, "refs/heads/main"), None, "a local branch is not a remote-tracking reference");
+    assert_eq!(resolve(&git, "refs/tags/v1"), None, "a tag is not a remote-tracking reference");
+    assert_eq!(
+        bring_up_to_date(&git, "no-such-reference", world.delivered.as_str()),
+        Some(Impediment::NotATrackingReference),
+        "nothing is written under a name that is no reference of this repair's"
+    );
     assert_eq!(tracking(world.repo.as_path()), world.before, "the reference is as it was");
-    let names: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)"]);
+    let names: String = references(world.repo.as_path());
     assert!(!names.contains("no-such-reference"), "no reference was made under the name: {names}");
     remove(world.root.as_path());
 }

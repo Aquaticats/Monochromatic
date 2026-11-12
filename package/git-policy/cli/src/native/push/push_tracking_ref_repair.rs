@@ -35,7 +35,18 @@
 //! and `update-ref` resolves the value it is given when it writes,
 //! so either would move or publish something this push never carried.
 //! A reference that already names the delivered commit or a commit above it is left alone.
-//! A write the lock refuses through every retry is said instead of left silent.
+//! A reference that is absent is created,
+//! as Git itself creates the branch's remote-tracking reference when the remote's fetch refspec maps the branch
+//!  (`transport_update_tracking_ref` in Git's `transport.c`,
+//! measured with Git 2.56.0 on 2026-11-11),
+//! and the creation expects the old value to be absent,
+//! so a reference another writer created meanwhile is that writer's.
+//! A write the repair could not make is said instead of left silent,
+//! and the sentence names what stopped it:
+//! a lock another Git holds,
+//! another writer that wrote the reference first,
+//! a reference Git could not read,
+//! or a name that is no remote-tracking reference or no commit name.
 //! Nothing a person asked for waits on this:
 //! it runs after the push answered.
 //!
@@ -48,6 +59,7 @@ use crate::auto_push::{PUSH_LOCK_PAUSE, PUSH_LOCK_RETRIES};
 use crate::auto_push_reconcile_basics_and_limits::{is_ancestor, is_ancestor_awaiting};
 use crate::auto_push_single_flight::{PushGit, run_query, run_query_awaiting};
 use crate::diagnostic_log::warn;
+use crate::service_fault::{TRACKING_REF_BEFORE_THE_READ, reach};
 use crate::service_protocol::is_object_name;
 use std::ffi::OsString;
 
@@ -70,6 +82,9 @@ struct Answer {
     code: Option<i32>,
     /// Standard output as text.
     stdout: String,
+    /// Standard error as text,
+    /// which is what says why a write was refused.
+    stderr: String,
 }
 
 impl Answer {
@@ -83,7 +98,7 @@ impl Answer {
         return self.code == Some(0);
     }
 
-    /// The answer's first line of text,
+    /// The answer's text,
     /// trimmed,
     /// or empty.
     ///
@@ -93,6 +108,22 @@ impl Answer {
     /// ```
     fn text(&self) -> String {
         return self.stdout.trim().to_owned();
+    }
+
+    /// What:
+    ///  Whether the answer is `rev-parse --verify --quiet` saying the reference is not there.
+    /// Why:
+    ///   `--quiet` makes a reference that is not there the only refusal that says nothing at all,
+    /// so an absent reference is told apart from one Git could not read,
+    /// and only the absent one is created
+    ///  (measured with Git 2.56.0 on 2026-11-11).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const missing = (answer) => answer.code === 1 && answer.stdout.trim() === '' && answer.stderr.trim() === '';
+    /// ```
+    fn said_the_reference_is_missing(&self) -> bool {
+        return self.code == Some(1) && self.text().is_empty() && self.stderr.trim().is_empty();
     }
 }
 
@@ -115,7 +146,11 @@ fn argv(parts: &[&str]) -> Vec<OsString> {
 /// ```
 fn ask(git: &PushGit, parts: &[&str]) -> Option<Answer> {
     let output = run_query(git, argv(parts).as_slice()).ok()?;
-    return Some(Answer { code: output.code, stdout: String::from_utf8_lossy(output.stdout.as_slice()).into_owned() });
+    return Some(Answer {
+        code: output.code,
+        stdout: String::from_utf8_lossy(output.stdout.as_slice()).into_owned(),
+        stderr: String::from_utf8_lossy(output.stderr.as_slice()).into_owned(),
+    });
 }
 
 /// The same query as a task of the runtime.
@@ -126,13 +161,16 @@ fn ask(git: &PushGit, parts: &[&str]) -> Option<Answer> {
 /// ```
 async fn ask_awaiting(git: &PushGit, parts: &[&str]) -> Option<Answer> {
     let output = run_query_awaiting(git, argv(parts).as_slice()).await.ok()?;
-    return Some(Answer { code: output.code, stdout: String::from_utf8_lossy(output.stdout.as_slice()).into_owned() });
+    return Some(Answer {
+        code: output.code,
+        stdout: String::from_utf8_lossy(output.stdout.as_slice()).into_owned(),
+        stderr: String::from_utf8_lossy(output.stderr.as_slice()).into_owned(),
+    });
 }
 
 /// What:
 ///  The full ref name of the reference a branch's upstream is,
-///  and nothing when the name is not the remote-tracking reference of one,
-///  or Git could not say.
+///  and nothing when the name is no remote-tracking reference.
 /// Why:
 ///   A write takes the full name:
 /// `update-ref origin/main <commit>` is accepted and changes nothing,
@@ -143,13 +181,17 @@ async fn ask_awaiting(git: &PushGit, parts: &[&str]) -> Option<Answer> {
 /// because `rev-parse` reads a short name from `refs/heads` and `refs/tags` as readily as from `refs/remotes`:
 /// a repository that holds a local branch named `origin/main` would have that branch written,
 /// and the remote-tracking reference this repair exists for would be left behind.
+///   Whether Git holds the reference is not asked here,
+/// because a reference that is absent is one this repair creates:
+/// Git itself creates the branch's remote-tracking reference on a push whose fetch refspec maps the branch,
+/// and the name of that reference is known from the branch's upstream whether the reference is there or not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const fullRef = (git, name) => { const full = trackingRef(name); const answer = full === undefined ? undefined : ask(git, ['rev-parse', '--symbolic-full-name', '--verify', full]); return answer?.ok() && answer.text() === full ? full : undefined; };
+/// const fullRef = (name) => trackingRef(name);
 /// ```
-pub fn resolve(git: &PushGit, name: &str) -> Option<String> {
-    return full_ref_from(git, name, ask);
+pub fn resolve(_git: &PushGit, name: &str) -> Option<String> {
+    return remote_tracking_ref(name);
 }
 
 /// What:
@@ -175,81 +217,82 @@ fn remote_tracking_ref(name: &str) -> Option<String> {
     return Some(format!("refs/remotes/{name}"));
 }
 
-/// What:
-///  Whether an answer names exactly the reference the repair asked about.
-/// Why:
-///   `rev-parse --symbolic-full-name --verify` answers an ambiguous name with no output at all and still exits `0`
-/// (measured on 2026-11-11 with Git 2.56.0),
-/// so the text is compared with the expected name and never taken on trust.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namesIt = (answer, full) => answer.ok() && answer.text() === full;
-/// ```
-fn names_exactly(answer: &Answer, full: &str) -> bool {
-    return answer.ok() && answer.text() == full;
-}
-
-/// What:
-///  The full reference a name a branch's upstream is answered with means,
-///  asked with the query given.
-/// Why:
-///   `rev-parse --symbolic-full-name` answers a shorthand with the shorthand itself,
-/// so the derived name is asked for and accepted only when Git answers that very name;
-/// a name Git does not hold is no reference and is never written.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const said = ask(git, ['rev-parse', '--symbolic-full-name', '--verify', full]); return said && namesIt(said, full) ? full : undefined;
-/// ```
-fn full_ref_from(git: &PushGit, name: &str, query: fn(&PushGit, &[&str]) -> Option<Answer>) -> Option<String> {
-    let full: String = remote_tracking_ref(name)?;
-    let answer: Answer = query(git, &["rev-parse", "--symbolic-full-name", "--verify", full.as_str()])?;
-    return names_exactly(&answer, full.as_str()).then_some(full);
-}
-
 /// The same,
 /// awaited by a caller that is itself a task of the runtime.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const fullRefAwaiting = async (git, name) => { const full = trackingRef(name); const answer = full === undefined ? undefined : await askAwaiting(git, ['rev-parse', '--symbolic-full-name', '--verify', full]); return answer && namesIt(answer, full) ? full : undefined; };
+/// const fullRefAwaiting = async (name) => trackingRef(name);
 /// ```
-pub async fn resolve_awaiting(git: &PushGit, name: &str) -> Option<String> {
-    let full: String = remote_tracking_ref(name)?;
-    let answer: Answer = ask_awaiting(git, &["rev-parse", "--symbolic-full-name", "--verify", full.as_str()]).await?;
-    return names_exactly(&answer, full.as_str()).then_some(full);
+pub async fn resolve_awaiting(_git: &PushGit, name: &str) -> Option<String> {
+    return remote_tracking_ref(name);
 }
 
-/// The commit a full reference names,
-/// and nothing when it names none.
+/// What:
+///  Where a full reference is:
+///  naming a commit,
+///  absent,
+///  or beyond Git's answer.
+/// Why:
+///   An absent reference is created and a named one is compared with the delivery,
+/// so the two are told apart before anything is written;
+/// an answer Git could not give is never read as an absent reference,
+/// because creating a reference that is there would replace the commit it names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const valueOf = (git, full) => { const answer = ask(git, ['rev-parse', '--verify', '--quiet', full + '^{commit}']); return answer?.ok() ? answer.text() : undefined; };
+/// type At = { kind: 'commit'; value: string } | { kind: 'absent' } | { kind: 'unreadable' };
 /// ```
-fn value_of(git: &PushGit, full: &str) -> Option<String> {
+enum At {
+    /// The reference names this commit.
+    Commit(String),
+    /// The reference is not there.
+    Absent,
+    /// Git could not say.
+    Unreadable,
+}
+
+/// What:
+///  Where the reference is,
+///  asked once and answered with what was read.
+/// Why:
+///   `rev-parse --verify --quiet` says a reference that is not there with an exit status and no text at all,
+/// so absence is told apart from an answer Git could not give
+/// (measured with Git 2.56.0 on 2026-11-11),
+/// and the value this returns is the one the ancestry question is asked about and the one the write expects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whereItIs = (git, full) => { const answer = ask(git, ['rev-parse', '--verify', '--quiet', full + '^{commit}']); return !answer ? unreadable : answer.ok() ? { kind: 'commit', value: answer.text() } : answer.saidTheReferenceIsMissing() ? absent : unreadable; };
+/// ```
+fn where_it_is(git: &PushGit, full: &str) -> At {
     let peeled: String = format!("{full}^{{commit}}");
-    let answer: Answer = ask(git, &["rev-parse", "--verify", "--quiet", peeled.as_str()])?;
-    return match answer.ok() {
-        true => Some(answer.text()),
-        false => None,
+    let Some(answer) = ask(git, &["rev-parse", "--verify", "--quiet", peeled.as_str()]) else { return At::Unreadable };
+    if answer.ok() {
+        return At::Commit(answer.text());
+    }
+    return match answer.said_the_reference_is_missing() {
+        true => At::Absent,
+        false => At::Unreadable,
     };
 }
 
-/// The same,
+/// The same question,
 /// awaited by a caller that is itself a task of the runtime.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const valueAwaiting = async (git, full) => { const answer = await askAwaiting(git, ['rev-parse', '--verify', '--quiet', full + '^{commit}']); return answer?.ok() ? answer.text() : undefined; };
+/// const whereItIsAwaiting = async (git, full) => { const answer = await askAwaiting(git, ['rev-parse', '--verify', '--quiet', full + '^{commit}']); return !answer ? unreadable : answer.ok() ? { kind: 'commit', value: answer.text() } : answer.saidTheReferenceIsMissing() ? absent : unreadable; };
 /// ```
-async fn value_of_awaiting(git: &PushGit, full: &str) -> Option<String> {
+async fn where_it_is_awaiting(git: &PushGit, full: &str) -> At {
     let peeled: String = format!("{full}^{{commit}}");
-    let answer: Answer = ask_awaiting(git, &["rev-parse", "--verify", "--quiet", peeled.as_str()]).await?;
-    return match answer.ok() {
-        true => Some(answer.text()),
-        false => None,
+    let Some(answer) = ask_awaiting(git, &["rev-parse", "--verify", "--quiet", peeled.as_str()]).await else { return At::Unreadable };
+    if answer.ok() {
+        return At::Commit(answer.text());
+    }
+    return match answer.said_the_reference_is_missing() {
+        true => At::Absent,
+        false => At::Unreadable,
     };
 }
 
@@ -283,8 +326,62 @@ async fn holds_the_delivery_awaiting(git: &PushGit, at: &str, delivered: &str) -
     return matches!(is_ancestor_awaiting(git, delivered, at).await, Ok(Some(true)));
 }
 
+/// What:
+///  What stopped a repair,
+///  so the sentence a person reads names the real cause.
+/// Why:
+///   The states are told apart by what Git said,
+/// and each has one cause:
+/// a lock another Git holds (`stale_ref_locks.rs`),
+/// another writer that wrote the reference first,
+/// a reference Git could not read,
+/// a name that is no remote-tracking reference,
+///  or a value that is no commit name.
+/// A sentence that named the lock for all of them would blame a lock that is not there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Impediment = 'locked' | 'another-writer' | 'unreadable' | 'not-a-tracking-reference' | 'not-a-commit';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Impediment {
+    /// The reference's lock stands, and nothing may clear it without a proof its holder is gone.
+    Locked,
+    /// Another writer wrote the reference first, and its value is the one to keep.
+    AnotherWriter,
+    /// Git could not read the reference, so nothing could be decided about it.
+    Unreadable,
+    /// The name is not a reference under `refs/remotes/`, so this repair writes nothing there.
+    NotATrackingReference,
+    /// The value the push was said to deliver is no commit name.
+    NotACommit,
+}
+
+/// What:
+///  What a refused write says it was refused by,
+///  from Git's own words.
+/// Why:
+///   Git reports every refusal of `update-ref` as `cannot lock ref` and names the reason after it:
+/// `Unable to create '[...].lock': File exists` for a lock another Git holds,
+/// `reference already exists` for a creation whose reference another writer made first,
+/// and `is at <commit> but expected <commit>` for a value that moved
+/// (measured with Git 2.56.0 on 2026-11-11).
+/// So the reason is read from the rest of the line and never from the phrase they share.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const impedimentOf = (answer) => answer.stderr.includes('Unable to create') ? 'locked' : 'another-writer';
+/// ```
+fn impediment_of(answer: &Answer) -> Impediment {
+    return match answer.stderr.contains("Unable to create") {
+        true => Impediment::Locked,
+        false => Impediment::AnotherWriter,
+    };
+}
+
 /// One `git update-ref` of the full reference,
-/// expecting the value that was read.
+/// expecting the value that was read,
+/// and what stopped it when it did not write.
 /// Why:
 ///   The reference is written by Git itself,
 /// with Git's own message,
@@ -295,11 +392,14 @@ async fn holds_the_delivery_awaiting(git: &PushGit, at: &str, delivered: &str) -
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const wrote = ask(git, ['update-ref', '-m', 'update by push', full, delivered, old])?.ok() === true;
+/// const wrote = (git, full, delivered, old) => { const answer = ask(git, ['update-ref', '-m', 'update by push', full, delivered, old]); return !answer ? unreadable : answer.ok() ? undefined : impedimentOf(answer); };
 /// ```
-fn write_the_reference(git: &PushGit, full: &str, delivered: &str, old: &str) -> bool {
-    let answer: Option<Answer> = ask(git, &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, old]);
-    return matches!(answer, Some(said) if said.ok());
+fn write_the_reference(git: &PushGit, full: &str, delivered: &str, old: &str) -> Result<(), Impediment> {
+    let Some(answer) = ask(git, &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, old]) else { return Err(Impediment::Unreadable) };
+    return match answer.ok() {
+        true => Ok(()),
+        false => Err(impediment_of(&answer)),
+    };
 }
 
 /// The same write,
@@ -307,16 +407,57 @@ fn write_the_reference(git: &PushGit, full: &str, delivered: &str, old: &str) ->
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const wroteAwaiting = async (git, full, delivered, old) => (await askAwaiting(git, ['update-ref', '-m', 'update by push', full, delivered, old]))?.ok() === true;
+/// const wroteAwaiting = async (git, full, delivered, old) => { const answer = await askAwaiting(git, ['update-ref', '-m', 'update by push', full, delivered, old]); return !answer ? unreadable : answer.ok() ? undefined : impedimentOf(answer); };
 /// ```
-async fn write_the_reference_awaiting(git: &PushGit, full: &str, delivered: &str, old: &str) -> bool {
-    let answer: Option<Answer> = ask_awaiting(git, &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, old]).await;
-    return matches!(answer, Some(said) if said.ok());
+async fn write_the_reference_awaiting(git: &PushGit, full: &str, delivered: &str, old: &str) -> Result<(), Impediment> {
+    let Some(answer) = ask_awaiting(git, &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, old]).await else { return Err(Impediment::Unreadable) };
+    return match answer.ok() {
+        true => Ok(()),
+        false => Err(impediment_of(&answer)),
+    };
+}
+
+/// What:
+///  One `git update-ref` that creates the reference,
+///  and what stopped it when it did not.
+/// Why:
+///   Git creates a branch's remote-tracking reference on a push whose fetch refspec maps the branch,
+/// so a repair of a reference that is absent creates it the same way;
+/// the empty expected value is Git's own rule that the reference must not exist,
+///  which is what keeps a reference another writer made meanwhile
+/// (measured with Git 2.56.0 on 2026-11-11:
+/// `update-ref <ref> <commit> ''` refuses a reference that is there).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const created = (git, full, delivered) => { const answer = ask(git, ['update-ref', '-m', 'update by push', full, delivered, '']); return !answer ? unreadable : answer.ok() ? undefined : impedimentOf(answer); };
+/// ```
+fn create_the_reference(git: &PushGit, full: &str, delivered: &str) -> Result<(), Impediment> {
+    let Some(answer) = ask(git, &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, ""]) else { return Err(Impediment::Unreadable) };
+    return match answer.ok() {
+        true => Ok(()),
+        false => Err(impediment_of(&answer)),
+    };
+}
+
+/// The same creation,
+/// awaited by a caller that is itself a task of the runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const createdAwaiting = async (git, full, delivered) => { const answer = await askAwaiting(git, ['update-ref', '-m', 'update by push', full, delivered, '']); return !answer ? unreadable : answer.ok() ? undefined : impedimentOf(answer); };
+/// ```
+async fn create_the_reference_awaiting(git: &PushGit, full: &str, delivered: &str) -> Result<(), Impediment> {
+    let Some(answer) = ask_awaiting(git, &["update-ref", "-m", UPDATE_BY_PUSH, full, delivered, ""]).await else { return Err(Impediment::Unreadable) };
+    return match answer.ok() {
+        true => Ok(()),
+        false => Err(impediment_of(&answer)),
+    };
 }
 
 /// What:
 ///  Makes the reference `upstream` names hold `delivered`,
-///  and answers whether it does.
+///  and answers what stopped it when it does not.
 /// Why:
 ///   The reference a push updates is what every later question about the branch's remote is answered from,
 /// so it must name what the
@@ -326,6 +467,9 @@ async fn write_the_reference_awaiting(git: &PushGit, full: &str, delivered: &str
 /// and only with a commit name:
 /// a branch name given to `update-ref` is resolved when it is written,
 /// so a commit that landed after the push and never reached the remote would be published by this repair.
+/// A reference that is absent is created,
+/// as Git creates it,
+/// and the creation expects it to be absent.
 /// A write can meet the same held lock the push met,
 ///  so it is tried as often and as patiently as the push.
 ///   The value read is the one the ancestry question is asked about and the one the write expects,
@@ -333,29 +477,42 @@ async fn write_the_reference_awaiting(git: &PushGit, full: &str, delivered: &str
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!full.startsWith('refs/remotes/') || !isObjectName(delivered)) return false;
-/// for (let attempt = 0; attempt <= RETRIES; attempt += 1) { const old = valueOf(git, full); if (!old) return false; if (holdsTheDelivery(git, old, delivered)) return true; if (write(git, full, delivered, old)) return true; if (attempt < RETRIES) sleep(PAUSE * (attempt + 1)); }
-/// warn(stillBehind(full, delivered)); return false;
+/// if (!full.startsWith('refs/remotes/')) return 'not-a-tracking-reference';
+/// if (!isObjectName(delivered)) return 'not-a-commit';
+/// let why; for (let attempt = 0; attempt <= RETRIES; attempt += 1) { reach(BEFORE_THE_READ); const at = whereItIs(git, full); if (at.kind === 'unreadable') return 'unreadable'; if (at.kind === 'commit' && holdsTheDelivery(git, at.value, delivered)) return undefined; const wrote = at.kind === 'absent' ? create(git, full, delivered) : write(git, full, delivered, at.value); if (!wrote) return undefined; why = wrote; if (attempt < RETRIES) sleep(PAUSE * (attempt + 1)); }
+/// warn(stillBehind(full, delivered, why)); return why;
 /// ```
-pub fn bring_up_to_date(git: &PushGit, full: &str, delivered: &str) -> bool {
-    if !full.starts_with("refs/remotes/") || !is_object_name(delivered) {
-        return false;
+pub fn bring_up_to_date(git: &PushGit, full: &str, delivered: &str) -> Option<Impediment> {
+    if !full.starts_with("refs/remotes/") {
+        return Some(Impediment::NotATrackingReference);
     }
+    if !is_object_name(delivered) {
+        return Some(Impediment::NotACommit);
+    }
+    let mut why: Impediment = Impediment::Unreadable;
     for attempt in 0..=PUSH_LOCK_RETRIES {
-        let Some(old) = value_of(git, full) else { return false };
-        if holds_the_delivery(git, old.as_str(), delivered) {
-            return true;
-        }
-        if write_the_reference(git, full, delivered, old.as_str()) {
-            return true;
-        }
-        // A lock another Git holds ends; nothing else is waited for, and the last try says what it found.
+        // A control stops here to move the reference between the repair's look and its write, as another push or a fetch does.
+        reach(TRACKING_REF_BEFORE_THE_READ);
+        let stopped: Impediment = match where_it_is(git, full) {
+            At::Unreadable => return Some(Impediment::Unreadable),
+            At::Commit(at) if holds_the_delivery(git, at.as_str(), delivered) => return None,
+            At::Commit(at) => match write_the_reference(git, full, delivered, at.as_str()) {
+                Ok(()) => return None,
+                Err(impediment) => impediment,
+            },
+            At::Absent => match create_the_reference(git, full, delivered) {
+                Ok(()) => return None,
+                Err(impediment) => impediment,
+            },
+        };
+        why = stopped;
+        // A lock another Git holds ends, and a value another writer moved is read again; nothing else is waited for.
         if attempt < PUSH_LOCK_RETRIES {
             std::thread::sleep(PUSH_LOCK_PAUSE * (attempt + 1));
         }
     }
-    warn(TAG, still_behind(full, delivered).as_str());
-    return false;
+    warn(TAG, still_behind(full, delivered, why).as_str());
+    return Some(why);
 }
 
 /// What:
@@ -370,48 +527,70 @@ pub fn bring_up_to_date(git: &PushGit, full: &str, delivered: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!full.startsWith('refs/remotes/') || !isObjectName(delivered)) return false;
-/// for (let attempt = 0; attempt <= RETRIES; attempt += 1) { const old = await valueOf(git, full); if (!old) return false; if (await holdsTheDelivery(git, old, delivered)) return true; if (await write(git, full, delivered, old)) return true; if (attempt < RETRIES) await sleep(PAUSE * (attempt + 1)); }
-/// warn(stillBehind(full, delivered)); return false;
+/// // the synchronous face's steps, awaited one at a time
 /// ```
-pub async fn bring_up_to_date_awaiting(git: &PushGit, full: &str, delivered: &str) -> bool {
-    if !full.starts_with("refs/remotes/") || !is_object_name(delivered) {
-        return false;
+pub async fn bring_up_to_date_awaiting(git: &PushGit, full: &str, delivered: &str) -> Option<Impediment> {
+    if !full.starts_with("refs/remotes/") {
+        return Some(Impediment::NotATrackingReference);
     }
+    if !is_object_name(delivered) {
+        return Some(Impediment::NotACommit);
+    }
+    let mut why: Impediment = Impediment::Unreadable;
     for attempt in 0..=PUSH_LOCK_RETRIES {
-        let Some(old) = value_of_awaiting(git, full).await else { return false };
-        if holds_the_delivery_awaiting(git, old.as_str(), delivered).await {
-            return true;
-        }
-        if write_the_reference_awaiting(git, full, delivered, old.as_str()).await {
-            return true;
-        }
+        reach(TRACKING_REF_BEFORE_THE_READ);
+        let stopped: Impediment = match where_it_is_awaiting(git, full).await {
+            At::Unreadable => return Some(Impediment::Unreadable),
+            At::Commit(at) if holds_the_delivery_awaiting(git, at.as_str(), delivered).await => return None,
+            At::Commit(at) => match write_the_reference_awaiting(git, full, delivered, at.as_str()).await {
+                Ok(()) => return None,
+                Err(impediment) => impediment,
+            },
+            At::Absent => match create_the_reference_awaiting(git, full, delivered).await {
+                Ok(()) => return None,
+                Err(impediment) => impediment,
+            },
+        };
+        why = stopped;
         if attempt < PUSH_LOCK_RETRIES {
             tokio::time::sleep(PUSH_LOCK_PAUSE * (attempt + 1)).await;
         }
     }
-    warn(TAG, still_behind(full, delivered).as_str());
-    return false;
+    warn(TAG, still_behind(full, delivered, why).as_str());
+    return Some(why);
 }
 
 /// What:
-///  What is said when the tracking reference could not be written,
-///  so the state is named instead of silent.
+///  What is said when the tracking reference could not be brought up to date,
+///  naming the one thing that stopped it,
+///  so the state is named instead of silent and the cause is the real one.
 /// Why:
 ///  Git can refuse this write for as long as another Git holds the reference's lock,
 /// and nothing may clear that lock without a proof that
 ///  its holder is gone (`stale_ref_locks.rs`);
-/// the reference then names an older commit until a push or a fetch writes it.
+/// another writer can write the reference first, and its value is the one to keep;
+/// and Git can be unable to read it at all.
+/// A sentence naming a lock for all of them would blame a lock that is not there,
+///  which is what a person was told before this repair asked Git why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stillBehind = (full, delivered) => `the push delivered ${delivered}, but Git could not update ${full} ...`;
+/// const stillBehind = (full, delivered, why) => `the push delivered ${delivered}, but ${cause(why)}`;
 /// ```
-pub fn still_behind(full: &str, delivered: &str) -> String {
-    return format!(
-        "the push delivered {delivered}, but Git could not update the tracking reference {full} while another Git holds its lock, so {full} names an \
-         older commit until a push or a fetch writes it"
-    );
+pub fn still_behind(full: &str, delivered: &str, impediment: Impediment) -> String {
+    let cause: String = match impediment {
+        Impediment::Locked => format!(
+            "another Git held the lock of {full} through every retry, so it still names what it named before and every question about the branch's \
+             remote is answered from there until a push or a fetch writes it"
+        ),
+        Impediment::AnotherWriter => format!(
+            "another process wrote {full} first, so this repair left that writer's value there rather than replace it with an older commit"
+        ),
+        Impediment::Unreadable => format!("Git could not read {full}, so nothing could be written there"),
+        Impediment::NotATrackingReference => format!("{full} is not a remote-tracking reference, and this repair writes no other"),
+        Impediment::NotACommit => format!("{delivered} is not a commit name, so {full} was not written"),
+    };
+    return format!("the push delivered {delivered}, but {cause}");
 }
 
 /// Controls for the repair stay out of the release executable.
