@@ -268,6 +268,9 @@ impl StageClaim {
             Ok(text) => crate::worktree_add_binding::owed_copy_of(text.as_str()),
             Err(_unreadable) => None,
         };
+        // Published whole by one rename and flushed by nobody: this write waited 2.7 to 3.4 seconds of a loaded add
+        // (measured 2026-11-11), a kill keeps it in the page cache, and a record a power cut takes back only makes a later
+        // command keep and report the objects it names, which is the safe direction.
         write_atomic_unsynced(record, crate::worktree_add_binding::registered_record_with(binding, owed.as_ref(), None).as_bytes(), "destination record")?;
         return Ok(());
     }
@@ -404,15 +407,17 @@ fn claim_text(container: &Path, owner: &CopyOwner) -> String {
 /// the claim file holds the container path and,
 /// on a line of its own,
 /// the owner,
-/// published whole by a rename and flushed by nobody.
+/// published whole by a rename and flushed before the call returns.
 /// Why:
 ///   A claim of a live owner is an add or a copy still running;
 /// the reaper leaves it alone and removes only a dead owner's.
 /// The claim exists before the container does,
-/// which is what an interruption needs;
-/// the flush would buy only that a power cut finds it,
-/// and native Git flushes nothing for the worktree add it serves,
-/// while a flush of it is a commit of the whole btrfs filesystem on the add's waiting path.
+/// which is what an interruption needs,
+/// and a copy's claim names a stage holding what the copy took from the source,
+/// which no later command can make again for nothing,
+/// so this one is flushed;
+/// an add writes its claim through `claim_stage_for_add_as_owing`,
+/// whose records are flushed by nobody.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -422,6 +427,41 @@ pub fn claim_stage_for(
     common_dir: &Path,
     destination_root: &Path,
     owner: &CopyOwner,
+) -> Result<StageClaim, WorktreeCopyError> {
+    return claim_stage_for_writing(common_dir, destination_root, owner, RecordWrite::Durable);
+}
+
+/// What:
+///  Whether a record this module publishes is flushed to disk before the call returns.
+/// Why:
+///   A copy's claim names a stage holding what the copy took from the source,
+/// which no later command can make again for nothing,
+///  so it is flushed;
+/// an add's records name work that is redone from the source or only reported,
+/// and a kill keeps every byte  of them in the page cache,
+/// so flushing them only makes the add wait for the disk (see [`StageClaim`]).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RecordWrite = 'durable' | 'unflushed';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RecordWrite {
+    /// The file and the directory that holds it are flushed:
+    /// a power cut finds the claim.
+    Durable,
+    /// Neither is flushed:
+    /// the rename publishes the claim whole,
+    /// and the filesystem makes it durable with its next commit.
+    Unflushed,
+}
+
+/// `claim_stage_for` with the flushing its caller needs.
+fn claim_stage_for_writing(
+    common_dir: &Path,
+    destination_root: &Path,
+    owner: &CopyOwner,
+    write: RecordWrite,
 ) -> Result<StageClaim, WorktreeCopyError> {
     let root: PathBuf = ensure_journal_root(common_dir)?;
     let container: PathBuf = new_stage_container(destination_root)?;
@@ -433,7 +473,11 @@ pub fn claim_stage_for(
         .to_string();
     let path: PathBuf = root.join(format!("{identifier}{CLAIM_SUFFIX}"));
     let text: String = claim_text(container.as_path(), owner);
-    write_atomic_unsynced(path.as_path(), text.as_bytes(), "stage claim")?;
+    // `match` on the flushing the caller asked for: the two writers differ in nothing else.
+    match write {
+        RecordWrite::Durable => write_atomic(path.as_path(), text.as_bytes(), "stage claim")?,
+        RecordWrite::Unflushed => write_atomic_unsynced(path.as_path(), text.as_bytes(), "stage claim")?,
+    }
     return Ok(StageClaim { path, container, destination_record: None });
 }
 
@@ -553,7 +597,11 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
 /// const claim = await claimStageForAddAsOwing({ commonDir, destinationRoot, owner, owed });
 /// ```
 pub fn claim_stage_for_add_as_owing(common_dir: &Path, destination_root: &Path, owner: &CopyOwner, owed: Option<&OwedCopy>) -> Result<StageClaim, WorktreeCopyError> {
-    let mut claim: StageClaim = claim_stage_for(common_dir, destination_root, owner)?;
+    // Neither record is flushed: a `git worktree add` waited 15 to 44 seconds for these two writes under load (a loaded
+    // host of 2026-11-11, `recordDestination` in the add timing record), and a kill keeps both in the page cache. What a
+    // power cut can take away is the report of an interrupted add and the name of a stage nothing else removes, and the
+    // next command answers a missing record at once (`settle_interrupted_add`) rather than losing anything of the person's.
+    let mut claim: StageClaim = claim_stage_for_writing(common_dir, destination_root, owner, RecordWrite::Unflushed)?;
     let record: PathBuf = claim.path.with_extension(&DESTINATION_SUFFIX[1..]);
     write_atomic_unsynced(record.as_path(), planned_record_with(destination_root, owed, None).as_bytes(), "destination record")?;
     claim.destination_record = Some(record);

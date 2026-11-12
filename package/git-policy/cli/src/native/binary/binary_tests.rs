@@ -260,6 +260,12 @@ mod merge_carries_edits;
 #[path = "binary_merge_carries_edits_kill_tests.rs"]
 mod merge_carries_edits_kill;
 
+/// Another command landing a commit on the branch while a landed merge still carries:
+/// the later commit stands,
+/// and the person's work is merged onto the branch as it is now.
+#[path = "binary_merge_carries_edits_moved_tests.rs"]
+mod merge_carries_edits_moved;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.
@@ -673,6 +679,18 @@ mod service_landing_state;
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
 
+/// The abort forms while the operation they undo waits for its conflicts:
+/// what runs,
+/// what is saved first,
+/// and what is left to Git.
+#[path = "binary_abort_during_an_operation_tests.rs"]
+mod abort_during_an_operation;
+
+/// The rerere cache a concluded merge leaves behind,
+/// compared with real Git.
+#[path = "binary_merge_rr_cleanup_tests.rs"]
+mod merge_rr_cleanup;
+
 /// The timing record of a wrapped commit and the service's log lines,
 /// which split a slow commit by phase.
 #[path = "binary_commit_timing_tests.rs"]
@@ -688,6 +706,12 @@ mod service_lane;
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
 
+/// The pool of finished shadow repositories of a worktree Git no longer lists:
+/// a wrapped command removes it,
+/// and one of a worktree Git lists never.
+#[path = "binary_shadow_pool_tests.rs"]
+mod shadow_pool;
+
 /// A pooled shadow member the commit refuses:
 /// nothing on the terminal,
 /// and the refusal named in the commit's own timing record.
@@ -699,6 +723,12 @@ mod shadow_pool_refusal;
 /// not even after a restart of the service.
 #[path = "binary_service_withdraw_tests.rs"]
 mod service_withdraw;
+
+/// A commit service whose runtime build outlasted its deadline:
+/// the commit lands through it,
+/// and its log names the stand-in.
+#[path = "binary_service_late_runtime_build_tests.rs"]
+mod service_late_runtime_build;
 
 /// The client's wait for the commit service:
 /// heartbeats,

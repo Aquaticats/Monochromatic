@@ -291,6 +291,113 @@ fn an_unrelated_program_whose_journal_folder_is_not_there_holds_nothing_back() {
     remove(world.root.as_path());
 }
 
+/// What:
+///  A program that named this worktree's earlier journal through a link which another command removed after the program
+///  started still holds the settling back.
+/// Why:
+///   The link resolved when the program started and is gone now,
+/// so the word the program carries no longer shows the folder it
+///  names,
+/// while the folder itself is there with the batch the program may be finishing.
+/// The word cannot be compared by
+///  the folder it named,
+/// and the same command line names this worktree's instance,
+/// which is what an earlier helper of
+///  one worktree was started with,
+/// so it may be that helper and every batch is left.
+/// Kimi K3.1 Pro found
+///  this by reading the settle that finished a live helper's batch
+/// (`package/git-policy/cli/src/native/landing/earlier_service_process_look.rs`,
+/// the branch that compares a folder that is
+///  not there by the path the word spells).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlinkSync(sharedJournal, link); fakeProcess(['--journal', `${link}/${instance}`, '--git', git, '--instance', instance]); unlinkSync(link); expect(settleOnRequest(...)).toMatchObject({ held: true })
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_live_helpers_journal_word_a_removed_link_no_longer_resolves_still_holds_the_settling() {
+    let (world, state) = world_with_earlier_journal("settle-removed-link", "state");
+    let landed: CommitRequest = request(&world, "removed-link", "removed-link.txt", "removed-link\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let instance: String = instance_for(&world);
+    let per_instance: PathBuf = world.context.journal.clone();
+    let shared: PathBuf = per_instance.parent().expect("the shared journal").to_path_buf();
+    let link: PathBuf = world.root.join("a-link-to-the-state-folder");
+    std::os::unix::fs::symlink(shared.as_path(), link.as_path()).expect("the link the helper starts with");
+    let spelled: String = link.join(instance.as_str()).display().to_string();
+    assert_eq!(
+        std::fs::canonicalize(spelled.as_str()).expect("the link resolves while the helper starts"),
+        std::fs::canonicalize(per_instance.as_path()).expect("the journal the helper writes"),
+    );
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(
+        proc_root.as_path(),
+        71,
+        &["/p/cli-git-native", "--journal", spelled.as_str(), "--git", "/usr/bin/git", "--instance", instance.as_str()],
+    );
+    std::fs::remove_file(link.as_path()).expect("another command removes the link after the helper started");
+    assert!(per_instance.is_dir(), "the helper's journal and its open batch remain");
+    assert!(!Path::new(spelled.as_str()).exists(), "the spelling the helper carries no longer resolves");
+    let before: Vec<String> = names_in(&[per_instance.as_path()]);
+    assert_eq!(
+        settle(&world, state.as_path(), proc_root.as_path()),
+        RequestedSettlement::Held { open: 1, because: Hold::InstanceHelperRuns.into() },
+        "the live helper was missed, so its batch may be settled twice"
+    );
+    assert_eq!(names_in(&[per_instance.as_path()]), before, "nothing of the batch changed");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]).lines().count(), 2, "the index is as it was");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  This release's own service holds nothing back,
+/// even when the journal folder its command line names is not there.
+/// Why:
+///   The service of this release serves the worktree's new journal and settles its own batches,
+/// never an earlier release's,
+/// so its command line is no reason to leave any batch of the earlier journals alone.
+/// The look tells it apart by
+///  the mode words behind this release's command word,
+/// and a word it cannot resolve must not turn it into an earlier
+///  helper:
+/// the hold would name the wrong release and stop the settling for a reason that never clears.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fakeProcess(['/p/monochromatic-git-policy-cli', 'monochromatic-git-policy-cli', 'service', 'run', '--journal', notMadeYet, '--instance', instance]); expect(settle(...)).toMatchObject({ settled: true })
+/// ```
+#[test]
+fn the_service_of_this_release_holds_nothing_back_when_its_folder_is_not_there() {
+    let (world, state) = world_with_earlier_journal("settle-own-service-absent", "state");
+    let landed: CommitRequest = request(&world, "own-absent", "own-absent.txt", "own-absent\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let instance: String = instance_for(&world);
+    let not_made_yet: String = state.join("monochromatic-git-policy-cli/service").join(instance.as_str()).display().to_string();
+    assert!(!Path::new(not_made_yet.as_str()).exists(), "the folder the service names is not made yet");
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(
+        proc_root.as_path(),
+        42,
+        &[
+            "/p/monochromatic-git-policy-cli",
+            "monochromatic-git-policy-cli",
+            "service",
+            "run",
+            "--journal",
+            not_made_yet.as_str(),
+            "--instance",
+            instance.as_str(),
+        ],
+    );
+    let RequestedSettlement::Settled { batches, .. } = settle(&world, state.as_path(), proc_root.as_path()) else {
+        panic!("this release's own service held the settling back")
+    };
+    assert_eq!(batches.len(), 1);
+    remove(world.root.as_path());
+}
+
 /// What the look still keeps:
 /// an earlier helper shows its `--journal` word before it makes that folder,
 /// so a word that names one of
@@ -393,7 +500,7 @@ fn a_held_batch_the_request_finishes_is_in_the_settled_list() {
         common_dir: git_dir.as_path(),
         git_dir: git_dir.as_path(),
         index: intent.index.as_path(),
-        reference: intent.reference.as_str(),
+        reference: &intent.reference,
         seq: 1,
         intent: &intent,
         locks: vec![git_dir.join("refs/heads/main.lock")],

@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::parallel_budget::HostResources;
+use crate::worktree_copy_ceiling::a_shorter_ceiling_for_this_thread;
 use crate::worktree_copy_manifest::{EntryKind, stamp_of};
 use crate::worktree_copy_stage_leaf_copying::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
@@ -159,11 +160,44 @@ fn nested_registered_worktree_is_not_copied() {
     remove(root.as_path());
 }
 
-/// A source with an ignored FIFO fails the copy,
+/// A source with an ignored FIFO stages the rest of its ignored state,
+/// names the FIFO it left out,
+/// and fails nothing.
+#[cfg(unix)]
+#[test]
+fn a_fifo_is_left_out_of_the_stage_and_the_rest_is_staged() {
+    let root: PathBuf = fixture("stage-fifo-left-out");
+    let source: PathBuf = repository(root.as_path(), "source");
+    std::fs::write(source.join(".gitignore"), b"pipe\nkept\n").expect("gitignore");
+    let status = std::process::Command::new("mkfifo")
+        .arg(source.join("pipe"))
+        .status()
+        .expect("mkfifo");
+    assert!(status.success());
+    std::fs::write(source.join("kept"), b"kept").expect("kept");
+    let staged: StagedSnapshot = stage_ignored_snapshot(
+        &git_context(),
+        std::fs::canonicalize(source.as_path())
+            .expect("canonical source")
+            .as_path(),
+        new_stage_container(root.join("topic").as_path()).expect("container").as_path(),
+        &[],
+        &CopySelection::Ignored,
+    )
+    .expect("a socket, a FIFO and a device node are left out of a copy, never opened");
+    assert_eq!(staged.uncopiable, vec![b"pipe".to_vec()]);
+    assert!(staged.unreadable.is_empty());
+    assert_eq!(std::fs::read(staged.stage_root.join("kept")).expect("kept is staged"), b"kept");
+    assert!(!staged.stage_root.join("pipe").exists());
+    std::fs::remove_dir_all(staged.stage_container.as_path()).expect("stage removed");
+    remove(root.as_path());
+}
+
+/// A copy that stops at the ceiling one command holds for a copy it did not start fails,
 /// and the private stage is removed so nothing is left beside the destination.
 #[cfg(unix)]
 #[test]
-fn failed_copy_removes_its_stage() {
+fn a_copy_stopped_at_the_ceiling_removes_its_stage() {
     let root: PathBuf = fixture("stage-failure");
     let source: PathBuf = repository(root.as_path(), "source");
     std::fs::write(source.join(".gitignore"), b"pipe\n").expect("gitignore");
@@ -173,7 +207,8 @@ fn failed_copy_removes_its_stage() {
         .expect("mkfifo");
     assert!(status.success());
     let destination: PathBuf = root.join("topic");
-    let failure: WorktreeCopyError = stage_ignored_snapshot(
+    let _stopped_at_once = a_shorter_ceiling_for_this_thread(std::time::Duration::ZERO);
+    let failure: WorktreeCopyError = stage_ignored_snapshot_for(
         &git_context(),
         std::fs::canonicalize(source.as_path())
             .expect("canonical source")
@@ -181,10 +216,12 @@ fn failed_copy_removes_its_stage() {
         new_stage_container(destination.as_path()).expect("container").as_path(),
         &[],
         &CopySelection::Ignored,
+        None,
+        &CopyCeiling::lasting(crate::worktree_copy_ceiling::OWED_COPY_CEILING),
     )
-    .expect_err("fifo");
+    .expect_err("ceiling");
     assert!(
-        failure.0.ends_with(" has unsupported filesystem type."),
+        failure.0.contains("did not finish within the 0-second ceiling one command holds for a copy it did not start"),
         "{}",
         failure.0
     );
@@ -569,4 +606,57 @@ fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
     assert!(copied.gone.is_empty(), "no entry went away here");
     assert_eq!(std::fs::read(stage.join("many/file-00007")).expect("copied"), b"7");
     remove(&root);
+}
+
+/// The source of `a_regular_file_replaced_by_a_named_pipe_is_named_with_the_entries_a_worktree_cannot_hold`,
+/// and whether the replacement has happened yet.
+static THE_FILE_THAT_BECOMES_A_PIPE: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+static THE_PIPE_REPLACED_A_FILE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Copy one file,
+/// replacing `cache/b.txt` with a named pipe before the copy reaches it.
+fn clone_after_replacing_b(input: &std::fs::File, output: &std::fs::File) -> bool {
+    if !THE_PIPE_REPLACED_A_FILE.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        let source: PathBuf = THE_FILE_THAT_BECOMES_A_PIPE.lock().expect("the source the control set").clone().expect("a source");
+        let pipe: PathBuf = source.join("cache/b.txt");
+        std::fs::remove_file(pipe.as_path()).expect("the regular file goes away");
+        let made: std::process::ExitStatus = std::process::Command::new("mkfifo").arg(pipe.as_path()).status().expect("mkfifo runs");
+        assert!(made.success(), "the named pipe is made");
+    }
+    return try_clone(input, output);
+}
+
+/// A regular file a build replaces with a named pipe while the copy runs is one the new worktree lacks,
+/// so the person is told which entry a worktree cannot hold with the entries the walk itself left out.
+/// Why the control reads this way:
+///  the initial walk saw a regular file and listed it,
+/// so its uncopiable list is empty,
+/// and an entry the copy finds in another kind went into the gone list the settling drops without a word.
+#[cfg(unix)]
+#[test]
+fn a_regular_file_replaced_by_a_named_pipe_is_named_with_the_entries_a_worktree_cannot_hold() {
+    let root: PathBuf = fixture("stage-kind-changed");
+    let source: PathBuf = repository(root.as_path(), "source");
+    std::fs::create_dir_all(source.join("cache")).expect("cache");
+    std::fs::write(source.join("cache/a.txt"), b"a").expect("a");
+    std::fs::write(source.join("cache/b.txt"), b"b").expect("b");
+    *THE_FILE_THAT_BECOMES_A_PIPE.lock().expect("no other control holds it") = Some(source.clone());
+    THE_PIPE_REPLACED_A_FILE.store(false, std::sync::atomic::Ordering::SeqCst);
+    let container: PathBuf = new_stage_container(root.join("topic").as_path()).expect("container");
+    create_private_tree(container.join("payload").as_path()).expect("payload");
+    let staged: StagedSnapshot = stage_into(
+        source.as_path(),
+        &[],
+        container.as_path(),
+        container.join("payload").as_path(),
+        vec![b"cache".to_vec()],
+        Prune::Never,
+        clone_after_replacing_b,
+        &CopyCeiling::unbounded(),
+    )
+    .expect("a named pipe that replaced a file does not fail a copy");
+    assert!(!staged.stage_root.join("cache/b.txt").exists(), "a worktree holds no named pipe");
+    assert!(staged.stage_root.join("cache/a.txt").exists(), "the neighbour the copy reached first arrived");
+    assert_eq!(staged.uncopiable, vec![b"cache/b.txt".to_vec()], "the entry a worktree cannot hold is named");
+    remove(root.as_path());
 }

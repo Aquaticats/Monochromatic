@@ -137,6 +137,10 @@ pub mod merge_isolation_kept_copies;
 /// The one decision every command makes about a copy a merge kept.
 pub mod merge_isolation_kept_copies_decisions;
 
+/// The lines a kept copy earns,
+/// and the reason it stays when the file at its path holds its bytes.
+pub mod merge_isolation_kept_copies_words;
+
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 
@@ -148,6 +152,10 @@ pub mod pull_isolation;
 /// kept before the failure is worded,
 /// and the words that name every copy.
 pub mod pull_untracked_paths_in_the_way;
+
+/// One such file or link copied beside the Git directory,
+/// and the numbered folder a pull's copies go into.
+pub mod pull_untracked_paths_in_the_way_kept_copies;
 
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
@@ -208,9 +216,25 @@ pub mod merge_isolation_carry_kept_path;
 /// and the sentence that stops the merge before anything is written.
 pub mod merge_isolation_a_directory_the_merge_replaces;
 
+/// A named pipe,
+/// a socket or a device standing where the merge writes or deletes a path,
+/// which no layer of the carry
+///  can hold and which no command may open,
+/// and the sentence that stops the merge before anything is written.
+pub mod merge_isolation_a_special_file_the_merge_changes;
+
+/// The paths a merge changes whose edit Git's status does not show,
+/// because their index entry carries the
+///  `assume-unchanged` or `skip-worktree` mark.
+pub mod merge_isolation_marks_the_status_hides;
+
 /// Putting one planned worktree write in place,
 /// or leaving a path alone because what stands there is not the entry that was judged.
 pub mod merge_isolation_carry_place;
+
+/// The permission bits of the entry a planned write replaces,
+/// which Git records only the execute bits of.
+pub mod merge_isolation_carry_permissions;
 
 /// The writing half of an isolated merge:
 /// the commit and the two-way update.
@@ -219,6 +243,10 @@ pub mod merge_isolation_apply;
 /// What a step of an isolated merge that stopped means for the command's ending,
 /// and what a clear that met newer bytes does about them.
 pub mod merge_isolation_apply_stops;
+
+/// What a landed merge does when its branch moved while its own carry ran:
+/// the person's work is merged with the branch as it is now.
+pub mod merge_isolation_apply_moved;
 
 /// The words an isolated merge prints when it could not be finished now.
 pub mod merge_isolation_apply_findings;

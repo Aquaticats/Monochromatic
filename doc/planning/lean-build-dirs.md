@@ -120,7 +120,7 @@ Gradle and Android output,
   then verified-idle tree collection,
   then retention of run records at their producers,
   then size caps,
-  then a timer for dormant directories,
+  then a scheduler for dormant directories,
   then a container volume split,
   then tracking upstream,
   and last
@@ -760,9 +760,11 @@ section "Keeping the build folders lean"):
   The caps are absolute per profile directory (see the `Measured picks, 2026-11-07` section),
   because a cap relative to a directory's own newest-compiler bytes can never bind.
 - F,
-  the timer:
-  `lean_timer_units.rs`,
-  installed by `cargo-shadow lean timer-install`.
+  the service that keeps the cleanups running:
+  `lean_service_units.rs`,
+  installed by `cargo-shadow lean service-install`
+  (the name `timer-install` still works and says what it does now).
+  It was built as a daily timer on 2026-11-07 and became a continuous service on 2026-11-11.
 - Also in the same run:
   `lean_rustup_toolchains.rs` (dated nightlies no checkout pins),
   `lean_podman_cleanup.rs`,
@@ -787,18 +789,48 @@ a `flock` taken inside a Fedora container on a file of a bind-mounted directory 
 ("busy"),
 and the host's `flock --nonblock` failed while the container held it.
 
-When the timer fires:
-once a day at 04:30 local time and at no other moment.
-`Persistent=false`:
-a run missed because the machine was off is not made up at boot or login.
-The service has no `[Install]` section,
-the timer's `WantedBy=timers.target` only makes the timer itself available when the user's systemd starts,
-and nothing in cargo-shadow starts itself.
+How the service runs (replaced the daily timer on 2026-11-11):
+each pass of `lean run` ends on its own deadline,
+the unit kills a pass that outlasts `RuntimeMaxSec`,
+and the next pass starts 60 s after the last one ended,
+for as long as the user's manager runs.
+The owner,
+2026-11-11:
+"Make the cleanups a systemd service that runs continuously."
+The daily timer it replaced fired once a day at 04:30 and never made up a missed run
+(`Persistent=false`,
+no `[Install]` section on the service,
+the timer's `WantedBy=timers.target` only making the timer itself available when the user's systemd starts).
+That schedule lost a day on 2026-11-11:
+the build volume held 6.5 MB free at 13:13,
+hours before the daily pass,
+and a manual pass hit its own deadline before it reached every profile directory.
+So `cargo-shadow lean service-install` now writes one unit,
+stops and disables `cargo-shadow-lean.timer`,
+removes its file and writes no timer again.
+The service has `Restart=always`,
+`RestartSec=60s` and `StartLimitIntervalSec=0`,
+so a pass that finds nothing never stops the loop,
+and it is installed for `default.target`,
+so the user's manager starts it at login.
+Nothing in cargo-shadow starts itself:
+the unit runs only after a person installed and enabled it.
 The service runs `<main checkout>/.cache/toolchain-bin/cargo-shadow lean run` with disk weight 5 (never above 10),
 two threads of CPU,
 4 GiB of memory,
 512 tasks,
 and shows nothing on the desktop.
+The pause between passes is sized from a measurement of a pass that finds nothing
+(`PAUSE_BETWEEN_PASSES_SECONDS` in `src/lean_policy.rs`):
+measured 2026-11-11 with the release binary,
+a pass over a world with nothing at all to clean cost 0.052 s at best and 0.054 s at the median of five runs,
+and the same pass over 500 in-tree profile directories it kept cost 0.177 s,
+so a minute keeps the loop at work under a thousandth of the time there,
+where systemd's default 100 ms restart delay would put it at work about a third of the time.
+On this machine an idle pass costs at least 27 minutes
+(398 s for the run records on 2026-11-08,
+334 s for Podman and 880 s to list 68,755 profile directories on 2026-11-10),
+so the pause is a twenty-seventh of the shortest one.
 
 ## Measured picks, 2026-11-07
 
@@ -1280,6 +1312,17 @@ once a day,
 - Owner:
   a new component that only schedules;
   never alone.
+
+Replaced 2026-11-11.
+The owner:
+"Make the cleanups a systemd service that runs continuously."
+The scheduler stays a systemd unit in cargo-shadow,
+but it no longer waits for a time of day:
+each pass ends on its own deadline and the next starts a minute after it,
+so a volume that fills within hours does not wait for 04:30.
+What was built is in the section "Owner decision and what was built";
+the pause between passes and its measurement are in `PAUSE_BETWEEN_PASSES_SECONDS`
+(`package/cargo-shadow/cli/src/lean_policy.rs`).
 
 ### G: split container builds' intermediates away from the tree
 

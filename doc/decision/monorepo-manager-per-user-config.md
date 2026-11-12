@@ -30,14 +30,18 @@ Design:
    two of the three `XDG_CONFIG_DIRS` entries are owned by root,
    `/home` is a symlink to `var/home`,
    and a file watch dies after one temp-plus-rename save while a directory watch survives.
-- cli-git already owns a trust model in this repository:
+- cli-git owned a trust model in this repository when this decision was taken:
    [`doc/decision/cli-git-policies-platform.md`](cli-git-policies-platform.md)
-   and `package/git-policy/cli/src/allowed-worktree-dirs.ts`.
-   Note 2026-11-10T18:32:51-05:00: that file is deleted (2026-10-13 `642b6d72cb`).
-   The allowlist it held is `default_allowed_worktree_dirs` in
-   `package/git-policy/cli/src/native/invocation/effective_target.rs`,
-   and the `trust`, `untrust` and `status` commands this decision adopts are retired
-   (`package/git-policy/cli/src/native/invocation/management.rs:93`).
+   and the allowlist in
+   `package/git-policy/cli/src/native/invocation/effective_target.rs`
+   (`default_allowed_worktree_dirs`;
+    `package/git-policy/cli/src/allowed-worktree-dirs.ts` was deleted on 2026-10-13,
+    commit `642b6d72cb`).
+   cli-git's `trust`,
+   `untrust` and
+   `status` commands are retired since then
+   (`package/git-policy/cli/src/native/invocation/management.rs`),
+   because its configuration is data that runs no repository-supplied code.
 
 ## Decision
 

@@ -68,9 +68,25 @@ pub mod service_messages;
 /// because the address cannot exist or the manager made the service listen elsewhere.
 pub mod service_messages_of_a_start_that_cannot_come;
 
+/// The words for a commit the person interrupted,
+/// which the service either gave up or left unsettled.
+pub mod service_messages_of_an_interrupted_commit;
+
 /// What a commit says while it waits for the service,
 /// and that the service is restarted or the commit built again.
 pub mod service_messages_of_a_wait_for_the_service;
+
+/// The one branch write of a settlement,
+/// and what the batch owes around it.
+pub mod held_commit_settle_move;
+
+/// The record a landing puts in the journal before it moves a branch,
+/// and the reflog row that move writes.
+pub mod service_land_record_the_batch;
+
+/// Which requests of a batch a landing still makes,
+/// given which of their clients went away before their commits landed.
+pub mod service_land_requests_whose_client_is_gone;
 
 /// The commit service's serialized step.
 pub mod service_land;
@@ -86,6 +102,12 @@ pub mod scan_awaited_under_a_ceiling;
 /// its command line up to the largest line any program can carry,
 /// and the report of a line that cannot be proved.
 pub mod earlier_service_command_line_read;
+
+/// The questions about the file system that the look at an earlier commit service asks:
+/// the bytes that spell a path,
+/// the part of a path the file system knows,
+/// and the identity of each earlier journal that exists.
+pub mod earlier_service_look_paths;
 
 /// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
 pub mod earlier_service_process_look;
@@ -117,6 +139,10 @@ pub mod service_land_reflog;
 pub mod service_land_outcomes;
 
 pub mod service_land_take_index_lock;
+
+/// The two command lines a landing writes for its branch:
+/// the question that reads the commit it names and the transaction that moves it.
+pub mod service_land_branch_move_transaction;
 
 /// The Git steps of a landing,
 /// the import stream of a batch and the overlap tests of its requests.
@@ -361,6 +387,10 @@ pub mod service_work;
 /// The notice for a push whose branch the person deleted.
 pub mod service_work_branch_is_gone;
 
+/// The common Git directory a linked worktree's Git directory names,
+/// and whether it belongs to a repository with no main worktree.
+pub mod service_work_common_directory;
+
 /// The kinds,
 /// handlers,
 /// acceptance rules,
@@ -369,6 +399,13 @@ pub mod service_work_handlers_replanning_and_acceptance;
 
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
+
+/// How long one round may go on starting housekeeping,
+/// and what it leaves for a later round.
+pub mod housekeeping_of_one_round;
+
+/// Which items of one batch of that drain run at once and how many of them.
+pub mod service_work_items_side_by_side;
 
 /// The drain's step that deletes the subvolumes a removal handed over.
 pub mod service_work_drain_deletes_subvolumes;
@@ -476,7 +513,7 @@ pub mod service_scratch_ref_marker_of_a_batch;
 /// The record of a commit a reference lock keeps off its branch:
 /// what the branch was,
 /// what it goes to,
-/// the locks that refused the write,
+/// the locks that held the write off,
 /// and when the commit was held.
 pub mod held_commit_record;
 
@@ -487,6 +524,10 @@ pub mod held_commit_replay;
 /// Moving the branch of a held commit once nothing stands in the way,
 /// and finishing what the landing owes after the move.
 pub mod held_commit_settle;
+
+/// What became of one held commit when a settlement looked at it,
+/// and the journal line the service writes about it.
+pub mod held_commit_settle_outcomes;
 
 /// What the wrapper says about a commit that a reference lock keeps off its branch.
 pub mod held_commit_words;

@@ -61,7 +61,7 @@ const TAG: &str = "worktreeRemovalClearsThePool";
 /// so a name no key has takes the tree out of every reader's way
 ///  with one rename,
 /// while a removal that outlives a write keeps naming the tree it was given.
-const REMOVING_PREFIX: &str = "removing-";
+pub(crate) const REMOVING_PREFIX: &str = "removing-";
 
 /// What:
 ///  The deletion a pool removal runs,
@@ -130,7 +130,7 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
         return;
     }
     let pool: PathBuf = pool_root_for(common_dir, git_dir);
-    let taken: PathBuf = match take_the_pool_out_of_its_name(pool.as_path()) {
+    let taken: PathBuf = match take_the_pool_out_of_its_name(pool.as_path(), REMOVING_PREFIX) {
         Ok(Some(taken)) => taken,
         // The pool is not there any more, so nothing of it is left to remove.
         Ok(None) => return,
@@ -146,7 +146,8 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
 }
 
 /// What:
-///  Move the pool `pool` to a name no key of the pool folder has,
+///  Move the pool `pool` to a name that starts with `prefix`,
+/// which no reader of that pool has,
 /// and answer that name,
 /// or nothing when the pool is not there.
 /// Why:
@@ -159,17 +160,25 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
 /// or the pool's name is gone and the claim finds nothing to take and makes its own shadow.
 /// The reason is
 ///  the error for a pool that cannot be taken out of its name.
-fn take_the_pool_out_of_its_name(pool: &Path) -> Result<Option<PathBuf>, String> {
+///  Both pools of this repository are taken out of their names this way before anything of them is removed,
+/// so the
+///  rename and the words for it live here once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = takeThePoolOutOfItsName(pool, 'removing-'); // string | undefined
+/// ```
+pub(crate) fn take_the_pool_out_of_its_name(pool: &Path, prefix: &str) -> Result<Option<PathBuf>, String> {
     let Some(folder) = pool.parent() else { return Err(format!("{} names no folder", pool.display())) };
     // The name is the folder's and the tree's: a tree with no name of its own was never a pool.
     if pool.file_name().is_none() {
         return Err(format!("{} names no pool", pool.display()));
     }
-    let taken: PathBuf = folder.join(format!("{REMOVING_PREFIX}{}", crate::random_id::random_uuid().unwrap_or_default()));
+    let taken: PathBuf = folder.join(format!("{prefix}{}", crate::random_id::random_uuid().unwrap_or_default()));
     return match std::fs::rename(pool, taken.as_path()) {
         Ok(()) => Ok(Some(taken)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(format!("the shadow pool {} cannot be taken out of its name ({error})", pool.display())),
+        Err(error) => Err(format!("the pool {} cannot be taken out of its name ({error})", pool.display())),
     };
 }
 

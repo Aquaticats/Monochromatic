@@ -32,6 +32,8 @@ use std::time::Duration;
 pub use crate::service_messages_of_a_wait_for_the_service::{
     SILENT_NOTICE, STARTING_NOTICE, UPDATING_NOTICE, position_notice, rebuild_notice, restarting_notice, starting_notice, unplaced_notice,
 };
+/// The sentences about what the service last said it waited for are read by the failures below and by the two of an interrupt.
+pub(crate) use crate::service_messages_of_a_wait_for_the_service::{it_had_said, waiting_for};
 
 /// The command that shows why the service did not start (Linux with systemd).
 pub const LOG_COMMAND: &str = "journalctl --user --unit 'monochromatic-git-policy-cli@*.service'";
@@ -161,6 +163,23 @@ pub enum ClientFailure {
     ///  was stuck in,
     /// such as a branch write that has not returned.
     WithdrawalUnconfirmed { blocker: Option<String> },
+    /// The person interrupted the command with `signal` while it waited,
+    /// and the service confirmed that the request will never land.
+    Interrupted {
+        /// The signal the person sent.
+        signal: i32,
+        /// What the service last said it was waiting for.
+        blocker: Option<String>,
+    },
+    /// The person interrupted the command with `signal`,
+    /// and the service did not confirm that it gave the request up,
+    /// so whether the commit was made is not known.
+    InterruptedNotKnown {
+        /// The signal the person sent.
+        signal: i32,
+        /// What the service last said it was waiting for.
+        blocker: Option<String>,
+    },
     /// A Git step of the landing ran longer than the wrapper allows and was ended;
     /// the commit was withdrawn and kept.
     StepTooSlow,
@@ -363,22 +382,19 @@ pub fn render(failure: &ClientFailure) -> String {
             "This commit waited {minutes} minutes for the commit service and was withdrawn, so it will not land later by itself.{} \
              Your staged changes and your worktree are as they were. Run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`. {NOTHING_CHANGED}",
-            match blocker.as_ref() {
-                Some(text) => format!(" It was waiting for: {text}."),
-                None => String::new(),
-            }
+            waiting_for(blocker.as_deref())
         ),
         ClientFailure::WithdrawalUnconfirmed { blocker } => format!(
             "This commit waited for the commit service until the longest wait the wrapper allows, and the service did not confirm \
              that it withdrew it, so it is not known whether the commit was made.{} Run `{}` to see whether it was made, and `{}` to \
              see what is still staged. If it was not made, run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
-            match blocker.as_ref() {
-                Some(text) => format!(" The service had said: {}", text.trim()),
-                None => String::new(),
-            },
+            it_had_said(blocker.as_deref()),
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]
         ),
+        // The two ends of an interrupted commit are worded beside this file, because this one is at its line bound.
+        ClientFailure::Interrupted { signal, blocker } => crate::service_messages_of_an_interrupted_commit::interrupted(*signal, blocker.as_deref()),
+        ClientFailure::InterruptedNotKnown { signal, blocker } => crate::service_messages_of_an_interrupted_commit::not_known(*signal, blocker.as_deref()),
         ClientFailure::StepTooSlow => format!(
             "A Git step of this commit ran longer than the commit service allows and was ended, so this commit was not made and will not \
              land later by itself. The step is named above, and the commit built for you is kept on the side ref named there when one \

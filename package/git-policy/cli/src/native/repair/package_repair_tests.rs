@@ -51,6 +51,21 @@ fn ignores_look_alikes() {
     assert_eq!(RepairSwitch::from_arguments(&[]), RepairSwitch::default());
 }
 
+/// `--end-of-options` ends the switches exactly as `--` does (Git's `parse-options` ends both,
+/// and the operands of the same command are read that way in `src/native/worktree/worktree_add_plan.rs`),
+/// so a destination literally named `--no-checkout` is an operand and the worktree Git checked out is repaired.
+#[test]
+fn reads_no_switch_after_end_of_options() {
+    let quiet_before: RepairSwitch = RepairSwitch::from_arguments(&words(&["worktree", "add", "--quiet", "--end-of-options", "--no-checkout"]));
+    assert!(quiet_before.quiet, "a switch before the terminator is still read");
+    assert!(!quiet_before.no_checkout, "the destination after --end-of-options is not the --no-checkout switch");
+    assert_eq!(
+        RepairSwitch::from_arguments(&words(&["worktree", "add", "--end-of-options", "--no-checkout", "--quiet", "-b", "literal"])),
+        RepairSwitch::default(),
+        "nothing after --end-of-options is a switch"
+    );
+}
+
 /// A destination holding a lockfile and a `node_modules`,
 /// a source beside it,
 /// and a search path of one fixture directory.
@@ -154,6 +169,38 @@ fn a_missing_tool_names_the_command_to_run() {
     let Outcome::Failed { reason, run_instead } = &findings[0].outcome else { panic!("expected a failure: {findings:?}") };
     assert!(reason.contains("pnpm"), "{reason}");
     assert!(printed.contains(run_instead.as_str()), "{printed}");
+    remove(&scene.root);
+}
+
+/// What:
+///  A search path entry relative to the add's own directory still starts the program that entry names,
+///  even when that directory's absolute name holds a colon.
+/// Why:
+///   `PATH=bin` names the add's own `bin`,
+/// and the commit service works in its own directory,
+/// so a record cannot carry that relative entry.
+/// Its absolute name holds a colon here,
+/// which a search path cannot spell back because a colon separates its entries,
+/// so this add writes no record and relinks the worktree itself.
+/// The program it starts is the file its own lookup found,
+/// which is the add's `bin/pnpm` and never the worktree's `bin/pnpm`:
+/// a relative program path is read from the directory the tool runs in,
+/// so the tool would never start and the worktree would keep the copied links.
+#[test]
+fn a_relative_search_entry_starts_the_program_the_add_resolved_here() {
+    let mut scene: Scene = scene("repair-relative-search-entry:a-colon");
+    a_repository_at(&scene);
+    fake_pnpm(&scene, 0);
+    // The add's search path is its own `bin`, which is a relative entry of the directory it runs in.
+    scene.environment = RepairEnvironment { search_path: Some(OsString::from("bin")), ..scene.environment.clone() };
+    let started: PathBuf = std::env::current_dir().expect("the directory this control started in");
+    std::env::set_current_dir(scene.root.as_path()).expect("the fixture is the directory the add runs in");
+    let (findings, printed) = repair(&scene, RepairSwitch::default());
+    std::env::set_current_dir(started.as_path()).expect("leave the fixture");
+    assert_eq!(findings.len(), 1, "{findings:?} {printed}");
+    assert!(matches!(findings[0].outcome, Outcome::Repaired { .. }), "{findings:?} {printed}");
+    let ran: String = std::fs::read_to_string(scene.record.as_path()).expect("the tool the add started");
+    assert!(ran.contains(scene.destination.to_str().expect("utf8")), "the tool ran outside the worktree: {ran}");
     remove(&scene.root);
 }
 

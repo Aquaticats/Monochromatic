@@ -308,9 +308,19 @@ Reproduced with the job's own `prewarm_awaiting` against a real Cargo workspace.
 `CARGO_TARGET_DIR` name directories of this job's own,
 so a lock that no longer matches its manifest is rewritten and a missing one is created,
 after the add has returned and the person may be working in the worktree.
-The lock is now read before the clean and put back exactly as checked out,
-through the same `package_repair_cargo_lock.rs` the add's own clean uses
-(`repair::package_repair_prewarm_job::tests::the_filling_puts_the_lock_back_as_checked_out`).
+The first fix read the lock before the clean and put it back exactly as checked out,
+through the same `package_repair_cargo_lock.rs` the add's own clean uses.
+The second review showed the windows a put-back cannot close ("What the second review of the filling
+found").
+The clean now passes `--locked`,
+so it writes no lock at all,
+and the report names the lock,
+the workspace and the add's own clean command
+(`repair::package_repair_prewarm_job::tests::a_stopped_clean_names_the_lock_command_only_when_cargo_named_the_lock`).
+The merge with the jam-fix integration kept that flag and added the resolution the integration had
+already built beside it,
+so a stale lock costs the filling nothing
+("The clean wrote the worktree's `Cargo.lock`").
 
 ### A directory at the staging name was removed without proof of ownership
 
@@ -374,11 +384,6 @@ never a file a person wrote:
   The second takes the names the first is working in,
   the loser reports a failure,
   and only directories this job made are removed.
-- A kill between Cargo's rewrite of `Cargo.lock` and the restore leaves the rewritten lock,
-  because the bytes that were checked out sit in memory.
-  The add's own clean has the same window.
-- A person who edits `Cargo.lock` while the clean runs has that edit replaced by the bytes that were
-  checked out before the clean.
 - A fill that answers `Filled::Kept` because a build got there first leaves a killed fill's staging
   directory and its target where they are.
 - A fill that ran under names of its own,
@@ -386,9 +391,118 @@ never a file a person wrote:
   strands its staging copy if it is killed,
   since no later fill learns that name.
 
-The first two are what a lock file kept on disk and a per-directory claim would fix,
-and both cost more than they buy while `cargo clean` is the only writer of the lock and one service
-instance claims a record once.
+A per-directory claim would close the stranded staging copy,
+and it costs more than it buys while one service instance claims a record once.
+The two lock windows this list named are closed now,
+because the filling's clean never writes the lock ("What the second review of the filling found",
+`repair::package_repair_prewarm_job.rs`).
+
+## What the second review of the filling found
+
+Kimi K3.1 Pro reviewed the merged change at `5686c7bb29` and wrote five findings about the service's
+filling (`${HOME}/temp/agent/kimi-reviews/package-repair-review-findings-round-133/review.md`).
+The review's own reproductions were run here at `ee545033ad` and three of them failed:
+a reader-less named pipe at the marker name stayed blocked for a second,
+a person's `Cargo.lock` written while the clean ran came back as the checked-out bytes,
+and a foreign file planted at the marker name was gone
+(`${HOME}/temp/agent/pi-runs/prewarm-fix-run/base-evidence/review-reproductions-at-ee545033ad.log`).
+This package's own controls for all five findings fail on that commit's product code and pass on
+`1885e5cb6e`
+(`${HOME}/temp/agent/pi-runs/prewarm-fix-run/base-evidence/this-branchs-controls-at-the-base-product.log`).
+
+### A foreign named pipe at the marker name held the filling for ever
+
+`marker_claims` read the marker with `std::fs::read`,
+which waits inside `open` for a writer that never comes when the name holds a named pipe,
+so one object anyone can create at a path this job already tolerates held the filling for ever,
+against "nothing should ever wait forever or indefinitely".
+The read now goes through `private_storage::read_regular_file`,
+whose open is `O_NONBLOCK | O_NOFOLLOW` and whose descriptor has to prove a regular file,
+so a pipe,
+a socket,
+a directory or a link is somebody else's and answers at once
+(`repair::package_repair_prewarm_job::tests::a_named_pipe_at_the_marker_name_never_holds_the_filling`).
+
+### The clean wrote the worktree's `Cargo.lock`
+
+`cargo clean` resolves the worktree's workspace,
+so it rewrote a lock that no longer matched its manifest and created one that was missing.
+The put-back compared only the bytes read before the clean with the bytes found after it,
+which cannot tell Cargo's write from a person's own:
+a `Cargo.lock` written while the clean ran came back as the bytes read before it
+(`checked out` where the control wrote the person's update),
+and a kill between the rewrite and the put-back left the rewritten bytes,
+because the original sat in memory.
+No restore can tell the two writers apart,
+so the filling's clean no longer writes the lock at all:
+`locked_clean_arguments` passes `--locked`,
+and `cargo clean --locked` exits 101 in Cargo's own words
+("cannot update the lock file ... because --locked was passed to prevent this")
+with the file untouched,
+which was measured for a matching,
+a stale and an absent lock.
+The report names the lock,
+the workspace,
+`cargo update --offline --workspace` and the clean the add would have run
+(`what_to_do_next` in `package_repair_prewarm_job.rs`).
+The add's own clean keeps its put-back,
+because it runs where the worktree was just made and nobody has it yet
+(`SPEC.md`,
+"A committed `Cargo.lock` that disagrees with its manifest").
+The cost is the filling itself where a lock disagrees with its manifest:
+at `1885e5cb6e` the full resolution of all 35 committed workspaces
+(`cargo metadata --locked --offline`) succeeds,
+so nothing here costs that today,
+and the shape that does cost it is a manifest edited ahead of its lock.
+
+That cost is gone as of the merge with the jam-fix integration
+(`3b94069dbf`),
+which carried this same collision resolved as well from the other side (`aec1ae9f76`):
+a lock the `--locked` clean refuses is resolved by `cargo metadata --offline` as a step of its own,
+the checked-out bytes go back only over the bytes that resolution wrote
+(`restore_only_the_cleans_own`),
+and anything else standing there is left exactly as it is found,
+so a stale or an absent lock no longer costs the filling.
+What this branch's finding keeps is what that resolution does not cover:
+the clean itself writes nothing,
+and a clean that stops anyway is reported in the words a person acts on
+(`what_to_do_next`).
+It is not the plain property a refusal had:
+a write of the person's that lands inside that one `cargo metadata` run is replaced,
+and a kill inside it leaves the resolution's bytes,
+which is the limit the handover records beside `aec1ae9f76`.
+The lock's controls are the integration's
+(`the_filling_puts_the_lock_back_as_checked_out`,
+`a_lock_that_is_current_costs_no_resolution_and_is_never_written`,
+`a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it`),
+and this branch's `a_stopped_clean_names_the_lock_command_only_when_cargo_named_the_lock` pins the report.
+A refusal is one `service_warn!` line and the item settles `failed`,
+which nothing reads back (`landing/service_work_settling_with_words.rs`),
+so no later command repeats it.
+
+### A foreign file that won the marker race was removed
+
+`write_marker` answered every `AlreadyExists` as success and `give_back` removes the marker
+unconditionally,
+so a file another command created between this run's look at the name and this run's exclusive
+write was deleted,
+although this run never wrote it.
+The exclusive write now answers whether this run created the marker (`TheMarkersAnswer`),
+and a name another writer holds makes this run stage under names of its own,
+so it has no marker to remove
+(`repair::package_repair_prewarm_job::tests::a_file_that_wins_the_race_to_the_marker_name_is_never_removed`).
+
+### Two hand-overs in one millisecond shared one object name
+
+The record's object name is a digest of the worktree's path and the moment the add asked,
+and the moment was a millisecond,
+so a second hand-over of one path inside one millisecond took the first one's name;
+the queue answers an id it already knows as known in every state,
+so its filling was never queued.
+`iso_time::now_iso_never_the_same_twice` keeps the last millisecond it wrote and steps past it,
+so a stamp is a moment this process has not written before and never one before the clock
+(`repair::package_repair_prewarm::tests::every_hand_over_of_one_path_gets_an_object_name_of_its_own`,
+whose control counted 24 object names for 1000 hand-overs of one path before the change).
 
 ## The pnpm relink and the toolchain install are the service's work
 

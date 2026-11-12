@@ -99,8 +99,13 @@ pub const SYSTEM: Platform<'static> = Platform {
     release: unlink_file,
 };
 
-/// The name a landing's timing records give the flush of the lock marker,
-/// so a control can tell which of the syncs a landing asked for is the marker's.
+/// The name the record of the lock marker's flush carries,
+/// in the sync figures,
+/// in a landing's timing records and in the background task's own line.
+/// Why:
+///  A control of what a landing waits for tells the marker's flush from a record's by this name,
+/// so both
+///  read it here instead of writing the word twice.
 pub const LOCK_MARKER_SYNC: &str = "lock-marker";
 
 /// Flushes the lock marker the index lock is made of,

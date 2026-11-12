@@ -35,7 +35,7 @@ use std::path::Path;
 /// ```ts
 /// async function deleteSubvolumesAwaiting(held, workDir, deletions, handlers): Promise<HeldClaims | null>
 /// ```
-pub(crate) async fn delete_subvolumes_awaiting<H: WorkHandlers + ?Sized>(
+pub(crate) async fn delete_subvolumes_awaiting<H: WorkHandlers + Sync + ?Sized>(
     mut held: HeldClaims,
     work_dir: &Path,
     deletions: Vec<Claimed>,

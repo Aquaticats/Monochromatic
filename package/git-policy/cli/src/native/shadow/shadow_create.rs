@@ -631,7 +631,7 @@ fn carry_the_commit_parts(
         cwd,
         shadow,
         layout.ref_format,
-        layout.target_ref.as_str(),
+        &layout.target_ref,
         &layout.symbolic_head,
         &capture.base,
     )?;
