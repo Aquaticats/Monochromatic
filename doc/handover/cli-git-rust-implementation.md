@@ -187,6 +187,22 @@ never fails because provisioning is slow), and alpha.12 from pass 15.
 Decided under the owner's delegation; for the owner's return: whether the toolchain should keep the previous release of the wrapper
 so that a bad release can be undone.
 
+The first two qwen4 reviews under the new rule ended within about forty-five minutes, each with its `review.md`
+(`~/temp/agent/qwen-trials/qwen-review-<name>/`):
+
+- `merge-commit-landing-in-a-busy-checkout` (`64fdb815c1`): "No concrete defects found", with its evidence per fix.
+- `merge-abort-is-allowed-during-a-merge` (`5588dc50f1`, released in alpha.11): four data-loss findings, each said reproduced.
+  An abort whose form does not match the waiting operation runs with no copy saved
+  (`git rebase --abort` during a `--rebase-merges` merge step, `git am --abort` during an apply-backend rebase),
+  and the ignored-file check reads `ORIG_HEAD` where three of the four abort forms restore another revision.
+  Before that change every abort was refused while an operation waited, so these losses are new with alpha.11.
+  Round 248 (`fix/git-policy-cli-review-findings-abort-saves-a-copy-before-every-abort`, from `main`) reproduces and fixes them,
+  and reads Kimi's review of the same commit when it appears.
+  Weighed as worth an agent at once: reproduced, loses a person's work, and in the installed release.
+
+Pools at 20:17 (the package's count): qwen plan DeepSeek 18 of 18, DeepSeek flex 13 of 20, Kimi flex 17 of 20, qwen4 10 of 18
+(three reviews running and others waiting on the scratch gate's four).
+
 A worktree add on alpha.11, for pass 15's own worktree: started about 20:09:40, the folder was there at 20:12,
 and at 20:16 the add was still running `cargo clean --offline --package ...` and `cargo metadata` for the new worktree
 (the package repair, inline in the add), six and a half minutes in.
