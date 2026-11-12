@@ -103,6 +103,37 @@ enum NestedRepositories {
 }
 
 /// What:
+///  The prefix Git writes before a name it prints,
+///  as the path from the worktree root to the directory the reading started in,
+///  or `location_prefix` when that directory is not below the root.
+///  `&Path` borrows the root and the reading's directory,
+///  and `&[u8]` the prefix the location query answered.
+/// Why:
+///   Git prints each name relative to the directory the command runs in,
+///  and a clean a `!` alias runs starts at the top of the working tree,
+///  so the prefix of the reading is the one that goes before those names,
+///  which is not the caller's prefix when the caller stood below the top.
+///  A reading whose directory is not below the worktree is one no name can be joined to,
+///  so the prefix the invocation itself has is kept,
+///  which is what every reading in the caller's own directory carries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function prefixOf(root: string, runIn: string, locationPrefix: Buffer): Buffer;
+/// ```
+fn prefix_of(root: &Path, run_in: &Path, location_prefix: &[u8]) -> Vec<u8> {
+    let Ok(relative) = run_in.strip_prefix(root) else {
+        return location_prefix.to_vec();
+    };
+    let mut prefix: Vec<u8> = Vec::<u8>::new();
+    for component in relative.components() {
+        prefix.extend_from_slice(component.as_os_str().as_encoded_bytes());
+        prefix.push(b'/');
+    }
+    return prefix;
+}
+
+/// What:
 ///  Keep every nested Git repository the clean would delete,
 /// whole,
 /// before it runs.
@@ -187,7 +218,10 @@ fn keep_the_nested_repositories_a_clean_would_delete(
         //  no proof that the later clean refuses, and running on it deleted a repository no copy held.
         Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
     };
-    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root, location.prefix.as_slice()) {
+    // The names are printed relative to the directory the dry run started in, which is not the caller's own directory
+    //  when Git runs the clean inside a `!` alias's shell, so that directory's own prefix is the one read here.
+    let command_prefix: Vec<u8> = prefix_of(&root, run_in.as_path(), location.prefix.as_slice());
+    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root, command_prefix.as_slice()) {
         Ok(found) => found,
         Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
     };
