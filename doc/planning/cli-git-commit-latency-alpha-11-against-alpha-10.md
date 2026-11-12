@@ -149,6 +149,80 @@ second and third equally):
 Every commit of both releases stayed far inside the bar in the fixture,
 and alpha.11 was the cheaper of the two there.
 
+## The changeover, and plain load, in one fixture
+
+The release's first hour was slow and the hours after it were not,
+and the same shape repeated when 0.6.1-alpha.12 was installed on 2026-11-12 at 22:36 local (03:36Z):
+4,331 ms for the install's own sample commit,
+then 11.5 s to 13.6 s for the next three.
+So the question is not which release is slower but whether a change of release costs the commits that follow it.
+
+That question was measured in one disposable repository with four linked worktrees,
+one `HOME`,
+one runtime directory and one installed path,
+with a supervisor that starts the service from that path whenever it ends
+(the stand-in for the user manager's socket activation,
+which this machine's rules forbid starting).
+The installed binary is replaced by one rename,
+as an install replaces it,
+between rounds:
+
+- A change of release:
+  the bytes at the installed path become the other release's,
+  and every worktree's service is still the old release's.
+- The control:
+  the same write with the bytes already installed,
+  so nothing retires and nothing restarts.
+- Both were repeated four times each,
+  alternating alpha.11 and alpha.12,
+  and the first commit in each of the four worktrees after each write is the sample.
+- The raw figures are in
+  `package/git-policy/cli/perf/commit-changeover-2026-11-12-four-worktrees.json`.
+
+Sixteen commits after a change of release,
+15 landed:
+
+- wall time median 8,920 ms,
+  ninetieth percentile 25,800 ms.
+- Every landed one met the old release's service:
+  `releasesSeen` names both releases and `updateRounds` is 1 to 55.
+- `provisionMs` is **0** in all fifteen,
+  so the time is not the units being written or the bus being asked.
+- The client's reach holds it:
+  `startWaitMs` up to 8,580 ms with up to 98 connection tries and 59 refused.
+- The new service's first answer holds it:
+  `answerWaitMs` up to 32,199 ms.
+- The client's own build holds it:
+  `shadow pool` up to 6,604 ms,
+  because a service of a new process has no pool yet.
+- One commit reported 19,849 ms of `otherMs`,
+  time no phase named:
+  the remainder this branch's `closingMs` and the named hand-off now account for.
+
+Sixteen commits after the same bytes were written again,
+all landed:
+
+- wall time median 1,200 ms,
+  ninetieth percentile 3,869 ms.
+- `updateRounds` is 0 and `releasesSeen` names one release in every one of the sixteen.
+
+Forty-eight steady commits beside them:
+`totalMs` median 922 ms,
+wall time median 1,570 ms.
+
+So a change of release costs about six seconds at the median over the control,
+and its spread is the machine's:
+the control's own ninetieth percentile is 3.2 times its median,
+and the steady commits' is 18 times theirs.
+The marker is not the noise though:
+every commit after a change met a service of the other release and no commit of the control did.
+
+Two commits failed during the run,
+one of them at the scratch `git commit` ceiling
+with `ssh-keygen` running for over ten seconds:
+signing a commit takes seconds on this machine at this load,
+which is what the ceiling and its branch are about.
+
 ## What the fixture cannot show, and does show, about the real repository
 
 The fixture is not the real repository,
@@ -262,6 +336,16 @@ go,
 - Provisioning,
   and the first commit after an install waiting for a service of the old release,
   belongs to `perf/git-policy-cli-first-commit-after-an-install-does-not-wait-for-the-old-service`.
+  What this record measured for it:
+  `provisionMs` is 0 in every commit taken after a change of release,
+  so the wait is neither the units nor the bus;
+  it is the client's reach for the new service (`startWaitMs`,
+  `connectTries`,
+  `refusedConnects`)
+  and the new service's first answer (`answerWaitMs`),
+  which are what its change moves.
+  The empty shadow pool a new service starts with (`buildParts.shadow pool` up to 6,604 ms)
+  belongs to `perf/git-policy-cli-commit-service-hands-a-commit-its-shadow`.
 - The shadow pool filling on the commit's path
   (`buildParts.shadow skeleton`,
   2,389 ms at the ninetieth percentile on alpha.11)
@@ -281,6 +365,12 @@ go,
   but no measurement on this machine separates 525 cheap opens from 525 expensive ones without saturating the disk,
   and saturating it is what the owner's rules forbid.
 - How much of the real repository's commit time is the 137 worktrees.
-  The fixture has one,
+  The changeover fixture had four,
   and per-worktree services were not compared against a single shared one.
+- How long the real machine takes to start a service of a new release.
+  The fixture's supervisor starts one when it notices the old one has ended,
+  which is not the manager starting it on the first connection,
+  so the `startWaitMs` figures there are the harness's and not the machine's.
+  What the service itself spends (its first answer,
+  its empty pool) is the program's either way.
 - The 20 s provisioning ceiling and the scratch `git commit` ceiling are two other branches' work and were left alone.
