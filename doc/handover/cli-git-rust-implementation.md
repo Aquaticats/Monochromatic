@@ -135,6 +135,90 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Rounds 272 and 273 started, the second Sonnet audit routed, and what stays out of a release (2026-11-12T00:57:30-05:00)
+
+Free space is 177 GiB.
+Every note of this hour shows as an `inbox` record in its recipient's feed,
+and all six agents of round 271 have feeds that grow
+(checked with `~/temp/agent/scratch-scripts/inbox-notes-and-whether-each-was-delivered.ts <run names>`).
+Integration pass 16 is alive; its last merge is `52e61919be` at 00:54:06.
+
+#### Round 272: six agents
+
+Started 00:54, unit `launch-agents-batch-round-272`.
+
+- `discarding-commands-guard-every-file-they-overwrite-or-delete` (base `main`).
+  Both audits of the discarding commands found the guard blind to files it does not ask about:
+  an untracked file the target tracks, an ignored file under `restore --source`,
+  an edit hidden by assume-unchanged, `--f` for `--force`,
+  a nested or bare repository under a `clean` with a pathspec,
+  and a mistyped command Git autocorrects.
+  It first merges two finished branches that change the same files:
+  the clean-inside-a-shell-alias branch (`1a6ffedaa0`) and the branch of `review-findings-clean-saves-every-nested-repository-1`.
+- `second-merge-while-one-is-part-way-and-a-merge-step-that-never-ends` (base `main`).
+  Sonnet F12: a second merge while the first is held leaves an index that lacks two files, or a worktree in which every command exits 2.
+  Sonnet F13: a hung LFS download leaves Git, `git-lfs` and `index.lock` behind.
+- `fast-forward-merge-and-pull-carry-what-a-diverged-merge-carries` (base `main`).
+  Sonnet F09, F10, F06 and F07: the fast-forward path is handed to real Git before the carry looks at anything.
+- `landing-keeps-the-built-commit-when-a-keep-or-a-lock-is-refused` (base `e11086623c`).
+  A review that never finished named three places where the only reference to a built commit is deleted on an ordinary failure;
+  all by reading, so the agent makes each happen first.
+- `removal-while-linking-brought-onto-main-with-controls-that-can-fail` (base `fbaf3fe41a`).
+  The first pass is over a hundred commits behind `main`, two of its controls pass with the fix switched off,
+  and it left a second `--force` and `prune` unparsed.
+- `subagent-driver-a-real-batch-start-works-and-the-remaining-commands-are-usable` (base `4e9914dc5c`).
+  It is told to remove only its own test run by name and never to run a sweep against this checkout.
+
+Round 273, unit `launch-agents-batch-round-273`: `qwen-review-second-run-worktree-add-within-60-s-on-the-pass-12-tip` on qwen4.
+The first run of that review ended without running anything,
+after naming one candidate: a record found empty or cut short fails every forwarded Git command.
+The reviewed change ("an add's own records flush nothing") was merged into pass 16 at 00:44:46.
+A Sonnet subagent is answering the same question by reading; its answer decides whether that merge stays in alpha.13.
+
+The tokio owed-index branch (`7ed062b33a`, fails the package lint on five `max-lines` findings, five hundred commits behind `main`)
+gets no follow-up until the third digest has reported on the other tokio branch that ended at 00:36.
+
+#### More findings sent by note at 00:55
+
+- Sonnet F03 and F04: `rebase --skip` also resets edits to files the dropped commit never touched,
+  and the aborts save worktree files only: to `abort-and-skip-save-what-they-discard-second-pass-1`.
+  That agent is near three hundred turns; what it does not reach goes to a third pass.
+- Sonnet F08, a hanging `cargo clean` holds `git worktree add` for ten minutes:
+  to `worktree-add-does-not-wait-for-its-package-repair-1`.
+- The decision record on untracked paths in a commit, and the unread review of its base:
+  to `commit-records-the-bytes-git-records-and-refuses-what-git-refuses-1`.
+
+#### Decided while the owner is away, open to veto
+
+Where each rule came from was checked first with `git blame` on the cited `SPEC.md` lines and `rg` over `doc/decision/`.
+The tracked-only question (`SPEC.md:16111-16112`, commits `c5b10691cb` and `70faec8fac`)
+and the forwarding of unknown names (`SPEC.md:16074`, commit `8f6bf3bd47`) were written with the code and cite no answer;
+no record under `doc/decision/` covers the discard guard.
+The recorded answer of 2026-11-10 on cleans of ignored files ("All four are deleted, exit 0, and the audit log records the command") is left as it is.
+
+- An untracked or ignored file that stands where a discarding command writes is copied first and the command runs;
+  no new refusal.
+  Reason: "never discard user data", and the recorded reason against refusals, "a refusal only moves the same loss to `rm -rf`".
+- An edit hidden by assume-unchanged gets what the same edit gets without the mark.
+- A mistyped command that Git would autocorrect and run at once is judged as the corrected command,
+  or passed on with autocorrection off for that call.
+- The fast-forward path of a merge or pull carries what the diverged path carries.
+  The two refusals that protect ignored content (Sonnet F07) become carries only if the existing asides can hold a directory and a special file;
+  otherwise they stay and the false README sentence is corrected.
+- A second merge that arrives while one is part-way finishes soundly or steps aside; no state makes every command exit 2.
+- A merge step hung in an LFS download is ended where that is provably safe, or owned until it ends.
+  This touches "Never cut a branch write"; the agent keeps that rule for the moment a branch is written.
+
+#### Held out of every release until the owner has seen them
+
+Pass 17 must not take these with "every finished branch":
+
+- the abort and skip second pass (already held);
+- the discard guard of round 272;
+- the fast-forward carry and the second-merge change of round 272;
+- the commit made without a service, of round 271;
+- the LFS mask that hides the whole path, in `review-findings-lfs-output-masks-every-secret-1`.
+
 ### Five more audits of alpha.12 read and routed, and round 271 started (2026-11-12T00:46:13-05:00)
 
 Free space on `/var/mnt/encrypted` is 179 GiB,
@@ -241,15 +325,13 @@ Verify each start by its feed, not by the launcher's line.
 
 - Two audits contest "Allow and log" (2026-11-10) for `git clean -fX` and `-fx`:
   both deleted the only copy of an ignored file with no saved copy.
-- Both audits show forced tree writes (`reset --hard <rev>`, `checkout -f`, path checkout, `restore --source`)
-  overwriting an untracked file the target tracks; `SPEC.md:16111-16113` records the tracked-only check as designed.
-- A mistyped `rset --hard` under `help.autocorrect=immediate` runs unguarded (`SPEC.md:16074` records the forwarding).
 - "Never cut a branch write" leaves `git merge --ff-only`, `git-lfs` and `index.lock` behind for good
   when an LFS server never answers a download (Sonnet F13).
 - "Stop only on no progress" lets a server that sends one byte every few seconds hold a typed push without end (Sonnet F14).
-- Two merges that real Git completes are refused to protect ignored content (Sonnet F07); the trade is not recorded.
 - Several commands Git refuses make a commit through the wrapper (Sonnet finding 8);
   the commit agent of round 271 checks each against the documents first.
+  `doc/decision/cli-git-policies-platform.md`, "Transactional commit gate", records one of them as chosen:
+  a commit that names an untracked path. That one stays; the agent was told so by note at 00:55.
 
 #### The launcher package cannot start every run yet
 
