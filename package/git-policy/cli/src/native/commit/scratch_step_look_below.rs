@@ -140,16 +140,54 @@ fn the_state_a_control_states(found: &mut Vec<(i32, ProcessUse)>, step: i32, hel
 ///  The look is the one the notice also makes,
 ///  and a control may state its answer
 ///  (`the_controls_window`).
+///  A look that could not be made is answered as itself and never as a step with nothing held:
+///  the two are different facts, and reading one as the other is how a held step was killed
+///  (finding 1 of the 2026-11-12 review).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const held = theKernelHoldsTheStep(pid); // { number, name } | undefined
+/// const look = whatTheLookSays(pid); // { held } | 'not-held' | 'could-not-look'
 /// ```
-pub(crate) fn the_kernel_holds_the_step(step: u32) -> Option<crate::scratch_step_held_by_the_kernel::HeldProgram> {
-    let number: i32 = i32::try_from(step).ok()?;
-    let below: Vec<(i32, ProcessUse)> = look_below(number)?;
-    let (found, used) = the_process_the_kernel_holds(below.as_slice())?;
-    return Some(crate::scratch_step_held_by_the_kernel::HeldProgram { number: *found, name: used.name.clone() });
+pub(crate) fn what_the_look_says(step: u32) -> WhatTheLookSays {
+    let number: i32 = match i32::try_from(step) {
+        Ok(number) => number,
+        // A number no look can name is a look that proved nothing about the step.
+        Err(_) => return WhatTheLookSays::CouldNotLook,
+    };
+    let below: Vec<(i32, ProcessUse)> = match look_below(number) {
+        Some(found) => found,
+        None => return WhatTheLookSays::CouldNotLook,
+    };
+    return match the_process_the_kernel_holds(below.as_slice()) {
+        Some((found, used)) => WhatTheLookSays::TheKernelHoldsIt(crate::scratch_step_held_by_the_kernel::HeldProgram { number: *found, name: used.name.clone() }),
+        None => WhatTheLookSays::NotHeld,
+    };
+}
+
+/// What:
+///  What one look at a step answered about the kernel holding it.
+/// Why:
+///  A process of the step the kernel holds,
+///  a look that found none of them in that state,
+///  and a look that could not be made at all
+///  are three different facts,
+///  and a ceiling must treat the last one as nothing known:
+///  reading it as a step with nothing held is what ended a held step at the usual ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WhatTheLookSays = { held: HeldProgram } | 'not-held' | 'could-not-look';
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum WhatTheLookSays {
+    /// The process the kernel is holding,
+    /// which is the step itself or a program it started.
+    TheKernelHoldsIt(crate::scratch_step_held_by_the_kernel::HeldProgram),
+    /// No process of the step is in an uninterruptible call.
+    NotHeld,
+    /// `/proc` could not be read,
+    /// so nothing about the step is known.
+    CouldNotLook,
 }
 
 /// The number of one member of a tree.

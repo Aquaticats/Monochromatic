@@ -187,6 +187,14 @@ pub mod scratch_step_ceiling_stop;
 /// The words a stopped scratch `git commit` prints.
 pub mod scratch_step_stop_words;
 
+/// The record of one stop of the scratch `git commit`,
+/// taken whole from the enforcer of its ceiling that ended the step.
+pub mod scratch_step_stop_record;
+
+/// The one decision two enforcers of a step's ceiling make together:
+/// whether the ceiling stands aside for a step the kernel holds in a disk wait.
+pub mod scratch_step_stall_decided_once;
+
 /// The line a commit prints while it waits for the `git commit` of its scratch repository.
 pub mod scratch_step_notice_line;
 

@@ -551,7 +551,7 @@ impl SignalGuard {
     /// ```
     pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
         let unheeded: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None, while_held: None };
+        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None, while_held: None, stall: None };
         let (outcome, _no_ceiling): (ChildOutcome, Option<CeilingStop>) = run_relayed(command, self.relaying, duty).await?;
         return Ok(outcome);
     }
@@ -599,7 +599,7 @@ impl SignalGuard {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CeilingDuty = { told: ChildNumber; bound?: Ceilings; lines?: Queue };
+/// type CeilingDuty = { told: ChildNumber; bound?: Ceilings; lines?: Queue; stall?: TheStallDecidedOnce };
 /// ```
 pub struct CeilingDuty<'a> {
     /// The spot the step's number is published into the moment it starts.
@@ -611,6 +611,10 @@ pub struct CeilingDuty<'a> {
     /// The queue the command says through the writer thread it hands the step's lines to,
     /// and nothing when the command has no line to say.
     pub while_held: Option<&'a std::sync::mpsc::SyncSender<String>>,
+    /// The one decision this ceiling shares with the notice's thread,
+    /// so neither enforcer can end the step at the usual ceiling after the other has stood aside;
+    /// nothing when no notice thread watches this step, and the wait then decides on its own.
+    pub stall: Option<&'a crate::scratch_step_stall_decided_once::TheStallDecidedOnce>,
 }
 
 /// What:
@@ -690,7 +694,7 @@ async fn run_relayed(command: &mut Command, relaying: bool, duty: CeilingDuty<'_
             stop,
             ceilings,
             "a Git step of a commit",
-            duty.while_held,
+            crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::WhatTheCeilingIsTold { stall: duty.stall, lines: duty.while_held },
         )
         .await?,
         None => (

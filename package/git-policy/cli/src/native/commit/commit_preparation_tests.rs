@@ -1011,3 +1011,121 @@ fn a_scratch_commit_whose_notice_thread_was_refused_still_says_the_step_was_wait
     assert!(said.contains("held it in a disk wait"), "a stop with no notice thread does not say the step was waited for: {said}");
     remove(root.as_path());
 }
+
+/// How many looks a control refuses before the ceiling of the wait that owns the step comes:
+/// more than the notice's thread makes that early, so the look that decides the ceiling cannot succeed.
+const A_FEW_LOOKS_THAT_CANNOT_BE_MADE: usize = 6;
+
+/// A ceiling long enough that the notice's own planted ceiling comes first,
+/// so the wait that owns the step decides after it.
+const A_CEILING_THE_NOTICE_DECIDES_FIRST: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// The longer ceiling a control gives a step whose ceiling the notice decided first.
+const A_LONGER_STALL_BOUND: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// What:
+///  A commit whose scratch step the kernel holds, and whose look at its ceiling could not be made,
+///  lands when the step ends.
+/// Why:
+///   Finding 1 of the 2026-11-12 review of the stand-aside:
+///  a look that failed was read as "not held",
+///  so the wait killed a step the kernel held at the usual ceiling,
+///  and a commit that would have landed failed.
+///  A look that failed decides nothing, and the look is made again.
+///  What a control states is the kernel's answer about the signer,
+///  which is the whole of what a stalled disk gives the step,
+///  and the commit, the signer and the shadow repository are real.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const { fixture, ... } = aSignerThatReportsItself(root, 2); plantLooksThatCannotBeMade(6); theKernelHolds(number); const code = runNativeCommitWithin({ ceiling: 300 }); expect(code).toBe(0)
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_scratch_commit_whose_ceiling_look_failed_lands_when_the_step_ends() {
+    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = crate::native_commit_waiting_notice::the_controls_window::take_the_window();
+    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND * 10);
+    let root: PathBuf = fixture("commit-preparation-a-look-that-failed");
+    let (fixture, global_args, commit_args, number_file): (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) =
+        a_signer_that_reports_itself(root.as_path(), "2");
+    let base: String = git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]);
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    // Every look before the ceiling of the wait that owns the step fails, as `/proc` under a descriptor or memory limit does.
+    crate::scratch_step_look_below::the_controls_window::plant_looks_that_cannot_be_made(A_FEW_LOOKS_THAT_CANNOT_BE_MADE);
+    let planting = {
+        let watched: PathBuf = number_file.clone();
+        std::thread::spawn(move || {
+            let number: i32 = the_number_in(watched.as_path(), A_SIGNER_STARTS);
+            crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "gpg");
+        })
+    };
+    let outcome: Result<i32, PreparationError> = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, A_CEILING_A_STEP_OUTLASTS);
+    planting.join().expect("the control's thread");
+    assert_eq!(outcome.expect("a look that failed decides nothing, so a step the kernel held is waited for and lands"), 0);
+    assert_eq!(git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]).trim(), base, "the person's branch is where it was");
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit whose notice stood aside for a step the kernel held, and whose wait then did not find the kernel holding it,
+///  lands, and no stop claims a wait that did not happen.
+/// Why:
+///   Finding 2 of the 2026-11-12 review of the stand-aside:
+///  the two enforcers decided separately, so one could stand aside while the other ended the step at the usual ceiling,
+///  and the words then named the longer bound and said the step was waited for to it.
+///  The stand-aside is one decision both enforcers read,
+///  so the wait may not undo it, and the step lands when its signer ends.
+///  The kernel's hold is stated and then taken away, which is a step that leaves that state and comes back to its work,
+///  and no run on this host can make a real process do either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const { fixture, ... } = aSignerThatReportsItself(root, 8); theKernelHolds(number); plantTheCeiling(0); await sleep(2_000); theKernelLetsGo(); const code = runNativeCommitWithin({ ceiling: 4_000 }); expect(code).toBe(0)
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_ceiling_that_stood_aside_is_not_undone_by_the_other_enforcer() {
+    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = crate::native_commit_waiting_notice::the_controls_window::take_the_window();
+    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_LONGER_STALL_BOUND);
+    let root: PathBuf = fixture("commit-preparation-enforcers-that-met-different-states");
+    let (fixture, global_args, commit_args, number_file): (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) =
+        a_signer_that_reports_itself(root.as_path(), "8");
+    let base: String = git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]);
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    let planting = {
+        let watched: PathBuf = number_file.clone();
+        std::thread::spawn(move || {
+            let number: i32 = the_number_in(watched.as_path(), A_SIGNER_STARTS);
+            crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "gpg");
+            // The notice's own ceiling comes at its next look, while the kernel is still said to hold the signer,
+            // so the notice stands aside before the wait's ceiling.
+            crate::native_commit_waiting_notice::the_controls_window::plant_the_ceiling(std::time::Duration::ZERO);
+            std::thread::sleep(A_CEILING_THE_NOTICE_DECIDES_FIRST / 2);
+            // The signer is at work again when the wait's own ceiling comes, so the two enforcers meet different states.
+            crate::scratch_step_look_below::the_controls_window::the_kernel_lets_go();
+        })
+    };
+    let outcome: Result<i32, PreparationError> = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, A_CEILING_THE_NOTICE_DECIDES_FIRST);
+    planting.join().expect("the control's thread");
+    assert_eq!(outcome.expect("a ceiling that stood aside is honoured by the other enforcer, and the step lands"), 0);
+    assert_eq!(git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]).trim(), base, "the person's branch is where it was");
+    remove(root.as_path());
+}

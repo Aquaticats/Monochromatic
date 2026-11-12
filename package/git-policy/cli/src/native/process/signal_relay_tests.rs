@@ -310,7 +310,7 @@ fn a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published() {
     let mut command: Command = Command::new("sleep");
     command.arg("30");
     let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, true, CeilingDuty { told: &told, bound: None, while_held: None })).expect("the runtime runs the child").expect("child runs").0;
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, true, CeilingDuty { told: &told, bound: None, while_held: None, stall: None })).expect("the runtime runs the child").expect("child runs").0;
     assert_eq!(
         outcome,
         ChildOutcome::Signaled(libc::SIGTERM),
@@ -634,7 +634,7 @@ fn waiting_ends_at_the_childs_exit_and_reports_it() {
     // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
     let started: Instant = Instant::now();
     let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None, while_held: None };
+    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None, while_held: None, stall: None };
     let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty)).expect("the runtime runs the child").expect("the child runs").0;
     assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     assert_eq!(outcome, ChildOutcome::Exited(0));
@@ -670,7 +670,7 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
         }
     });
     let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None, while_held: None };
+    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None, while_held: None, stall: None };
     let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty)).expect("the runtime runs the child").expect("interrupts do not end the wait").0;
     assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     interrupter.join().expect("interrupter finishes");

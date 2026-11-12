@@ -44,6 +44,13 @@ use crate::stop_of_the_service_noticed_by_its_children::StopArm;
 /// The processes the step started,
 /// read while its number still names it.
 use crate::process_tree::{TreeMember, descendants_of_read};
+/// The one decision this ceiling shares with the notice's thread,
+/// what it came to,
+/// and why a step was waited for.
+use crate::scratch_step_stall_decided_once::{TheStall, TheStallDecidedOnce, TheStallItWaitsThrough, WhyTheStepWasWaitedFor};
+/// What one look at the step says about the kernel holding it,
+/// and the look itself.
+use crate::scratch_step_look_below::{WhatTheLookSays, what_the_look_says};
 /// Ending what the step started,
 /// each through a descriptor opened while its number still named it,
 /// and what that came to.
@@ -77,9 +84,9 @@ use std::time::{Duration, Instant};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CeilingStop = { waited: number; belowListed: boolean; belowUnended: number };
+/// type CeilingStop = { waited: number; belowListed: boolean; belowUnended: number; stall?: TheStallItWaitsThrough };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CeilingStop {
     /// How long the step lasted before it was ended.
     pub waited: Duration,
@@ -92,11 +99,13 @@ pub struct CeilingStop {
     /// Such a program may still be running,
     /// which the record and the stop's words say.
     pub below_unended: u32,
-    /// The bound the step ran under once the ceiling stood aside for a step the kernel held,
-    /// and nothing when the ceiling never stood aside.
+    /// The ceiling that stood aside for this step,
+    /// with the bound the step then ran under and why it was waited for,
+    /// and nothing when the usual ceiling ended it.
     /// The record takes it from here when no notice thread ran,
-    /// so a stop of a step the kernel held is still told from one that was working.
-    pub stall_ceiling: Option<Duration>,
+    /// so a stop of a step that was waited for is still told from one that was not,
+    /// and the words name the bound that really ended it.
+    pub stall: Option<TheStallItWaitsThrough>,
 }
 
 // What:
@@ -176,6 +185,47 @@ pub struct Ceilings {
     pub while_the_kernel_holds_it: Duration,
 }
 
+/// What:
+///  What the ceiling of one step is told about the command it runs in.
+/// Why:
+///   The wait that owns the child needs the one decision it shares with the notice's thread,
+///  so the two cannot disagree about whether the step is waited for,
+///  and it needs the queue the command's lines go through,
+///  which is the notice's writer thread.
+///  Both are the command's and neither is a property of the ceiling,
+///  so they travel together and the wait keeps one argument for them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WhatTheCeilingIsTold = { stall?: TheStallDecidedOnce; lines?: Queue };
+/// ```
+pub struct WhatTheCeilingIsTold<'a> {
+    /// The one decision this ceiling shares with the notice's thread,
+    /// and nothing when this ceiling is the only enforcer of its bound:
+    /// it then makes the decision itself, once, exactly as a shared one is made.
+    pub stall: Option<&'a TheStallDecidedOnce>,
+    /// Where the command's lines go,
+    /// and nothing when it has no writer to hand one to.
+    pub lines: Option<&'a SyncSender<String>>,
+}
+
+impl WhatTheCeilingIsTold<'_> {
+    /// What:
+    ///  A ceiling that is the only enforcer of its bound and has no writer of its own.
+    /// Why:
+    ///   A wait no notice thread watches still stands aside for a step the kernel holds,
+    ///  and still says nothing while it waits,
+    ///  so it makes the one decision itself.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// WhatTheCeilingIsTold.alone();
+    /// ```
+    pub fn alone() -> Self {
+        return Self { stall: None, lines: None };
+    }
+}
+
 impl Ceilings {
     /// What:
     ///  The two bounds of a step whose ceiling is `ceiling`.
@@ -219,8 +269,12 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     mut stop: Option<StopArm>,
     ceilings: Ceilings,
     what: &str,
-    while_held: Option<&SyncSender<String>>,
+    told: WhatTheCeilingIsTold<'_>,
 ) -> std::io::Result<(ChildOutcome, Option<CeilingStop>)> {
+    let WhatTheCeilingIsTold { stall: shared, lines } = told;
+    // A ceiling with no other enforcer makes the one decision itself, and it lives as long as this wait.
+    let own_decision: TheStallDecidedOnce = TheStallDecidedOnce::new();
+    let the_stall: &TheStallDecidedOnce = shared.unwrap_or(&own_decision);
     let began: Instant = Instant::now();
     // The child's own end wins over the ceiling when both are ready:
     // a step that finished by itself landed, and stopped after its ceiling is a different record.
@@ -244,35 +298,41 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
         return Ok((outcome_of(status), None));
     }
     let mut waited: Duration = began.elapsed();
-    // The bound the step ran under when the ceiling stood aside, which the stop keeps for the record.
-    let mut stood_aside: Option<Duration> = None;
-    // What: The step reached its ceiling while the kernel held it in a disk wait.
+    // What: The step reached its ceiling while the kernel held it in a disk wait, or while nothing could be learned about it.
     // Why:  Such a step is waiting for the disk and not stuck in its own work,
     //       and a signal cannot shorten that call;
     //       ending it there is what failed a commit on 2026-11-11 whose step had landed a moment later.
     //       So the ceiling stands aside, the commit says so once, and the step is waited for to the bound the package
     //       measured, which an ordinary slow disk never reaches.
-    if ceilings.while_the_kernel_holds_it > waited
-        && let Some(held) = crate::scratch_step_look_below::the_kernel_holds_the_step(owned.id())
-    {
-        stood_aside = Some(ceilings.while_the_kernel_holds_it);
-        let stalled: AStalledStep<'_> = AStalledStep {
-            began,
-            waited,
-            until: ceilings.while_the_kernel_holds_it,
-            held,
-            lines: while_held,
-        };
-        match until_it_ends_or_the_hold_bound(&mut owned, &mut stop, stalled).await? {
-            HowTheStallEnded::ItEnded(status) => return Ok((outcome_of(status), None)),
-            // The bound came and the kernel still held it: the step is ended here as any step at its ceiling is.
-            HowTheStallEnded::TheBound => waited = began.elapsed(),
-            HowTheStallEnded::TheStopOfTheService => {
-                stop_push(owned, STOP_GRACE, LockLedger::none()).await;
-                return Err(crate::child_watch::ended_by_the_stop(what));
+    //       The stand-aside is the one decision this ceiling shares with the notice's thread
+    //       (`scratch_step_stall_decided_once.rs`), so an enforcer that found the step held is honoured here
+    //       even when this look found nothing, and the step is never ended at the usual ceiling after the other stood aside.
+    //       A look that could not be made decides nothing and is made again, up to that bound:
+    //       reading it as "not held" is how a held step was killed at the usual ceiling (finding 1 of the 2026-11-12 review).
+    let stall: Option<TheStallItWaitsThrough> = match what_the_ceiling_decides(&mut owned, ceilings, began, the_stall).await? {
+        // A step that ended while nothing could be read about it landed, and its own status decides.
+        HowTheCeilingWasDecided::ItEnded(status) => return Ok((outcome_of(status), None)),
+        HowTheCeilingWasDecided::TheUsualCeiling => None,
+        HowTheCeilingWasDecided::StoodAside(stood) => {
+            let stalled: AStalledStep<'_> = AStalledStep {
+                began,
+                waited: stood.stood_aside_after,
+                until: stood.bound,
+                why: stood.why.clone(),
+                lines,
+            };
+            match until_it_ends_or_the_hold_bound(&mut owned, &mut stop, stalled).await? {
+                HowTheStallEnded::ItEnded(status) => return Ok((outcome_of(status), None)),
+                // The bound came and the kernel still held it: the step is ended here as any step at its ceiling is.
+                HowTheStallEnded::TheBound => waited = began.elapsed(),
+                HowTheStallEnded::TheStopOfTheService => {
+                    stop_push(owned, STOP_GRACE, LockLedger::none()).await;
+                    return Err(crate::child_watch::ended_by_the_stop(what));
+                }
             }
+            Some(stood)
         }
-    }
+    };
     // What the step started is read now, while the step is alive:
     // a number cannot be reused while its process holds it, and everything below the step is found by that number only
     // then.
@@ -296,7 +356,7 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     // (2026-11-10, "Keep waiting and say so"), an exception to his rule that nothing waits for ever.
     // The line that says why comes from this wait and never from the notice's thread, which a system at its thread
     //  limit never started (`wait_after_the_stop_saying_the_kernel_holds_it.rs`).
-    let reaped: Option<std::process::ExitStatus> = match crate::wait_after_the_stop_saying_the_kernel_holds_it::until_reaped(&mut owned, waited, while_held)
+    let reaped: Option<std::process::ExitStatus> = match crate::wait_after_the_stop_saying_the_kernel_holds_it::until_reaped(&mut owned, waited, lines)
         .await
     {
         Ok(collected) => Some(collected),
@@ -313,7 +373,103 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
     {
         return Ok((outcome_of(status), None));
     }
-    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended, stall_ceiling: stood_aside })));
+    return Ok((ChildOutcome::Signaled(libc::SIGKILL), Some(CeilingStop { waited, below_listed: walked.is_some(), below_unended, stall })));
+}
+
+/// What:
+///  What the ceiling does now that it has come:
+///  stands aside for this step, or ends it at the usual ceiling.
+/// Why:
+///   The stand-aside is one decision shared with the notice's thread,
+///  so a step the other enforcer found held is waited for here even when this look found nothing.
+///  A look that found the kernel holding a process of the step stands aside,
+///  a look that found none has the usual ceiling end the step,
+///  and a look that could not be made decides nothing at all:
+///  the ceiling stays armed and the look is made again until the bound the step is waited for comes,
+///  which is where a step nothing can be learned about is ended.
+///  Reading a failed look as "not held" is how a held step was killed at the usual ceiling,
+///  and a commit that would have landed failed (finding 1 of the 2026-11-12 review).
+///  Every wait here is bounded by that same bound,
+///  and a step that ends by itself is noticed on the way to the next look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// while (stall.state() === 'undecided') { const look = whatTheLookSays(step); if (look.held) return stall.standAside(...); if (look.notHeld) return stall.theUsualCeilingEndsIt() ? 'the-usual-ceiling' : stall.state(); if (began.elapsed() >= bound) return stall.standAside({ why: 'its-state-could-not-be-read' }); await sleep(250) }
+/// ```
+async fn what_the_ceiling_decides(owned: &mut OwnedChild, ceilings: Ceilings, began: Instant, the_stall: &TheStallDecidedOnce) -> std::io::Result<HowTheCeilingWasDecided> {
+    loop {
+        match the_stall.state() {
+            TheStall::StoodAside(stood) => return Ok(HowTheCeilingWasDecided::StoodAside(stood)),
+            TheStall::TheUsualCeilingEndsIt => return Ok(HowTheCeilingWasDecided::TheUsualCeiling),
+            TheStall::Undecided => {}
+        }
+        // What: The later bound is a stand-aside only when it really is later.
+        // Why:  A person may set a ceiling above the bound this release waits a step for,
+        //       and a control may plant one: standing aside for a bound that is not later would end the step at its ceiling
+        //       and say it was waited for.
+        if ceilings.while_the_kernel_holds_it <= ceilings.usually {
+            let _claimed: bool = the_stall.the_usual_ceiling_ends_it();
+            return Ok(HowTheCeilingWasDecided::TheUsualCeiling);
+        }
+        let what_it_says: WhatTheLookSays = what_the_look_says(owned.id());
+        // What: A step whose state could not be read is waited for to the bound this ceiling gives a held step,
+        //       and the wait is never the usual ceiling's.
+        // Why:  Nothing is known about it, so ending it at the usual ceiling is ending a step that may be waiting for the disk;
+        //       the bound is the one the package measured and nothing waits past it.
+        let nothing_is_known_and_the_bound_came: bool = matches!(what_it_says, WhatTheLookSays::CouldNotLook) && began.elapsed() >= ceilings.while_the_kernel_holds_it;
+        let decided: TheStall = match what_it_says {
+            WhatTheLookSays::TheKernelHoldsIt(held) => the_stall.stand_aside(TheStallItWaitsThrough {
+                stood_aside_after: began.elapsed(),
+                bound: ceilings.while_the_kernel_holds_it,
+                why: WhyTheStepWasWaitedFor::TheKernelHeldIt(held),
+            }),
+            WhatTheLookSays::NotHeld => {
+                let _claimed: bool = the_stall.the_usual_ceiling_ends_it();
+                the_stall.state()
+            }
+            WhatTheLookSays::CouldNotLook if nothing_is_known_and_the_bound_came => the_stall.stand_aside(TheStallItWaitsThrough {
+                stood_aside_after: began.elapsed(),
+                bound: ceilings.while_the_kernel_holds_it,
+                why: WhyTheStepWasWaitedFor::ItsStateCouldNotBeRead,
+            }),
+            WhatTheLookSays::CouldNotLook => {
+                // What: A look that failed decides nothing: it is made again at the pace a failed look is retried at.
+                // Why:  A `/proc` read refused at a descriptor or memory limit is the documented cause,
+                //       and it is a fact about this look and never about the step.
+                //       The step ending by itself is noticed here too, so a commit whose step landed is never waited for to that bound.
+                tokio::select! {
+                    biased;
+                    status = owned.wait() => return Ok(HowTheCeilingWasDecided::ItEnded(status?)),
+                    () = sleep(crate::wait_after_the_stop_saying_the_kernel_holds_it::AFTER_THE_STOP) => continue,
+                }
+            }
+        };
+        return Ok(match decided {
+            TheStall::StoodAside(stood) => HowTheCeilingWasDecided::StoodAside(stood),
+            // The other enforcer had the usual ceiling end this step before this look could stand aside for it.
+            TheStall::TheUsualCeilingEndsIt | TheStall::Undecided => HowTheCeilingWasDecided::TheUsualCeiling,
+        });
+    }
+}
+
+/// What:
+///  How the ceiling of a step came out once it had come.
+/// Why:
+///   The two answers end the step differently:
+///  a ceiling that stood aside leaves the step running under the later bound,
+///  and one that ends it at the usual ceiling does so at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HowTheCeilingWasDecided = 'the-usual-ceiling' | { stoodAside: TheStallItWaitsThrough } | { itEnded: number };
+/// ```
+enum HowTheCeilingWasDecided {
+    /// The usual ceiling ends the step here.
+    TheUsualCeiling,
+    /// The ceiling stood aside, and the step is waited for to the bound this names.
+    StoodAside(TheStallItWaitsThrough),
+    /// The step ended by itself while nothing could be learned about it.
+    ItEnded(std::process::ExitStatus),
 }
 
 /// What:
@@ -326,17 +482,19 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AStalledStep = { began: number; waited: number; until: number; held: HeldProgram; lines?: Queue };
+/// type AStalledStep = { began: number; waited: number; until: number; why: WhyTheStepWasWaitedFor; lines?: Queue };
 /// ```
 struct AStalledStep<'a> {
     /// When the step started.
     began: Instant,
     /// How long it had lasted when its ceiling came.
     waited: Duration,
-    /// The longest it may last while the kernel holds it.
+    /// The longest it may last while the ceiling stands aside.
     until: Duration,
-    /// The process the kernel is holding.
-    held: crate::scratch_step_held_by_the_kernel::HeldProgram,
+    /// Why the ceiling stood aside:
+    /// the process the kernel is holding,
+    /// or nothing, when nothing could be learned about the step.
+    why: WhyTheStepWasWaitedFor,
     /// Where the command's lines go,
     /// and nothing when it has no writer to hand one to.
     lines: Option<&'a SyncSender<String>>,
@@ -382,7 +540,7 @@ enum HowTheStallEnded {
 /// const ended = await untilItEndsOrTheHoldBound(owned, stop, stalled); if (ended.itEnded) return [ended.itEnded, undefined];
 /// ```
 async fn until_it_ends_or_the_hold_bound(owned: &mut OwnedChild, stop: &mut Option<StopArm>, stalled: AStalledStep<'_>) -> std::io::Result<HowTheStallEnded> {
-    let AStalledStep { began, waited, until, held, lines } = stalled;
+    let AStalledStep { began, waited, until, why, lines } = stalled;
     let mut said: bool = false;
     let mut pause: Duration = Duration::ZERO;
     loop {
@@ -405,11 +563,14 @@ async fn until_it_ends_or_the_hold_bound(owned: &mut OwnedChild, stop: &mut Opti
             () = sleep(pause) => {}
         }
         if !said {
+            // What: The line that says why the ceiling did not come, and the process the kernel is holding.
+            // Why:  A step nothing could be learned about has no such process to name,
+            //       and a line that named one would state a fact no look found (`scratch_step_held_by_the_kernel.rs`).
             let line: String = crate::scratch_step_held_by_the_kernel::a_stall_is_waited_for(crate::scratch_step_held_by_the_kernel::AStall {
                 step: i32::try_from(owned.id()).unwrap_or(0),
                 waited,
                 until,
-                held: held.clone(),
+                why: why.clone(),
             });
             said = match lines {
                 Some(queue) => queue.try_send(line).is_ok(),
