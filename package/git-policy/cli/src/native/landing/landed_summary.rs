@@ -38,39 +38,59 @@ const LAST_RESORT_LENGTH: usize = 7;
 const ABBREVIATION_KEY: &str = "core.abbrev";
 
 /// What:
-///  Whether a line of a message is blank:
-/// empty or only white space.
+///  Whether Git reads this character at the end of a line as white space:
+/// a space,
+/// a tab,
+/// a line break or a carriage return.
 /// Why:
-///  `subject_of` skips the blank lines before the subject.
+///  This is the set Git 2.56.0's `sane_ctype` table marks as space,
+///  which its `is_blank_line` in `pretty.c` removes,
+/// and a line of no-break spaces,
+///  of a vertical tab or of a form feed is text to Git.
+/// A Unicode trim would call such a line blank and drop the subject.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isBlankLine = (line: string) => line.trim() === '';
+/// const endsWithGitWhitespace = (c: string) => c === ' ' || c === '\t' || c === '\n' || c === '\r';
 /// ```
-fn is_blank_line(line: &&str) -> bool {
-    return line.trim().is_empty();
+fn git_takes_off_the_end(letter: char) -> bool {
+    return matches!(letter, ' ' | '\t' | '\n' | '\r');
 }
 
 /// What:
 ///  The subject of a commit message:
 /// its first paragraph on one line.
 /// Why:
-///   Git's `%s` joins the lines of the first paragraph with spaces,
-/// and `git commit` prints that.
+///   This is Git 2.56.0's `%s`,
+/// which `git commit` prints:
+///  `format_subject` after `skip_blank_lines`,
+///  so the blank lines before the paragraph are skipped,
+///  each line of it keeps its leading white space and loses the white space at its end,
+///  the lines are joined with one space,
+/// and the first line that is empty ends the paragraph.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// message.trim().split(/\n\s*\n/)[0].split('\n').map((line) => line.trim()).join(' ')
+/// formatSubject(skipBlankLines(message)) // Git's %s
 /// ```
 pub fn subject_of(message: &str) -> String {
-    let mut words: Vec<&str> = Vec::new();
-    for line in message.lines().skip_while(is_blank_line) {
-        if line.trim().is_empty() {
-            break;
+    let mut subject: String = String::new();
+    let mut started: bool = false;
+    for line in message.split('\n') {
+        let text: &str = line.trim_end_matches(git_takes_off_the_end);
+        if text.is_empty() {
+            if started {
+                break;
+            }
+            continue;
         }
-        words.push(line.trim());
+        if started {
+            subject.push(' ');
+        }
+        subject.push_str(text);
+        started = true;
     }
-    return words.join(" ");
+    return subject;
 }
 
 /// What:

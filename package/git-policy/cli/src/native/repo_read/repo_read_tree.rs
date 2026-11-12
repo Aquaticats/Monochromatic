@@ -379,14 +379,35 @@ pub fn parse_commit(bytes: &[u8], format: ObjectFormat) -> Option<CommitFields> 
 }
 
 /// What:
+///  Whether Git reads this byte at the end of a line as white space:
+/// a space,
+/// a tab,
+/// a line break or a carriage return.
+/// Why:
+///   This is the set Git 2.56.0's `sane_ctype` table marks as space,
+///  which its `is_blank_line` in `pretty.c` removes;
+/// a form feed or a vertical tab is text to Git,
+///  as Rust's own ASCII trim would not agree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endsWithGitWhitespace = (c: number) => c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d;
+/// ```
+fn git_takes_off_the_end(byte: u8) -> bool {
+    return matches!(byte, b' ' | b'\t' | b'\n' | b'\r');
+}
+
+/// What:
 ///  The subject `%s` prints for a message:
 /// the first paragraph with its lines joined by spaces.
 /// Why:
 ///   Git skips leading blank lines,
 /// stops at the first blank line,
 /// trims each line's trailing white space and joins
-///  with a single space;
-/// any message the plain rule does not cover (a carriage return) returns `None`.
+///  with a single space,
+/// where the white space is `git_takes_off_the_end`'s set and not everything Rust trims;
+/// any message the plain rule does not cover
+///  (a carriage return inside a line, a NUL) returns `None`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -399,7 +420,8 @@ pub fn subject_of(message: &[u8]) -> Option<Vec<u8>> {
     let mut subject: Vec<u8> = Vec::new();
     let mut started: bool = false;
     for line in message.split(is_newline) {
-        let trimmed: &[u8] = line.trim_ascii_end();
+        let end: usize = line.iter().rposition(|byte| { return !git_takes_off_the_end(*byte); }).map_or(0, |at| { return at + 1; });
+        let trimmed: &[u8] = &line[..end];
         let blank: bool = trimmed.is_empty();
         if blank && !started {
             continue;
@@ -411,7 +433,7 @@ pub fn subject_of(message: &[u8]) -> Option<Vec<u8>> {
             subject.push(b' ');
         }
         started = true;
-        subject.extend_from_slice(line.trim_ascii_end());
+        subject.extend_from_slice(trimmed);
     }
     return Some(subject);
 }

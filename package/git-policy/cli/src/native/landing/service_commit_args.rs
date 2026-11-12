@@ -236,38 +236,68 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
 }
 
 /// What:
+///  Whether Git reads this character at the end of a line as white space to remove:
+/// a space,
+/// a tab,
+/// a line break or a carriage return.
+/// Why:
+///  This is the set Git 2.56.0's `sane_ctype` table marks as space,
+///  which `cleanup` in `strbuf.c` removes,
+/// and it is neither everything Unicode calls white space nor everything C's `isspace`
+///  names:
+/// a no-break space,
+/// a vertical tab and a form feed are not in it.
+///  Measured against Git 2.56.0,
+/// `git commit --message=subject<no-break space>` records the no-break space,
+///  `subject<vertical tab>` records the vertical tab and `subject<form feed>` the form feed,
+///  while a trailing space,
+/// tab,
+/// line break or carriage return is removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endsWithGitWhitespace = (c: string) => c === ' ' || c === '\t' || c === '\n' || c === '\r';
+/// ```
+pub fn git_takes_off_the_end(letter: char) -> bool {
+    return matches!(letter, ' ' | '\t' | '\n' | '\r');
+}
+
+/// What:
 ///  The commit message Git makes of the given texts when no editor opens.
 /// Why:
-///   Each text is a paragraph;
-/// Git strips trailing whitespace from every line,
-/// drops leading and trailing blank lines,
-///  squeezes runs of blank lines into one and ends the message with a newline.
+///   Each text is a paragraph,
+/// and this is Git 2.56.0's `strbuf_stripspace` with no comment character:
+///  it takes the white space off the end of every line,
+///  drops every line that is then empty,
+///  puts one empty line between two blocks of text,
+///  drops the empty lines at either end and ends the message with a line break.
+///  The white space is the set `git_takes_off_the_end` names,
+/// not everything Unicode calls white space,
+///  so a no-break space at the end of a line is part of the message.
 /// An empty result is no message.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// cleanupMessage(['subject', 'body'])
+/// cleanupMessage(['subject', 'body']) // Git's strbuf_stripspace
 /// ```
 pub fn cleanup_message(messages: &[String]) -> Option<String> {
     let joined: String = messages.join("\n\n");
-    let mut lines: Vec<&str> = Vec::new();
-    let mut previous_blank: bool = true;
+    let mut cleaned: String = String::new();
+    let mut empty_lines: usize = 0;
     for line in joined.split('\n') {
-        let trimmed: &str = line.trim_end();
-        let blank: bool = trimmed.is_empty();
-        if blank && previous_blank {
+        let text: &str = line.trim_end_matches(git_takes_off_the_end);
+        if text.is_empty() {
+            empty_lines += 1;
             continue;
         }
-        lines.push(trimmed);
-        previous_blank = blank;
+        if empty_lines > 0 && !cleaned.is_empty() {
+            cleaned.push('\n');
+        }
+        empty_lines = 0;
+        cleaned.push_str(text);
+        cleaned.push('\n');
     }
-    while matches!(lines.last(), Some(line) if line.is_empty()) {
-        lines.pop();
-    }
-    if lines.is_empty() {
-        return None;
-    }
-    return Some(format!("{}\n", lines.join("\n")));
+    return (!cleaned.is_empty()).then_some(cleaned);
 }
 
 /// Long options that name where the message comes from,

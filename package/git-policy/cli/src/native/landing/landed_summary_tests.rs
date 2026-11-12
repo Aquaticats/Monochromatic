@@ -26,7 +26,12 @@ fn the_line_words_the_branch_the_root_and_the_detached_head_as_git_does() {
 fn the_subject_is_the_first_paragraph_on_one_line() {
     assert_eq!(subject_of("one\n"), "one");
     assert_eq!(subject_of("one\ntwo\n\nbody\n"), "one two");
-    assert_eq!(subject_of("\n\n  padded  \n  twice\n\nbody"), "padded twice");
+    // Git's `%s` keeps the white space at the start of a line and drops the white space at its end:
+    // measured, `git log -1 --format=%s` of the message `  padded  \n  twice` is `  padded   twice`.
+    assert_eq!(subject_of("\n\n  padded  \n  twice\n\nbody"), "  padded   twice");
+    assert_eq!(subject_of("subject\u{a0}\n"), "subject\u{a0}");
+    assert_eq!(subject_of("subject\u{b}\n"), "subject\u{b}");
+    assert_eq!(subject_of("\u{a0}\n"), "\u{a0}");
     assert_eq!(subject_of(""), "");
 }
 

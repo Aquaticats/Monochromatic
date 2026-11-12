@@ -148,6 +148,40 @@ fn the_message_cleanup_matches_what_git_stores() {
     remove(root.as_path());
 }
 
+/// What:
+///  A line loses the white space Git removes from its end and nothing else.
+/// Why:
+///  The clean-up trimmed every character Rust calls white space,
+/// and the audit found a no-break space at the end of a message removed where real Git
+///  records it.
+///  Measured against Git 2.56.0,
+/// a trailing no-break space,
+/// a trailing figure space,
+/// a trailing vertical tab and a trailing form feed are all recorded,
+///  while a trailing space,
+/// tab,
+/// line break or carriage return is not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(cleanupMessage(['subject '])).toEqual('subject \n');
+/// ```
+#[test]
+fn a_line_keeps_the_white_space_git_does_not_remove() {
+    for kept in ["\u{a0}", "\u{2007}", "\u{202f}", "\u{b}", "\u{c}"] {
+        let text: String = format!("subject{kept}");
+        assert_eq!(cleanup_message(&[text]), Some(format!("subject{kept}\n")), "{kept:?}");
+    }
+    for removed in [" ", "\t", "\n", "\r", "\r\n", "  \t "] {
+        assert_eq!(cleanup_message(&[format!("subject{removed}")]), Some(String::from("subject\n")), "{removed:?}");
+    }
+    // A line of a character Git does not remove is a line of the message, so the paragraph keeps it.
+    assert_eq!(cleanup_message(&[String::from("\u{a0}")]), Some(String::from("\u{a0}\n")));
+    // Git's own joining of the lines of one text and of two texts.
+    assert_eq!(cleanup_message(&[String::from("one\n  two\n")]), Some(String::from("one\n  two\n")));
+    assert_eq!(cleanup_message(&[String::from("one"), String::from("two")]), Some(String::from("one\n\ntwo\n")));
+}
+
 /// A message of only blanks is no message.
 #[test]
 fn a_blank_message_is_no_message() {
