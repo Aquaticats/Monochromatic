@@ -542,7 +542,8 @@ fn real_cargo_rebuilds_own_crates_with_an_external_build_directory() {
 /// Why:
 ///   The copy carries each workspace's `target/`,
 /// so the plan used to clean every workspace whose source checkout had never been built:
-/// 34 of 35 workspaces on 2026-11-12, 32.8 to 47.7 s of workspace resolutions that deleted nothing
+/// 34 of 35 workspaces on 2026-11-12,
+/// 32.8 to 47.7 s of workspace resolutions that deleted nothing
 /// (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
 /// Cargo keeps the fingerprints that make an artifact fresh inside the build directory,
 /// so a worktree that starts without one rebuilds its own crates by itself,
@@ -601,6 +602,38 @@ fn a_build_started_at_once_is_correct_and_the_add_starts_no_clean() {
     assert_eq!(ran.trim(), worktree.join("lib").to_str().expect("utf8"), "the build at once names the worktree's own paths");
     let copy: PathBuf = worktree.join("other/target/debug/leftover");
     assert!(copy.exists(), "the copy's own leftover is left where the copy put it: {}", copy.display());
+    remove(&fixture);
+}
+
+/// The line an add answers for the filling it leaves to the commit service names where its progress
+/// shows.
+/// Why:
+///   A line saying that work happens after the command returns,
+/// and not where to look for what became
+/// of it,
+/// is not a line a person can act on (`SPEC.md`,
+/// "Package-manager repair of a new worktree").
+#[test]
+fn the_line_for_work_left_behind_names_the_queue_and_the_journal() {
+    let name: &str = "the_line_for_work_left_behind_names_the_queue_and_the_journal";
+    let fixture: Fixture = fixture("repair-line");
+    if !prepare_cargo(&fixture, name) {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = cargo_repository(&fixture, true);
+    // The source's build directory exists once the source is built, so what the add leaves behind is a `prewarm` record it
+    //  hands over instead of doing that work itself.
+    let built: String = run_tool(&fixture, "cargo", repo.as_path(), &["run", "--offline", "--quiet"]);
+    assert_eq!(built.trim(), repo.join("lib").to_str().expect("utf8"));
+    std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    // Not `--quiet`: the line this control is about is the one `--quiet` suppresses.
+    let created: Observed = add(&fixture, repo.as_path(), &[], "named", "../deeper/named");
+    let line: String = stderr_of(&created);
+    assert!(
+        line.contains("work/{pending,claimed,done,failed}") && line.contains("the service's journal"),
+        "the line for work left behind names where its progress shows: {line}"
+    );
     remove(&fixture);
 }
 
