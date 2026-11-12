@@ -78,8 +78,9 @@ In the order a run that names no model of its own takes them:
   20 runs of Kimi K3.1 Pro flex,
   taken only by a run that names that model.
 - `qwen-token-plan`:
-  4 runs of `qwen4-max-preview`,
+  18 runs of `qwen4-max-preview`,
   taken only by a run that names that model.
+  Reviews of a change run here.
 
 A closed pool takes no new run at all.
 A run that names a model only one pool takes stays on that pool.

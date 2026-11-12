@@ -160,14 +160,15 @@ export const NEURALWATT_KIMI_FLEX: ProviderPool = {
  The qwen plan's `qwen4-max-preview` pool, which only a run naming that model takes.
 
  The owner, 2026-11-11T16:3x-05:00: "qwen-token-plan-individual  qwen4-max-preview is now available in Pi. Check if it can
- replace Kimi or Sonnet." The plan's own concurrency limit for it is not measured or stated; 4 is the size of the comparison
- runs, not a limit of the plan, and a 429 from it sets the real one.
+ replace Kimi or Sonnet." Then, 2026-11-11T19:27-05:00: "Make the Qwen 4 pool 18, and use it for reviews INSTEAD of Kimi."
+ So the limit is the owner's number. The plan's own concurrency limit for it is not measured or stated, and a 429 that names
+ one sets the real number.
  */
 export const QWEN_PLAN_QWEN4_MAX_PREVIEW: ProviderPool = {
   name: 'qwen-token-plan',
   provider: 'qwen-token-plan-individual',
   model: 'qwen4-max-preview',
-  limit: 4,
+  limit: 18,
   wallFactor: 1,
   takesDefaultRuns: false,
 };
