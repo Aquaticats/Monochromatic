@@ -239,11 +239,12 @@ pub fn settle_the_copy(request: SettlingRequest<'_>) -> Result<Settled, Worktree
         //  its source held must not look whole. An entry this pass left in its source because it would not settle is no entry
         //  the source gained, and it is named once, as one that kept changing.
         if differences.gone.is_empty() && differences.changed.is_empty() {
-            let appeared: Vec<Vec<u8>> = differences
-                .appeared
-                .into_iter()
-                .filter(|path: &Vec<u8>| return !unsettled.contains(path))
-                .collect();
+            let mut appeared: Vec<Vec<u8>> = Vec::new();
+            for path in differences.appeared {
+                if !unsettled.contains(&path) {
+                    appeared.push(path);
+                }
+            }
             return Ok(Settled { entries, stamps, unsettled, uncopiable, appeared, gone: gone_count });
         }
         // An entry the source removed has no stage file to keep and nothing to install; a name that now holds a socket,

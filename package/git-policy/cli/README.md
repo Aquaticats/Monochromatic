@@ -696,8 +696,8 @@ Read-only commands,
    your writing for the one removal and the one copy its retry needs,
   and the source's modes are back
    before the next comparison reads them.
-  A file the source gained while it was copied was in no listing the copy staged, so it cannot be
-   in the new worktree:
+  A file the source gained while it was copied was in no listing the copy staged,
+  so it cannot be in the new worktree:
   it stays in its source,
   and one line says how many there were and which first ones.
   A file that cannot be copied at all fails the copy with its own path in the message,
