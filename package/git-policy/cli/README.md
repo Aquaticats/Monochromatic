@@ -7159,16 +7159,19 @@ all durations in whole milliseconds taken from the monotonic clock:
   They were added for the reading in
   `doc/planning/cli-git-commit-latency-under-many-agents.md`.
 - `prepareParts` splits the preparation by the stretch of work it was in,
-  as `{"layout": {"ms": 12, "calls": 1}, ...}`:
+  as `{"layout": {"ms": 12, "calls": 1, "childrenMs": 480}, ...}`:
   the seams are one line each in `src/native/landing/service_prepare.rs`,
-  each figure is the time that stretch spent without a Git child
+  `ms` is the time that stretch spent without a Git child
   (the steps are listed apart in `steps`),
+  `childrenMs` is the time of the Git steps that began inside it,
+  clipped to its end,
+  so a stretch a child dominated states that child's time rather than nothing,
   a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
   and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
   It is what lets a reading name the in-process work a slow `prepareMs` holds.
 - `buildParts` is the same shape for the build phase:
-  `{"branch": {"ms": 1, "calls": 1}, "shadow skeleton": {"ms": 3, "calls": 1}, ...}`,
-  with a name for every stretch that held no Git child.
+  `{"branch": {"ms": 1, "calls": 1, "childrenMs": 0}, "shadow skeleton": {"ms": 3, "calls": 1, "childrenMs": 0}, ...}`,
+  with a name for every stretch and the time of the Git children that began inside it.
   The shadow repository's creation is the one this was added for:
   it is in-process filesystem work,
   so `steps` never named it and a build of 63 444 ms whose longest step was 65 ms explained itself with no figure
