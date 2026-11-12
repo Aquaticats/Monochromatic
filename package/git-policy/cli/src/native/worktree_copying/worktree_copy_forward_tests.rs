@@ -3,6 +3,7 @@
 //! and how a settled run ends.
 
 use super::*;
+use crate::worktree_remove_plan::ForceAsked;
 use crate::test_support::{REAL_GIT, fixture, git, isolated_overlay, remove, repository};
 use std::path::Path;
 
@@ -197,7 +198,7 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
         creates: false,
         destination: None,
         add_plan: None,
-        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: ForceAsked::No }),
     };
     let asked: std::cell::RefCell<Vec<WorktreeAboutToGo>> = std::cell::RefCell::new(Vec::new());
     let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
@@ -249,7 +250,7 @@ fn a_forwarded_removal_takes_the_removed_worktrees_shadow_pool_with_it() {
         creates: false,
         destination: None,
         add_plan: None,
-        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: ForceAsked::No }),
     };
     let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
         Path::new(REAL_GIT),
@@ -512,5 +513,52 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
     let staged: String = String::from_utf8(git(topic.as_path(), &["diff", "--cached", "--name-only"]).stdout).expect("utf8");
     assert!(!staged.lines().any(|path: &str| { return path.starts_with(".claude/"); }), "nothing of another command's state is staged: {staged}");
     assert!(!topic.join("tracked.txt").is_file() || std::fs::read(topic.join("tracked.txt")).expect("tracked") != b"one, edited\n", "the person's uncommitted edit stays in the source");
+    remove(root.as_path());
+}
+
+/// What:
+///  A forwarded removal settles the relink record of the worktree it removed,
+///  and the person reads why.
+/// Why:
+///  `git worktree add` hands the relinking of the new worktree's copied package state to the commit service,
+///  and a person removes a fresh worktree long before that relink is done.
+///  A record left waiting names a directory nothing will relink,
+///  so the removal that took the worktree settles it (`package_repair_relink_of_a_removed_worktree.rs`),
+///  and this is the command that must do it:
+///  the record is the only place the queued work is written down,
+///  and nothing else looks at it again once the worktree is gone.
+#[cfg(unix)]
+#[test]
+fn a_forwarded_removal_settles_the_relink_record_of_the_worktree_it_took() {
+    let root: PathBuf = fixture("forward-removal-relink");
+    let (main, common) = source(root.as_path());
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
+    let entry: crate::package_repair_relink::RelinkEntry = crate::package_repair_relink::RelinkEntry {
+        root: worktree.clone(),
+        search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
+        tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
+    };
+    let item: crate::work_item::WorkItem = crate::package_repair_relink::item_of(common.as_path(), worktree.as_path(), &entry).expect("the record");
+    crate::work_item::enqueue(crate::service_work::work_directory(common.as_path()).as_path(), &item).expect("the add queued the relink");
+    let facts: CopyFacts = CopyFacts {
+        identity: main_identity(main.as_path(), common.as_path()),
+        creates: false,
+        destination: None,
+        add_plan: None,
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: ForceAsked::No }),
+    };
+    let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
+        Path::new(REAL_GIT),
+        arguments(&["-C", main.to_str().expect("utf8"), "worktree", "remove", "--force", worktree.to_str().expect("utf8")]).as_slice(),
+        isolated_overlay().as_slice(),
+        Some(&facts),
+        &|_about: &WorktreeAboutToGo| {},
+    );
+    assert_eq!(finished, ForwardedRun::Ran(0), "the removal itself must end well");
+    let pending: PathBuf = crate::work_item::state_directory(crate::service_work::work_directory(common.as_path()).as_path(), crate::work_item::PENDING).join(item.id());
+    assert!(!pending.exists(), "the removal settled the relink it preceded: {}", pending.display());
+    let settled: PathBuf = crate::work_item::state_directory(crate::service_work::work_directory(common.as_path()).as_path(), crate::work_item::DONE).join(item.id());
+    assert!(settled.is_file(), "the record is settled, not lost: {}", settled.display());
     remove(root.as_path());
 }

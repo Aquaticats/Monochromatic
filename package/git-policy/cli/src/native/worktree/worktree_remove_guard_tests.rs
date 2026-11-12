@@ -9,6 +9,7 @@
 //! the destroy and the removal of the registration.
 
 use super::*;
+use crate::worktree_remove_plan::ForceAsked;
 use crate::fs_beneath::handle_path;
 use crate::push_failure_notice::{orphaned_push_failures, record_push_failure};
 use crate::push_failure_notice_words::PushOutcome;
@@ -105,13 +106,13 @@ fn clean_worktree(repo: &Path, directory: &Path, branch: &str) -> PathBuf {
 
 /// A plan that names `target` by `operand`.
 fn plan_named(target: &Path, operand: &str) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: false };
+    return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: ForceAsked::No };
 }
 
 /// The same,
 /// with the force the person passes as `-f`/`--force`.
 fn forced_plan_named(target: &Path, operand: &str) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: true };
+    return RemovePlan { target: target.to_path_buf(), operand: OsString::from(operand), force: ForceAsked::Once };
 }
 
 /// Run the removal of `plan` in the repository `repo` on the stand-in.

@@ -171,6 +171,20 @@ const OUTPUT_TAIL_BYTES: usize = 600;
 /// How often a running program is looked at.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
+/// How often a running program asks whether the directory it runs in is still there.
+/// Why:
+///  A repair exists for one worktree,
+/// and a removal takes that directory while the tool may still be writing into it.
+/// The question is one `stat` of the parent,
+/// so half a second after the removal is soon enough for a tool that may run for eighteen minutes,
+/// and asking it at the poll interval would be fifty times the work for the same answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const WORKTREE_WATCH_INTERVAL = 500; // ms
+/// ```
+const WORKTREE_WATCH_INTERVAL: Duration = Duration::from_millis(500);
+
 /// What:
 ///  The first executable file named `name` in a search path,
 ///  named by its absolute path.
@@ -428,6 +442,13 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
     let mut at_ceiling: bool = false;
     let mut wait_failure: Option<std::io::Error> = None;
+    // What: The directory the tool runs in, as it stood when the tool started.
+    // Why:  A repair exists for one worktree, and a removal takes that directory while the tool may still write into it.
+    //       The identity is what says the directory went: a path that answers with another directory is not the one the tool
+    //       was started in, whatever the name says.
+    let watched: Option<crate::fs_beneath::ObjectId> = crate::worktree_add_binding::path_identity(command.directory.as_path());
+    let mut watched_at: Instant = Instant::now();
+    let mut directory_gone: bool = false;
     // Whether the person has been told what this tool waits for, which is said once per run and never for a tool that ends quickly.
     let mut noticed: bool = false;
     let status: Option<std::process::ExitStatus> = loop {
@@ -439,6 +460,18 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
                 break None;
             }
             Ok(None) if clock.check().is_some() => break None,
+            // What: A tool whose directory was removed is ended here, with its whole process group.
+            // Why:  The worktree is the reason the tool runs, and a removal must not wait for a relink of the worktree it
+            //       removed; a tool left writing into a renamed or deleted directory reports a failure nobody can act on, and
+            //       keeps a process alive for a directory that is gone (`SPEC.md`, "Cheap worktree creation and removal on
+            //       btrfs, XFS and overlayfs").
+            Ok(None) if watched.is_some() && watched_at.elapsed() >= WORKTREE_WATCH_INTERVAL => {
+                watched_at = Instant::now();
+                if crate::worktree_add_binding::path_identity(command.directory.as_path()).as_ref() != watched.as_ref() {
+                    directory_gone = true;
+                    break None;
+                }
+            }
             Ok(None) => {}
             // A wait that fails is a stop like the others: the group is stopped, the pages are released and the leader is reaped below.
             Err(error) => {
@@ -457,7 +490,7 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
     };
     // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
     if clock.measures() {
-        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none() && !at_ceiling && wait_failure.is_none());
+        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none() && !at_ceiling && !directory_gone && wait_failure.is_none());
     }
     let Some(finished) = status else {
         stop_group(child.id());
@@ -471,6 +504,7 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
         }
         let end: ToolEnd = match wait_failure {
             Some(error) => ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())),
+            None if directory_gone => ToolEnd::Failed(format!("the directory it ran in, {}, was removed, so it was stopped with its whole process group", command.directory.display())),
             None if at_ceiling => ToolEnd::CeilingReached(limits.ceiling),
             None => ToolEnd::TimedOut,
         };

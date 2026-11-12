@@ -72,6 +72,11 @@ pub mod package_repair_relink_job;
 #[cfg(target_os = "linux")]
 pub mod package_repair_relink_job_worktree_proof;
 
+/// The relink of a worktree a removal takes:
+/// the record that had not started is settled, and the tool of one that had stops itself.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_of_a_removed_worktree;
+
 /// The runner that does one job for every item of a list on several threads.
 pub mod package_repair_cargo_concurrent;
 

@@ -4,11 +4,13 @@
 //! and what a tool that fails leaves behind.
 
 use super::relink_with;
+use crate::claim_time::ClaimTime;
 use crate::package_repair_relink::{RelinkEntry, RelinkTool, SearchPathOfTheAdd, item_of};
 use crate::package_repair_request::RepairEnvironment;
+use crate::service_work::work_directory;
 use crate::service_work_handlers_replanning_and_acceptance::Verdict;
 use crate::test_support::{executable, fixture, remove};
-use crate::work_item::WorkItem;
+use crate::work_item::{WorkItem, claim_next_of, enqueue};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -152,19 +154,23 @@ fn replacing_tool(scene: &Scene) -> String {
 }
 
 /// What:
-///  A relink record whose worktree a removal already took runs no tool,
-///  writes nothing,
-///  and settles as skipped.
+///  A relink record a removal preceded is settled by that removal,
+///  so the queue offers no work and no tool runs,
+///  and the person reads why.
 /// Why:
 ///  The record outlives the worktree it was written for,
 ///  and the removal does not wait for it:
 ///  the add hands it over and returns,
 ///  so a person who removes the worktree straight away leaves exactly this record.
-///  A tool started there would rewrite link layouts in a directory a removal is about to delete.
+///  A tool started there would rewrite link layouts in a directory a removal is about to delete,
+///  and a record left waiting is work queued for a worktree nothing will relink.
+///  The control reads the queue the service claims from, which is what a record nothing settled is:
+///  before this, the removal settled nothing and the queue offered the record to the next round.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// remove(worktree); expect(relink(item)).toMatchObject({ kind: 'skipped' }); expect(recorded(record)).toEqual([]);
+/// remove(worktree); expect(cancelTheRelinkOf(common, worktree)).toHaveLength(1);
+/// expect(claimNextOf(workDir, [relink])).toBeUndefined(); expect(recorded(record)).toEqual([]);
 /// ```
 #[test]
 fn a_record_a_removal_preceded_starts_no_tool() {
@@ -172,12 +178,16 @@ fn a_record_a_removal_preceded_starts_no_tool() {
     executable(scene.bin.join("pnpm").as_path(), recording_tool(&scene, "pnpm", 0).as_bytes());
     executable(scene.bin.join("mpm-shadow").as_path(), installing_toolchain(&scene, 0).as_bytes());
     let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm, RelinkTool::Toolchain]);
-    // The removal took the folder and its registration, which is the state `git worktree remove` leaves.
+    enqueue(work_directory(scene.common.as_path()).as_path(), &item).expect("the add queued the relink");
+    // The removal took the folder and its registration, which is the state `git worktree remove` leaves, and settled the
+    //  record of the relink it preceded.
     std::fs::remove_dir_all(scene.worktree.as_path()).expect("the folder goes");
     std::fs::remove_dir_all(scene.common.join("worktrees").as_path()).expect("the registration goes");
-    let verdict: Verdict = relink(&scene, &item);
-    let Verdict::Skipped(reason) = verdict else { panic!("a worktree that is gone is left alone: {verdict:?}") };
-    assert!(reason.contains("no worktree of the repository"), "{reason}");
+    let lines: Vec<String> = crate::package_repair_relink_of_a_removed_worktree::cancel_the_relink_of(scene.common.as_path(), scene.worktree.as_path());
+    assert_eq!(lines.len(), 1, "the removal settles the record it preceded: {lines:?}");
+    assert!(lines[0].contains("nothing there is left to relink"), "and says why: {lines:?}");
+    let claimed: Option<crate::work_item::Claimed> = claim_next_of(work_directory(scene.common.as_path()).as_path(), &ClaimTime::read(), &[crate::work_item::WorkKind::Relink]).expect("the queue is read");
+    assert!(claimed.is_none(), "nothing is offered to the service: {claimed:?}");
     assert!(starts(&scene).is_empty(), "no tool ran: {:?}", starts(&scene));
     remove(scene.root.as_path());
 }
@@ -511,4 +521,74 @@ fn a_refusal_names_the_worktree_the_record_carries() {
     assert!(words.contains(scene.worktree.to_str().expect("utf8")), "the words name the worktree the record carries: {words}");
     assert!(!words.contains("/proc/self/fd"), "the words name no descriptor the person cannot look for: {words}");
     remove(scene.root.as_path());
+}
+
+/// What:
+///  A worktree removed while its relink runs ends that run's tool,
+///  and the record settles as "the worktree was removed" rather than as a failure.
+/// Why:
+///  A removal waits for no relink,
+///  and a tool left writing into a renamed or deleted directory keeps a process for a directory that is gone
+///  and answers with a failure nobody can act on (`SPEC.md`, "Cheap worktree creation and removal on btrfs, XFS and
+///  overlayfs").
+///  The rename is what the wrapper's own removal does on btrfs before the service deletes the subvolume,
+///  so the state this control builds is the everyday one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const running = relinkAsync(item); await started(); rename(worktree, hidden);
+/// expect(await running).toMatchObject({ kind: 'skipped' }); expect(alive(pid)).toBe(false);
+/// ```
+#[test]
+fn a_worktree_removed_while_its_relink_runs_ends_the_tool_and_settles_as_removed() {
+    let scene: Scene = scene("relink-job-worktree-removed");
+    let started: PathBuf = scene.root.join("started");
+    let pid: PathBuf = scene.root.join("pid");
+    // A tool that names its process, says it started, and then writes links for as long as it is left alone.
+    executable(
+        scene.bin.join("pnpm").as_path(),
+        format!(
+            "#!/bin/sh\nprintf '%s' \"$$\" > '{pid}'\n: > '{started}'\nround=0\nwhile : ; do : > \"node_modules/link-$round\" 2>/dev/null; round=$((round+1)); sleep 0.02; done\n",
+            pid = pid.display(),
+            started = started.display()
+        )
+        .as_bytes(),
+    );
+    executable(scene.bin.join("mpm-shadow").as_path(), installing_toolchain(&scene, 0).as_bytes());
+    let item: WorkItem = item_of_the_scene(&scene, vec![RelinkTool::Pnpm]);
+    enqueue(work_directory(scene.common.as_path()).as_path(), &item).expect("the add queued the relink");
+    let environment: RepairEnvironment = scene.environment.clone();
+    let queued: WorkItem = item.clone();
+    let running: std::thread::JoinHandle<Verdict> = std::thread::spawn(move || {
+        return crate::lazy_runtime::run_on_runtime(relink_with(&queued, &environment)).expect("the relinking runs");
+    });
+    let began: std::time::Instant = std::time::Instant::now();
+    while !started.exists() {
+        assert!(began.elapsed() < ANSWER_BOUND, "the tool has not started after {:?}; the starts are {:?}", ANSWER_BOUND, starts(&scene));
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let leader: i32 = std::fs::read_to_string(pid.as_path()).expect("the tool named its process").trim().parse().expect("a process id");
+    assert!(still_running(leader), "the tool runs before the removal");
+    // The removal: the folder leaves the person's path in one rename, which is what the wrapper's destroy does first.
+    let hidden: PathBuf = scene.root.join("cli-git-deleting-0000000000000001");
+    std::fs::rename(scene.worktree.as_path(), hidden.as_path()).expect("the removal renames the folder away");
+    std::fs::remove_dir_all(scene.common.join("worktrees").as_path()).expect("the registration goes");
+    let verdict: Verdict = running.join().expect("the relinking thread answers");
+    match &verdict {
+        Verdict::Skipped(reason) => {
+            assert!(reason.contains("was removed while pnpm ran there"), "the record says the worktree was removed: {reason}");
+            assert!(reason.contains("nothing was relinked"), "{reason}");
+        }
+        other => panic!("a relink whose worktree was removed is skipped, never a failure: {other:?}"),
+    }
+    assert!(!still_running(leader), "the tool was ended with its worktree, so nothing of it outlives the folder");
+    remove(scene.root.as_path());
+}
+
+/// Whether a process of this machine still stands at `leader`,
+/// without waiting for it.
+fn still_running(leader: i32) -> bool {
+    // SAFETY: `kill` with signal 0 asks whether the process exists and touches no memory.
+    let asked: libc::c_int = unsafe { libc::kill(leader, 0) };
+    return asked == 0;
 }

@@ -14,7 +14,7 @@ fn the_plan_names_one_directory_and_no_option() {
     let canonical: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
     for values in [vec!["worktree", "remove", "wt"], vec!["worktree", "remove", "--", "wt"], vec!["worktree", "remove", "./wt/"]] {
         let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None);
-        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(values[values.len() - 1]), force: false }), "{values:?}");
+        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(values[values.len() - 1]), force: ForceAsked::No }), "{values:?}");
     }
     for values in [
         vec!["worktree", "remove"],
@@ -29,18 +29,16 @@ fn the_plan_names_one_directory_and_no_option() {
 }
 
 /// What:
-///  A forced removal names the same directory and is a plan,
-///  so the wrapper destroys the worktree's subvolume instead of leaving Git to
-///  unlink every entry of it.
+///  A removal forced once and one forced twice are both plans,
+///  and the count is what the plan carries.
 /// Why:
-///   Git deletes a dirty worktree only with `-f`/`--force` (`remove_worktree`,
-///  `if (!force) check_clean_worktree(...)`),
-///  so before this the forced removal,
-/// which the wrapper's own reports tell a person to run,
-///  always left every entry of the tree to real Git to unlink.
-/// How much a worktree of that shape holds was not measured here;
-/// the page
-///  `doc/planning/cli-git-worktree-removal-cost-and-disk-time.md` is where it is measured.
+///   A second force is what a person types when the first removal failed,
+///  which is exactly the removal this wrapper exists to finish,
+///  and Git reads the count twice over: any force skips its cleanliness proof
+///  (`remove_worktree`, `if (!force) check_clean_worktree(...)`),
+///  and a force given twice is also the permission to unlock a worktree.
+///  A form the plan did not read was the whole removal handed to Git's own walk,
+///  and a folder a writer defeated then stayed behind with nothing pointing at it.
 #[test]
 fn a_forced_removal_names_the_directory_and_the_force() {
     let root: PathBuf = fixture("remove-plan-forced");
@@ -48,11 +46,33 @@ fn a_forced_removal_names_the_directory_and_the_force() {
     let canonical: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
     for values in [vec!["worktree", "remove", "-f", "wt"], vec!["worktree", "remove", "--force", "wt"], vec!["worktree", "remove", "--force", "--", "wt"], vec!["worktree", "remove", "-f", "--", "wt"]] {
         let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None);
-        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from("wt"), force: true }), "{values:?}");
+        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from("wt"), force: ForceAsked::Once }), "{values:?}");
     }
-    // A second force is Git's: it is what removes a locked worktree, and a spelling the wrapper does not read is not one
-    // force.
-    for values in [vec!["worktree", "remove", "-f", "-f", "wt"], vec!["worktree", "remove", "-ff", "wt"], vec!["worktree", "remove", "--forc", "wt"], vec!["worktree", "remove", "-fq", "wt"], vec!["worktree", "remove", "-f"]] {
+    // Every spelling Git's own option table accepts for the force of this command: the short form in a cluster of `f`s, and any
+    // abbreviation of the long name, once or twice.
+    let twice: [(&[&str], ForceAsked); 7] = [
+        (&["worktree", "remove", "-f", "-f", "wt"], ForceAsked::Twice),
+        (&["worktree", "remove", "-ff", "wt"], ForceAsked::Twice),
+        (&["worktree", "remove", "--force", "--force", "wt"], ForceAsked::Twice),
+        (&["worktree", "remove", "-f", "--force", "wt"], ForceAsked::Twice),
+        (&["worktree", "remove", "-ff", "--", "wt"], ForceAsked::Twice),
+        (&["worktree", "remove", "--forc", "wt"], ForceAsked::Once),
+        (&["worktree", "remove", "--f", "wt"], ForceAsked::Once),
+    ];
+    for (values, force) in twice {
+        let plan = parse_remove_plan(os_arguments(values).as_slice(), 0, root.as_path(), None);
+        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from("wt"), force }), "{values:?}");
+    }
+    // A third force, an option whose effect this plan would not know, a value `--force` does not take, and an operand that
+    // never comes are Git's own answers.
+    for values in [
+        vec!["worktree", "remove", "-f", "-f", "-f", "wt"],
+        vec!["worktree", "remove", "-fff", "wt"],
+        vec!["worktree", "remove", "-fq", "wt"],
+        vec!["worktree", "remove", "--force=1", "wt"],
+        vec!["worktree", "remove", "-f"],
+        vec!["worktree", "remove", "-f", "wt", "extra"],
+    ] {
         assert_eq!(parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None), None, "{values:?}");
     }
     remove(root.as_path());
@@ -96,7 +116,7 @@ fn a_name_git_picks_by_its_last_component_names_the_registered_worktree() {
         (vec!["worktree", "remove", "--", "topic"], "topic"),
     ] {
         let plan = parse_remove_plan(os_arguments(arguments.as_slice()).as_slice(), 0, repo.as_path(), Some(common.as_path()));
-        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(typed), force: false }), "{arguments:?}");
+        assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(typed), force: ForceAsked::No }), "{arguments:?}");
     }
     assert_eq!(
         parse_remove_plan(os_arguments(&["worktree", "remove", "TOPIC"]).as_slice(), 0, repo.as_path(), Some(common.as_path())),
@@ -112,7 +132,7 @@ fn a_name_git_picks_by_its_last_component_names_the_registered_worktree() {
     // the directory.
     assert_eq!(
         parse_remove_plan(os_arguments(&["worktree", "remove", "-f", "topic"]).as_slice(), 0, repo.as_path(), Some(common.as_path())),
-        Some(RemovePlan { target: canonical.clone(), operand: OsString::from("topic"), force: true }),
+        Some(RemovePlan { target: canonical.clone(), operand: OsString::from("topic"), force: ForceAsked::Once }),
         "a forced removal of a worktree the registrations picked"
     );
     let other: PathBuf = root.join("other/topic");

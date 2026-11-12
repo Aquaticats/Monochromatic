@@ -1,10 +1,10 @@
 //! What:
 //!  The plan for one `git worktree remove` that the wrapper may serve with a subvolume destroy:
 //! the one directory it names,
-//!  and whether the person forced it.
+//!  and how many times the person forced it.
 //! Why:
 //!  Only the plain form (one directory,
-//! one optional `-f` or `--force`,
+//! the `-f`/`--force` option asked once or twice,
 //! a non-empty name) is served;
 //! every other option changes what Git checks,
 //! so those stay with Git.
@@ -16,6 +16,12 @@
 //! `check_clean_worktree` only when
 //!  `force` is zero),
 //! and a forced removal is the one an agent runs on a worktree it has worked in.
+//!  A second `-f` is what a person types when the first removal failed,
+//!  which is the removal this wrapper exists to finish:
+//!  Git unlocks a worktree only when the force is given twice
+//!  (`if (force > 1) unlock_worktree(...)`),
+//!  so a form the wrapper did not read was the whole removal handed to Git's own walk,
+//!  and a folder a writer defeated stayed behind with nothing pointing at it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,6 +30,55 @@
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+
+/// What:
+///  How many times the person asked for the removal to be forced:
+///  nothing,
+///  once,
+///  or twice.
+/// Why:
+///   Git reads two things from the count (`remove_worktree`):
+///  any force at all skips its cleanliness proof,
+///  and a force given twice is also the permission to unlock the worktree.
+///  The two are one number rather than two flags,
+///  so a form the wrapper cannot serve is a form it does not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ForceAsked = 'no' | 'once' | 'twice';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ForceAsked {
+    /// Neither `-f` nor `--force` was given,
+    /// so Git proves the worktree clean before it goes.
+    No,
+    /// The force was given once,
+    /// so a worktree holding changes is removed.
+    Once,
+    /// The force was given twice,
+    /// which is also the permission to unlock a worktree.
+    ///  The unlock itself stays Git's step (`if (force > 1) unlock_worktree(...)`),
+    ///  so such a worktree is still Git's own removal,
+    ///  and the leftovers its walk leaves are finished from the record this removal writes before Git runs.
+    Twice,
+}
+
+impl ForceAsked {
+    /// What:
+    ///  Whether the person forced the removal at all,
+    ///  which is what skips Git's cleanliness proof.
+    /// Why:
+    ///   The proof is the slow step,
+    ///  and the destroy answers for exactly the files Git's own forced removal deletes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// asked = (force) => force !== 'no';
+    /// ```
+    pub fn asked(self) -> bool {
+        return !matches!(self, ForceAsked::No);
+    }
+}
 
 /// What:
 ///  The worktree a `git worktree remove <path>` names,
@@ -36,7 +91,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RemovePlan = { target: string; operand: string; force: boolean };
+/// type RemovePlan = { target: string; operand: string; force: ForceAsked };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemovePlan {
@@ -45,32 +100,61 @@ pub struct RemovePlan {
     /// The operand as the person typed it,
     /// which Git also matches against the last components of every registered path.
     pub operand: OsString,
-    /// Whether the person passed `-f` or `--force`,
-    /// which is what makes Git remove a worktree that holds changes.
-    pub force: bool,
-}
-
-/// Whether a token is one of the two spellings of Git's force option for this command.
-/// Why:
-///   Every other spelling (`-ff`,
-/// `--forc`,
-/// a cluster)
-/// counts the force twice or takes an abbreviation the wrapper does not
-///  read,
-/// so each of those is left to Git rather than read as one force.
-fn is_force(token: &OsString) -> bool {
-    return matches!(token.as_encoded_bytes(), b"-f" | b"--force");
+    /// How many times the person forced the removal,
+    /// which is what makes Git remove a worktree that holds changes
+    ///  and, asked twice, one that is locked.
+    pub force: ForceAsked,
 }
 
 /// What:
-///  Plan one invocation of `git worktree remove` that names exactly one directory and at most one `-f` or `--force`.
+///  How many forces one token asks for,
+///  and nothing when the token is not a force this command knows.
+/// Why:
+///   Git reads `-f` in any cluster of short flags and `--force` as any unambiguous abbreviation of it,
+///  so the spellings a person types for this command are the counts:
+///  `-f`, `-ff` and a cluster holding two `f`s,
+///  and `--f`, `--for` and the rest of the long name.
+///  A token with an `=` carries a value `--force` does not take,
+///  which Git refuses,
+///  so it is no force here either.
+///  A token holding any other letter asks for an option whose effect this plan would not know.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const forcesAsked = (token) => token.startsWith('--') ? (/^--f(or(ce)?)?$/.test(token.split('=')[0]) ? 1 : undefined) : (/^-f+$/.test(token) ? token.length - 1 : undefined);
+/// ```
+fn forces_asked(token: &OsString) -> Option<usize> {
+    let bytes: &[u8] = token.as_encoded_bytes();
+    if let Some(named) = bytes.strip_prefix(b"--") {
+        if named.contains(&b'=') {
+            return None;
+        }
+        // `--force` abbreviates to any prefix from `--f` up: it is the only long option of this command.
+        let full: &[u8] = b"force";
+        return (!named.is_empty() && full.starts_with(named)).then_some(1);
+    }
+    let letters: &[u8] = bytes.strip_prefix(b"-")?;
+    if letters.is_empty() || !letters.iter().all(|letter| *letter == b'f') {
+        return None;
+    }
+    return Some(letters.len());
+}
+
+/// What:
+///  Plan one invocation of `git worktree remove` that names exactly one directory and asks for the force no more than
+///  twice.
 /// Why:
 ///   Every other option changes what Git checks,
 /// so those forms stay with Git.
 /// The forced form is served because Git's own
 ///  `--force` removal deletes exactly the worktree the destroy deletes,
-/// and because a forced removal is the form
-///  the wrapper's own reports tell a person to run.
+///  a forced removal is the form the wrapper's own reports tell a person to run,
+///  and a second force is what a person types when the first removal failed:
+///  a form the wrapper did not read was the whole removal handed to Git,
+///  whose walk a writer defeats.
+///  A third force is Git's own answer,
+///  because Git reads it as no more than "unlock",
+///  which this removal does not do.
 /// `common_dir` is the invoking repository's common Git directory,
 /// where Git's list of worktree paths lives;
 /// without it only the path form is read.
@@ -84,12 +168,34 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
         return None;
     }
     let rest: &[OsString] = &arguments[subcommand_index + 2..];
-    let (force, operand): (bool, &OsString) = match rest {
-        [only] if !only.as_encoded_bytes().starts_with(b"-") => (false, only),
-        [separator, only] if separator.as_encoded_bytes() == b"--" => (false, only),
-        [flag, only] if is_force(flag) && !only.as_encoded_bytes().starts_with(b"-") => (true, only),
-        [flag, separator, only] if is_force(flag) && separator.as_encoded_bytes() == b"--" => (true, only),
-        _ => return None,
+    let mut forces: usize = 0;
+    let mut operand: Option<&OsString> = None;
+    let mut options_end: bool = false;
+    for token in rest {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if !options_end && bytes == b"--" {
+            options_end = true;
+            continue;
+        }
+        if !options_end && bytes.starts_with(b"-") {
+            let Some(asked) = forces_asked(token) else { return None };
+            forces += asked;
+            if forces > 2 {
+                return None;
+            }
+            continue;
+        }
+        // A second word is a form this plan does not read: Git's removal takes one directory.
+        if operand.is_some() {
+            return None;
+        }
+        operand = Some(token);
+    }
+    let operand: &OsString = operand?;
+    let force: ForceAsked = match forces {
+        0 => ForceAsked::No,
+        1 => ForceAsked::Once,
+        _ => ForceAsked::Twice,
     };
     // Joined to the start directory an empty operand would name that directory, while Git answers that '' is not a working tree.
     if operand.is_empty() {

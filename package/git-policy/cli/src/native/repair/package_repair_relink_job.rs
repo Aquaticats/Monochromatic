@@ -113,6 +113,19 @@ async fn relink_with(item: &WorkItem, environment: &RepairEnvironment) -> Verdic
             // The worktree no longer needs this tool, which a person's own command may have seen to.
             None => debug(TAG, format!("{}: {} had nothing to relink", entry.root.display(), tool.name()).as_str()),
             Some(Finding { outcome: Outcome::Repaired { .. }, .. }) => repaired += 1,
+            // What: A tool this record started whose directory was taken by a removal is the worktree's end, not a relink
+            //       that failed.
+            // Why:  The removal does not wait for a relink, and a removal that renamed or deleted the folder stops the tool
+            //       (`package_repair_command.rs`); the record then settles as "the worktree was removed" rather than as an
+            //       error about a directory that is gone, which nobody can act on (`SPEC.md`, "Cheap worktree creation and
+            //       removal on btrfs, XFS and overlayfs").
+            Some(Finding { outcome: Outcome::Failed { .. }, .. }) if !held.still_at(entry.root.as_path()) => {
+                return Verdict::Skipped(format!(
+                    "the worktree {} was removed while {} ran there, so it was stopped with its whole process group and nothing was relinked",
+                    entry.root.display(),
+                    tool.name()
+                ));
+            }
             Some(Finding { outcome: Outcome::Failed { reason, .. }, .. }) => failures.push(format!("{}: {reason}", tool.name())),
         }
     }

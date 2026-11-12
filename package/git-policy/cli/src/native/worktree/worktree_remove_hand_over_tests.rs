@@ -11,7 +11,7 @@ use crate::service_work::Verdict;
 use crate::shadow_pool::pool_root_for;
 use crate::test_support::{fixture, git_context, remove};
 use crate::worktree_remove::{Held, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
-use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_remove_plan::{ForceAsked, RemovePlan};
 use crate::work_item::WorkKind;
 
 /// What:
@@ -135,7 +135,7 @@ fn a_removal_hands_the_subvolume_over_and_does_not_destroy_it_here() {
     crate::test_support::git(target.as_path(), &["update-index", "--refresh"]);
     let stand = HandingOverStand { target: target.clone(), handed: std::cell::Cell::new(false), destroyed: std::cell::Cell::new(false) };
     let context = crate::test_support::git_context();
-    let plan = RemovePlan { target: target.clone(), operand: target.as_os_str().to_os_string(), force: false };
+    let plan = RemovePlan { target: target.clone(), operand: target.as_os_str().to_os_string(), force: ForceAsked::No };
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let outcome: RemoveOutcome = remove_with(&stand, &RemoveRequest { context: &context, plan: &plan, common_dir: common_dir.as_path() });
     assert!(stand.handed.get(), "the removal handed the subvolume over");
@@ -563,5 +563,50 @@ fn the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_
     }
     assert!(linked.worktree.is_dir(), "the worktree stays");
     assert_eq!(std::fs::read(notes.as_path()).expect("the file is still there"), b"what I was in the middle of\n");
+    remove(linked.root.as_path());
+}
+
+/// What:
+///  The service's own removal finishes a folder Git's walk could not empty,
+///  records it as done,
+///  and leaves nothing for the next command.
+/// Why:
+///  Git deletes a worktree's registration whether or not its walk emptied the folder
+///  (`builtin/worktree.c`,
+///  `remove_worktree`:
+///  "continue on even if ret is non-zero,
+/// there's no going back from here"),
+///  and the relink of a fresh worktree writes into that folder for minutes,
+///  which is the `Directory not empty` this change exists for.
+///  A directory the owner cannot write makes that failure certain without a race:
+///  Git cannot unlink the file inside it,
+///  stops its walk,
+///  and takes the registration anyway.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod(join(worktree, 'deep'), 0o500); const verdict = deleteSubvolumeOf(item);
+/// expect(verdict).toEqual({ kind: 'done' }); expect(worktree).not.toExist();
+/// ```
+#[test]
+fn the_services_removal_finishes_a_folder_gits_walk_could_not_empty() {
+    use std::os::unix::fs::PermissionsExt;
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-walk-defeated");
+    let deep: PathBuf = linked.worktree.join("deep");
+    std::fs::create_dir_all(deep.as_path()).expect("a directory Git must empty");
+    std::fs::write(deep.join("leaf.txt"), b"leaf\n").expect("a tracked file inside it");
+    // Tracked, so Git's own cleanliness proof passes: a removal refuses a worktree holding a file no rule ignores.
+    crate::test_support::git(linked.worktree.as_path(), &["add", "--", "deep/leaf.txt"]);
+    crate::test_support::git(linked.worktree.as_path(), &["commit", "--quiet", "--message=the deep file"]);
+    std::fs::set_permissions(deep.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory Git cannot write");
+    let registration: PathBuf = linked.common.join("worktrees").join("topic");
+    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), &|_: &GitContext, _: &Path| { return Ok(()); })
+        .expect("handed over");
+    let verdict: Verdict = delete_subvolume_of(&item);
+    let _restored = std::fs::set_permissions(deep.as_path(), std::fs::Permissions::from_mode(0o700));
+    assert_eq!(verdict, Verdict::Done, "the service finished what Git's walk could not empty");
+    assert!(!linked.worktree.exists(), "the folder is gone, so nothing unregistered stands there");
+    assert!(!registration.exists(), "the registration Git deleted stays deleted");
+    assert!(!linked.common.join(crate::worktree_removal_left_behind_record::RECORD_FOLDER).exists(), "nothing is left to finish");
     remove(linked.root.as_path());
 }

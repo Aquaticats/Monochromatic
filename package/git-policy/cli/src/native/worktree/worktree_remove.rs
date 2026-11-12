@@ -398,7 +398,7 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // Git's own removal makes this proof only when the person did not force it (`remove_worktree` in
     // `builtin/worktree.c`: `if (!force) check_clean_worktree(wt, av[0])`), and a forced removal deletes the worktree
     // it was given whatever it holds, so the destroy answers for the same set of files.
-    if !request.plan.force
+    if !request.plan.force.asked()
         && let Err(reason) = operations.check_clean(request, registration.admin.as_path(), request.common_dir)
     {
         debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());

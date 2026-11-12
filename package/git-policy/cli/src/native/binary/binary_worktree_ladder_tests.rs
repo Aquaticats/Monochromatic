@@ -259,7 +259,52 @@ fn a_removal_gits_walk_could_not_empty_leaves_no_folder() {
 /// (`find_worktree` in Git's `worktree.c`),
 /// so the wrapper serves that name too.
 /// Why:
-///  A person names the worktree the way Git lets them name it;
+/// What:
+///  A removal whose process ended after Git deleted the registration is finished by the next command.
+/// Why:
+///  Git deletes a worktree's registration whether or not its walk emptied the folder
+///  (`builtin/worktree.c`,
+///  `remove_worktree`:
+///  "continue on even if ret is non-zero,
+/// there's no going back from here"),
+///  so a removal killed between its record and the end of Git's walk leaves a folder nothing registers.
+///  The record the removal wrote before Git ran is the only thing that names it,
+///  and the next command of the repository is what finishes the removal from it:
+///  without that, a person is left with a directory at their worktree's path that no command of this program knows about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordBeforeGit(common, 'topic', topic, '1:ended'); rm(join(common, 'worktrees/topic'));
+/// const next = runWrapped(['status']);
+/// expect(existsSync(topic)).toBe(false); expect(next.stderr).toContain('Git could not empty');
+/// ```
+#[test]
+fn a_removal_whose_process_ended_is_finished_by_the_next_command() {
+    let fixture: Fixture = fixture("ladder-remove-killed");
+    let repo: PathBuf = populated_repository(&fixture, false);
+    let topic: PathBuf = fixture.root.join("topic");
+    let created: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    std::fs::create_dir_all(topic.join("ignored/pkg").as_path()).expect("a directory the walk meets");
+    std::fs::write(topic.join("ignored/pkg/index.js"), b"module.exports = 1;\n").expect("a file inside it");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("canonical common directory");
+    // What: The state a removal killed between its record and the end of Git's walk leaves.
+    // Why:  The record is the writer this program has, written for a process that ended (`1:ended`), and the registration
+    //       is what Git deleted before it stopped.
+    git_policy_cli::worktree_removal_left_behind_record::record_before_git_with_owner(common.as_path(), OsStr::new("topic"), topic.as_path(), Some("1:ended"))
+        .expect("the record a killed removal leaves");
+    std::fs::remove_dir_all(common.join("worktrees/topic")).expect("Git's removal deletes the registration");
+    assert!(topic.is_dir(), "the folder the walk did not empty stands");
+    let next: Observed = run_wrapped(&fixture, repo.as_path(), &["status"]);
+    assert_eq!(next.code, Some(0), "{}", stderr_of(&next));
+    let said: String = stderr_of(&next);
+    assert!(!topic.exists(), "the next command finished the removal of the folder the record named: {said}");
+    assert!(said.contains("Git could not empty"), "and said which removal it finished: {said}");
+    assert!(!common.join("monochromatic-git-policy-cli/left-behind-removals").exists(), "nothing is left to finish");
+    remove(&fixture);
+}
+
+/// A person names the worktree the way Git lets them name it;
 ///  a typed branch name that Git resolves must not fall back to Git's file-by-file walk of a subvolume.
 #[test]
 fn a_worktree_named_by_its_last_component_is_destroyed_in_one_step() {

@@ -4,6 +4,7 @@
 //! and a refused removal leaves them alone.
 
 use super::*;
+use crate::worktree_remove_plan::ForceAsked;
 use crate::service_instance::{SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_unit_instance};
 use crate::service_unit_manager_recorder_test_support::Recorder;
 use crate::service_units_of_removed_worktrees::record_worktree;
@@ -34,7 +35,7 @@ fn fixture_with_units(name: &str) -> Fixture {
 
 impl Fixture {
     fn plan(&self) -> RemovePlan {
-        return RemovePlan { target: self.worktree.clone(), operand: self.worktree.clone().into_os_string(), force: false };
+        return RemovePlan { target: self.worktree.clone(), operand: self.worktree.clone().into_os_string(), force: ForceAsked::No };
     }
 
     fn folders(&self) -> UnitFolders<'_> {
@@ -71,7 +72,7 @@ fn the_instance_is_read_from_the_registration_before_the_removal() {
 fn a_directory_that_is_no_registration_names_no_instance() {
     let fixture: Fixture = fixture_with_units("removal-units-unregistered");
     let stranger: PathBuf = fixture.root.join("main");
-    let plan: RemovePlan = RemovePlan { target: stranger.clone(), operand: stranger.into_os_string(), force: false };
+    let plan: RemovePlan = RemovePlan { target: stranger.clone(), operand: stranger.into_os_string(), force: ForceAsked::No };
     assert_eq!(before_removal(fixture.common.as_path(), &plan), None);
     remove(fixture.root.as_path());
 }
@@ -208,7 +209,7 @@ fn a_removal_left_to_git_still_stops_the_units_of_the_removed_worktree() {
     std::fs::create_dir_all(runtime.join(SOCKET_DIRECTORY)).expect("socket directory");
     let state: PathBuf = root.join("state");
     std::fs::create_dir_all(&state).expect("state directory");
-    let plan: RemovePlan = RemovePlan { target: topic.clone(), operand: topic.clone().into_os_string(), force: false };
+    let plan: RemovePlan = RemovePlan { target: topic.clone(), operand: topic.clone().into_os_string(), force: ForceAsked::No };
     // Git's suffix match finds two registrations for this name, so the wrapper leaves the removal to Git.
     assert!(crate::worktree_remove_registry::registration_of(common.as_path(), topic.as_path(), plan.operand.as_os_str()).is_err());
     let about: WorktreeAboutToGo = before_removal(common.as_path(), &plan).expect("the registration names the units");

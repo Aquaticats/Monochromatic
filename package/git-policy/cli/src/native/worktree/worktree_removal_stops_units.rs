@@ -58,6 +58,9 @@ pub struct WorktreeAboutToGo {
     /// which holds the shadow pool its commits were served from and
     ///  survives the removal.
     pub common_dir: PathBuf,
+    /// The canonical directory of the worktree itself,
+    /// which the removal takes and which the records of its relink name.
+    pub worktree: PathBuf,
 }
 
 /// What:
@@ -87,7 +90,7 @@ pub fn before_removal(common_dir: &Path, plan: &RemovePlan) -> Option<WorktreeAb
             return None;
         }
     };
-    return Some(WorktreeAboutToGo { instance, git_dir: registration.admin, common_dir: common_dir.to_path_buf() });
+    return Some(WorktreeAboutToGo { instance, git_dir: registration.admin, common_dir: common_dir.to_path_buf(), worktree: plan.target.clone() });
 }
 
 /// What:

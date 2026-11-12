@@ -6,18 +6,19 @@
 //!  removal of a clean subvolume worktree (where the mount allows it) and every case that must be left to Git.
 
 use super::*;
+use crate::worktree_remove_plan::ForceAsked;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::{btrfs_fixture, removal_allowed};
 use crate::test_support::{age, git, git_context, remove, repository};
 
 /// The plan for a target typed as its real path.
 fn plan_for(target: &Path) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
+    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: ForceAsked::No };
 }
 
 /// The same plan with the force a person passes as `-f`/`--force`.
 fn forced_plan_for(target: &Path) -> RemovePlan {
-    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: true };
+    return RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: ForceAsked::Once };
 }
 
 /// Whether the wrapper served the plan:

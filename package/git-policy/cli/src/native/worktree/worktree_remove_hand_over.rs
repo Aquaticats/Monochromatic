@@ -44,6 +44,7 @@ use crate::service_work::work_directory;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::worktree_removal_left_behind_folder::{HandedToGit, Remembered, finish_a_removal_handed_to_git, remember_before_git};
 use crate::service_work::Verdict;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -510,21 +511,44 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         Ok(found) => found,
         Err(reason) => return Verdict::Retry(reason),
     };
+    // What: The folder's entries are recorded before Git runs, so whatever its walk cannot empty is finished here rather
+    //       than standing under a name no registration names (`worktree_removal_left_behind_folder.rs`).
+    // Why:  Git deletes a worktree's registration whether or not its walk emptied the folder, and the relink of a fresh
+    //       worktree writes into it for minutes, which is the `Directory not empty` a person's removal ends with.
+    let remembered: Option<Remembered> = remember_before_git(item.git_dir.as_path(), target.as_path());
     let arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove"), target.clone().into_os_string()];
     let output: GitOutput = match run_git(&context, &GitRequest::new(item.repository.as_path(), arguments.as_slice())) {
         Ok(finished) => finished,
         Err(error) => return Verdict::Retry(format!("Git could not be started to remove {} ({error})", target.display())),
     };
-    if output.code != Some(0) {
-        let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
-        return Verdict::Failed(format!("Git refused to remove {}: {words}", target.display()));
+    let finished: HandedToGit = finish_a_removal_handed_to_git(remembered, output.code, output.stderr.as_slice(), target.as_path());
+    // What: The relink record of the worktree is settled here, because the worktree it names is gone.
+    // Why:  A fresh worktree's package state is relinked by this service, and the removal may come before that work is done: a
+    //       record left waiting names a directory nothing will relink (`package_repair_relink_of_a_removed_worktree.rs`).
+    if !matches!(finished, HandedToGit::Left { .. }) {
+        crate::package_repair_relink_of_a_removed_worktree::say_what_was_cancelled(item.git_dir.as_path(), target.as_path());
     }
     // A pool names the worktree it serves in every member's config and sits in the common Git directory, which Git's removal
     //  leaves alone, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).
-    if let Some((common, admin)) = pool {
+    if !matches!(finished, HandedToGit::Left { .. })
+        && let Some((common, admin)) = pool
+    {
         crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree(common.as_path(), admin.as_path());
     }
-    return Verdict::Done;
+    return match finished {
+        HandedToGit::Removed => Verdict::Done,
+        HandedToGit::FinishedAfterTheWalk { line: _why } => {
+            // The merge's notice told the person where the outcome of this removal is read, and this is the one part of it
+            //  nobody's command waited for: Git's walk stopped at an entry it could not delete, so this service removed the
+            //  folder with whatever was still being written into it.
+            crate::service_warn!(
+                "Git could not empty {}, so this service removed it after Git's own walk stopped; anything still being written into it went with it, which is the risk git worktree remove states",
+                target.display()
+            );
+            Verdict::Done
+        }
+        HandedToGit::Left { line } => Verdict::Failed(line),
+    };
 }
 
 /// What:

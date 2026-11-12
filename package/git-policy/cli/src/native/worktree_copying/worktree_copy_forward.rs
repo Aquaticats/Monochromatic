@@ -303,6 +303,7 @@ pub fn run_forwarded_git_with_unit_stop(
 ) -> ForwardedRun {
     #[cfg(unix)]
     {
+        use std::io::Write as _;
         if let Some(facts) = copy {
             // The instance of a removed worktree is a hash of a directory the removal deletes, so it is named first.
             let about: Option<WorktreeAboutToGo> = units_of_worktree_about_to_go(facts);
@@ -312,6 +313,14 @@ pub fn run_forwarded_git_with_unit_stop(
                 stop_units(gone);
                 // The pool of a worktree is named from the same registration the removal deleted, and nothing of the repository looks at it again once the worktree is gone.
                 clear_the_pool_of_a_removed_worktree(gone.common_dir.as_path(), gone.git_dir.as_path());
+                // What: The relink record of the worktree is settled here, because the worktree it names is gone.
+                // Why:  A fresh worktree's package state is relinked by the commit service, and a person may remove the worktree
+                //       before that work is done: a record left waiting names a directory nothing will relink, and a removal
+                //       must not leave work queued for a worktree it took (`package_repair_relink_of_a_removed_worktree.rs`).
+                for line in crate::package_repair_relink_of_a_removed_worktree::cancel_the_relink_of(gone.common_dir.as_path(), gone.worktree.as_path()) {
+                    // A closed terminal is not a reason to stop the command the person asked for.
+                    let _written = writeln!(std::io::stderr(), "{line}");
+                }
             }
             return finished;
         }
@@ -419,7 +428,7 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed => {
             // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it, which a forced removal words differently because nothing was checked for changes.
-            let notice: &str = match plan.force {
+            let notice: &str = match plan.force.asked() {
                 true => crate::worktree_remove::DESTROY_FORCED_NOTICE,
                 false => crate::worktree_remove::DESTROY_NOTICE,
             };
