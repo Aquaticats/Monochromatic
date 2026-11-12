@@ -4,7 +4,8 @@
  for a slot that frees as the runs before it end. See `README.md` for the list's fields.
 
  Both of a start's streams are kept: a start that printed why it could not run on standard output and nothing else once left a
- batch's failures unexplained.
+ batch's failures unexplained. An entry's line says the reason its start printed, and the whole of what it printed is appended to a
+ file beside the runs that the line names.
 
  @module
  */
@@ -19,6 +20,10 @@ import {
   batchEntriesIn,
   startBatch,
 } from './batch-list.ts';
+import {
+  keepFailedOutput,
+  reportOnStandardError,
+} from './kept-start-failure.ts';
 import { parseBatchOptions, } from './parse-batch-options.ts';
 import {
   retryingStartEntry,
@@ -61,6 +66,17 @@ const lines = await startBatch({
     },);
   },
   wait,
+  keepFailure: function keepFailure({
+    name,
+    output,
+  },) {
+    return keepFailedOutput({
+      runsFolder: options.runsFolder,
+      name,
+      output,
+      report: reportOnStandardError,
+    },);
+  },
 },);
 
 for (const line of lines) {

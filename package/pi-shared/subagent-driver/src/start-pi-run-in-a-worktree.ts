@@ -19,6 +19,11 @@ import {
   env,
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
+import {
+  StartRefusedError,
+  startRefusalsIn,
+} from './checks-before-a-start.ts';
 import { finishTheRun, } from './finish-a-run.ts';
 import { gitRunnerOf, } from './git-command.ts';
 import { nextRunNumber, } from './next-run-number.ts';
@@ -49,11 +54,6 @@ import { unitNameOfGiven, } from './running-pi-units.ts';
 import { makeWorktree, } from './worktree-of-a-run.ts';
 
 /**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
-
-/**
  How git is asked a question in this command.
  */
 const git = gitRunnerOf(runCommandWithChildProcess,);
@@ -61,14 +61,7 @@ const git = gitRunnerOf(runCommandWithChildProcess,);
 /**
  The top of the checkout this command runs in, which is where a run's worktree is made unless the caller names another checkout.
  */
-const checkoutFolder = await requiredOutputOf({
-  run: runCommandWithChildProcess,
-  command: 'git',
-  words: [
-    'rev-parse',
-    '--show-toplevel',
-  ],
-},);
+const checkoutFolder = await checkoutFolderOf({ from: process.cwd(), },);
 
 /**
  What this run of the command was asked for.
@@ -150,6 +143,22 @@ async function sizedTurnCap(): Promise<number> {
   }
   console.log(`turn cap: longest of ${String(sizing.sampleRuns,)} finished runs (${sizing.sampleKind}) used ${String(sizing.longestTurns,)}`,);
   return Math.ceil(sizing.longestTurns * TURN_CAP_MARGIN,);
+}
+
+/**
+ Every reason this start is refused, which is read before anything is made: a start that was refused leaves no worktree, no run
+ folder and no unit, and spends no provider slot on a run that could not have worked.
+ */
+const refusals = await startRefusalsIn({
+  promptFile: options.promptFile,
+  git,
+  checkoutFolder: options.checkoutFolder,
+  base: options.base,
+  run: runCommandWithChildProcess,
+  runName: options.name,
+},);
+if (refusals.length > 0) {
+  throw new StartRefusedError(`${options.name} was not started:\n${refusals.join('\n')}`,);
 }
 
 if (!readOnlyInMain) {
