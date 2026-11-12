@@ -104,13 +104,7 @@ fn an_address_that_answers_nothing_is_named_truly() {
         Some(ClientFailure::NothingAnswered { .. }) => {}
         other => panic!("an address whose connections nothing answers must be named so, not {other:?}"),
     }
-    drop(service_drop_marker());
     std::mem::forget(holding);
-}
-
-/// A value that keeps the listener's thread alive until the end of a control.
-fn service_drop_marker() -> u8 {
-    return 0;
 }
 
 /// What: A service that greeted and then says nothing is the service that stopped.
