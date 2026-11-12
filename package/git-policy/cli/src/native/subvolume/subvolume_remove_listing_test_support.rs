@@ -23,8 +23,7 @@
 use std::cell::RefCell;
 use std::path::Path;
 
-/// The act this thread stated,
-/// and nothing when it stated none.
+// The act this thread stated, and nothing when it stated none.
 thread_local! {
     // The act, kept per thread so two controls running beside each other cannot call each other's.
     static THE_ACT: RefCell<Option<Box<dyn FnMut(&Path)>>> = const { RefCell::new(None) };

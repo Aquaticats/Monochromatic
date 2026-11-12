@@ -203,16 +203,16 @@ fn entries_that_appeared_after_a_directory_was_listed_are_named_and_left_as_they
 }
 
 /// What:
-///  A directory whose name something else took while the removal ran is named as another object,
-///  and that object is left as it is.
+///  A directory whose name no longer leads to it when the removal asks for it is named as left as it is,
+///  and the directory the removal held is left where the removal put it.
 /// Why:
 ///   The removal holds the directory it emptied and removes the name in the held parent,
-/// so a name that no longer
-///  leads to that directory removes nothing of it;
-/// the person has to be told that the name holds something else,
+/// so a name that another
+///  directory took removes nothing of the held one;
+/// the person has to be told what the removal met there,
 ///  not left with a bare `Directory not empty`.
 #[test]
-fn a_directory_whose_name_was_taken_while_it_was_removed_is_named_as_another_object() {
+fn a_directory_whose_name_was_taken_while_it_was_removed_is_named_as_left_as_it_is() {
     let root: PathBuf = fixture("trash-remove-name-taken");
     put(root.as_path(), "top/locked/file", b"a file the listing held");
     let moved: PathBuf = root.join("top/moved-aside");
@@ -230,7 +230,8 @@ fn a_directory_whose_name_was_taken_while_it_was_removed_is_named_as_another_obj
     let reason: String = remove_tree_beneath(root.as_path(), &held, std::ffi::OsStr::new("top"), None).expect_err("a name that leads to another object is not the directory the removal emptied");
     crate::subvolume_remove_listing_test_support::stop_acting();
     assert!(reason.contains(taken.to_str().expect("UTF-8")), "the reason names the name that was taken: {reason}");
-    assert!(reason.contains("another object"), "the reason says the name leads to another object: {reason}");
+    assert!(reason.contains("led to a directory that was not empty"), "the reason says what the removal met at the name: {reason}");
+    assert!(reason.contains("left as it is"), "the reason says what happens to it: {reason}");
     assert!(taken.join("someone-elses").is_file(), "the other directory and its entry are left as they are");
     drop(held);
     remove(root.as_path());
