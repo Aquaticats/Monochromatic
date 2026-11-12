@@ -1,0 +1,97 @@
+//! What:
+//!  The first thing a commit does about the service when it needs one:
+//! makes sure the worktree's service exists,
+//! starting it when nothing answers,
+//! and says why when it does not come up.
+//! Why:
+//!   A commit that never reaches the service (a declined one,
+//! one a policy blocked,
+//! one abandoned in the editor) must not start one,
+//! so this runs at the first submission and nowhere else,
+//! and its time is the timing record's `provisionMs`.
+//! Until this release the wrapper asked the service manager to start the unit and then
+//! waited for a greeting;
+//! the wrapper starts the server itself now,
+//! so a machine with no service manager is a machine where a commit still lands.
+//! A start that another command of the same worktree is making is not a failure:
+//! this returns as provisioned and the submit's own connect wait takes over,
+//! because the other command is making the same service exist.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! provisioned = await ensureAServer(host, provisioned, timing);
+//! ```
+
+use crate::service_messages::{ClientFailure, render};
+use crate::service_host_of_a_worktree::ServiceHost;
+use crate::service_server_start_by_the_wrapper::{StartAttempt, start};
+use crate::service_socket_directory_only_this_account_may_open::ensure_private;
+
+/// What:
+///  Makes sure the service exists,
+/// once per command,
+/// and gives whether it does.
+/// Why:
+///   A command that already started it asks nothing more,
+/// and a worktree with no route to any service has nothing to start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (named === undefined || provisioned) return provisioned; const began = now(); const made = await ensure(named); timing.provision += now() - began;
+/// ```
+pub(crate) fn ensure_a_server(named: Option<&ServiceHost>, provisioned: bool, timing: &mut std::time::Duration) -> Result<bool, crate::commit_transaction::TransactionStop> {
+    let Some(host) = named else {
+        return Ok(provisioned);
+    };
+    if provisioned {
+        return Ok(true);
+    }
+    let began: std::time::Instant = std::time::Instant::now();
+    let made: Result<(), ClientFailure> = make_sure_a_server_exists(host);
+    *timing += began.elapsed();
+    return match made {
+        Ok(()) => Ok(true),
+        Err(failure) => Err(crate::commit_transaction::TransactionStop::Message(render(&failure))),
+    };
+}
+
+/// What:
+///  Starts the service when nothing answers,
+/// and reports a start that does not greet.
+/// It is the one way a command makes a server exist,
+/// so the commit path and every hand-over path start one the same way.
+/// Why:
+///   The socket sits in a folder only this account may enter,
+/// which must exist before a server can listen in it and before the service's
+/// log can be opened beside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ensurePrivate(host.socketDirectory); switch (startTheServer(host.server)) { hidden: case greeted, another-command: ok; case did-not-greet: fail }
+/// ```
+pub fn make_sure_a_server_exists(host: &ServiceHost) -> Result<(), ClientFailure> {
+    let directory: std::path::PathBuf = host.socket_directory();
+    if let Err(error) = ensure_private(directory.as_path()) {
+        return Err(ClientFailure::CouldNotStart(format!(
+            "{} cannot be created ({}), and the commit service's address and its output live there, so set XDG_RUNTIME_DIR to a \
+             runtime directory this account can write or make that one writable",
+            directory.display(),
+            error
+        )));
+    }
+    let server = host.server();
+    return match start(&server) {
+        StartAttempt::Greeted | StartAttempt::AnotherCommandStartsIt => Ok(()),
+        StartAttempt::DidNotGreet(log) => Err(ClientFailure::CouldNotStart(format!(
+            "the commit service was started and sent no greeting within {} seconds. Its output is in {}; if it says nothing, remove \
+             that file and the address beside it and run the commit again",
+            crate::service_client_listen_and_ask_to_retire::START_WAIT.as_secs(),
+            log.display()
+        ))),
+    };
+}
+
+/// Controls of the start a commit makes stay out of the release executable.
+#[cfg(test)]
+#[path = "service_commit_starts_the_server_tests.rs"]
+mod tests;
