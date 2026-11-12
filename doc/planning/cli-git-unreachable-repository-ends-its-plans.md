@@ -61,6 +61,11 @@ and reads that directory three ways:
   so the plan is kept,
   exactly as before.
 
+The mount table the first reading uses is read when the question is asked,
+never kept for the life of the process:
+a drive mounted between two checks of a serving service changes what its root proves,
+and a table kept from the first check kept the service of a deleted repository serving.
+
 A repository that is gone ends its plans with one journal line naming the path,
 the directory the proof looked at,
 what proved it,
@@ -71,14 +76,22 @@ which is gone with the repository.
 
 ## The limit of the proof
 
-Two states can still be confused,
-and both were chosen so that the mistake loses nothing:
+Four states can still be read as something else,
+and each was chosen so that the mistake loses nothing:
 
 - a repository deleted under a directory that is left empty reads as a directory waiting for a drive,
   so its plans are kept;
 - a mount point whose directory does not exist reads as gone,
   so its plans end,
-  and a commit made there again is pushed as any other.
+  and a commit made there again is pushed as any other;
+- a path the filesystem will not answer about proves nothing,
+  so a repository behind a directory that refuses the search,
+  or an empty directory whose entries cannot be listed,
+  keeps its plans until a question can be answered,
+  which costs nothing but a retry an unmounted drive also spends;
+- a path under a name that is not a directory cannot be reached,
+  and is read as one that may return,
+  so a plan of a journal that nothing could have written is kept.
 
 ## What was verified
 
@@ -139,3 +152,33 @@ Nothing on the filesystem tells a deleted repository from a renamed one,
 so that case is one of the proof's limits rather than a state the applier can see.
 The commit stays local in that case,
 and the journal line names the path whose plan ended.
+
+## The review of this reading
+
+A review of the change that made this proof decide the units of a gone worktree too
+(2026-11-11,
+`doc/troubleshooting/git-policy-cli-service-units-of-deleted-worktrees.md`)
+reported two defects in the proof,
+and both held:
+
+- every metadata error was read as absence,
+  so a live repository behind a directory that refused the search lost its retry plan.
+  Only `NotFound` says nothing is there now;
+  every other answer proves nothing,
+  so the plan stays.
+  Controls:
+  `a_plan_of_a_repository_behind_a_directory_that_cannot_be_searched_stays`,
+  `a_path_behind_a_directory_that_cannot_be_searched_may_return` and
+  `a_path_behind_a_directory_whose_entries_cannot_be_listed_may_return`.
+- the mount table was kept for the life of the process,
+  so a drive mounted while a service ran was never seen.
+  Every question reads the table now.
+  Control:
+  `the_mount_table_is_read_again_after_a_drive_is_mounted`.
+
+The review's third finding,
+that the cleanup of a gone repository deleted a valid plan it could not read,
+does not hold on this branch:
+`load` has kept an unreadable plan since `7d0e2f51bd`,
+and `a_valid_plan_that_cannot_be_read_stays_when_the_gone_plans_end`
+holds that at the cleanup.
