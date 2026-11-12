@@ -18,7 +18,7 @@
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure};
 use crate::index_writer_forward::CoordinatedForward;
 use crate::index_writer_commands::is_index_writer;
-use crate::forwarded_command::{ResolvedCommand, Route, creates_worktrees, resolve_forwarded_command};
+use crate::forwarded_command::{ResolvedCommand, Route, creates_worktrees, resolve_forwarded_command, without_autocorrection};
 use crate::invocation_config::{config_invalid_event, load_identity_config};
 use crate::repository_location::RepositoryLocation;
 use crate::transaction_git::GitContext;
@@ -79,6 +79,9 @@ pub(crate) fn forward_action(
     //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
     let forwarded_arguments: Vec<OsString> = match command.route {
         Route::Alias => command.arguments.clone(),
+        // A word nothing defines is the one Git may replace with the command it guessed, so Git is told not to
+        //  autocorrect this call and the person gets its own error and suggestion instead.
+        Route::Unresolved if command.missing_word => without_autocorrection(arguments.as_slice()),
         Route::Direct | Route::ShellAlias | Route::Unresolved => arguments,
     };
     let writes_index: bool = is_index_writer(&command);

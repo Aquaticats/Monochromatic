@@ -63,9 +63,8 @@ use crate::repository_location::RepositoryLocation;
 use crate::policy_checks::{fact_unavailable, clean, rejected};
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
-    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, TargetTree,
-    dirty_question, dirty_worktree_message, exemption_notice, ignored_file_message,
-    repository_stash_message, resolve_linked_worktree, target_tree,
+    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, dirty_question,
+    dirty_worktree_message, exemption_notice, repository_stash_message, resolve_linked_worktree,
 };
 /// Whether a `git remote` or `git config` command writes the settings every worktree shares.
 use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange};
@@ -436,7 +435,6 @@ pub(crate) fn check_linked_worktree(
             notices,
         });
     };
-    let tree: Option<TargetTree> = target_tree(command, region);
     // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
     //  nothing about it and the repository's own stash is asked instead.
     let (measured, rejection): (Result<bool, String>, String) = match question {
@@ -455,31 +453,9 @@ pub(crate) fn check_linked_worktree(
             return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
         }
         Ok(false) => {
-            // The tracked state being clean says nothing about an ignored file the target tree tracks: a forced
-            //  form overwrites that file whatever `--no-overwrite-ignore` says, and the ignored file is where a person
-            //  keeps their environment and their local secrets. The rejected form is not confirmed clean: a tree that
-            //  cannot be read leaves the command unread, never allowed.
-            if let Some(written) = tree.as_ref() {
-                let shared: Vec<String> = match facts.ignored_files_the_tree_tracks(written.revision.as_deref()) {
-                    Ok(found) => found,
-                    Err(message) => return fact_unavailable(message),
-                };
-                if !shared.is_empty() {
-                    let why: Vec<AuditFact> = vec![AuditFact::Text("ignoredAndTracked", shared.join(" "))];
-                    record_audit_with_facts(
-                        &location.identity,
-                        command,
-                        AuditOutcome::Rejected,
-                        seen,
-                        Some(false),
-                        why.as_slice(),
-                    );
-                    return rejected(
-                        LINKED_WORKTREE_REQUIRED_CODE,
-                        format!("{}{conflict_note}", ignored_file_message(command, written.revision.as_deref(), shared.as_slice())),
-                    );
-                }
-            }
+            // The tracked state being clean says nothing about a file Git did not put there: a form that writes a tree
+            //  or a path of one replaces an untracked or ignored file, or a nested repository's work, whatever the
+            //  status says. That save happens at the one place a form is let through, then the command runs.
             return allow_a_discarding_form(AllowedForm {
                 facts,
                 command,

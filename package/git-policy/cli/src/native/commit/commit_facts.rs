@@ -25,6 +25,8 @@ use crate::repository_facts::RepositoryFacts;
 /// The pair that makes one clean dry run:
 ///  its directory and its arguments.
 use crate::command_clean::CleanDryRun;
+/// The paths one guarded form writes into the worktree.
+use crate::command_written_paths::WrittenPaths;
 /// The discarding-command forms.
 use crate::rule_linked_worktree::GuardedCommand;
 /// What one abort form would discard besides the operation's own state.
@@ -132,6 +134,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.ignored_files_the_tree_tracks(revision);
     }
 
+    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
+        return self.inner.paths_in_the_way(written);
+    }
+
     fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
         return self.inner.clean_deleted_paths(dry_run);
     }
@@ -197,6 +203,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
         return (**self).ignored_files_the_tree_tracks(revision);
+    }
+
+    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
+        return (**self).paths_in_the_way(written);
     }
 
     fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {

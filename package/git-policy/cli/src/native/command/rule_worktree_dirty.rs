@@ -260,22 +260,82 @@ pub fn replaced_answers(asked: &[Vec<u8>], tracked: &[Vec<u8>], answer: &[Vec<u8
 /// function ignoredPathsQueries(globalPrefix: string[], paths: string[]): string[][];
 /// ```
 pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
+    let head: Vec<OsString> = listing_head(global_prefix, &["--others", "--ignored", "--exclude-standard"]);
+    return chunked_pathspec_queries(head.as_slice(), paths);
+}
+
+/// What:
+///  The queries that list what the worktree holds at or below `paths` that Git did not put there,
+///  either the entries its ignore rules do not cover or the ones they do,
+///  one argument list per bounded start.
+///  `bool` asks for the ignored ones.
+/// Why:
+///   A forced tree write replaces or deletes both kinds,
+///  and the two are separate answers because Git lists them separately;
+///  `--directory` names a directory the worktree holds whole as one entry (`nested/`),
+///  which is the entry a save must keep whole,
+///  and a nested repository is reported exactly that way.
+///  The paths are asked about alone, so no query walks a worktree nobody asked about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function worktreeEntryQueries(globalPrefix: string[], paths: string[], ignored: boolean): string[][];
+/// ```
+pub fn worktree_entry_queries(global_prefix: &[OsString], paths: &[Vec<u8>], ignored: bool) -> Vec<Vec<OsString>> {
+    let selection: &[&str] = if ignored {
+        &["--others", "--ignored", "--exclude-standard", "--directory"]
+    } else {
+        &["--others", "--exclude-standard", "--directory"]
+    };
+    let head: Vec<OsString> = listing_head(global_prefix, selection);
+    return chunked_pathspec_queries(head.as_slice(), paths);
+}
+
+/// What:
+///  The arguments one `git ls-files` listing starts with,
+///  before the paths it is asked about.
+///  `&[&str]` borrows the listing's own option words.
+/// Why:
+///   Both listings read the same thing the same way:
+///  every path exactly as it is (`:(top,literal)` magic,
+///  with the caller's `--literal-pathspecs` turned off),
+///  from the top of the worktree,
+///  with `-z` so every answer's bytes are exactly the path's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function listingHead(globalPrefix: string[], selection: string[]): string[];
+/// ```
+fn listing_head(global_prefix: &[OsString], selection: &[&str]) -> Vec<OsString> {
     let mut head: Vec<OsString> = global_prefix.to_vec();
-    for token in [
-        "--no-optional-locks",
-        "--no-literal-pathspecs",
-        "ls-files",
-        "--others",
-        "--ignored",
-        "--exclude-standard",
-        "-z",
-        "--full-name",
-        "--",
-    ] {
+    for token in ["--no-optional-locks", "--no-literal-pathspecs", "ls-files"] {
         head.push(OsString::from(token));
     }
+    for token in selection {
+        head.push(OsString::from(*token));
+    }
+    for token in ["-z", "--full-name", "--"] {
+        head.push(OsString::from(token));
+    }
+    return head;
+}
+
+/// What:
+///  The same listing split into as many starts as the system's argument limit allows,
+///  each asking about every path exactly as it is.
+///  `&[Vec<u8>]` borrows the paths as their tree holds them.
+///  `&mut Vec<OsString>` is the head the last start left to reuse.
+/// Why:
+///   One start carries what the system accepts,
+///  and a worktree with millions of paths is asked in bounded starts instead of failing to start at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function chunkedPathspecQueries(head: string[], paths: string[], scratch: string[]): string[][];
+/// ```
+fn chunked_pathspec_queries(head: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
     let mut queries: Vec<Vec<OsString>> = Vec::<Vec<OsString>>::new();
-    let mut current: Vec<OsString> = head.clone();
+    let mut current: Vec<OsString> = head.to_vec();
     let mut carried: usize = 0;
     for path in paths {
         let mut spec: Vec<u8> = TOP_LITERAL_PATHSPEC.to_vec();
@@ -283,7 +343,7 @@ pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> V
         // A chunk that already holds a path opens a new one rather than overrunning the system's limit.
         if carried > 0 && carried + spec.len() > IGNORED_PATHS_QUERY_BYTES {
             queries.push(current);
-            current = head.clone();
+            current = head.to_vec();
             carried = 0;
         }
         carried += spec.len();
@@ -343,6 +403,34 @@ pub fn ignored_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>
         return Err(format!("Git could not read the ignored files: {detail}"));
     }
     return Ok(nul_separated_paths(answer.stdout.as_slice()));
+}
+
+/// What:
+///  The entries one listing answer holds,
+///  each as Git printed it,
+///  with the trailing slash of a directory Git named whole removed.
+///  `Result<Vec<Vec<u8>>, String>` is "the entries,
+///  or why Git gave none".
+/// Why:
+///   A listing that failed says nothing,
+///  and "nothing stands in the way" is a claim a safety check may only make from an answer;
+///  `--directory` writes a directory as one entry ending in a slash,
+///  which is the entry a save must keep whole and the name a person has to read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function worktreeEntriesFromAnswer(answer): Buffer[]; // throws
+/// ```
+pub fn worktree_entries_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>, String> {
+    let mut entries: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for path in ignored_paths_from_answer(answer)? {
+        let trimmed: &[u8] = match path.split_last() {
+            Some((b'/', rest)) if !rest.is_empty() => rest,
+            _ => path.as_slice(),
+        };
+        entries.push(trimmed.to_vec());
+    }
+    return Ok(entries);
 }
 
 /// What:

@@ -199,7 +199,9 @@ fn plan_interactive_clean(arguments: &[OsString]) -> Option<InteractiveClean> {
     if facts.both_ignored_modes {
         return None;
     }
-    if !facts.interactive || !facts.descends || !facts.deletes_ignored || facts.forces < 2 {
+    // `-d` is not part of the question: a pathspec names a directory Git's menu offers without it
+    //  (`clean -ffXi -- vendor`), and a menu that offers a nested repository is one this transform must cap.
+    if !facts.interactive || !facts.deletes_ignored || facts.forces < 2 {
         return None;
     }
     return Some(InteractiveClean {

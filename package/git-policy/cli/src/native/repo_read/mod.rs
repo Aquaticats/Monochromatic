@@ -40,6 +40,17 @@ pub mod repository_facts_staged_selection;
 ///  read beside the provider so its interface file stays within its line bound.
 pub mod repository_facts_ignored_files;
 
+/// The worktree entries that stand where one guarded form writes,
+///  whatever Git's status calls them.
+pub mod repository_facts_paths_in_the_way;
+
+/// The paths one guarded form writes,
+///  asked of the tree or the index it names.
+pub mod repository_facts_written_paths;
+
+/// The edits the index's own assume-unchanged mark hides from every status Git answers.
+pub mod repository_facts_edits_the_status_hides;
+
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;
 

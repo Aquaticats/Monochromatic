@@ -223,6 +223,7 @@ fn attempted_with(
         route,
         // A merge reached here runs no shell alias.
         shell_command: None,
+        missing_word: false,
     };
     // The variables of the command reach its Git children as the person's own environment does,
     // so a control that names an editor

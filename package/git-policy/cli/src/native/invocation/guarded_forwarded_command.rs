@@ -37,7 +37,7 @@
 /// import { decideGuardedWord } from '../command/rule_linked_worktree.ts';
 /// ```
 use crate::external_git_command::alias_run_directory;
-use crate::forwarded_command::{ResolvedCommand, Route, resolve_forwarded_command};
+use crate::forwarded_command::{ResolvedCommand, Route, resolve_forwarded_command, without_autocorrection};
 use crate::git_builtins::is_git_builtin;
 use crate::global_arguments::{GlobalLayout, command_tokens, global_layout};
 use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_guarded_word};
@@ -174,10 +174,17 @@ pub fn decide_guarded_forwarded(
         };
     }
     if resolved.route != Route::Alias || resolved.subcommand.is_none() {
+        // A word nothing defines is the one Git may replace with the command it guessed, so Git is told not to
+        //  autocorrect this call and the person gets its own error and suggestion instead.
+        let forwarded: Vec<OsString> = if resolved.missing_word {
+            without_autocorrection(arguments)
+        } else {
+            arguments.to_vec()
+        };
         return GuardedForwarded {
             decision: LinkedWorktreeDecision::Pass,
             decided_words: arguments.to_vec(),
-            arguments: arguments.to_vec(),
+            arguments: forwarded,
             shell_directory: None,
         };
     }

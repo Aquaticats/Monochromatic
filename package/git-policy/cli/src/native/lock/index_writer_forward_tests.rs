@@ -32,6 +32,7 @@ fn add_forward(repo: &Path) -> CoordinatedForward {
         route: Route::Direct,
         // These controls name a built-in, which no shell alias runs.
         shell_command: None,
+        missing_word: false,
     };
     return CoordinatedForward {
         real_git: PathBuf::from(REAL_GIT),
@@ -192,7 +193,7 @@ fn plain_route_death_of_a_git_killed_by_sigterm() -> CoordinatedRun {
     let mut forward: CoordinatedForward = add_forward(repo.as_path());
     // `--patch` reads the person's answers, so the command is never run again and its Git runs once.
     forward.arguments = vec![OsString::from("-C"), repo.as_os_str().to_owned(), OsString::from("add"), OsString::from("--patch")];
-    forward.command = ResolvedCommand { arguments: forward.arguments.clone(), subcommand_index: 2, subcommand: Some(OsString::from("add")), route: Route::Direct, shell_command: None };
+    forward.command = ResolvedCommand { arguments: forward.arguments.clone(), subcommand_index: 2, subcommand: Some(OsString::from("add")), route: Route::Direct, shell_command: None, missing_word: false };
     assert!(!may_run_again(forward.command.word(), forward.command.region()), "this control is the plain route only if the command may not run again");
     let scripts: PathBuf = root.join("scripts");
     std::fs::create_dir_all(&scripts).expect("script directory");
@@ -222,6 +223,7 @@ fn a_non_writer_with_a_copy_runs_settled() {
         route: Route::Direct,
         // These controls name a built-in, which no shell alias runs.
         shell_command: None,
+        missing_word: false,
     };
     forward.arguments = vec![
         OsString::from("-C"),
@@ -253,6 +255,7 @@ fn a_non_writer_is_not_coordinated() {
         route: Route::Direct,
         // These controls name a built-in, which no shell alias runs.
         shell_command: None,
+        missing_word: false,
     };
     assert_eq!(run_coordinated_forward(&forward), CoordinatedRun::NotCoordinated);
     remove(root.as_path());
@@ -341,6 +344,7 @@ fn merge_forward(repo: &Path, after: &[&str], real_git: &Path) -> CoordinatedFor
         subcommand: Some(OsString::from("merge")),
         route: Route::Direct,
         shell_command: None,
+        missing_word: false,
     };
     return CoordinatedForward {
         real_git: real_git.to_path_buf(),

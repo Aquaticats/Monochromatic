@@ -22,6 +22,8 @@ fn direct(words: &[&str]) -> ResolvedCommand {
         route: Route::Direct,
         // These controls name a built-in, which no shell alias runs.
         shell_command: None,
+        // A built-in is a word Git finds, so no autocorrection can reach it.
+        missing_word: false,
     };
 }
 
@@ -260,6 +262,7 @@ fn global_options_before_the_subcommand_do_not_hide_it() {
         route: Route::Direct,
         // These controls name a built-in, which no shell alias runs.
         shell_command: None,
+        missing_word: false,
     };
     assert!(is_index_writer(&command));
 }

@@ -96,6 +96,9 @@ pub enum AuditOutcome {
     /// The command would have deleted a nested Git repository,
     ///  and the wrapper moved it whole beside the audit log first.
     SavedNestedRepository,
+    /// The command would have overwritten or deleted a file or a directory Git did not put there,
+    ///  and the wrapper saved it first.
+    SavedOverwritten,
 
     /// The command undid an operation that waited for its conflicts,
     /// after the wrapper saved a copy of the work that was not the operation's own.
@@ -118,6 +121,7 @@ impl AuditOutcome {
             AuditOutcome::Hatch => return "hatch",
             AuditOutcome::SavedConflict => return "saved-conflict",
             AuditOutcome::SavedNestedRepository => return "saved-nested-repository",
+            AuditOutcome::SavedOverwritten => return "saved-overwritten",
 
             AuditOutcome::SavedAbort => return "saved-abort",
             AuditOutcome::Logged => return "logged",

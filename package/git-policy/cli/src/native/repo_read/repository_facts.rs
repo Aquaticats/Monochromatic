@@ -49,6 +49,8 @@ use crate::repository_location::{
 use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
 use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
 use crate::command_clean::{CleanDryRun, clean_deleted_paths_from_answer};
+/// The paths one guarded form writes into the worktree.
+use crate::command_written_paths::WrittenPaths;
 /// The reading of a dry run written with one force,
 ///  which names the nested repositories that force keeps.
 /// The answer one `git add` selection question gives.
@@ -126,6 +128,16 @@ pub trait RepositoryFacts {
     /// an unreadable `HEAD` is a failure,
     ///  never an empty answer.
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String>;
+    /// The worktree entries a discarding form would overwrite or delete,
+    ///  whatever Git's status calls them:
+    ///  untracked,
+    ///  ignored,
+    ///  or the work inside a nested repository at one of those paths.
+    /// Asked before a form that writes a tree or a path of one runs,
+    /// so each entry is saved first and the command runs as typed.
+    /// A query that could not be answered is a failure,
+    ///  never "nothing stands in the way".
+    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String>;
     /// Whether the repository holds a stash entry.
     /// Asked for `git stash drop` and `git stash clear`,
     /// which delete entries of the one stash every worktree shares.
@@ -461,7 +473,17 @@ impl RepositoryFacts for GitFacts {
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         let arguments: Vec<OsString> = dirty_query_arguments(self.global_prefix.as_slice(), scope);
         let output: MetadataOutput = self.query(arguments, "the worktree status")?;
-        return dirty_from_output(&output);
+        if dirty_from_output(&output)? {
+            return Ok(true);
+        }
+        // An edit to a path the index marks assume-unchanged is a tracked edit that no status prints, and a
+        //  discarding form overwrites it all the same; it gets exactly what the same edit gets without the mark.
+        let location: RepositoryLocation = self.location()?;
+        let Some(root) = crate::worktree_identity::worktree_root(&location.identity) else {
+            return Ok(false);
+        };
+        let hidden: Vec<String> = crate::repository_facts_edits_the_status_hides::edits_the_status_hides(self, root)?;
+        return Ok(!hidden.is_empty());
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -478,6 +500,11 @@ impl RepositoryFacts for GitFacts {
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
         // The query and its reading live beside this provider, as the `git add` fact's do.
         return crate::repository_facts_ignored_files::ignored_files_the_tree_tracks(self, revision);
+    }
+
+    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
+        // The queries over the written paths live beside this provider for the same reason.
+        return crate::repository_facts_paths_in_the_way::paths_in_the_way(self, written);
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {

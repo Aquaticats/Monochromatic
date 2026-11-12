@@ -286,7 +286,7 @@ pub const ABORT_LONG_OPTIONS: &[&str] = &["abort", "autostash", "allow-empty", "
 /// ```ts
 /// function spellsLong(token: string, wanted: string, siblings: string[]): boolean;
 /// ```
-fn spells_long(token: &[u8], wanted: &str, siblings: &[&str]) -> bool {
+pub(crate) fn spells_long(token: &[u8], wanted: &str, siblings: &[&str]) -> bool {
     if !token.starts_with(b"--") {
         return false;
     }

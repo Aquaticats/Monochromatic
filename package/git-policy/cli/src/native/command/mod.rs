@@ -151,6 +151,14 @@ pub mod rule_linked_worktree_messages;
 /// and the rejection when it could not be moved there.
 pub mod rule_linked_worktree_nested_repository_messages;
 
+/// The notice that names the copy of each entry a form would overwrite,
+///  and the rejection when a copy could not be made.
+pub mod rule_linked_worktree_saved_overwrite_messages;
+
+/// Which tree paths one guarded form writes into the worktree,
+///  read from the form's own words.
+pub mod command_written_paths;
+
 /// Pure decision of the shared-remote-settings refusal:
 ///  which `git remote` and `git config` commands write the remote settings every worktree shares.
 pub mod rule_shared_remote;

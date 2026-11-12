@@ -33,6 +33,9 @@ use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies}
 use crate::discarded_prune::Limits;
 /// The move of a nested repository the clean would delete.
 use crate::discarded_nested_repository::set_nested_repositories_aside;
+/// Keeping every entry a form would overwrite,
+///  and the one refusal such a save has.
+use crate::policy_linked_worktree_saved_overwrite::{Overwritten, SaveRequest, keep_what_the_form_would_overwrite};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
@@ -177,13 +180,15 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     shell_directory: Option<&Path>,
     discarded_limits: Limits,
 ) -> NestedRepositories {
-    // A clean removes a nested repository only with a second `-f` (`builtin/clean.c`: `if (force > 1) rm_flags = 0`),
-    //  and only when it descends into the directories it deletes ignored files from. Every other clean is Git's own
-    //  business, and one force is Git's own protection of the repository.
+    // A clean removes a nested repository only with a second `-f` (`builtin/clean.c`: `if (force > 1) rm_flags = 0`).
+    //  Every other clean is Git's own business, and one force is Git's own protection of the repository.
+    //  `-d` is not part of the question: it is how a clean reaches an untracked directory, while a pathspec names one
+    //  Git deletes without it (`clean -ffX -- vendor`), so a reading that waited for `-d` let that clean delete a
+    //  repository unsaved. What the clean really deletes is Git's own dry run, read below.
     let Ok(parsed) = parse_clean_region(region, &[]) else {
         return NestedRepositories::Nothing;
     };
-    if !parsed.deletes_ignored || !parsed.descends || parsed.forces < 2 {
+    if !parsed.deletes_ignored || parsed.forces < 2 {
         return NestedRepositories::Nothing;
     }
     // Git refuses `-x` together with `-X` before it reads anything (`cmd_clean`), so this clean deletes nothing and
@@ -304,6 +309,34 @@ pub(crate) struct AllowedForm<'a> {
 /// function allowADiscardingForm(form: AllowedForm): PolicyOutcome;
 /// ```
 pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
+    let milliseconds: i64 = now_milliseconds();
+    // Every form that writes a tree or a path of one keeps what stands in its way before Git runs.
+    let overlap: Overwritten = keep_what_the_form_would_overwrite(SaveRequest {
+        facts: form.facts,
+        command: form.command,
+        location: form.location,
+        region: form.region,
+        limits: form.discarded_limits,
+        milliseconds,
+    });
+    match overlap {
+        Overwritten::Nothing => {}
+        Overwritten::Saved { copies, notice } => {
+            form.notices.push(notice);
+            record_audit_with_copies(
+                &form.location.identity,
+                form.command,
+                AuditOutcome::SavedOverwritten,
+                form.seen,
+                form.dirty,
+                places_of(copies.as_slice()).as_slice(),
+            );
+            return clean();
+        }
+        Overwritten::Refused { message, copies } => {
+            return refuse_a_stopped_save(form.location, form.command, form.seen, &message, copies.as_slice());
+        }
+    }
     if matches!(form.command, GuardedCommand::CleanIgnored | GuardedCommand::CleanIgnoredOnly) {
         match keep_the_nested_repositories_a_clean_would_delete(
             form.facts,
@@ -314,14 +347,6 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
         ) {
             NestedRepositories::Nothing => {}
             NestedRepositories::Saved { copies, notice } => {
-                let mut places: Vec<String> = Vec::<String>::new();
-                for copy in &copies {
-                    let saved_to: String = match copy.saved_to.as_ref() {
-                        Some(place) => place.display().to_string(),
-                        None => String::from("none"),
-                    };
-                    places.push(format!("{} => {}", copy.path, saved_to));
-                }
                 form.notices.push(notice);
                 record_audit_with_copies(
                     &form.location.identity,
@@ -329,37 +354,65 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
                     AuditOutcome::SavedNestedRepository,
                     form.seen,
                     form.dirty,
-                    places.as_slice(),
+                    places_of(copies.as_slice()).as_slice(),
                 );
                 return clean();
             }
             NestedRepositories::Refused { message, copies } => {
-                let mut places: Vec<String> = Vec::<String>::new();
-                for copy in &copies {
-                    let saved_to: String = match copy.saved_to.as_ref() {
-                        Some(place) => place.display().to_string(),
-                        None => String::from("none"),
-                    };
-                    places.push(format!("{} => {}", copy.path, saved_to));
-                }
-                // A rejection that left a repository under the saved copies names where it is;
-                //  one that left none is a worktree nobody can tell apart from the one before the command.
-                if places.is_empty() {
-                    record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, None);
-                } else {
-                    record_audit_with_copies(
-                        &form.location.identity,
-                        form.command,
-                        AuditOutcome::Rejected,
-                        form.seen,
-                        None,
-                        places.as_slice(),
-                    );
-                }
-                return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
+                return refuse_a_stopped_save(form.location, form.command, form.seen, &message, copies.as_slice());
             }
         }
     }
     record_audit(&form.location.identity, form.command, AuditOutcome::Allowed, form.seen, form.dirty);
     return clean();
+}
+
+/// What:
+///  Each saved copy as `<path> => <place>`,
+///  which is how an audit line names where a copy is.
+/// Why:
+///   A copy with no place is one the save found nothing at,
+///  and the record has to say that rather than leave the field to look like a failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const placesOf = (copies) => copies.map((c) => `${c.path} => ${c.savedTo ?? 'none'}`);
+/// ```
+fn places_of(copies: &[SavedCopy]) -> Vec<String> {
+    let mut places: Vec<String> = Vec::<String>::new();
+    for copy in copies {
+        let saved_to: String = match copy.saved_to.as_ref() {
+            Some(place) => place.display().to_string(),
+            None => String::from("none"),
+        };
+        places.push(format!("{} => {}", copy.path, saved_to));
+    }
+    return places;
+}
+
+/// What:
+///  Stop a command whose save could not keep everything,
+///  and record what the save had already kept.
+/// Why:
+///  A rejection that left copies below the saved folder names where they are;
+///  one that left none is a worktree nobody can tell apart from the one before the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refuseAStoppedSave(location, command, seen, message, copies): PolicyOutcome;
+/// ```
+fn refuse_a_stopped_save(
+    location: &RepositoryLocation,
+    command: GuardedCommand,
+    seen: &[OsString],
+    message: &str,
+    copies: &[SavedCopy],
+) -> PolicyOutcome {
+    let places: Vec<String> = places_of(copies);
+    if places.is_empty() {
+        record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+    } else {
+        record_audit_with_copies(&location.identity, command, AuditOutcome::Rejected, seen, None, places.as_slice());
+    }
+    return rejected(LINKED_WORKTREE_REQUIRED_CODE, message.to_string());
 }

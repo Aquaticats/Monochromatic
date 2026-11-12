@@ -103,6 +103,19 @@ pub struct ResolvedCommand {
     ///  environment Git gives it,
     ///  which a substituted argument vector would lose.
     pub shell_command: Option<Vec<OsString>>,
+    /// What:
+    ///  Whether the command word is one Git will not find at all:
+    ///  no built-in,
+    ///  no installed `git-<word>` and no alias.
+    /// Why:
+    ///  Git answers such a word with its own error and,
+    ///  under `help.autocorrect`,
+    ///  may run the command it guessed instead
+    ///  (`help_unknown_cmd` in `help.c`),
+    ///  so a mistyped `git rset --hard` ran a hard reset that no guard had judged.
+    ///  A word Git finds as an installed command or as an alias is never corrected,
+    ///  so only this answer carries the rule.
+    pub missing_word: bool,
 }
 
 /// Methods over a resolved command.
@@ -237,7 +250,57 @@ fn resolved_with_shell_command(
         subcommand,
         route,
         shell_command,
+        missing_word: false,
     };
+}
+
+/// What:
+///  The same resolution for a word Git cannot find,
+///  which is the one case where Git may run a command it guessed.
+/// Why:
+///  Nothing else about the answer changes,
+///  and one builder keeps every other field from being forgotten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolvedMissingWord(args, layout): ResolvedGitCommand; // route 'unresolved', missingWord true
+/// ```
+fn resolved_missing_word(arguments: &[OsString], layout: &GlobalLayout) -> ResolvedCommand {
+    return ResolvedCommand {
+        missing_word: true,
+        ..resolved_with_shell_command(arguments, layout, Route::Unresolved, None)
+    };
+}
+
+/// What:
+///  The argument list Git runs for one invocation,
+///  with autocorrection switched off after the caller's own global options.
+///  `&[OsString]` borrows the arguments as the caller wrote them.
+/// Why:
+///  A word the wrapper does not know and Git cannot find is judged by nothing,
+///  and `help.autocorrect` then makes Git run the command it guessed
+///  (`help_unknown_cmd` in `help.c`):
+///  a mistyped `git rset --hard` ran a hard reset and the edit was gone with no refusal and no copy.
+///  Overriding the setting for that one call leaves Git's own answer in place:
+///  at `0` Git prints `git: 'rset' is not a git command` with the most similar command and runs nothing,
+///  which is what a mistyped word asks for,
+///  while every other unknown name still reaches Git and answers exactly as it always did.
+///  The option is written after the caller's globals because Git applies the last `-c` it reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withoutAutocorrection(args: string[]): string[]; // [...globals, '-c', 'help.autocorrect=0', ...rest]
+/// ```
+pub fn without_autocorrection(arguments: &[OsString]) -> Vec<OsString> {
+    let layout: GlobalLayout = global_layout(arguments);
+    if layout.outcome != GlobalOutcome::Command {
+        return arguments.to_vec();
+    }
+    let mut corrected: Vec<OsString> = arguments[..layout.prefix_len].to_vec();
+    corrected.push(OsString::from("-c"));
+    corrected.push(OsString::from("help.autocorrect=0"));
+    corrected.extend(arguments[layout.prefix_len..].iter().cloned());
+    return corrected;
 }
 
 /// What:
@@ -383,7 +446,9 @@ fn resolve_command(
         let mut process_globals: Vec<OsString> = inherited_globals.to_vec();
         process_globals.extend(current[..layout.prefix_len].iter().cloned());
         let Some(value) = lookup_alias(context, process_globals.as_slice(), &name) else {
-            return resolved(current.as_slice(), &layout, Route::Unresolved);
+            // Nothing defines this word, so Git's own error is the answer unless `help.autocorrect` makes it run the
+            //  command it guessed.
+            return resolved_missing_word(current.as_slice(), &layout);
         };
         // Git decides what an alias is from its first byte, and splits the value it read, without trimming it.
         if value.first() == Some(&b'!') {

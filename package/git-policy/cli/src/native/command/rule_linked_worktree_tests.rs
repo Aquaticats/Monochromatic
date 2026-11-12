@@ -15,14 +15,12 @@
 ///  its texts and the argument builder.
 use super::{
     DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
-    TargetTree, decide_linked_worktree, dirty_question, dirty_worktree_message, exemption_notice,
-    ignored_file_message, main_worktree_message, outside_worktree_message, repository_stash_message,
-    resolve_linked_worktree, target_tree,
+    decide_linked_worktree, dirty_question, dirty_worktree_message, exemption_notice, ignored_file_message,
+    main_worktree_message, outside_worktree_message, repository_stash_message, resolve_linked_worktree,
 };
 use crate::command_test_support::{fixture, git, git_status, os_arguments, remove, repository};
 use crate::effective_target::EffectiveTarget;
 use crate::rule_worktree_dirty::DirtyScope;
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// The index of a form,
@@ -378,32 +376,6 @@ fn the_exemption_sentence_names_the_variable_that_exempted_the_repository() {
     assert_ne!(notice, exemption_notice("UV_CACHE_DIR", std::path::Path::new("/work/repo")));
 }
 
-/// A forced checkout,
-/// a forced switch and a hard reset ask which tree they write;
-/// every other form writes no tree and asks nothing.
-#[test]
-fn only_the_forms_that_write_a_tree_ask_which_tree() {
-    let cases: [(GuardedCommand, &[&str], Option<Option<&str>>); 10] = [
-        (GuardedCommand::ResetHard, &["--hard", "tracks"], Some(Some("tracks"))),
-        (GuardedCommand::ResetHard, &["--hard"], Some(None)),
-        (GuardedCommand::ResetHard, &["--hard", "--", "tracks"], Some(None)),
-        (GuardedCommand::CheckoutPaths, &["--force", "tracks"], Some(Some("tracks"))),
-        (GuardedCommand::CheckoutPaths, &["--force", "--", "tracked.txt"], Some(None)),
-        (GuardedCommand::CheckoutPaths, &["--force", "tracks", "--", "tracked.txt"], Some(Some("tracks"))),
-        (GuardedCommand::SwitchForce, &["--force", "tracks"], Some(Some("tracks"))),
-        (GuardedCommand::SwitchForce, &["--force"], Some(None)),
-        (GuardedCommand::Clean, &["-fdx"], None),
-        (GuardedCommand::RestoreWorktree, &["--source", "tracks", "tracked.txt"], None),
-    ];
-    for (command, region, expected) in cases {
-        let answer: Option<TargetTree> = target_tree(command, os_arguments(region).as_slice());
-        assert_eq!(
-            answer,
-            expected.map(|revision| return TargetTree { revision: revision.map(OsString::from) }),
-            "{command:?} {region:?}"
-        );
-    }
-}
 
 /// The text of an ignored file the target tree tracks names the form,
 /// the paths,

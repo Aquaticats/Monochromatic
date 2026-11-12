@@ -18,6 +18,8 @@ use crate::candidate_error::{CandidateError, CandidateFailure};
 /// The pair that makes one clean dry run:
 ///  its directory and its arguments.
 use crate::command_clean::CleanDryRun;
+/// The paths one guarded form writes into the worktree.
+use crate::command_written_paths::WrittenPaths;
 /// Real preparation,
 ///  for scripted facts given a repository.
 use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
@@ -61,6 +63,9 @@ pub(crate) struct ScriptedFacts {
     pub(crate) selection: Result<StagedSelection, String>,
     /// The answer to `ignored_files_the_tree_tracks`.
     pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
+    /// The answer to `paths_in_the_way`,
+    ///  whatever tree or path the form writes.
+    pub(crate) in_the_way: Result<Vec<String>, String>,
     /// The paths the dry run of the clean as typed names,
     ///  which is the one carrying the clean's own exclusion patterns.
     pub(crate) clean_deletes: Result<Vec<Vec<u8>>, String>,
@@ -165,6 +170,11 @@ impl RepositoryFacts for ScriptedFacts {
             revision.unwrap_or(OsStr::new("HEAD")).to_string_lossy()
         ));
         return self.ignored_and_tracked.clone();
+    }
+
+    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
+        self.asked.push(format!("paths-in-the-way:{}", written.kind()));
+        return self.in_the_way.clone();
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -298,6 +308,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         // so the main checkout of a region that refuses there is `/r`.
         main_worktree: Ok(PathBuf::from("/r")),
         ignored_and_tracked: Ok(Vec::<String>::new()),
+        in_the_way: Ok(Vec::<String>::new()),
         clean_deletes: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
         asked: Vec::<String>::new(),
