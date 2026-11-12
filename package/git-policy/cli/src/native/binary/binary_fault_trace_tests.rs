@@ -778,10 +778,13 @@ fn merge_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<()
 /// the wrapper removes with `unlink`,
 /// creates directories with `mkdir` and starts Git with `clone3` there,
 ///  and made none of the three.
-/// `openat`,
-/// `ftruncate` and `mkdir` are every other state-changing call the flow makes,
+/// `openat` and `mkdir` are every other state-changing call the flow makes,
 /// and `openat` counts reads too because `strace --inject` names a call and an ordinal over all of them.
-const MERGE_KILL_CALLS: [&str; 10] = ["write", "pwrite64", "fsync", "ftruncate", "openat", "rename", "renameat2", "unlink", "mkdir", "clone3"];
+/// `ftruncate` is not listed either:
+/// the step that writes the merge into the checkout is ended at its bound,
+/// so its output is read through pipes and no captured file of it is truncated
+///  (commit `3ae05055e6`).
+const MERGE_KILL_CALLS: [&str; 9] = ["write", "pwrite64", "fsync", "openat", "rename", "renameat2", "unlink", "mkdir", "clone3"];
 
 /// The merge flow's shape,
 /// shared by each of its kill controls.
@@ -855,13 +858,6 @@ fn a_merge_killed_at_each_clone3_leaves_a_recoverable_checkout() {
 #[test]
 fn a_merge_killed_at_each_mkdir_leaves_a_recoverable_checkout() {
     sweep_wrapper_kill(&merge_flow(), "mkdir");
-}
-
-/// A merge over another session's staged work,
-/// killed at each `ftruncate` the wrapper makes in it.
-#[test]
-fn a_merge_killed_at_each_ftruncate_leaves_a_recoverable_checkout() {
-    sweep_wrapper_kill(&merge_flow(), "ftruncate");
 }
 
 /// A merge over another session's staged work,

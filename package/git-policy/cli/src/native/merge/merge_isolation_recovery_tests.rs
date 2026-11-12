@@ -16,6 +16,29 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
 
+/// What:
+///  The words a command that would write to the checkout is given about every merge whose install it must not read
+///  past,
+///  joined as one text a control can search.
+/// Why:
+///  Recovery names a partly installed merge on the outcome rather than stopping every command,
+///  and `startup_gate.rs` decides which command may go on,
+/// so a control reads the state the same way that gate does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stoppedOf = (outcomes) => outcomes.flatMap((outcome) => outcome.stopped ?? []).join('\n');
+/// ```
+fn stopped_of(outcomes: &[MergeRecoveryOutcome]) -> String {
+    let mut said: Vec<String> = Vec::new();
+    for outcome in outcomes {
+        if let Some(words) = &outcome.stopped {
+            said.push(words.clone());
+        }
+    }
+    return said.join("\n");
+}
+
 /// A repository where `main` and `feature` have diverged and the merge commit exists but is not applied.
 struct World {
     /// The fixture directory removed at the end.
@@ -499,8 +522,9 @@ fn a_foreign_edit_stops_the_completion() {
     git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
     std::fs::write(world.repo.join("f.txt"), b"someone else's edit\n").expect("foreign edit");
     let record: PathBuf = record_of(&world, dead_owner("88888888-0000-4000-8000-000000000008"), Some("refs/heads/main"));
-    let error = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect_err("fails closed");
-    assert!(error.0.contains("f.txt") && error.0.contains("Nothing was changed"), "{error}");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut Vec::new()).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("f.txt") && refused.contains("was kept"), "{refused}");
     assert!(record.exists());
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid);
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("file"), b"someone else's edit\n");
@@ -1181,10 +1205,11 @@ fn a_file_a_killed_take_set_aside_is_kept_beside_a_path_that_holds_something_els
     std::fs::write(location.as_path(), b"my own file\n").expect("the person's file");
     let _record: PathBuf = record_of(&world, dead_owner("16161616-0000-4000-8000-000000000016"), Some("refs/heads/main"));
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("the path holds someone else's content");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
     assert!(text.contains("f.txt") && text.contains(stranded.to_string_lossy().as_ref()), "the private name is said: {text}");
-    assert!(refused.0.contains("f.txt"), "{}", refused.0);
+    assert!(refused.contains("f.txt"), "{}", refused);
     assert_eq!(std::fs::read(location.as_path()).expect("the person's file"), b"my own file\n", "nothing was removed");
     assert!(stranded.exists(), "the file that was set aside is kept");
     remove(world.parent.as_path());
@@ -1527,9 +1552,10 @@ fn a_staged_edit_of_a_merge_path_stops_the_finish_and_is_kept() {
     assert!(staged_entry.contains("f.txt"), "the index holds the staged entry under test: {staged_entry}");
     let before = snapshot(&world);
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a staged edit of a merge path stops the finish");
-    assert!(refused.0.contains("f.txt"), "the path is named: {}", refused.0);
-    assert!(refused.0.contains("index"), "it says the index holds it: {}", refused.0);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("f.txt"), "the path is named: {}", refused);
+    assert!(refused.contains("index"), "it says the index holds it: {}", refused);
     assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]), staged_entry, "the staged version is still in the index");
     assert_eq!(snapshot(&world), before, "nothing of the merge was written");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
@@ -1646,14 +1672,15 @@ fn a_saved_merge_that_cannot_be_finished_does_not_stop_the_command() {
 /// begunRecord(); write('f.txt', mine); await expect(recover(...)).rejects.toMatch(/f.txt/);
 /// ```
 #[test]
-fn a_begun_merge_whose_finish_is_refused_still_stops_the_command() {
+fn a_begun_merge_whose_finish_is_refused_names_the_state_for_a_command_that_would_write() {
     let world: World = world("merge-recovery-begun-refused");
     git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
     let _record: PathBuf = record_of(&world, dead_owner("21212121-0000-4000-8000-000000000021"), Some("refs/heads/main"));
     std::fs::write(world.repo.join("f.txt"), b"my own edit\n").expect("the person's edit");
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a begun merge stops the command");
-    assert!(refused.0.contains("f.txt"), "{}", refused.0);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("f.txt"), "{}", refused);
     remove(world.parent.as_path());
 }
 
@@ -1746,8 +1773,9 @@ fn a_staged_edit_of_a_merge_path_stops_the_moved_branch_settling() {
     let staged_entry: String = git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]);
     let _record: PathBuf = record_of(&world, dead_owner("22222222-0000-4000-8000-000000000022"), Some("refs/heads/main"));
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a staged edit of a merge path stops the settling");
-    assert!(refused.0.contains("f.txt"), "the path is named: {}", refused.0);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("f.txt"), "the path is named: {}", refused);
     assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]), staged_entry, "the staged version is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the moved one");
     remove(world.parent.as_path());
@@ -1813,10 +1841,11 @@ fn a_saved_merge_that_is_partly_installed_stops_the_command() {
     let mut writer: std::process::Child = holder.spawn().expect("a process holding the file open");
     drop(holder);
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a partly installed merge stops the command");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
     writer.kill().expect("the process ends");
     writer.wait().expect("reaped");
-    assert!(refused.0.contains("partly installed"), "it says the merge is partly installed: {}", refused.0);
+    assert!(refused.contains("partly installed"), "it says the merge is partly installed: {}", refused);
     assert!(!world.repo.join("dir/child.txt").exists(), "the file was moved aside before the failure");
     remove(world.parent.as_path());
 }
@@ -1997,8 +2026,9 @@ fn a_saved_merge_whose_installed_state_meets_a_foreign_file_stops_the_command() 
     // An editor saves something else into a path the merge changes.
     std::fs::write(world.repo.join("f.txt"), b"an editor's own save\n").expect("the editor's file");
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a begun merge stops the command");
-    assert!(refused.0.contains("f.txt"), "the path is named: {}", refused.0);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("f.txt"), "the path is named: {}", refused);
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
     remove(world.parent.as_path());
@@ -2031,9 +2061,10 @@ fn a_saved_merge_that_is_partly_installed_and_whose_branch_advanced_keeps_its_re
     let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
     let staged_entry: String = git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]);
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a partly installed merge stops the command");
-    assert!(refused.0.contains("partly installed"), "it says the merge is partly installed: {}", refused.0);
-    assert!(refused.0.contains(record.to_string_lossy().as_ref()), "the record is named: {}", refused.0);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("partly installed"), "it says the merge is partly installed: {}", refused);
+    assert!(refused.contains(record.to_string_lossy().as_ref()), "the record is named: {}", refused);
     assert!(record.exists(), "the record is kept, so the install can still be settled");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the moved one");
     assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]), staged_entry, "the installed entry is kept");
@@ -2196,8 +2227,9 @@ fn a_saved_merge_whose_index_was_installed_and_whose_checkout_changed_branch_sto
     git(world.repo.as_path(), &["branch", "--quiet", "other"]);
     git(world.repo.as_path(), &["switch", "--quiet", "other"]);
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("an installed merge stops the command");
-    assert!(refused.0.contains("refs/heads/main"), "the branch the merge is for is named: {}", refused.0);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("refs/heads/main"), "the branch the merge is for is named: {}", refused);
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the merge's branch did not move");
     remove(world.parent.as_path());
@@ -2226,8 +2258,9 @@ fn a_saved_merge_whose_index_was_installed_and_a_file_cannot_be_read_stops_the_c
     git(world.repo.as_path(), &["config", "filter.broken.clean", "false"]);
     git(world.repo.as_path(), &["config", "filter.broken.required", "true"]);
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("an installed merge stops the command");
-    assert!(!refused.0.is_empty(), "the failure is named");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(!refused.is_empty(), "the failure is named");
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
@@ -2263,9 +2296,10 @@ fn a_retry_after_an_earlier_install_that_fails_reports_the_install() {
     // The take of the file the merge deletes cannot rename into the directory that holds it.
     std::fs::set_permissions(world.repo.join("dir"), std::fs::Permissions::from_mode(0o555)).expect("a directory that refuses writes");
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("the retry's failure stops the command");
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
     let _writable = std::fs::set_permissions(world.repo.join("dir"), std::fs::Permissions::from_mode(0o755));
-    assert!(!refused.0.is_empty(), "the failure is named");
+    let refused: String = stopped_of(&outcomes);
+    assert!(!refused.is_empty(), "the failure is named");
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
@@ -2320,9 +2354,10 @@ fn a_ref_lookup_that_cannot_start_reports_the_install_already_found() {
         git_dir: world.git_dir.clone(),
     };
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place, world.git_dir.as_path(), &mut said).expect_err("the refusal must report the install");
+    let outcomes = recover_interrupted_merges(&place, world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
     assert!(!shim.exists(), "the seam ran");
-    assert!(!refused.0.is_empty(), "the failure is named");
+    assert!(!refused.is_empty(), "the failure is named");
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
@@ -2359,23 +2394,23 @@ fn a_worktree_that_switches_before_the_branch_write_keeps_the_record_and_the_bra
         }),
     );
     let mut said: Vec<u8> = Vec::new();
-    let attempted = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
     crate::service_fault::hooks::clear();
-    let refused = attempted.expect_err("a switched worktree stops the command");
-    assert!(refused.0.contains("refs/heads/other"), "the branch the worktree switched to is named: {}", refused.0);
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("refs/heads/other"), "the branch the worktree switched to is named: {}", refused);
     assert!(
-        refused.0.contains("index entries and files are still in this worktree"),
+        refused.contains("index entries and files are still in this worktree"),
         "it says the merge's entries and files stay: {}",
-        refused.0
+        refused
     );
     assert!(
-        !refused.0.contains("nothing of this merge stays staged"),
+        !refused.contains("nothing of this merge stays staged"),
         "it does not claim the checkout is clean: {}",
-        refused.0
+        refused
     );
     let undo: String = format!("`git restore {} --staged --worktree -- <path>`", crate::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH);
-    assert!(refused.0.contains(undo.as_str()), "it names the way to undo the staged content, with the flag this wrapper's policy asks for, in the words a person can run: {}", refused.0);
-    assert!(!refused.0.contains(".."), "the sentence the refusal itself ends with is not followed by a second period: {}", refused.0);
+    assert!(refused.contains(undo.as_str()), "it names the way to undo the staged content, with the flag this wrapper's policy asks for, in the words a person can run: {}", refused);
+    assert!(!refused.contains(".."), "the sentence the refusal itself ends with is not followed by a second period: {}", refused);
     assert!(record.exists(), "the record is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch was put back");
     assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/other", "the worktree is where the other command put it");
@@ -2408,9 +2443,10 @@ fn an_installed_merge_whose_index_stays_held_stops_the_command() {
     std::fs::write(world.git_dir.join("index.lock"), b"an index written into the lock").expect("a lock with content");
     std::fs::write(world.git_dir.join("index~pid.lock"), b"pid 4294967\n").expect("the PID file of a process that is gone");
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("an installed merge behind a held index stops the command");
-    assert!(!refused.0.is_empty(), "the failure is named");
-    assert!(refused.0.contains("index.lock"), "the lock is named: {}", refused.0);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(!refused.is_empty(), "the failure is named");
+    assert!(refused.contains("index.lock"), "the lock is named: {}", refused);
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
@@ -2548,8 +2584,9 @@ fn an_installed_merge_another_command_touched_still_stops_the_command() {
     std::fs::write(world.repo.join("f.txt"), b"another command's edit\n").expect("the edit");
     git(world.repo.as_path(), &["add", "--", "f.txt"]);
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("an installed merge stops the command");
-    assert!(refused.0.contains("f.txt") || refused.0.contains("partly installed"), "the state is named: {}", refused.0);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("f.txt") || refused.contains("partly installed"), "the state is named: {}", refused);
     assert!(record.exists(), "the record is kept");
     remove(world.parent.as_path());
 }
@@ -3087,17 +3124,17 @@ fn a_branch_that_could_not_be_put_back_is_never_reported_as_put_back() {
         }),
     );
     let mut said: Vec<u8> = Vec::new();
-    let attempted = recover_interrupted_merges(&place, world.git_dir.as_path(), &mut said);
+    let outcomes = recover_interrupted_merges(&place, world.git_dir.as_path(), &mut said).expect("recovery reads the state");
     crate::service_fault::hooks::clear();
-    let refused = attempted.expect_err("a branch that could not be put back stops the command");
+    let refused: String = stopped_of(&outcomes);
     assert!(
-        !refused.0.contains("The branch was put back where it was"),
+        !refused.contains("The branch was put back where it was"),
         "it never claims the branch was put back: {}",
-        refused.0
+        refused
     );
-    assert!(refused.0.contains("refs/heads/main"), "the branch that still names the merge is named: {}", refused.0);
-    assert!(refused.0.contains("still names the merge"), "it says where the branch is: {}", refused.0);
-    assert!(refused.0.contains("refs/heads/other"), "the branch the worktree switched to is named: {}", refused.0);
+    assert!(refused.contains("refs/heads/main"), "the branch that still names the merge is named: {}", refused);
+    assert!(refused.contains("still names the merge"), "it says where the branch is: {}", refused);
+    assert!(refused.contains("refs/heads/other"), "the branch the worktree switched to is named: {}", refused);
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch still names the merge");
     assert!(lock.is_file(), "the other command still holds the ref");
     assert!(record.exists(), "the record is kept");
@@ -3130,14 +3167,14 @@ fn a_landed_merge_in_another_branchs_worktree_keeps_its_record() {
     git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
     let record: PathBuf = record_of(&world, dead_owner("45454545-0000-4000-8000-000000000045"), Some("refs/heads/main"));
     let mut said: Vec<u8> = Vec::new();
-    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said)
-        .expect_err("a landed merge in another branch's checkout stops the command");
-    assert!(refused.0.contains("refs/heads/other"), "the branch the worktree has is named: {}", refused.0);
-    assert!(refused.0.contains("refs/heads/main"), "the branch that names the merge is named: {}", refused.0);
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("recovery reads the state");
+    let refused: String = stopped_of(&outcomes);
+    assert!(refused.contains("refs/heads/other"), "the branch the worktree has is named: {}", refused);
+    assert!(refused.contains("refs/heads/main"), "the branch that names the merge is named: {}", refused);
     assert!(
-        refused.0.contains("index entries and files"),
+        refused.contains("index entries and files"),
         "it says what stays in this worktree: {}",
-        refused.0
+        refused
     );
     assert!(record.exists(), "the record that names the installed merge is kept");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch still names the merge");
