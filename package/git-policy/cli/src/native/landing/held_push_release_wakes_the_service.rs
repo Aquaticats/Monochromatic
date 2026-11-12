@@ -91,6 +91,7 @@ impl WakeTheService for AskTheService<'_> {
             // The held push's record is durable, so the wake waits the hand-over's own greeting bound.
             start_wait: HAND_OVER_GREETING_WAIT,
             heartbeat_silence: HEARTBEAT_SILENCE,
+            patience: HEARTBEAT_SILENCE,
             start_watch: host.as_ref().map(manager_watch_for),
             keep_fresh: None,
             answer_ceiling: ANSWER_CEILING,

@@ -49,12 +49,18 @@ pub struct ClientConfig {
     ///  failed,
     /// and this is the wait for an older service to retire.
     pub start_wait: Duration,
-    /// How long the service may send nothing,
-    /// heartbeats included,
-    /// before the client treats it as stopped.
+    /// How long the service may say nothing before the client treats it as stopped,
+    /// counted from each message it sends.
     /// There is no limit
     ///  on how long a request waits while the service keeps sending.
     pub heartbeat_silence: Duration,
+    /// What:
+    ///  The one budget of this command's whole exchange with the service.
+    /// Why:
+    ///   A commit's bound is the whole commit and not one of its steps,
+    ///  so every step of its exchange asks `Patience` for what is left instead of taking its own bound.
+    ///  The value every other command keeps is the silence bound each of its steps had already (`HEARTBEAT_SILENCE`).
+    pub patience: Duration,
     /// How to ask the service manager whether the service failed to start;
     /// absent where the client cannot ask.
     pub start_watch: Option<ManagerWatch>,

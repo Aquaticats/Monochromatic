@@ -271,6 +271,7 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
                     activation: Activation::Managed,
                     start_wait: reach.start_wait,
                     heartbeat_silence: HEARTBEAT_SILENCE,
+                    patience: HEARTBEAT_SILENCE,
                     start_watch: host.as_ref().map(manager_watch_for),
                     keep_fresh: None,
                     answer_ceiling: ANSWER_CEILING,

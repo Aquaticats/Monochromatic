@@ -143,6 +143,7 @@ fn config_for(fixture: &Fixture, name: &str, answer_ceiling: Duration) -> Client
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: PATIENCE,
+        patience: Duration::from_secs(5),
         start_watch: None,
         keep_fresh: None,
         answer_ceiling,

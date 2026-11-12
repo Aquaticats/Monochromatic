@@ -679,6 +679,11 @@ mod service_landing_state;
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
 
+/// A commit whose service is stopped in the middle of its exchange:
+/// it is made here, and the service that runs again makes no second one.
+#[path = "binary_commit_after_the_service_stops_tests.rs"]
+mod commit_after_a_stopped_service;
+
 /// The abort forms while the operation they undo waits for its conflicts:
 /// what runs,
 /// what is saved first,

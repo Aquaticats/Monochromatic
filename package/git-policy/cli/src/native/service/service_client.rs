@@ -29,6 +29,7 @@ pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_reti
 use crate::service_client_listen_and_ask_to_retire::{Heard, a_message_is_already_here, listen, read_message};
 pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
+use crate::service_client_patience::Patience;
 use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
@@ -153,7 +154,14 @@ pub fn submit_traced(config: &ClientConfig, request: &CommitRequest, notices: &m
     // The signals a waiting commit answers are watched only while it waits: a Ctrl-C before the commit exists, or after it
     //  landed, keeps the ending it has, and the actions that were in place come back with the watch.
     let stop_watch: crate::service_client_interrupted::StopWatch = crate::service_client_interrupted::watch_for_a_stop();
-    let answered = submit_loop(config, request, notices, trace);
+    // What:
+    //  One budget for every step of this exchange, so no step keeps its own bound past the end of the commit's.
+    // Why:
+    //  The owner's bound is five seconds for a whole commit and not for one of its steps,
+    //  and a service that says nothing complete for the budget is one that stopped.
+    //  The budget is here and not in the loop, because the withdrawal after the loop asks the service too.
+    let mut patience: Patience = Patience::of(config.patience);
+    let answered = submit_loop(config, request, notices, trace, &mut patience);
     drop(stop_watch);
     trace.total += began.elapsed();
     return answered;
@@ -197,7 +205,7 @@ fn renew_scratch(settings: &ClientConfig, last_renewed: &mut Option<Instant>) {
 /// so nothing lands twice,
 /// and the
 ///  command ends when every try has met silence or a closed connection.
-fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
+fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace, patience: &mut Patience) -> Result<Submitted, ClientFailure> {
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
     let mut announced: bool = false;
     let mut breaks: usize = 0;
@@ -272,7 +280,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         // ```ts
         // const reader = await reachCurrent(config); // after a send: a failure means 'not known', never 'not made'
         // ```
-        let mut reader: BufReader<UnixStream> = match reach_current(config, notices, &mut announced, &mut trace.reach, service_seen) {
+        let mut reader: BufReader<UnixStream> = match reach_current(config, notices, &mut announced, &mut trace.reach, service_seen, patience) {
             Ok(reached) => reached,
             Err(failure) if trace.sends > 0 => {
                 debug(TAG, format!("the service could not be reached again after the request was sent ({failure:?}), so the result is not known").as_str());
@@ -283,13 +291,32 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         service_seen = true;
         let mut payload: String = line.clone();
         payload.push('\n');
-        if reader.get_mut().write_all(payload.as_bytes()).is_err() {
-            breaks += 1;
-            trace.reconnects += 1;
-            if breaks > RECONNECTS {
-                return Err(ClientFailure::MayNotHaveLanded);
+        // What:
+        //  The request is written within what is left of the budget, and a write that does not go says the service is not
+        //  reading.
+        // Why:
+        //  A write of a request near the protocol's one-mebibyte limit fills the connection's buffers, and a service that was
+        //  stopped while it held them makes the write wait with no end:
+        //  the audit of release 0.6.1-alpha.12 watched a real service, stopped, hold a commit there
+        //  (`doc/troubleshooting/`, "A commit whose service stopped reading or answering").
+        //  Nothing this command reads afterwards would run, so the write itself is what has to end.
+        //  A service that stopped reading is not a service a second send can reach,
+        //  so the exchange ends here with the words for a request that may have landed.
+        let _write_bound = reader.get_mut().set_write_timeout(Some(patience.wait()));
+        match reader.get_mut().write_all(payload.as_bytes()) {
+            Ok(()) => {}
+            Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {
+                debug(TAG, format!("the service did not read the request within {patience:?} of a write: it is stopped or frozen").as_str());
+                return Err(ClientFailure::ServiceSilent);
             }
-            continue;
+            Err(_) => {
+                breaks += 1;
+                trace.reconnects += 1;
+                if breaks > RECONNECTS {
+                    return Err(ClientFailure::MayNotHaveLanded);
+                }
+                continue;
+            }
         }
         trace.sends += 1;
         if parked.is_none() {
@@ -320,8 +347,11 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             //  writes the flag the wait reads after its own read gives up, which can be a whole silence bound later.
             let heard: Heard = {
                 let _awake = crate::service_client_interrupted::waking_the_read_of(reader.get_ref());
-                listen(&mut reader)
+                listen(&mut reader, patience, config.heartbeat_silence)
             };
+            if matches!(heard, Heard::Message(_)) {
+                patience.heard();
+            }
             if matches!(heard, Heard::Message(_)) {
                 renew_scratch(config, &mut last_renewed);
             }
@@ -395,6 +425,18 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 // Each message, this one too, restarts the silence bound; nothing else is needed.
                 Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat | ServiceMessage::Withdrawn { .. }) => {}
                 Heard::Silent => {
+                    // What:
+                    //  A person's interrupt that came while this wait ran is answered before the silence is read as the
+                    //  service's end.
+                    // Why:
+                    //  Native Git makes no commit for a command that was interrupted,
+                    //  and a silence is where the end of the exchange is decided:
+                    //  a command that made the commit itself after the person stopped it would be the one ending that breaks
+                    //  that rule.
+                    if let Some(signal) = crate::service_client_interrupted::stop_requested() {
+                        trace.answer_wait += written_at.elapsed();
+                        return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal });
+                    }
                     last_break_was_silence = true;
                     break None;
                 }
@@ -410,12 +452,22 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         }
         // The service went silent or the connection broke before an answer: the service died, hung or was replaced. Send the
         //  same request again.
-        breaks += 1;
-        if breaks > RECONNECTS {
-            return Err(if last_break_was_silence { ClientFailure::ServiceSilent } else { ClientFailure::MayNotHaveLanded });
-        }
+        // What:
+        //  A service that said nothing for the whole budget is stopped, and the request is not sent to it again.
+        // Why:
+        //  The service beats every second while it works,
+        //  so a silence of the whole budget is a process that is not running:
+        //  a second send to it costs the same wait again and cannot be read,
+        //  and the commit's caller is what makes the commit then.
+        //  A service that went away closes its connection instead,
+        //  and a service the manager starts again is what the resend below is for.
         if last_break_was_silence {
             let _written = writeln!(notices, "{SILENT_NOTICE}");
+            return Err(ClientFailure::ServiceSilent);
+        }
+        breaks += 1;
+        if breaks > RECONNECTS {
+            return Err(ClientFailure::MayNotHaveLanded);
         }
         std::thread::sleep(CONNECT_PAUSE * u32::try_from(breaks).unwrap_or(1));
     }
@@ -446,21 +498,25 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
     // What the service says it is stuck in on this connection replaces what it said on the first one: it is the newer.
     let mut blocker: Option<String> = heard_blocker;
     let mut announced: bool = true;
-    let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), true) else {
+    // The withdrawal is a step with its own budget: a service that says nothing here is one the request stays with, and the
+    //  words for that are the ones the caller asked for.
+    let mut patience: Patience = Patience::of(config.patience);
+    let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), true, &mut patience) else {
         return Err(why.not_known(blocker));
     };
     let mut asking: String = encode_client(&ClientMessage::Withdraw { id: id.to_string() });
     asking.push('\n');
+    let _write_bound = reader.get_mut().set_write_timeout(Some(patience.wait()));
     if reader.get_mut().write_all(asking.as_bytes()).is_err() {
         return Err(why.not_known(blocker));
     }
     let mut deadline: Instant = Instant::now() + config.withdraw_ceiling;
     while Instant::now() < deadline {
         // No read waits past the withdrawal's ceiling, whatever the silence bound says.
-        let _timeout = reader.get_ref().set_read_timeout(Some(deadline.saturating_duration_since(Instant::now()).max(Duration::from_millis(1)).min(config.heartbeat_silence)));
+        let own: Duration = deadline.saturating_duration_since(Instant::now()).max(Duration::from_millis(1)).min(config.heartbeat_silence);
         let heard: Heard = {
             let _awake = crate::service_client_interrupted::waking_the_read_of(reader.get_ref());
-            listen(&mut reader)
+            listen(&mut reader, &patience, own)
         };
         match heard {
             Heard::Message(ServiceMessage::Landed { commit, .. }) => return Ok(Submitted::Landed { commit, already: true }),
@@ -514,7 +570,11 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     let mut line: String = encode_client(&ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: review_key.cloned() });
     line.push('\n');
     let mut announced: bool = false;
-    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default(), false)?;
+    let patience: Patience = Patience::of(config.patience);
+    let mut reaching: Patience = Patience::of(config.patience);
+    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default(), false, &mut reaching)?;
+    // The line is small, and a service that does not take it is not reading this connection either.
+    let _write_bound = reader.get_mut().set_write_timeout(Some(patience.wait()));
     if reader.get_mut().write_all(line.as_bytes()).is_err() {
         return Err(ClientFailure::Unavailable);
     }
@@ -526,9 +586,7 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
             debug(TAG, format!("the service did not close the connection within {:?} of the line being written", config.heartbeat_silence).as_str());
             break;
         }
-        // No read waits past the bound, whatever the service sends.
-        let _timeout = reader.get_ref().set_read_timeout(Some(left));
-        if read_message(&mut reader).is_none() {
+        if read_message(&mut reader, &patience, left).is_none() {
             break;
         }
     }

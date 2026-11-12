@@ -15,6 +15,7 @@
 //! ```
 
 use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, connect, listen};
+use crate::service_client_patience::Patience;
 use crate::commit_timing::ReachTrace;
 use crate::service_messages::{ClientFailure, UPDATING_NOTICE, restarting_notice, starting_notice};
 use crate::wait_ceilings::SERVICE_GREETING_SILENCE;
@@ -46,10 +47,13 @@ use std::time::{Duration, Instant};
 /// a service that then greets nothing within the silence bound is the
 ///  one that stopped,
 /// and that ends the wait.
+/// Every wait here is shortened to what `patience` has left,
+/// so a command with one budget gives up when the service has said nothing for all of it,
+/// whatever this step's own bound is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { stream, version } = await reach(config, notices, serviceSeen)
+/// const { stream, version } = await reach(config, notices, serviceSeen, patience)
 /// ```
 pub(crate) fn reach(
     config: &ClientConfig,
@@ -57,6 +61,7 @@ pub(crate) fn reach(
     announced: &mut bool,
     trace: &mut ReachTrace,
     service_seen: bool,
+    patience: &mut Patience,
 ) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
     let mut started: Instant = Instant::now();
     let mut refused_here: bool = false;
@@ -75,19 +80,28 @@ pub(crate) fn reach(
     let mut connected: bool = false;
     loop {
         trace.tries += 1;
+        // What:
+        //  A budget that is already spent ends the wait before a connection is made: the service said nothing for all of it.
+        // Why:
+        //  The connection a spent budget would make could only wait for a greeting the service has not sent, and the answer
+        //  is the one its own bound gives, with a wait nobody needs.
+        if patience.spent() {
+            return Err(if connected { nothing_answered(config, connected, started.elapsed()) } else { ClientFailure::DidNotStart });
+        }
         match connect(&config.address) {
             Ok(stream) => {
                 connected = true;
-                let patience: Duration = match (&config.start_watch, service_seen) {
+                let own: Duration = match (&config.start_watch, service_seen) {
                     (_, true) => config.heartbeat_silence,
                     (Some(watch), false) => watch.every,
                     (None, false) => greeting_patience_without_a_manager(config, started),
                 };
-                let _timeout = stream.set_read_timeout(Some(patience));
                 let mut reader: BufReader<UnixStream> = BufReader::new(stream);
-                match listen(&mut reader) {
+                // The reader sets the timeout of each read from the budget and this attempt's own bound, so a greeting that
+                //  never becomes a line is bounded as the answer is.
+                match listen(&mut reader, patience, own) {
                     Heard::Message(ServiceMessage::Welcome { version, release }) => {
-                        let _widened = reader.get_ref().set_read_timeout(Some(config.heartbeat_silence));
+                        patience.heard();
                         trace.saw_release(release.as_deref());
                         if refused_here {
                             trace.start_waited += started.elapsed();
@@ -322,18 +336,32 @@ fn nothing_answered(config: &ClientConfig, connected: bool, waited: Duration) ->
 /// ```ts
 /// const reader = await reachCurrent(config, notices, announced)
 /// ```
-pub(crate) fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
+pub(crate) fn reach_current(
+    config: &ClientConfig,
+    notices: &mut dyn Write,
+    announced: &mut bool,
+    trace: &mut ReachTrace,
+    service_seen: bool,
+    patience: &mut Patience,
+) -> Result<BufReader<UnixStream>, ClientFailure> {
     let began: Instant = Instant::now();
-    let reached = reach_current_untimed(config, notices, announced, trace, service_seen);
+    let reached = reach_current_untimed(config, notices, announced, trace, service_seen, patience);
     trace.elapsed += began.elapsed();
     return reached;
 }
 
 /// `reach_current` without the clock around it.
-pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
+pub(crate) fn reach_current_untimed(
+    config: &ClientConfig,
+    notices: &mut dyn Write,
+    announced: &mut bool,
+    trace: &mut ReachTrace,
+    service_seen: bool,
+    patience: &mut Patience,
+) -> Result<BufReader<UnixStream>, ClientFailure> {
     let mut give_up_at: Option<Instant> = None;
     loop {
-        let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen)?;
+        let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen, patience)?;
         if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
             trace.answered_by = release;
             return Ok(reader);
@@ -369,6 +397,7 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
         // Written in the version the service announced: a service of an earlier release reads a retire in no other.
         let mut retire: String = encode_retire(version);
         retire.push('\n');
+        let _bounded = reader.get_mut().set_write_timeout(Some(patience.bound(config.heartbeat_silence)));
         let _sent = reader.get_mut().write_all(retire.as_bytes());
         trace.retires_sent += 1;
         std::thread::sleep(CONNECT_PAUSE * 4);

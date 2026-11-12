@@ -135,7 +135,7 @@ fn leave_a_batch_open(world: &World) {
 /// Reads the greeting of the service on `reader`,
 /// and says whether it came.
 fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
-    return matches!(read_message(reader), Some(ServiceMessage::Welcome { .. }));
+    return matches!(read_message(reader, &a_patience(), crate::service_protocol::HEARTBEAT_SILENCE), Some(ServiceMessage::Welcome { .. }));
 }
 
 /// What:
@@ -183,7 +183,7 @@ fn a_client_that_connects_while_the_service_recovers_is_greeted_and_beaten() {
     let mut beats: usize = 0;
     let waited: Instant = Instant::now();
     while waited.elapsed() < HEARTBEAT_EVERY * 4 && beats == 0 {
-        match read_message(&mut reader) {
+        match read_message(&mut reader, &a_patience(), crate::service_protocol::HEARTBEAT_SILENCE) {
             Some(ServiceMessage::Heartbeat) => beats += 1,
             // The answer cannot come before the recovery is let go; a line that is not a beat is read and the wait goes on.
             Some(_other) => {}
@@ -196,7 +196,7 @@ fn a_client_that_connects_while_the_service_recovers_is_greeted_and_beaten() {
     let mut landed: Option<String> = None;
     let answered: Instant = Instant::now();
     while answered.elapsed() < PATIENCE && landed.is_none() {
-        match read_message(&mut reader) {
+        match read_message(&mut reader, &a_patience(), crate::service_protocol::HEARTBEAT_SILENCE) {
             Some(ServiceMessage::Landed { commit, .. }) => landed = Some(commit),
             Some(_other) => {}
             None => break,
@@ -236,4 +236,9 @@ fn join_within(thread: std::thread::JoinHandle<()>) -> bool {
     }
     let _joined = thread.join();
     return true;
+}
+
+/// The budget of a control that reads a line: the silence bound every command gives the service.
+fn a_patience() -> crate::service_client_patience::Patience {
+    return crate::service_client_patience::Patience::of(crate::service_protocol::HEARTBEAT_SILENCE);
 }

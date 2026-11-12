@@ -33,6 +33,34 @@ use std::time::Duration;
 ///  750,604 ms. Twenty minutes is 3.9 times the longest answer wait and 1.6 times the longest whole commit.
 pub const ANSWER_CEILING: Duration = Duration::from_secs(20 * 60);
 
+/// What:
+///  The one budget a commit gives the commit service to say something complete,
+///  counted from each complete message and spent across every step of the exchange:
+///  the greeting of a connection,
+///  the write of the request,
+///  the answer,
+///  a connection again,
+///  and what the command says to the service after it landed.
+/// Why:
+///  The owner's bound is five seconds for a whole commit and not for one of its steps,
+///  so the steps cannot each keep their own bound:
+///  the commit gives the service two seconds of silence in all,
+///  and makes the commit itself when the service spends them
+///  (`landing/service_land_after_the_service_stopped.rs`).
+///  Two missed beats are the smallest number that is not one late timer:
+///  a beat is written every `HEARTBEAT_EVERY` (one second) and the 300 timers measured for it fired at most 2.2 ms late
+///  (`service_protocol.rs`),
+///  so one missing beat is a loaded host and two are a process that is not running.
+///  The after-landing hand-over after such a commit waits the same patience for a greeting,
+///  so the whole exchange and that wait stay under the owner's 5,000 ms bound on what a commit may add to native Git
+///  (`package/git-policy/cli/mise.toml`,
+///  `native:perf`).
+///  A wrong call costs the service the work it was doing and never the commit:
+///  the client makes the commit itself,
+///  and a service that lands the same request anyway lands a commit with the same identity,
+///  which the branch's compare-and-swap finds already there.
+pub const COMMIT_SERVICE_PATIENCE: Duration = Duration::from_secs(2);
+
 /// The longest a commit that moved under its own build is built again on the new tip,
 /// counted from the first build.
 /// It replaces a count of five builds,

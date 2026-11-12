@@ -177,6 +177,10 @@ pub mod service_client_settings_and_watches;
 /// starting it when nothing answers.
 pub mod service_client_reach_service;
 
+/// The one budget a command gives the service to answer,
+/// counted across every step of its exchange with it.
+pub mod service_client_patience;
+
 /// What provisioning knows about the machine and the manager it asks,
 /// the earlier release's unit names and what a refused call is to the person.
 pub mod service_provision_host_and_manager;

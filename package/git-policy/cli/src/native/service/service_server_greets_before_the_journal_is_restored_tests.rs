@@ -173,7 +173,7 @@ fn release_the_pipe(path: &Path) {
 /// Reads the greeting of the service on `reader`,
 /// and says whether it came.
 fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
-    return matches!(read_message(reader), Some(ServiceMessage::Welcome { .. }));
+    return matches!(read_message(reader, &a_patience(), crate::service_protocol::HEARTBEAT_SILENCE), Some(ServiceMessage::Welcome { .. }));
 }
 
 /// What:
@@ -208,7 +208,7 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
     let mut landed: Option<String> = None;
     let waited: Instant = Instant::now();
     while waited.elapsed() < PATIENCE && landed.is_none() {
-        match read_message(&mut reader) {
+        match read_message(&mut reader, &a_patience(), crate::service_protocol::HEARTBEAT_SILENCE) {
             Some(ServiceMessage::Heartbeat) => beats += 1,
             Some(ServiceMessage::Landed { commit, .. }) => landed = Some(commit),
             Some(_other) => {}
@@ -248,4 +248,9 @@ fn join_within(thread: std::thread::JoinHandle<()>) -> bool {
     }
     let _joined = thread.join();
     return true;
+}
+
+/// The budget of a control that reads a line: the silence bound every command gives the service.
+fn a_patience() -> crate::service_client_patience::Patience {
+    return crate::service_client_patience::Patience::of(crate::service_protocol::HEARTBEAT_SILENCE);
 }

@@ -35,9 +35,9 @@ fn a_line_is_read_as_a_message_and_a_closed_connection_as_none() {
     let mut line: String = encode_service(&greeting);
     line.push('\n');
     let mut reader: BufReader<UnixStream> = reader_after(line.as_bytes());
-    assert_eq!(read_message(&mut reader), Some(greeting));
-    assert_eq!(read_message(&mut reader), None, "the service closed the connection after its line");
-    assert_eq!(read_message(&mut reader_after(b"")), None, "a connection closed with nothing sent");
+    assert_eq!(read_message(&mut reader, &a_patience(), crate::service_protocol::HEARTBEAT_SILENCE), Some(greeting));
+    assert_eq!(read_message(&mut reader, &a_patience(), crate::service_protocol::HEARTBEAT_SILENCE), None, "the service closed the connection after its line");
+    assert_eq!(read_message(&mut reader_after(b""), &a_patience(), crate::service_protocol::HEARTBEAT_SILENCE), None, "a connection closed with nothing sent");
 }
 
 /// A line that is not a message reads as none,
@@ -50,7 +50,7 @@ fn a_line_is_read_as_a_message_and_a_closed_connection_as_none() {
 #[test]
 fn an_empty_or_damaged_line_decodes_to_no_message() {
     assert!(decode_service("").is_err(), "an empty line is not a message");
-    assert_eq!(read_message(&mut reader_after(b"not a message\n")), None);
+    assert_eq!(read_message(&mut reader_after(b"not a message\n"), &a_patience(), crate::service_protocol::HEARTBEAT_SILENCE), None);
 }
 
 /// A read-only failure is the frozen-move one only when the move's record covers the repository:
@@ -86,6 +86,8 @@ fn reach_settings(address: &str) -> ClientConfig {
         activation: Activation::Managed,
         start_wait: Duration::from_millis(300),
         heartbeat_silence: Duration::from_millis(200),
+        // The budget is the silence bound a command of these controls had before there was a budget at all.
+        patience: Duration::from_secs(5),
         start_watch: None,
         keep_fresh: None,
         answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,
@@ -95,6 +97,20 @@ fn reach_settings(address: &str) -> ClientConfig {
         start_ceiling: crate::wait_ceilings::START_CEILING,
         units_record_dir: None,
     };
+}
+
+/// What:
+///  The settings of a client whose whole budget for the service is short,
+///  so a control that measures the budget ends in a fraction of a second.
+/// Why:
+///  These controls assert that the budget, and not a step's own bound, is what ends a wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reachSettingsWithPatience({ startWait: 300, silence: 200, patience: 300 })
+/// ```
+fn settings_with_a_short_budget(address: &str) -> ClientConfig {
+    return ClientConfig { patience: Duration::from_millis(300), ..reach_settings(address) };
 }
 
 /// A request the fake services below never look at,
@@ -334,4 +350,125 @@ fn a_commit_that_landed_before_the_signal_came_stays_landed() {
     interrupting.join().expect("the interrupt is sent");
     drop(serving);
     assert_eq!(submitted, Submitted::Landed { commit, already: true }, "a commit on the branch is reported as landed");
+}
+
+/// The budget of a control that reads a line: the silence bound every command gives the service.
+fn a_patience() -> crate::service_client_patience::Patience {
+    return crate::service_client_patience::Patience::of(crate::service_protocol::HEARTBEAT_SILENCE);
+}
+
+/// What:
+///  A service that sends bytes and never ends its line costs the client its budget and nothing more.
+/// Why:
+///  A line read by one `read_line` restarts the system's read timeout with every chunk it returns,
+///  so a service that dribbles bytes and never writes a newline keeps the client inside one call for ever:
+///  the third audit of release 0.6.1-alpha.12 watched eight seconds of it with no bound in sight
+///  (finding r01 of `~/temp/agent/kimi-trials/kimi-audit-alpha-12-commit-service-landing`).
+///  The client reads a line in chunks and asks the budget between two of them,
+///  so it gives up, and it gives up once: a second connection would be another eight seconds.
+#[test]
+fn a_service_that_never_ends_its_line_costs_the_client_its_budget_and_nothing_more() {
+    let name: String = an_address("unterminated-line");
+    let service: UnixListener = a_listener_on(name.as_str());
+    let connections: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::clone(&connections);
+    let serving = std::thread::spawn(move || {
+        let _set = service.set_nonblocking(true);
+        let began: Instant = Instant::now();
+        while began.elapsed() < STAND_IN_PATIENCE {
+            match service.accept() {
+                Ok((stream, _address)) => {
+                    let _counted = counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    // Bytes that are the start of no message, and no newline: the service talks and answers nothing.
+                    for _chunk in 0..40 {
+                        if (&stream).write_all(b"{\"welcome\":").is_err() {
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                }
+                Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
+    });
+    let began: Instant = Instant::now();
+    let failure: ClientFailure = submit(&settings_with_a_short_budget(name.as_str()), &a_request("unterminated-line"), &mut std::io::sink())
+        .expect_err("a service that never ends its line answers nothing");
+    let waited: Duration = began.elapsed();
+    drop(serving);
+    assert!(matches!(failure, ClientFailure::NothingAnswered { .. }), "the words are the ones for nothing answering: {failure:?}");
+    assert!(waited < Duration::from_secs(3), "the budget ended the wait in {waited:?}");
+    assert_eq!(connections.load(std::sync::atomic::Ordering::SeqCst), 1, "the client waits for one service and makes one connection");
+}
+
+/// What:
+///  A request whose write the service does not take ends within the budget instead of in the write.
+/// Why:
+///  A request near the protocol's one-mebibyte limit fills the connection's buffers,
+///  and a service that stopped reading keeps the write waiting with no end:
+///  a real service, stopped, held a commit there for the whole observation of the first audit of release 0.6.1-alpha.12
+///  (`~/temp/agent/kimi-trials/kimi-audit-alpha-12-commit-path`,
+///  finding 1).
+///  Nothing the client reads afterwards would run, so the write itself is what the budget has to end.
+#[test]
+fn a_request_the_service_does_not_read_ends_within_the_budget_instead_of_in_the_write() {
+    let name: String = an_address("write-not-taken");
+    let service: UnixListener = a_listener_on(name.as_str());
+    let serving = std::thread::spawn(move || {
+        let (stream, _address) = service.accept().expect("the client connects");
+        // The greeting, and then nothing: the connection is never read again.
+        (&stream).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice()).expect("greet");
+        std::thread::sleep(STAND_IN_PATIENCE);
+        drop(stream);
+    });
+    let mut request: CommitRequest = a_request("write-not-taken");
+    // A request large enough to fill the connection: the connection holds about two hundred kilobytes.
+    request.message = format!("{}\n", "m".repeat(crate::service_protocol::MAX_LINE_BYTES.div_ceil(2)));
+    let began: Instant = Instant::now();
+    let failure: ClientFailure = submit(&settings_with_a_short_budget(name.as_str()), &request, &mut std::io::sink()).expect_err("the service takes no request");
+    let waited: Duration = began.elapsed();
+    drop(serving);
+    assert_eq!(failure, ClientFailure::ServiceSilent, "a service that does not read the request may have landed it, and nothing here says it did not");
+    assert!(waited < Duration::from_secs(3), "the budget ended the write in {waited:?}");
+}
+
+/// What:
+///  A service that takes the request and then says nothing is given up on once, not once per silence.
+/// Why:
+///  The service beats every second while it works, so a silence of the whole budget is a process that is not running,
+///  and a second send to it costs the same wait again and cannot be read.
+///  The commit's caller is what makes the commit then, so the wait is spent there.
+#[test]
+fn a_service_that_takes_the_request_and_says_nothing_is_given_up_on_once() {
+    let name: String = an_address("silent-after-request");
+    let service: UnixListener = a_listener_on(name.as_str());
+    let connections: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::clone(&connections);
+    let serving = std::thread::spawn(move || {
+        let _set = service.set_nonblocking(true);
+        let began: Instant = Instant::now();
+        let mut kept: Vec<UnixStream> = Vec::new();
+        while began.elapsed() < STAND_IN_PATIENCE {
+            match service.accept() {
+                Ok((stream, _address)) => {
+                    let _counted = counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let _greeting = (&stream).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
+                    // The request is read and nothing is ever answered.
+                    use std::io::BufRead as _;
+                    let mut asked: String = String::new();
+                    let _read = std::io::BufReader::new(&stream).read_line(&mut asked);
+                    kept.push(stream);
+                }
+                Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
+            }
+        }
+    });
+    let began: Instant = Instant::now();
+    let failure: ClientFailure = submit(&settings_with_a_short_budget(name.as_str()), &a_request("silent-after-request"), &mut std::io::sink())
+        .expect_err("a service that answers nothing leaves the result not known");
+    let waited: Duration = began.elapsed();
+    drop(serving);
+    assert_eq!(failure, ClientFailure::ServiceSilent);
+    assert_eq!(connections.load(std::sync::atomic::Ordering::SeqCst), 1, "the request is not sent to a service that said nothing, in {waited:?}");
+    assert!(waited < Duration::from_secs(2), "the budget ended the wait in {waited:?}");
 }

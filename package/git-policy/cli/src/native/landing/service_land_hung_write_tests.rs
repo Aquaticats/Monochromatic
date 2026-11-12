@@ -122,6 +122,7 @@ fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: PATIENCE,
+        patience: Duration::from_secs(5),
         start_watch: None,
         keep_fresh: None,
         answer_ceiling,

@@ -233,6 +233,7 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
         activation: Activation::Managed,
         start_wait: HAND_OVER_GREETING_WAIT,
         heartbeat_silence: HEARTBEAT_SILENCE,
+        patience: HEARTBEAT_SILENCE,
         start_watch: host.as_ref().map(manager_watch_for),
         keep_fresh: None,
         answer_ceiling: ANSWER_CEILING,

@@ -218,6 +218,7 @@ fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
         // A whole second, so the covered case cannot spend it unnoticed: the client must ask after the first answer.
         start_wait: Duration::from_secs(1),
         heartbeat_silence: Duration::from_millis(200),
+        patience: Duration::from_millis(200),
         start_watch: Some(ManagerWatch {
             bus: PathBuf::from("/nonexistent/bus"),
             unit: String::from(unit),
@@ -285,6 +286,7 @@ fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
         &mut announced,
         &mut crate::commit_timing::ReachTrace::default(),
         false,
+        &mut a_patience(),
     );
     let asked_of_the_manager: Vec<String> = asked();
     let (reader, version, _release) = reached.unwrap_or_else(|failure| {
@@ -359,7 +361,7 @@ fn a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units
     settings.start_wait = Duration::from_millis(300);
     settings.units_record_dir = Some(runtime.clone());
     let mut announced: bool = false;
-    let failure: ClientFailure = reach_current(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+    let failure: ClientFailure = reach_current(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false, &mut a_patience())
         .expect_err("a service of another release that will not stop ends the command");
     assert_eq!(failure, ClientFailure::OtherRelease);
     assert!(
@@ -417,7 +419,7 @@ fn a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_th
     settings.start_wait = Duration::from_millis(200);
     settings.units_record_dir = Some(runtime.clone());
     let mut announced: bool = false;
-    let failure: ClientFailure = reach_current(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+    let failure: ClientFailure = reach_current(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false, &mut a_patience())
         .expect_err("a service that left and cannot come back ends the wait");
     assert_eq!(failure, ClientFailure::DidNotStart);
     assert!(
@@ -474,7 +476,7 @@ fn a_service_that_never_greets_because_the_units_program_is_gone_is_repaired_by_
     settings.start_ceiling = Duration::from_millis(600);
     settings.units_record_dir = Some(runtime.clone());
     let mut announced: bool = false;
-    let reached = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
+    let reached = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false, &mut a_patience());
     let asked_of_the_manager: Vec<String> = asked();
     let (_reader, version, _release) = reached.unwrap_or_else(|failure| {
         panic!("the reload of the units must make the service startable: {failure:?} after {asked_of_the_manager:?}")
@@ -564,7 +566,7 @@ fn a_running_unit_that_greets_nothing_is_asked_to_restart_once_and_the_service_i
     settings.start_ceiling = Duration::from_secs(30);
     let mut announced: bool = false;
     let mut notices: Vec<u8> = Vec::new();
-    let reached = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
+    let reached = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false, &mut a_patience());
     let asked_of_the_manager: Vec<String> = asked();
     let (_reader, version, _release) = reached.unwrap_or_else(|failure| {
         panic!("the restart must make the service answer: {failure:?} after {asked_of_the_manager:?}, notices {:?}", String::from_utf8_lossy(notices.as_slice()))
@@ -642,6 +644,7 @@ fn an_address_that_answers_nothing_with_no_manager_to_ask_is_named_truly() {
         // Past the notice grace, so this control also reads the line the wait prints.
         start_wait: Duration::from_millis(1_200),
         heartbeat_silence: Duration::from_millis(200),
+        patience: Duration::from_millis(200),
         start_watch: None,
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
@@ -654,7 +657,7 @@ fn an_address_that_answers_nothing_with_no_manager_to_ask_is_named_truly() {
     let mut announced: bool = false;
     let mut notices: Vec<u8> = Vec::new();
     let began: std::time::Instant = std::time::Instant::now();
-    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false).expect_err("nothing answered, so nothing is reached");
+    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false, &mut a_patience()).expect_err("nothing answered, so nothing is reached");
     assert!(began.elapsed() < Duration::from_secs(3), "the wait ends at its own bound: {:?}", began.elapsed());
     let ClientFailure::NothingAnswered { address: named, waited } = &failure else { panic!("the failure says what the wait proved: {failure:?}") };
     assert!(named.contains(socket.as_str()), "the address is named: {named}");
@@ -695,6 +698,7 @@ fn an_address_nothing_listens_on_is_the_service_that_did_not_start() {
         activation: Activation::Managed,
         start_wait: Duration::from_millis(200),
         heartbeat_silence: Duration::from_millis(200),
+        patience: Duration::from_millis(200),
         start_watch: None,
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
@@ -705,7 +709,7 @@ fn an_address_nothing_listens_on_is_the_service_that_did_not_start() {
         units_record_dir: None,
     };
     let mut announced: bool = false;
-    let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false).expect_err("nothing listens, so nothing is reached");
+    let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false, &mut a_patience()).expect_err("nothing listens, so nothing is reached");
     assert_eq!(failure, ClientFailure::DidNotStart);
 }
 
@@ -753,6 +757,7 @@ fn a_unit_the_manager_calls_failed_is_asked_to_start_again_and_the_service_is_re
         &mut announced,
         &mut crate::commit_timing::ReachTrace::default(),
         false,
+        &mut a_patience(),
     );
     let asked_of_the_manager: Vec<String> = asked();
     let (reader, version, release) = reached.unwrap_or_else(|failure| {
@@ -844,6 +849,7 @@ fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends(
         // Twice the notice grace, so the line and the end of the wait are a second apart at the least.
         start_wait: Duration::from_millis(2_400),
         heartbeat_silence: Duration::from_millis(200),
+        patience: Duration::from_millis(200),
         start_watch: None,
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
@@ -856,7 +862,7 @@ fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends(
     let mut notices: TimesOfLines = TimesOfLines::start();
     let mut announced: bool = false;
     let began: std::time::Instant = std::time::Instant::now();
-    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+    let failure: ClientFailure = reach(&settings, &mut notices, &mut announced, &mut crate::commit_timing::ReachTrace::default(), false, &mut a_patience())
         .expect_err("nothing answered, so nothing is reached");
     let waited: Duration = began.elapsed();
     // A formatting call may hand the sink the text and its line feed in two writes, so the text is read as one and the
@@ -874,4 +880,9 @@ fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends(
     finished.store(true, std::sync::atomic::Ordering::Relaxed);
     serving.join().expect("the stand-in service's thread");
     drop(held);
+}
+
+/// The budget of a control that reaches a service: the silence bound every command gives it.
+fn a_patience() -> crate::service_client_patience::Patience {
+    return crate::service_client_patience::Patience::of(Duration::from_millis(200));
 }

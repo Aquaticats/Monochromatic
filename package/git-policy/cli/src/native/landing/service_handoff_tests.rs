@@ -18,6 +18,7 @@ fn handoff(root: &std::path::Path, activation: Activation) -> ServiceHandoff {
             activation,
             start_wait: Duration::from_millis(100),
             heartbeat_silence: Duration::from_secs(1),
+            patience: Duration::from_secs(5),
             start_watch: None, keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING,
             waiting_notice_after: Duration::from_secs(60),
             units_record_dir: None,

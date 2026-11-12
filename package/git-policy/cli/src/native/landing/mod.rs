@@ -84,6 +84,9 @@ pub mod held_commit_settle_move;
 /// and the reflog row that move writes.
 pub mod service_land_record_the_batch;
 
+/// The commit a command makes for itself when the service stopped answering it.
+pub mod service_land_after_the_service_stopped;
+
 /// Which requests of a batch a landing still makes,
 /// given which of their clients went away before their commits landed.
 pub mod service_land_requests_whose_client_is_gone;

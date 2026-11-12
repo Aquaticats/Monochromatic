@@ -1262,6 +1262,7 @@ fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
             activation: crate::service_client::Activation::Unsupported(crate::service_messages::Platform::LinuxWithoutUserServices),
             start_wait: Duration::from_millis(100),
             heartbeat_silence: Duration::from_secs(1),
+            patience: Duration::from_secs(5),
             start_watch: None,
             keep_fresh: None,
             answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,

@@ -17,6 +17,7 @@
 use crate::service_protocol::{
     ServiceMessage, decode_service, encode_retire,
 };
+use crate::service_client_patience::Patience;
 use crate::service_server::Bind;
 use std::io::{BufRead, BufReader, Write};
 use std::os::fd::AsRawFd;
@@ -44,7 +45,6 @@ pub(crate) enum Heard {
     /// Nothing came within the silence bound.
     Silent,
 }
-
 pub(crate) fn connect(address: &Bind) -> std::io::Result<UnixStream> {
     return match address {
         #[cfg(target_os = "linux")]
@@ -59,8 +59,8 @@ pub(crate) fn connect(address: &Bind) -> std::io::Result<UnixStream> {
     };
 }
 
-pub(crate) fn read_message(reader: &mut BufReader<UnixStream>) -> Option<ServiceMessage> {
-    return match listen(reader) {
+pub(crate) fn read_message(reader: &mut BufReader<UnixStream>, patience: &Patience, own: Duration) -> Option<ServiceMessage> {
+    return match listen(reader, patience, own) {
         Heard::Message(message) => Some(message),
         Heard::Closed | Heard::Silent => None,
     };
@@ -69,25 +69,63 @@ pub(crate) fn read_message(reader: &mut BufReader<UnixStream>) -> Option<Service
 /// What:
 ///  Reads one line from the service and says whether it was a message,
 /// a close,
-/// or silence.
+/// or silence,
+/// within the budget the command gave the service.
 /// Why:
 ///   A read that times out is the service saying nothing for the silence bound,
 /// which is not the same as a service that
 ///  closed its end:
 /// the first is asked again with the same request,
 /// the second is a service that went away.
+///  A line is read in chunks here rather than by one `read_line`,
+///  because a service that sends bytes and never ends its line keeps `read_line` inside one call for ever:
+///  every chunk it returns restarts the operating system's read timeout,
+///  so no bound of the client is ever looked at again
+///  (the third audit of release 0.6.1-alpha.12,
+///  finding r01).
+///  The budget is looked at between two chunks, so bytes that never become a message move nothing,
+///  and a line longer than the protocol allows is not a message at all.
+///  `own` is the bound this one step would have without a budget: the silence bound, or the wait a start is given.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const heard = await listen(reader) // { message } | 'closed' | 'silent'
+/// const heard = await listen(reader, patience, own) // { message } | 'closed' | 'silent'
 /// ```
-pub(crate) fn listen(reader: &mut BufReader<UnixStream>) -> Heard {
-    let mut line: String = String::new();
-    return match reader.read_line(&mut line) {
-        Ok(read) if read > 0 => decode_service(line.trim_end_matches('\n')).map_or(Heard::Closed, Heard::Message),
-        Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => Heard::Silent,
-        _ => Heard::Closed,
-    };
+pub(crate) fn listen(reader: &mut BufReader<UnixStream>, patience: &Patience, own: Duration) -> Heard {
+    let mut line: Vec<u8> = Vec::new();
+    loop {
+        if patience.spent() {
+            return Heard::Silent;
+        }
+        // No read waits past this step's own bound or what the command has left, whichever is shorter.
+        let _timeout = reader.get_ref().set_read_timeout(Some(patience.bound(own)));
+        let available: usize = match reader.fill_buf() {
+            Ok(bytes) if bytes.is_empty() => return Heard::Closed,
+            Ok(bytes) => bytes.len(),
+            Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => return Heard::Silent,
+            Err(_) => return Heard::Closed,
+        };
+        let taken: usize = match reader.buffer().iter().position(|byte| return *byte == b'\n') {
+            Some(end) => end + 1,
+            None => available,
+        };
+
+        line.extend_from_slice(&reader.buffer()[..taken]);
+        reader.consume(taken);
+        // A line the protocol does not allow is not a message, and no service sends one: waiting for its end would wait for
+        //  bytes this client never accepts.
+        if line.len() > crate::service_protocol::MAX_LINE_BYTES {
+            return Heard::Closed;
+        }
+        if line.last() != Some(&b'\n') {
+            continue;
+        }
+        let text: String = match String::from_utf8(line) {
+            Ok(read) => read,
+            Err(_not_text) => return Heard::Closed,
+        };
+        return decode_service(text.trim_end_matches('\n')).map_or(Heard::Closed, Heard::Message);
+    }
 }
 
 /// What:
@@ -147,10 +185,11 @@ pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> b
 /// ```
 pub fn ask_to_retire(socket: &std::path::Path) {
     let Ok(stream) = UnixStream::connect(socket) else { return };
-    let _timeout = stream.set_read_timeout(Some(START_WAIT));
     let mut reader: BufReader<UnixStream> = BufReader::new(stream);
-    let Some(ServiceMessage::Welcome { version, .. }) = read_message(&mut reader) else { return };
+    let patience: Patience = Patience::of(START_WAIT);
+    let Some(ServiceMessage::Welcome { version, .. }) = read_message(&mut reader, &patience, START_WAIT) else { return };
     let mut retire: String = encode_retire(version);
     retire.push('\n');
+    let _bounded = reader.get_mut().set_write_timeout(Some(patience.wait()));
     let _sent = reader.get_mut().write_all(retire.as_bytes());
 }
