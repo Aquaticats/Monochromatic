@@ -699,6 +699,38 @@ fn a_commits_scratch_tree_is_made_where_the_sweep_covers_it() {
     remove(root.as_path());
 }
 
+/// What:
+///  The privacy proofs one preparation makes:
+///  the directory it did not make, and never the tree it just made.
+/// Why:
+///   Each proof is one metadata round trip to the device that a commit waits for before it can answer,
+///  and a directory `mkdir` just made is this account's with mode `0700` less the umask,
+///  so proving it cannot change the answer.
+///  The audit of 2026-11-12 charged 8,594 ms of one 9,892 ms commit to this preparation,
+///  and this device stalls a metadata call for seconds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// proofs.forget(); const tree = prepareCommitScratch(common, common, name, ceiling);
+/// expect(proofs.proved()).toEqual([common + '/monochromatic-git-policy-cli-scratch']);
+/// ```
+#[test]
+fn a_preparation_proves_the_directory_it_did_not_make_and_not_the_tree_it_just_made() {
+    let root: PathBuf = fixture("scratch-privacy-proofs");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
+    let named: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
+    // The second attempt makes its tree beside a scratch directory that is already there, which is every commit but the first.
+    let _first: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d-0", SCRATCH_REMOVAL_CEILING).expect("the first commit's tree");
+    test_proofs::forget();
+    let tree: PathBuf = prepare_commit_scratch(common.as_path(), common.as_path(), named, SCRATCH_REMOVAL_CEILING).expect("the second commit's tree");
+    let proved: Vec<PathBuf> = test_proofs::proved();
+    assert_eq!(proved, vec![scratch], "the directory this commit did not make is proved to be this account's and private, and the tree it just made needs no proof: {proved:?}");
+    assert_eq!(tree, common.join(REPOSITORY_SCRATCH_NAME).join(named));
+    remove(root.as_path());
+}
+
 /// A leftover of the command's own earlier attempt whose removal its ceiling cut short does not fail the next attempt:
 ///  the leftover is moved aside under a name no commit tree has,
 ///  the attempt starts from an empty tree,

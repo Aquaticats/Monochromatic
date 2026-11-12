@@ -12801,6 +12801,25 @@ and only the directory the sweep already covers collects them.
 The place is also swept of entries older than `SCRATCH_STALE_AFTER` at every preparation of it,
 which a preparation of a commit now is.
 
+The preparation is the one stretch of a commit's path that must ask the device about directories
+before anything of the commit can be written:
+a proof that the repository scratch directory is this account's and private,
+and the creation of the attempt's own tree.
+Both are round trips a stalled device holds for seconds,
+and the audit of 2026-11-12 charged 8,594 ms of one 9,892 ms commit to this preparation
+(`measure-commit-latency-against-native-git.ts` in the audit's reproductions),
+so a commit makes only the calls whose answer it needs.
+The directory that was there already is proved,
+because another account may own it or its mode may have been loosened;
+a directory either call just made is not proved after the fact,
+because `mkdir` gives the new directory to this account with mode `0700` less the umask;
+and the repository scratch directory is created only when it is not there,
+which is the first commit of a repository,
+so every later commit proves it in the one call that reads it.
+Code:
+`proved_or_made_private` and `prepare_commit_scratch`
+in `src/native/foundation/scratch_location.rs`.
+
 Who removes it,
 and how long anyone waits:
 
