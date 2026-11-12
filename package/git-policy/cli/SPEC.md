@@ -2938,10 +2938,68 @@ goes with that entry:
 the removal was asked for the whole worktree,
 which is the risk of `git worktree remove` stated above.
 
-The landed-worktree sweep removes a candidate the same way
+The landed-worktree sweep hands a candidate's removal to the commit service
 (`src/native/worktree/worktree_landed_removal.rs`),
-writes the same record,
-and reports a removal it had to finish with the line that says why Git's walk failed.
+which performs it with Git's own judgment of what it would keep
+(`remove_the_worktree_of` in `src/native/worktree/worktree_remove_hand_over.rs`),
+and that removal writes the same record and finishes the same way.
+A merge therefore waits for no walk of the whole tree,
+and the folder still leaves in one call:
+the service's journal says why Git's walk failed,
+and the record's state is where the person reads what became of the removal.
+
+#### The relink of a removed worktree
+
+A new worktree's copied package state is relinked in the commit service
+(`package_repair_relink_job.rs`),
+and a person may remove the worktree long before that work is done.
+A removal waits for no relink,
+so the relink does not outlive its worktree either:
+
+- A record that nothing has claimed names a directory nothing will relink,
+  so the removal settles it and says so
+  (`src/native/repair/package_repair_relink_of_a_removed_worktree.rs`),
+  both for the person's own removal and for the service's.
+- A tool that is already running ends itself, with its whole process group,
+  when the directory it runs in is no longer the one it started in
+  (`WORKTREE_WATCH_INTERVAL` in `package_repair_command.rs`: half a second, one stat of the parent directory),
+  and its record settles as "the worktree was removed"
+  (`package_repair_relink_job.rs`) rather than as a failure.
+
+Measured on 2026-11-12 in a disposable fixture with a `pnpm`-shaped tool:
+while the folder was only renamed, the tool's writes still succeeded,
+because they reach the inode the name no longer carries;
+once the folder was deleted under it, the next write answered
+`ENOENT: no such file or directory, open 'node_modules/link-16'`
+and the tool exited 1.
+That failure is what a record used to settle as,
+and nobody can act on it: the worktree it was about is gone.
+
+#### The removal forms this wrapper leaves to Git, and what it does about them
+
+`git worktree prune` deletes a registration whose worktree directory is gone, and never a directory.
+Measured with Git 2.56 in a disposable repository:
+`git worktree prune --verbose` printed
+`Removing worktrees/wt: gitdir file points to non-existent location`,
+deleted the registration, and created nothing at the removal's path;
+a folder no registration names, which is the state a walk a writer defeated leaves,
+is neither touched nor mentioned.
+So prune cannot finish a folder, and the wrapper does not pretend it can:
+what finishes it is the record the removal wrote,
+and every command of the repository runs that recovery (`show_push_failures`),
+prune included.
+
+A removal whose force is given twice is served like one forced once
+(`parse_remove_plan` in `src/native/worktree/worktree_remove_plan.rs`):
+`-f`, `--force`, `-ff` and every abbreviation Git accepts are counted,
+up to the two Git itself reads
+(`remove_worktree`: any force skips the cleanliness proof, and `if (force > 1) unlock_worktree(...)`).
+A second `--force` is what a person types when the first removal failed,
+which is exactly the removal this entry is about,
+and before this the form was handed to Git alone: the walk that leaves the folder.
+A locked worktree stays Git's own removal,
+because unlocking is Git's step,
+and the record covers what its walk leaves.
 
 The destroy is not run in the person's command:
 it waits for whatever snapshot another add is committing and for the running btrfs transaction,

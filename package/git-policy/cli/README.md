@@ -1200,6 +1200,43 @@ A worktree this program cannot prove it made is named instead,
  once per merge that lands its branch,
  with the `git worktree remove` line that removes it.
 
+**A removal does not wait for the relink of the worktree it removes,
+and the relink does not outlive it either.**
+A new worktree's copied package state is relinked in the commit service,
+ and a person may remove the worktree long before that work is done.
+A record the service has not started names a directory nothing will relink,
+ so the removal settles it and says so.
+A `pnpm install` or toolchain install that is already running ends itself,
+ with its whole process group,
+ when the directory it runs in is no longer the one it started in,
+ and its record settles as the worktree having been removed rather than as a failure.
+Measured on 2026-11-12 in a disposable fixture:
+ while the removal had only renamed the folder,
+ the tool's writes still succeeded,
+ because they reach the inode the name no longer carries;
+ once the folder was deleted under it,
+ the next write answered `ENOENT: no such file or directory, open 'node_modules/link-16'`
+ and the tool exited 1.
+That is the error a record used to settle as,
+ and nobody can act on it.
+
+**A second `--force`, and `git worktree prune`, are answered too.**
+A second `--force` is what a person types when the first removal failed,
+ which is exactly the removal this section is about,
+ so the wrapper reads the force up to the two times Git itself does and serves the removal the same way.
+A locked worktree stays Git's own removal,
+ because unlocking is Git's step,
+ and the record covers what its walk leaves.
+`git worktree prune` deletes a registration whose worktree directory is gone,
+ and never a directory:
+ measured with Git 2.56,
+ it printed `Removing worktrees/wt: gitdir file points to non-existent location`
+ and created nothing at the path,
+ and a folder no registration names is neither touched nor mentioned.
+What finishes such a folder is the record the removal wrote,
+ and every command of the repository runs that recovery,
+ prune included.
+
 **What a removal keeps.**
 A worktree's own Git directory also holds the push failures nobody has seen yet
  and the pushes the service had not run,

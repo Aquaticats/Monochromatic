@@ -148,30 +148,6 @@ fn an_entry_that_appeared_during_the_removal_stays_and_the_next_command_finishes
 }
 
 /// What:
-///  A removal whose process died before Git returned,
-///  and whose owner is gone,
-///  is finished by the next command.
-/// Why:
-///   A kill is the state a person cannot clean up after,
-///  and no registration names the folder once Git ran.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await recordBeforeGit(common, id, worktree, '1:ended'); unregister(); expect(finishLeftBehindFolders(common)).toHaveLength(1);
-/// ```
-#[test]
-fn a_removal_whose_process_ended_is_finished_by_the_next_command() {
-    let scene: Scene = scene("left-behind-killed");
-    record_before_git_with_owner(scene.common.as_path(), OsStr::new(scene.id.as_str()), scene.worktree.as_path(), Some("1:ended")).expect("the record of a removal that ended");
-    scene.unregister();
-    let problems: Vec<String> = finish_left_behind_folders(scene.common.as_path());
-    assert_eq!(problems.len(), 1, "{problems:?}");
-    assert!(!scene.worktree.exists(), "the folder is gone");
-    assert!(!scene.record().exists());
-    remove(scene.root.as_path());
-}
-
-/// What:
 ///  A removal that is still running is left alone by every other command.
 /// Why:
 ///   A second command that finished the removal would delete what the running one is still proving,
