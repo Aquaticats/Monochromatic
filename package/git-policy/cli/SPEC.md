@@ -2672,9 +2672,18 @@ on standard error at the ordinary level
 (no `MONOCHROMATIC_VERBOSE` is needed,
 and `--quiet` does not suppress it),
 and the recovery runs before every command that takes the linked-worktree lifecycle:
-any command in a linked worktree or a bare repository,
+any command a linked worktree or a bare repository forwards,
 and a creating or served `git worktree` command in the main checkout,
 and the records go in the command that finds the worktree whole or gone.
+`git commit` is the wrapper's own command and not a forwarded one:
+the resident service lands it,
+and neither the client nor the service reads these records,
+so a record settles on the next command that forwards
+(`worktree_copying/worktree_copy_unreadable_records.rs`,
+"A record that cannot be read" below).
+The exception is deliberate:
+a commit is the one command that must not fail for the wrapper's own bookkeeping,
+and what the recovery adds there is a notice the next forwarded command prints anyway.
 The proof is what the two directories say,
 without running Git:
 the destination is gone,
@@ -4014,10 +4023,14 @@ the mount option's own documentation says "the filesystem is consistent but buff
 transaction commit").
 Such a record is the mark of a copy that was interrupted,
 never a reason to stop a command:
-every command in a linked worktree or bare repository reads these records before Git runs,
+every forwarded command in a linked worktree or bare repository reads these records before Git runs,
 so one of them would otherwise stop every command of the repository,
 in every worktree,
 until a person removed the file.
+`git commit` reads none of them,
+since the wrapper implements it and the resident service lands it:
+a commit misses only the notices a forwarded command would have printed,
+never its own outcome.
 
 The command that meets one settles it in the pass that runs before every forwarded command
 (`worktree_copying/worktree_copy_unreadable_records.rs`):
@@ -16693,7 +16706,8 @@ never "nothing waits".
 
 Each abort form is live while the state its own command reads is there,
 and not while another operation's state is
-(measured with Git 2.56.0, one command against every stopped state):
+(measured with Git 2.56.0,
+one command against every stopped state):
 `git merge --abort` needs `MERGE_HEAD`,
 and abandons only the merge step of a `git rebase --rebase-merges` that stopped at one;
 `git rebase --abort` needs `rebase-merge` or `rebase-apply/rebasing`,
@@ -16783,7 +16797,8 @@ as for a forced `checkout` and a hard `reset`.
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
 `git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state, a hand resolution kept in all of them),
+(measured in every stopped state,
+a hand resolution kept in all of them),
 and the hatch runs the abort anyway.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no copy either.
