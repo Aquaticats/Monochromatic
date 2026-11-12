@@ -66,7 +66,7 @@ fn a_step_that_ends_by_itself_is_reported_with_no_ceiling_stop() {
         None,
         Ceilings::of(Duration::from_secs(30)),
         "a step",
-        None,
+        WhatTheCeilingIsTold::alone(),
     ))
     .expect("the runtime")
     .expect("the child ends");
@@ -94,7 +94,7 @@ fn a_step_that_outlasts_its_ceiling_is_ended_and_reaped_here() {
     let number: i32 = i32::try_from(step.id()).expect("a process number");
     let ceiling: Duration = Duration::from_millis(200);
     let began: Instant = Instant::now();
-    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Ceilings::of(ceiling), "a step", None))
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Ceilings::of(ceiling), "a step", WhatTheCeilingIsTold::alone()))
         .expect("the runtime")
         .expect("the wait answers");
     let lasted: Duration = began.elapsed();
@@ -129,7 +129,7 @@ fn a_step_that_ended_before_the_signal_is_reported_by_its_own_status() {
         command.arg("-c").arg("sleep 0.2; exit 0").stdin(Stdio::null());
         let step: Child = crate::test_support::spawn_owned(&mut command).expect("a step that ends by itself");
         a_control_ends_the_step_here();
-        return wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Ceilings::of(Duration::from_millis(20)), "a step", None).await.expect("the wait answers");
+        return wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Ceilings::of(Duration::from_millis(20)), "a step", WhatTheCeilingIsTold::alone()).await.expect("the wait answers");
     })
     .expect("the runtime");
     assert_eq!(outcome, ChildOutcome::Exited(0), "a step that finished between the ceiling and the signal landed, and its own status decides");
@@ -162,7 +162,7 @@ fn a_program_the_kernel_refused_to_signal_is_recorded_in_the_stop() {
     // The step's own descriptor is opened first, so the refusal falls on the helper's.
     let owned: OwnedChild = adopt(step);
     crate::member_signalled_through_its_pidfd::refuse_the_next_descriptors(1);
-    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(owned, None, Ceilings::of(Duration::from_millis(400)), "a step", None))
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(owned, None, Ceilings::of(Duration::from_millis(400)), "a step", WhatTheCeilingIsTold::alone()))
         .expect("the runtime")
         .expect("the wait answers");
     assert_eq!(outcome, ChildOutcome::Signaled(libc::SIGKILL), "the step itself is ended through the child this wait owns");
@@ -207,7 +207,7 @@ fn a_program_the_step_started_is_ended_with_it() {
         BufReader::new(output).read_line(&mut line).expect("a number");
         line.trim().parse::<i32>().expect("a process number")
     };
-    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Ceilings::of(ceiling), "a step", None))
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) = crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, Ceilings::of(ceiling), "a step", WhatTheCeilingIsTold::alone()))
         .expect("the runtime")
         .expect("the wait answers");
     assert_eq!(outcome, ChildOutcome::Signaled(libc::SIGKILL));
@@ -244,7 +244,7 @@ fn a_stop_of_the_service_ends_the_step_before_its_ceiling() {
         assert!(stop.is_some(), "the service hands each waiter an arm");
         return tokio::join!(
             async move {
-                let answered = wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), stop, Ceilings::of(Duration::from_secs(60)), "a step", None).await;
+                let answered = wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), stop, Ceilings::of(Duration::from_secs(60)), "a step", WhatTheCeilingIsTold::alone()).await;
                 drop(unfinished);
                 return answered;
             },
@@ -289,7 +289,7 @@ fn a_step_the_kernel_holds_past_its_ceiling_lands_when_it_ends() {
     let ceilings: Ceilings = Ceilings { usually: Duration::from_millis(100), while_the_kernel_holds_it: Duration::from_secs(30) };
     let began: Instant = Instant::now();
     let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) =
-        crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", None))
+        crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", WhatTheCeilingIsTold::alone()))
             .expect("the runtime")
             .expect("the wait answers");
     let lasted: Duration = began.elapsed();
@@ -325,7 +325,7 @@ fn a_step_the_kernel_never_releases_is_ended_at_the_bound_it_is_waited_for() {
     let ceilings: Ceilings = Ceilings { usually: Duration::from_millis(100), while_the_kernel_holds_it: bound };
     let began: Instant = Instant::now();
     let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) =
-        crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", None))
+        crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", WhatTheCeilingIsTold::alone()))
             .expect("the runtime")
             .expect("the wait answers");
     let lasted: Duration = began.elapsed();
@@ -361,9 +361,48 @@ fn a_step_the_kernel_holds_that_ends_after_the_bound_is_reported_by_its_own_stat
         crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "git");
         a_control_ends_the_step_here();
         let ceilings: Ceilings = Ceilings { usually: Duration::from_millis(50), while_the_kernel_holds_it: Duration::from_millis(300) };
-        return wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", None).await.expect("the wait answers");
+        return wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", WhatTheCeilingIsTold::alone()).await.expect("the wait answers");
     })
     .expect("the runtime");
     assert_eq!(outcome, ChildOutcome::Exited(0), "a step that finished between the bound and the signal landed, and its own status decides");
     assert_eq!(a_stop, None, "a step that ended by itself is no ceiling stop");
+}
+
+/// What:
+///  A step the kernel holds whose look at its ceiling could not be made is waited for,
+///  and lands when it ends.
+/// Why:
+///   Finding 1 of the 2026-11-12 review of the stand-aside:
+///  a look that failed answered `None`, which was the same answer as a step the kernel does not hold,
+///  so this wait killed a held step at the usual ceiling and a commit that would have landed failed.
+///  A look that could not be made decides nothing:
+///  the ceiling stays armed, the look is made again, and the step is waited for.
+///  The look that cannot be made is the first one, which is the ceiling's own;
+///  the real state of a process cannot be stated on this host
+///  (`commit/scratch_step_look_below_control_window.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const pid = sh('sleep 0.6'); theKernelHolds(pid); plantLooksThatCannotBeMade(1); const [outcome, stop] = await wait(adopt(pid), undefined, { usually: 100, whileTheKernelHoldsIt: 30_000 }); expect(outcome).toEqual({ exited: 0 }); expect(stop).toBeUndefined()
+/// ```
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_the_kernel_holds_whose_look_failed_is_waited_for() {
+    let _look_window = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg("sleep 0.6; exit 0").stdin(Stdio::null());
+    let step: Child = crate::test_support::spawn_owned(&mut command).expect("a step that ends by itself");
+    let number: i32 = i32::try_from(step.id()).expect("a process number");
+    crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "git");
+    crate::scratch_step_look_below::the_controls_window::plant_looks_that_cannot_be_made(1);
+    let ceilings: Ceilings = Ceilings { usually: Duration::from_millis(100), while_the_kernel_holds_it: Duration::from_secs(30) };
+    let began: Instant = Instant::now();
+    let (outcome, a_stop): (ChildOutcome, Option<CeilingStop>) =
+        crate::lazy_runtime::run_on_runtime(wait_until_it_exits_the_stop_or_the_ceiling(adopt(step), None, ceilings, "a step", WhatTheCeilingIsTold::alone()))
+            .expect("the runtime")
+            .expect("the wait answers");
+    let lasted: Duration = began.elapsed();
+    assert_eq!(outcome, ChildOutcome::Exited(0), "a look that failed decided nothing, so the step the kernel held was waited for: {lasted:?}");
+    assert_eq!(a_stop, None, "a step that ended by itself is no ceiling stop");
+    assert!(lasted >= Duration::from_millis(600), "the step was ended at its ceiling and never waited for: {lasted:?}");
 }

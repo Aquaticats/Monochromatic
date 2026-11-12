@@ -8,13 +8,15 @@ use crate::push_retry::{Due, PushRetries};
 use crate::service_work_common_directory::is_bare_common_directory;
 use crate::service_work_run_round::run_round;
 use super::*;
-use crate::push_failure_notice::{PushOutcome, push_failure_text, push_failures};
+use crate::push_failure_notice::{PushOutcome, notice_directory, push_failure_text, push_failures};
 use crate::push_retry::FIRST_PAUSE;
 use crate::service_claim_renewal::{RENEWALS_PER_LEASE, renewal_interval};
 use crate::service_claim_renewal_running::{DrivenRenewal, Renewal};
+use crate::merge_second_pass::tests::await_it;
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
 use std::ffi::OsString;
+use std::os::unix::fs::OpenOptionsExt as _;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -951,6 +953,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
         common.as_path(),
         &lane_handlers,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+        crate::service_work::CLAIM_LEASE,
     ));
     let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
@@ -1176,8 +1179,8 @@ fn a_plan_kept_after_an_older_forget_survives_its_replay() {
     // The round asks, in this order, for the branch to be forgotten (the earlier push landed) and for the next try to be planned;
     //  the plan reaches the disk at once, as the worker's keeps do.
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    replanning.forget(repo.common.as_path(), BRANCH);
-    let _said: PlannedRetry = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down");
+    await_it(replanning.forget(repo.common.as_path(), BRANCH));
+    let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down"));
     let published: PathBuf = plans.join(crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: newest.clone(), attempt: 1 }));
     let kept_inode: u64 = std::fs::metadata(published.as_path()).expect("the plan the notice promises is on disk before the loop applies anything").ino();
     let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
@@ -1207,9 +1210,9 @@ fn a_plan_forgotten_and_planned_again_survives_a_kill_after_any_of_its_changes()
     let older: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     let newer: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, BRANCH);
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    let _first: PlannedRetry = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &older, 1, "the network is down");
-    replanning.forget(repo.common.as_path(), BRANCH);
-    let _second: PlannedRetry = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newer, 1, "the network is down");
+    let _first: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &older, 1, "the network is down"));
+    await_it(replanning.forget(repo.common.as_path(), BRANCH));
+    let _second: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newer, 1, "the network is down"));
     assert_eq!(replanning.changes.len(), 3, "a plan, a forget and a plan");
     let newest_name: String = crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan {
         git_dir: repo.common.clone(),
@@ -1275,6 +1278,166 @@ fn a_retry_the_plan_cannot_keep_is_not_promised() {
     assert!(!shown[0].contains("tries this push again by itself"), "no promise the plan cannot keep: {shown:?}");
     assert!(shown[0].contains("the network is down"), "Git's own words are kept: {shown:?}");
     assert_eq!(drained.changes.len(), 1, "the service that is running goes on trying the push");
+    remove(repo.root.as_path());
+}
+
+/// How long the control below lets the record of a refusal appear before it lets the plan's own file answer:
+/// long enough for one job of the blocking pool to start and write a file on a contended host,
+/// and short enough to keep the control quick.
+const BEFORE_THE_PLANS_FILE_ANSWERS: Duration = Duration::from_secs(5);
+
+/// What:
+///  Open the pipe at `path` for writing and close it again,
+/// which ends a read of it that waited for a writer.
+/// Why:
+///  A read the control's own code makes waits for a writer that never comes,
+/// so the control releases it here rather than holding the suite for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// close(openSync(path, 'w')); // the read that waited for a writer ends
+/// ```
+fn release_the_plan_pipe(path: &Path) {
+    let began: Instant = Instant::now();
+    while began.elapsed() < BEFORE_THE_PLANS_FILE_ANSWERS {
+        match std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(path) {
+            Ok(writer) => {
+                drop(writer);
+                return;
+            }
+            // No reader is in the pipe yet, so this is the moment before the read starts.
+            Err(_no_reader) => std::thread::sleep(Duration::from_millis(10)),
+        }
+    }
+}
+
+/// How many records of failed pushes a Git directory holds for the person.
+fn notices_of(git_dir: &Path) -> usize {
+    return std::fs::read_dir(notice_directory(git_dir)).map_or(0, |entries| { return entries.flatten().count(); });
+}
+
+/// What:
+///  The record of a push the person must act on is written before the branch's plan file is taken away.
+/// Why:
+///  The notice an earlier round wrote says another try is coming,
+/// and the plan's file is what makes that true.
+/// A service killed between the removal of that file and the record of the refusal leaves the item in `failed`,
+/// which nothing scans,
+/// so the person keeps a promise nothing schedules instead of the refusal that needs them.
+/// The control makes the removal wait: the branch's own plan file is a pipe nobody writes to,
+/// and the process has one place of its blocking bound,
+/// so a record that is written while the removal waits was written first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await save(plans, plan); mkfifo(planPath); const drained = drain(); expect(notices(gitDir)).toHaveLength(1);
+/// ```
+#[test]
+fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
+    crate::parallel_test_support::room_for("the record of a terminal failure goes before the plan's file", crate::parallel_test_support::ONE_PLACE);
+    let repo: Repo = repo("work-terminal-record-before-the-plan-goes");
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let waiting: crate::push_retry_store::StoredPlan =
+        crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 };
+    crate::push_retry_store::save(plans.as_path(), &waiting).expect("the plan of the try that failed");
+    // The plan's own file becomes a pipe with no writer, which is a record the removal cannot read.
+    let reading: PathBuf = plans.join(crate::push_retry_store::name_of(&waiting));
+    std::fs::remove_file(reading.as_path()).expect("the plan's file makes way for the pipe");
+    let text: std::ffi::CString = std::ffi::CString::new(reading.as_os_str().as_encoded_bytes()).expect("a path without NUL");
+    let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "the pipe stands where the plan's file was: {}", std::io::Error::last_os_error());
+    let recorder: Recorder = Recorder::answering(Verdict::Failed(String::from("the server declined the push")));
+    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: vec![Due { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 }], plans: Some(plans.clone()) };
+    let recorded_first: bool = std::thread::scope(|scope| {
+        let pipe: &Path = reading.as_path();
+        let watcher = scope.spawn(|| {
+            let seen: bool = crate::test_support::wait_until_for(crate::test_support::WaitingFor {
+                window: BEFORE_THE_PLANS_FILE_ANSWERS,
+                done: &|| { return notices_of(repo.common.as_path()) > 0; },
+            });
+            release_the_plan_pipe(pipe);
+            return seen;
+        });
+        let drained: Drained = drain_planned(repo.common.as_path(), &recorder, &ClaimTime::read(), &retrying);
+        assert_eq!(drained.changes.len(), 1, "the worker still asks the plan to drop the branch");
+        return watcher.join().expect("the watcher ends");
+    });
+    assert!(
+        recorded_first,
+        "the refusal was recorded while the plan's file still waited for a writer, so the record goes first and a kill between the two leaves the plan"
+    );
+    assert!(reading.exists(), "the plan's file the removal could not read stays, so a later service tries the push the notice promised");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The plan a worker keeps is written by a job of the process's blocking pool,
+///  never on the task that decided it.
+/// Why:
+///  Keeping a plan lists the journal, reads the files of the branch and writes one,
+///  and the worker that keeps it is a task of the runtime.
+///  A write that waited on a disk, a lock or a mount that stopped answering would hold the worker,
+///  where no timer can end its wait,
+///  which is the promise every storage step of a drain keeps
+/// (`service_work_storage_awaited.rs`,
+/// `blocking_jobs_within_the_budget.rs`).
+///  The control holds the process's only place of that bound and gives it back when a job asks for one,
+///  so the ask is the proof that the write took a place;
+///  work that ran on the worker itself never asks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [givenBack, finished] = holdTheOnlyPlace(); const kept = await keepThePlan(dir, item, 1); expect(await finished).toBe(true);
+/// ```
+#[test]
+fn keeping_a_plan_writes_it_as_a_job_of_the_blocking_pool() {
+    let (given_back, finished): (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<bool>) =
+        crate::parallel_test_support::hold_the_only_place();
+    let repo: Repo = repo("work-plan-kept-in-a-job");
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    let kept: bool = await_it(replanning.keep_the_plan(repo.common.as_path(), &due, 1));
+    let asked: bool = finished.recv_timeout(crate::parallel_test_support::PATIENCE).expect("the job that holds the process's only place never returned");
+    assert!(asked, "no job of the write asked for a place of the process's bound, so the plan was written on the worker the runtime needs");
+    assert!(given_back.load(std::sync::atomic::Ordering::SeqCst), "the place went back on the ask the write made");
+    assert!(kept, "the plan the write kept is promised, so the write answered that it is on disk");
+    assert_eq!(crate::push_retry_store::load(plans.as_path()).len(), 1, "the control's own plan is on disk after the write");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  The file of a branch that needs no new try is removed by a job of the process's blocking pool,
+///  never on the task that decided it.
+/// Why:
+///  The removal lists the journal, reads each file of the branch and unlinks it,
+///  and the worker that forgot the branch is a task of the runtime,
+///  so a read that waited on a disk, a lock or a mount that stopped answering would hold the worker
+/// (`blocking_jobs_within_the_budget.rs`).
+///  The control holds the process's only place and gives it back when a job asks for one,
+///  so the ask is the proof that the removal took a place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [givenBack, finished] = holdTheOnlyPlace(); await forget(dir, branch); expect(await finished).toBe(true);
+/// ```
+#[test]
+fn forgetting_a_branch_takes_its_plan_file_as_a_job_of_the_blocking_pool() {
+    let (given_back, finished): (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<bool>) =
+        crate::parallel_test_support::hold_the_only_place();
+    let repo: Repo = repo("work-plan-removed-in-a-job");
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: due.clone(), attempt: 1 })
+        .expect("the plan the branch is done with");
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    await_it(replanning.forget(repo.common.as_path(), BRANCH));
+    let asked: bool = finished.recv_timeout(crate::parallel_test_support::PATIENCE).expect("the job that holds the process's only place never returned");
+    assert!(asked, "no job of the removal asked for a place of the process's bound, so the file was removed on the worker the runtime needs");
+    assert!(given_back.load(std::sync::atomic::Ordering::SeqCst), "the place went back on the ask the removal made");
+    assert!(crate::push_retry_store::load(plans.as_path()).is_empty(), "the plan of a branch the service is done with is gone");
+    assert_eq!(replanning.changes.len(), 1, "the loop still drops the branch from the list it owns");
     remove(repo.root.as_path());
 }
 
@@ -1505,6 +1668,7 @@ fn a_round_that_has_spent_its_housekeeping_leaves_the_rest_for_a_later_round() {
         looked_again = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
             repo.common.as_path(),
             &recorder,
+            &ClaimTime::read(),
             CLAIM_LEASE,
             Renewal::Timed,
             &mut replanning,
@@ -1547,6 +1711,7 @@ fn a_round_with_its_housekeeping_share_unspent_runs_what_it_finds() {
     let looked_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(crate::service_work_drain_pending_claims::drain_pending_awaiting(
         repo.common.as_path(),
         &recorder,
+        &ClaimTime::read(),
         CLAIM_LEASE,
         Renewal::Timed,
         &mut replanning,
@@ -1662,7 +1827,7 @@ fn the_worker_that_forgets_a_branch_removes_its_plan_file() {
     crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: landed.clone(), attempt: 3 })
         .expect("the due plan the round took");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    replanning.forget(repo.common.as_path(), BRANCH);
+    await_it(replanning.forget(repo.common.as_path(), BRANCH));
     assert_eq!(replanning.changes.len(), 1, "the loop still drops the branch from the list it owns");
     assert!(
         crate::push_retry_store::load(plans.as_path()).is_empty(),
@@ -1695,7 +1860,7 @@ fn a_gone_repository_takes_the_file_of_its_plan() {
     crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3 })
         .expect("the plan the proof was asked about");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 });
+    await_it(replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 }));
     assert!(
         crate::push_retry_store::load(plans.as_path()).is_empty(),
         "a repository the filesystem still proves gone ends its plan's file, so no later service tries it again"
@@ -1733,7 +1898,7 @@ fn a_repository_that_is_back_keeps_the_file_of_its_plan() {
         .expect("the plan the proof was asked about");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
     // The repository is there, so the stale proof ends nothing.
-    replanning.forget_when_unreachable(back_repository.common.as_path(), &Due { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 });
+    await_it(replanning.forget_when_unreachable(back_repository.common.as_path(), &Due { git_dir: back_repository.common.clone(), item: back.clone(), attempt: 3 }));
     assert_eq!(
         crate::push_retry_store::load(plans.as_path()).len(),
         1,
@@ -1767,7 +1932,7 @@ fn a_repository_that_returns_before_the_forget_lands_keeps_its_retry() {
     crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: gone.clone(), item: due.clone(), attempt: 3 })
         .expect("the plan the proof was asked about");
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 });
+    await_it(replanning.forget_when_unreachable(gone.as_path(), &Due { git_dir: gone.clone(), item: due.clone(), attempt: 3 }));
     assert!(crate::push_retry_store::load(plans.as_path()).is_empty(), "the proof of a gone repository ends the file of its plan where it is made");
     // The repository is renamed back while the round still holds the change.
     std::fs::create_dir_all(gone.as_path()).expect("the repository is back");
@@ -1779,7 +1944,7 @@ fn a_repository_that_returns_before_the_forget_lands_keeps_its_retry() {
     assert_eq!(due_again[0].item.branch_ref, BRANCH, "the try is for the branch the reading ended");
     // The drain of that try keeps the plan's file again, as every drain that plans a try does.
     let next: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
-    assert!(next.keep_the_plan(gone.as_path(), &due_again[0].item, due_again[0].attempt), "the try's plan is kept");
+    assert!(await_it(next.keep_the_plan(gone.as_path(), &due_again[0].item, due_again[0].attempt)), "the try's plan is kept");
     assert_eq!(crate::push_retry_store::load(plans.as_path()).len(), 1, "a service restarted before the try reads the plan of a repository that is there");
     remove(returning.root.as_path());
 }
@@ -1868,7 +2033,7 @@ fn the_line_a_planned_retry_writes_names_its_repository() {
     let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
     let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
-        let _said: PlannedRetry = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down");
+        let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down"));
     });
     let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
     let line: &String = said.iter().find(|line| { return line.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {said:?}"));
@@ -1877,5 +2042,332 @@ fn the_line_a_planned_retry_writes_names_its_repository() {
         "the line names the worktree whose push it plans, quoted so a path with a space stays one field: {line}"
     );
     assert!(entries.iter().any(|entry| { return entry.fields.iter().any(|(name, value)| { return name == "CLI_GIT_REPOSITORY" && *value == repo.worktree.display().to_string(); }); }), "the journal field names it too: {entries:?}");
+    remove(repo.root.as_path());
+}
+
+/// The names of the records of the work directory `work` in `state`,
+/// sorted,
+/// so a handler can say what the person's other records looked like while its own work ran.
+fn names_in(work: &Path, state: &str) -> Vec<String> {
+    let mut found: Vec<String> = std::fs::read_dir(state_directory(work, state))
+        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+        .unwrap_or_default();
+    found.sort();
+    return found;
+}
+
+/// The length of a slice one round of these controls may start housekeeping for,
+/// short enough that one item of theirs spends it.
+const A_SLICE_ONE_ITEM_SPENDS: Duration = Duration::from_millis(20);
+
+/// How long one item of these controls is inside its work,
+/// several times the slice above,
+/// so the work a batch starts is what spends it.
+const ONE_ITEM_TAKES: Duration = Duration::from_millis(150);
+
+/// How many items of a kind one of these controls queues at once.
+const A_BATCH: usize = 4;
+
+/// What:
+///  A handler of the drain's batches that a control makes slow, refusing, or stopping unexpectedly,
+///  naming each item by the branch its record carries,
+///  and saying what the work directory held when that item's own work ended.
+/// Why:
+///   The guarantees these controls are about are about what happens while one item of a wave still runs:
+/// whether the round started a batch it had no room for,
+/// whether a finished item is settled before its slow sibling ends,
+/// and whether one item's failure takes its siblings with it.
+/// A pause stands for the slow work a kind really does,
+/// and the reading of the work directory is taken inside the work,
+/// so no clock is compared against the host's load.
+struct Controlled {
+    /// How long each named item is inside its work;
+    /// one not named answers at once.
+    takes: Vec<(String, Duration)>,
+    /// The names whose work is refused,
+    /// with the reason the server gives.
+    refuses: Vec<(String, String)>,
+    /// The names whose work stops unexpectedly.
+    panics: Vec<String>,
+    /// What the work directory held in `failed` when each item's own work ended,
+    /// by name.
+    seen: Mutex<Vec<(String, Vec<String>)>>,
+    /// The work directory the records live in.
+    work: PathBuf,
+}
+
+impl Controlled {
+    /// A handler of `work` that answers every item at once with done.
+    fn answering_at_once(work: &Path) -> Controlled {
+        return Controlled { takes: Vec::new(), refuses: Vec::new(), panics: Vec::new(), seen: Mutex::new(Vec::new()), work: work.to_path_buf() };
+    }
+
+    /// The name a record is known by here:
+    /// the branch it carries,
+    /// which two records of one kind may not share in one work directory.
+    fn name_of(item: &WorkItem) -> String {
+        return item.branch_ref.clone();
+    }
+
+    /// Be inside one item's work and say what the work directory held at its end.
+    async fn work_an_item(&self, item: &WorkItem) {
+        let name: String = Controlled::name_of(item);
+        let takes: Duration = self
+            .takes
+            .iter()
+            .find(|(named, _)| {
+                return *named == name;
+            })
+            .map_or(Duration::ZERO, |(_, takes)| {
+                return *takes;
+            });
+        if !takes.is_zero() {
+            tokio::time::sleep(takes).await;
+        }
+        let failed: Vec<String> = names_in(self.work.as_path(), FAILED);
+        self.seen.lock().expect("the control's own list").push((name, failed));
+    }
+}
+
+impl WorkHandlers for Controlled {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            let Some(newest) = items.last() else { return Verdict::Done };
+            self.work_an_item(newest).await;
+            let name: String = Controlled::name_of(newest);
+            if self.panics.contains(&name) {
+                panic!("a push handler stopped unexpectedly");
+            }
+            return match self.refuses.iter().find(|(named, _)| {
+                return *named == name;
+            }) {
+                Some((_, reason)) => Verdict::Failed(reason.clone()),
+                None => Verdict::Done,
+            };
+        });
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn trash(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            self.work_an_item(item).await;
+            let name: String = Controlled::name_of(item);
+            if self.panics.contains(&name) {
+                panic!("a trash handler stopped unexpectedly");
+            }
+            return match self.refuses.iter().find(|(named, _)| {
+                return *named == name;
+            }) {
+                Some((_, reason)) => Verdict::Failed(reason.clone()),
+                None => Verdict::Done,
+            };
+        });
+    }
+}
+
+/// What one drain of these controls answered and what it left.
+struct DrainOfAControl {
+    /// How soon the drain asked to be looked at again.
+    look_again: Option<Duration>,
+    /// What the handler saw when each item's own work ended.
+    seen: Vec<(String, Vec<String>)>,
+}
+
+/// Run one drain of `kinds` over `repo` with `handler`,
+/// awaited inside the process's runtime,
+/// as a round of the service reaches it.
+fn drain_with(repo: &Repo, handler: &Controlled, kinds: &'static [WorkKind], slice: Duration) -> DrainOfAControl {
+    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    let common: PathBuf = repo.common.clone();
+    let look_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(async move {
+        return crate::service_work_drain_pending_claims::drain_pending_awaiting(
+            common.as_path(),
+            handler,
+            &ClaimTime::read(),
+            CLAIM_LEASE,
+            Renewal::Timed,
+            &mut replanning,
+            kinds,
+            slice,
+        )
+        .await;
+    })
+    .expect("the process runtime runs the drain");
+    let seen: Vec<(String, Vec<String>)> = std::mem::take(&mut *handler.seen.lock().expect("the control's own list"));
+    return DrainOfAControl { look_again, seen };
+}
+
+/// What:
+///  A round starts no housekeeping item of a batch after its slice is spent,
+///  so a batch of any size does not begin in full.
+/// Why:
+///   A trash of one removed worktree is hundreds of thousands of removals,
+/// and a round that started every trash it found spent hours in them while a relink,
+/// a review or a snapshot that arrived in the meantime was claimed only when the whole batch was over
+/// (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// The slice is asked as each item starts,
+/// so the first item starts whatever its slice has spent and the rest keep their turn for a later round.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const drained = await drain(world, A_SLICE_ONE_ITEM_SPENDS, A_BATCH); expect(names(DONE)).toHaveLength(1); expect(drained.lookAgain).toBe(LOOK_AGAIN)
+/// ```
+#[test]
+fn a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent() {
+    let repo: Repo = repo("work-housekeeping-batch-slice");
+    // One record an item: a trash's id is its kind and its object name, so each one names an object of its own.
+    let items: Vec<WorkItem> = (0..A_BATCH)
+        .map(|at| { return item(&repo, WorkKind::Trash, format!("{at:040x}").as_str(), format!("refs/cli-git/trash-{at}").as_str()); })
+        .collect();
+    enqueue_all(&repo, items.as_slice());
+    let work: PathBuf = work_directory(repo.common.as_path());
+    let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
+    for entry in &items {
+        handler.takes.push((Controlled::name_of(entry), ONE_ITEM_TAKES));
+    }
+    // One item at a time, so each item's own pause is what the slice is read against.
+    crate::service_work_items_side_by_side::hold_the_width_to(1);
+    let drained: DrainOfAControl = drain_with(&repo, &handler, &SERVICE_KINDS, A_SLICE_ONE_ITEM_SPENDS);
+    crate::service_work_items_side_by_side::take_the_hosts_width();
+    assert_eq!(names(&repo, DONE).len(), 1, "a 20 ms slice starts one 150 ms trash and no more");
+    assert_eq!(names(&repo, PENDING).len(), items.len() - 1, "the housekeeping the round did not start waits for a later round");
+    assert!(names(&repo, FAILED).is_empty(), "no item was failed");
+    assert!(names(&repo, CLAIMED).is_empty(), "nothing the round did not start stays claimed");
+    assert_eq!(drained.look_again, Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING), "the round asks to be looked at again for the housekeeping it left");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  A push that is refused is settled,
+///  and its notice written,
+///  while its slow sibling of the same wave still runs.
+/// Why:
+///   A commit handed to the service must land or be reported,
+/// and the report came no later than the slowest push of the wave beside it:
+/// with a silent server that is the push deadline (30 s) or the connected push's quiet window (150 s),
+/// and a service killed in that window left the finished push claimed,
+/// to be pushed again after the lease.
+/// Each item of a wave is settled when it ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drain(twoBranches); expect(handler.sawWhileTheSlowOneRan()).toContain('push-…-fast')
+/// ```
+#[test]
+fn a_push_that_is_refused_is_settled_while_its_slow_sibling_still_runs() {
+    let repo: Repo = repo("work-push-settled-as-it-ends");
+    let fast: String = String::from("refs/heads/fast");
+    let slow: String = String::from("refs/heads/slow");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, fast.as_str()), item(&repo, WorkKind::Push, OTHER_OID, slow.as_str())]);
+    let work: PathBuf = work_directory(repo.common.as_path());
+    let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
+    handler.takes.push((slow.clone(), ONE_ITEM_TAKES));
+    handler.refuses.push((fast.clone(), String::from("the server refused the branch")));
+    let drained: DrainOfAControl = drain_with(&repo, &handler, &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
+    let at_the_slow_branch: &Vec<String> = &drained
+        .seen
+        .iter()
+        .find(|(name, _)| {
+            return *name == slow;
+        })
+        .unwrap_or_else(|| panic!("the slow branch is pushed: {:?}", drained.seen))
+        .1;
+    assert!(
+        at_the_slow_branch.iter().any(|name| { return name.starts_with("push-") && name.contains(&OID[..8]); }),
+        "the refusal of the fast branch is on record while the slow branch is still pushing: {at_the_slow_branch:?}"
+    );
+    assert_eq!(names(&repo, FAILED).len(), 1, "the refused push is failed and the slow one is done");
+    assert_eq!(names(&repo, DONE).len(), 1, "the slow push is done");
+    assert!(names(&repo, CLAIMED).is_empty(), "no record of the wave stays claimed");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  One push handler that stops unexpectedly ends that push alone:
+///  its record is settled as failed with what happened,
+///  its sibling is settled as done,
+///  and the round goes on.
+/// Why:
+///   A wave polls every item of it on one task,
+/// so a panic in one item used to unwind the whole drain and leave both records claimed,
+/// including the one whose work had finished.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drain(twoBranches); // the drain returns; expect(names(FAILED)).toHaveLength(1); expect(names(DONE)).toHaveLength(1)
+/// ```
+#[test]
+fn a_push_handler_that_stops_unexpectedly_ends_its_own_record_and_not_the_round() {
+    let repo: Repo = repo("work-push-that-stops");
+    let fine: String = String::from("refs/heads/fine");
+    let boom: String = String::from("refs/heads/boom");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, fine.as_str()), item(&repo, WorkKind::Push, OTHER_OID, boom.as_str())]);
+    let work: PathBuf = work_directory(repo.common.as_path());
+    let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
+    handler.panics.push(boom.clone());
+    let _drained: DrainOfAControl = drain_with(&repo, &handler, &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
+    assert_eq!(names(&repo, DONE).len(), 1, "the sibling whose push finished is settled as done");
+    assert_eq!(names(&repo, FAILED).len(), 1, "the push that stopped is settled as failed");
+    assert!(names(&repo, CLAIMED).is_empty(), "no record of the wave stays claimed");
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert!(
+        shown.iter().any(|line| { return line.contains("stopped unexpectedly"); }),
+        "the person is told what happened, so the commit is reported and not lost: {shown:?}"
+    );
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  A round whose first claim step got no place asks to be looked at again,
+///  so the pending push it could not claim is not left waiting for a wake nobody sends.
+/// Why:
+///   The claim step of a round is a job of the process's blocking bound with a ceiling,
+/// and a round that answered "no place" claimed nothing:
+/// the push record stays `pending` and the person's commit is not backed up.
+/// Nothing else wakes this work directory for it,
+/// so the round names the pause it wants and the one loop that will come back looks again
+/// (`housekeeping_of_one_round.rs`).
+#[test]
+fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
+    use crate::parallel_test_support::ONE_PLACE;
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    assert_eq!(crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(), ONE_PLACE, "this control is the only holder of the process's one place");
+    // The claim step is given a ceiling a control reaches in a moment instead of the shipped sixty seconds.
+    crate::service_work_storage_awaited::hold_the_claim_steps_to(A_SLICE_ONE_ITEM_SPENDS);
+    let repo: Repo = repo("work-claim-step-with-no-place");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    // A job of the process's bound holds the only place while the round asks for it.
+    let (holding, held) = std::sync::mpsc::channel::<()>();
+    let place = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _held = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+            let _told = holding.send(());
+            std::thread::sleep(ONE_ITEM_TAKES.mul_f32(4.0));
+        })
+        .await;
+    });
+    assert!(place.is_some(), "the runtime starts the job that holds the only place");
+    assert!(held.recv_timeout(ONE_ITEM_TAKES.mul_f32(4.0)).is_ok(), "the job that holds the only place started");
+    let drained: DrainOfAControl = drain_with(&repo, &Controlled::answering_at_once(work_directory(repo.common.as_path()).as_path()), &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
+    assert_eq!(
+        drained.look_again,
+        Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
+        "a round that could not claim this directory's records asks to be looked at again"
+    );
+    assert_eq!(names(&repo, PENDING).len(), 1, "nothing was claimed, so the push still waits");
     remove(repo.root.as_path());
 }

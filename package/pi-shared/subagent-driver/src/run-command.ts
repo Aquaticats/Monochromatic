@@ -75,6 +75,16 @@ export type CommandOutput = {
    Why it never ran to an exit, when it never did.
    */
   readonly problem?: string;
+
+  /**
+   Whether the bound this module was given is what ended the command.
+   */
+  readonly killedByItsOwnBound?: boolean;
+
+  /**
+   The signal that ended the command, when a signal ended it rather than an exit.
+   */
+  readonly signal?: string;
 };
 
 /**
@@ -160,6 +170,26 @@ function statusFieldOf(value: unknown,): number {
 }
 
 /**
+ Reads whether the bound this module set is what ended the command, which Node reports as `killed` and a killed command says
+ nothing else about.
+
+ @param caught - the failure the command threw
+
+ @returns whether the bound ended it
+
+ @example
+ ```ts
+ const killedByTheBound = killedByItsOwnBoundIn({ caught, },);
+ ```
+ */
+function killedByItsOwnBoundIn({ caught, }: { readonly caught: object },): boolean {
+  return fieldOf({
+    caught,
+    key: 'killed',
+  },) === true;
+}
+
+/**
  Reads what a failed command reported.
 
  @param caught - what the failed command threw
@@ -191,6 +221,13 @@ function failureOf(caught: unknown,): CommandOutput {
     caught: failure,
     key: 'code',
   },),);
+  /**
+   The signal that ended the command, empty when it exited rather than being signalled.
+   */
+  const signal = textFieldOf(fieldOf({
+    caught: failure,
+    key: 'signal',
+  },),);
   return {
     status,
     stdout: textFieldOf(fieldOf({
@@ -205,6 +242,10 @@ function failureOf(caught: unknown,): CommandOutput {
       caught: failure,
       key: 'message',
     },),), } : {}),
+    // A command that a signal ended is a command with no status, whether the signal was this module's own bound or somebody
+    // else's, and the two are told apart by `killed` alone: Node sets it when the bound is what it signalled.
+    ...((signal === '') ? {} : { signal, }),
+    ...(killedByItsOwnBoundIn({ caught: failure, },) ? { killedByItsOwnBound: true, } : {}),
   };
 }
 

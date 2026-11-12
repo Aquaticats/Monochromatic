@@ -46,20 +46,23 @@
 //!  a repository that keeps no reflog for it proves nothing,
 //!  and the branch stays a candidate as it did before
 //!  (`worktree_branch_reflog.rs`).
-//!  A branch that has moved holds no commit of its own either when another branch this merge did not land on had already
-//!  moved onto the same commit:
-//!  its own reflog records that move from another commit,
+//!  A branch that has moved holds no commit of its own either when another branch's own reflog names the commit it holds:
+//!  its own reflog records a move there from another commit,
 //!  while a branch created at a commit records no commit as the value before it and proves nothing.
 //!  A person who runs `git reset --hard main` in a task worktree moves its branch onto main's commit and makes nothing,
 //!  and the tip differs from the commit the branch was made at,
 //!  so movement alone read it as the branch's own work and the merge that brought main in took the worktree
 //!  (a cross-vendor review of the landed sweep,
 //!  round 208).
-//!  A branch moved onto a commit this one made is the mirror of that,
-//!  and keeps the worktree:
-//!  Git records no owner of a commit,
-//!  and a branch moved onto a commit another branch holds below its own tip is no state this rule can see at all,
-//!  so a worktree it cannot prove it may remove stays.
+//!  The branch whose reflog is asked need not still sit on that commit:
+//!  one that committed again names the same commit in an older line,
+//!  and a rule that demanded the tip equal the candidate's found no witness and took the worktree anyway.
+//!  The one move this merge wrote in the branch it ran in is no witness,
+//!  because a fast-forward records exactly that line and it would otherwise read as another branch's work.
+//!  A branch moved onto a commit this one made is the mirror of that and keeps the worktree,
+//!  since Git records no owner of a commit,
+//!  and a landed worktree whose tip another branch's history passed through stays the same way:
+//!  a worktree this rule cannot prove it may remove stays.
 //!  Ignored directories are the build state this sweep exists to give back and go with the worktree.
 //!  The process the sweep runs in counts as one working in a worktree:
 //!  `-C` names the repository a command works on,
@@ -76,17 +79,20 @@
 //!  so a worktree holding a modified or untracked file is refused by Git exactly as it is for a person,
 //!  and what the person reads here is Git's sentence.
 //!  Everything else is named with its reason and left alone.
-//!  What the removal deletes besides the files Git keeps is read again immediately before it runs:
+//!  What the removal deletes beside the files Git keeps is read again inside the removal,
+//!  after its proof of cleanliness and immediately before the destroy:
 //!  a worktree a command added inside the candidate while the sweep ran is in the registrations only after that command
 //!  finishes,
 //!  so the list the sweep read at its start proves nothing about it,
 //!  and the removal took the nested worktree's changed files and its own record with the parent
 //!  (a cross-vendor review of the landed sweep,
 //!  round 208);
-//!  and a push failure recorded in the candidate's own Git directory after the one removal snapshot the sweep takes went
+//!  a push failure recorded in the candidate's own Git directory after the one removal snapshot the sweep takes went
 //!  with that directory,
-//!  so the snapshot is retaken for the worktree being removed just as the removal runs,
-//!  and a worktree whose records could not all be copied stays and says where they are.
+//!  so the snapshot is retaken there too,
+//!  and a worktree whose records could not all be copied stays and says where they are;
+//!  what no look can keep is an add or a record that arrives between that last look and the destroy,
+//!  which is the window `worktree_remove.rs` takes for every write and lock in the tree it deletes.
 //!  A commit a reference lock holds in a landed worktree lives in that worktree's own Git directory
 //!  and on its per-worktree reference,
 //! and both go with the removal,
@@ -102,6 +108,14 @@
 //!  The record that names the removal outlives the command,
 //!  the repository's commit service performs it,
 //!  and Git's own words for a refusal settle there as the record's outcome.
+//!  Everything proved here is proved again by that service immediately before it destroys anything
+//!  (`worktree_removal_second_look.rs`),
+//!  because this proof is spent when the record is written and the destruction happens later:
+//!  a worktree added inside the candidate,
+//!  an ignored file written in it,
+//!  a push failure its own Git directory records,
+//!  a process that starts working in it and a commit a reference lock then holds are all read there again,
+//!  and a worktree that no longer meets a condition stays and is named in the repository's kept-worktree notices.
 //!  Nothing here can fail the merge that woke it.
 //!
 //! In TS you'd write (pseudocode):
@@ -109,46 +123,24 @@
 //! const sweep = sweepLandedWorktrees({ context, commonDir, currentRoot, procRoot }, before, now, branch);
 //! ```
 
-use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
-use crate::worktree_branch_reflog::{branch_made_at, branch_moved_onto};
-use crate::worktree_process_inside::process_working_inside;
-use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
+use crate::worktree_branch_reflog::{MergeMove, branch_made_at, branch_moved_onto};
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
-use crate::worktree_removal_rescue::{snapshot_linked_worktrees, snapshot_one};
+use crate::worktree_removal_rescue::snapshot_linked_worktrees;
+use crate::worktree_removal_second_look::{SecondLook, nested_worktree_reason, why_the_worktree_stays, worktrees_inside};
 use crate::worktree_remove_hand_over::hand_over_worktree_removal;
-use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
+use crate::worktree_remove::{LinuxOperations, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::work_item::WorkItem;
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLandedRemoval";
-
-/// The start of every name Git gives a file an unfinished bisect keeps in a worktree's Git directory.
-/// Why:
-///  `git bisect start` writes `BISECT_START`,
-/// then `BISECT_NAMES`,
-/// and opens `BISECT_LOG` only after both
-///  (measured with Git 2.56 under `strace`),
-///  so a process killed between those writes leaves a bisect whose marks are only the files written before the kill.
-///  A sweep that knew only the log removed the worktree with the rest:
-///  a fixture whose bisect was killed at the first open of `BISECT_LOG` had `BISECT_START` and `BISECT_NAMES`,
-///  no log,
-///  a clean checkout on its branch,
-///  and the wrapped merge removed it and every file with it
-///  (a cross-vendor audit of the landed sweep).
-///  Every file a bisect keeps in that directory is named under this prefix,
-///  and `git bisect reset` removes every one of them
-///  (a fixture had none left after the reset),
-///  so the prefix is what a sweep can ask for without falling behind a Git that adds another file.
-const BISECT_MARK_PREFIX: &str = "BISECT_";
 
 /// What:
 ///  Where one sweep looks,
@@ -373,7 +365,48 @@ fn holds_its_own_commits(common_dir: &Path, reference: &str, tip: &str) -> bool 
     return branch_made_at(common_dir, reference) != Some(tip.to_owned());
 }
 
-/// Whether a branch this merge did not land on moved onto `tip`,
+/// What:
+///  The merge that just ran,
+///  as much of it as says which reflog line the merge itself wrote.
+/// Why:
+///  The witness rule reads the reflog of every landed branch,
+///  and a fast-forward writes one line in the branch the merge ran in that names the landed tip.
+///  Skipping that one line needs the branch,
+///  the commit it held before the merge and the one it holds now,
+///  so a control names them together rather than as three loose strings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thisMerge = { branch: 'main', before: 'a1b2c3d...', now: 'dfc6c4e...' };
+/// ```
+#[derive(Clone, Copy)]
+struct ThisMerge<'a> {
+    /// The branch the merge ran in,
+    /// in Git's short spelling,
+    /// or the words for a `HEAD` that names no branch.
+    branch: &'a str,
+    /// The commit that branch held before the merge.
+    before: &'a str,
+    /// The commit it holds now.
+    now: &'a str,
+}
+
+/// Whether `reference` is the branch `short` names,
+/// which a caller gives in Git's own short spelling.
+/// Why:
+///   A landing names a reference in full,
+///  and the branch a merge ran in is named the way Git prints it,
+///  so the two are compared through the one prefix Git puts in front of a branch name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesABranch('refs/heads/main', 'main') // true
+/// ```
+fn names_a_branch(reference: &str, short: &str) -> bool {
+    return reference.strip_prefix("refs/heads/") == Some(short);
+}
+
+/// Whether another branch's own reflog names `tip`,
 /// which is a commit the branch named by `reference` did not make.
 /// Why:
 ///  A person who runs `git reset --hard main` in a task worktree moves its branch onto main's commit and makes nothing.
@@ -381,22 +414,34 @@ fn holds_its_own_commits(common_dir: &Path, reference: &str, tip: &str) -> bool 
 ///  so the rule above read the move as work of the branch's own and the merge that brought main in removed the worktree
 ///  (a cross-vendor review of the landed sweep,
 ///  round 208).
-///  A branch at the head this merge landed on is not counted:
-///  a fast-forward merge leaves the landed branch on the tip the landed worktree's branch has,
-///  and that is where the work of that branch is.
-///  A branch moved onto a commit another branch holds below its own tip is the state this rule cannot see,
-///  because Git records no owner of a commit.
+///  The branch whose reflog is asked need not still sit on that commit:
+///  one that committed again after the reset names the same commit in an older line,
+///  and a rule that demanded the tip equal the candidate's found no witness at all,
+///  which took the worktree as surely as the equal-tip state did.
+///  The one line this merge wrote in the branch it ran in is no witness:
+///  a fast-forward leaves that branch on the landed tip,
+///  so its own move there would otherwise read as another branch's work.
+///  What stays unseen is the mirror state:
+///  a branch moved onto a commit this candidate made keeps the worktree too,
+///  because Git records no owner of a commit,
+///  and so does a landed worktree whose tip another branch's history passed through.
+///  Both are worktrees this rule cannot prove it may remove,
+///  and they stay.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// anotherBranchTookTheTip(landed, commonDir, 'refs/heads/task-z', 'dfc6c4e...', 'a1b2c3d...') // true when a branch moved onto another branch's commit
+/// anotherBranchTookTheTip(landed, commonDir, 'refs/heads/task-z', 'dfc6c4e...', { branch: 'main', before, now })
 /// ```
-fn another_branch_took_the_tip(landed: &[Landing], common_dir: &Path, reference: &str, tip: &str, landed_head: &str) -> bool {
+fn another_branch_took_the_tip(landed: &[Landing], common_dir: &Path, reference: &str, tip: &str, this_merge: ThisMerge<'_>) -> bool {
     for other in landed {
-        if other.reference == reference || other.tip != tip || other.tip == landed_head {
+        if other.reference == reference {
             continue;
         }
-        if branch_moved_onto(common_dir, other.reference.as_str(), tip) {
+        let merge_move: Option<MergeMove<'_>> = match names_a_branch(other.reference.as_str(), this_merge.branch) {
+            true => Some(MergeMove { from: this_merge.before, to: this_merge.now }),
+            false => None,
+        };
+        if branch_moved_onto(common_dir, other.reference.as_str(), tip, merge_move) {
             return true;
         }
     }
@@ -442,7 +487,13 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         if !holds_its_own_commits(place.common_dir, one.reference.as_str(), one.tip.as_str()) {
             continue;
         }
-        if another_branch_took_the_tip(landed.as_slice(), place.common_dir, one.reference.as_str(), one.tip.as_str(), now) {
+        if another_branch_took_the_tip(
+            landed.as_slice(),
+            place.common_dir,
+            one.reference.as_str(),
+            one.tip.as_str(),
+            ThisMerge { branch: landed_branch, before, now },
+        ) {
             continue;
         }
         candidates.insert(one.reference.clone());
@@ -474,6 +525,22 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
             return sweep;
         }
     };
+    // A service that does not answer costs this merge one wait and not one per candidate: the record is what outlives
+    // the command, and every later command of the repository wakes the same service
+    // (`HAND_OVER_GREETING_WAIT`, `wait_ceilings.rs`). A branch named for a merge that never waits on a removal had the
+    // merge wait about two seconds for each of four candidates against a stopped service
+    // (an audit of the release changeover, finding 7).
+    let wake_failed: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
+    let told = |context: &GitContext, git_dir: &Path| -> Result<(), String> {
+        if let Some(already) = wake_failed.borrow().as_ref() {
+            return Err(already.clone());
+        }
+        let answer: Result<(), String> = (place.told)(context, git_dir);
+        if let Err(reason) = &answer {
+            *wake_failed.borrow_mut() = Some(reason.clone());
+        }
+        return answer;
+    };
     for one in &registered {
         if !candidates.contains(one.branch.as_str()) || place.current_root == Some(one.worktree.as_path()) {
             continue;
@@ -483,7 +550,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         if !place.registered_before.holds(one) {
             continue;
         }
-        match examine_and_remove(place, one, registered.as_slice()) {
+        match examine_and_remove(place, &told, one, registered.as_slice(), &LinuxOperations) {
             Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
             Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report }),
             Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report }),
@@ -544,10 +611,19 @@ enum Attempt {
 /// ```ts
 /// removeHereOrHandOver(place, registration) // an Attempt: removed here, handed to the service, or kept with its reason
 /// ```
-fn remove_here_or_hand_over(place: &LandedPlace<'_>, one: &Registration) -> Attempt {
+fn remove_here_or_hand_over(
+    place: &LandedPlace<'_>,
+    told: &dyn Fn(&GitContext, &Path) -> Result<(), String>,
+    operations: &dyn RemoveOperations,
+    one: &Registration,
+) -> Attempt {
     let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
-    let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir };
-    match remove_subvolume_worktree(&request) {
+    // Asked again inside the removal, in the window it destroys in: its proof of cleanliness starts Git and walks the
+    // tree, which is long enough for a command to add a worktree inside this one and for the service to record a refused
+    // push (a cross-vendor review of the landed sweep, round 208).
+    let look: NothingNewWouldGoWithIt<'_> = NothingNewWouldGoWithIt { common_dir: place.common_dir, one };
+    let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir, last_look: Some(&look) };
+    match remove_with(operations, &request) {
         RemoveOutcome::Removed => {
             crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
             return Attempt::Removed;
@@ -556,118 +632,18 @@ fn remove_here_or_hand_over(place: &LandedPlace<'_>, one: &Registration) -> Atte
         RemoveOutcome::Refused(report) => return Attempt::Refused(report),
         RemoveOutcome::LeftToGit => {}
     }
-    let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.told) {
+    let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.current_root, told) {
         Ok(record) => record,
         Err(reason) => return Attempt::Kept(reason),
     };
     return Attempt::Handed(record);
 }
 
-/// What:
-///  The other worktrees this repository registers whose checkout lies inside `one`,
-///  which a removal of `one` would take with it.
-/// Why:
-///  A worktree can be added from inside another one,
-/// and this repository's own agents do it:
-///  the nested checkout is a directory of the outer worktree,
-///  usually under an ignored name.
-///  Removing the outer one took the nested worktree's files,
-///  a modified tracked file and an untracked file among them,
-///  and left its registration naming a path that is gone,
-///  so `git worktree prune` could then delete the nested worktree's own record,
-///  its reflog and the commits held in it
-///  (a cross-vendor audit of `574063773d`,
-///  finding F2).
-///  The paths compared are the canonical ones Git's own registration names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// worktreesInside(one, registered) // the registrations whose worktree starts with one.worktree
-/// ```
-fn worktrees_inside<'a>(one: &Registration, registered: &'a [Registration]) -> Vec<&'a Registration> {
-    let mut inside: Vec<&'a Registration> = Vec::new();
-    for other in registered {
-        if other.worktree != one.worktree && other.worktree.starts_with(one.worktree.as_path()) {
-            inside.push(other);
-        }
-    }
-    return inside;
-}
-
-/// What:
-///  The paths of the worktrees found inside,
-/// as the person reads them,
-///  a few named and the rest counted.
-/// Why:
-///  A person decides about their own worktrees,
-///  so the ones that keep this one are named,
-///  and a list longer than a few would bury the sentence it sits in.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// namesOf(inside) // '`a` and 2 more'
-/// ```
-fn names_of(inside: &[&Registration]) -> String {
-    const SHOWN: usize = 2;
-    let mut parts: Vec<String> = Vec::new();
-    for other in inside.iter().take(SHOWN) {
-        parts.push(format!("`{}`", other.worktree.display()));
-    }
-    let rest: usize = inside.len().saturating_sub(parts.len());
-    if rest > 0 {
-        parts.push(format!("and {rest} more"));
-    }
-    return parts.join(", ");
-}
-
-/// What:
-///  Why a worktree that holds another registered worktree stays.
-/// Why:
-///  The two checks that keep it,
-///  the one over the registrations the sweep read at its start and the one over the registrations read as the removal
-///  runs,
-///  answer a person in the same words,
-///  so the sentence is written once.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// nestedWorktreeReason(inside) // the sentence a kept parent prints
-/// ```
-fn nested_worktree_reason(inside: &[&Registration]) -> String {
-    return format!(
-        "another worktree this repository registers is inside it ({}), and a removal of this one would take that worktree's files and its own record with it",
-        names_of(inside)
-    );
-}
-
-/// What:
-///  The name of a file an unfinished bisect left in `admin`,
-///  or nothing when no bisect is in progress there.
-/// Why:
-///   The file is Git's own record that a bisect is unfinished,
-///  and its name is what tells a person where Git kept the bisect,
-///  while a question about `BISECT_LOG` alone answers nothing when the kill came before that file was opened.
-///  The smallest name is taken,
-/// not the one the filesystem listed first,
-///  so the reason reads the same every time.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// bisectMarkIn(admin) // 'BISECT_NAMES'
-/// ```
-fn bisect_mark_in(admin: &Path) -> Option<String> {
-    let mut marks: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(admin).ok()?.flatten() {
-        let Ok(name) = entry.file_name().into_string() else {
-            continue;
-        };
-        if name.starts_with(BISECT_MARK_PREFIX) {
-            marks.push(name);
-        }
-    }
-    marks.sort();
-    return marks.into_iter().next();
-}
+/// The sweep's own last look and what a removal deletes beside the files Git keeps,
+/// which is asked again inside the removal.
+#[path = "worktree_landed_removal_last_look.rs"]
+mod last_look;
+use self::last_look::{NothingNewWouldGoWithIt, nothing_new_would_go_with_it};
 
 /// What one candidate came to.
 enum Examined {
@@ -698,86 +674,56 @@ enum Examined {
 ///  so a worktree someone is still using is never the one that goes.
 ///  The list of registrations the sweep read at its start answers early,
 ///  and it is not what the removal rests on:
-///  what a removal deletes besides the files Git keeps is read again here,
+///  what a removal deletes beside the files Git keeps is asked here first,
+///  so a candidate that would lose one costs no proof of cleanliness,
+///  and the removal asks it again in the window it destroys in
+///  (`nothing_new_would_go_with_it`);
+///  everything else such a removal deletes is read again here,
 ///  immediately before it runs,
 ///  because a worktree a command adds inside this one while the sweep runs,
 ///  and a push failure recorded in this one's own Git directory,
 ///  appear only after that first reading
-///  (`nested_worktree_reason`,
-///  `snapshot_one`).
+///  (`worktree_removal_second_look.rs`).
+///  The service that performs a handed-over removal makes that same reading again before it destroys anything,
+///  because this one is spent as soon as the record is written
+///  (`remove_the_worktree_of`).
+///  The `operations` are the kernel and Git a control replaces,
+///  exactly as `worktree_remove.rs` lets a control replace them for the person's own removal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// examineAndRemove(place, registration, registered)
+/// examineAndRemove(place, registration, registered, operations)
 /// ```
-fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &[Registration]) -> Examined {
+fn examine_and_remove(
+    place: &LandedPlace<'_>,
+    told: &dyn Fn(&GitContext, &Path) -> Result<(), String>,
+    one: &Registration,
+    registered: &[Registration],
+    operations: &dyn RemoveOperations,
+) -> Examined {
     if !added_by_the_wrapper(one.admin.as_path(), one.worktree.as_path()) {
         return Examined::Unproven;
     }
-    let inside: Vec<&Registration> = worktrees_inside(one, registered);
+    let inside: Vec<&Registration> = worktrees_inside(one.worktree.as_path(), registered);
     if !inside.is_empty() {
         return Examined::Kept(nested_worktree_reason(inside.as_slice()));
     }
-    if one.admin.join("locked").exists() {
-        return Examined::Kept(String::from("it is locked, and a lock is a promise to keep it"));
+    // What the removal deletes beside the files Git keeps is asked here first, so a candidate that would lose a record or
+    // a nested worktree costs no proof of cleanliness, and the same question is asked again inside the removal, in the
+    // window it destroys in (`nothing_new_would_go_with_it`).
+    if let Err(reason) = nothing_new_would_go_with_it(place.common_dir, one) {
+        return Examined::Kept(reason);
     }
-    for marker in IN_PROGRESS_MARKERS {
-        if one.admin.join(marker).exists() {
-            return Examined::Kept(format!("a {marker} stands in it, so an operation there is unfinished"));
-        }
-    }
-    if let Some(mark) = bisect_mark_in(one.admin.as_path()) {
-        return Examined::Kept(format!("a bisect is unfinished there, and its {mark} is still in the worktree"));
-    }
-    // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
-    //  inside at all: a process older than the directory cannot have changed into it.
-    if let Some(working) = process_working_inside(one.worktree.as_path(), one.admin.as_path(), place.proc_root, age_of(one.worktree.as_path())) {
-        return Examined::Kept(working.why());
-    }
-    match place.current_root {
-        Some(source) => match ignored_entries_alone_here(place.context, one.worktree.as_path(), one.admin.as_path(), source) {
-            Ok(alone) if alone.is_empty() => {}
-            Ok(alone) => {
-                return Examined::Kept(format!(
-                    "it holds ignored files that the worktree this merge ran in does not hold with the same bytes ({}), and nothing proves they are not yours",
-                    alone.list()
-                ));
-            }
-            Err(reason) => {
-                return Examined::Kept(format!("nothing proves the ignored files there are not yours, so nothing is removed: {reason}"));
-            }
-        },
-        None => {
-            return Examined::Kept(String::from(
-                "this command runs in a repository without a worktree, so nothing proves the ignored files there are not yours",
-            ));
-        }
-    }
-    // The unshown push failures and the unfinished pushes of this worktree live in its own Git directory, which the
-    // removal deletes. The sweep copied them before it examined a candidate, and the push service writes a refused push at
-    // any moment, so the copy is made again here, as the removal runs: a record written after the sweep's own copy went with
-    // the directory (a cross-vendor review of the landed sweep, round 208). A record that cannot be copied keeps the
-    // worktree, because the copy is the only thing left of it after the removal.
-    let unsaved: Vec<String> = snapshot_one(place.common_dir, one.admin.as_path());
-    if !unsaved.is_empty() {
-        return Examined::Kept(format!(
-            "the unshown push failures and the unfinished pushes its own Git directory holds could not all be copied into a removal snapshot, so nothing is removed and they stay in {}: {}",
-            one.admin.display(),
-            unsaved.join(" ")
-        ));
-    }
-    // A worktree a command added inside this one while the sweep ran is in the registrations only once that command has
-    // finished, so the list read at the start of the sweep proves nothing about it: the removal took the nested worktree's
-    // changed files and its own record with the parent (a cross-vendor review of the landed sweep, round 208).
-    let registered_now: Vec<Registration> = match registrations_of(place.common_dir) {
-        Ok(found) => found,
-        Err(reason) => return Examined::Kept(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
+    let look: SecondLook<'_> = SecondLook {
+        context: place.context,
+        common_dir: place.common_dir,
+        proc_root: place.proc_root,
+        source: place.current_root,
     };
-    let inside_now: Vec<&Registration> = worktrees_inside(one, registered_now.as_slice());
-    if !inside_now.is_empty() {
-        return Examined::Kept(nested_worktree_reason(inside_now.as_slice()));
+    if let Some(why) = why_the_worktree_stays(&look, one.worktree.as_path(), one.admin.as_path()) {
+        return Examined::Kept(why);
     }
-    let removal: Attempt = remove_here_or_hand_over(place, one);
+    let removal: Attempt = remove_here_or_hand_over(place, told, operations, one);
     if matches!(removal, Attempt::Removed) {
         // A pool names the worktree it serves in every member's config and sits in the common Git directory, which no
         // removal deletes, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).
@@ -790,47 +736,6 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
         Attempt::Handed(record) => Examined::Handed(record),
         Attempt::Kept(why) => Examined::Kept(why),
     };
-}
-
-/// What:
-///  How long a directory has existed,
-///  as the filesystem records when it was made.
-/// Why:
-///   A process that hides its working folder can only be working inside a directory that existed when it started,
-///  so the worktree's age is what separates the services that start at login from a process this worktree's own work began.
-///  A filesystem that records no birth time says nothing,
-///  and the hidden process then keeps the worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// ageOf(directory) // Duration | undefined
-/// ```
-#[cfg(target_os = "linux")]
-fn age_of(directory: &Path) -> Option<Duration> {
-    use std::os::unix::ffi::OsStrExt as _;
-    let name: std::ffi::CString = std::ffi::CString::new(directory.as_os_str().as_bytes()).ok()?;
-    // SAFETY: an all-zero `statx` is a valid value for the call to fill.
-    let mut found: libc::statx = unsafe { std::mem::zeroed() };
-    // SAFETY: `name` outlives the call, `found` is a live `statx`, and `AT_FDCWD` with an absolute path names the directory.
-    let called: libc::c_int = unsafe { libc::statx(libc::AT_FDCWD, name.as_ptr(), 0, libc::STATX_BTIME, &mut found) };
-    if called != 0 || found.stx_mask & libc::STATX_BTIME == 0 {
-        return None;
-    }
-    let seconds: u64 = u64::try_from(found.stx_btime.tv_sec).ok()?;
-    let made: SystemTime = SystemTime::UNIX_EPOCH + Duration::new(seconds, found.stx_btime.tv_nsec);
-    return SystemTime::now().duration_since(made).ok();
-}
-
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-/// No birth time to read on a platform without `statx`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// ageOf(directory) // undefined
-/// ```
-#[cfg(not(target_os = "linux"))]
-fn age_of(_directory: &Path) -> Option<Duration> {
-    return None;
 }
 
 /// The controls of the sweep stay out of the release executable.
