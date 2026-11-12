@@ -20,7 +20,7 @@
 
 use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
 use crate::service_durable::WhatTheSyncsBecame;
-use crate::service_journal::{Intent, write_intent_carrying, write_start};
+use crate::service_journal::{Intent, mark_done_carrying, remove_start, write_intent_carrying, write_start};
 use crate::service_land_start::IndexWitness;
 use crate::wait_ceilings::JOURNAL_WRITE_CEILING;
 use std::path::{Path, PathBuf};
@@ -122,6 +122,88 @@ pub(crate) struct TheStartRecordOfABatch {
 /// written as one job of the blocking pool.
 fn write_the_start_record_of_a_batch(job: TheStartRecordOfABatch) -> std::io::Result<()> {
     return write_start(job.dir.as_path(), job.seq, &job.witness);
+}
+
+/// What:
+///  `mark_done` for a caller that is a task of the runtime:
+/// the same three steps,
+/// as a job of the blocking pool,
+/// awaited no longer than `JOURNAL_WRITE_CEILING`.
+/// Why:
+///   The completion of a batch is a rename, a flush of the journal directory and two records taken away,
+/// and each waits in the kernel on a disk that stopped answering;
+/// a task that made them would hold a worker the runtime needs.
+/// The landing's deferral travels into the job and its syncs travel back,
+/// so the directory is flushed where and when the synchronous face flushes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await markDoneAwaiting(dir, seq)
+/// ```
+///
+/// # Errors
+///
+/// The error of the rename or of the flush,
+/// and the error of a job that did not run or gave no answer.
+pub async fn mark_done_awaiting(dir: &Path, seq: u64) -> std::io::Result<()> {
+    let job: TheCompletionOfABatch = TheCompletionOfABatch { dir: dir.to_path_buf(), seq, deferring: crate::service_durable::syncs_are_deferred_here() };
+    return match run_a_job_awaited_no_longer_than(JOURNAL_WRITE_CEILING, job, mark_the_batch_done).await {
+        TheAnswerOfAJobAwaited::Ran((marked, became)) => {
+            became.keep();
+            marked
+        }
+        TheAnswerOfAJobAwaited::NotRun => Err(a_record_the_system_refused_a_thread_for("completion", seq)),
+        TheAnswerOfAJobAwaited::NoAnswer => Err(a_record_whose_write_gave_no_answer("completion", seq)),
+    };
+}
+
+/// The completion of one batch,
+/// with the landing's deferral as the task that asked for it found it.
+pub(crate) struct TheCompletionOfABatch {
+    dir: PathBuf,
+    seq: u64,
+    deferring: bool,
+}
+
+/// The completion of a batch,
+/// made as one job of the blocking pool.
+fn mark_the_batch_done(job: TheCompletionOfABatch) -> (std::io::Result<()>, WhatTheSyncsBecame) {
+    let mut became: WhatTheSyncsBecame = WhatTheSyncsBecame::default();
+    let marked: std::io::Result<()> = mark_done_carrying(job.dir.as_path(), job.seq, job.deferring, &mut became);
+    return (marked, became);
+}
+
+/// What:
+///  `remove_start` for a caller that is a task of the runtime:
+/// the same removal,
+/// as a job of the blocking pool,
+/// awaited no longer than `JOURNAL_WRITE_CEILING`.
+/// Why:
+///   The record is a file of the journal, and a removal waits in the kernel on a disk that stopped answering.
+/// The synchronous face answers nothing whether the removal worked or not,
+/// because a record left behind is one the next landing of that number replaces,
+/// so this face answers nothing either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await removeStartAwaiting(dir, seq)
+/// ```
+pub async fn remove_start_awaiting(dir: &Path, seq: u64) {
+    let job: TheStartRecordToTakeAway = TheStartRecordToTakeAway { dir: dir.to_path_buf(), seq };
+    let _answered = run_a_job_awaited_no_longer_than(JOURNAL_WRITE_CEILING, job, remove_the_start_record_of_a_batch).await;
+}
+
+/// The start record one removal names,
+/// owned so that a job of the blocking pool can take it.
+pub(crate) struct TheStartRecordToTakeAway {
+    dir: PathBuf,
+    seq: u64,
+}
+
+/// The start record of a batch,
+/// taken away as one job of the blocking pool.
+fn remove_the_start_record_of_a_batch(job: TheStartRecordToTakeAway) {
+    return remove_start(job.dir.as_path(), job.seq);
 }
 
 /// What:

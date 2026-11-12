@@ -399,8 +399,31 @@ pub fn indexed_state(dir: &Path, seq: u64, new: &str) -> Indexed {
 /// await markDone(dir, seq) // rename intent to done; fsync dir; unlink indexed
 /// ```
 pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
+    let mut became: WhatTheSyncsBecame = WhatTheSyncsBecame::default();
+    let marked: std::io::Result<()> = mark_done_carrying(dir, seq, crate::service_durable::syncs_are_deferred_here(), &mut became);
+    became.keep();
+    return marked;
+}
+
+/// What:
+///  `mark_done` with the landing's deferral as its caller found it,
+/// answering the syncs it queued for the caller to keep.
+/// Why:
+///   A task of the runtime writes this record as a job of the blocking pool,
+/// and the job's thread has no deferral of its own:
+/// the answer travels back to the landing that asked (`service_journal_writes_awaited.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// markDoneCarrying(dir, seq, deferring, became)
+/// ```
+///
+/// # Errors
+///
+/// The error of the rename or of the flush when it is made now.
+pub(crate) fn mark_done_carrying(dir: &Path, seq: u64, deferring: bool, became: &mut WhatTheSyncsBecame) -> std::io::Result<()> {
     fs::rename(batch_path(dir, seq, OPEN_EXTENSION), batch_path(dir, seq, DONE_EXTENSION))?;
-    crate::service_durable::flush_directory(dir, "journal-dir")?;
+    crate::service_durable::flush_directory_carrying(dir, "journal-dir", deferring, became)?;
     crate::service_fault::note("remove-indexed");
     let _record_removed = fs::remove_file(batch_path(dir, seq, INDEXED_EXTENSION));
     remove_start(dir, seq);

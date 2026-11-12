@@ -39,3 +39,30 @@ fn a_replacement_with_the_same_bytes_is_another_witness_and_an_untouched_file_is
     assert_eq!(trailer.len(), 64, "the last bytes of a file of this size are kept in full");
     remove(root.as_path());
 }
+
+/// What:
+///  The witness the awaited face reads is the one the synchronous face reads,
+/// for a file that is there and for one that is not,
+/// and a look no job gave in time is an error rather than an absent index.
+/// Why:
+///   A replay decides from this record whether it may write the index at all,
+/// so a face that read another witness would replay over staging it never saw,
+/// and one that answered "absent" for a look nobody made would discard staging.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await witnessOfAwaiting(file)).toEqual(witnessOf(file)); expect(await witnessOfAwaiting(gone)).toEqual(witnessOf(gone))
+/// ```
+#[test]
+fn the_awaited_witness_is_the_one_the_synchronous_face_reads() {
+    let root: std::path::PathBuf = fixture("service-land-witness-awaiting");
+    let index: std::path::PathBuf = root.join("index");
+    std::fs::write(&index, b"DIRC bytes of an index that ends in its checksum").expect("write");
+    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().expect("a runtime of one worker");
+    let awaited: std::io::Result<IndexWitness> = runtime.block_on(witness_of_awaiting(index.as_path()));
+    assert_eq!(awaited.expect("the awaited look"), witness_of(index.as_path()).expect("the synchronous look"), "the two faces read one witness");
+    let gone: std::path::PathBuf = root.join("not-an-index");
+    let awaited_gone: std::io::Result<IndexWitness> = runtime.block_on(witness_of_awaiting(gone.as_path()));
+    assert_eq!(awaited_gone.expect("the awaited look at a file that is not there"), witness_of(gone.as_path()).expect("the synchronous look"), "a file that is not there is absent on both faces");
+    remove(root.as_path());
+}

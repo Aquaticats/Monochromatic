@@ -110,6 +110,62 @@ pub fn witness_of(index: &Path) -> std::io::Result<IndexWitness> {
     });
 }
 
+/// What:
+///  `witness_of` for a caller that is a task of the runtime:
+/// the same look,
+/// as a job of the blocking pool,
+/// awaited no longer than `COMMIT_OWN_STATE_CEILING`.
+/// Why:
+///   The look opens the index file and reads its end,
+/// which waits in the kernel on a disk or a mount that stopped answering;
+/// a task that made it would hold a worker the runtime needs.
+/// A job the system gave no thread, or one that gave no answer in time,
+/// is answered as a look that cannot be made,
+/// which the caller already has an answer for:
+/// a record that is not written,
+/// never one that says the index is absent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const witness = await witnessOfAwaiting(indexPath)
+/// ```
+///
+/// # Errors
+///
+/// The error of the open,
+/// the metadata or the read,
+/// and the error of a job that did not run or gave no answer.
+pub async fn witness_of_awaiting(index: &Path) -> std::io::Result<IndexWitness> {
+    let job: AnIndexFileToWitness = AnIndexFileToWitness { index: index.to_path_buf() };
+    return match crate::blocking_jobs_within_the_budget::run_a_job_awaited_no_longer_than(
+        crate::wait_ceilings::COMMIT_OWN_STATE_CEILING,
+        job,
+        witness_of_a_job,
+    )
+    .await
+    {
+        crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::Ran(witness) => witness,
+        crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::NotRun => Err(std::io::Error::other(
+            "the index file the landing started from was not looked at, because the system refused a thread for the step that reads it",
+        )),
+        crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::NoAnswer => Err(std::io::Error::other(
+            "the index file the landing started from gave no answer in time, so the record of it is not written",
+        )),
+    };
+}
+
+/// The index file one look names,
+/// owned so that a job of the blocking pool can take it.
+struct AnIndexFileToWitness {
+    index: std::path::PathBuf,
+}
+
+/// The look one job of the pool makes:
+/// `witness_of` over the question's own path.
+fn witness_of_a_job(job: AnIndexFileToWitness) -> std::io::Result<IndexWitness> {
+    return witness_of(job.index.as_path());
+}
+
 /// The text of a witness:
 /// `absent`,
 /// or `file` and its fields separated by colons.

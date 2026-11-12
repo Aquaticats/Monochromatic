@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::blocking_jobs_within_the_budget::a_controls_answer::{AStatesAnswer, state_the_answer};
-use crate::service_journal::{OPEN_EXTENSION, START_EXTENSION, Started, TEMPORARY_EXTENSION, batch_path, intent_text, read_start, write_start};
+use crate::service_journal::{DONE_EXTENSION, OPEN_EXTENSION, START_EXTENSION, Started, TEMPORARY_EXTENSION, batch_path, mark_done, read_start, remove_start, write_intent, write_start};
 use crate::test_support::{fixture, remove};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -153,7 +153,10 @@ fn the_awaited_intent_write_keeps_the_flushes_the_landing_defers() {
         let written: std::io::Result<()> = runtime.block_on(write_intent_awaiting(journal.as_path(), &intent(4)));
         assert!(written.is_ok(), "the intent of a free journal is written: {written:?}");
         let kept: String = std::fs::read_to_string(batch_path(journal.as_path(), 4, OPEN_EXTENSION)).expect("the intent's file");
-        assert_eq!(kept, intent_text(&intent(4)), "the awaited face writes the intent the synchronous one writes");
+        // The record also carries the reading of the clocks it was written by (`service_journal_record_age.rs`), which no two
+        //  writes share; the intent the two faces write is compared as the record reads back.
+        assert_eq!(crate::service_journal::parse_intent(without_the_age(kept.as_str()).as_str()), Some(intent(4)), "the awaited face writes the intent the synchronous one writes");
+        assert!(kept.lines().any(|line| { return line.starts_with("stamp="); }), "and the reading of the clocks it was written by: {kept}");
         let figures: Vec<crate::service_durable_syncs::SyncFigure> = crate::service_durable::take_syncs();
         let named: String = crate::service_durable_syncs::syncs_word(figures.as_slice());
         assert_eq!(named, "intent-file=queued;intent-dir=queued", "the flushes of the intent are the landing's to settle, so nothing waited for the disk");
@@ -199,4 +202,111 @@ fn the_awaited_start_record_is_the_one_the_synchronous_face_writes() {
         assert!(refused.is_err(), "a start record no job wrote in time is answered as one that could not be written");
     }
     remove(root.as_path());
+}
+
+/// What:
+///  The completion of a batch the awaited face makes is the one the synchronous face makes:
+/// the same record files are left,
+/// with the same contents,
+/// and the syncs the landing defers are the job's.
+/// Why:
+///   A restart decides a batch from the records a completion leaves,
+/// so a face that renamed or removed another set of them would decide another batch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// markDone(one, 3); await markDoneAwaiting(other, 3); expect(records(one)).toEqual(records(other))
+/// ```
+#[test]
+fn the_awaited_completion_leaves_what_the_synchronous_one_leaves() {
+    let root: PathBuf = fixture("journal-awaiting-completion");
+    let awaited: PathBuf = root.join("awaited");
+    let synchronous: PathBuf = root.join("synchronous");
+    let witness: IndexWitness = IndexWitness::File { inode: 9, size: 120, modified: (1_700_000_002, 6), changed: (1_700_000_003, 7), trailer: String::from("cd") };
+    let mut started: Vec<PathBuf> = Vec::new();
+    for dir in [awaited.as_path(), synchronous.as_path()] {
+        std::fs::create_dir(dir).expect("a journal directory");
+        write_intent(dir, &intent(3)).expect("the intent");
+        write_start(dir, 3, &witness).expect("the start record");
+        // What a landing that installed its index leaves beside the intent before the batch is marked done.
+        std::fs::write(batch_path(dir, 3, "indexed"), b"aa".repeat(20)).expect("the indexed record");
+        started.push(dir.to_path_buf());
+    }
+    let runtime: tokio::runtime::Runtime = one_worker();
+    let marked: std::io::Result<()> = runtime.block_on(mark_done_awaiting(awaited.as_path(), 3));
+    assert!(marked.is_ok(), "the completion of a free journal is written: {marked:?}");
+    mark_done(synchronous.as_path(), 3).expect("the synchronous completion");
+    assert_eq!(records_of(awaited.as_path(), 3), records_of(synchronous.as_path(), 3), "the two faces leave one set of records");
+    assert_eq!(
+        crate::service_journal::parse_intent(without_the_age(finished_of(awaited.as_path()).as_str()).as_str()),
+        crate::service_journal::parse_intent(without_the_age(finished_of(synchronous.as_path()).as_str()).as_str()),
+        "the finished record of the two faces reads back as one intent"
+    );
+    assert!(batch_path(awaited.as_path(), 3, "done").exists(), "the batch's open record became its finished one");
+    assert!(!batch_path(awaited.as_path(), 3, OPEN_EXTENSION).exists(), "the open record is gone");
+    assert!(!batch_path(awaited.as_path(), 3, START_EXTENSION).exists(), "the start record is gone");
+    assert!(!batch_path(awaited.as_path(), 3, "indexed").exists(), "the record of the installed index is gone");
+    for answer in [AStatesAnswer::NotRun, AStatesAnswer::NoAnswer] {
+        let _stated = state_the_answer(answer);
+        let refused: std::io::Result<()> = runtime.block_on(mark_done_awaiting(root.join("unwritten").as_path(), 4));
+        assert!(refused.is_err(), "a completion no job made in time is answered as one that could not be written");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  The start record the awaited face takes away is the one the synchronous face takes away,
+/// and neither answers anything.
+/// Why:
+///   The record is only an obligation to replay,
+/// and a replay over a record that is gone is the answer both faces give a commit that owes nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeStart(one, 2); await removeStartAwaiting(other, 2); expect(records(one)).toEqual(records(other))
+/// ```
+#[test]
+fn the_awaited_removal_takes_away_what_the_synchronous_one_takes_away() {
+    let root: PathBuf = fixture("journal-awaiting-removal");
+    let awaited: PathBuf = root.join("awaited");
+    let synchronous: PathBuf = root.join("synchronous");
+    let witness: IndexWitness = IndexWitness::File { inode: 11, size: 64, modified: (1_700_000_004, 8), changed: (1_700_000_005, 9), trailer: String::from("ef") };
+    for dir in [awaited.as_path(), synchronous.as_path()] {
+        std::fs::create_dir(dir).expect("a journal directory");
+        write_start(dir, 2, &witness).expect("the start record");
+        std::fs::write(batch_path(dir, 2, "indexed"), b"bb".repeat(20)).expect("a record that is not the start's");
+    }
+    let runtime: tokio::runtime::Runtime = one_worker();
+    runtime.block_on(remove_start_awaiting(awaited.as_path(), 2));
+    remove_start(synchronous.as_path(), 2);
+    assert_eq!(records_of(awaited.as_path(), 2), records_of(synchronous.as_path(), 2), "the two faces leave one set of records");
+    assert!(!batch_path(awaited.as_path(), 2, START_EXTENSION).exists(), "the start record is gone");
+    assert!(batch_path(awaited.as_path(), 2, "indexed").exists(), "the record that is not the start's is left where it is");
+    remove(root.as_path());
+}
+
+/// The records of one batch that a directory holds:
+/// every file whose name begins with the batch's number.
+fn records_of(dir: &Path, seq: u64) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(dir).expect("the journal directory").flatten() {
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with(format!("{seq}.").as_str()) {
+            found.push(name);
+        }
+    }
+    found.sort();
+    return found;
+}
+
+/// The finished record of one batch,
+/// as the file reads.
+fn finished_of(dir: &Path) -> String {
+    return std::fs::read_to_string(batch_path(dir, 3, DONE_EXTENSION)).expect("the finished record");
+}
+
+/// A record without the line that carries the reading of the clocks it was written by,
+/// which no two writes share.
+fn without_the_age(text: &str) -> String {
+    return text.lines().filter(|line| { return !line.starts_with("stamp="); }).collect::<Vec<&str>>().join("\n");
 }
