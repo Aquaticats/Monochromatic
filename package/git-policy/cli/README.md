@@ -6892,12 +6892,22 @@ Guard tests keep it so:
   and every later one checks it is still
   right:
   it compares the two installed units with what this release would write and,
-  only when they differ (an upgrade or
-  a downgrade moved the executable the units name),
+  only when they differ (a release changed the
+  template itself),
   rewrites them,
   reloads the manager,
   clears failed state and starts the socket.
-  When they match it opens no connection to the bus.
+  The program the units start is not named in their text but through a link the wrapper points at
+  the executable it is running
+  (`$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program`),
+  so an upgrade,
+  a downgrade or a second build of one release moves that link and changes no unit text:
+  no reload is asked for,
+  and the commit pays one read and,
+  when the program moved,
+  one rename.
+  When the units,
+  the link and the socket are right it opens no connection to the bus at all.
   Setting up writes two unit files into
   `$XDG_RUNTIME_DIR/systemd/user` (nothing is left in the home directory;
   the next first use after a login does it again)
@@ -7499,6 +7509,9 @@ a large `reachMs` with `updateRounds` above zero and two entries in `releasesSee
 of another release being replaced,
 and the journal of the instance shows that service's `retire requested` and `exiting`
 lines and the new `started` line;
+a service of another release that has not left after the client's wait for it is ended once,
+with one line saying so,
+and the commit goes on once the program this release installs answers;
 a large `answerWaitMs` is the queue or a held index,
 and the `answered` line of the
 request in the journal says which,
