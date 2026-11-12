@@ -297,7 +297,23 @@ move its durable facts to their canonical doc and delete it from this page.
   A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
   (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
 
-#### The hourly pass after 13:00 (prompt delivered at about 13:31; read at 13:30 to 13:35)
+#### The owner on the disk pressure, and round 312 (2026-11-12T13:31:45-05:00)
+
+- The owner, typed at about 13:31, after the slow commits were reported:
+  "Might be my move of a dir that's saturating it."
+- It fits the figures: the stalls are on I/O (`/proc/pressure/io` full avg10=47.49 at 13:25:55, CPU pressure at zero),
+  and they began in the window of the deletion and the move.
+  It does not answer what the wrapper adds over real Git under that pressure; the diagnosis started at 13:30 measures that.
+- Corrected: the section "The hourly pass after 13:00" names 13:35 three times; the clock read 13:29:55 to 13:31:46 during that pass.
+  Round 311's `git worktree add` had then run for about twenty-eight minutes, not more than thirty.
+- Round 312, started 13:31:45 through the package launcher:
+  `launcher-starts-a-run-under-load-instead-of-ending-a-batch-on-one-timed-out-request`
+  (in `package/pi-shared/subagent-driver`, on `main`; builds no Rust),
+  the first of the deferred items, tried because it adds no Rust build.
+  Whether its run comes up is read at the next look.
+- No further Rust-building run is started until a start is seen to go through.
+
+#### The hourly pass after 13:00 (prompt delivered and read between 13:29:55 and 13:31:46)
 
 - Culled: none. No running task is superseded by the decisions of 12:26:24 and 13:04:14;
   the three removal runs and the guard runs have them by note.
