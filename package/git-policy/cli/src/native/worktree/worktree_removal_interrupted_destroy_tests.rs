@@ -210,3 +210,25 @@ fn a_record_another_process_already_removed_does_not_stop_the_finish() {
     assert!(!destroyed.admin.exists(), "the registration is gone and the path is free again");
     remove(destroyed.root.as_path());
 }
+
+/// What:
+///  A removal that could not empty its own registration gives the record up,
+///  and the next command finishes what it could not.
+/// Why:
+///  A command that meets a record whose owner is still running leaves it to that owner,
+///  so an owner that gave up has to say so,
+///  or the registration waits until the process ends,
+///  which for the commit service is hours
+///  (a coordinating note of 2026-11-12).
+#[test]
+fn a_removal_that_gave_up_its_registration_leaves_a_record_no_owner_holds() {
+    let destroyed: Destroyed = a_registration_left_by_a_recorded_destroy("destroy-given-up-by-its-owner", None);
+    // This process is the owner and is alive, so the record is its own until it says otherwise.
+    assert!(finish_interrupted_destroys(destroyed.common.as_path()).is_empty(), "a live owner's record is not another command's work");
+    assert!(destroyed.admin.is_dir(), "and the registration is left where the owner left it");
+    abandon_destroy(destroyed.common.as_path(), std::ffi::OsStr::new("wt"));
+    let problems: Vec<String> = finish_interrupted_destroys(destroyed.common.as_path());
+    assert!(problems.is_empty(), "a record its owner gave up is finished by the next command: {problems:?}");
+    assert!(!destroyed.admin.exists(), "the registration is gone and the path is free again");
+    remove(destroyed.root.as_path());
+}

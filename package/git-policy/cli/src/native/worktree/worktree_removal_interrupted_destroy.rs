@@ -193,6 +193,57 @@ pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
     }
 }
 
+/// The owner a removal that gave up on its own registration writes,
+/// which no process can be proven to be.
+/// Why:
+///   A command that meets a record still owned by a live process leaves it to that process
+///  (a coordinating note of 2026-11-12:
+///  a removal still emptying its registration was reported as one that "cannot be finished").
+///  A removal that tried and could not empty its registration is not working on it any more,
+///  so it writes this owner before it returns and the next command may finish the work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ABANDONED_OWNER = '0:abandoned';
+/// ```
+pub const ABANDONED_OWNER: &str = "0:abandoned";
+
+/// What:
+///  Mark the record of `id` as one whose owner has given up,
+///  so the next command may finish it.
+/// Why:
+///  See `ABANDONED_OWNER`.
+///  The record keeps its mark,
+///  its identity and its target:
+///  only the owner changes,
+///  and it changes in one whole write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await abandonDestroy(commonDir, id);
+/// ```
+pub fn abandon_destroy(common_dir: &Path, id: &OsStr) {
+    let path: PathBuf = record_path(common_dir, id);
+    let bytes: Vec<u8> = match read_plain_file(path.as_path(), RECORD_LIMIT) {
+        Ok(read) => read,
+        Err(_gone) => return,
+    };
+    let read: DestroyRecord = match read_record(bytes.as_slice()) {
+        Ok(found) => found,
+        Err(_unreadable) => return,
+    };
+    let mut written: Vec<u8> = Vec::new();
+    if bytes.starts_with(DESTROYED_MARK) {
+        written.extend_from_slice(DESTROYED_MARK);
+    }
+    written.extend_from_slice(format!("{OWNER_PREFIX}{ABANDONED_OWNER}\n").as_bytes());
+    written.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", read.admin.encode()).as_bytes());
+    written.extend_from_slice(read.target.as_os_str().as_bytes());
+    if let Err(error) = write_beside_then_rename(path.as_path(), written.as_slice()) {
+        warn(TAG, format!("{} cannot be marked as given up ({error}), so a later command leaves it to this one", path.display()).as_str());
+    }
+}
+
 /// What:
 ///  Drop the record of one registration,
 /// which had nothing left to finish.

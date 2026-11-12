@@ -486,9 +486,14 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     record_destroyed(request.common_dir, registration.id.as_os_str());
     let outcome: RemoveOutcome = finish(&held, &registration, request);
     // A removal that finished has nothing left for a later command; one that could not remove the registration keeps its
-    // record, which is what the next command finishes.
+    // record, which is what the next command finishes. Its owner gives the record up first: a command that meets a record
+    // still owned by a live process leaves it to that process
+    // (a coordinating note of 2026-11-12),
+    // and this one is not working on it any more.
     if outcome == RemoveOutcome::Removed {
         forget_destroy(request.common_dir, registration.id.as_os_str());
+    } else {
+        crate::worktree_removal_interrupted_destroy::abandon_destroy(request.common_dir, registration.id.as_os_str());
     }
     return outcome;
 }
