@@ -135,6 +135,43 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The seventh cull pass, and the package-repair audit (2026-11-11T23:56:11-05:00)
+
+Forty-one agents were running at 23:52, every one with turns taken;
+the longest silent feed was thirteen minutes, inside a bounded test.
+Nothing was stopped and no running task is superseded.
+Free space: 166 GiB.
+
+Removed, as the sixth pass said this one would:
+the two worktrees that killed adds had left registered and incomplete
+(`git worktree remove --force`, nobody had ever used them),
+and the stage snapshot `.cli-git-worktree-copy-9f56192e-...`
+(`btrfs subvolume delete`; the one path in it the wrapper could not classify was an empty folder).
+The forced removals took sixteen seconds together and each left one more `cli-git-deleting-<number>` subvolume:
+nine stand there now, none deleted since 22:10.
+So removing a worktree frees no space at present, and the three worktrees of the cut-off reviews are left until that is fixed.
+
+Kimi's audit of the package repair ended
+(`${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-12-package-repair-on-add-and-commit/report.md`), four findings:
+
+- with an external `build-dir`, the repair's `cargo clean` runs through a copied `target` link
+  and deletes build output outside the worktree (`repair/package_repair_cargo.rs:148`, `:166`, `:337`);
+  reported as reproduced with the built wrapper.
+  To the round 261 agent that takes the repair off the add's path.
+- without a reachable service the add relinks inline under a 600-second window, not the add's 60 seconds
+  (`repair/package_repair.rs:342`).
+  To the same agent.
+- a start that times out can leave its tool running after saying nothing ran (`repair/package_repair_start.rs:91`, `:120`);
+  shown with a patched delay.
+  To the round 251 agent on which children a repair owns.
+- restoring `Cargo.lock` overwrites a write that lands after its last look (`repair/package_repair_cargo_lock.rs:156`, `:193`);
+  shown with a patched barrier.
+  To the round 251 agent on the restore.
+
+Each note tells its agent to run the audit's script itself first.
+Six of the ten Kimi audits have ended;
+the four still running are the commit service's landing, the discarding commands, worktree add, and removal with the landed sweep.
+
 ### The wrapper's own work queue in this repository: deletions pending for an hour, 341 relinks given up (2026-11-11T23:50:19-05:00)
 
 Checking whether the changeover audit's second finding had happened here
