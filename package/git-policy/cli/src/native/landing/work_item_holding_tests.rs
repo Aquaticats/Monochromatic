@@ -163,3 +163,67 @@ fn a_refusal_whose_verdict_is_already_there_gives_the_held_record_up() {
     assert_eq!(blocked_verdicts(work.as_path()).len(), 1, "one verdict for one commit");
     remove(root.as_path());
 }
+
+/// What:
+///  A push the command already approved is not held again.
+/// Why:
+///   Promotion to `pending` is the producer's approval,
+/// so a replay that holds the record again leaves the approved push and a held record side by side:
+/// the push can run and settle into `done` while the new record stays behind,
+/// naming a published commit on every command in the worktree or holding a later push of the branch.
+#[test]
+fn an_approved_push_is_not_held_again() {
+    let root: PathBuf = fixture("work-item-holding-approved-push");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    assert_eq!(crate::work_item::enqueue(work.as_path(), &item), Ok(crate::work_item::Enqueued::Added), "the command approved the push");
+    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "the approved push waits where a round finds it");
+    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the hold answers that nothing is owed");
+    assert!(
+        !state_directory(work.as_path(), HELD).join(item.id()).exists(),
+        "an approved push must not gain a second record nothing can promote"
+    );
+    assert!(state_directory(work.as_path(), PENDING).join(item.id()).exists(), "the approval is left where the queue put it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A hold written while the queue settled the same push gives its own record up.
+/// Why:
+///   The look before the write cannot see a promotion or a settlement that lands during it,
+/// and the record left behind names a commit the push already carried
+///  or stands beside the approved push and can never be promoted.
+/// The held name is this hold's own, because the write is exclusive,
+/// so giving it up takes no record another command wrote.
+#[test]
+fn a_hold_written_beside_a_settled_push_gives_its_own_record_up() {
+    let root: PathBuf = fixture("work-item-holding-beside-a-settled-push");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    let held: PathBuf = state_directory(work.as_path(), HELD).join(item.id());
+    let done: PathBuf = state_directory(work.as_path(), DONE);
+    assert!(create_private_directory_all(state_directory(work.as_path(), HELD).as_path()).is_ok(), "the held directory");
+    assert!(create_private_directory_all(done.as_path()).is_ok(), "the done directory");
+    std::fs::write(held.as_path(), item.encode()).expect("the held record this hold wrote");
+    std::fs::write(done.join(item.id()), item.encode()).expect("the settlement another command made");
+    give_up_what_the_queue_took(work.as_path(), item.id().as_str());
+    assert!(!held.exists(), "a hold beside a settled push is given up, so no command names a published commit as held");
+    assert!(done.join(item.id()).exists(), "the settlement is left where the queue put it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A hold whose push nothing has taken keeps its record.
+/// Why:
+///   This is the control of the removal above:
+/// a record given up while the queue holds nothing would be a push nothing ever runs.
+#[test]
+fn a_hold_no_one_took_keeps_its_record() {
+    let root: PathBuf = fixture("work-item-holding-kept");
+    let work: PathBuf = root.join("work");
+    let item: WorkItem = push_item(root.as_path());
+    assert_eq!(hold(work.as_path(), &item, "4321"), Ok(()), "the push is held while the gate decides");
+    give_up_what_the_queue_took(work.as_path(), item.id().as_str());
+    assert!(state_directory(work.as_path(), HELD).join(item.id()).exists(), "a hold the queue has not taken is the only record of the wait");
+    remove(root.as_path());
+}

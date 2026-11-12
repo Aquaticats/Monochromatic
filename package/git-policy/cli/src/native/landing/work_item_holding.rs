@@ -73,11 +73,36 @@ pub fn hold(work_dir: &Path, item: &WorkItem, holder: &str) -> Result<(), String
     };
     let path: PathBuf = state_directory(work_dir, HELD).join(item.id());
     return match write_private_file_unsynced(path.as_path(), record.as_bytes()) {
-        Ok(()) => Ok(()),
+        Ok(()) => {
+            // A promotion or a settlement can land between the look above and this write, and the record then stands beside
+            //  a push the queue already runs or ran.
+            give_up_what_the_queue_took(work_dir, item.id().as_str());
+            Ok(())
+        }
         // The same commit's push is already held; the gate has not decided either way.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(format!("writing the held record failed: {error}")),
     };
+}
+
+/// What:
+///  Gives up the held record of an item the queue took while this hold was being written.
+/// Why:
+///   The look before the write cannot see the promotion or the settlement that lands during it,
+/// and the record left behind names a commit the push already carried,
+///  or stands beside the approved push and can never be promoted,
+/// so every command in the worktree names a push that was made or one nothing runs.
+/// The removal takes the name this hold wrote and no other: the write is exclusive,
+///  and a record the queue promoted is no longer there to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (settledOrTaken(workDir, id)) unlink(join(workDir, 'held', id));
+/// ```
+fn give_up_what_the_queue_took(work_dir: &Path, id: &str) {
+    if settled_or_taken(work_dir, id) {
+        forget_held(work_dir, id);
+    }
 }
 
 /// What:
@@ -528,12 +553,15 @@ fn is_blocked(work_dir: &Path, id: &str) -> bool {
 
 /// What:
 ///  Whether the queue has already finished with this id,
+///  already approved it,
 ///  or another instance is running it now.
 /// Why:
 ///   `done` is the answer that the work was done,
 /// and `failed` the answer that it was given up on,
 /// with a retry kept by the branch's retry plan when one can pass;
-/// `claimed` and `recovering` are another holder's work.
+/// `pending` is the producer's approval,
+/// which is the queue's own statement that this push may run,
+/// and `claimed` and `recovering` are another holder's work.
 /// A hold written over any of them is a second record nothing can promote,
 /// because the command that would have promoted it answered before it was written,
 ///  and no round drains a held record
@@ -542,11 +570,14 @@ fn is_blocked(work_dir: &Path, id: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const taken = exists(join(workDir, 'done', id)) || exists(join(workDir, 'failed', id)) || findClaim(workDir, id) !== undefined;
+/// const taken = exists(join(workDir, 'done', id)) || exists(join(workDir, 'failed', id)) || exists(join(workDir, 'pending', id)) || findClaim(workDir, id) !== undefined;
 /// ```
 fn settled_or_taken(work_dir: &Path, id: &str) -> bool {
-    // `done` and `failed` name the record itself, so they are one look each.
-    if state_directory(work_dir, DONE).join(id).exists() || state_directory(work_dir, FAILED).join(id).exists() {
+    // `done`, `failed` and `pending` name the record itself, so they are one look each.
+    if state_directory(work_dir, DONE).join(id).exists()
+        || state_directory(work_dir, FAILED).join(id).exists()
+        || state_directory(work_dir, PENDING).join(id).exists()
+    {
         return true;
     }
     // A claim is named by its id and the generation and reading of its holder, so it is found by its id.
