@@ -232,20 +232,20 @@ and the generic `--no-enforce-<policy-id>` (`SPEC.md`,
   and the three recorded exceptions listed here.
   It is written by the agent that inventories the shipped behaviour (round 296).
 
-#### What was culled, reframed and started on these answers (2026-11-12T10:45:00-05:00)
+#### What was culled, reframed and started on these answers (2026-11-12T10:39:12-05:00)
 
 Culled:
 
 - `mode-a-person-set-survives-a-merge-that-changes-the-file-1` (round 291),
-  stopped at about 10:38 with its launcher,
-  twenty-five minutes after it started.
+  stopped at 10:36:28 with its launcher,
+  twenty-four minutes after it started.
   Its task extended the merge's carry,
   which is now to become a refusal.
   Its branch holds nothing to keep.
 - The branch `fix/git-policy-cli-commit-is-made-when-the-service-stops-reading-or-answering` (`3b33af6478`) is superseded as a whole.
   It is kept until round 296's agent has taken what it learned about where the request write blocks.
 
-Reframed by a note at about 10:38,
+Reframed by a note sent by 10:36:28,
 each delivery to be checked by its feed at the next pass:
 
 - `exempt-repository-saves-untracked-files-and-nested-repositories-before-it-discards-1`:
@@ -268,7 +268,7 @@ each delivery to be checked by its feed at the next pass:
 
 Started,
 round 296,
-at 10:44:
+at 10:39:12:
 
 - `guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`,
   on `main`:
