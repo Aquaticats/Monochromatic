@@ -139,6 +139,7 @@ fn the_removed_paths_are_read_through_their_own_git_entry() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove nested/\n", "Would remove cache/\n", "Would remove vendor/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert_eq!(found, vec![line("nested")]);
@@ -162,6 +163,7 @@ fn a_repository_below_a_removed_directory_is_found() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove container/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert_eq!(
@@ -185,6 +187,7 @@ fn only_the_outermost_repository_is_returned() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove cache/\n", "Would remove cache/inner/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert_eq!(found, vec![line("cache")]);
@@ -204,6 +207,7 @@ fn a_link_to_a_repository_is_not_a_repository_the_clean_deletes() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove linked/\n", "Would remove linked/inner/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert!(found.is_empty(), "{found:?}");
@@ -219,9 +223,76 @@ fn a_removed_name_that_leaves_the_worktree_names_nothing() {
     let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
         lines(&["Would remove ../outside/\n", "Would remove /absolute/\n", "Would remove nested/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect("a plain answer");
     assert_eq!(found, vec![line("nested")]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A pathspec may name a directory above the one the clean runs in,
+///  and a repository below that name is still one the clean deletes.
+/// Why:
+///  Git prints that path with the parent components that reach it from the command's directory,
+///  so a reader that refuses a parent component drops a name Git really printed,
+///  and the repository inside it is deleted unsaved.
+#[test]
+fn a_name_above_the_command_but_below_the_worktree_is_read() {
+    let root: PathBuf = fixture("clean-nested-above");
+    std::fs::create_dir_all(root.join("sub/kept")).expect("the command's directory");
+    std::fs::create_dir_all(root.join("other/nested/.git")).expect("a repository beside the command");
+    let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
+        lines(&["Would remove ../other/\n"]).as_slice(),
+        root.as_path(),
+        b"sub/",
+    )
+    .expect("a plain answer");
+    assert_eq!(found, vec![line("other/nested")]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A name that steps above the worktree names nothing,
+///  and a name below it is still read.
+/// Why:
+///  Git removes nothing outside the worktree,
+///  so a name that leaves it is no directory this policy may move,
+///  while one beside it is.
+#[test]
+fn a_name_that_steps_above_the_worktree_names_nothing() {
+    let root: PathBuf = fixture("clean-nested-above-root");
+    std::fs::create_dir_all(root.join("sub/nested/.git")).expect("a nested repository");
+    let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
+        lines(&["Would remove ../../outside/\n", "Would remove nested/\n"]).as_slice(),
+        root.as_path(),
+        b"sub/",
+    )
+    .expect("a plain answer");
+    assert_eq!(found, vec![line("sub/nested")]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A clean started in a subdirectory prints its paths below the command's own directory,
+///  and a repository below one of them is still found.
+/// Why:
+///  Git prints a removed path relative to the directory the command runs in
+///  (`relative_path` in `builtin/clean.c`'s print),
+///  with a ledot when the path is named from inside a directory it refuses to remove itself,
+///  so reading that name from the worktree root names a directory Git never looked at,
+///  and rejecting the ledot drops the only name that holds the repository.
+#[test]
+fn the_paths_a_subdirectory_clean_prints_are_read_below_the_command() {
+    let root: PathBuf = fixture("clean-nested-subdirectory");
+    std::fs::create_dir_all(root.join("sub/container/nested/.git")).expect("a nested repository");
+    let found: Vec<Vec<u8>> = nested_repositories_the_clean_deletes(
+        lines(&["Would refuse to remove current working directory\n", "Would remove ./container\n"]).as_slice(),
+        root.as_path(),
+        b"sub/",
+    )
+    .expect("a plain answer");
+    assert_eq!(found, vec![line("sub/container/nested")]);
     remove(root.as_path());
 }
 
@@ -241,6 +312,7 @@ fn a_directory_the_wrapper_cannot_look_inside_stops_the_clean() {
     let failure: String = nested_repositories_the_clean_deletes(
         lines(&["Would remove cache/\n"]).as_slice(),
         root.as_path(),
+        b"",
     )
     .expect_err("a directory that cannot be read");
     std::fs::set_permissions(root.join("cache"), std::fs::Permissions::from_mode(0o700)).expect("free the cache");

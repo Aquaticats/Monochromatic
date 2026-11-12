@@ -798,6 +798,48 @@ fn a_clean_keeps_a_nested_repository_below_an_untracked_directory() {
 }
 
 /// What:
+///  A clean started in a subdirectory of a linked worktree keeps the nested repository whole.
+/// Why:
+///  Git prints a removed path relative to the directory the clean runs in,
+///  with a ledot when it names it from inside a directory it will not remove itself,
+///  so a reader that resolves the name from the worktree top level looks at no directory Git named,
+///  and the repository below it is deleted unsaved.
+#[test]
+fn a_clean_started_in_a_subdirectory_keeps_a_nested_repository() {
+    let fixture: Fixture = fixture("discard-clean-nested-subdirectory");
+    let work: LinkedWorktree = repository_with_a_linked_worktree(&fixture, "repo", b"container/\n");
+    let nested: PathBuf = nested_repository_at(&fixture, work.linked.as_path(), "sub/container/nested");
+    std::fs::write(work.linked.join("sub/container/ordinary.txt"), b"ordinary ignored work\n").expect("ignored file");
+    // `require-root` is off in this repository, which is the one configuration in which the wrapper runs a command
+    //  from a subdirectory at all; the guard below never saw the shape otherwise.
+    std::fs::write(
+        work.linked.join("monochromatic-git-policy-cli.config.jsonc"),
+        b"{ \"policies\": { \"require-root\": \"off\" } }\n",
+    )
+    .expect("repository configuration");
+    let below: PathBuf = work.linked.join("sub");
+    // Real Git's own reading from that directory: the name it prints is relative to it.
+    let dry: Output = git(&fixture, below.as_path(), &["clean", "-n", "-f", "-f", "-d", "-X"]);
+    assert!(
+        String::from_utf8_lossy(dry.stdout.as_slice()).contains("Would remove ./container\n"),
+        "{}",
+        String::from_utf8_lossy(dry.stdout.as_slice())
+    );
+    let before: usize = audit_lines_of(work.repo.as_path()).len();
+    let observed: Observed = run_wrapped(&fixture, below.as_path(), &["clean", "-f", "-f", "-d", "-X"]);
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    assert!(!nested.exists(), "the clean left the nested repository where Git deletes it");
+    assert!(!work.linked.join("sub/container/ordinary.txt").exists(), "the clean deletes the rest of the directory");
+    let line: String = saved_nested_repository_line(audit_lines_since(work.repo.as_path(), before).as_slice());
+    assert!(line.contains("sub/container/nested"), "{line}");
+    let place: PathBuf = saved_place(line.as_str(), "sub/container/nested");
+    assert_eq!(std::fs::read_to_string(place.join("tracked.txt")).expect("kept tracked file"), "modified user data\n");
+    assert_eq!(std::fs::read_to_string(place.join("untracked.txt")).expect("kept untracked file"), "untracked user data\n");
+    assert!(place.join(".git").exists(), "the kept repository lost its own history");
+    remove(&fixture);
+}
+
+/// What:
 ///  A clean whose typed dry run never answered stops and keeps the nested repository where it is.
 /// Why:
 ///  A read that ended without an exit status says nothing about what Git would delete,

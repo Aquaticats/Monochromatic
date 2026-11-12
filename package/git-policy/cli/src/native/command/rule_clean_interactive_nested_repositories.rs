@@ -140,17 +140,18 @@ pub fn keep_nested_repositories_out_of_an_interactive_menu(
         // A reading that never answered, or one the wrapper ended, could hide a repository the menu would offer.
         Err(message) => return CapDecision::Stopped { message },
     };
-    let root: std::path::PathBuf = match facts.location() {
+    let (root, prefix): (std::path::PathBuf, Vec<u8>) = match facts.location() {
         Ok(location) => match worktree_root(&location.identity) {
-            Some(found) => found.to_path_buf(),
+            Some(found) => (found.to_path_buf(), location.prefix),
             None => return CapDecision::Unchanged,
         },
         Err(_) => return CapDecision::Unchanged,
     };
-    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root.as_path()) {
-        Ok(found) => found,
-        Err(message) => return CapDecision::Stopped { message },
-    };
+    let repositories: Vec<Vec<u8>> =
+        match nested_repositories_the_clean_deletes(deleted.as_slice(), root.as_path(), prefix.as_slice()) {
+            Ok(found) => found,
+            Err(message) => return CapDecision::Stopped { message },
+        };
     if repositories.is_empty() {
         return CapDecision::Unchanged;
     }

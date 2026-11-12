@@ -164,7 +164,7 @@ fn keep_the_nested_repositories_a_clean_would_delete(
         // A reading that never answered could hide a repository, so the clean stops here.
         Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
     };
-    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root) {
+    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root, location.prefix.as_slice()) {
         Ok(found) => found,
         Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
     };

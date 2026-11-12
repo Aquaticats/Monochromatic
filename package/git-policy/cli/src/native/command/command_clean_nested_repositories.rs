@@ -14,6 +14,8 @@
 //!  a directory that survives (`remove_dirs` prints both shapes),
 //!  so the name alone says nothing and each one is read as a directory:
 //!  a name that is a file holds no repository below it.
+//!  Every name is relative to the directory the clean runs in,
+//!  so that directory's own prefix is written before it.
 //!
 //!  Git's one-force answer is no list of the same repositories.
 //!  At one force the directory walk skips a nested repository itself (`DIR_SKIP_NESTED_GIT`),
@@ -24,8 +26,8 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // nestedRepositoriesTheCleanDeletes(['Would remove cache/'], root)
-//! //   === ['cache/nested']  when cache/nested/.git exists
+//! // nestedRepositoriesTheCleanDeletes(['Would remove cache/'], root, Buffer.from('sub/'))
+//! //   === ['sub/cache/nested']  when sub/cache/nested/.git exists
 //! ```
 
 /// The answer Git gave one dry run,
@@ -142,19 +144,56 @@ pub fn removed_paths_from_dry_run(lines: &[Vec<u8>]) -> Vec<Vec<u8>> {
 ///  A directory the wrapper cannot read is a failure and never a guess:
 ///  what it holds was not seen.
 ///  Only the outermost of two repositories is returned,
+/// What:
+///  Every nested repository a typed clean would delete,
+///  as its path below the worktree root,
+///  with no repository that another path already holds.
+///  `&Path` borrows the worktree top level Git printed those paths from,
+///  and `&[u8]` the prefix Git printed for the directory the command runs in
+///  (`git rev-parse --show-prefix`).
+/// Why:
+///   A second `-f` removes each of these whole,
+///  with its history and its uncommitted files,
+///  and only a look inside the paths Git names finds them,
+///  because Git names the directory it removes and not the repository inside it.
+///  A name Git prints is relative to the directory the clean runs in,
+///  not to the worktree top level (`relative_path` in `builtin/clean.c`),
+///  so the command's own prefix is written before it:
+///  read from the top level instead, a clean started in a subdirectory named a directory that is
+///  not the one Git looked at, and the repository it held was deleted unsaved.
+///  Git writes a ledot in front of a path it prints from inside a directory it will not remove itself
+///  (`remove_dirs` prints the cwd's own entries from a `./` path),
+///  so a ledot component is dropped and a parent component steps up inside the worktree.
+///  A path that is not a plain relative path names nothing this policy may look inside,
+///  and a path reached through a symbolic link is removed as the link alone,
+///  so neither is one a repository is found below.
+///  A directory the wrapper cannot read is a failure and never a guess:
+///  what it holds was not seen.
+///  Only the outermost of two repositories is returned,
 ///  because moving a repository takes everything inside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function nestedRepositoriesTheCleanDeletes(deleted: Buffer[], worktreeRoot: string): Buffer[]; // throws
+/// function nestedRepositoriesTheCleanDeletes(deleted: Buffer[], worktreeRoot: string, commandPrefix: Buffer): Buffer[]; // throws
 /// ```
 pub fn nested_repositories_the_clean_deletes(
     deleted_lines: &[Vec<u8>],
     worktree_root: &Path,
+    command_prefix: &[u8],
 ) -> Result<Vec<Vec<u8>>, String> {
+    let command: Vec<OsString> = match plain_components(Path::new(OsStr::from_bytes(command_prefix))) {
+        Ok(names) => names,
+        Err(error) => {
+            return Err(format!(
+                "Git printed `{}` as the directory the clean runs in, and that is not a plain path below the worktree, so \
+                 the clean was not judged ({error}).",
+                String::from_utf8_lossy(command_prefix)
+            ));
+        }
+    };
     let mut found: Vec<(Vec<u8>, Vec<OsString>)> = Vec::<(Vec<u8>, Vec<OsString>)>::new();
     for path in removed_paths_from_dry_run(deleted_lines) {
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(path.as_slice()))) else {
+        let Some(names) = names_below_the_command(path.as_slice(), command.as_slice()) else {
             continue;
         };
         // Every component of the removed path must be a directory of its own: a file holds nothing below it, and a
@@ -179,6 +218,43 @@ pub fn nested_repositories_the_clean_deletes(
         paths.push(path);
     }
     return Ok(paths);
+}
+
+/// What:
+///  The directory one name Git printed reaches,
+///  as components below the worktree root,
+///  or nothing when it names a path outside the worktree or an absolute one.
+///  `&[OsString]` borrows the components of the directory the clean runs in.
+/// Why:
+///   Git prints a path relative to the directory the command runs in,
+///  with the ledot of a path named from inside a directory it keeps,
+///  and a pathspec may name a directory above that one,
+///  so a parent component steps up the components already read.
+///  A path that steps above the worktree names nothing this policy may look inside,
+///  because Git removes nothing there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function namesBelowTheCommand(printed: Buffer, command: string[]): string[] | undefined;
+/// ```
+fn names_below_the_command(printed: &[u8], command: &[OsString]) -> Option<Vec<OsString>> {
+    let mut names: Vec<OsString> = command.to_vec();
+    for part in Path::new(OsStr::from_bytes(printed)).components() {
+        match part {
+            std::path::Component::Normal(name) => names.push(name.to_os_string()),
+            std::path::Component::CurDir => continue,
+            // A path that steps above the worktree names nothing Git removes.
+            std::path::Component::ParentDir => {
+                names.pop()?;
+            }
+            std::path::Component::RootDir | std::path::Component::Prefix(_) => return None,
+        }
+    }
+    // The command's own directory is no path below it.
+    if names.is_empty() {
+        return None;
+    }
+    return Some(names);
 }
 
 /// What:
