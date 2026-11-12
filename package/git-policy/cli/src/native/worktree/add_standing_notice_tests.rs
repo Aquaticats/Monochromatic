@@ -100,7 +100,7 @@ fn a_notice_is_printed_once_the_wait_is_over_and_stops_with_its_value() {
     let said: Vec<String> = read_lines(&heard, 1, Duration::from_secs(10));
     assert_eq!(said.len(), 1, "one line arrives once the wait is over");
     assert!(said[0].starts_with("monochromatic-git-policy-cli: `git worktree add` is still running after "), "{}", said[0]);
-    assert!(said[0].contains("it is in Git's own `git worktree add`"), "the line names what the add is doing: {}", said[0]);
+    assert!(said[0].contains("it is in the `git worktree add` this command started"), "the line names what the add is doing: {}", said[0]);
     drop(notice);
     add_timing::end_step(standing);
     add_timing::finish(0);
@@ -461,7 +461,7 @@ fn a_plain_add_s_line_names_git_s_own_add_and_the_missing_folder() {
     );
     let said: Vec<String> = read_lines(&heard, 1, Duration::from_secs(10));
     assert_eq!(said.len(), 1, "the plainly run add says it is still running: {said:?}");
-    assert!(said[0].contains("it is in Git's own `git worktree add`"), "the line names the step: {}", said[0]);
+    assert!(said[0].contains("it is in the `git worktree add` this command started"), "the line names the step: {}", said[0]);
     assert!(
         said[0].contains("and this add runs as plain Git because the folder it goes in"),
         "the line names the route and the fact that caused it: {}",

@@ -458,7 +458,7 @@ const STEP_SENTENCES: &[(&str, &str)] = &[
     ("walkSource", "it is reading the checkout the worktree is made from"),
     ("readIndexAndTree", "it is comparing the source's index with the files it recorded"),
     ("indexAgainstTree", "it is comparing the source's index with the files it recorded"),
-    ("gitAdd", "it is in Git's own `git worktree add`"),
+    ("gitAdd", "it is in the `git worktree add` this command started"),
     ("bindRegistration", "it is recording which directories Git made for the worktree"),
     ("recordBinding", "it is recording which directories Git made for the worktree"),
     ("recordDestination", "it is recording where the new worktree goes"),
