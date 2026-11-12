@@ -811,7 +811,7 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
     }
     let stand_ins: Arc<StandIns> = Arc::new(StandIns::new());
     let lane_handlers: Arc<StandIns> = Arc::clone(&stand_ins);
-    let lane = async move { crate::service_work_slow_lane::drain_the_slow_work_awaiting(git_dir.as_path(), lane_handlers.as_ref(), crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND).await };
+    let lane = async move { return crate::service_work_slow_lane::drain_the_slow_work_awaiting(git_dir.as_path(), lane_handlers.as_ref(), crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND).await };
     let running: tokio::task::JoinHandle<Option<Duration>> = crate::lazy_runtime::spawn_on_runtime(lane).expect("the runtime starts the lane");
     assert!(wait_until(&|| { return stand_ins.inside.load(Ordering::SeqCst) > 0; }), "a slow item of the lane is running");
     // The claims the lane holds are its own, and the push's round takes only the pushes.
