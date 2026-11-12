@@ -3039,7 +3039,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  That keeping is made in the process that destroys,
  and it is made by the same code on every route that destroys a worktree:
  the hand-over's own destroy (`src/native/worktree/worktree_remove_hand_over.rs`)
- and the subvolume destroy and Git removal every other removal runs (`src/native/worktree/worktree_remove.rs`).
+ and the subvolume destroy every other removal runs before it renames the subvolume away or destroys it
+ (`src/native/worktree/worktree_remove.rs`).
  Where no reference of the repository can be written for such a commit,
  that process removes nothing and says which commit still needs a name,
  because the destroy would take the only two things that name it.
