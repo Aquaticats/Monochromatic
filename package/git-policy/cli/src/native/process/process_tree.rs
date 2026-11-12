@@ -194,6 +194,15 @@ pub fn descendant_numbers_from_thread_lists(root: i32) -> Option<Vec<i32>> {
     return Some(below);
 }
 
+/// How many bytes of one thread's list of children this reads.
+/// Why:
+///  The list is one number per child,
+///  so its length is the number of children a process started,
+///  which is the system's state and not this command's:
+///  1 MiB holds about forty thousand children,
+///  and a list past it is not used rather than read whole.
+const CHILDREN_BYTES_AT_MOST: u64 = 1 << 20;
+
 /// The process numbers of the children `pid` started,
 /// from the list of every one of its threads,
 /// and nothing when it has no child list at all.
@@ -203,7 +212,7 @@ fn child_numbers_of(pid: i32) -> Option<Vec<i32>> {
     let mut found: Vec<i32> = Vec::new();
     let mut read_one: bool = false;
     for task in tasks.flatten() {
-        let Ok(text) = std::fs::read_to_string(task.path().join("children")) else {
+        let Ok(text) = crate::plain_file::read_plain_text_at(task.path().join("children").as_path(), CHILDREN_BYTES_AT_MOST) else {
             continue;
         };
         read_one = true;

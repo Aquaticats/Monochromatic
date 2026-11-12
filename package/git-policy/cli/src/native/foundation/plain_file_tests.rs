@@ -19,6 +19,24 @@ fn a_plain_file_is_read_whole_and_a_larger_one_is_refused() {
     remove(parent.as_path());
 }
 
+/// A caller's own limit bounds the text it reads,
+/// so a file the system's state sizes is refused rather than read whole.
+/// Why:
+///  The mount tables and child lists a command reads under `/proc` are as long as the mounts and children that exist,
+///  and the limit is the caller's because no one bound fits both a mount table and a process name.
+#[test]
+fn the_text_reader_takes_the_callers_own_limit() {
+    let parent: PathBuf = fixture("plain-file-text-limit");
+    let path: PathBuf = parent.join("table");
+    std::fs::write(path.as_path(), "a record\n").expect("record");
+    assert_eq!(read_plain_text_at(path.as_path(), 64).expect("text"), "a record\n");
+    std::fs::write(path.as_path(), vec![b'x'; 65]).expect("a longer record");
+    let refused: String = read_plain_text_at(path.as_path(), 64).expect_err("refused").to_string();
+    assert!(refused.contains("larger"), "{refused}");
+    assert_eq!(read_plain_text_at(path.as_path(), MOUNT_TABLE_LIMIT).expect("under the mount table's own bound").len(), 65);
+    remove(parent.as_path());
+}
+
 /// A named pipe and a directory are each refused at once,
 /// and a symbolic link is not followed.
 #[test]

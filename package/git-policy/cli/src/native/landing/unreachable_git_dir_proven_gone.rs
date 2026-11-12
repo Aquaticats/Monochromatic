@@ -278,7 +278,7 @@ pub fn the_mounts() -> TheMountTable {
 /// ```
 #[cfg(target_os = "linux")]
 fn the_mount_table() -> Vec<MountFacts> {
-    let Ok(text) = std::fs::read(MOUNTINFO_PATH) else {
+    let Ok(text) = crate::plain_file::read_plain_file(Path::new(MOUNTINFO_PATH), crate::plain_file::MOUNT_TABLE_LIMIT) else {
         return Vec::new();
     };
     return parse_mount_table(text.as_slice());

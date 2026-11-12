@@ -192,7 +192,38 @@ pub fn read_plain_file_through_links(path: &Path, limit: u64) -> std::io::Result
 /// The text of the plain file at `path`,
 /// read like `read_plain_file`.
 pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
-    return match String::from_utf8(read_plain_file(path, SMALL_FILE_LIMIT)?) {
+    return read_plain_text_at(path, SMALL_FILE_LIMIT);
+}
+
+/// How many bytes of a mount table this reads:
+/// the kernel's own,
+/// under `/proc/<pid>/mountinfo` or this process's.
+/// Why:
+///  The number of mounts is the system's state and not this command's:
+/// a container's namespace can hold tens of thousands of entries,
+/// and each one is read into this process's memory whole.
+///  Measured on this host on 2026-11-12:
+/// this process's own table was 5,250 bytes.
+///  A table past the bound is refused rather than read,
+///  and a caller that refuses a mount it cannot see treats the file as one that may be held.
+pub const MOUNT_TABLE_LIMIT: u64 = 4 << 20;
+
+/// What:
+///  The text of the plain file at `path`,
+///  refused when it is larger than `limit` or not text.
+/// Why:
+///   A file under `/proc` is text the kernel writes,
+///  and what it holds can be the system's state or another process's:
+///  the limit is the caller's,
+///  because one bound for every such file would be too small for a mount table
+///  and too large for a process name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readPlainTextAt(path: string, limit: number): string;
+/// ```
+pub fn read_plain_text_at(path: &Path, limit: u64) -> std::io::Result<String> {
+    return match String::from_utf8(read_plain_file(path, limit)?) {
         Ok(text) => Ok(text),
         Err(_not_text) => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is not text")),
     };

@@ -7322,6 +7322,10 @@ now inside these bounds:
   is removed by the service and the commit lands (owner,
   2026-11-07,
   "Service removes it").
+  That scan reads a descriptor's record only for a descriptor whose link text can be the lock,
+  and takes at most four kibibytes of one
+  (`doc/troubleshooting/git-policy-cli-descriptor-record-memory.md`,
+  issue 6287).
   The file is opened first and judged through that descriptor,
   it is judged empty again after the scan and immediately before the unlink
   (a Git that writes its index into the lock and closes its descriptor during the scan is the editor-phase
@@ -8825,6 +8829,28 @@ and the first answer wins:
    which is the pair that names one file on a machine,
    and the record's inode number is only the cheap test that comes first,
    before the file the descriptor has open is read.
+   The record itself is opened only when the text of the descriptor's link says it can be the file at all,
+   because the kernel builds a whole record before the reader gets its first byte,
+   so a record's size is decided by the process that holds the descriptor:
+   one read of an inotify descriptor's record costs one line and about 144 bytes for every watch it holds,
+   in kernel memory charged to the reading process's control group.
+   A scan that reads it for every descriptor it walks therefore costs whatever an editor's file watcher holds,
+   and a scope capped at 512 MB was killed for it on 2026-11-12
+   (issue 6287;
+   `doc/troubleshooting/git-policy-cli-descriptor-record-memory.md`).
+   `readlink(2)` of `/proc/<pid>/fd/<n>` answers from the dentry cache and asks the target's own file system nothing,
+   so the kind is known without the walk a stopped server holds:
+   a link text that is not a path is no file of a file system,
+   a link text beginning `anon_inode:` is a kernel anonymous inode that no lock is held through,
+   and both are passed over without opening their records.
+   What is taken from a record that is opened is bounded as well:
+   past four kibibytes the record is not used,
+   and the descriptor counts as one that may hold the file,
+   as does a descriptor whose link text the kernel will not produce.
+   The walk of the process table carries its own ceiling (`PROCESS_SCAN_CEILING`,
+   two seconds),
+   and a walk that reaches it is a table the judgement did not finish,
+   which proves nothing about the file.
    That read walks the path `/proc/<pid>/fd/<n>`,
    whose last step asks the file's own file system to revalidate its directory entry before any attribute is read,
    so it is taken in this process only where it cannot reach a server:
@@ -17043,7 +17069,8 @@ never "nothing waits".
 
 Each abort form is live while the state its own command reads is there,
 and not while another operation's state is
-(measured with Git 2.56.0, one command against every stopped state):
+(measured with Git 2.56.0,
+one command against every stopped state):
 `git merge --abort` needs `MERGE_HEAD`,
 and abandons only the merge step of a `git rebase --rebase-merges` that stopped at one;
 `git rebase --abort` needs `rebase-merge` or `rebase-apply/rebasing`,
@@ -17133,7 +17160,8 @@ as for a forced `checkout` and a hard `reset`.
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
 `git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state, a hand resolution kept in all of them),
+(measured in every stopped state,
+a hand resolution kept in all of them),
 and the hatch runs the abort anyway.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no copy either.
