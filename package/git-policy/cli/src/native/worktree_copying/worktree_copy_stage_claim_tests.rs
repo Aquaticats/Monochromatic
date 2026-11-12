@@ -2159,6 +2159,109 @@ fn an_entry_whose_name_the_worktree_holds_keeps_the_folder_and_is_named() {
     remove(root.as_path());
 }
 
+/// A snapshot add killed while the stand-ins of nested subvolumes stand in its stage,
+/// or just after the sweep replaced the folder around them with a fresh empty one,
+/// is reaped by the next command,
+/// not left for a person to remove.
+///
+/// Two shapes of one kill wrote this control:
+/// a btrfs stand-in has no birth time at all (`stat` prints `-`),
+/// and the folder `take_folder` makes in the place of the one it moved into the trash is a few milliseconds
+/// younger than the record of the stage's object (`s1-nested.out` of
+/// `${HOME}/temp/agent/sonnet-audits/alpha-12-worktree-add-remove-and-landed-sweep`).
+/// Both hold nothing,
+/// so both are the add's own work and neither is a person's data;
+/// before this control the stage stayed for ever and every later command printed
+/// "was left by an interrupted `git worktree add` ... remove it yourself".
+#[test]
+fn a_stage_holding_only_the_placeholders_a_snapshot_leaves_is_reaped() {
+    let (root, common, destination) = scene("claim-stand-in-placeholder");
+    let admin: PathBuf = common.join("worktrees/topic");
+    let pointer: Vec<u8> = registered_worktree(destination.as_path(), admin.as_path(), 1);
+    let owed: crate::worktree_add_binding::OwedCopy = owed_copy_beside(destination.as_path());
+    let claim: StageClaim = claim_stage_for_add_as_owing(common.as_path(), destination.as_path(), &dead_copy_owner(), Some(&owed)).expect("claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    // The wrapper's last write into the snapshot: the worktree's files, and the folder the stand-in lives in.
+    std::fs::create_dir_all(container.join(".claude/worktrees").as_path()).expect("the folder a nested worktree lives in");
+    std::fs::write(container.join("a.txt"), b"one\n").expect("a tracked file of the snapshot");
+    let written: std::time::SystemTime = std::time::SystemTime::now();
+    let stage = crate::worktree_add_binding::path_identity(container.as_path()).expect("the identity of the snapshot");
+    crate::worktree_copy_stage_made_object::record_made_at(common.as_path(), container.as_path(), stage, written).expect("the record of the stage");
+    std::fs::write(
+        claim.path.with_extension("add").as_path(),
+        crate::worktree_add_binding::registered_record_with(
+            &Binding { destination: destination.clone(), destination_id: crate::worktree_add_binding::path_identity(destination.as_path()).expect("the destination's identity"), admin: admin.clone(), admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"), pointer: pointer.clone() },
+            Some(&owed),
+            None,
+        )
+        .as_bytes(),
+    )
+    .expect("the add's record");
+    // The kill point: the stand-in below the folder, and the fresh empty folder the sweep leaves in its place, are
+    // both younger than the record and hold nothing between them.
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    std::fs::create_dir_all(container.join(".claude/worktrees/nested").as_path()).expect("the stand-in of a nested subvolume");
+    std::fs::create_dir_all(container.join(".claude/elsewhere").as_path()).expect("a fresh empty folder");
+    age_past_the_patience(claim.path.with_extension("add").as_path());
+    std::mem::forget(claim);
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(!container.exists(), "a stage that holds nothing but the add's own empty folders goes: {notices:?}");
+    assert!(
+        notices.iter().any(|notice: &String| { return notice.contains("removed the stage") && notice.contains(container.to_string_lossy().as_ref()); }),
+        "the line says which stage went: {notices:?}"
+    );
+    assert!(
+        notices.iter().all(|notice: &String| { return !notice.contains("was left by an interrupted `git worktree add`"); }),
+        "no later command tells a person to remove the wrapper's own stage: {notices:?}"
+    );
+    remove(root.as_path());
+}
+
+/// A placeholder-shaped folder that holds a person's entry keeps the stage and is named,
+/// which is the protection the reaping exists for.
+///
+/// The same kill as the control above,
+/// with one file written where the add leaves an empty folder:
+/// nothing may be deleted,
+/// and the line names the path.
+#[test]
+fn a_folder_younger_than_the_record_that_holds_a_persons_file_keeps_the_stage() {
+    let (root, common, destination) = scene("claim-stand-in-personal");
+    let admin: PathBuf = common.join("worktrees/topic");
+    let pointer: Vec<u8> = registered_worktree(destination.as_path(), admin.as_path(), 1);
+    let owed: crate::worktree_add_binding::OwedCopy = owed_copy_beside(destination.as_path());
+    let claim: StageClaim = claim_stage_for_add_as_owing(common.as_path(), destination.as_path(), &dead_copy_owner(), Some(&owed)).expect("claim");
+    let container: PathBuf = claim.container().to_path_buf();
+    std::fs::create_dir_all(container.as_path()).expect("the snapshot");
+    std::fs::write(container.join("a.txt"), b"one\n").expect("a tracked file of the snapshot");
+    let written: std::time::SystemTime = std::time::SystemTime::now();
+    let stage = crate::worktree_add_binding::path_identity(container.as_path()).expect("the identity of the snapshot");
+    crate::worktree_copy_stage_made_object::record_made_at(common.as_path(), container.as_path(), stage, written).expect("the record of the stage");
+    std::fs::write(
+        claim.path.with_extension("add").as_path(),
+        crate::worktree_add_binding::registered_record_with(
+            &Binding { destination: destination.clone(), destination_id: crate::worktree_add_binding::path_identity(destination.as_path()).expect("the destination's identity"), admin: admin.clone(), admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"), pointer: pointer.clone() },
+            Some(&owed),
+            None,
+        )
+        .as_bytes(),
+    )
+    .expect("the add's record");
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    std::fs::create_dir_all(container.join(".claude/worktrees/nested").as_path()).expect("a folder younger than the record");
+    std::fs::write(container.join(".claude/worktrees/nested/notes.txt"), b"mine").expect("a file written there before the kill");
+    age_past_the_patience(claim.path.with_extension("add").as_path());
+    std::mem::forget(claim);
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert!(container.exists(), "a folder that holds a person's file keeps the whole stage: {notices:?}");
+    assert_eq!(std::fs::read(container.join(".claude/worktrees/nested/notes.txt")).expect("the file stays"), b"mine");
+    assert!(
+        notices.iter().any(|notice: &String| { return notice.contains("does not account for"); }),
+        "the line says why the stage was kept: {notices:?}"
+    );
+    remove(root.as_path());
+}
+
 /// A worktree whose destination holds the object the record of the stage's creation made is not named as missing files.
 ///
 /// This is the second notice of the same kill point:

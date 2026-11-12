@@ -145,6 +145,28 @@ fn words_for_unexamined(relative: &Path, error: &std::io::Error) -> String {
 }
 
 /// What:
+///  Whether a directory holds no entry at all.
+/// Why:
+///   An empty folder holds no byte of anybody's, so removing it discards nothing;
+/// the wrapper makes such folders of its own after its record is written,
+/// and only their
+///  contents are ever judged.
+/// Every entry counts, a name that is empty included,
+/// because a folder a reader can list nothing of is
+///  not a folder that holds something.
+/// A folder that cannot be listed is not empty,
+/// and answers the reason instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const emptiness = readdir(path).next().done ? 'empty' : 'holds';
+/// ```
+fn emptiness(path: &Path) -> Result<bool, std::io::Error> {
+    let mut listing = std::fs::read_dir(path)?;
+    return Ok(listing.next().is_none());
+}
+
+/// What:
 ///  The entries born after the recorded instant that the record does not name,
 /// as the first one found,
 /// and the reason it is kept,
@@ -159,6 +181,13 @@ fn words_for_unexamined(relative: &Path, error: &std::io::Error) -> String {
 /// so a stage whose entries are many costs lookups and no waiting;
 /// a directory that cannot be listed ends the
 ///  walk with its reason.
+/// A folder that holds nothing is accounted for whatever its birth time says:
+///  what a snapshot keeps at a place where the source holds a nested subvolume is an empty stand-in,
+/// and the stand-in sweep replaces the folder around such stand-ins with a fresh empty one,
+/// both a few
+///  milliseconds after the record;
+/// neither holds a byte,
+/// so neither is a person's data and neither is named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -190,6 +219,16 @@ pub fn unaccounted_entry(container: &Path, written: SystemTime) -> Option<String
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(error) => return Some(words_for_unexamined(below.as_path(), &error)),
             };
+            if metadata.is_dir() {
+                // A folder holding nothing is a placeholder the wrapper made, or a folder of nothing whatever; either
+                // way no byte is at stake, and the entries below it are judged when it holds any.
+                match emptiness(entry.path().as_path()) {
+                    Ok(true) => continue,
+                    Ok(false) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                    Err(error) => return Some(words_for_unexamined(below.as_path(), &error)),
+                }
+            }
             // The entries the wrapper makes after its record are its own; every other one born later is not.
             if !is_the_wrappers_own(below.as_path()) {
                 match metadata.created() {
