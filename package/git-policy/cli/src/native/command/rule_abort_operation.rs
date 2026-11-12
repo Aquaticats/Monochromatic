@@ -114,48 +114,52 @@ pub struct OperationState {
 }
 
 /// What:
-///  Which operation waits in the worktree the facts describe,
-///  if any.
+///  Whether the state of the operation `operation` aborts is present,
+///  which is what lets its own abort run.
 /// Why:
-///   The abort form a person runs must match the operation that waits,
-///  because Git's abort writes one operation's state and refuses another's:
-///  leaving the command to Git where the two do not match
-///  loses nothing and keeps the guard out of Git's own message.
+///   Each abort form is decided by the state its own command reads,
+///  not by one operation named for the whole Git directory:
+///  a `git rebase --rebase-merges` merge step writes `MERGE_HEAD` beside `rebase-merge`,
+///  and its rebase is still abandoned by `git rebase --abort`;
+///  an apply-backend rebase writes `rebase-apply/rebasing`,
+///  and `git am --abort` abandons it as well.
+///  A form whose own state is absent is Git's to refuse and discards nothing.
+///  All of these are measured with Git 2.56.0.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function waitingOperation(state: OperationState): AbortOperation | undefined;
+/// abortIsLive('rebase', state({ mergeHead: true, rebaseMerge: true })) === true;
+/// abortIsLive('am', state({ rebaseApplyApplying: true })) === true;
+/// abortIsLive('pick', state({ mergeHead: true })) === false;
 /// ```
-pub fn waiting_operation(state: OperationState) -> Option<AbortOperation> {
-    if state.merge_head {
-        return Some(AbortOperation::Merge);
-    }
-    if state.rebase_merge || state.rebase_apply_rebasing {
-        return Some(AbortOperation::Rebase);
-    }
-    if state.cherry_pick_head || state.revert_head || state.sequencer {
-        return Some(AbortOperation::Pick);
-    }
-    if state.rebase_apply_applying {
-        return Some(AbortOperation::Am);
-    }
-    return None;
+pub fn abort_is_live(operation: AbortOperation, state: OperationState) -> bool {
+    return match operation {
+        AbortOperation::Merge => state.merge_head,
+        // `git rebase --abort` refuses an `am` (`It looks like 'git am' is in progress. Cannot rebase.`).
+        AbortOperation::Rebase => state.rebase_merge || state.rebase_apply_rebasing,
+        AbortOperation::Pick => state.cherry_pick_head || state.revert_head || state.sequencer,
+        // `git am --abort` ends whichever operation the apply backend runs, a rebase that applies patches included.
+        AbortOperation::Am => state.rebase_apply_rebasing || state.rebase_apply_applying,
+    };
 }
 
 /// What:
-///  Whether the operation `command` aborts is the one waiting,
-///  so the command can run once the person's own work is saved.
+///  The operation a form actually ends,
+///  named in a sentence about it.
 /// Why:
-///   A merge is in progress and the person runs `git cherry-pick --abort`:
-///  Git refuses that,
-///  and the guard must not save anything or let anything run on the strength of the merge.
+///   `git am --abort` during an apply-backend rebase ends that rebase,
+///  and the notice and refusal must say "before the rebase",
+///  never "before the am".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// resolvedAbort('rebase', 'merge') === false;
+/// inProgressOperation('am', state({ rebaseApplyRebasing: true })) === 'rebase';
 /// ```
-pub fn aborts_the_waiting_operation(operation: AbortOperation, waiting: AbortOperation) -> bool {
-    return operation == waiting;
+pub fn in_progress_operation(operation: AbortOperation, state: OperationState) -> AbortOperation {
+    return match operation {
+        AbortOperation::Am if state.rebase_apply_rebasing => AbortOperation::Rebase,
+        other => other,
+    };
 }
 
 /// The path names inside the Git directory the question reads.
@@ -166,23 +170,76 @@ pub const OPERATION_STATE_NAMES: [&str; 6] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", 
 pub const SEQUENCER_DIRECTORY: &str = "sequencer";
 
 /// What:
-///  The revision whose tree an abort writes back into the worktree.
+///  The files Git writes the commit an abort restores into,
+///  named relative to the worktree's Git directory.
 /// Why:
-///   The ignored-file guard asks which paths of a tree the worktree holds as ignored files;
-///  every abort form restores the state that stood before the operation,
-///  which Git records as `ORIG_HEAD` before it stops
-///  (measured with Git 2.56.0 on a conflicted single pick,
-///  where `ORIG_HEAD` held the commit `HEAD` was at before the pick).
-///  A repository whose `ORIG_HEAD` cannot be resolved falls back to `HEAD`,
-///  which is the commit the operation started at until it moves `HEAD`.
+///   `git rebase --abort` resets to the commit in `rebase-merge/orig-head`
+///  or `rebase-apply/orig-head`,
+///  and `git cherry-pick --abort` and `git revert --abort` reset to
+///  `sequencer/head` for a sequence.
+///  `git merge --abort` reads `HEAD` and `git am --abort` reads `ORIG_HEAD`,
+///  which are names Git resolves itself and not files of this list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// restoredRevision('merge') === 'ORIG_HEAD';
+/// RESTORED_REVISION_NAMES.includes('rebase-merge/orig-head');
 /// ```
-pub fn restored_revision(operation: AbortOperation) -> &'static OsStr {
+pub const RESTORED_REVISION_NAMES: [&str; 3] = ["rebase-merge/orig-head", "rebase-apply/orig-head", "sequencer/head"];
+
+/// What:
+///  Where the commit an abort writes back into the worktree is recorded.
+/// Why:
+///   The ignored-file guard asks which paths of that commit's tree the worktree holds as
+///  ignored files,
+///  and only `HEAD` and `ORIG_HEAD` are names Git resolves itself;
+///  a rebase and a pick sequence record the commit in a file inside the Git directory,
+///  which has to be read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RestoredRevision = { named: 'HEAD' | 'ORIG_HEAD' } | { stateFile: 'sequencer/head' };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RestoredRevision {
+    /// A revision Git resolves itself.
+    Named(&'static OsStr),
+    /// A commit Git wrote into this file of the Git directory,
+    ///  named relative to it.
+    StateFile(&'static OsStr),
+}
+
+/// What:
+///  The commit whose tree an abort writes back into the worktree,
+///  as the command's own implementation finds it.
+/// Why:
+///   Every form answers this from a different record,
+///  and none of them reads `ORIG_HEAD` except `am`:
+///  `merge --abort` resets to `HEAD`;
+///  `rebase --abort` reads the original head of its backend;
+///  `cherry-pick --abort` and `revert --abort` read `HEAD` for one pick
+///  and `sequencer/head` for a sequence;
+///  `am --abort` reads `ORIG_HEAD`.
+///  Every one is measured with Git 2.56.0,
+///  with a moved `ORIG_HEAD` and with each record moved separately.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// restoredRevision('rebase', state({ rebaseMerge: true })) === stateFile('rebase-merge/orig-head');
+/// restoredRevision('pick', state({ sequencer: true })) === stateFile('sequencer/head');
+/// restoredRevision('am', state({ rebaseApplyApplying: true })) === named('ORIG_HEAD');
+/// ```
+pub fn restored_revision(operation: AbortOperation, state: OperationState) -> RestoredRevision {
     return match operation {
-        AbortOperation::Merge | AbortOperation::Rebase | AbortOperation::Pick | AbortOperation::Am => OsStr::new("ORIG_HEAD"),
+        // `git merge --abort` is a merge-semantics reset to the current `HEAD`, and a moved `ORIG_HEAD` is ignored (measured).
+        AbortOperation::Merge => RestoredRevision::Named(OsStr::new("HEAD")),
+        // Whichever backend started the rebase records its original head in its own directory.
+        AbortOperation::Rebase if state.rebase_merge => RestoredRevision::StateFile(OsStr::new("rebase-merge/orig-head")),
+        AbortOperation::Rebase => RestoredRevision::StateFile(OsStr::new("rebase-apply/orig-head")),
+        // A sequence resets to its recorded start; one pick resets to the `HEAD` it never moved.
+        AbortOperation::Pick if state.sequencer => RestoredRevision::StateFile(OsStr::new("sequencer/head")),
+        AbortOperation::Pick => RestoredRevision::Named(OsStr::new("HEAD")),
+        // `git am --abort` resets to `ORIG_HEAD`, which `git am` writes when it starts (measured, also during a rebase it ends).
+        AbortOperation::Am => RestoredRevision::Named(OsStr::new("ORIG_HEAD")),
     };
 }
 

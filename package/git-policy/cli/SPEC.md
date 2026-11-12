@@ -16597,35 +16597,45 @@ and the deliberate override (`--no-enforce-worktree` directly after the subcomma
 An operation that stopped with conflicts makes `git status` report its own state,
 so the rule above refused every abort form for exactly as long as it was the command a person needs:
 in a linked worktree a conflicted merge could be finished but not aborted without the hatch.
-The abort forms are decided instead by the operation's own state in the worktree's Git directory,
+The abort forms are decided instead by the state the command's own implementation reads,
+from the worktree's Git directory,
 read in one start of Git that asks `rev-parse --path-format=absolute --git-path` for
 `MERGE_HEAD`,
 `CHERRY_PICK_HEAD`,
 `REVERT_HEAD`,
 `rebase-merge`,
 `rebase-apply/rebasing`,
-`rebase-apply/applying`
-and `sequencer`
+`rebase-apply/applying`,
+`sequencer`,
+`rebase-merge/orig-head`,
+`rebase-apply/orig-head`
+and `sequencer/head`
 (`repository_facts_abort_discard.rs`,
 `rule_abort_operation.rs`).
-`MERGE_HEAD` is a merge,
-`rebase-merge` or `rebase-apply/rebasing` a rebase of either backend,
-`CHERRY_PICK_HEAD`,
-`REVERT_HEAD` or `sequencer` a cherry-pick or a revert,
-and `rebase-apply/applying` an `am`,
-which is read last so a rebase that applies patches is a rebase.
 An answer that is not one path per name is a `fact-unavailable` rejection,
 never "nothing waits".
 
-Three answers follow from that state.
-Where no operation of the form's kind waits,
-Git refuses the command itself
-(`There is no merge to abort (MERGE_HEAD missing)`)
+Each abort form is live while the state its own command reads is there,
+and not while another operation's state is
+(measured with Git 2.56.0, one command against every stopped state):
+`git merge --abort` needs `MERGE_HEAD`,
+and abandons only the merge step of a `git rebase --rebase-merges` that stopped at one;
+`git rebase --abort` needs `rebase-merge` or `rebase-apply/rebasing`,
+and refuses an `am` in progress;
+`git cherry-pick --abort` and `git revert --abort` need `CHERRY_PICK_HEAD`,
+`REVERT_HEAD` or `sequencer`,
+and each aborts a pick or a revert alike;
+`git am --abort` needs `rebase-apply` in either of its two modes,
+so it also ends a rebase that applies patches.
+A state of another kind does not make a form live:
+Git refuses it
+(`There is no merge to abort (MERGE_HEAD missing)`,
+`It looks like 'git am' is in progress. Cannot rebase.`)
 and discards nothing,
 so the command is left to Git and the record says `allowed`
 with `dirty` null,
 because no status was read.
-Where the form's own operation waits,
+While a form is live,
 the work that is not the operation's own is copied first and the command runs
 (the owner's "save,
 then allow",
@@ -16654,6 +16664,15 @@ every uncommitted tracked change is named
 because those aborts return with a hard reset that keeps nothing.
 A listing that fails is a rejection,
 never an empty list.
+A listed path that the worktree no longer holds while the index does is content the abort would drop,
+because the abort resets the index too,
+and no worktree file can be copied for it:
+the two listings that name it are `git ls-files --stage -z` (a stage-zero entry) and
+`git ls-files --deleted -z` (no file in the worktree),
+each read over the listed paths with `:(top,literal)` names,
+and the command is rejected naming every such path,
+saying the content stands only in the index and giving `git restore --worktree -- <path>` and
+`git show :<path> > <file>` as the ways to keep it.
 The copies are written by the same saver,
 into the same `monochromatic-git-policy-cli/discarded/<UTC time>/` folder,
 with the same bound,
@@ -16665,21 +16684,30 @@ The record is `saved-abort` with the copies when something was saved,
 and `allowed` with `dirty` null when the operation's own state was all there was.
 
 The ignored-file question a hard reset gets is asked here too,
-because the abort writes a tree back over the worktree:
-the tree is `ORIG_HEAD`,
-which Git records before a merge,
-a rebase,
-a pick or an `am` stops
-(measured with Git 2.56.0 on a single conflicted cherry-pick,
-where `ORIG_HEAD` held the commit `HEAD` was at before the pick),
-and a repository whose `ORIG_HEAD` does not resolve is read as `HEAD`,
-which is the commit the operation started at until it moves `HEAD`.
+because the abort writes a tree back over the worktree,
+and the tree is the one the command's own implementation restores,
+measured with Git 2.56.0 by moving `ORIG_HEAD` and each record apart:
+`git merge --abort` writes back `HEAD`;
+`git rebase --abort` writes back the commit in `rebase-merge/orig-head` or `rebase-apply/orig-head`,
+whichever backend started it,
+and never `ORIG_HEAD`,
+which a wrapped `git merge --abort` rewrites in between;
+`git cherry-pick --abort` and `git revert --abort` write back `HEAD` for one pick
+and the commit in `sequencer/head` for a sequence;
+`git am --abort` writes back `ORIG_HEAD`,
+also when it ends a rebase that applies patches.
+A recorded commit is read from the file Git wrote in the same start that read the state,
+and a record that cannot be read,
+or that holds no commit id,
+is a rejection and never a quiet fall back to `HEAD`,
+because the ignored-file refusal it earns must not read as clean.
 An ignored file at one of those paths keeps the rejection and is named,
 as for a forced `checkout` and a hard `reset`.
 
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
-`git merge --quit` and its siblings stop the operation and keep the index and files,
+`git merge --quit` and its siblings stop the operation and keep the index and files
+(measured in every stopped state, a hand resolution kept in all of them),
 and the hatch runs the abort anyway.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no copy either.
@@ -17030,7 +17058,11 @@ so that link or file would be lost unsaved.
 The finding names the directory (`dir`) and what it is,
 and says to move it out of the way or save it first.
 A directory in front of the name that does not exist means there is nothing to copy.
-The copy is read from the opened file.
+The copy is read from the opened file,
+and only as far as the size that file had when it was opened:
+a writer that keeps appending cannot hold the copy open for good,
+the bytes added after that size are never read,
+and the comparison below rejects the changed source.
 Its device,
 inode,
 size,

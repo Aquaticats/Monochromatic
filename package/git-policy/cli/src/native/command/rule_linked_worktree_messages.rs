@@ -29,7 +29,7 @@ use std::path::Path;
 
 /// The sentence every text ends with:
 /// the one deliberate way to discard work anyway.
-const HATCH_ADVICE: &str = "If you have decided to discard the work on purpose, save a copy first (git diff > backup.patch) and pass --no-enforce-worktree directly after the subcommand, for example git restore --no-enforce-worktree -- <path>.";
+pub(crate) const HATCH_ADVICE: &str = "If you have decided to discard the work on purpose, save a copy first (git diff > backup.patch) and pass --no-enforce-worktree directly after the subcommand, for example git restore --no-enforce-worktree -- <path>.";
 
 /// What:
 ///  How a text names the guarded form,

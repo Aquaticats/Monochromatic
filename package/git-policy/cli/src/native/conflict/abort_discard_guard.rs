@@ -16,9 +16,13 @@
 //!  the operation's own state is what the abort exists to let go,
 //!  the person's own work is copied beside the audit log first,
 //!  and the notice names where each copy is.
-//!  Where nothing waits,
+//!  Where this command's own state is absent,
 //!  Git refuses the command itself and discards nothing,
-//!  so it is left to Git.
+//!  so it is left to Git;
+//!  the state is read per command,
+//!  because an abort form can end another operation's state:
+//!  a `git rebase --rebase-merges` merge step,
+//!  or `git am --abort` during a rebase that applies patches.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,8 +35,8 @@ use crate::conflict_sides::{SaveFailure, SavedCopy, save_copies};
 use crate::discarded_prune::Limits;
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_facts_abort_discard::AbortDiscard;
-use crate::rule_abort_messages::{copy_failed_text, saved_before_abort_notice};
-use crate::rule_abort_operation::{AbortOperation, aborted_operation, operation_name, restored_revision};
+use crate::rule_abort_messages::{copy_failed_text, saved_before_abort_notice, staged_content_text};
+use crate::rule_abort_operation::{AbortOperation, aborted_operation, operation_name};
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_linked_worktree_messages::ignored_file_message;
 use crate::worktree_identity::WorktreeIdentity;
@@ -76,16 +80,17 @@ pub enum AbortVerdict {
 ///  The text of a rejected abort whose copy could not be written.
 ///  `&SaveFailure` borrows what the save step reported.
 /// Why:
-///   The rejection names the operation,
+///   The rejection names the command,
+///  the operation in progress,
 ///  the path or directory that failed and why,
 ///  and keeps the hatch as the way through for a person who means it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copy_failed(operation: AbortOperation, failure: SaveFailure): string;
+/// function copyFailed(operation: AbortOperation, inProgress: AbortOperation, failure: SaveFailure): string;
 /// ```
-fn copy_failed(operation: AbortOperation, failure: &SaveFailure) -> String {
-    return copy_failed_text(operation, failure.subject.as_str(), failure.reason.as_str());
+fn copy_failed(operation: AbortOperation, in_progress: AbortOperation, failure: &SaveFailure) -> String {
+    return copy_failed_text(operation, in_progress, failure.subject.as_str(), failure.reason.as_str());
 }
 
 /// What:
@@ -132,15 +137,15 @@ pub fn judge_abort_discard(
     limits: Limits,
 ) -> AbortVerdict {
     // Every other guarded form deletes or overwrites by itself, and this carve-out is only about the abort forms.
-    if aborted_operation(command).is_none() {
+    let Some(operation): Option<AbortOperation> = aborted_operation(command) else {
         return AbortVerdict::NotApplicable;
-    }
+    };
     let discard: AbortDiscard = match facts.abort_discard(command) {
         Ok(answer) => answer,
         // The state files or the listings could not be read: the usual rejection stands, and nothing is saved or let go.
         Err(_message) => return AbortVerdict::NotApplicable,
     };
-    let AbortDiscard::Waiting { operation, paths } = discard else {
+    let AbortDiscard::Waiting { in_progress, restored, index_only, paths } = discard else {
         return AbortVerdict::LeftToGit;
     };
     let Some((root, common)) = places(identity) else {
@@ -148,22 +153,27 @@ pub fn judge_abort_discard(
     };
     // An ignored file at a path the restored tree tracks is where a person keeps their environment and their local secrets,
     //  and the abort writes that tree back: it is rejected naming the paths, before anything is copied or changed.
-    let revision: Option<&std::ffi::OsStr> = Some(restored_revision(operation));
+    let revision: Option<&std::ffi::OsStr> = Some(restored.as_os_str());
     match facts.ignored_files_the_tree_tracks(revision) {
         Ok(shared) if !shared.is_empty() => {
             return AbortVerdict::CopyFailed(format!(
                 "{} Nothing was saved and nothing changed: the {} in progress still waits.",
                 ignored_file_message(command, revision, shared.as_slice()),
-                operation_name(operation)
+                operation_name(in_progress)
             ));
         }
         Ok(_) => {}
         Err(message) => {
             return AbortVerdict::CopyFailed(format!(
                 "monochromatic-git-policy-cli: {message} The {} in progress still waits, and nothing was saved or changed.",
-                operation_name(operation)
+                operation_name(in_progress)
             ));
         }
+    }
+    // Content the worktree no longer holds and the index does is work this abort would discard,
+    //  and the save step copies worktree files only: the command is rejected naming the paths.
+    if !index_only.is_empty() {
+        return AbortVerdict::CopyFailed(staged_content_text(operation, in_progress, index_only.as_slice()));
     }
     if paths.is_empty() {
         // Only the operation's own state is there, which is what the abort is for.
@@ -173,11 +183,11 @@ pub fn judge_abort_discard(
         Ok(copies) => {
             let unpruned: String = prune_after_save(common, copies.as_slice(), milliseconds, limits);
             return AbortVerdict::Allowed {
-                notice: format!("{}{unpruned}", saved_before_abort_notice(operation, copies.as_slice())),
+                notice: format!("{}{unpruned}", saved_before_abort_notice(operation, in_progress, copies.as_slice())),
                 copies,
             };
         }
-        Err(failure) => return AbortVerdict::CopyFailed(copy_failed(operation, &failure)),
+        Err(failure) => return AbortVerdict::CopyFailed(copy_failed(operation, in_progress, &failure)),
     }
 }
 
