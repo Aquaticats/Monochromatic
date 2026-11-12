@@ -157,13 +157,29 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     // copied keeps the worktree, because the copy is the only thing left of it after the removal.
     let unsaved: Vec<String> = snapshot_one(look.common_dir, admin);
     if !unsaved.is_empty() {
-        return Some(format!(
-            "the unshown push failures and the unfinished pushes its own Git directory holds could not all be copied into a removal snapshot, so nothing is removed and they stay in {}: {}",
-            admin.display(),
-            unsaved.join(" ")
-        ));
+        return Some(unsaved_records_reason(admin, unsaved.as_slice()));
     }
     return None;
+}
+
+/// What:
+///  Why a worktree whose own records could not all be copied stays,
+///  naming the Git directory that still holds them.
+/// Why:
+///  The copy is the only thing left of those records once a removal deletes that directory,
+///  so a copy that could not be made keeps the worktree,
+///  and the person reads where the records still are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unsavedRecordsReason(admin, unsaved) // the sentence a kept worktree prints
+/// ```
+pub(crate) fn unsaved_records_reason(admin: &Path, unsaved: &[String]) -> String {
+    return format!(
+        "the unshown push failures and the unfinished pushes its own Git directory holds could not all be copied into a removal snapshot, so nothing is removed and they stay in {}: {}",
+        admin.display(),
+        unsaved.join(" ")
+    );
 }
 
 /// What:

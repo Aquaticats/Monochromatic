@@ -407,7 +407,7 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         global_prefix: Vec::new(),
         common_dir: None,
     };
-    match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir }) {
+    match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look: None }) {
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed => {
             // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it, which a forced removal words differently because nothing was checked for changes.
