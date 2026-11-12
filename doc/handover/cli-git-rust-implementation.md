@@ -135,6 +135,41 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Pass 17 merged into `main` for 0.6.1-alpha.14 (2026-11-12T10:52:40-05:00)
+
+- Integration pass 17 ended at 10:51:25 with its report
+  (`/var/home/user/temp/agent/integration-pass-17/report.md`).
+  All sixteen branches are in;
+  none was left out.
+  Tip `90e0bc7177`,
+  on the remote.
+  Build and Clippy without a finding;
+  the 136 tests the sixteen branches add pass;
+  the two controls that failed the gate of alpha.12 pass.
+- The four reproductions of the hand-over's losses,
+  run against the pass's own build:
+  a replacement worktree at the same path survives with its ignored file;
+  a nested worktree added after the hand-over survives with its untracked file;
+  a worktree a live process works in is kept and named;
+  a commit held after the hand-over survives the removal under a kept reference.
+- One defect found by merging and repaired in the pass (`ebbdff9f87`):
+  a round of the service whose first storage step got no place claimed nothing and answered nothing.
+- Merged into `main` with `--no-ff` as `1f14f2d41c`;
+  the trial merge at 10:52:13 was clean;
+  the remote's `main` is at that commit.
+- Left by the report for the owner:
+  a capture reference may now be dropped while a record still names it,
+  when the record being finished is the one that names it
+  (the report reads `main`'s guard that way and says so beside the code);
+  and two merge controls take two to five minutes with no bound of their own.
+- Not in this release:
+  the fixes for issues 6286 and 6287 (their agents are running),
+  the fix for a held commit destroyed by the in-process removal (round 290),
+  and everything the owner decided today about refusing with an opt-out.
+  The late-runtime branch's window with exit status 4 is in it,
+  as recorded at 10:10:08.
+- No commit goes to `main` between the release's dispatch and its publication.
+
 ### The owner: "Remove systemd as a hard dependency. Bazel doesn't need it." (2026-11-12, about 10:40; round 297 started 10:41:51)
 
 Two messages of the owner,
