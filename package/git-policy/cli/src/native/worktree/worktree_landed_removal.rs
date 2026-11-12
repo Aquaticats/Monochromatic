@@ -44,7 +44,22 @@
 //!  The oldest entry of the branch's own reflog names the commit it was made at,
 //!  and a branch whose tip is that commit has no commit of its own;
 //!  a repository that keeps no reflog for it proves nothing,
-//!  and the branch stays a candidate as it did before.
+//!  and the branch stays a candidate as it did before
+//!  (`worktree_branch_reflog.rs`).
+//!  A branch that has moved holds no commit of its own either when another branch this merge did not land on had already
+//!  moved onto the same commit:
+//!  its own reflog records that move from another commit,
+//!  while a branch created at a commit records no commit as the value before it and proves nothing.
+//!  A person who runs `git reset --hard main` in a task worktree moves its branch onto main's commit and makes nothing,
+//!  and the tip differs from the commit the branch was made at,
+//!  so movement alone read it as the branch's own work and the merge that brought main in took the worktree
+//!  (a cross-vendor review of the landed sweep,
+//!  round 208).
+//!  A branch moved onto a commit this one made is the mirror of that,
+//!  and keeps the worktree:
+//!  Git records no owner of a commit,
+//!  and a branch moved onto a commit another branch holds below its own tip is no state this rule can see at all,
+//!  so a worktree it cannot prove it may remove stays.
 //!  Ignored directories are the build state this sweep exists to give back and go with the worktree.
 //!  The process the sweep runs in counts as one working in a worktree:
 //!  `-C` names the repository a command works on,
@@ -61,6 +76,17 @@
 //!  so a worktree holding a modified or untracked file is refused by Git exactly as it is for a person,
 //!  and what the person reads here is Git's sentence.
 //!  Everything else is named with its reason and left alone.
+//!  What the removal deletes besides the files Git keeps is read again immediately before it runs:
+//!  a worktree a command added inside the candidate while the sweep ran is in the registrations only after that command
+//!  finishes,
+//!  so the list the sweep read at its start proves nothing about it,
+//!  and the removal took the nested worktree's changed files and its own record with the parent
+//!  (a cross-vendor review of the landed sweep,
+//!  round 208);
+//!  and a push failure recorded in the candidate's own Git directory after the one removal snapshot the sweep takes went
+//!  with that directory,
+//!  so the snapshot is retaken for the worktree being removed just as the removal runs,
+//!  and a worktree whose records could not all be copied stays and says where they are.
 //!  A commit a reference lock holds in a landed worktree lives in that worktree's own Git directory
 //!  and on its per-worktree reference,
 //! and both go with the removal,
@@ -86,12 +112,13 @@
 use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
+use crate::worktree_branch_reflog::{branch_made_at, branch_moved_onto};
 use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
-use crate::worktree_removal_rescue::snapshot_linked_worktrees;
+use crate::worktree_removal_rescue::{snapshot_linked_worktrees, snapshot_one};
 use crate::worktree_remove_hand_over::hand_over_worktree_removal;
 use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
 use crate::worktree_remove_plan::RemovePlan;
@@ -319,41 +346,6 @@ fn branches_merged_into(place: &LandedPlace<'_>, commit: &str) -> Result<Vec<Lan
     return Ok(found);
 }
 
-/// The commit the branch named by `reference` was made at,
-/// read from the oldest entry of its own reflog,
-/// or nothing when this repository keeps no reflog for it.
-/// Why:
-///  Every reflog line begins with the commit the reference named before the entry and the one it names after it,
-///  and the oldest line of a branch's reflog is the entry the branch was made in:
-///  `git worktree add -b` writes it as surely as `git branch` does.
-///  The line is read as bytes because a branch name's bytes are the person's,
-///  and its two commit fields are hexadecimal whatever they hold.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// branchMadeAt(commonDir, 'refs/heads/feature') // 'dfc6c4e...' | undefined
-/// ```
-fn branch_made_at(common_dir: &Path, reference: &str) -> Option<String> {
-    let path: PathBuf = common_dir.join("logs").join(reference);
-    let text: Vec<u8> = std::fs::read(path.as_path()).ok()?;
-    let oldest: &[u8] = text.split(is_line_end).next()?;
-    let made: &[u8] = oldest.split(is_space).nth(1)?;
-    return std::str::from_utf8(made).ok().map(str::to_owned);
-}
-
-/// Whether the byte ends a line of a reflog.
-/// Why:
-///  Named apart from the split that uses it,
-///  because a closure that captures nothing is what this codebase keeps out of its calls.
-fn is_line_end(byte: &u8) -> bool {
-    return *byte == b'\n';
-}
-
-/// Whether the byte separates two fields of a reflog line.
-fn is_space(byte: &u8) -> bool {
-    return *byte == b' ';
-}
-
 /// The reference a landing names,
 /// for the set of branches that were already contained in a head.
 fn reference_of(one: Landing) -> String {
@@ -377,6 +369,36 @@ fn reference_of(one: Landing) -> String {
 /// ```
 fn holds_its_own_commits(common_dir: &Path, reference: &str, tip: &str) -> bool {
     return branch_made_at(common_dir, reference) != Some(tip.to_owned());
+}
+
+/// Whether a branch this merge did not land on moved onto `tip`,
+/// which is a commit the branch named by `reference` did not make.
+/// Why:
+///  A person who runs `git reset --hard main` in a task worktree moves its branch onto main's commit and makes nothing.
+///  The tip then differs from the commit that worktree's own reflog says the branch was made at,
+///  so the rule above read the move as work of the branch's own and the merge that brought main in removed the worktree
+///  (a cross-vendor review of the landed sweep,
+///  round 208).
+///  A branch at the head this merge landed on is not counted:
+///  a fast-forward merge leaves the landed branch on the tip the landed worktree's branch has,
+///  and that is where the work of that branch is.
+///  A branch moved onto a commit another branch holds below its own tip is the state this rule cannot see,
+///  because Git records no owner of a commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// anotherBranchTookTheTip(landed, commonDir, 'refs/heads/task-z', 'dfc6c4e...', 'a1b2c3d...') // true when a branch moved onto another branch's commit
+/// ```
+fn another_branch_took_the_tip(landed: &[Landing], common_dir: &Path, reference: &str, tip: &str, landed_head: &str) -> bool {
+    for other in landed {
+        if other.reference == reference || other.tip != tip || other.tip == landed_head {
+            continue;
+        }
+        if branch_moved_onto(common_dir, other.reference.as_str(), tip) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -411,14 +433,17 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
     };
     let mut candidates: HashSet<String> = HashSet::new();
-    for one in landed {
+    for one in &landed {
         if earlier.contains(one.reference.as_str()) {
             continue;
         }
         if !holds_its_own_commits(place.common_dir, one.reference.as_str(), one.tip.as_str()) {
             continue;
         }
-        candidates.insert(one.reference);
+        if another_branch_took_the_tip(landed.as_slice(), place.common_dir, one.reference.as_str(), one.tip.as_str(), now) {
+            continue;
+        }
+        candidates.insert(one.reference.clone());
     }
     if candidates.is_empty() {
         return sweep;
@@ -594,6 +619,26 @@ fn names_of(inside: &[&Registration]) -> String {
 }
 
 /// What:
+///  Why a worktree that holds another registered worktree stays.
+/// Why:
+///  The two checks that keep it,
+///  the one over the registrations the sweep read at its start and the one over the registrations read as the removal
+///  runs,
+///  answer a person in the same words,
+///  so the sentence is written once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nestedWorktreeReason(inside) // the sentence a kept parent prints
+/// ```
+fn nested_worktree_reason(inside: &[&Registration]) -> String {
+    return format!(
+        "another worktree this repository registers is inside it ({}), and a removal of this one would take that worktree's files and its own record with it",
+        names_of(inside)
+    );
+}
+
+/// What:
 ///  What an unfinished operation's mark means,
 ///  in a person's words.
 /// Why:
@@ -639,6 +684,15 @@ enum Examined {
 ///   Each answer is a decision a person can read,
 ///  and the removal runs only when all of them hold,
 ///  so a worktree someone is still using is never the one that goes.
+///  The list of registrations the sweep read at its start answers early,
+///  and it is not what the removal rests on:
+///  what a removal deletes besides the files Git keeps is read again here,
+///  immediately before it runs,
+///  because a worktree a command adds inside this one while the sweep runs,
+///  and a push failure recorded in this one's own Git directory,
+///  appear only after that first reading
+///  (`nested_worktree_reason`,
+///  `snapshot_one`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -650,10 +704,7 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
     }
     let inside: Vec<&Registration> = worktrees_inside(one, registered);
     if !inside.is_empty() {
-        return Examined::Kept(format!(
-            "another worktree this repository registers is inside it ({}), and a removal of this one would take that worktree's files and its own record with it",
-            names_of(inside.as_slice())
-        ));
+        return Examined::Kept(nested_worktree_reason(inside.as_slice()));
     }
     if one.admin.join("locked").exists() {
         return Examined::Kept(String::from("it is locked, and a lock is a promise to keep it"));
@@ -686,6 +737,30 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
                 "this command runs in a repository without a worktree, so nothing proves the ignored files there are not yours",
             ));
         }
+    }
+    // The unshown push failures and the unfinished pushes of this worktree live in its own Git directory, which the
+    // removal deletes. The sweep copied them before it examined a candidate, and the push service writes a refused push at
+    // any moment, so the copy is made again here, as the removal runs: a record written after the sweep's own copy went with
+    // the directory (a cross-vendor review of the landed sweep, round 208). A record that cannot be copied keeps the
+    // worktree, because the copy is the only thing left of it after the removal.
+    let unsaved: Vec<String> = snapshot_one(place.common_dir, one.admin.as_path());
+    if !unsaved.is_empty() {
+        return Examined::Kept(format!(
+            "the unshown push failures and the unfinished pushes its own Git directory holds could not all be copied into a removal snapshot, so nothing is removed and they stay in {}: {}",
+            one.admin.display(),
+            unsaved.join(" ")
+        ));
+    }
+    // A worktree a command added inside this one while the sweep ran is in the registrations only once that command has
+    // finished, so the list read at the start of the sweep proves nothing about it: the removal took the nested worktree's
+    // changed files and its own record with the parent (a cross-vendor review of the landed sweep, round 208).
+    let registered_now: Vec<Registration> = match registrations_of(place.common_dir) {
+        Ok(found) => found,
+        Err(reason) => return Examined::Kept(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
+    };
+    let inside_now: Vec<&Registration> = worktrees_inside(one, registered_now.as_slice());
+    if !inside_now.is_empty() {
+        return Examined::Kept(nested_worktree_reason(inside_now.as_slice()));
     }
     let removal: Attempt = remove_here_or_hand_over(place, one);
     if matches!(removal, Attempt::Removed) {
