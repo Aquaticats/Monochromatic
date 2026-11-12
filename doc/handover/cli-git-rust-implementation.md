@@ -135,6 +135,77 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The last three Kimi audits of alpha.12 routed, and round 277 started (2026-11-12T01:13:26-05:00)
+
+`~/temp/agent/digest-2026-11-12T0045/digest.md` covers the audits of the commit service's landing,
+of worktree removal and the landed sweep, and of worktree add, with five work branches and two reviews.
+All thirteen audits of 0.6.1-alpha.12 are now read.
+Free space is 170 GiB, nine less than twelve minutes before; the pools hold 17 of 18 and 16 of 20.
+
+#### Sent by note at 01:10 to agents already in that code
+
+- The four hand-over cases of the removal audit (a replacement worktree at the same path, a commit held after the hand-over,
+  a nested worktree, a process that started working there), each run through the built wrapper and its service,
+  and two tests of the release that still expect a synchronous removal:
+  to `landed-removal-handed-to-the-service-proves-again-before-it-destroys-1`.
+- The reset-branch removal, confirmed independently, and the unreadable held record shown end to end on a typed `git worktree remove`:
+  to `review-findings-landed-sweep-keeps-a-worktree-reset-onto-another-branch-1`.
+- Files written into the trash and deleted with it, from two audits:
+  to `review-findings-worktree-trash-hand-over-round-231-2`.
+- A service answer that never ends its line, and a resent request that lands a second commit after the done-records were pruned by count:
+  to `commit-is-made-when-the-service-stops-reading-or-answering-1`.
+- An unrelated reference lock that keeps a held commit held, with a message naming a lock that is gone:
+  to `landing-keeps-the-built-commit-when-a-keep-or-a-lock-is-refused-1`.
+- A forwarded add that waits past sixty seconds in silence:
+  to `review-findings-add-says-why-it-waits-round-219-2`.
+- A snapshot add that silently copies nothing from a source still being filled, and a settling failure below a read-only directory:
+  to `worktree-copy-record-that-cannot-be-read-never-stops-another-command-1`.
+- The changeover measured by another agent (after a change of release: wall median 8,920 ms against 1,200 ms for a reinstall of the same bytes,
+  fifteen of sixteen landed): to `first-commit-after-an-install-does-not-wait-for-the-old-service-1`.
+
+#### Round 277
+
+Started 01:13, unit `launch-agents-batch-round-277`.
+
+- `commit-that-does-not-land-says-what-stopped-it` (base `main`):
+  seven of the eight commits that did not land under alpha.12 are recorded as stopped by nothing the wrapper can name.
+  It reads those records, lists everything that can end a commit, reproduces each, and makes the record and the person's line say which.
+- `tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted` (base `main`):
+  merges the owed-index slice (`7ed062b33a`) and the batch-body slice (`d45106ed1d`), makes the linter pass,
+  and converts the landing's batch body to the awaited faces, the plan's next step.
+
+#### What the measurement of a commit's time concluded
+
+Branch `perf/git-policy-cli-alpha-11-against-alpha-10-where-a-commits-time-goes` (`03ecb3fed9`, not in `main`),
+record `doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md` on it.
+In steady state the two releases do not differ beyond one binary's spread.
+The cost is the changeover, in the client's reach for the service and the new service's first answers, not in provisioning.
+It also found a step outside the timing record: `name_unaccounted_trash` opened 525 queue records in one ordinary commit, one `openat` taking 7.35 s;
+its commit `fc835cd1bc` makes a command open only the records it can use.
+That commit is a candidate for the next integration pass once reviewed.
+
+#### For a third pass on abort and skip
+
+The abort second-pass agent is past three hundred and fifty turns with three notes. Not sent to it:
+
+- the qwen4 review of the first pass (final, one finding): `git rebase --abort` reads the restored-revision record with an unbounded blocking read
+  (`repo_read/repository_facts_abort_discard.rs:380` on that branch); with a FIFO there the command had not returned after twelve seconds.
+  Whether real Git would wait on the same file was not tested.
+
+#### For the owner's return, added
+
+- The removal audit contests three documented behaviours, each shown through the built wrapper:
+  the landed sweep removes unique ignored files below ignored directories (`README.md:1162-1166`);
+  an unforced `git worktree remove` deletes unique ignored files, as real Git does;
+  and it removes a worktree a live process is working in (`README.md:974`).
+  A fourth, an unforced removal deleting a nested worktree with its untracked file, has no record either way.
+- Finished records of the commit service are pruned by count in `README.md:6847-6849` and kept by age in `SPEC.md:10795-10801`;
+  the audit landed a commit twice through the gap, with a thousand landings in between.
+- The package-repair fix (`9478219b1d`) asks for a veto on its new line to the person
+  ("it was let go and its own start gave no answer within 60s, so it was stopped, and what it wrote before that stands")
+  and its new state `ToolStart::LetGoWithoutAnAnswer`.
+- The commit-options change lets `-i` with `-o` make a commit where real Git refuses (qwen4 review, "for awareness only").
+
 ### The eighth cull pass, an unreadable record that stops every linked worktree, and six more reviews (2026-11-12T01:04:35-05:00)
 
 #### Cull
