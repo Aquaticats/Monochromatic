@@ -1,0 +1,403 @@
+<h1>Shadow repository and replay route findings on main</h1>
+<h2>Scope and evidence, 2026-11-09T06:08:41-05:00</h2>
+<p>Audited <code>main</code> at
+<code>566be9a823d58f9532b14a48d54980a8e8b4fec4</code>, whose commit
+timestamp is <code>2026-11-09T05:45:38-05:00</code>. The audit worktree
+started at <code>b38de34bb23ba5fd29fcbc70e8be218ff9746edd</code>.
+<code>git diff --exit-code 566be9a823d58f9532b14a48d54980a8e8b4fec4 HEAD --</code>
+with <code>package/git-policy/cli/src/native</code>,
+<code>package/git-policy/cli/SPEC.md</code>, and
+<code>doc/decision/cli-git-concurrent-commits.md</code> returned zero:
+the audited production sources and those records match that
+<code>main</code>. No unmerged implementation branch was examined. No
+production code was changed.</p>
+<p>The owner requirements supplied with this audit are:</p>
+<ul>
+<li>"Commits should never fail."</li>
+<li>"Auto merging should never fail."</li>
+<li>"never discard user data"</li>
+<li>"nothing should ever wait forever or indefinitely"</li>
+</ul>
+<p>The first requirements are also recorded in
+<code>package/git-policy/cli/SPEC.md:2160</code>.
+<code>doc/handover/cli-git-rust-implementation.md:5561</code>, "Open
+review findings", was checked before reporting new findings. The
+recorded autostash loss and the general deadline/branch-write work are
+not new findings here.</p>
+<p>All reproduced results use real Git <code>2.56.0</code> and the
+unmodified production functions through temporary Rust tests. Histories
+were generated with <code>hash-object</code>, <code>mktree</code>,
+<code>commit-tree</code>, and <code>update-ref</code> in disposable
+repositories under this worktree's <code>.audit-shadow-replay/</code>.
+The generators give every child a 15-second deadline. Probe commands
+have an outer deadline and a cgroup with CPU quota <code>400%</code>,
+<code>MemoryMax=8G</code>, <code>TasksMax=256</code>, and
+<code>IOWeight=10</code>; generators use lower limits. No synthetic load
+or mutation campaign was used. The probe tests are not part of the
+committed change.</p>
+<h2>What the route does and who calls it</h2>
+<p><code>native/shadow/</code> holds two related mechanisms, not one
+continuously used shadow repository. All source paths in this document
+are relative to the repository root.</p>
+<ul>
+<li>A commit that needs native Git, including configured signing or an
+editor, uses
+<code>package/git-policy/cli/src/native/landing/service_native.rs:200</code>.
+<code>build_with_git</code> creates a scratch shadow with
+<code>create_shadow_repository_carrying</code>, runs native
+<code>git commit</code> against a private index, and reads the prepared
+object. The current scratch path is
+<code>&lt;git-dir&gt;/monochromatic-git-policy-cli-service-&lt;id&gt;/shadow</code>,
+not the historical per-transaction registry path still described in some
+source comments.</li>
+<li>A commit sent back after its branch moved enters
+<code>package/git-policy/cli/src/native/landing/service_replay.rs:245</code>,
+<code>merge_captured</code>. This first calls Git's
+<code>merge-tree</code> with the original preparation base. Only
+conflicted paths enter capture ordering and subsumption. A synthetic
+base settles paths judged contained or ordered; another
+<code>merge-tree</code> runs, followed by the word-level pass if
+necessary. This current caller passes the real common Git directory and
+real object store to the helpers named "shadow". Replay is not confined
+to the native preparation shadow.</li>
+</ul>
+<p>The accepted decision in
+<code>doc/decision/cli-git-concurrent-commits.md:79</code> says: "when
+the landed change for that path (its diff from the preparation base to
+the new <code>HEAD</code>) applies in reverse to the prepared version,
+the prepared bytes already contain it and land as they are". Its
+implementation-time amendment at <code>:321</code> permits strict
+reverse application or a one-sided extension of the landed hunks. The
+capture-order decision at <code>:330</code> chooses later captures from
+the same worktree; unknown captures still go through subsumption and
+Git. The reproductions use unknown capture order, so an intentional
+later-capture override cannot explain their results.</p>
+<h2>Findings ranked by risk</h2>
+<h3>P1: A non-ASCII conflict can silently revert another file's landed
+change</h3>
+<p>Status: <strong>reproduced</strong> through
+<code>service_replay::merge_captured</code>, including the final
+word-level pass. The wrong result is an accepted tree, not merely a
+malformed diagnostic or an intermediate synthetic base. This violates
+"never discard user data": the new tree drops the effect of an existing
+landed edit without naming that file. The landed commit and its objects
+remain in history; this is not a claim that its historical blob was
+deleted.</p>
+<p>Relevant code:</p>
+<ul>
+<li><code>package/git-policy/cli/src/native/shadow/replay_shared_paths.rs:207</code>
+decodes each pathname byte as a Latin-1 character.</li>
+<li><code>package/git-policy/cli/src/native/shadow/replay_subsumption.rs:160</code>
+formats that carrier string and calls <code>into_bytes()</code>,
+encoding it as UTF-8 instead of reversing the Latin-1 carrier. The
+deletion and exact-entry records at <code>:154</code> and
+<code>:173</code> have the same boundary error.</li>
+<li><code>package/git-policy/cli/src/native/shadow/replay_subsumption.rs:219</code>
+reads the original base into a private index; <code>:230</code> installs
+those wrongly named records with
+<code>update-index -z --index-info</code>.</li>
+<li><code>package/git-policy/cli/src/native/landing/service_replay.rs:251</code>
+lists paths before filtering them to the originally conflicted set, and
+<code>:285</code> uses the synthetic base for another whole-tree
+merge.</li>
+</ul>
+<p>Exact sequence:</p>
+<ol type="1">
+<li>Create a base commit with <code>é.txt</code> containing
+<code>a\nb\nc\nd\n</code> and the distinct filename <code>Ã©.txt</code>
+containing <code>unrelated base\n</code>. Their UTF-8 filename prefixes
+are respectively <code>c3 a9</code> and <code>c3 83 c2 a9</code>.</li>
+<li>From that base, make the landed commit change <code>é.txt</code> to
+<code>a\nB\nc\nd\n</code> and change <code>Ã©.txt</code> to the same
+bytes <code>a\nB\nc\nd\n</code>.</li>
+<li>Independently from the base, prepare <code>é.txt</code> as
+<code>a\nB\nC\nd\n</code>. Leave <code>Ã©.txt</code> untouched at
+<code>unrelated base\n</code>.</li>
+<li>Real
+<code>git merge-tree --write-tree -z --merge-base=&lt;base&gt; &lt;landed&gt; &lt;prepared&gt;</code>
+exits <code>1</code> for the contained adjacent edit on
+<code>é.txt</code>. Its output tree preserves <code>Ã©.txt</code> as
+<code>a\nB\nc\nd\n</code>.</li>
+<li>Call the production <code>merge_captured</code> with those histories
+and capture stamp zero. It accepts a <code>Combined</code> result: the
+word-level pass resolves the original <code>é.txt</code> conflict, but
+<code>Ã©.txt</code> has reverted to <code>unrelated base\n</code>.</li>
+</ol>
+<p>The equality between the landed blobs is essential, not an accidental
+test shortcut. The synthetic-base record meant for <code>é.txt</code>
+instead makes the base entry for <code>Ã©.txt</code> equal to that
+file's landed entry. Git therefore sees no landed-side change at the
+unrelated filename and takes the prepared side's original bytes there.
+The original <code>é.txt</code> conflict remains for the word-level
+pass, which resolves it successfully and returns the already-corrupted
+whole tree.</p>
+<p>Quoted output:</p>
+<pre class="text"><code>path-collision: native merge exit=Some(1)
+path-collision: production result=Combined
+path-collision: native bytes=&quot;a\nB\nc\nd\n&quot;, production bytes=&quot;unrelated base\n&quot;
+assertion `left == right` failed
+  left: [117, 110, 114, 101, 108, 97, 116, 101, 100, 32, 98, 97, 115, 101, 10]
+ right: [97, 10, 66, 10, 99, 10, 100, 10]</code></pre>
+<p>The full accepted tree contains both original filenames; this is not
+a missing-path or failed-<code>show</code> artifact. An otherwise
+identical history using <code>a.txt</code> and <code>b.txt</code>
+passes: Git's output tree and production replay both retain
+<code>b.txt</code> as <code>a\nB\nc\nd\n</code>.</p>
+<p>Suggestion: keep repository paths as bytes through the
+synthetic-index writer, or explicitly invert the Latin-1 carrier at that
+boundary. Add a consumer-level control with distinct real filenames that
+alias under the current encoding, checking both the combined file and
+the unrelated file's content and mode. Do not treat adding another
+UTF-8-only parser test as sufficient.</p>
+<h3>P1: A real-gitdir signing include disappears in the shadow and an
+unsigned commit succeeds</h3>
+<p>Status: <strong>reproduced</strong> through the production invocation
+capture, <code>create_shadow_repository_at</code>,
+<code>run_native_commit_within</code>, and
+<code>read_prepared_commit</code>. No signer failure or timing race is
+involved.</p>
+<p>The accepted preparation decision in
+<code>doc/decision/cli-git-concurrent-commits.md:35</code> says: "Git
+then owns hooks, the editor, templates, message cleanup, and signing."
+Current <code>package/git-policy/cli/SPEC.md:7473</code> supersedes the
+hook portion by supporting no external hooks; it does not retire
+configured commit signing. The shadow route must not change a person's
+signing request into a successful unsigned commit.</p>
+<p>Relevant code:</p>
+<ul>
+<li><code>package/git-policy/cli/src/native/shadow/shadow_config.rs:244</code>
+includes the real common config, but does not preserve the invocation's
+effective values from conditional gitdir includes.</li>
+<li><code>package/git-policy/cli/src/native/landing/service_prepare_changes_config_and_pathspec_steps.rs:113</code>
+routes effective <code>commit.gpgSign</code> configuration to native
+Git.</li>
+<li><code>package/git-policy/cli/src/native/commit/commit_preparation.rs:141</code>
+substitutes <code>--git-dir=&lt;shadow&gt;</code> in that native
+command. <code>:194</code> runs it without restoring signing values that
+applied only to the original Git directory.</li>
+<li><code>package/git-policy/cli/src/native/landing/service_native.rs:214</code>
+uses this creator and native preparation in the shipped path.</li>
+</ul>
+<p>Exact sequence:</p>
+<ol type="1">
+<li>Create an ordinary repository and a disposable SSH signing key with
+no passphrase.</li>
+<li>Put <code>commit.gpgSign=true</code>, <code>gpg.format=ssh</code>,
+and <code>user.signingKey=&lt;disposable key&gt;</code> in a separate
+configuration file.</li>
+<li>Include that file from the repository config only under
+<code>[includeIf "gitdir:&lt;absolute repository path&gt;/.git"]</code>.</li>
+<li>Native
+<code>git commit --allow-empty --message=&lt;message&gt;</code>
+succeeds. Require that its raw commit header contains
+<code>gpgsig</code>: this positive control was asserted, not merely
+printed.</li>
+<li>Capture the same repository with the production capture functions,
+create its shadow, and initialize a private index from
+<code>HEAD</code>.</li>
+<li>Run production native preparation with
+<code>--allow-empty --message=&lt;message&gt;</code>, no
+<code>--no-gpg-sign</code>, and no command-line signing override. It
+exits <code>0</code>, and <code>read_prepared_commit</code> reports
+<code>signed=false</code>.</li>
+</ol>
+<p>Quoted output:</p>
+<pre class="text"><code>real Git honors exact gitdir include: signed=true
+exact gitdir include: native signed=true, shadow exit=0, shadow signed=false
+the shadow must not silently turn off the person&#39;s configured signing</code></pre>
+<p>The source-level explanation is that the exact gitdir condition no
+longer matches the substituted shadow directory. The fixture has no
+other signing configuration, and <code>format_shadow_config</code> emits
+no signing override. The signed/unsigned disagreement is measured; this
+account of conditional matching is the interpretation of those inputs
+and the changed Git-directory selection. The existing
+conditional-include test in
+<code>package/git-policy/cli/src/native/shadow/shadow_create_tests.rs:82</code>
+checks <code>onbranch:main</code>, which is preserved by the symbolic
+shadow <code>HEAD</code>; it does not exercise an exact gitdir
+condition.</p>
+<p>Suggestion: preserve the relevant effective native-commit
+configuration from the invocation context, with its intended precedence
+and path-resolution semantics, rather than assuming that including the
+real file recreates every condition. A regression control should require
+a signed native positive control and a signed production shadow
+commit.</p>
+<h3>P2: An unrelated Git-valid non-UTF-8 tag blocks native
+preparation</h3>
+<p>Status: <strong>reproduced</strong> through production invocation
+capture and <code>create_shadow_repository_at</code>. This is a visible
+failure, not silent data loss, so it ranks after the accepted wrong
+results. It touches the owner's "Commits should never fail." The failure
+is specific to commits using native preparation, not every commit the
+embedded service can build without a shadow.</p>
+<p><code>package/git-policy/cli/src/native/shadow/shadow_refs.rs:89</code>
+decodes the complete <code>for-each-ref</code> listing as UTF-8 and
+returns
+<code>GitFailure("git for-each-ref returned non-UTF-8 output.")</code>
+on any invalid sequence. <code>write_shadow_refs</code> calls it at
+<code>:205</code>, and the creator propagates its failure at
+<code>package/git-policy/cli/src/native/shadow/shadow_create.rs:370</code>.
+The production caller is the native builder at
+<code>package/git-policy/cli/src/native/landing/service_native.rs:214</code>.</p>
+<p>Exact sequence:</p>
+<ol type="1">
+<li>Create a repository on <code>main</code> with an empty base
+commit.</li>
+<li>Use <code>git update-ref --stdin</code> with raw input bytes to
+create the valid ref name <code>refs/tags/nonutf-</code> followed by
+byte <code>ff</code>, pointing at that base. The non-UTF-8 name is
+unrelated to <code>HEAD</code> and to the requested change.</li>
+<li>Native
+<code>git commit --allow-empty --message=&lt;message&gt;</code> succeeds
+in the same repository.</li>
+<li>Capture the repository and base through production capture, both
+successfully, then request a production shadow.</li>
+<li>Shadow creation fails at the complete-ref snapshot's UTF-8 decode. A
+commit needing this route, such as one with an editor, cannot reach
+native preparation even though Git accepts the repository and the
+commit.</li>
+</ol>
+<p>Quoted output:</p>
+<pre class="text"><code>native commit beside non-UTF-8 tag: exit=0
+non-UTF-8 tag: native subject=&quot;native control beside non-UTF-8 tag\n&quot;
+shadow creation=Err(GitFailure(&quot;git for-each-ref returned non-UTF-8 output.&quot;))
+valid non-UTF-8 reference should not block a commit</code></pre>
+<p>Suggestion: parse and reproduce ref names as bytes on Unix, keeping
+diagnostic text separate from the bytes written to the ref snapshot. A
+control should put a non-UTF-8 ref outside the target branch and require
+native shadow creation to succeed.</p>
+<h2>Creation, shared state, interruption, and waits</h2>
+<p>The code keeps <code>HEAD</code>, refs, reflogs, index, config, and
+the shadow object directory private.
+<code>package/git-policy/cli/src/native/shadow/shadow_links.rs:67</code>
+excludes conclusion state and names ending in <code>.lock</code> too.
+Other common-directory entries, including <code>info</code>,
+<code>rr-cache</code>, <code>lfs</code>, and <code>modules</code>, are
+links into the real repository. <code>config.worktree</code> and a
+linked worktree's sparse-checkout file are copied where applicable
+(<code>shadow_links.rs:217</code>). This is shared filesystem state, not
+an isolation boundary against arbitrary writes.</p>
+<p>Native preparation deliberately sets
+<code>GIT_OBJECT_DIRECTORY</code> to the real store
+(<code>package/git-policy/cli/src/native/landing/service_native.rs:224</code>;
+<code>package/git-policy/cli/src/native/commit/commit_preparation.rs:202</code>).
+It therefore writes real objects even though its refs and index are
+private. Replay likewise writes content-addressed objects in the real
+store through its current caller. No operation observed in these probes
+deletes a real object or a linked payload.</p>
+<p>For the current native route, <code>Scratch::drop</code> removes the
+scratch tree
+(<code>package/git-policy/cli/src/native/landing/service_prepare_ready_shapes.rs:36</code>).
+After a successful preparation, the client also hands the scratch
+directory to a service watch
+(<code>package/git-policy/cli/src/native/landing/service_commit.rs:222</code>).
+Connection closure queues its release
+(<code>package/git-policy/cli/src/native/service/service_server_connection_handling.rs:305</code>),
+and the service removes released trees
+(<code>service_server.rs:470</code>). A kill during creation can leave a
+partial shadow, loose objects, and private indexes. The next invocation
+gets another random scratch identity; it does not use directory
+existence as proof of a completed commit. I did not establish eventual
+collection for a kill before the scratch watch is registered, or for a
+simultaneous client/service death. Those are limits of this audit, not
+reproduced recovery guarantees or new data-loss findings.</p>
+<p>Replay's Git reads and object writers go through the watched
+transaction runner
+(<code>package/git-policy/cli/src/native/transaction/transaction_git.rs:374</code>;
+<code>transaction_git_step_bounds.rs:53</code>). The native
+preparation's no-editor path has its own ceiling. An editor-open native
+commit intentionally has no ceiling: the newer owner answer is "limit
+unless editor" and "no ceiling, only the waiting notice" with an editor
+open (<code>doc/handover/cli-git-rust-implementation.md:7525</code>).
+That exception must not be misreported as a newly discovered violation
+of the general no-indefinite-wait requirement. The helper files contain
+no additional explicit wait loop independent of those runners. Direct
+filesystem creation, copy, and deletion calls are synchronous; this
+audit did not prove bounds for an unresponsive filesystem syscall.</p>
+<h2>Verification runs</h2>
+<p>The filtered nextest command was
+<code>mise run //package/git-policy/cli:native:test:host -- audit_probe --success-output=final --no-fail-fast</code>.
+Its named output ran <code>9</code> probes: <code>7</code> passed;
+<code>audit_path_collision_preserves_the_unrelated_landed_edit</code>
+and
+<code>audit_exact_gitdir_include_keeps_required_signing_enabled</code>
+failed with the quoted wrong results. A later filtered run with the
+separate name filters <code>audit_non_utf8 audit_partial_shadow</code>
+ran <code>2</code> probes:
+<code>audit_partial_shadow_cleanup_does_not_follow_shared_links</code>
+passed, and
+<code>audit_non_utf8_tag_does_not_prevent_native_shadow_creation</code>
+failed with the quoted diagnostic. Thus each reported defect has a red
+assertion against an unmodified production seam. No full suite was
+run.</p>
+<p>One attempted filter contained a literal <code>|</code>, selected no
+tests, and ended with nextest's <code>error: no tests to run</code>.
+That run is not counted as verification; the corrected separate filters
+produced the named results. An initial launcher was stopped before
+execution because it lacked the explicit fixture-root environment. No
+result from that launcher is counted either.</p>
+<p>The required document tasks both returned zero:
+<code>mise run //:format:monochromatic-lint -- doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md</code>,
+then
+<code>mise run //:lint:monochromatic-lint -- doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md</code>.
+Pandoc's CommonMark-to-HTML output was read to check the rendered
+headings, sequences, code spans, and emphasis. The uncommitted probe
+sources, generators, and full outputs are preserved under
+<code>.audit-shadow-replay/</code>, not under the crate's source tree.
+<code>git diff --exit-code -- package/git-policy/cli</code> confirmed
+that temporary crate edits were removed.</p>
+<p>A cross-vendor Kimi review challenged the reachability, positive
+controls, and interpretation. The conflict status was asserted, the full
+resulting tree was inspected, and configured native signing was proved
+before accepting the failures. The interhunk hypothesis was not
+supported by the measured Git output. A separate DeepSeek review
+returned no visible text and supplies no review evidence.</p>
+<h2>Verification limits</h2>
+<p>The probes call shipped functions at the captured-history and
+native-preparation seams, not the installed wrapper or its live service.
+They establish wrong replay trees and wrong native prepared objects, not
+a timed concurrent invocation or a final service landing. No production
+fix was attempted. Windows and macOS were not exercised, as
+requested.</p>
+<p>The submodule path was read: <code>replay_shared_paths.rs:328</code>
+accepts only regular-file modes for text subsumption, so gitlinks and
+symlinks fall back to Git rather than the text heuristic. Symlink and
+binary conflicts were exercised; a real submodule checkout,
+SHA-256/reftable repositories, custom merge drivers, all attribute
+combinations, and every possible interrupted-write position were not
+exercised here. No general safety claim follows for those surfaces.</p>
+<h2>Checked and found sound</h2>
+<ul>
+<li>At the interrupted-creation seam after skeleton creation and
+production shared-entry linking, <code>remove_shadow_repository</code>
+removes the partial tree without following its <code>info</code> link.
+The test first reads the real sentinel through the shadow link, then
+checks the original sentinel bytes after deletion. Output:
+<code>partial shadow: shared sentinel intact=true, shadow removed=true</code>.
+This exercises the removal helper, not a whole client/service
+crash-recovery cycle.</li>
+<li>The ASCII equivalent of the filename-collision history retains the
+unrelated landed edit.</li>
+<li>The adjacent contained text edit is retained with exact CRLF
+bytes.</li>
+<li>A landed <code>100755</code> mode survives a contained text replay;
+both mode and bytes were asserted.</li>
+<li>Different NUL-containing binary blobs stay a conflict rather than
+becoming text subsumption.</li>
+<li>Different symlink targets stay a conflict.</li>
+<li><code>diff.relative=true</code> with a subdirectory invocation does
+not turn the tested same-line conflict into success.</li>
+<li>The suspected <code>diff.interHunkContext=1</code> counterexample
+was rejected by measurement: the actual zero-context
+<code>diff-tree</code> output still had separate hunks, and production
+returned <code>a\nB\nD\nD\ne\n</code>, retaining both edits through the
+word-level pass. It is not a finding.</li>
+<li>The indexed text diff explicitly disables external diff and text
+conversion, forces text only after its own binary exclusion, disables
+rename detection, and uses decimal synthetic filenames instead of user
+filenames in patch headers
+(<code>package/git-policy/cli/src/native/shadow/replay_subsumption_text.rs:171</code>).
+The raw shared-path listing uses NUL delimiters and disables rename
+detection (<code>replay_shared_paths.rs:181</code>). The path-encoding
+defect is at the later index-record writer, not those delimiters.</li>
+</ul>

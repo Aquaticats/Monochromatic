@@ -1,0 +1,66 @@
+[core]
+	repositoryformatversion = "0"
+[include]
+	path = "/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-sol-shadow-and-replay-route-findings-on-main/.audit-shadow-replay/signing-config/repo/.git/config"
+[core]
+	worktree = "/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-sol-shadow-and-replay-route-findings-on-main/.audit-shadow-replay/signing-config/repo"
+[gc]
+	auto = 0
+[maintenance]
+	auto = false
+[hook "applypatch-msg"]
+	enabled = false
+[hook "pre-applypatch"]
+	enabled = false
+[hook "post-applypatch"]
+	enabled = false
+[hook "pre-commit"]
+	enabled = false
+[hook "pre-merge-commit"]
+	enabled = false
+[hook "prepare-commit-msg"]
+	enabled = false
+[hook "commit-msg"]
+	enabled = false
+[hook "post-commit"]
+	enabled = false
+[hook "pre-rebase"]
+	enabled = false
+[hook "post-checkout"]
+	enabled = false
+[hook "post-merge"]
+	enabled = false
+[hook "pre-push"]
+	enabled = false
+[hook "pre-receive"]
+	enabled = false
+[hook "update"]
+	enabled = false
+[hook "proc-receive"]
+	enabled = false
+[hook "post-receive"]
+	enabled = false
+[hook "post-update"]
+	enabled = false
+[hook "reference-transaction"]
+	enabled = false
+[hook "push-to-checkout"]
+	enabled = false
+[hook "pre-auto-gc"]
+	enabled = false
+[hook "post-rewrite"]
+	enabled = false
+[hook "sendemail-validate"]
+	enabled = false
+[hook "fsmonitor-watchman"]
+	enabled = false
+[hook "p4-changelist"]
+	enabled = false
+[hook "p4-prepare-changelist"]
+	enabled = false
+[hook "p4-post-changelist"]
+	enabled = false
+[hook "p4-pre-submit"]
+	enabled = false
+[hook "post-index-change"]
+	enabled = false
