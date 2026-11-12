@@ -646,7 +646,7 @@ fn worktree_policies_read_the_location() {
             vec![
                 String::from("location"),
                 String::from("dirty:Tracked"),
-                String::from("ignored-and-tracked:HEAD")
+                String::from("paths-in-the-way:tree")
             ]
         )
     );
@@ -698,7 +698,6 @@ fn worktree_creation_and_aliases_are_forwarded_from_every_location() {
     for location in [linked, bare] {
         for values in [
             vec!["worktree", "add", "../topic"],
-            vec!["st"],
             vec!["worktree", "list"],
         ] {
             assert_eq!(
@@ -707,6 +706,15 @@ fn worktree_creation_and_aliases_are_forwarded_from_every_location() {
                 "{values:?}"
             );
         }
+        // A word nothing defines is forwarded with autocorrection switched off for that one call.
+        assert_eq!(
+            run(&["st"], located(location.clone()), &[]),
+            (
+                forwards(&["-c", "help.autocorrect=0", "st"]),
+                location_only()
+            ),
+            "an undefined name"
+        );
         assert_eq!(
             run(
                 &["worktree", "add", "--no-worktree-copy", "../topic"],
@@ -716,14 +724,16 @@ fn worktree_creation_and_aliases_are_forwarded_from_every_location() {
             (forwards(&["worktree", "add", "../topic"]), location_only())
         );
     }
-    // In the main worktree the same commands are forwarded.
-    for values in [vec!["worktree", "add", "../topic"], vec!["st"]] {
-        assert_eq!(
-            run(values.as_slice(), scripted_facts(), &[]),
-            (forwards(values.as_slice()), location_only()),
-            "{values:?}"
-        );
-    }
+    // In the main worktree the same commands are forwarded, and a word nothing defines carries the autocorrection
+    //  switch that one call needs.
+    assert_eq!(
+        run(&["worktree", "add", "../topic"], scripted_facts(), &[]),
+        (forwards(&["worktree", "add", "../topic"]), location_only())
+    );
+    assert_eq!(
+        run(&["st"], scripted_facts(), &[]),
+        (forwards(&["-c", "help.autocorrect=0", "st"]), location_only())
+    );
 }
 
 /// Findings of `git add` come from what it would stage:

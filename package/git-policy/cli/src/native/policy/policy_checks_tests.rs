@@ -678,11 +678,10 @@ fn content_policies_follow_the_lifecycle_content() {
 fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
     for (values, command, scope, tree) in [
         (vec!["restore", "--staged", "a.txt"], GuardedCommand::RestoreStaged, Some("Tracked"), None),
-        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, Some("Tracked"), Some("HEAD")),
-        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, Some("Tracked"), Some("topic")),
+        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, Some("Tracked"), Some("matching-tree")),
+        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, Some("Tracked"), Some("tree")),
         (vec!["reset"], GuardedCommand::ResetMixed, Some("Tracked"), None),
         (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, Some("Tracked"), None),
-        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, Some("Tracked"), None),
         (vec!["clean", "-fd"], GuardedCommand::Clean, Some("TrackedAndUntracked"), None),
         (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, Some("TrackedAndUntracked"), None),
         // `-X` deletes ignored files only, so a linked worktree holds nothing this policy protects and it asks
@@ -691,9 +690,10 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
         (vec!["stash", "push"], GuardedCommand::Stash, Some("Tracked"), None),
     ] {
         let dirty_scope: Option<String> = scope.map(|name| { return format!("dirty:{name}"); });
-        // A form that writes a tree asks which tree once the tracked state is clean, and asks nothing while it is dirty.
+        // A form that writes a tree asks which paths it writes once the tracked state is clean, and asks nothing
+        //  about them while it is dirty.
         let tree_question = match tree {
-            Some(revision) => format!("ignored-and-tracked:{revision}"),
+            Some(kind) => format!("paths-in-the-way:{kind}"),
             None => String::new(),
         };
         for dirty in [false, true] {
@@ -881,67 +881,100 @@ fn an_unreadable_status_is_reported() {
 
 /// linked-worktree-only:
 ///  a forced `checkout`,
-///  a forced `switch` and a hard `reset` are rejected in a clean linked worktree
-///  while the worktree ignores a path the tree they write also tracks,
-///  and the line names the path it saw.
+///  a forced `switch` and a hard `reset` save every entry the worktree holds where the tree they write goes,
+///  and the form runs;
+///  a tree or a listing Git cannot read is a failure,
+///  never a clean answer.
 #[test]
-fn a_tree_that_tracks_an_ignored_path_is_rejected_in_a_clean_linked_worktree() {
-    for (values, revision) in [
-        (vec!["checkout", "--force", "tracks"], "tracks"),
-        (vec!["switch", "--force", "tracks"], "tracks"),
-        (vec!["reset", "--hard", "tracks"], "tracks"),
-        (vec!["reset", "--hard"], "HEAD"),
+fn a_tree_that_tracks_an_ignored_path_is_saved_in_a_clean_linked_worktree() {
+    let root: PathBuf = crate::test_support::fixture("policy-checks-in-the-way");
+    let main: PathBuf = root.join("main");
+    let linked: PathBuf = root.join("linked");
+    std::fs::create_dir_all(main.join(".git")).expect("the common Git directory");
+    std::fs::create_dir_all(linked.as_path()).expect("the worktree");
+    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("the ignored file");
+    for (values, kind) in [
+        (vec!["checkout", "--force", "tracks"], "tree"),
+        (vec!["switch", "--force", "tracks"], "tree"),
+        (vec!["reset", "--hard", "tracks"], "tree"),
+        (vec!["reset", "--hard"], "tree"),
+        (vec!["checkout", "tracks", "--", ".env"], "matching-tree"),
     ] {
-        let mut shared: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        shared.ignored_and_tracked = Ok(vec![String::from(".env")]);
-        let (outcome, questions): (PolicyOutcome, Vec<String>) = pre_forward(
-            PolicyId::LinkedWorktreeOnly,
-            values.as_slice(),
-            shared,
-        );
-        let PolicyOutcome::Findings(findings) = outcome else {
-            panic!("{values:?} was not rejected")
-        };
-        assert_eq!(findings.len(), 1, "{values:?}");
-        assert_eq!(findings[0].code, "linked-worktree-required", "{values:?}");
-        assert!(findings[0].message.contains("ignores .env"), "{values:?}: {}", findings[0].message);
-        assert!(
-            findings[0].message.contains(format!("the tree of {revision}").as_str()),
-            "{values:?}: {}",
-            findings[0].message
-        );
+        let mut shared: ScriptedFacts = dirty_in(linked_worktree(
+            main.to_str().expect("utf-8 fixture path"),
+            linked.to_str().expect("utf-8 fixture path"),
+        ), false);
+        shared.in_the_way = Ok(vec![String::from(".env")]);
+        let (outcome, questions): (PolicyOutcome, Vec<String>) =
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), shared);
+        assert_eq!(outcome, clean(), "{values:?} was not let through");
         assert_eq!(
             questions,
-            asked(&["location", "dirty:Tracked", format!("ignored-and-tracked:{revision}").as_str()]),
+            asked(&["location", "dirty:Tracked", format!("paths-in-the-way:{kind}").as_str()]),
             "{values:?}"
         );
-        // A tree Git cannot read is a failure, never a clean answer.
+        // The file is copied before the form runs, and the person's bytes are in the copy.
+        let saved: PathBuf = main.join(".git/monochromatic-git-policy-cli/discarded");
+        let mut found: bool = false;
+        let mut pending: Vec<PathBuf> = vec![saved];
+        while let Some(directory) = pending.pop() {
+            let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path: PathBuf = entry.path();
+                if path.is_dir() {
+                    pending.push(path);
+                    continue;
+                }
+                found = found || std::fs::read(path.as_path()).is_ok_and(|bytes| bytes == b"SECRET=the person value\n");
+            }
+        }
+        assert!(found, "{values:?} left no copy of the ignored file");
+        // A listing Git cannot read stops the command: what it would overwrite was never seen, so nothing may run.
         let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        unreadable.ignored_and_tracked = Err(String::from("Git could not read the tree of a revision: fatal"));
-        assert!(
-            matches!(
-                pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable).0,
-                PolicyOutcome::Failed { code: EngineFailureCode::ContentUnavailable, .. }
-            ),
-            "{values:?} unreadable"
-        );
-        // The same form with nothing shared runs, and the questions it asked are the whole cost.
+        unreadable.in_the_way = Err(String::from("Git could not read the files this command writes over: fatal"));
+        let (outcome, _questions): (PolicyOutcome, Vec<String>) =
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable);
+        let PolicyOutcome::Findings(findings) = outcome else {
+            panic!("{values:?} ran without reading what it overwrites")
+        };
+        assert_eq!(findings[0].code, "linked-worktree-required", "{values:?}");
+        assert!(findings[0].message.contains("Git could not read the files this command writes over"), "{values:?}");
+        // The same form with nothing in the way runs, and the questions it asked are the whole cost.
         let mut nothing: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        nothing.ignored_and_tracked = Ok(Vec::<String>::new());
+        nothing.in_the_way = Ok(Vec::<String>::new());
         assert_eq!(
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), nothing).0,
             clean(),
-            "{values:?} nothing shared"
-        );
-        // A form that writes no tree asks nothing about one.
-        let mut unasked: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
-        unasked.ignored_and_tracked = Err(String::from("this form writes no tree"));
-        assert_eq!(
-            pre_forward(PolicyId::LinkedWorktreeOnly, &["restore", "a.txt"], unasked).0,
-            clean(),
-            "a restore asks nothing about a tree"
+            "{values:?} nothing in the way"
         );
     }
+    // A form that writes no tree asks nothing about one.
+    let mut unasked: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    unasked.in_the_way = Err(String::from("this form writes no tree"));
+    assert_eq!(
+        pre_forward(PolicyId::LinkedWorktreeOnly, &["restore", "--staged", "a.txt"], unasked).0,
+        clean(),
+        "a form that writes no worktree file asks nothing about a tree"
+    );
+    crate::test_support::remove(root.as_path());
+}
+
+/// linked-worktree-only:
+///  an abort whose operation waits for nothing is left to Git,
+///  and the carve-out asks its own question before the status.
+/// Why:
+///  Git refuses such an abort itself and discards nothing,
+///  so the status question would only refuse a command that changes nothing.
+#[test]
+fn an_abort_with_nothing_waiting_is_left_to_git() {
+    let mut nothing_waiting: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    nothing_waiting.abort_discard = Ok(crate::repository_facts_abort_discard::AbortDiscard::NothingWaiting);
+    assert_eq!(
+        pre_forward(PolicyId::LinkedWorktreeOnly, &["merge", "--abort"], nothing_waiting),
+        (clean(), asked(&["location", "abort-discard:AbortMerge"]))
+    );
 }
 
 /// linked-worktree-only:

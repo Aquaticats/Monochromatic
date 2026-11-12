@@ -218,8 +218,6 @@ fn a_shell_alias_and_an_undefined_name_are_left_to_git() {
         // A shell command the plain reading cannot follow, and a command with a global option of its own.
         (vec![("fixup", "!sh -c 'git reset --hard'")], vec!["fixup"]),
         (vec![("fixup", "!git -C /elsewhere reset --hard")], vec!["fixup"]),
-        (vec![], vec!["no-such-subcommand"]),
-        (vec![], vec!["lfs", "pull"]),
         // An alias loop is Git's own error, not a guarded form.
         (vec![("a", "b"), ("b", "a")], vec!["a"]),
     ] {
@@ -227,6 +225,16 @@ fn a_shell_alias_and_an_undefined_name_are_left_to_git() {
         assert_eq!(walked.decision, LinkedWorktreeDecision::Pass, "{words:?}");
         assert_eq!(walked.arguments, args(words.as_slice()), "{words:?}");
     }
+    // A word nothing defines is the one Git may replace with the command it guessed, so Git is told not to
+    //  autocorrect this call and the person reads Git's own error and suggestion instead.
+    let missing: GuardedForwarded = decided(&[], &["no-such-subcommand"]);
+    assert_eq!(missing.decision, LinkedWorktreeDecision::Pass);
+    assert_eq!(missing.arguments, args(&["-c", "help.autocorrect=0", "no-such-subcommand"]));
+    assert_eq!(missing.decided_words, args(&["no-such-subcommand"]));
+    // A name this host has no installed `git-<word>` for is that same case, which is why the host decides.
+    let installed: GuardedForwarded = decided(&[], &["lfs", "pull"]);
+    assert_eq!(installed.decision, LinkedWorktreeDecision::Pass);
+    assert!(installed.arguments.ends_with(&args(&["lfs", "pull"])));
     let none: GuardedForwarded =
         decide_guarded_forwarded(&context_with_aliases(&[]), no_environment().as_slice(), &[]);
     assert_eq!(none.decision, LinkedWorktreeDecision::Pass);

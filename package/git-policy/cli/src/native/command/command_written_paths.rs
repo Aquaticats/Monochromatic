@@ -150,10 +150,16 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         .into_iter()
         .filter_map(|index| region.get(index))
         .collect();
-    // A region Git refuses names nothing, and `git checkout` refuses a path form that also forces a branch.
-    if matches!(parsed.boundary, Boundary::DashDash(_)) {
-        let (before, pathspecs): (Vec<&OsString>, Vec<OsString>) = split_at_dash_dash(region);
-        let revision: Option<OsString> = before.first().map(|name| (*name).clone());
+    // Everything after `--` is a path, and the one word before it that is no option is the revision Git reads.
+    if let Boundary::DashDash(boundary) = parsed.boundary {
+        let pathspecs: Vec<OsString> = region.get(boundary + 1..).unwrap_or(&[]).to_vec();
+        let mut revision: Option<OsString> = None;
+        for index in positional_tokens(&parsed, region.len()) {
+            if index < boundary {
+                revision = region.get(index).cloned();
+                break;
+            }
+        }
         return Some(WrittenPaths::MatchingTree { revision, pathspecs });
     }
     if names.len() > 1 {
@@ -318,28 +324,6 @@ fn restore_pathspecs(region: &[OsString]) -> Vec<OsString> {
         paths.push(region[at - 1].clone());
     }
     return paths;
-}
-
-/// What:
-///  The region split at the first `--`:
-///  the words before it and the paths after it.
-/// Why:
-///   A path after `--` is never an option,
-///  and only the words before it can name a revision.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function splitAtDashDash(region: string[]): [string[], string[]];
-/// ```
-fn split_at_dash_dash(region: &[OsString]) -> (Vec<&OsString>, Vec<OsString>) {
-    let mut before: Vec<&OsString> = Vec::<&OsString>::new();
-    for (index, token) in region.iter().enumerate() {
-        if token.as_encoded_bytes() == b"--" {
-            return (before, region[index + 1..].to_vec());
-        }
-        before.push(token);
-    }
-    return (before, Vec::<OsString>::new());
 }
 
 /// What:

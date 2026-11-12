@@ -96,7 +96,6 @@ fn an_interactive_clean_runs_with_one_force_and_names_the_repository_it_keeps() 
 
 /// What:
 ///  A clean with no menu,
-///  no descent,
 ///  no ignored mode or only one force is left to Git,
 ///  and nothing is asked about it.
 /// Why:
@@ -110,7 +109,6 @@ fn a_clean_that_offers_no_menu_reaches_git_untouched() {
     for spelling in [
         vec!["clean", "-f", "-f", "-d", "-X"],
         vec!["clean", "-i", "-f", "-d", "-X"],
-        vec!["clean", "-i", "-f", "-f", "-X"],
         vec!["clean", "-i", "-f", "-f", "-d"],
         vec!["status", "-i", "-f", "-f", "-d", "-X"],
         vec!["clean", "-i", "-f", "-f", "-d", "-X", "--no-such-option"],
@@ -120,6 +118,30 @@ fn a_clean_that_offers_no_menu_reaches_git_untouched() {
             keep_nested_repositories_out_of_an_interactive_menu(os_arguments(spelling.as_slice()).as_slice(), &mut facts);
         assert!(matches!(decision, CapDecision::Unchanged), "{spelling:?}");
         assert!(facts.asked.is_empty(), "{spelling:?} asked {:?}", facts.asked);
+    }
+    remove(found.root.as_path());
+}
+
+/// What:
+///  An interactive clean that names no descent still asks what it would delete.
+/// Why:
+///  `-d` is how a clean reaches an untracked directory,
+///  while a pathspec names a directory Git deletes without it:
+///  `git clean -ffXi -- cache` offers the repository inside `cache`,
+///  and a transform that waited for `-d` capped nothing and left it in the menu.
+fn an_interactive_clean_without_descent_asks_what_it_would_delete() {
+    let found: Worktree = worktree("rule-interactive-nested-pathspec", true);
+    let mut facts: ScriptedFacts = found.facts.clone();
+    facts.asked.clear();
+    let decision: CapDecision = keep_nested_repositories_out_of_an_interactive_menu(
+        os_arguments(&["clean", "-i", "-f", "-f", "-X", "--", "cache"]).as_slice(),
+        &mut facts,
+    );
+    assert!(!facts.asked.is_empty(), "the clean asked nothing, so its menu was never read");
+    match decision {
+        CapDecision::Capped { repositories, .. } => assert_eq!(repositories, vec![b"cache/nested".to_vec()]),
+        CapDecision::Unchanged => panic!("the menu offers cache/nested and was left alone"),
+        CapDecision::Stopped { message } => panic!("the clean stopped: {message}"),
     }
     remove(found.root.as_path());
 }
