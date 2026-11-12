@@ -7,7 +7,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { needRuleNames, ruleNameAt } from './text-scan.mjs';
+import {
+  countTagStarts,
+  hasTagStart,
+  needRuleNames,
+  ruleNameAt
+} from './text-scan.mjs';
 
 //region The `need` rule field of a builder's own source
 
@@ -87,5 +92,35 @@ test('finds every rule the committed scan-indicator builder declares', () => {
       assert.ok(allowed, `rule name ${name} holds ${character}`);
     }
   }
+});
+//endregion
+
+//region Element tag starts
+
+test('counts each start tag once, and leaves an end tag out of it', () => {
+  // The deleted pattern `/<script\b/gi` answered this count; `</script>` is not `<script`.
+  assert.equal(countTagStarts({ text: '<script>a</script>', tag: 'script' }), 1);
+  assert.equal(countTagStarts({ text: '<script><script></script>', tag: 'script' }), 2);
+  assert.equal(countTagStarts({ text: 'no tags here', tag: 'script' }), 0);
+});
+
+test('folds ASCII case when counting', () => {
+  assert.equal(countTagStarts({ text: '<SCRIPT>a</Script>', tag: 'script' }), 1);
+  assert.equal(countTagStarts({ text: '<SCRIPT><script>', tag: 'script' }), 2);
+  // A non-ASCII character that lower-cases to an ASCII letter is not the ASCII letter to a
+  // non-Unicode `/i` pattern, so it is not one here either.
+  assert.equal(countTagStarts({ text: '<ſelect>', tag: 'select' }), 0);
+});
+
+test('counts only where a word boundary follows the name', () => {
+  assert.equal(countTagStarts({ text: '<scriptx><scripts><script', tag: 'script' }), 1);
+  assert.equal(countTagStarts({ text: '<script.<script-<script_', tag: 'script' }), 2);
+});
+
+test('reports whether a start tag is there at all', () => {
+  assert.equal(hasTagStart({ text: '<input type=text>', tag: 'input' }), true);
+  assert.equal(hasTagStart({ text: '<INPUT>', tag: 'input' }), true);
+  assert.equal(hasTagStart({ text: '<inputs>', tag: 'input' }), false);
+  assert.equal(hasTagStart({ text: '', tag: 'input' }), false);
 });
 //endregion

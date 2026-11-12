@@ -10,6 +10,7 @@ import {
 import { join } from 'node:path';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 import {
+  countTagStarts,
   needRuleNames,
   ruleNameAt
 } from './text-scan.mjs';
@@ -1084,7 +1085,11 @@ function escapingHolds() {
     JSON.stringify(manifest)
   );
   if (run.status !== 0) throw new Error(`Relaxed scan-indicator builder failed: ${  run.stderr}`);
-  if ((!built.includes('&lt;/p&gt;&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;quoted&quot;…')) || ((built.match(/<script\b/gi) ?? []).length !== 1)) {
+  if ((!built.includes('&lt;/p&gt;&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;quoted&quot;…'))
+    || (countTagStarts({
+      text: built,
+      tag: 'script'
+    }) !== 1)) {
     throw new Error('Expected scan-indicator rejection absent: html-escape; got unescaped manifest text in the page');
   }
 }

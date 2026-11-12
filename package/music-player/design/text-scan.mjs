@@ -4,7 +4,7 @@
 // Why: each check is a literal test, a delimiter walk or a word-boundary count, and one cursor pass
 // answers it in the same O(n) time the pattern it replaced took, so no pattern earns its place under
 // the repo's regex-necessity criterion.
-// Order: predicates, needRuleNames, ruleNameAt, skipWhitespace.
+// Order: predicates, asciiEqualsAt, tagStartOffsets, countTagStarts, hasTagStart, needRuleNames, ruleNameAt, skipWhitespace.
 
 //region Character predicates
 
@@ -99,6 +99,92 @@ export function asciiEqualsAt({
     if (code !== literal.charCodeAt(offset)) return false;
   }
   return true;
+}
+//endregion
+
+//region Element tag starts
+
+// Every offset where the start tag `<tag` begins and is followed by a word boundary, in ascending
+// order, from `from` onwards.
+// What: a scan over the text's `<` characters, each compared with `tag`; `<` carries no case, so one
+// `indexOf` finds every candidate.
+// Why: `/<tag\b/i` matches exactly these positions, because `tag` ends in an ASCII letter, so the
+// boundary there holds unless the next character is a word character.
+export function* tagStartOffsets({
+  text,
+  tag,
+  from = 0
+}) {
+  let cursor = from;
+  while (true) {
+    const offset = nextTagStart({
+      text,
+      tag,
+      from: cursor
+    });
+    if (offset === (-1)) return;
+    yield offset;
+    cursor = offset + 1;
+  }
+}
+
+// The first offset at or after `from` where the start tag `<tag` begins and is followed by a word
+// boundary, or -1 when there is none.
+function nextTagStart({
+  text,
+  tag,
+  from
+}) {
+  let candidate = text.indexOf(
+    '<',
+    from
+  );
+  while (candidate !== (-1)) {
+    if (asciiEqualsAt({
+      text,
+      index: candidate + 1,
+      literal: tag
+    }) && isBoundaryAt({
+      text,
+      index: candidate + 1 + tag.length
+    })) return candidate;
+    candidate = text.indexOf(
+      '<',
+      candidate + 1
+    );
+  }
+  return -1;
+}
+
+// How many element tag starts `<tag` the text holds.
+export function countTagStarts({
+  text,
+  tag
+}) {
+  let count = 0;
+  let from = 0;
+  while (true) {
+    const offset = nextTagStart({
+      text,
+      tag,
+      from
+    });
+    if (offset === (-1)) return count;
+    count += 1;
+    from = offset + 1;
+  }
+}
+
+// Whether the text holds at least one element tag start `<tag`.
+export function hasTagStart({
+  text,
+  tag
+}) {
+  return nextTagStart({
+    text,
+    tag,
+    from: 0
+  }) !== (-1);
 }
 //endregion
 
