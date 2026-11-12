@@ -298,7 +298,33 @@ Each pick is quoted as the owner gave it.
 
 #### The hourly pass after 12:00
 
-- No Pi run ended between 11:10 and 11:46 (`runs-that-ended-since.ts`).
+- Corrected at 12:17: the line that stood here said no Pi run had ended between 11:10 and 11:46.
+  That was read from the listing before it had finished printing.
+  The finished listing (`runs-that-ended-since.ts 2026-11-12T11:10:00-05:00`, read at 12:16) names ten runs of this work:
+  the review of the discard guard (11:16:55),
+  `held-commit-is-kept-again-before-a-landed-worktree-is-destroyed-in-process-1` (11:34:15),
+  the review of the commit that concludes a merge (11:39:44, "no concrete defects found"),
+  `tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted-2` (11:41:22),
+  the review of the second merge (11:51:49, ended inside a tool call while cleaning up),
+  the review of the commit that does not land (11:57:55),
+  `landed-removal-second-pass-a-test-for-every-fix-and-the-changeover-scripts-1` (11:58:00),
+  the review of the descriptor scan, whose change is in 0.6.1-alpha.15 (11:59:55),
+  `fast-forward-merge-and-pull-carry-what-a-diverged-merge-carries-2` (12:02:54),
+  and `exempt-repository-saves-untracked-files-and-nested-repositories-before-it-discards-1` (12:07:00).
+- Two Sonnet subagents read them a second time, started at about 12:16:
+  the five work runs into `~/temp/agent/digest-2026-11-12T1216-work/digest.md`,
+  the five reviews into `~/temp/agent/digest-2026-11-12T1216-reviews/digest.md`.
+  None of the ten is routed until its digest is read.
+- The worktrees of nine of the ten were removed when the runs ended
+  (the listing of unused worktrees at 12:17 shows one new name against 11:38, the second-merge review's);
+  that one's build cache was cleaned ("Removed 4343 files, 3.3GiB total", 12:18:38).
+- The harness delivered the hourly prompt at about 12:15, after the work of this pass had been done;
+  nothing was started twice.
+- Round 308's three runs are not started:
+  the launcher prints "NO SLOT: 99 GiB free on /var/mnt/encrypted, under the floor of 100 GiB" for each,
+  asks again about every thirty seconds, and gives up two hours after it began (14:13).
+  The pass after 13:00 starts again whichever gave up.
+- Reviews of the five ended work runs go to qwen4 once their digests are read and the gate lets a start through.
 - Culled: none.
   The three redirected agents were still making turns or inside a bounded test of their own at 11:45
   (`clean-counts-...-1` had been silent 2452 s inside a `timeout 3000` test run).
