@@ -194,6 +194,18 @@ pub mod worktree_copy_interrupted_checkout;
 #[cfg(unix)]
 pub mod worktree_copy_owed_copy;
 
+/// Where a record of an interrupted copy that cannot be read is kept,
+/// and the one rename that puts it there.
+#[cfg(unix)]
+pub mod worktree_copy_unreadable_record_aside;
+
+/// The one line each such record is settled with:
+/// what it was,
+/// where it went,
+/// and what may still stand on disk.
+#[cfg(unix)]
+pub mod worktree_copy_unreadable_record_words;
+
 /// The records of an interrupted copy that cannot be read:
 /// each is moved aside with one line,
 /// what it named is found again from the records beside it where it can be,

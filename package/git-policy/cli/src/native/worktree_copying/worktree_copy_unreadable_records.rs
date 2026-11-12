@@ -25,12 +25,10 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::random_id::random_uuid;
-use crate::rename_that_never_replaces::{rename_noreplace, rename_unsupported};
 use crate::worktree_add_binding::decode_record;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
 use crate::worktree_copy_interrupted_add_settlement::settle_interrupted_add;
-use crate::worktree_copy_journal::{JournalFile, Role, assert_private_path, ensure_journal_root, ensure_private_directory, journal_owner_is_dead, journal_root, read_listed_journals};
+use crate::worktree_copy_journal::{JournalFile, Role, assert_private_path, journal_owner_is_dead, journal_root, read_listed_journals};
 use crate::worktree_copy_journal_encoding_and_validation::{owner_token_of, parse_journal_reading};
 use crate::worktree_copy_journal_removal::remove_file_if_present;
 use crate::worktree_copy_owner::token_owner_is_dead;
@@ -40,196 +38,15 @@ use crate::worktree_copy_stage_claim::{DESTINATION_SUFFIX, claim_names, rewrite_
 use crate::worktree_copy_stage_claim_reaping::{ClaimFile, StageVerdicts, claim_file_reading};
 use crate::worktree_copy_stage_made_object::read_made;
 use crate::worktree_copy_unfilled_record::{UnfilledFile, unfilled_file_reading, unfilled_names};
+use crate::worktree_copy_unreadable_record_aside::move_aside;
+use crate::worktree_copy_unreadable_record_words::{settled_notice, what_a_lost_claim_leaves, what_a_lost_journal_leaves};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
-/// What:
-///  The folder under the journal root that keeps the records this release cannot read.
-/// Why:
-///   A record is the only trace of what an interrupted copy was doing,
-/// so it is moved rather than deleted,
-/// and one name keeps every one of them out of the readers' way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const UNREADABLE_FOLDER = 'unreadable';
-/// ```
-pub const UNREADABLE_FOLDER: &str = "unreadable";
-
-/// How many names one move aside tries before it gives up on a folder that keeps colliding.
-/// Exempt from a citation under `LQM` (class: retry bound):
-/// each try appends a fresh random identifier, and a folder holding a thousand records of one name is not a state any
-/// run produces;
-/// the bound keeps a broken random source from looping forever.
-const MOVE_ASIDE_TRIES: usize = 16;
-
-/// What:
-///  The folder that keeps the records this release cannot read,
-/// created when it is not there.
-/// Why:
-///   The folder is private to this account like every other item of a copy,
-/// and creating it on the first move keeps the readers off the cost of one that was never needed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await ensureUnreadableRecordsFolder(commonDir);
-/// ```
-fn unreadable_folder(common_dir: &Path) -> Result<PathBuf, WorktreeCopyError> {
-    let root: PathBuf = ensure_journal_root(common_dir)?;
-    let folder: PathBuf = root.join(UNREADABLE_FOLDER);
-    ensure_private_directory(folder.as_path())?;
-    return Ok(folder);
-}
-
-/// What:
-///  Moves one record that cannot be read into the folder beside the records,
-/// under `moved_name`,
-/// and returns where it went,
-/// or nothing when the record was settled by another command first.
-/// Why:
-///   The record is the only trace of what the interrupted copy was doing,
-/// so it is renamed, never deleted,
-/// and never over another record:
-/// a name that is taken gets a fresh random suffix rather than replacing what an earlier command kept.
-/// The rename is the whole move,
-/// so two commands that find the same record settle it once and the other finds it gone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const moved = await moveAside({ commonDir, record, movedName }); // undefined when the record vanished
-/// ```
-pub fn move_aside(common_dir: &Path, record: &Path, moved_name: &OsStr) -> Result<Option<PathBuf>, WorktreeCopyError> {
-    let folder: PathBuf = unreadable_folder(common_dir)?;
-    let mut target: PathBuf = folder.join(moved_name);
-    for attempt in 0..MOVE_ASIDE_TRIES {
-        // `match` on the one rename: a vanished record is another command's work, and a taken name keeps both.
-        match rename_noreplace(record, target.as_path()) {
-            Ok(()) => return Ok(Some(target)),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists || (rename_unsupported(&error) && target.exists()) => {
-                target = folder.join(suffixed(moved_name, attempt));
-            }
-            // A filesystem that cannot rename without replacing is served by one checked rename: the folder is private,
-            // so no other command puts a name there between the check and the rename.
-            Err(error) if rename_unsupported(&error) => {
-                std::fs::rename(record, target.as_path()).map_err(|refusal| {
-                    return failure_with_cause(
-                        format!(
-                            "monochromatic-git-policy-cli: the worktree-copy record {} could not be moved to {}.",
-                            quote(record.to_string_lossy().as_ref()),
-                            quote(target.to_string_lossy().as_ref())
-                        )
-                        .as_str(),
-                        Some(&refusal),
-                    );
-                })?;
-                return Ok(Some(target));
-            }
-            Err(error) => {
-                return Err(failure_with_cause(
-                    format!(
-                        "monochromatic-git-policy-cli: the worktree-copy record {} could not be moved to {}.",
-                        quote(record.to_string_lossy().as_ref()),
-                        quote(target.to_string_lossy().as_ref())
-                    )
-                    .as_str(),
-                    Some(&error),
-                ));
-            }
-        }
-    }
-    return Err(failure_with_cause(
-        format!(
-            "monochromatic-git-policy-cli: the worktree-copy record {} could not be moved aside: every name it was given in {} is taken.",
-            quote(record.to_string_lossy().as_ref()),
-            quote(folder.to_string_lossy().as_ref())
-        )
-        .as_str(),
-        None,
-    ));
-}
-
-/// What:
-///  The name `attempt` gives a moved record:
-/// its own name the first time,
-/// and then its own name with a fresh identifier.
-/// Why:
-///   A moved record keeps the name that says what it was,
-/// and a second record of the same name keeps its own bytes rather than replacing the first.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const suffixed = (name, attempt) => attempt === 0 ? name : `${name}.${randomUUID()}`;
-/// ```
-fn suffixed(moved_name: &OsStr, attempt: usize) -> PathBuf {
-    if attempt == 0 {
-        return PathBuf::from(moved_name);
-    }
-    // A random source that fails still gives this try a name of its own, so a run never loops on one taken name.
-    let unique: String = match random_uuid() {
-        Ok(made) => made,
-        Err(_unmade) => format!("{attempt}"),
-    };
-    let mut name: OsString = moved_name.to_owned();
-    name.push(format!(".{unique}"));
-    return PathBuf::from(name);
-}
-
-/// What:
-///  The line that names one record that cannot be read,
-/// where it was moved,
-/// and what may still stand on disk because of it.
-/// Why:
-///   The person reads what the wrapper could not read,
-/// that nothing was deleted,
-/// and what is left where,
-/// so the leftovers are settled rather than searched for.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${kind} ${quote(record)} could not be read (${reason}), so it was moved to ${quote(moved)}; ${left}.`
-/// ```
-fn settled_notice(kind: &str, record: &Path, moved: &Path, reason: &str, left: &str) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: the {kind} {} could not be read ({reason}), so it was moved to {} and nothing was deleted. {left}",
-        quote(record.to_string_lossy().as_ref()),
-        quote(moved.to_string_lossy().as_ref())
-    );
-}
-
-/// What:
-///  What a journal that cannot be read may leave on disk.
-/// Why:
-///   The journal is the only record that names the stage it filled,
-/// so a stage folder can stand beside the worktree with nothing left to find it;
-/// and the worktree itself is named by the record of an unfilled copy where the copy got that far.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `The ignored-state copy it belonged to was interrupted and nothing in any worktree was changed; the private stage folder it named (whose name begins ${STAGE_PREFIX} beside the worktree it was filling) may still stand with the ignored state it holds, nothing finds it again, and \`rm -r\` removes it once nothing needs it. A worktree the copy never finished is named again by the record of an unfilled copy where that record stands.`
-/// ```
-fn what_a_lost_journal_leaves() -> String {
-    return format!(
-        "The ignored-state copy it belonged to was interrupted, and nothing in any worktree was changed: the private stage folder it named (a folder whose name begins {STAGE_PREFIX} beside the worktree it was filling) may still stand with the ignored state it holds, nothing of the wrapper's finds it again, and `rm -r` removes it once nothing needs it. A worktree the copy never finished is named again by the record of an unfilled copy where that record stands."
-    );
-}
-
-/// What:
-///  What a claim that cannot be read may leave on disk when its stage folder cannot be recovered.
-/// Why:
-///   Nothing beside the claim names the folder any more,
-/// and the destination record beside it is settled on its own,
-/// so both are said rather than left to be guessed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `The stage folder it named (a private folder whose name begins ${STAGE_PREFIX} beside the worktree the add registered) may still stand with the ignored state it holds and nothing finds it again, and the record of the destination beside the claim is named and settled by the commands that read it.`
-/// ```
-fn what_a_lost_claim_leaves() -> String {
-    return format!(
-        "The stage folder it named (a private folder whose name begins {STAGE_PREFIX} beside the worktree that add registered) may still stand with the ignored state it holds, and nothing of the wrapper's finds it again; the record of the destination beside the claim is named and settled on its own by the commands that read it."
-    );
-}
+/// Where a record this release cannot read is kept,
+/// and the readers of that folder,
+/// re-exported so a caller that only needs the folder reaches it here.
+pub use crate::worktree_copy_unreadable_record_aside::{UNREADABLE_FOLDER, moved_record_path, unreadable_record_names, unreadable_records_stand};
 
 /// What:
 ///  The stage container a claim that cannot be read still names through the records beside it.
@@ -542,77 +359,6 @@ fn destination_of_the_copy(root: &Path, record: &Path) -> Option<PathBuf> {
         }
     }
     return destination_record_of(root.join(format!("{identifier}.stage")).as_path());
-}
-
-/// What:
-///  The name of the file one record is moved under,
-/// which is the record's own name in every case but a stage's registration record.
-/// Why:
-///   A moved record keeps the name that says what it was,
-/// so the person who opens the folder reads the record the notice named.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const movedName = (record) => basename(record);
-/// ```
-pub fn moved_name_of(record: &Path) -> OsString {
-    return record.file_name().map_or_else(OsString::new, OsStr::to_os_string);
-}
-
-/// What:
-///  The path one moved record would be moved to,
-/// which no caller needs but a control that checks the folder.
-/// Why:
-///   The folder's name and the record's own name are what a person looks for,
-/// and a control names the same pair.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// join(journalRoot(commonDir), UNREADABLE_FOLDER, movedName)
-/// ```
-pub fn moved_record_path(common_dir: &Path, moved_name: &OsStr) -> PathBuf {
-    return journal_root(common_dir).join(UNREADABLE_FOLDER).join(moved_name);
-}
-
-/// What:
-///  Whether the folder for records that cannot be read holds anything.
-/// Why:
-///   A control checks what became of a record this way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// readdir(journalRoot(commonDir)/UNREADABLE_FOLDER).length > 0
-/// ```
-pub fn unreadable_records_stand(common_dir: &Path) -> bool {
-    return match std::fs::read_dir(journal_root(common_dir).join(UNREADABLE_FOLDER).as_path()) {
-        Ok(mut listing) => listing.next().is_some(),
-        Err(_absent) => false,
-    };
-}
-
-/// What:
-///  The names of the records the folder keeps,
-/// in name order.
-/// Why:
-///   A control reads which record was moved where without depending on the directory's order.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (await readdir(folder)).sort();
-/// ```
-pub fn unreadable_record_names(common_dir: &Path) -> Result<Vec<String>, WorktreeCopyError> {
-    let folder: PathBuf = journal_root(common_dir).join(UNREADABLE_FOLDER);
-    let listing = match std::fs::read_dir(folder.as_path()) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(raw_failure(&error)),
-    };
-    let mut names: Vec<String> = Vec::new();
-    for listed in listing {
-        names.push(listed.map_err(|error| { return raw_failure(&error); })?.file_name().to_string_lossy().into_owned());
-    }
-    names.sort_by(crate::worktree_copy_selection::by_js_order);
-    return Ok(names);
 }
 
 /// What:
