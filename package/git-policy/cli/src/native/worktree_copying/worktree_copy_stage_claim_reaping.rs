@@ -125,47 +125,53 @@ fn claim_fields(text: &str) -> Result<ClaimFields<'_>, String> {
 }
 
 /// What:
-///  The refusal of a claim whose lines are not a record this release writes.
+///  One stage claim as read:
+/// the container it names and its owner token,
+/// or the reason its bytes are not a record this release writes.
 /// Why:
-///   Recovery never acts on a record it cannot trust:
-/// the claim stays for the person to check,
-/// and nothing the record names is removed or reported as removed.
+///   The sweep that settles an unreadable claim needs that reason for its one line,
+/// and every other reader needs only the claims it may act on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// throw new Error(`stage claim ${claim} is not a record this release writes (${reason})`)
+/// type ClaimFile = { kind: 'named'; container: string; owner?: string } | { kind: 'unreadable'; reason: string };
 /// ```
-fn claim_refusal(claim: &Path, reason: &str) -> WorktreeCopyError {
-    return failure_with_cause(
-        format!(
-            "monochromatic-git-policy-cli: worktree-copy stage claim {} is not a record this release writes ({reason}); nothing it names was changed, so remove the file after checking it.",
-            quote(claim.to_string_lossy().as_ref())
-        )
-        .as_str(),
-        None,
-    );
+pub enum ClaimFile {
+    /// A claim this release reads.
+    Named {
+        /// The stage container it names,
+        /// absolute and under a name this wrapper reserves.
+        container: PathBuf,
+        /// The owner token,
+        /// when the record names one.
+        owner: Option<String>,
+    },
+    /// A file at a claim's name whose bytes are not the record this release writes.
+    Unreadable {
+        /// What one line says about why it does not read.
+        reason: String,
+    },
 }
 
 /// What:
-///  One claim file as read:
-/// the stage container it names,
-/// refused unless it is a monochromatic-git-policy-cli stage container name,
-/// and the owner token.
+///  One claim file as read,
+/// or nothing when it is gone,
+/// with the damage a crash can leave named instead of refused.
 /// Why:
-///   The container is deleted recursively,
-/// so a claim that names anything else is never acted on;
-/// the owner decides whether
-///  the claim may be reaped at all.
-/// A claim that vanished while it was read was removed by its owner or by another command.
-/// A claim whose lines are not a record this release writes is refused and kept,
-/// because the earlier release wrote a container path verbatim,
-/// and a path holding a line break then spells lines of the record.
+///   A claim is published whole by one rename,
+/// so a file at its name that does not read is the mark of a write a crash cut short;
+/// the command that found it moves it aside and settles what it named
+/// (`worktree_copy_unreadable_records`).
+/// A claim another account owns,
+/// or a link or a pipe at its name,
+/// stays a refusal:
+/// no crash writes one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { text, bytes, owner } = claimFields(await readFile(claimPath, 'utf8')); const container = bytes ?? text; assertStageContainerName(container);
+/// const reading = await claimFileReading(claim); // undefined when the claim is gone
 /// ```
-pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, WorktreeCopyError> {
+pub fn claim_file_reading(claim: &Path) -> Result<Option<ClaimFile>, WorktreeCopyError> {
     // `match` on the lookup: a claim already gone is nobody's fault, and nothing is left to reap.
     match std::fs::symlink_metadata(claim) {
         Ok(_) => {}
@@ -173,10 +179,13 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
         Err(error) => return Err(raw_failure(&error)),
     }
     assert_private_path(claim, Role::JournalFile)?;
-    // `match` on the read: the claim can vanish between the lookup and the read.
+    // `match` on the read: the claim can vanish between the lookup and the read, and bytes that are not text are damage.
     let text: String = match std::fs::read_to_string(claim) {
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
+            return Ok(Some(ClaimFile::Unreadable { reason: String::from("its bytes are not text") }));
+        }
         Err(error) => {
             let message: String = format!(
                 "monochromatic-git-policy-cli: could not read worktree-copy stage claim {}.",
@@ -187,20 +196,13 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
     };
     let fields: ClaimFields<'_> = match claim_fields(text.as_str()) {
         Ok(fields) => fields,
-        Err(reason) => return Err(claim_refusal(claim, reason.as_str())),
+        Err(reason) => return Ok(Some(ClaimFile::Unreadable { reason: reason.to_string() })),
     };
     let container: PathBuf = match path_of_the_two_fields(fields.bytes, fields.text) {
         Ok(Some(path)) => path,
         Ok(None) => PathBuf::new(),
         Err(reason) => {
-            return Err(failure_with_cause(
-                format!(
-                    "monochromatic-git-policy-cli: worktree-copy stage claim {} holds a container in bytes that is not a path ({reason}); remove the file after checking it.",
-                    quote(claim.to_string_lossy().as_ref())
-                )
-                .as_str(),
-                None,
-            ));
+            return Ok(Some(ClaimFile::Unreadable { reason: format!("it holds a container in bytes that is not a path ({reason})") }));
         }
     };
     // Both lines of a claim this release writes name one path; a line of text that says otherwise is a shorter path
@@ -208,7 +210,7 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
     if let (Some(named), Some(_)) = (fields.text, fields.bytes)
         && container.as_path() != Path::new(named)
     {
-        return Err(claim_refusal(claim, "its line of text and its line of container bytes name different paths"));
+        return Ok(Some(ClaimFile::Unreadable { reason: String::from("its line of text and its line of container bytes name different paths") }));
     }
     let stage_named: bool = match container.file_name() {
         Some(name) => name.to_string_lossy().starts_with(STAGE_PREFIX),
@@ -216,16 +218,35 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
     };
     let named: bool = container.is_absolute() && stage_named;
     if !named {
-        return Err(failure_with_cause(
-            format!(
-                "monochromatic-git-policy-cli: worktree-copy stage claim {} does not name a stage container; remove the file after checking it.",
-                quote(claim.to_string_lossy().as_ref())
-            )
-            .as_str(),
-            None,
-        ));
+        return Ok(Some(ClaimFile::Unreadable { reason: String::from("it does not name a stage container") }));
     }
-    return Ok(Some((container, fields.owner)));
+    return Ok(Some(ClaimFile::Named { container, owner: fields.owner }));
+}
+
+/// What:
+///  One claim file as read:
+/// the stage container it names,
+/// refused unless it is a monochromatic-git-policy-cli stage container name,
+/// and the owner token,
+/// with a claim this release cannot read read as none.
+/// Why:
+///   The container is deleted recursively,
+/// so a claim that names anything else is never acted on;
+/// the owner decides whether
+///  the claim may be reaped at all.
+/// A claim that vanished while it was read was removed by its owner or by another command.
+/// A claim whose lines are not a record this release writes is settled by the command that found it,
+/// so a sweep that may only act on claims this release reads has nothing there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = await readClaim(claimPath); // undefined when gone, unreadable, or of another shape
+/// ```
+pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, WorktreeCopyError> {
+    return match claim_file_reading(claim)? {
+        Some(ClaimFile::Named { container, owner }) => Ok(Some((container, owner))),
+        Some(ClaimFile::Unreadable { .. }) | None => Ok(None),
+    };
 }
 
 /// What:
@@ -272,6 +293,23 @@ impl StageVerdicts {
     /// ```
     pub fn names_dead_claim(&self, name: &str) -> bool {
         return self.dead_claims.contains(name);
+    }
+
+    /// What:
+    ///  Judges one claim that was written again during this pass dead,
+    /// because it names no owner.
+    /// Why:
+    ///   A claim this release could not read is settled by the command that found it,
+    /// which writes it again from the records beside it;
+    /// that claim names no owner,
+    /// so the sweeps of the same pass must act on it as they would on any dead owner's claim.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// verdicts.recordDeadClaim(name)
+    /// ```
+    pub fn record_dead_claim(&mut self, name: &str) {
+        let _inserted: bool = self.dead_claims.insert(name.to_string());
     }
 }
 
@@ -510,6 +548,9 @@ pub fn reap_judged_stages(
     }
     remove_dead_temporaries(root.as_path(), verdicts)?;
     remove_records_nothing_claims(root.as_path())?;
+    // A claim this command moved aside leaves the record of its destination unread by every sweep, because a record of
+    // an add is read through the claim beside it; settling that record is what still names the worktree.
+    notices.extend(crate::worktree_copy_unreadable_records::settle_records_without_a_claim(root.as_path())?);
     return Ok(notices);
 }
 

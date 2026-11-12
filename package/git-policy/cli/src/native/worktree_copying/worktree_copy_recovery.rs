@@ -456,13 +456,17 @@ fn recover_transaction(
 pub fn recover_worktree_copy_transactions(
     common_dir: &Path,
 ) -> Result<RecoveryReport, WorktreeCopyError> {
-    let verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
-    return recover_judged_transactions(
+    let mut verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
+    let mut settled: Vec<String> = crate::worktree_copy_unreadable_records::settle_unreadable_records(common_dir, &mut verdicts)?;
+    let mut report: RecoveryReport = recover_judged_transactions(
         common_dir,
         &verdicts,
         &RecoveryDestinations::EveryDestination,
         &CopyCeiling::unbounded(),
-    );
+    )?;
+    settled.append(&mut report.notices);
+    report.notices = settled;
+    return Ok(report);
 }
 
 /// What:
@@ -591,7 +595,10 @@ pub fn recover_pending_worktree_copies(
     }
     // One judgement of every owner, before anything is changed: the copy an interrupted add owes is finished first,
     // with the same verdicts the sweep below settles its claims on, into the worktree this command runs in.
-    let verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
+    let mut verdicts: StageVerdicts = judge_stage_owners(common_dir)?;
+    // The records nothing can read are settled before anything reads them, so one record a crash published before its
+    // bytes never stops a command of this repository, in this worktree or any other.
+    let mut settled: Vec<String> = crate::worktree_copy_unreadable_records::settle_unreadable_records(common_dir, &mut verdicts)?;
     let ceiling: CopyCeiling = CopyCeiling::lasting(crate::worktree_copy_ceiling::OWED_COPY_CEILING);
     let mut finished: Vec<String> = crate::worktree_copy_owed_copy::finish_owed_worktree_copies(
         common_dir,
@@ -602,8 +609,9 @@ pub fn recover_pending_worktree_copies(
         stderr,
     )?;
     let mut report: RecoveryReport = recover_judged_transactions(common_dir, &verdicts, &destinations, &ceiling)?;
-    finished.append(&mut report.notices);
-    report.notices = finished;
+    settled.append(&mut finished);
+    settled.append(&mut report.notices);
+    report.notices = settled;
     return report_recovered(&report, stderr);
 }
 

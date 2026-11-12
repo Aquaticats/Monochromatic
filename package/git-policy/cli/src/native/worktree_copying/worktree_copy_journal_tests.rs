@@ -613,18 +613,23 @@ fn a_stage_with_many_subtrees_is_removed_whole() {
 }
 
 /// A journal named by a listing that is gone by the time it is read is skipped,
-/// while a journal that is there and corrupt is
-/// still an error:
-/// the skip is for a vanished file only.
+/// while one that is there and corrupt is named as a record this release cannot read:
+/// a journal is published whole by one rename, so a file at its name that does not parse is what an interrupted write
+/// leaves, and the command that found it moves it aside.
 #[test]
-fn a_vanished_journal_is_skipped_and_a_corrupt_one_is_not() {
+fn a_vanished_journal_is_skipped_and_a_corrupt_one_reads_as_unreadable() {
     let root: PathBuf = fixture("journal-vanished");
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("common");
     let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
-    assert_eq!(read_listed_journal(journals.as_path(), "gone.json").expect("skipped"), None);
+    assert!(read_listed_journal(journals.as_path(), "gone.json").expect("skipped").is_none());
     crate::private_storage::write_private_file(journals.join("corrupt.json").as_path(), b"not json").expect("corrupt journal");
-    read_listed_journal(journals.as_path(), "corrupt.json").expect_err("a present corrupt journal is reported");
+    let reading: JournalFile = read_listed_journal(journals.as_path(), "corrupt.json").expect("read").expect("present");
+    let JournalFile::Unreadable { path, reason } = reading else {
+        panic!("a corrupt journal is not a pending one");
+    };
+    assert_eq!(path, journals.join("corrupt.json"));
+    assert!(reason.contains("JSON"), "{reason}");
     remove(root.as_path());
 }
 

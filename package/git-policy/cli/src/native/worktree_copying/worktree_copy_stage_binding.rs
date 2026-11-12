@@ -64,6 +64,69 @@ pub fn record_stage_binding(container: &Path, binding: &Binding) -> Result<(), W
 }
 
 /// What:
+///  The registration a stage container records,
+/// or the reason its bytes are not a record this release writes.
+/// Why:
+///   The sweep that settles an unreadable binding needs that reason for its one line,
+/// and every other reader needs only a record it may act on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type BindingFile = { kind: 'recorded'; binding: Binding } | { kind: 'unreadable'; reason: string };
+/// ```
+pub enum BindingFile {
+    /// A binding this release reads.
+    Recorded(Binding),
+    /// A file at the binding's name whose bytes are not the record this release writes.
+    Unreadable {
+        /// What one line says about why it does not read.
+        reason: String,
+    },
+}
+
+/// What:
+///  The binding record of one stage container,
+/// or nothing when it records none,
+/// with the damage a crash can leave named instead of refused.
+/// Why:
+///   A binding is written before the journal and published whole by one rename,
+/// so a file at its name that does not decode is the mark of a write a crash cut short;
+/// the command that found it
+///  moves it aside and goes on,
+/// and the copy it belongs to proves its destination from that destination's own registration alone,
+///  as a stage an earlier release made does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reading = await stageBindingReading(container); // undefined when the stage records none
+/// ```
+pub fn stage_binding_reading(container: &Path) -> Result<Option<BindingFile>, WorktreeCopyError> {
+    let path: PathBuf = container.join(STAGE_BINDING_NAME);
+    // `match` treats an absent record as a stage of an earlier release, and every other failure as a fault.
+    let text: String = match crate::plain_file::read_plain_text(path.as_path()) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
+            return Ok(Some(BindingFile::Unreadable { reason: String::from("its bytes are not text") }));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidInput => {
+            return Ok(Some(BindingFile::Unreadable { reason: String::from("it is not one plain file") }));
+        }
+        Err(error) => {
+            let message: String = format!(
+                "monochromatic-git-policy-cli: could not read the registration recorded for the private stage {}.",
+                quote(container.to_string_lossy().as_ref())
+            );
+            return Err(failure_with_cause(message.as_str(), Some(&error)));
+        }
+    };
+    return match decode_record(text.as_str()) {
+        Some(Recorded::Registered(binding)) => Ok(Some(BindingFile::Recorded(binding))),
+        _ => Ok(Some(BindingFile::Unreadable { reason: String::from("it is not a registration this release writes") })),
+    };
+}
+
+/// What:
 ///  The registration a stage container was made for,
 /// or nothing when it records none.
 /// Why:
@@ -76,28 +139,17 @@ pub fn record_stage_binding(container: &Path, binding: &Binding) -> Result<(), W
 ///  (`SPEC.md`,
 ///  "Every wait has a bound";
 ///  a cross-vendor review's finding).
+/// The command that found a record this release cannot read settles it first,
+/// so a copy that reaches its installation still proves the registration it was made for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const binding = await stageBinding(container); // undefined when the file is absent
 /// ```
 pub fn stage_binding(container: &Path) -> Result<Option<Binding>, WorktreeCopyError> {
-    let path: PathBuf = container.join(STAGE_BINDING_NAME);
-    // `match` treats an absent record as a stage of an earlier release, and every other failure as a fault.
-    let text: String = match crate::plain_file::read_plain_text(path.as_path()) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            let message: String = format!(
-                "monochromatic-git-policy-cli: could not read the registration recorded for the private stage {}.",
-                quote(container.to_string_lossy().as_ref())
-            );
-            return Err(failure_with_cause(message.as_str(), Some(&error)));
-        }
-    };
-    return match decode_record(text.as_str()) {
-        Some(Recorded::Registered(binding)) => Ok(Some(binding)),
-        _ => Err(failure_with_cause(
+    return match stage_binding_reading(container)? {
+        Some(BindingFile::Recorded(binding)) => Ok(Some(binding)),
+        Some(BindingFile::Unreadable { .. }) | None => Err(failure_with_cause(
             format!(
                 "monochromatic-git-policy-cli: the registration recorded for the private stage {} is unreadable; nothing was changed and the stage stays.",
                 quote(container.to_string_lossy().as_ref())

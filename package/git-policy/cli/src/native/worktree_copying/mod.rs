@@ -193,6 +193,14 @@ pub mod worktree_copy_interrupted_checkout;
 /// made by a command in the worktree it fills.
 #[cfg(unix)]
 pub mod worktree_copy_owed_copy;
+
+/// The records of an interrupted copy that cannot be read:
+/// each is moved aside with one line,
+/// what it named is found again from the records beside it where it can be,
+/// and the command that met it runs.
+#[cfg(unix)]
+pub mod worktree_copy_unreadable_records;
+
 /// Recovery of interrupted copies:
 /// registration checks,
 /// discards with notices,

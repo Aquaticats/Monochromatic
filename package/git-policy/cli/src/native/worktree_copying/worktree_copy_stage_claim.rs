@@ -387,6 +387,23 @@ pub(crate) const CONTAINER_HEX_PREFIX: &str = "containerHex=";
 /// `${textInOneLine(container) ?? ''}\n${CONTAINER_HEX_PREFIX}${hexOfPath(container)}\n${OWNER_LINE_PREFIX}${owner.token()}\n`
 /// ```
 fn claim_text(container: &Path, owner: &CopyOwner) -> String {
+    return claim_text_for(container, Some(owner));
+}
+
+/// What:
+///  The text of a claim whose owner is known,
+/// or of one written again from the records beside it,
+/// which names no owner.
+/// Why:
+///   A claim that names no owner has none to wait for,
+/// which is what an interrupted add is;
+/// the release installed before owners writes such a claim and every reader takes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${textInOneLine(container) ?? ''}\n${CONTAINER_HEX_PREFIX}${hexOfPath(container)}\n` + (owner ? `${OWNER_LINE_PREFIX}${owner.token()}\n` : '')
+/// ```
+fn claim_text_for(container: &Path, owner: Option<&CopyOwner>) -> String {
     let mut text: String = String::new();
     if let Some(line) = text_in_one_line(container) {
         text.push_str(line);
@@ -394,9 +411,33 @@ fn claim_text(container: &Path, owner: &CopyOwner) -> String {
     }
     text.push_str(format!("{CONTAINER_HEX_PREFIX}{}", hex_of_path(container)).as_str());
     text.push('\n');
-    text.push_str(format!("{OWNER_LINE_PREFIX}{}", owner.token()).as_str());
-    text.push('\n');
+    if let Some(named) = owner {
+        text.push_str(format!("{OWNER_LINE_PREFIX}{}", named.token()).as_str());
+        text.push('\n');
+    }
     return text;
+}
+
+/// What:
+///  Writes one claim again for a stage container recovered from the records beside it,
+/// naming no owner.
+/// Why:
+///   A claim sometimes cannot be read,
+/// and the records beside it still say which stage folder the add it belongs to claimed:
+/// the record of the object that folder's creation made names the folder,
+/// and the destination record names the worktree whose parent holds it.
+/// Writing the claim again lets the existing sweeps settle that folder and make the ignored-state copy
+///  the add still owes;
+/// moving the unreadable record aside and writing nothing would leave both to nobody.
+/// It is published whole by a rename and flushed by nobody,
+/// for the reason `SPEC.md` gives under "The records an add writes for itself".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rewriteClaim({ claim, container });
+/// ```
+pub fn rewrite_claim(claim: &Path, container: &Path) -> Result<(), WorktreeCopyError> {
+    return write_atomic_unsynced(claim, claim_text_for(container, None).as_bytes(), "stage claim");
 }
 
 /// What:
