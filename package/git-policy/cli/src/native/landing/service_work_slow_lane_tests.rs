@@ -24,7 +24,7 @@ use crate::service_server_work_loop_awaiting::work_loop_awaiting;
 use crate::service_work::{GitHandlers, Verdict, work_directory};
 use crate::service_work_handlers_replanning_and_acceptance::{PUSH_KINDS, SERVICE_KINDS, WorkHandlers};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository, wait_until};
-use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::work_item::{CLAIMED, DONE, FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_trash_dispose_awaiting::INSIDE_A_SLOW_STEP;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
@@ -523,4 +523,67 @@ fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
     );
     drop(lane);
     remove(staged.root.as_path());
+}
+
+/// The trash whose handler stops unexpectedly,
+/// and the one the same look would run beside it.
+const THE_STOPPING_TRASH: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+const THE_TRASH_BEHIND_IT: &str = "cccccccccccccccccccccccccccccccccccccccc";
+
+/// Handlers of which one trash stops unexpectedly and every other item is done,
+/// which is the state a look of the lane meets when a handler has a defect.
+struct StoppingOnOne;
+
+impl WorkHandlers for StoppingOnOne {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn trash(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            if item.oid == THE_STOPPING_TRASH {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                panic!("a trash handler stopped unexpectedly");
+            }
+            return Verdict::Done;
+        });
+    }
+}
+
+/// What:
+///  One slow item that stops unexpectedly ends that item alone:
+///  its record is settled as failed with what happened,
+///  the item behind it in the same look is settled as done,
+///  and the lane's own look goes on.
+/// Why:
+///   A wave polls every item of it on one task,
+/// so a panic in one item unwound the whole look:
+/// the records of the wave stayed claimed,
+/// including the ones whose work had finished,
+/// and the lane never served that repository again while the service lived.
+/// One item's failure,
+/// a panic included,
+/// ends that item.
+#[test]
+fn a_slow_item_that_stops_unexpectedly_ends_its_own_record_and_not_the_look() {
+    let world: World = world("slow-lane-a-stopping-item", &[(WorkKind::Trash, THE_STOPPING_TRASH), (WorkKind::Trash, THE_TRASH_BEHIND_IT)]);
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let _left: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(world.common.as_path(), &StoppingOnOne, HOUSEKEEPING_OF_ONE_ROUND));
+    assert!(record_of(&world, FAILED, WorkKind::Trash, THE_STOPPING_TRASH), "the item whose handler stopped is settled as failed");
+    assert!(record_of(&world, DONE, WorkKind::Trash, THE_TRASH_BEHIND_IT), "the item behind it is settled as done");
+    assert!(names_in(&world, CLAIMED).is_empty(), "no record of the look stays claimed: {:?}", names_in(&world, CLAIMED));
+    remove(world.root.as_path());
 }

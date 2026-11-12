@@ -1833,3 +1833,297 @@ fn the_line_a_planned_retry_writes_names_its_repository() {
     assert!(entries.iter().any(|entry| { return entry.fields.iter().any(|(name, value)| { return name == "CLI_GIT_REPOSITORY" && *value == repo.worktree.display().to_string(); }); }), "the journal field names it too: {entries:?}");
     remove(repo.root.as_path());
 }
+
+/// The names of the records of the work directory `work` in `state`,
+/// sorted,
+/// so a handler can say what the person's other records looked like while its own work ran.
+fn names_in(work: &Path, state: &str) -> Vec<String> {
+    let mut found: Vec<String> = std::fs::read_dir(state_directory(work, state))
+        .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+        .unwrap_or_default();
+    found.sort();
+    return found;
+}
+
+/// The length of a slice one round of these controls may start housekeeping for,
+/// short enough that one item of theirs spends it.
+const A_SLICE_ONE_ITEM_SPENDS: Duration = Duration::from_millis(20);
+
+/// How long one item of these controls is inside its work,
+/// several times the slice above,
+/// so the work a batch starts is what spends it.
+const ONE_ITEM_TAKES: Duration = Duration::from_millis(150);
+
+/// How many items of a kind one of these controls queues at once.
+const A_BATCH: usize = 4;
+
+/// What:
+///  A handler of the drain's batches that a control makes slow, refusing, or stopping unexpectedly,
+///  naming each item by the branch its record carries,
+///  and saying what the work directory held when that item's own work ended.
+/// Why:
+///   The guarantees these controls are about are about what happens while one item of a wave still runs:
+/// whether the round started a batch it had no room for,
+/// whether a finished item is settled before its slow sibling ends,
+/// and whether one item's failure takes its siblings with it.
+/// A pause stands for the slow work a kind really does,
+/// and the reading of the work directory is taken inside the work,
+/// so no clock is compared against the host's load.
+struct Controlled {
+    /// How long each named item is inside its work;
+    /// one not named answers at once.
+    takes: Vec<(String, Duration)>,
+    /// The names whose work is refused,
+    /// with the reason the server gives.
+    refuses: Vec<(String, String)>,
+    /// The names whose work stops unexpectedly.
+    panics: Vec<String>,
+    /// What the work directory held in `failed` when each item's own work ended,
+    /// by name.
+    seen: Mutex<Vec<(String, Vec<String>)>>,
+    /// The work directory the records live in.
+    work: PathBuf,
+}
+
+impl Controlled {
+    /// A handler of `work` that answers every item at once with done.
+    fn answering_at_once(work: &Path) -> Controlled {
+        return Controlled { takes: Vec::new(), refuses: Vec::new(), panics: Vec::new(), seen: Mutex::new(Vec::new()), work: work.to_path_buf() };
+    }
+
+    /// The name a record is known by here:
+    /// the branch it carries,
+    /// which two records of one kind may not share in one work directory.
+    fn name_of(item: &WorkItem) -> String {
+        return item.branch_ref.clone();
+    }
+
+    /// Be inside one item's work and say what the work directory held at its end.
+    async fn work_an_item(&self, item: &WorkItem) {
+        let name: String = Controlled::name_of(item);
+        let takes: Duration = self.takes.iter().find(|(named, _)| *named == name).map_or(Duration::ZERO, |(_, takes)| *takes);
+        if !takes.is_zero() {
+            tokio::time::sleep(takes).await;
+        }
+        let failed: Vec<String> = names_in(self.work.as_path(), FAILED);
+        self.seen.lock().expect("the control's own list").push((name, failed));
+    }
+}
+
+impl WorkHandlers for Controlled {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn push_awaiting<'a>(&'a self, items: &'a [WorkItem]) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            let Some(newest) = items.last() else { return Verdict::Done };
+            self.work_an_item(newest).await;
+            let name: String = Controlled::name_of(newest);
+            if self.panics.contains(&name) {
+                panic!("a push handler stopped unexpectedly");
+            }
+            return match self.refuses.iter().find(|(named, _)| *named == name) {
+                Some((_, reason)) => Verdict::Failed(reason.clone()),
+                None => Verdict::Done,
+            };
+        });
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn trash(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn trash_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            self.work_an_item(item).await;
+            let name: String = Controlled::name_of(item);
+            if self.panics.contains(&name) {
+                panic!("a trash handler stopped unexpectedly");
+            }
+            return match self.refuses.iter().find(|(named, _)| *named == name) {
+                Some((_, reason)) => Verdict::Failed(reason.clone()),
+                None => Verdict::Done,
+            };
+        });
+    }
+}
+
+/// What one drain of these controls answered and what it left.
+struct DrainOfAControl {
+    /// How soon the drain asked to be looked at again.
+    look_again: Option<Duration>,
+    /// What the handler saw when each item's own work ended.
+    seen: Vec<(String, Vec<String>)>,
+}
+
+/// Run one drain of `kinds` over `repo` with `handler`,
+/// awaited inside the process's runtime,
+/// as a round of the service reaches it.
+fn drain_with(repo: &Repo, handler: &Controlled, kinds: &'static [WorkKind], slice: Duration) -> DrainOfAControl {
+    let mut replanning: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    let common: PathBuf = repo.common.clone();
+    let look_again: Option<Duration> = crate::lazy_runtime::run_on_runtime(async move {
+        return crate::service_work_drain_pending_claims::drain_pending_awaiting(common.as_path(), handler, CLAIM_LEASE, Renewal::Timed, &mut replanning, kinds, slice).await;
+    })
+    .expect("the process runtime runs the drain");
+    let seen: Vec<(String, Vec<String>)> = std::mem::take(&mut *handler.seen.lock().expect("the control's own list"));
+    return DrainOfAControl { look_again, seen };
+}
+
+/// What:
+///  A round starts no housekeeping item of a batch after its slice is spent,
+///  so a batch of any size does not begin in full.
+/// Why:
+///   A trash of one removed worktree is hundreds of thousands of removals,
+/// and a round that started every trash it found spent hours in them while a relink,
+/// a review or a snapshot that arrived in the meantime was claimed only when the whole batch was over
+/// (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// The slice is asked as each item starts,
+/// so the first item starts whatever its slice has spent and the rest keep their turn for a later round.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const drained = await drain(world, A_SLICE_ONE_ITEM_SPENDS, A_BATCH); expect(names(DONE)).toHaveLength(1); expect(drained.lookAgain).toBe(LOOK_AGAIN)
+/// ```
+#[test]
+fn a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent() {
+    let repo: Repo = repo("work-housekeeping-batch-slice");
+    let items: Vec<WorkItem> = (0..A_BATCH).map(|at| { return item(&repo, WorkKind::Trash, OID, format!("refs/cli-git/trash-{at}").as_str()); }).collect();
+    enqueue_all(&repo, items.as_slice());
+    let work: PathBuf = work_directory(repo.common.as_path());
+    let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
+    for entry in &items {
+        handler.takes.push((Controlled::name_of(entry), ONE_ITEM_TAKES));
+    }
+    // One item at a time, so each item's own pause is what the slice is read against.
+    crate::service_work_items_side_by_side::hold_the_width_to(1);
+    let drained: DrainOfAControl = drain_with(&repo, &handler, &SERVICE_KINDS, A_SLICE_ONE_ITEM_SPENDS);
+    crate::service_work_items_side_by_side::take_the_hosts_width();
+    assert_eq!(names(&repo, DONE).len(), 1, "a 20 ms slice starts one 150 ms trash and no more");
+    assert_eq!(names(&repo, PENDING).len(), items.len() - 1, "the housekeeping the round did not start waits for a later round");
+    assert!(names(&repo, CLAIMED).is_empty(), "nothing the round did not start stays claimed");
+    assert_eq!(drained.look_again, Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING), "the round asks to be looked at again for the housekeeping it left");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  A push that is refused is settled,
+///  and its notice written,
+///  while its slow sibling of the same wave still runs.
+/// Why:
+///   A commit handed to the service must land or be reported,
+/// and the report came no later than the slowest push of the wave beside it:
+/// with a silent server that is the push deadline (30 s) or the connected push's quiet window (150 s),
+/// and a service killed in that window left the finished push claimed,
+/// to be pushed again after the lease.
+/// Each item of a wave is settled when it ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drain(twoBranches); expect(handler.sawWhileTheSlowOneRan()).toContain('push-…-fast')
+/// ```
+#[test]
+fn a_push_that_is_refused_is_settled_while_its_slow_sibling_still_runs() {
+    let repo: Repo = repo("work-push-settled-as-it-ends");
+    let fast: String = String::from("refs/heads/fast");
+    let slow: String = String::from("refs/heads/slow");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, fast.as_str()), item(&repo, WorkKind::Push, OTHER_OID, slow.as_str())]);
+    let work: PathBuf = work_directory(repo.common.as_path());
+    let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
+    handler.takes.push((slow.clone(), ONE_ITEM_TAKES));
+    handler.refuses.push((fast.clone(), String::from("the server refused the branch")));
+    let drained: DrainOfAControl = drain_with(&repo, &handler, &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
+    let at_the_slow_branch: &Vec<String> = &drained.seen.iter().find(|(name, _)| *name == slow).unwrap_or_else(|| panic!("the slow branch is pushed: {:?}", drained.seen)).1;
+    assert!(
+        at_the_slow_branch.iter().any(|name| { return name.starts_with("push-") && name.contains(&OID[..8]); }),
+        "the refusal of the fast branch is on record while the slow branch is still pushing: {at_the_slow_branch:?}"
+    );
+    assert_eq!(names(&repo, FAILED).len(), 1, "the refused push is failed and the slow one is done");
+    assert_eq!(names(&repo, DONE).len(), 1, "the slow push is done");
+    assert!(names(&repo, CLAIMED).is_empty(), "no record of the wave stays claimed");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  One push handler that stops unexpectedly ends that push alone:
+///  its record is settled as failed with what happened,
+///  its sibling is settled as done,
+///  and the round goes on.
+/// Why:
+///   A wave polls every item of it on one task,
+/// so a panic in one item used to unwind the whole drain and leave both records claimed,
+/// including the one whose work had finished.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drain(twoBranches); // the drain returns; expect(names(FAILED)).toHaveLength(1); expect(names(DONE)).toHaveLength(1)
+/// ```
+#[test]
+fn a_push_handler_that_stops_unexpectedly_ends_its_own_record_and_not_the_round() {
+    let repo: Repo = repo("work-push-that-stops");
+    let fine: String = String::from("refs/heads/fine");
+    let boom: String = String::from("refs/heads/boom");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, fine.as_str()), item(&repo, WorkKind::Push, OTHER_OID, boom.as_str())]);
+    let work: PathBuf = work_directory(repo.common.as_path());
+    let mut handler: Controlled = Controlled::answering_at_once(work.as_path());
+    handler.panics.push(boom.clone());
+    let _drained: DrainOfAControl = drain_with(&repo, &handler, &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
+    assert_eq!(names(&repo, DONE).len(), 1, "the sibling whose push finished is settled as done");
+    assert_eq!(names(&repo, FAILED).len(), 1, "the push that stopped is settled as failed");
+    assert!(names(&repo, CLAIMED).is_empty(), "no record of the wave stays claimed");
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert!(
+        shown.iter().any(|line| { return line.contains("stopped unexpectedly"); }),
+        "the person is told what happened, so the commit is reported and not lost: {shown:?}"
+    );
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  A round whose first claim step got no place asks to be looked at again,
+///  so the pending push it could not claim is not left waiting for a wake nobody sends.
+/// Why:
+///   The claim step of a round is a job of the process's blocking bound with a ceiling,
+/// and a round that answered "no place" claimed nothing:
+/// the push record stays `pending` and the person's commit is not backed up.
+/// Nothing else wakes this work directory for it,
+/// so the round names the pause it wants and the one loop that will come back looks again
+/// (`housekeeping_of_one_round.rs`).
+#[test]
+fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
+    use crate::parallel_test_support::ONE_PLACE;
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
+    assert_eq!(crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(), ONE_PLACE, "this control is the only holder of the process's one place");
+    // The claim step is given a ceiling a control reaches in a moment instead of the shipped sixty seconds.
+    crate::service_work_storage_awaited::hold_the_claim_steps_to(A_SLICE_ONE_ITEM_SPENDS);
+    let repo: Repo = repo("work-claim-step-with-no-place");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    // A job of the process's bound holds the only place while the round asks for it.
+    let (holding, held) = std::sync::mpsc::channel::<()>();
+    let place = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _held = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+            let _told = holding.send(());
+            std::thread::sleep(ONE_ITEM_TAKES.mul_f32(4.0));
+        })
+        .await;
+    });
+    assert!(place.is_some(), "the runtime starts the job that holds the only place");
+    assert!(held.recv_timeout(ONE_ITEM_TAKES.mul_f32(4.0)).is_ok(), "the job that holds the only place started");
+    let drained: DrainOfAControl = drain_with(&repo, &Controlled::answering_at_once(work_directory(repo.common.as_path()).as_path()), &PUSH_KINDS, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND);
+    assert_eq!(
+        drained.look_again,
+        Some(crate::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING),
+        "a round that could not claim this directory's records asks to be looked at again"
+    );
+    assert_eq!(names(&repo, PENDING).len(), 1, "nothing was claimed, so the push still waits");
+    remove(repo.root.as_path());
+}

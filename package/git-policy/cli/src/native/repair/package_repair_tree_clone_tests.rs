@@ -10,6 +10,7 @@ use super::*;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// More files than any single worker slice,
 /// so the parallel path really splits the work.
@@ -200,4 +201,63 @@ fn a_parallel_clone_where_no_thread_can_start_is_made_in_turn() {
         return;
     }
     parallel_and_serial_clones_agree();
+}
+
+/// How long the control holds the places slow work may take,
+/// several times the moment the clone is given to answer in.
+const HELD_SLOW: Duration = Duration::from_millis(500);
+
+/// How long a clone that takes the places slow work may take is given to answer while no slow place is free:
+/// a moment,
+/// which a clone of a few dozen files finishes in many times over when it is given a place at once.
+const A_MOMENT: Duration = Duration::from_millis(100);
+
+/// What:
+///  The clone of a build directory takes the places slow work may take,
+///  so one place of the process's bound stays free of it for the steps that serve a person.
+/// Why:
+///   The clone is the heaviest step of a new worktree's prewarm
+/// (111 s of one add's 160 s repair phase,
+/// `doc/planning/cli-git-worktree-add-package-repair.md`),
+/// and the prewarm is slow work nobody waits for.
+/// Prewarm waves run four wide and the service's pool has four places,
+/// so a wave that took general places held every one of them
+/// and the round's own storage steps waited for the whole clone:
+/// a person's pending push was claimed only when the wave ended.
+/// The slow kinds and the snapshot ahead already ask for a slow place;
+/// the clone is the one step of them that did not.
+#[test]
+fn a_clone_takes_the_places_slow_work_may_take_and_leaves_one_free_for_a_person() {
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(2);
+    assert_eq!(crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(), 2, "this control is the first to ask for the process's places, so the bound is the two it states");
+    let root: PathBuf = fixture("tree-clone-slow-places");
+    let source: PathBuf = build_source(&root);
+    let destination: PathBuf = root.join("destination");
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    runtime.block_on(async move {
+        let (holding, held) = tokio::sync::oneshot::channel::<()>();
+        let holder = tokio::spawn(async move {
+            let _outcome = crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget(move || {
+                let _told = holding.send(());
+                std::thread::sleep(HELD_SLOW);
+            })
+            .await;
+        });
+        held.await.expect("the job that holds the place slow work may take started");
+        let mut cloning = tokio::spawn(async move { return clone_tree_awaiting(source.as_path(), destination.as_path(), 1).await; });
+        // The only place slow work may take is held, so a clone that takes slow places cannot answer yet.
+        assert!(
+            tokio::time::timeout(A_MOMENT, &mut cloning).await.is_err(),
+            "the clone waits for a place slow work may take instead of taking one the steps that serve a person need"
+        );
+        // The place kept free of slow work is still free while the clone waits.
+        assert!(
+            matches!(tokio::time::timeout(A_MOMENT, crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(|| ())).await, Ok(Ok(()))),
+            "a place of the process's bound stayed free of the clone"
+        );
+        let cloned: Cloned = cloning.await.expect("the clone task ends").expect("the clone is made");
+        assert!(cloned.made > MANY_FILES, "made {}", cloned.made);
+        let _joined = holder.await;
+    });
+    remove(&root);
 }
