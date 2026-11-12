@@ -297,6 +297,43 @@ move its durable facts to their canonical doc and delete it from this page.
   A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
   (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
 
+#### Seven Kimi audits of 0.6.1-alpha.14, read a second time (2026-11-12T14:46:45-05:00)
+
+- `~/temp/agent/digest-2026-11-12T1406-kimi-audits/digest.md`; each audit's uncut report is beside it.
+  Every reproduction ran a wrapper built from `b1cdc4a842`, none the installed one.
+  Corrected here: round 313's launcher printed "started" at 14:46:33, not at about 14:50.
+- New, shown by a run through a built wrapper:
+  - A typed push of `feature`, diverged from its remote, while `main` is checked out and stands at the same commit,
+    moves the local `main` and its worktree to the merge made for `feature`.
+    This is why `main` stayed where it was at 12:00:10: there it stood at another commit.
+  - The removal of a landed worktree deletes the only reference to a commit when that reference is a person's under `refs/worktree/`;
+    after `git gc --prune=now` the commit is gone. Real Git's own `git worktree remove` drops per-worktree references too.
+    This session's reading of the decision of 13:04:14, open to veto:
+    the automatic removal keeps such a commit as it keeps one that only a detached `HEAD` holds,
+    and a typed unforced removal does what real Git does and names the commits now held by nothing.
+  - `git -c 'alias.wipe=!git -C . reset --hard' wipe` exits 0 and a tracked edit is gone, with no refusal;
+    `SPEC.md` records the shell-alias case as intended, which the rule restated at 10:33 does not allow.
+  - An edit staged while a merge carries a person's uncommitted work is lost; shown only with a pause put into the source.
+- Not a finding about the wrapper, and a cost on the whole fleet:
+  Cargo's lock on its package cache held the auditors' own builds and tests for minutes to more than half an hour in five of the seven audits.
+- Repeats of what the Sonnet audits hold: the same-transaction snapshot stage, the `backup.patch` advice,
+  `--no-overwrite-ignore` under the opt-out, the two merge records that keep each other, the detached nested worktree.
+- Decided behaviour since 13:04:14, not defects: untracked files of a nested worktree going with a removal.
+- Claimed and not shown, left out of the notes: a "5,139 ms" figure that is in neither session nor log,
+  a "killed add reaches the same state" that was never run, and client-side consequences that were never driven.
+- How the runs ended: none was cut.
+  Two finished and were then not stopped cleanly by the driver ("still running 5000 ms after SIGKILL", `pi-not-stopped`);
+  one ended its turn with a build of its own still running.
+  Four auditors ran `ps` with `args` over all processes against their rules; two ran `systemctl --user list-units`.
+  Six of the seven had no independent review, because every advisor call returned 429 or a time-out.
+- Routed at 14:51:55 in one note to five runs
+  (`~/temp/agent/notes-to-send/2026-11-12T1455-findings-of-seven-kimi-audits-of-alpha-14-as-a-second-reading-established-them.md`;
+  the file's name carries a time ahead of the clock):
+  the typed-push run, the discard guard, the inventory of saved copies, the add's repair, and the build-tree measurement (for Cargo's lock).
+  The landed-removal run of round 311 was not up yet (no inbox, half an hour after its third start),
+  so the per-worktree reference was written into its brief, and so was the decision of 13:04:14 earlier;
+  the notes of 13:06 and 14:51 are sent to it once it is up.
+
 #### A commit in the main checkout got no answer for thirteen minutes and was not made (2026-11-12T14:33:44-05:00)
 
 - The commit of the section "Starts go through again" was started at about 14:20 and ended at 14:33:44 with, four times,
