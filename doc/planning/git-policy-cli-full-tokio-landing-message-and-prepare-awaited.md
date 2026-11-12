@@ -205,8 +205,14 @@ each shown failing against the shape it replaces before it passed:
   `Finished test profile [unoptimized + debuginfo] target(s) in 1m 41s`,
   both in a `systemd-run --user --scope` at `CPUQuota=600%`,
   `MemoryMax=16G` and `TasksMax=4000`.
+  At the tip,
+  after the split,
+  the same two answered
+  `Finished test profile [unoptimized + debuginfo] target(s) in 2.64s`
+  and
+  `Finished test profile [unoptimized + debuginfo] target(s) in 1m 49s`.
 - `native:clippy` on every target:
-  `Finished dev profile [unoptimized + debuginfo] target(s) in 21.76s` at the tip,
+  `Finished dev profile [unoptimized + debuginfo] target(s) in 49.19s` at the tip,
   with warnings denied,
   after it refused two things this run then fixed
   (`clippy::question_mark` in `reused_of`,
