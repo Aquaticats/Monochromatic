@@ -257,3 +257,90 @@ fn a_shell_alias_the_caller_moved_into_is_decided_where_git_runs_it() {
     std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
     remove(root.as_path());
 }
+
+/// What:
+///  A `!` alias's shell runs at the top of the working tree,
+///  so the decision carries that directory and not the one the caller stands in.
+/// Why:
+///  Git changes to the top of the working tree before it starts the shell of a `!` alias
+///  (`git.c:388` to `git.c:407`),
+///  so `git -c 'alias.shellcfg=!git config' shellcfg --file ../../named.config ...`
+///  names one file from the caller's directory and another from the shell's.
+///  A guard that resolved that relative path from the caller's directory judged a write
+///  to `below/../..` while Git wrote the top's `../..`,
+///  which is how a write to the configuration every worktree shares went through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // cwd `<root>/below`; decideGuardedForwarded({ pairs: [['shellcfg', '!git config']], words: [...] })
+/// //   => { decision: 'shared-remote', shellDirectory: root }
+/// ```
+#[test]
+fn a_shell_alias_carries_the_directory_git_runs_its_shell_in() {
+    let root: PathBuf = fixture("guard-shell-directory");
+    git(root.as_path(), &["init", "--quiet", "--initial-branch=main", "."]);
+    let below: PathBuf = root.join("below");
+    std::fs::create_dir_all(below.as_path()).expect("directory below the worktree root");
+    let started_in: PathBuf = std::env::current_dir().expect("the directory this test started in");
+    std::env::set_current_dir(below.as_path()).expect("the worktree is where the wrapper starts");
+    let walked: GuardedForwarded = decide_guarded_forwarded(
+        &context_with_aliases(&[("shellcfg", "!git config")]),
+        no_environment().as_slice(),
+        &args(&[
+            "-c",
+            "alias.shellcfg=!git config",
+            "shellcfg",
+            "--file",
+            "../../named.config",
+            "remote.origin.url",
+            "https://example.invalid/through-a-shell-alias.git",
+        ]),
+    );
+    assert!(
+        matches!(walked.decision, LinkedWorktreeDecision::SharedRemote(_)),
+        "the shell alias's write was not decided at all"
+    );
+    assert_eq!(
+        walked.shell_directory.as_deref(),
+        Some(root.as_path()),
+        "the decision does not carry the directory the shell runs in"
+    );
+    std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A command the caller names itself,
+///  and one an ordinary alias expands to,
+///  run where the caller's `-C` chain ends,
+///  so neither carries a shell's directory.
+/// Why:
+///  The relative paths of those commands are read from the caller's directory,
+///  and a decision that carried a shell's directory would refuse a write to a file of
+///  the command's own,
+///  or name the wrong shared file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // decideGuardedForwarded({ words: ['config', '--file', 'named.config', ...] }).shellDirectory === undefined
+/// ```
+#[test]
+fn a_command_the_caller_names_carries_no_shell_directory() {
+    for (pairs, words) in [
+        (
+            vec![],
+            vec!["config", "--file", "named.config", "remote.origin.url", "https://example.invalid/named.git"],
+        ),
+        (
+            vec![("cfg", "config")],
+            vec!["cfg", "--file", "named.config", "remote.origin.url", "https://example.invalid/named.git"],
+        ),
+    ] {
+        let walked: GuardedForwarded = decided(pairs.as_slice(), words.as_slice());
+        assert!(
+            matches!(walked.decision, LinkedWorktreeDecision::SharedRemote(_)),
+            "{words:?} was not decided at all"
+        );
+        assert_eq!(walked.shell_directory, None, "{words:?} carries a shell directory");
+    }
+}

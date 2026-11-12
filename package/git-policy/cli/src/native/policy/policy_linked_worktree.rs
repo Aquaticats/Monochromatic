@@ -88,7 +88,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The directory the command runs in,
+///  The directory a command of the caller's own runs in,
 ///  as Git resolved it:
 ///  this process's own directory moved by the `-C` chain the caller
 ///  wrote before the subcommand.
@@ -102,6 +102,8 @@ use std::path::{Path, PathBuf};
 ///  that prefix is empty whenever the caller sits outside the `--work-tree`,
 ///  which is exactly when the two disagree.
 ///  Only the `-C` chain moves the directory Git reads a relative path from.
+///  The command inside the shell of a `!` alias runs somewhere else,
+///  which the guard carries as `GuardedForwarded::shell_directory`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -151,7 +153,9 @@ fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> 
 ///  The refusal of a command that would change the remote settings every worktree of the
 ///  repository shares,
 ///  when the command runs in a linked worktree.
-///  `&SharedRemoteChange` borrows the change the guard decided about.
+///  `&SharedRemoteChange` borrows the change the guard decided about,
+///  and `Option<&Path>` the directory Git runs the shell of a `!` alias in,
+///  when the command that writes is the one that shell runs.
 /// Why:
 ///   One `.git/config` is shared by the main checkout and every linked worktree,
 ///  so a write from a
@@ -164,15 +168,21 @@ fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> 
 ///       exempt tool cache keep today's behaviour,
 ///  and every other command is left to the policies below.
 ///  A
-///       `--file` write is this rule's only when its path resolves to that same file.
+///       `--file` write is this rule's only when its path resolves to that same file,
+///  read from
+///       the directory the writing command runs in:
+///  the shell's directory for a command a `!` alias runs,
+///  and the
+///       caller's `-C` chain for every other one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function refuseSharedRemoteSettings(facts, change, allowedDirs): PolicyOutcome;
+/// function refuseSharedRemoteSettings(facts, change, shellDirectory, allowedDirs): PolicyOutcome;
 /// ```
 fn refuse_shared_remote_settings(
     facts: &mut dyn RepositoryFacts,
     change: &SharedRemoteChange,
+    shell_directory: Option<&Path>,
     allowed_worktree_dirs: &[ToolCacheDirectory],
 ) -> PolicyOutcome {
     let location: RepositoryLocation = match facts.location() {
@@ -197,9 +207,14 @@ fn refuse_shared_remote_settings(
     };
     // A `--file` write names its own file: only the path that resolves to this repository's shared file is one.
     if let Some(named) = &change.named_file {
-        let directory: PathBuf = match command_directory(facts.transaction_context().global_prefix.as_slice()) {
-            Ok(found) => found,
-            Err(message) => return fact_unavailable(message),
+        // Where the writing command runs: a `!` alias's shell starts at the top of the working tree Git changed to,
+        //  while every other command starts where the caller's `-C` chain ends.
+        let directory: PathBuf = match shell_directory {
+            Some(found) => found.to_path_buf(),
+            None => match command_directory(facts.transaction_context().global_prefix.as_slice()) {
+                Ok(found) => found,
+                Err(message) => return fact_unavailable(message),
+            },
         };
         if !names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
             return clean();
@@ -283,7 +298,12 @@ pub(crate) fn check_linked_worktree(
     // The settings every worktree shares are decided first: no guarded form below is about them,
     // and the guard read them from the command Git will run, a shell alias included.
     if let LinkedWorktreeDecision::SharedRemote(change) = &forwarded.decision {
-        return refuse_shared_remote_settings(facts, change, allowed_worktree_dirs);
+        return refuse_shared_remote_settings(
+            facts,
+            change,
+            forwarded.shell_directory.as_deref(),
+            allowed_worktree_dirs,
+        );
     }
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
     let (command, moves_head_only): (GuardedCommand, bool) = match &forwarded.decision {
