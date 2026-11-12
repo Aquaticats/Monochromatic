@@ -88,6 +88,68 @@ fn the_callers_switch_off_is_read_from_the_last_setting() {
     assert!(!hook_switched_off(&[], &[]));
 }
 
+/// What:
+///  The switch given through `--config-env` is read as the `-c` spelling is,
+/// in both spellings Git accepts,
+/// and the last setting decides whichever spelling the caller used.
+/// Why:
+///   Reading `-c` alone ran the upload the caller had disabled:
+/// a failing upload stopped a push real Git would have
+///  published,
+/// and a successful one sent the objects the caller had switched off.
+#[test]
+fn the_switch_the_environment_names_is_read_as_the_callers_own() {
+    let prefix = |words: &[&str]| -> Vec<OsString> { return words.iter().map(OsString::from).collect() };
+    let environment: Vec<(OsString, OsString)> = vec![
+        (OsString::from("DISABLE_UPLOAD"), OsString::from("false")),
+        (OsString::from("ENABLE_UPLOAD"), OsString::from("true")),
+    ];
+    for words in [
+        vec!["--config-env=hook.cli-git-lfs-pre-push.enabled=DISABLE_UPLOAD"],
+        vec!["--config-env", "hook.cli-git-lfs-pre-push.enabled=DISABLE_UPLOAD"],
+    ] {
+        assert!(hook_switched_off(prefix(words.as_slice()).as_slice(), environment.as_slice()), "{words:?}");
+    }
+    assert!(
+        !hook_switched_off(
+            prefix(&["--config-env=hook.cli-git-lfs-pre-push.enabled=ENABLE_UPLOAD"]).as_slice(),
+            environment.as_slice()
+        ),
+        "a variable holding true keeps the upload"
+    );
+    assert!(
+        !hook_switched_off(
+            prefix(&[
+                "--config-env=hook.cli-git-lfs-pre-push.enabled=DISABLE_UPLOAD",
+                "-c",
+                "hook.cli-git-lfs-pre-push.enabled=true"
+            ])
+            .as_slice(),
+            environment.as_slice()
+        ),
+        "a later -c keeps the upload"
+    );
+    assert!(
+        hook_switched_off(
+            prefix(&[
+                "-c",
+                "hook.cli-git-lfs-pre-push.enabled=true",
+                "--config-env=hook.cli-git-lfs-pre-push.enabled=DISABLE_UPLOAD"
+            ])
+            .as_slice(),
+            environment.as_slice()
+        ),
+        "a later --config-env switches the upload off"
+    );
+    // Git refuses a `--config-env` the environment cannot answer, so the push never runs and no setting of the switch was made.
+    for words in [
+        vec!["--config-env=hook.cli-git-lfs-pre-push.enabled=MISSING"],
+        vec!["--config-env=hook.cli-git-lfs-pre-push.enabled"],
+    ] {
+        assert!(!hook_switched_off(prefix(words.as_slice()).as_slice(), environment.as_slice()), "{words:?}");
+    }
+}
+
 /// The lookup finds an executable file in any `PATH` directory and refuses a directory,
 /// a plain file and nothing.
 #[test]

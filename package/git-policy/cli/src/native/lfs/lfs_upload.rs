@@ -13,7 +13,7 @@
 //!  configuration (`doc/planning/cli-git-no-self-invocation.md`).
 //! What to upload is decided in `lfs_upload_plan`.
 //!  The child sees what the caller gave Git:
-//! the global `-c` options travel as `GIT_CONFIG_COUNT` pairs,
+//! the global `-c` and `--config-env` options travel as the entries Git appends to `GIT_CONFIG_PARAMETERS`,
 //! `--git-dir`,
 //!  `--work-tree` and `--namespace` as their variables,
 //! `-C` as the working directory,
@@ -41,7 +41,7 @@ use crate::bounded_push::{
 use crate::child_environment::{environment_value, environment_with_overlay, prompting_disabled};
 /// The caller's own command-line configuration,
 /// as the variables the child reads.
-pub use crate::lfs_upload_child_configuration::prefix_variables;
+pub use crate::lfs_command_line_configuration::child_configuration_variables;
 /// How a child ended,
 /// as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
@@ -311,13 +311,12 @@ pub fn run_upload_interactive(
     // The overlay carries the never-prompt pair only when this command has no controlling terminal, and the explanation of a
     //  failed login says what the wrapper did about prompting.
     let prompting_is_disabled: bool = prompting_disabled(overlay);
-    // What: The child's numbered configuration, settled by the overlay before the caller's own pairs are numbered after it.
-    // Why:  The overlay appends the wrapper's own pair (`core.lockfilePid`) in the next slot; a caller's pair numbered before it
-    //  took that slot and was overwritten, so `-c remote.origin.pushurl=...` never reached `git-lfs` and the object of the
-    //  published pointer went to the fetch remote. Numbered after the overlay, both are read, and a caller's setting of the
-    //  same key still wins as later numbered entries do in Git.
+    // What: The caller's configuration, as Git hands it to a child: appended to the parameters the environment already holds.
+    // Why:  Git reads those parameters after the numbered pairs, so a pair written there is the newest setting of its key;
+    //  a caller's pair numbered before an inherited parameter lost to it, and `-c lfs.url=...` reached the upload as the
+    //  server the caller had replaced, so the object of the published pointer went to the wrong store.
     let settled: Vec<(OsString, OsString)> = environment_with_overlay(environment, overlay);
-    let Some(carried) = prefix_variables(global_prefix, settled.as_slice()) else {
+    let Some(carried) = child_configuration_variables(global_prefix, settled.as_slice()) else {
         // A `--config-env` Git refuses ends the push itself, so no object may travel to the server its absence points at.
         return None;
     };
