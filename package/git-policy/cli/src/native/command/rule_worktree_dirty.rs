@@ -260,18 +260,48 @@ pub fn replaced_answers(asked: &[Vec<u8>], tracked: &[Vec<u8>], answer: &[Vec<u8
 /// function ignoredPathsQueries(globalPrefix: string[], paths: string[]): string[][];
 /// ```
 pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
+    return others_paths_queries(global_prefix, paths, &["--ignored"]);
+}
+
+/// What:
+///  The queries that list which of `paths` the worktree holds as untracked files.
+///  `&[Vec<u8>]` borrows the paths as their tree holds them.
+/// Why:
+///   An abort that restores a tree Git will not write over an untracked file refuses the whole reset,
+///  and Git's answer names those files:
+///  the same bounded start `ignored_paths_queries` makes,
+///  without the flag that would limit it to ignored files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function untrackedPathsQueries(globalPrefix: string[], paths: string[]): string[][];
+/// ```
+pub fn untracked_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
+    return others_paths_queries(global_prefix, paths, &[]);
+}
+
+/// What:
+///  One `git ls-files --others` query per bounded start over exactly `paths`.
+///  `&[&str]` borrows the selection flags the caller adds.
+/// Why:
+///   Ignored files and untracked files are asked for the same way,
+///  in the bounded starts, the literal pathspecs and the exact bytes;
+///  only the flag that narrows the answer to ignored ones differs,
+///  so both readings share this builder rather than repeating it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function othersPathsQueries(globalPrefix: string[], paths: string[], modes: string[]): string[][];
+/// ```
+fn others_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>], modes: &[&str]) -> Vec<Vec<OsString>> {
     let mut head: Vec<OsString> = global_prefix.to_vec();
-    for token in [
-        "--no-optional-locks",
-        "--no-literal-pathspecs",
-        "ls-files",
-        "--others",
-        "--ignored",
-        "--exclude-standard",
-        "-z",
-        "--full-name",
-        "--",
-    ] {
+    for token in ["--no-optional-locks", "--no-literal-pathspecs", "ls-files", "--others"] {
+        head.push(OsString::from(token));
+    }
+    for token in modes {
+        head.push(OsString::from(*token));
+    }
+    for token in ["--exclude-standard", "-z", "--full-name", "--"] {
         head.push(OsString::from(token));
     }
     let mut queries: Vec<Vec<OsString>> = Vec::<Vec<OsString>>::new();

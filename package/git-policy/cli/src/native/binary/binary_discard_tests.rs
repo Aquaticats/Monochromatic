@@ -124,6 +124,12 @@ fn hatch_invocations(command: GuardedCommand) -> Vec<Vec<&'static str>> {
         GuardedCommand::AbortRebase => vec![vec!["rebase", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
         GuardedCommand::AbortPick => vec![vec!["cherry-pick", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"], vec!["revert", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
         GuardedCommand::AbortAm => vec![vec!["am", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+        GuardedCommand::SkipRebase => vec![vec!["rebase", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--skip"]],
+        GuardedCommand::SkipPick => vec![
+            vec!["cherry-pick", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--skip"],
+            vec!["revert", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--skip"],
+        ],
+        GuardedCommand::SkipAm => vec![vec!["am", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--skip"]],
     };
 }
 

@@ -65,7 +65,8 @@ fn copy_while_changing(base: &std::path::Path, path: &str, change: &dyn Fn()) ->
             changed = true;
             change();
         }
-    });
+    })
+    .map(|_stamp| ());
 }
 
 /// A source larger than one chunk of the copy loop,

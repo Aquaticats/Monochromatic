@@ -30,7 +30,7 @@
 //! if (decision.kind === 'allow') await saveCopies({ root, commonDir, paths: decision.paths });
 //! ```
 
-use crate::conflict_side_source::{copy_located, locate};
+use crate::conflict_side_source::{Stamp, copy_located, locate};
 use crate::iso_time::format_iso_milliseconds;
 use crate::private_storage::{create_private_directory, create_private_directory_all, sync_directory};
 use std::collections::BTreeSet;
@@ -129,28 +129,109 @@ pub(crate) fn fresh_saved_directory(common_dir: &Path, milliseconds: i64) -> std
 /// const copies = await saveCopies({ root, commonDir, paths, milliseconds });
 /// ```
 pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], milliseconds: i64) -> Result<Vec<SavedCopy>, SaveFailure> {
-    let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
+    let attempt: SaveAttempt = save_copies_reading_changes(root, common_dir, paths, milliseconds)?;
+    // A source that changed while it was copied leaves a torn or stale copy, which is removed: the one-shot save
+    //  refuses the command instead of passing that copy off as the file Git then replaces.
+    if let Some(failure) = attempt.changed {
+        return Err(failure);
+    }
+    return Ok(attempt.copies);
+}
+
+/// What:
+///  One save step's answer:
+///  the copies it made,
+///  and the sources that changed while they were copied.
+/// Why:
+///   A caller that only copies once must refuse such a source,
+///  while a caller that may copy it again
+///  needs to know which one it was and where it was read from.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SaveAttempt {
+    /// One entry per path that was saved,
+    ///  in the order the paths were given.
+    pub copies: Vec<SavedCopy>,
+    /// One entry per path that was asked about,
+    ///  in the same order,
+    ///  saying what the worktree held there when it was read.
+    pub sources: Vec<SavedSource>,
+    /// The first source that changed while it was copied,
+    ///  with its reason;
+    ///  its copy was removed.
+    pub changed: Option<SaveFailure>,
+}
+
+/// What:
+///  One source the save read, and what stood there while the copy was made.
+/// Why:
+///   A source that changed again is compared with this,
+///  and a path with nothing to copy is a source too:
+///  a file that appears there before Git runs is work the command would discard.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SavedSource = { path: Buffer; stamp?: Stamp };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SavedSource {
+    /// The repository-relative path,
+    ///  in the bytes Git printed.
+    pub path: Vec<u8>,
+    /// What the entry at that path was when the copy was made,
+    ///  or nothing when there was nothing to copy.
+    pub stamp: Option<Stamp>,
+}
+
+/// What:
+///  Save each path and report which source changed while it was copied,
+///  without refusing anything.
+/// Why:
+///   The abort family may copy a changed source again,
+///  so the reading and the refusal are separated:
+///  this is the reading,
+///  and `save_copies` is the refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attempt = saveCopiesReadingChanges({ root, commonDir, paths, milliseconds });
+/// ```
+pub fn save_copies_reading_changes(root: &Path, common_dir: &Path, paths: &[Vec<u8>], milliseconds: i64) -> Result<SaveAttempt, SaveFailure> {
+    let directory: PathBuf = match fresh_saved_directory(common_dir, milliseconds) {
+        Ok(made) => made,
+        Err(error) => return Err(SaveFailure::io(common_dir.display().to_string(), error.to_string())),
+    };
+    return save_into(root, directory.as_path(), paths);
+}
+
+/// What:
+///  Save each path below `directory`, which the caller made,
+///  and report which source changed while it was copied.
+/// Why:
+///   A caller that copies the same paths again keeps every copy it made:
+///  each round writes into a folder of its own,
+///  so a second copy never stands where the first one is,
+///  and the person is told one folder that holds them all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attempt = saveInto({ directory, root, paths });
+/// ```
+pub fn save_into(root: &Path, directory: &Path, paths: &[Vec<u8>]) -> Result<SaveAttempt, SaveFailure> {
     let mut copies: Vec<SavedCopy> = Vec::new();
-    let mut directory: Option<PathBuf> = None;
+    let mut sources: Vec<SavedSource> = Vec::new();
+    let mut changed: Option<SaveFailure> = None;
     let mut written_directories: BTreeSet<PathBuf> = BTreeSet::new();
+    if let Err(error) = create_private_directory_all(directory) {
+        return Err(SaveFailure::io(directory.display().to_string(), error.to_string()));
+    }
     for path in paths {
         let shown: String = String::from_utf8_lossy(path).into_owned();
         let Some(located) = locate(root, path.as_slice())? else {
+            sources.push(SavedSource { path: path.clone(), stamp: None });
             copies.push(SavedCopy { path: shown, saved_to: None });
             continue;
         };
-        let base: PathBuf = match &directory {
-            Some(existing) => existing.clone(),
-            None => {
-                let created: PathBuf = match fresh_directory(saved_root.as_path(), stamp(milliseconds).as_str()) {
-                    Ok(made) => made,
-                    Err(error) => return Err(SaveFailure::io(saved_root.display().to_string(), error.to_string())),
-                };
-                directory = Some(created.clone());
-                created
-            }
-        };
-        let destination: PathBuf = base.join(OsString::from_vec(path.clone()));
+        let destination: PathBuf = directory.join(OsString::from_vec(path.clone()));
         if let Some(parent) = destination.parent() {
             if let Err(error) = create_private_directory_all(parent) {
                 return Err(SaveFailure::io(shown, error.to_string()));
@@ -158,32 +239,41 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
             let mut up: Option<&Path> = Some(parent);
             while let Some(each) = up {
                 written_directories.insert(each.to_path_buf());
-                if each == base.as_path() {
+                if each == directory {
                     break;
                 }
                 up = each.parent();
             }
         }
-        copy_located(&located, destination.as_path(), &mut no_pause)?;
-        copies.push(SavedCopy { path: shown, saved_to: Some(destination) });
-    }
-    if directory.is_some() {
-        // Deepest first, then the directories that hold the copies' root, so every new entry is durable.
-        let mut ordered: Vec<&PathBuf> = written_directories.iter().collect();
-        ordered.sort_by_key(depth_deepest_first);
-        for each in ordered {
-            if let Err(error) = sync_directory(each.as_path()) {
-                return Err(SaveFailure::io(each.display().to_string(), error.to_string()));
+        // A source that changed under the copy is reported, not refused here: an abort copies it again,
+        //  and the copy the changed read left is already removed.
+        match copy_located(&located, destination.as_path(), &mut no_pause) {
+            Ok(stamp) => {
+                sources.push(SavedSource { path: path.clone(), stamp: Some(stamp) });
+                copies.push(SavedCopy { path: shown, saved_to: Some(destination) });
             }
-        }
-        let parent: PathBuf = common_dir.join("monochromatic-git-policy-cli");
-        for each in [saved_root.as_path(), parent.as_path()] {
-            if let Err(error) = sync_directory(each) {
-                return Err(SaveFailure::io(each.display().to_string(), error.to_string()));
+            Err(failure) if failure.kind == FailureKind::Changed => {
+                if changed.is_none() {
+                    changed = Some(failure);
+                }
             }
+            Err(failure) => return Err(failure),
         }
     }
-    return Ok(copies);
+    // Deepest first, then the directories that hold the copies' root, so every new entry is durable.
+    let mut ordered: Vec<&PathBuf> = written_directories.iter().collect();
+    ordered.sort_by_key(depth_deepest_first);
+    for each in ordered {
+        if let Err(error) = sync_directory(each.as_path()) {
+            return Err(SaveFailure::io(each.display().to_string(), error.to_string()));
+        }
+    }
+    for each in [directory] {
+        if let Err(error) = sync_directory(each) {
+            return Err(SaveFailure::io(each.display().to_string(), error.to_string()));
+        }
+    }
+    return Ok(SaveAttempt { copies, sources, changed });
 }
 
 /// The decision,

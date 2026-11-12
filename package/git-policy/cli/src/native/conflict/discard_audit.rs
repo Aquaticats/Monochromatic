@@ -100,6 +100,9 @@ pub enum AuditOutcome {
     /// The command undid an operation that waited for its conflicts,
     /// after the wrapper saved a copy of the work that was not the operation's own.
     SavedAbort,
+    /// The command dropped the commit or patch an operation stopped at and went on,
+    /// after the wrapper saved a copy of the work that was not the operation's own.
+    SavedSkip,
     /// The form is recorded and was never refused:
     ///  it runs as Git runs it,
     ///  by the owner's decision,
@@ -120,6 +123,7 @@ impl AuditOutcome {
             AuditOutcome::SavedNestedRepository => return "saved-nested-repository",
 
             AuditOutcome::SavedAbort => return "saved-abort",
+            AuditOutcome::SavedSkip => return "saved-skip",
             AuditOutcome::Logged => return "logged",
         }
     }

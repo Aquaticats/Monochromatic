@@ -155,6 +155,21 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
             "it restores the state before the patch series and discards the edits made since",
             "To stop and keep your index and files as they are, use git am --quit (allowed). To continue, resolve the conflicts and use git am --continue, or git am --skip to drop the current patch.",
         ),
+        GuardedCommand::SkipRebase => return (
+            "git rebase --skip",
+            "it drops the commit the rebase stopped at and discards the edits made since, including hand resolutions of its conflicts",
+            "To keep your index and files as they are, use git rebase --quit (allowed). To finish the commit instead, resolve the conflicts and use git rebase --continue.",
+        ),
+        GuardedCommand::SkipPick => return (
+            "git cherry-pick --skip (or git revert --skip)",
+            "it drops the commit the sequence stopped at and discards the edits made since, including hand resolutions of its conflicts",
+            "To stop and keep your index and files as they are, use --quit with the same command (allowed). To finish the commit instead, resolve the conflicts and use --continue.",
+        ),
+        GuardedCommand::SkipAm => return (
+            "git am --skip",
+            "it drops the patch the series stopped at and discards the edits made since",
+            "To stop and keep your index and files as they are, use git am --quit (allowed). To finish the patch instead, resolve the conflicts and use git am --continue.",
+        ),
     }
 }
 

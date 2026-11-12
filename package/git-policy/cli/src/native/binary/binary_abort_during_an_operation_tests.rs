@@ -557,3 +557,58 @@ fn a_merge_abort_refuses_content_that_stands_only_in_the_index() {
     assert!(saved_copies(common_dir(&fixture, linked.as_path()).as_path()).is_empty(), "the abort did not run");
     remove(&fixture);
 }
+
+/// An untracked file at a path the restored tree tracks stops Git's own reset,
+///  so the wrapper refuses the abort naming it,
+///  saves nothing and changes nothing,
+///  and says that Git will not restore the tree while the file is there.
+///  Measured with Git 2.56.0:
+///  every abort form refuses such a reset and loses nothing,
+///  and no copy of the untracked file is owed.
+#[test]
+fn a_rebase_abort_names_an_untracked_file_that_stops_git_s_own_reset() {
+    let fixture: Fixture = fixture("abort-rebase-untracked");
+    let repo: PathBuf = repository(&fixture, std::ffi::OsStr::new("repo"));
+    std::fs::write(repo.join("a.txt"), b"base\n").expect("tracked file");
+    std::fs::write(repo.join("victim.txt"), b"original tracked victim\n").expect("tracked file");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt", "victim.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "onto"]);
+    std::fs::write(repo.join("a.txt"), b"onto\n").expect("onto edit");
+    git(&fixture, repo.as_path(), &["rm", "--quiet", "--", "victim.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=onto"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    std::fs::write(repo.join("a.txt"), b"main\n").expect("main edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    let linked: PathBuf = fixture.root.join("work");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "work", "../work", "main"]);
+    attempt(&fixture, linked.as_path(), &["rebase", "onto"]);
+    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase waits");
+    assert!(!linked.join("victim.txt").exists(), "the rebase took the file away, so a new one is untracked");
+    std::fs::write(linked.join("victim.txt"), b"untracked work created during the rebase\n").expect("the untracked file");
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["rebase", "--abort"]);
+    let said: String = stderr_of(&observed);
+    assert!(rejected(&observed), "the untracked file keeps the refusal: {said}");
+    assert!(said.contains("victim.txt"), "the refusal names the file: {said}");
+    assert!(said.contains("untracked"), "the refusal says the file is untracked: {said}");
+    assert!(
+        said.contains("Git will not restore that tree while it is there"),
+        "the refusal says Git will not abort while the file is there: {said}"
+    );
+    assert!(said.contains("mv <path>"), "the refusal says what moves the person forward: {said}");
+    assert_eq!(
+        std::fs::read(linked.join("victim.txt")).expect("the untracked file"),
+        b"untracked work created during the rebase\n",
+        "nothing was written over the untracked file: {said}"
+    );
+    assert!(git_path_is_there(&fixture, linked.as_path(), "rebase-merge"), "the rebase still waits: {said}");
+    assert!(
+        saved_copies(common_dir(&fixture, linked.as_path()).as_path()).is_empty(),
+        "no copy is announced that Git never needed: {said}"
+    );
+    let audit: Vec<String> = audit_lines(common_dir(&fixture, linked.as_path()).as_path());
+    let last: &String = audit.last().expect("one audit line");
+    assert!(last.contains("\"outcome\":\"rejected\""), "{last}");
+    assert!(last.contains("\"form\":\"AbortRebase\""), "{last}");
+    remove(&fixture);
+}

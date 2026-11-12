@@ -42,6 +42,18 @@ use std::path::PathBuf;
 pub const ENGINE_FAILURE_EXIT_CODE: i32 = 2;
 
 /// What:
+///  Exit code for a command a policy refused.
+/// Why:
+///   The wrapper's contract reserves 1 for a policy finding and 2 for a wrapper failure;
+///  a command stopped at the last moment because its copy could not be made is a finding about that command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const REJECTED_EXIT_CODE = 1;
+/// ```
+pub const REJECTED_EXIT_CODE: i32 = 1;
+
+/// What:
 ///  What a plain push that may be integrated needs to run and,
 /// when it fails on a divergence,
 /// to merge.

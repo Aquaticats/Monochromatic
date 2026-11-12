@@ -52,6 +52,9 @@ fn index_of(command: GuardedCommand) -> usize {
         GuardedCommand::AbortRebase => 18,
         GuardedCommand::AbortPick => 19,
         GuardedCommand::AbortAm => 20,
+        GuardedCommand::SkipRebase => 21,
+        GuardedCommand::SkipPick => 22,
+        GuardedCommand::SkipAm => 23,
     };
 }
 

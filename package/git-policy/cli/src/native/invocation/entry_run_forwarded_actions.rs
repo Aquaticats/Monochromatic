@@ -20,6 +20,8 @@
 
 /// Import the sibling modules the decision combines.
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
+/// The last comparison of a saved file, made immediately before Git starts.
+use crate::abort_save::save_again_before_the_command;
 use crate::announced_query::printable_after;
 #[cfg(unix)]
 use crate::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};
@@ -133,6 +135,18 @@ pub(crate) fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
             finish_forwarded(run_forwarded_git(forward.real_git.as_path(), forward.arguments.as_slice(), forward.overlay.as_slice(), None))
         }
         CoordinatedRun::NotCoordinated => {
+            // The same last comparison the plain forward makes, immediately before the process becomes Git.
+            match save_again_before_the_command() {
+                Ok(said) => {
+                    if let Some(extra) = said.as_deref() {
+                        write_stream(&mut std::io::stderr(), extra);
+                    }
+                }
+                Err(refusal) => {
+                    write_stream(&mut std::io::stderr(), refusal.as_str());
+                    return crate::action::REJECTED_EXIT_CODE;
+                }
+            }
             let error: std::io::Error = replace_process_with_real_git(
                 forward.real_git.as_path(),
                 forward.arguments.as_slice(),

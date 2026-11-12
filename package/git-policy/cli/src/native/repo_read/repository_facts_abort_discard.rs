@@ -24,8 +24,8 @@
 use crate::git_metadata::MetadataOutput;
 use crate::repository_facts::GitFacts;
 use crate::rule_abort_operation::{
-    AbortOperation, OPERATION_STATE_NAMES, RESTORED_REVISION_NAMES, RestoredRevision, SEQUENCER_DIRECTORY, OperationState, abort_is_live,
-    aborted_operation, in_progress_operation, restored_revision,
+    AbortOperation, OPERATION_STATE_NAMES, OperationEnd, RESTORED_REVISION_NAMES, RestoredRevision, SEQUENCER_DIRECTORY, SKIP_RESTORES, OperationState,
+    abort_is_live, ended_operation, in_progress_operation, restored_revision,
 };
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_worktree_dirty::nul_separated_paths;
@@ -52,10 +52,12 @@ pub enum AbortDiscard {
     ///  so Git refuses the command and discards nothing.
     NothingWaiting,
     /// The command's operation waits,
-    ///  and these paths hold the work its abort would discard besides its own.
+    ///  and these paths hold the work its command would discard besides its own.
     Waiting {
         /// Which operation this command ends.
         in_progress: AbortOperation,
+        /// Whether the command ends the operation or goes on with the next commit or patch.
+        ends: OperationEnd,
         /// The revision whose tree the abort writes back into the worktree,
         ///  as Git's own implementation of this abort finds it:
         ///  a name Git resolves,
@@ -426,7 +428,7 @@ fn is_hex_digit(byte: u8) -> bool {
 /// async function abortDiscard(facts: GitFacts, command: GuardedCommand): Promise<AbortDiscard>;
 /// ```
 pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Result<AbortDiscard, String> {
-    let Some(aborted): Option<AbortOperation> = aborted_operation(command) else {
+    let Some((aborted, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command) else {
         return Ok(AbortDiscard::NothingWaiting);
     };
     let state_output: MetadataOutput = facts.query(state_query_arguments(facts.global_prefix.as_slice()), "the operation state")?;
@@ -445,12 +447,21 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
         // This command's own state is absent: Git refuses it, and it discards nothing.
         return Ok(AbortDiscard::NothingWaiting);
     }
-    let restored: OsString = match restored_revision(aborted, state) {
-        RestoredRevision::Named(name) => name.to_os_string(),
-        RestoredRevision::StateFile(record) => recorded_commit(&answer, record)?,
+    // A skip writes back the tree it stopped at, which is `HEAD`; an abort writes back the record its own
+    //  implementation reads (`restored_revision`).
+    let restored: OsString = match ends {
+        OperationEnd::Skip => OsString::from(SKIP_RESTORES),
+        OperationEnd::Abort => match restored_revision(aborted, state) {
+            RestoredRevision::Named(name) => name.to_os_string(),
+            RestoredRevision::StateFile(record) => recorded_commit(&answer, record)?,
+        },
     };
+    // Only an abort of a merge can know which paths it put back untouched, because Git recorded its result;
+    //  a skip, a rebase, a pick and an `am` reset the worktree and the index outright, so everything uncommitted is at risk.
     let queries: [Vec<OsString>; 2] = match aborted {
-        AbortOperation::Merge if merge_result_readable(facts)? => merge_result_queries(facts.global_prefix.as_slice()),
+        AbortOperation::Merge if ends == OperationEnd::Abort && merge_result_readable(facts)? => {
+            merge_result_queries(facts.global_prefix.as_slice())
+        }
         _ => uncommitted_queries(facts.global_prefix.as_slice()),
     };
     let first: MetadataOutput = facts.query(queries[0].clone(), "the paths this command would discard")?;
@@ -459,7 +470,7 @@ pub(super) fn abort_discard(facts: &mut GitFacts, command: GuardedCommand) -> Re
     // A path the worktree lost while the index kept its content is work this abort would discard,
     //  and no worktree file can be copied for it: the guard refuses the command instead.
     let index_only: Vec<Vec<u8>> = crate::repository_facts_index_only_paths::index_only_paths(facts, paths.as_slice())?;
-    return Ok(AbortDiscard::Waiting { in_progress: in_progress_operation(aborted, state), restored, index_only, paths });
+    return Ok(AbortDiscard::Waiting { in_progress: in_progress_operation(aborted, state), ends, restored, index_only, paths });
 }
 
 /// The queries,

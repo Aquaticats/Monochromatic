@@ -50,10 +50,12 @@ use crate::discarded_prune::Limits;
 use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
 /// The two commands that are recorded and never refused.
 use crate::policy_audited::record_audited;
-/// The abort carve-out:
-/// the operation's own state is what an abort lets go,
+/// The abort and skip carve-out:
+/// the operation's own state is what the command lets go,
 /// the person's own work is saved first.
 use crate::abort_discard_guard::{AbortVerdict, judge_abort_discard};
+/// What a guarded form does to the operation it finds waiting.
+use crate::rule_abort_operation::{OperationEnd, ended_operation};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
@@ -220,6 +222,21 @@ fn refuse_shared_remote_settings(
 }
 
 /// What:
+///  Whether the form drops the commit an operation stopped at and goes on.
+/// Why:
+///   Such a form is let through wherever it runs once its work is copied,
+///  so the refusal a main worktree or a place outside one earns for an overwriting form
+///  is not asked of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const skips = (command: GuardedCommand): boolean => endedOperation(command)?.[1] === 'skip';
+/// ```
+fn ends_an_operation_with_a_skip(command: GuardedCommand) -> bool {
+    return matches!(ended_operation(command), Some((_operation, OperationEnd::Skip)));
+}
+
+/// What:
 ///  Whether a `git clean -X` that carries its own `-e`/`--exclude` patterns would delete a path those patterns
 ///  alone call ignored.
 ///  `&[OsString]` borrows the clean's own tokens after the subcommand.
@@ -344,7 +361,11 @@ pub(crate) fn check_linked_worktree(
         if target != EffectiveTarget::MainWorktree && target != EffectiveTarget::LinkedWorktree {
             return clean();
         }
-    } else if let Some(message) = resolve_linked_worktree(command, target) {
+    } else if !ends_an_operation_with_a_skip(command)
+        && let Some(message) = resolve_linked_worktree(command, target)
+    {
+        // A `--skip` is decided by the save below in the main worktree and in a linked one: the copy is the protection,
+        //  and a refusal is only for the case where no copy can be made.
         record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
         return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{conflict_note}"));
     }
@@ -387,7 +408,12 @@ pub(crate) fn check_linked_worktree(
                     };
                     places.push(format!("{} => {}", copy.path, saved_to));
                 }
-                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedAbort, seen, None, places.as_slice());
+                // A skip goes on while an abort restores the state before the operation, and the record says which was decided.
+                let outcome: AuditOutcome = match ends_an_operation_with_a_skip(command) {
+                    true => AuditOutcome::SavedSkip,
+                    false => AuditOutcome::SavedAbort,
+                };
+                record_audit_with_copies(&location.identity, command, outcome, seen, None, places.as_slice());
             }
             if !notice.is_empty() {
                 notices.push(notice);

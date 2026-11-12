@@ -17,7 +17,7 @@ use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::discarded_prune::Limits;
 use crate::policy_test_support::{ScriptedFacts, scripted_facts};
 use crate::repository_facts_abort_discard::AbortDiscard;
-use crate::rule_abort_operation::AbortOperation;
+use crate::rule_abort_operation::{AbortOperation, OperationEnd};
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
@@ -61,13 +61,32 @@ impl Drop for Scene {
 /// A waiting abort whose restored tree is `HEAD`,
 ///  with the person's own work at these paths.
 fn waiting(operation: AbortOperation, paths: Vec<Vec<u8>>) -> AbortDiscard {
-    return AbortDiscard::Waiting { in_progress: operation, restored: OsString::from("HEAD"), index_only: Vec::new(), paths };
+    return AbortDiscard::Waiting {
+        in_progress: operation,
+        ends: OperationEnd::Abort,
+        restored: OsString::from("HEAD"),
+        index_only: Vec::new(),
+        paths,
+    };
+}
+
+/// A waiting skip,
+///  whose reset writes the tree of the commit it stopped at.
+fn skipping(operation: AbortOperation, paths: Vec<Vec<u8>>) -> AbortDiscard {
+    return AbortDiscard::Waiting {
+        in_progress: operation,
+        ends: OperationEnd::Skip,
+        restored: OsString::from("HEAD"),
+        index_only: Vec::new(),
+        paths,
+    };
 }
 
 /// A waiting abort whose worktree no longer holds a file the index still holds at `index_only`.
 fn waiting_with_index_only(operation: AbortOperation, index_only: Vec<Vec<u8>>) -> AbortDiscard {
     return AbortDiscard::Waiting {
         in_progress: operation,
+        ends: OperationEnd::Abort,
         restored: OsString::from("HEAD"),
         index_only: index_only.clone(),
         paths: index_only,
@@ -229,6 +248,7 @@ fn the_ignored_file_question_reads_the_restored_revision() {
     let mut facts: ScriptedFacts = scripted_facts();
     facts.abort_discard = Ok(AbortDiscard::Waiting {
         in_progress: AbortOperation::Rebase,
+        ends: OperationEnd::Abort,
         restored: OsString::from(record),
         index_only: Vec::<Vec<u8>>::new(),
         paths: Vec::<Vec<u8>>::new(),
@@ -245,24 +265,84 @@ fn the_ignored_file_question_reads_the_restored_revision() {
     );
 }
 
-/// Content that stands only in the index is refused naming the paths,
-///  because a worktree file that is not there cannot be copied.
+/// Content that stands only in the index is copied from the index itself,
+///  so a command whose content a copy makes safe goes on.
+///  This fixture holds no index, so Git cannot write the copy:
+///  that is the one case that still refuses, and the refusal names the path.
 #[test]
-fn content_the_worktree_lost_is_refused_with_its_paths() {
+fn content_the_worktree_lost_is_refused_only_when_the_index_cannot_be_read() {
     let scene: Scene = Scene::new("index-only");
     let mut facts: ScriptedFacts = scripted_facts();
     facts.abort_discard = Ok(waiting_with_index_only(AbortOperation::Merge, vec![b"new.txt".to_vec()]));
     facts.ignored_and_tracked = Ok(Vec::<String>::new());
     match judge_abort_discard(&mut facts, GuardedCommand::AbortMerge, &scene.identity(), 0, limits()) {
         AbortVerdict::CopyFailed(text) => {
-            assert!(text.contains("new.txt"), "{text}");
-            assert!(text.contains("the index does"), "{text}");
-            assert!(text.contains("git restore --worktree --"), "{text}");
-            assert!(text.contains("nothing was saved or changed"), "{text}");
+            assert!(text.contains("could not be saved"), "{text}");
+            assert!(text.contains("git merge --abort is rejected"), "{text}");
+            assert!(text.contains("nothing was changed"), "{text}");
+        }
+        other => panic!("expected a refusal because no index can be read here, got {other:?}"),
+    }
+}
+
+/// An untracked file at a path the restored tree tracks keeps the refusal for an abort,
+///  because Git will not restore that tree while the file is there.
+#[test]
+fn an_untracked_file_the_restored_tree_tracks_keeps_the_refusal() {
+    let scene: Scene = Scene::new("untracked");
+    std::fs::write(scene.root.join("a.txt"), b"resolved by hand\n").expect("the file");
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.abort_discard = Ok(waiting(AbortOperation::Rebase, vec![b"a.txt".to_vec()]));
+    facts.untracked_and_tracked = Ok(vec![String::from("victim.txt")]);
+    match judge_abort_discard(&mut facts, GuardedCommand::AbortRebase, &scene.identity(), 0, limits()) {
+        AbortVerdict::CopyFailed(text) => {
+            assert!(text.contains("victim.txt"), "{text}");
+            assert!(text.contains("Git will not restore that tree"), "{text}");
         }
         other => panic!("expected a refusal, got {other:?}"),
     }
     assert!(!scene.root.join(".git").join(SAVED_DIRECTORY).exists(), "nothing was saved");
+}
+
+/// A skip copies the untracked file at a path its reset writes over,
+///  because Git writes that tree without a word and the file is the person's own work.
+#[test]
+fn a_skip_copies_an_untracked_file_the_restored_tree_tracks() {
+    let scene: Scene = Scene::new("skip-untracked");
+    std::fs::write(scene.root.join("a.txt"), b"resolved by hand\n").expect("the file");
+    std::fs::write(scene.root.join("victim.txt"), b"the person's own file\n").expect("the untracked file");
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.abort_discard = Ok(skipping(AbortOperation::Rebase, vec![b"a.txt".to_vec()]));
+    facts.untracked_and_tracked = Ok(vec![String::from("victim.txt")]);
+    match judge_abort_discard(&mut facts, GuardedCommand::SkipRebase, &scene.identity(), 3, limits()) {
+        AbortVerdict::Allowed { notice, copies } => {
+            assert_eq!(copies.len(), 2, "{copies:?}");
+            let victim: &crate::conflict_sides::SavedCopy = copies.iter().find(|copy| { return copy.path == "victim.txt"; }).expect("a copy of the untracked file");
+            assert_eq!(std::fs::read(victim.saved_to.as_deref().expect("a place")).expect("the copy"), b"the person's own file\n");
+            assert!(notice.contains("git rebase --skip"), "{notice}");
+            assert!(notice.contains("goes on with the next commit"), "{notice}");
+        }
+        other => panic!("expected the skip to run with its copies, got {other:?}"),
+    }
+}
+
+/// A skip saves the hand resolution it drops, and its notice says the operation goes on.
+#[test]
+fn a_skip_saves_the_hand_resolution_and_says_it_goes_on() {
+    let scene: Scene = Scene::new("skip");
+    std::fs::write(scene.root.join("a.txt"), b"resolved by hand\n").expect("the file");
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.abort_discard = Ok(skipping(AbortOperation::Pick, vec![b"a.txt".to_vec()]));
+    match judge_abort_discard(&mut facts, GuardedCommand::SkipPick, &scene.identity(), 5, limits()) {
+        AbortVerdict::Allowed { notice, copies } => {
+            assert_eq!(copies.len(), 1, "{copies:?}");
+            assert_eq!(std::fs::read(copies[0].saved_to.as_deref().expect("a place")).expect("the copy"), b"resolved by hand\n");
+            assert!(notice.contains("git cherry-pick --skip or git revert --skip"), "{notice}");
+            assert!(notice.contains("goes on with the next commit"), "{notice}");
+            assert!(!notice.contains("restores the state before"), "{notice}");
+        }
+        other => panic!("expected the skip to run with its copies, got {other:?}"),
+    }
 }
 
 /// An `am` abort that ends a rebase names the rebase in its refusal,

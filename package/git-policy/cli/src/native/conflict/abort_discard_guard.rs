@@ -30,15 +30,17 @@
 //! // 'left-to-git' | { kind: 'allowed', notice, copies } | { kind: 'copy-failed', text }
 //! ```
 
+use crate::abort_save::{plan_the_last_chance, save_before_the_command};
 use crate::conflict_side_guard::prune_after_save;
-use crate::conflict_sides::{SaveFailure, SavedCopy, save_copies};
+use crate::conflict_sides::{SaveFailure, SavedCopy};
 use crate::discarded_prune::Limits;
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_facts_abort_discard::AbortDiscard;
-use crate::rule_abort_messages::{copy_failed_text, saved_before_abort_notice, staged_content_text};
-use crate::rule_abort_operation::{AbortOperation, aborted_operation, operation_name};
+use crate::rule_abort_messages::{copy_failed_text, saved_before_the_command_notice, untracked_file_text};
+use crate::rule_abort_operation::{AbortOperation, OperationEnd, ended_operation, operation_name};
 use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_linked_worktree_messages::ignored_file_message;
+use crate::transaction_git::GitContext;
 use crate::worktree_identity::WorktreeIdentity;
 
 /// What the policy does with an abort form.
@@ -89,8 +91,8 @@ pub enum AbortVerdict {
 /// ```ts
 /// function copyFailed(operation: AbortOperation, inProgress: AbortOperation, failure: SaveFailure): string;
 /// ```
-fn copy_failed(operation: AbortOperation, in_progress: AbortOperation, failure: &SaveFailure) -> String {
-    return copy_failed_text(operation, in_progress, failure.subject.as_str(), failure.reason.as_str());
+fn copy_failed(operation: AbortOperation, ends: OperationEnd, in_progress: AbortOperation, failure: &SaveFailure) -> String {
+    return copy_failed_text(operation, ends, in_progress, failure.subject.as_str(), failure.reason.as_str(), failure.kind);
 }
 
 /// What:
@@ -136,8 +138,8 @@ pub fn judge_abort_discard(
     milliseconds: i64,
     limits: Limits,
 ) -> AbortVerdict {
-    // Every other guarded form deletes or overwrites by itself, and this carve-out is only about the abort forms.
-    let Some(operation): Option<AbortOperation> = aborted_operation(command) else {
+    // Every other guarded form deletes or overwrites by itself, and this carve-out is only about the forms that end an operation.
+    let Some((operation, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command) else {
         return AbortVerdict::NotApplicable;
     };
     let discard: AbortDiscard = match facts.abort_discard(command) {
@@ -145,9 +147,10 @@ pub fn judge_abort_discard(
         // The state files or the listings could not be read: the usual rejection stands, and nothing is saved or let go.
         Err(_message) => return AbortVerdict::NotApplicable,
     };
-    let AbortDiscard::Waiting { in_progress, restored, index_only, paths } = discard else {
+    let AbortDiscard::Waiting { in_progress, ends: measured_ends, restored, index_only, paths } = discard else {
         return AbortVerdict::LeftToGit;
     };
+    debug_assert!(measured_ends == ends, "the reading of what this form ends is the same one the guard is judging");
     let Some((root, common)) = places(identity) else {
         return AbortVerdict::NotApplicable;
     };
@@ -170,24 +173,48 @@ pub fn judge_abort_discard(
             ));
         }
     }
-    // Content the worktree no longer holds and the index does is work this abort would discard,
-    //  and the save step copies worktree files only: the command is rejected naming the paths.
-    if !index_only.is_empty() {
-        return AbortVerdict::CopyFailed(staged_content_text(operation, in_progress, index_only.as_slice()));
+    // An abort's reset refuses an untracked file at a path the restored tree tracks
+    //  (measured for every abort form with Git 2.56.0): nothing is lost, no copy is owed,
+    //  and the command does not run, so the person is told which file stands in the way and how to move on.
+    //  A skip's reset writes that same tree over the worktree without a word (measured), so the file is copied instead:
+    //  it is the person's own work, and the words above would describe a refusal Git never makes.
+    let mut discarded: Vec<Vec<u8>> = paths;
+    match facts.untracked_files_the_tree_tracks(restored.as_os_str()) {
+        Ok(untracked) if !untracked.is_empty() && ends == OperationEnd::Abort => {
+            return AbortVerdict::CopyFailed(untracked_file_text(operation, ends, in_progress, untracked.as_slice()));
+        }
+        Ok(untracked) => {
+            for path in untracked {
+                discarded.push(path.into_bytes());
+            }
+        }
+        Err(message) => {
+            return AbortVerdict::CopyFailed(format!(
+                "monochromatic-git-policy-cli: {message} The {} in progress still waits, and nothing was saved or changed.",
+                operation_name(in_progress)
+            ));
+        }
     }
-    if paths.is_empty() {
-        // Only the operation's own state is there, which is what the abort is for.
+    if discarded.is_empty() && index_only.is_empty() {
+        // Only the operation's own state is there, which is what the command is for.
         return AbortVerdict::Allowed { notice: String::new(), copies: Vec::<SavedCopy>::new() };
     }
-    match save_copies(root, common, paths.as_slice(), milliseconds) {
-        Ok(copies) => {
-            let unpruned: String = prune_after_save(common, copies.as_slice(), milliseconds, limits);
+    // Content the worktree no longer holds and the index does is copied from the index itself,
+    //  beside the worktree copies and named for the stage it came from: a refusal here would stop a command
+    //  whose content a copy makes safe.
+    let git: GitContext = facts.transaction_context();
+    match save_before_the_command(root, common, &git, discarded.as_slice(), index_only.as_slice(), milliseconds) {
+        Ok(saved) => {
+            if let Some(plan) = saved.plan.clone() {
+                plan_the_last_chance(plan);
+            }
+            let unpruned: String = prune_after_save(common, saved.copies.as_slice(), milliseconds, limits);
             return AbortVerdict::Allowed {
-                notice: format!("{}{unpruned}", saved_before_abort_notice(operation, in_progress, copies.as_slice())),
-                copies,
+                notice: format!("{}{unpruned}", saved_before_the_command_notice(operation, ends, in_progress, saved.copies.as_slice())),
+                copies: saved.copies,
             };
         }
-        Err(failure) => return AbortVerdict::CopyFailed(copy_failed(operation, in_progress, &failure)),
+        Err(failure) => return AbortVerdict::CopyFailed(copy_failed(operation, ends, in_progress, &failure)),
     }
 }
 

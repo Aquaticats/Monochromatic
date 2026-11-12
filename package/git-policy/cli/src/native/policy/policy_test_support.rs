@@ -58,6 +58,8 @@ pub(crate) struct ScriptedFacts {
     pub(crate) selection: Result<StagedSelection, String>,
     /// The answer to `ignored_files_the_tree_tracks`.
     pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
+    /// The answer to `untracked_files_the_tree_tracks`.
+    pub(crate) untracked_and_tracked: Result<Vec<String>, String>,
     /// The paths the dry run of the clean as typed names,
     ///  which is the one carrying the clean's own exclusion patterns.
     pub(crate) clean_deletes: Result<Vec<Vec<u8>>, String>,
@@ -158,6 +160,11 @@ impl RepositoryFacts for ScriptedFacts {
             revision.unwrap_or(OsStr::new("HEAD")).to_string_lossy()
         ));
         return self.ignored_and_tracked.clone();
+    }
+
+    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String> {
+        self.asked.push(format!("untracked-and-tracked:{}", revision.to_string_lossy()));
+        return self.untracked_and_tracked.clone();
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -291,6 +298,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         // so the main checkout of a region that refuses there is `/r`.
         main_worktree: Ok(PathBuf::from("/r")),
         ignored_and_tracked: Ok(Vec::<String>::new()),
+        untracked_and_tracked: Ok(Vec::<String>::new()),
         clean_deletes: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
         asked: Vec::<String>::new(),

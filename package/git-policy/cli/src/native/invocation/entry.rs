@@ -20,7 +20,9 @@ use crate::entry_forward_action_planning::forward_action;
 use crate::entry_push_stacking_and_lfs_upload::stack_if_push;
 use crate::exit_report_written::write_exit;
 use crate::entry_run_forwarded_actions::{finish_forwarded, run_announced, run_coordinated_action, write_stream};
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
+use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, REJECTED_EXIT_CODE, failure, with_leading_notice};
+/// The last comparison of a saved file, made immediately before Git starts.
+use crate::abort_save::save_again_before_the_command;
 use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement};
 use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use crate::child_environment::{
@@ -372,8 +374,21 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
             overlay,
             stderr,
         } => {
-            // Warning events reach the caller before Git's own output.
-            write_stream(&mut std::io::stderr(), stderr.as_str());
+            // The last comparison of the files an abort or a skip copied, immediately before the command the person typed,
+            //  so a write that landed after the copy is copied again; a source that will not hold still stops the command here.
+            match save_again_before_the_command() {
+                Ok(said) => {
+                    // Warning events reach the caller before Git's own output.
+                    write_stream(&mut std::io::stderr(), stderr.as_str());
+                    if let Some(extra) = said.as_deref() {
+                        write_stream(&mut std::io::stderr(), extra);
+                    }
+                }
+                Err(refusal) => {
+                    write_stream(&mut std::io::stderr(), refusal.as_str());
+                    return REJECTED_EXIT_CODE;
+                }
+            }
             let error: std::io::Error = replace_process_with_real_git(
                 real_git.as_path(),
                 forwarded.as_slice(),
