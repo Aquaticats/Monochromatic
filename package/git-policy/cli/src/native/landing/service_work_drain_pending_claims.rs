@@ -203,17 +203,23 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     housekeeping: Duration,
 ) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
+    // What this look's caller must look at this directory again for, gathered as the look goes.
+    let mut look_again: Option<Duration> = None;
     // A claim whose holder stopped renewing it is taken back before this look claims anything, so a look taken at the end of a
     //  claim finds the record `pending` and runs it again: the lease is what a retry waits for, and a look that did not take
     //  the claim back would find nothing to do and answer the same wait for ever.
-    requeue_expired_awaiting(work_dir.as_path(), git_dir, now, lease).await;
+    if !requeue_expired_awaiting(work_dir.as_path(), git_dir, now, lease).await {
+        // The step that takes expired claims back got no place, so nothing here was claimed either, and no record of this
+        //  directory names a moment to come back for: the round names the pause itself, as it does for a claim step that
+        //  got none, or the taking back waits for a wake nothing sends.
+        look_again = Some(LOOK_AGAIN_AFTER_DEFERRING);
+    }
     let (the_claims, renewer) = held_claims(work_dir.as_path());
     let mut held: HeldClaims = the_claims;
     // The housekeeping this round may still start, and what it left for a later round.
     let slice: HousekeepingOfOneRound = HousekeepingOfOneRound::starting_now(housekeeping);
     let mut housekeeping_has_started: bool = false;
     let mut left_for_a_later_round: Vec<Claimed> = Vec::new();
-    let mut look_again: Option<Duration> = None;
     let renewing: ClaimRenewal = match renewal {
         Renewal::Timed => ClaimRenewal::start(renewer, renewal_interval(lease)),
         Renewal::Driven(driver) => ClaimRenewal::driven(renewer, driver),

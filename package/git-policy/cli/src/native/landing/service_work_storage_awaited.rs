@@ -393,33 +393,40 @@ pub(crate) async fn next_claim_expiry_awaiting(work_dir: &Path, now: &ClaimTime,
 
 /// What:
 ///  Take back the claims of records whose holder stopped renewing them,
-/// and leave a notice for the person about each record given up on.
+/// and leave a notice for the person about each record given up on,
+///  answering whether the step ran.
 /// Why:
 ///   It lists the claim names and the states and moves records,
 /// which is storage;
 /// a lookup of the person's notice is written from
 ///  inside the same step (`SkipNotice`),
 /// so the words of a place that could not be reached are said where they are learned.
+///  The answer is the same one the claim step gives the round:
+/// a step that got no place claimed nothing,
+///  and every pending record of this directory then waits for a wake nothing sends unless the round names its own pause.
+///  It takes the ceiling the claim steps take, which is `AFTER_COMMIT_STATE_CEILING` unless a control states another,
+/// because taking a claim back is one of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await requeueExpiredAwaiting(workDir, gitDir, now, lease)
+/// const ran = await requeueExpiredAwaiting(workDir, gitDir, now, lease)
 /// ```
-pub(crate) async fn requeue_expired_awaiting(work_dir: &Path, git_dir: &Path, now: &ClaimTime, lease: Duration) {
+pub(crate) async fn requeue_expired_awaiting(work_dir: &Path, git_dir: &Path, now: &ClaimTime, lease: Duration) -> bool {
     let directory: PathBuf = work_dir.to_path_buf();
     let repository: PathBuf = git_dir.to_path_buf();
     let reading: ClaimTime = now.clone();
     // A record given up on is a notice about this repository, which the job says with its own path so nothing is lent to it.
-    match a_storage_step_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, "the taking back of claims whose holder stopped renewing them", "none is taken back", move || {
+    return match a_storage_step_awaited_no_longer_than(the_claim_steps_ceiling(), "the taking back of claims whose holder stopped renewing them", "none is taken back", move || {
         let _recovered: Recovered = requeue_expired_reporting_telling(directory.as_path(), &reading, lease, MAX_TRIES, &SkipNotice(repository.as_path()));
     })
     .await
     {
-        Ok(()) => {}
+        Ok(()) => true,
         Err(said) => {
             refused(said.as_str());
+            false
         }
-    }
+    };
 }
 
 /// What:
