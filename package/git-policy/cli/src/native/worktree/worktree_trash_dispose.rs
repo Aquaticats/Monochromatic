@@ -404,22 +404,41 @@ fn remove_the_trash_parent(state: (&File, &Path)) -> std::io::Result<()> {
 }
 
 /// What:
-///  Remove the manifest file from the trash,
-///  only while the name still holds the object whose bytes were read as that manifest.
+///  The name the manifest is taken to while the emptying decides whether it is the file that was read.
 /// Why:
-///   A name can be taken between the read and the unlink,
-/// and nothing in the kernel makes the two one step;
-/// comparing the
-///  identity means the file that is removed is one that was examined,
-/// and a file another process moved onto the name
-///  keeps the whole directory and is reported instead.
+///   The take is one rename inside the trash the emptying is about to remove,
+/// so it reaches nothing outside it,
+/// and the name says what happened to a file the emptying found there and would not remove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function removeTheManifest(trash, inside, expected) { const outcome = removeIfIdentical(trash, '.manifest', expected); if (outcome !== 'removed' && outcome !== 'absent') throw kept(`the manifest inside ${inside} ...`); }
+/// const MANIFEST_TAKEN_NAME = '.manifest.removing';
+/// ```
+const MANIFEST_TAKEN_NAME: &str = ".manifest.removing";
+
+/// What:
+///  Remove the manifest file from the trash,
+///  only while the object it takes is the one whose bytes were read as that manifest.
+/// Why:
+///   A name can be taken between the read and the removal,
+/// and nothing in the kernel makes the two one step;
+/// the removal takes the name with one rename,
+/// so the object it removes is the one it examined,
+/// and a file another process moved onto the name
+///  keeps its bytes at that name
+/// and keeps the whole directory, which is reported instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removeTheManifest(trash, inside, expected) { const outcome = takeThenRemoveIfIdentical(trash, '.manifest', MANIFEST_TAKEN_NAME, expected); if (outcome !== 'removed' && outcome !== 'absent') throw kept(`the manifest inside ${inside} ...`); }
 /// ```
 fn remove_the_manifest(trash: &File, inside: &Path, expected: crate::fs_beneath::ObjectId) -> Result<(), TrashLeft> {
-    return match crate::fs_beneath::remove_if_identical(trash, std::ffi::OsStr::new(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME), expected) {
+    return match crate::fs_beneath::take_then_remove_if_identical(
+        trash,
+        std::ffi::OsStr::new(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME),
+        std::ffi::OsStr::new(MANIFEST_TAKEN_NAME),
+        expected,
+    ) {
         Ok(crate::fs_beneath::Owned::Removed | crate::fs_beneath::Owned::Absent) => Ok(()),
         Ok(crate::fs_beneath::Owned::Kept(reason)) => Err(TrashLeft::kept(format!(
             "the manifest inside {} is not the file that was read as it ({reason}), so the trash directory is left alone",

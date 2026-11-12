@@ -102,7 +102,7 @@ pub fn write(root: &Path, manifest: &TrashManifest) -> Result<(), String> {
 /// Why:
 ///   The bytes say which trash the leave-out made,
 /// and the identity of the file they were read through is what the emptying compares again
-///  before it unlinks that file,
+///  on the object it takes the name to before it removes that object,
 /// so a file another process moved onto the name is never removed unread.
 ///
 /// In TS you'd write (pseudocode):
@@ -154,7 +154,7 @@ pub fn read(root: &Path, name: &str) -> Option<TrashManifest> {
 /// The identity is taken from the handle the bytes were read through:
 /// a file moved onto the name after the read is
 ///  another object,
-/// and the emptying compares this identity again immediately before it unlinks,
+/// and the emptying takes the name to a name of its own and compares this identity on what it took,
 /// so the file it removes
 ///  is the one it examined.
 ///

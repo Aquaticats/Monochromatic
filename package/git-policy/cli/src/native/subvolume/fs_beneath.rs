@@ -10,7 +10,8 @@
 //! rename them,
 //! publish an open
 //!  file under a new name without replacing anything,
-//! and remove a lock file whose identity is the one that was recorded.
+//! remove a lock file whose identity is the one that was recorded,
+//! and take an entry under a name of its own so that only the object whose identity was recorded is removed.
 //! Why:
 //!  A path string is resolved again by every call that takes it,
 //! so a directory swapped for a link between two calls
@@ -419,11 +420,96 @@ pub fn remove_if_identical(dir: &File, name: &OsStr, expected: ObjectId) -> std:
     if entry_metadata_at(dir, name)?.is_dir() {
         return Ok(Owned::Kept(format!("{} is a directory and is not removed", name.to_string_lossy())));
     }
+    #[cfg(test)]
+    WHILE_THE_ENTRY_IS_DECIDED.with(|hook| {
+        if let Some(intervene) = hook.borrow().as_ref() {
+            intervene();
+        }
+    });
     return match remove_at(dir, name, false) {
         Ok(()) => Ok(Owned::Removed),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Owned::Absent),
         Err(error) => Err(error),
     };
+}
+
+/// What:
+///  Remove the entry `name` of `dir` only while it is the object with identity `expected`,
+///  by taking the name with one rename and removing only what that rename carried,
+///  and answer with what happened to it.
+/// Why:
+///   `remove_if_identical` looks at the name and unlinks the name,
+/// and nothing in the kernel makes those one step,
+/// so a file another process moves onto the name between them is unlinked without ever being read,
+/// which is another process's bytes gone and a work item reported done.
+/// Taking the name first is one step that decides which object the removal is about:
+/// an object that is not `expected` is put back under its own name,
+/// and a file moved onto the name afterwards stays there,
+/// while the entry the removal was given is the one it unlinks.
+///   This is never how a lock is released:
+/// the name of a lock must not be absent while its holder works,
+/// or a second writer takes it,
+/// so a lock keeps `remove_if_identical` and its own protocol.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await takeThenRemoveIfIdentical(dir, '.manifest', '.manifest.removing', expected);
+/// ```
+pub fn take_then_remove_if_identical(dir: &File, name: &OsStr, taken: &OsStr, expected: ObjectId) -> std::io::Result<Owned> {
+    match rename_at(dir, name, dir, taken, false) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Owned::Absent),
+        // Nothing is touched when the name the entry is taken to is already taken: the entry the caller named keeps its
+        //  bytes and its name, and the reason says which name was in the way.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Ok(Owned::Kept(format!("the name it is taken to, {}, already holds an entry", taken.to_string_lossy())));
+        }
+        Err(error) => return Err(error),
+    }
+    #[cfg(test)]
+    WHILE_THE_ENTRY_IS_DECIDED.with(|hook| {
+        if let Some(intervene) = hook.borrow().as_ref() {
+            intervene();
+        }
+    });
+    let found: ObjectId = match identity_at(dir, taken) {
+        Ok(known) => known,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Owned::Kept(format!("{} was removed while it was examined", name.to_string_lossy()))),
+        Err(error) => return Err(error),
+    };
+    let refusal: Option<String> = match entry_metadata_at(dir, taken) {
+        Ok(examined) => {
+            if found != expected {
+                Some(format!("{} is not the object that was made ({} against {})", name.to_string_lossy(), found.encode(), expected.encode()))
+            } else if examined.is_dir() {
+                Some(format!("{} is a directory and is not removed", name.to_string_lossy()))
+            } else {
+                None
+            }
+        }
+        Err(error) => Some(format!("{} cannot be examined ({error})", name.to_string_lossy())),
+    };
+    if let Some(reason) = refusal {
+        // What was taken goes back under its own name, so a refusal leaves the entry exactly where it was; one that cannot
+        //  be put back stays at the taken name, which the reason says, and is never deleted.
+        return Ok(match rename_at(dir, taken, dir, name, false) {
+            Ok(()) => Owned::Kept(reason),
+            Err(error) => Owned::Kept(format!("{reason}, and it stays at {} because it cannot be put back ({error})", taken.to_string_lossy())),
+        });
+    }
+    return match remove_at(dir, taken, false) {
+        Ok(()) => Ok(Owned::Removed),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Owned::Absent),
+        Err(error) => Err(error),
+    };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may put another file at the name on this thread while the entry that was there is being decided,
+    /// between the identity the removal was given and the call that takes the name,
+    ///  where a process that renames onto the name can slip in.
+    pub(crate) static WHILE_THE_ENTRY_IS_DECIDED: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:

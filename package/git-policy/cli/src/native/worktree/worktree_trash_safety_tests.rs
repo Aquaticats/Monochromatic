@@ -353,6 +353,43 @@ fn a_manifest_naming_another_trash_keeps_its_file_and_the_trash() {
 }
 
 /// What:
+///  A file another process moves onto the manifest's name while the emptying runs
+///  is left where it is,
+///  and the emptying reports the trash instead of done.
+/// Why:
+///   The identity of the manifest is compared and the name is unlinked in two steps,
+/// and nothing in the kernel makes them one;
+/// a file renamed onto the name between them is a file the emptying never read,
+/// so an unlink of the name then deletes bytes of somebody else's and the work item reports done.
+/// The file is left at the name it was moved to,
+/// and the trash directory stays with it.
+#[test]
+fn a_file_moved_onto_the_manifest_name_while_the_emptying_runs_is_left_alone() {
+    let name: String = "d".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-manifest-arrives", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let inside: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let at_the_name: PathBuf = inside.join(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME);
+    let theirs: &[u8] = b"somebody else's bytes\n";
+    let replacement: PathBuf = root.join("replacement");
+    std::fs::write(replacement.as_path(), theirs).expect("a file of somebody else's");
+    crate::fs_beneath::WHILE_THE_ENTRY_IS_DECIDED.with(|hook| {
+        let theirs_at_the_name: PathBuf = at_the_name.clone();
+        hook.replace(Some(Box::new(move || {
+            std::fs::rename(replacement.as_path(), theirs_at_the_name.as_path()).expect("a rename onto the name while the emptying runs");
+        })));
+    });
+    let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
+    let survived: Option<Vec<u8>> = std::fs::read(at_the_name.as_path()).ok();
+    crate::fs_beneath::WHILE_THE_ENTRY_IS_DECIDED.with(|hook| {
+        hook.replace(None);
+    });
+    assert!(matches!(verdict, Verdict::Failed(_)), "the file that was never read is not removed, and the emptying answered {verdict:?}");
+    assert_eq!(survived.as_deref(), Some(theirs), "and the bytes that were moved onto the name stay there");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A trash whose record the service already settled is named as one nothing will empty,
 ///  even though the trash says what it is,
 ///  and no second record is invented for it.

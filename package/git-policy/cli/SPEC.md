@@ -1630,8 +1630,9 @@ the trash has the recorded identity (device,
 inode and birth time,
 taken when it was made);
 the file at the manifest's name is that trash's own only when the identity it records is the directory's,
-and it is unlinked only while the name still holds the object whose bytes were read there,
-so a file moved onto that name is left alone and named in the failure;
+and it is removed only as the object the emptying takes under a second name inside that trash,
+so the object it unlinks is the one it examined,
+and a file moved onto that name is left alone and named in the failure;
 and each
  entry removed is the recorded object (a replacement,
 a link or anything unrecorded is left alone and named in the
@@ -1717,7 +1718,8 @@ a directory of the new worktree that another
 process replaces,
 moves or links elsewhere while the leave-out or the emptying runs is guarded only by the cheap checks above
 (opening without following links,
-comparing identities when an object is opened);
+comparing identities when an object is opened,
+and taking an entry under a name of its own before that comparison);
 the wrapper builds nothing further against
 it and does not promise to survive it.
 A snapshot of the main checkout does not print the copy summary,
