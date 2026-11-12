@@ -135,6 +135,143 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### How far the protection of a worktree being removed reaches; free space; the second and third audits of 0.6.1-alpha.14 (2026-11-12T13:04:14-05:00)
+
+#### How far the protection of a worktree being removed reaches
+
+- The third Sonnet audit reported that the automatic removal of a landed worktree destroys a person's files with it.
+  The owner, typed at about 12:58:
+  "If someone puts personal data in worktrees, they deserve the data loss."
+- Asked through the question tool how far that reaches, with the audit's four cases named. The picks:
+  "Keep Git work only (Recommended)";
+  for a typed unforced `git worktree remove`, "Same rule for both (Recommended)";
+  and, asked separately because the first option's text had listed untracked files among what goes,
+  "Still spare untracked (Recommended)".
+- So, for the automatic removal and for a typed unforced removal alike:
+  - Git work is never destroyed by a removal:
+    a commit that no reference holds, and an edit to a tracked file, however it is hidden (`assume-unchanged`, `skip-worktree`).
+  - An untracked file that is not ignored and stands directly in the worktree keeps the worktree, as today:
+    the automatic removal leaves it and removes it later by itself; a typed unforced removal refuses as real Git does.
+  - Everything else a person put into the worktree goes with it and is logged:
+    ignored files and whole ignored directories,
+    a nested repository even when its commits exist nowhere else,
+    the untracked and ignored files of a nested worktree.
+  - Unchanged: a worktree a live process works in is refused with an opt-out;
+    a subvolume or mount the wrapper did not make is removed around.
+- This session's additions, open to veto:
+  a typed removal never does more than real Git does without `--force`;
+  a nested repository that goes is logged with its path and the tips of its branches.
+- It withdraws this session's adoption of 11:58:45 that a nested worktree with an untracked file is refused.
+- Sent at 13:06 to the three runs on removal
+  (`~/temp/agent/notes-to-send/2026-11-12T1306-how-far-the-protection-of-a-worktree-being-removed-reaches.md`);
+  the brief of round 311 was corrected before its run read it or is corrected by that note.
+
+#### Free space: the owner freed it
+
+- 101 GiB at 12:31:17, 543 GiB at 12:51:21, 572 GiB at 13:04:14.
+- The owner, at about 12:57: "I deleted all my Steam games and moved a bit more data to the main drive."
+- Before that message this session checked that nothing of the work had gone:
+  the volume's top-level folders, the 259 entries of the build base and the 143 worktrees were all there.
+- The launcher's 100 GiB gate no longer holds anything back.
+  The size of a build tree stays the limit on how many agents can work; the measurement run goes on.
+
+#### The second Sonnet audit: commit, landing, commit service, push, changeover
+
+- Ended at about 12:35. Its summary was saved by this session as
+  `~/temp/agent/sonnet-audits/alpha-14-commit-landing-service-push-and-changeover/report.md`
+  (the harness refused the auditor's write). All five findings were reproduced against a wrapper built from the release.
+- F3: a push held by a server hook that never answers is never ended,
+  because Git's keepalive packets (about 20 bytes every 20 s) reset the stall window;
+  pushes of later commits wait behind it.
+  Sent to `push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window-1` at 12:48:29.
+- F2: a push whose wake was lost (the client killed between promoting the record and waking the service) is never made
+  by a running service, while every command says "queued ... needs no further commit"; 229 s without a push.
+  Round 310, `pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost`.
+- F1: single-file commits of 6 s to 9 s in about one run in twenty (`git fast-import` 5.4 s of one), under `IOWeight=10`.
+  F4: 10000 changed files, 4.1 s to 13.5 s against 0.35 s to 0.58 s.
+  Both sent to `commit-does-not-list-every-reference-on-the-path-it-waits-on-1` at 12:48:29;
+  F4 also has a run of its own in round 310,
+  `commit-of-many-changed-files-is-made-within-five-seconds-of-real-git`.
+- F5: `git add`, `rm` or `mv` against a killed service's index lock prints the same notice 50 times in 110 ms
+  (`service_hold_retry.rs`, `run_again_within`).
+  It belongs to `index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone-1`; the note goes when that run is up.
+- Read, not reproduced: a path written unescaped into the journal's `paths=` line; temporary files left by a kill before a rename.
+  Round 310, `journal-line-of-a-commit-carries-any-path-safely-and-no-temporary-file-outlives-a-kill`.
+- What held: a kill at nine fault points of the service, 55 commit forms against real Git,
+  24 simultaneous commits over three worktrees (slowest 481 ms), the changeover between releases.
+
+#### The third Sonnet audit: worktree add, remove, the landed sweep
+
+- Ended at about 12:55. Saved as `~/temp/agent/sonnet-audits/alpha-14-worktree-add-remove-and-landed-sweep/report.md`.
+- F1 (files in an ignored directory and a nested repository go with a landed worktree):
+  decided behaviour since 13:04:14, to be logged.
+- F2 (a detached nested worktree destroyed with its commit), F6 (a commit made after the hand-over destroyed),
+  F3 (an edit hidden by `assume-unchanged` or `skip-worktree` destroyed): Git work, to be fixed.
+  Round 311, started 12:57,
+  `landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit`
+  (the name says more than the decision; the brief is corrected).
+- F4 (a person's btrfs snapshot deleted on the service route, refused on the in-merge route):
+  with `removal-goes-around-a-subvolume-or-mount-it-did-not-make-1`.
+- F7 (an add killed while its snapshot is made leaves a stage the wrapper does not recognise as its own,
+  and every command there repeats "remove it yourself ... `btrfs subvolume delete`"; six of eight kills in that window stuck):
+  for `snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own-1`.
+- The audit's adds took 3.5 s to 30.7 s.
+
+#### Second readings of the ten runs that ended since 11:10
+
+- `~/temp/agent/digest-2026-11-12T1216-work/digest.md` and `~/temp/agent/digest-2026-11-12T1216-reviews/digest.md`.
+- From the work runs:
+  - The false line "The interrupted removal of ... cannot be finished ... Run `git worktree prune`" was printed into other agents' commands five times,
+    twice under 0.6.1-alpha.15.
+    Only the landed-removal second pass fixes it, and that branch is not in pass 18.
+  - The landed-removal second pass closed all seven items of its brief with each fix shown failing first,
+    but its "Everything is green" is not true: a `max-lines` lint error and a wide `landing::` run with 7 failed and 20 timed out.
+    It conflicts with `main` in seven files, and with the held-commit keeper's branch in four.
+    The two go into one continuation, then into the pass after 18.
+  - The held-commit keeper is still missing from `main` and from pass 18's tip;
+    its loss was reproduced only with a held record planted by hand.
+  - The fast-forward carry still lacks an opt-out on its new refusal and leaves a false claim at `README.md:3199-3202`.
+  - The exempt-repository run refuses and saves no copy; it is 471 commits behind `main`,
+    and its refusal tests were never run on the unfixed code.
+  - The tokio run added 47 files of awaited faces that nothing calls yet; the batch body is not converted.
+  - A linked worktree overwrites a person's untracked file with exit 0 under `reset --hard`, `read-tree --reset -u`,
+    `mv --force` and `checkout-index --force --prefix` (probed on 0.6.1-alpha.13; not re-checked on alpha.15).
+- From the reviews:
+  - The review of the commit that concludes a merge ("no concrete defects") ran only library unit tests,
+    on a base 189 commits behind `main`, and no built wrapper.
+    By the decision of 12:26:24 it is started again once the read-check exists; it does not hold pass 18.
+  - The discard-guard review's first finding loses data whatever the guard does:
+    `restore --source=other --pathspec-from-file` and `checkout other --pathspec-from-file` overwrite a file
+    the guard's reading of written paths never sees (`command_written_paths.rs:328`, `:344`, `:205` to `:213`).
+    For the agent rebuilding the guard.
+  - The review of the second merge ended by its own `kill -9` loop, which matched its own folder name and killed its Pi process.
+    Its review file is final.
+  - The review of the commit that does not land names four places that touch the service manager,
+    to be read again when that branch moves onto the fix for issue 6286.
+  - The descriptor-scan review's race is unproven against the installed release (a standalone harness only).
+
+#### Left behind by two reviews, cleaned at 13:07
+
+- A review's built wrapper had reached the real user manager
+  (it did not unset `DBUS_SESSION_BUS_ADDRESS`):
+  `monochromatic-git-policy-cli@e70b454686a58493cf811805d63e506d.socket` listened from 11:09:49 for a fixture repository that was gone.
+  Checked (`Listen=` names that instance's socket, the service inactive), then stopped by its exact name.
+  No manager reload is in the journal for that minute.
+- `review-dbg3.scope`, failed with `Result=timeout`, was cleared with `systemctl --user reset-failed review-dbg3.scope`.
+- Two defects this shows, tracked here:
+  a review brief has to make a built wrapper unable to reach the real manager, not only ask for it;
+  and a socket unit of a worktree that no longer exists stays listening until someone stops it.
+
+#### Round 310, started 12:51:21
+
+- `pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost`,
+  `commit-of-many-changed-files-is-made-within-five-seconds-of-real-git`,
+  `journal-line-of-a-commit-carries-any-path-safely-and-no-temporary-file-outlives-a-kill`, all on `main`.
+
+#### Still running at 13:04:14
+
+- The run for issue 6286 and integration pass 18 (both units active).
+
 ### The owner's answers of 2026-11-12T12:26:24-05:00, through the question tool: who reviews, a file mode through a merge, what Git refuses, how far publishing reaches; and the first audit of 0.6.1-alpha.14
 
 The answers were read before 12:26:24.
