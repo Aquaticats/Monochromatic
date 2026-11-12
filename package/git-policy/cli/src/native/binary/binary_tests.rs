@@ -175,14 +175,31 @@ mod conflict_side;
 #[path = "binary_discard_tests.rs"]
 mod discard;
 
+/// The remote settings every worktree of a repository shares:
+/// refused from a linked worktree,
+/// unchanged in the main checkout,
+/// and readable everywhere.
+#[path = "binary_shared_remote_tests.rs"]
+mod shared_remote;
+
 /// A clone made with `--no-checkout` has no index file,
 /// and the guard of uncommitted work lets its first checkout run.
 #[path = "binary_no_checkout_clone_tests.rs"]
 mod no_checkout_clone;
 
+/// A clone a build script made in its own output directory belongs to the build step,
+/// so the guard of uncommitted work exempts it.
+#[path = "binary_build_script_clone_tests.rs"]
+mod build_script_clone;
+
 /// The hints of blocks outside the discard guard reach the caller beside an unchanged message.
 #[path = "binary_hint_tests.rs"]
 mod hints;
+
+/// Every command a message prints as a remedy runs as printed,
+/// in the state that prints it.
+#[path = "binary_printed_remedies_tests.rs"]
+mod printed_remedies;
 
 /// `markdown/autofix` with the linter built from this repository,
 ///  a missing one and a failing one.
@@ -243,6 +260,12 @@ mod merge_carries_edits;
 #[path = "binary_merge_carries_edits_kill_tests.rs"]
 mod merge_carries_edits_kill;
 
+/// Another command landing a commit on the branch while a landed merge still carries:
+/// the later commit stands,
+/// and the person's work is merged onto the branch as it is now.
+#[path = "binary_merge_carries_edits_moved_tests.rs"]
+mod merge_carries_edits_moved;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.
@@ -279,6 +302,12 @@ mod pull_isolation;
 /// A merge that waits for a held `index.lock` and lands on a branch that moved underneath it.
 #[path = "binary_merge_never_fails_tests.rs"]
 mod merge_never_fails;
+
+/// The lines a merge prints about a path it kept whole,
+/// and the commands in them,
+/// run as the person's shell reads them.
+#[path = "binary_merge_notice_tests.rs"]
+mod merge_notice;
 
 /// Real commits through the transaction:
 /// landing,
@@ -381,6 +410,12 @@ mod worktree_dirty_snapshot;
 #[path = "binary_worktree_checkout_workers_tests.rs"]
 mod worktree_checkout_workers;
 
+/// The commit a reference lock holds in a linked worktree:
+/// a removal or a prune keeps it where Git cannot reach it,
+/// and a removal stops when no reference can hold it.
+#[path = "binary_worktree_removal_held_commit_tests.rs"]
+mod worktree_removal_held_commit;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
@@ -422,6 +457,13 @@ mod push_scope;
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
 
+/// The configuration of a push,
+/// given on its command line,
+/// reaches the real `git-lfs` upload,
+/// so an object reaches the remote the ref is published to.
+#[path = "binary_lfs_command_scope_tests.rs"]
+mod lfs_command_scope;
+
 /// Traditional hooks never run through the wrapper,
 /// and `git monochromatic-git-policy-cli doctor` explains the Git LFS shims.
 #[path = "binary_hooks_off_tests.rs"]
@@ -449,6 +491,12 @@ mod fault;
 /// for controls that signal or limit it.
 #[path = "binary_fault_run.rs"]
 mod fault_run;
+
+/// The hang guard of those runs:
+/// a command that keeps moving is left alone,
+/// and one that stops moving is ended with the words that name the silence.
+#[path = "binary_fault_run_tests.rs"]
+mod fault_run_guard;
 
 /// Signals sent to the wrapper alone and to its process group.
 #[path = "binary_fault_signal_tests.rs"]
@@ -549,6 +597,12 @@ mod push_queued_after_a_killed_wrapper;
 #[path = "binary_held_push_carried_by_a_later_push_tests.rs"]
 mod held_push_carried_by_a_later_push;
 
+/// A landed commit whose command died before it settled the push record:
+/// the verdict it left settles the record,
+/// and a record with none names the command and what sends the commit.
+#[path = "binary_held_push_settled_by_the_verdict_tests.rs"]
+mod held_push_settled_by_the_verdict;
+
 /// A commit a post-commit gate refused:
 /// it stays local past the next commit of its branch,
 /// and every command names the commit and the check that hold the branch back.
@@ -625,6 +679,18 @@ mod service_landing_state;
 #[path = "binary_service_landing_lock_tests.rs"]
 mod service_landing_lock;
 
+/// The abort forms while the operation they undo waits for its conflicts:
+/// what runs,
+/// what is saved first,
+/// and what is left to Git.
+#[path = "binary_abort_during_an_operation_tests.rs"]
+mod abort_during_an_operation;
+
+/// The rerere cache a concluded merge leaves behind,
+/// compared with real Git.
+#[path = "binary_merge_rr_cleanup_tests.rs"]
+mod merge_rr_cleanup;
+
 /// The timing record of a wrapped commit and the service's log lines,
 /// which split a slow commit by phase.
 #[path = "binary_commit_timing_tests.rs"]
@@ -640,11 +706,29 @@ mod service_lane;
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
 
+/// The pool of finished shadow repositories of a worktree Git no longer lists:
+/// a wrapped command removes it,
+/// and one of a worktree Git lists never.
+#[path = "binary_shadow_pool_tests.rs"]
+mod shadow_pool;
+
+/// A pooled shadow member the commit refuses:
+/// nothing on the terminal,
+/// and the refusal named in the commit's own timing record.
+#[path = "binary_shadow_pool_refusal_tests.rs"]
+mod shadow_pool_refusal;
+
 /// The ends of the waits on the commit path:
 /// a commit withdrawn at its bound never lands,
 /// not even after a restart of the service.
 #[path = "binary_service_withdraw_tests.rs"]
 mod service_withdraw;
+
+/// A commit service whose runtime build outlasted its deadline:
+/// the commit lands through it,
+/// and its log names the stand-in.
+#[path = "binary_service_late_runtime_build_tests.rs"]
+mod service_late_runtime_build;
 
 /// The client's wait for the commit service:
 /// heartbeats,

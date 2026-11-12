@@ -9,10 +9,11 @@ fn entry(key: &str, value: Option<&str>) -> ListedEntry {
 }
 
 /// No configuration:
-/// the monitor is off and the untracked cache is kept.
+/// the monitor is off,
+/// the untracked cache is kept and the trailing hash is written.
 #[test]
 fn an_empty_configuration_keeps_the_extensions_and_has_no_monitor() {
-    assert_eq!(read_settings(&[]), Some(IndexSettings { monitor: false, untracked: UntrackedMode::Keep, shared_repository: 0 }));
+    assert_eq!(read_settings(&[]), Some(IndexSettings { monitor: false, untracked: UntrackedMode::Keep, shared_repository: 0, skip_hash: false }));
 }
 
 /// `core.fsmonitor` as a true value,
@@ -47,12 +48,60 @@ fn core_untrackedcache_is_read_as_git_reads_it() {
 /// boolean ones decline only when true.
 #[test]
 fn keys_the_update_does_not_reproduce_decline() {
-    for key in ["core.splitindex", "index.sparse", "index.skiphash", "index.threads", "index.recordoffsettable", "index.recordendofindexentries", "core.hookspath", "core.worktree"] {
+    for key in ["core.splitindex", "index.sparse", "index.threads", "index.recordoffsettable", "index.recordendofindexentries", "core.hookspath", "core.worktree"] {
         assert_eq!(read_settings(&[entry(key, Some("1"))]), None, "{key}");
     }
-    for key in ["core.sparsecheckout", "core.ignorecase", "feature.manyfiles"] {
+    for key in ["core.sparsecheckout", "core.ignorecase"] {
         assert_eq!(read_settings(&[entry(key, Some("true"))]), None, "{key} true");
         assert!(read_settings(&[entry(key, Some("false"))]).is_some(), "{key} false");
+    }
+}
+
+/// What:
+///  `feature.manyFiles` is the three defaults Git makes of it (`git-config` of Git 2.56.0:
+///  a version 4 index file,
+///  the untracked cache and a skipped trailing hash),
+///  and `core.untrackedCache` or `index.skipHash` beside it stands
+///  only where Git's own reader replaces the default with the key's value.
+/// Why:
+///   A repository that adopts Git's setting for a large checkout must keep the in-process index update,
+///  which declines every configuration it cannot reproduce,
+///  and it must not write an index Git would have written differently.
+///  `repo-settings.c` of Git 2.56.0 sets the untracked cache to add from `feature.manyFiles` first and reads
+///  `core.untrackedCache` afterwards,
+///  where `keep` is a value `git_parse_maybe_bool` refuses,
+///  so `keep` leaves the added default in place while `true` and `false` replace it;
+///  `index.skipHash` is read with the `feature.manyFiles` value as its default,
+///  so an explicit boolean there always wins.
+#[test]
+fn feature_manyfiles_sets_git_s_defaults_and_a_boolean_beside_it_wins() {
+    let defaults: IndexSettings = read_settings(&[entry("feature.manyfiles", Some("true"))]).expect("feature.manyFiles is a configuration the update reproduces");
+    assert_eq!((defaults.monitor, defaults.untracked, defaults.skip_hash), (false, UntrackedMode::Write, true));
+    let overridden: IndexSettings = read_settings(&[
+        entry("feature.manyfiles", Some("true")),
+        entry("core.untrackedcache", Some("keep")),
+        entry("index.skiphash", Some("false")),
+    ])
+    .expect("read");
+    assert_eq!((overridden.untracked, overridden.skip_hash), (UntrackedMode::Write, false));
+    let off: IndexSettings = read_settings(&[entry("feature.manyfiles", Some("false"))]).expect("read");
+    assert_eq!((off.untracked, off.skip_hash), (UntrackedMode::Keep, false));
+}
+
+/// What:
+///  `index.skipHash` on its own decides the trailing hash,
+///  a bare key is true,
+///  and a value Git dies on declines.
+/// Why:
+///   Git writes zeros where the checksum would be when this is on,
+///  so the in-process write must know which of the two files it is writing.
+#[test]
+fn index_skiphash_is_read_as_git_reads_it() {
+    for (value, expected) in [(Some("true"), Some(true)), (Some("false"), Some(false)), (Some("1"), Some(true)), (None, Some(true)), (Some("maybe"), None)] {
+        let found: Option<bool> = read_settings(&[entry("index.skiphash", value)]).map(|settings| {
+            return settings.skip_hash;
+        });
+        assert_eq!(found, expected, "{value:?}");
     }
 }
 

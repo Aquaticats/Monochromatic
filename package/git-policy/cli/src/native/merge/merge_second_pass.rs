@@ -44,7 +44,8 @@ pub use crate::merge_second_pass_git_runner::{ContextRunner, GitReply, GitRunner
 /// named here so every `merge_second_pass::name` path stays the same.
 pub use crate::merge_second_pass_report::{BLOBS_FIELD, EXCERPT_CHARACTERS, FILE_FIELD, INPUTS_HINT, OPERATION_FIELD, PARTS_FIELD, REPORT_MARK, journal_entry, journal_merged, part_text, report_lines};
 use crate::path_bytes::path_message_text;
-use crate::word_merge::{MergedPart, WordMerge, merge_by_word};
+use crate::merge::merge_second_pass_git_lines::merge_with_git_lines;
+use crate::word_merge::{MergedPart, WordMerge};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -124,7 +125,8 @@ pub enum Left {
     /// `binary` or is unset,
     /// so the merge belongs to that setting.
     Driver(String),
-    /// At least one line region holds two different changes of the same words.
+    /// At least one line region holds two different changes of the same words,
+    /// or a word merge of it would write text no side wrote in that shape.
     Overlap(usize),
     /// A `.gitattributes` of the merge is itself conflicted,
     /// so no `merge` setting can be read for the path.
@@ -400,7 +402,7 @@ pub async fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict], source:
         }
         let verdict: Verdict = match reason {
             Some(why) => Verdict::Left { path: conflict.path.clone(), why },
-            None => match merge_by_word(base, ours, theirs) {
+            None => match merge_with_git_lines(runner, conflict, [base.as_slice(), ours.as_slice(), theirs.as_slice()]).await? {
                 WordMerge::Resolved { merged, parts } => Verdict::Merged(Box::new(Merged { path: conflict.path.clone(), mode, bytes: merged, parts, stages: conflict.clone() })),
                 WordMerge::Conflict { unresolved } => Verdict::Left { path: conflict.path.clone(), why: Left::Overlap(unresolved) },
             },

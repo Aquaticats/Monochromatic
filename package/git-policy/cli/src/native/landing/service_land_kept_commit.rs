@@ -7,10 +7,9 @@
 //!  and it is the last record that names the commit;
 //!  a commit this wrapper built and did not put on a branch has no other name,
 //!  so it is kept here and the person is told the name.
-//!  A commit only Git can build makes no scratch branch for a stopped write to leave behind,
-//!  so this is the only place its commit reaches a ref;
-//!  where the batch did make one,
-//!  the drop keeps the commit here and then removes the scratch branch
+//!  Every batch holds its commits on a scratch branch until its branch write,
+//!  a commit Git built included,
+//!  so the drop keeps the commit here and then removes that branch
 //!  (`service_scratch_ref_of_a_dropped_batch.rs`).
 //!  A kept ref that already names another commit is work an earlier batch was kept under,
 //!  so it is left alone and said;
@@ -43,10 +42,9 @@ use crate::transaction_git::GitContext;
 /// it ends at its bound with the write still running,
 /// so the landing cannot unwind and keep its commit,
 /// and a service killed between its intent and its branch move leaves the same shape.
-///   A commit only Git can build makes no scratch branch for that write to leave behind,
-/// so this is the only place its commit reaches a ref;
-/// where the batch did make one,
-/// the drop keeps the commit here and then removes the scratch branch
+///   Every batch holds its commits on a scratch branch until its branch write,
+/// a commit Git built included,
+/// so the drop keeps the commit here and then removes that branch
 /// (`service_scratch_ref_of_a_dropped_batch.rs`).
 ///   A kept ref that already names another commit is work an earlier batch was kept under,
 /// so it is left alone and said;
@@ -57,24 +55,25 @@ use crate::transaction_git::GitContext;
 /// so a commit whose ref cannot be written is still the commit the person runs again.
 pub(crate) fn keep_what_the_branch_does_not_show(git: &GitContext, intent: &Intent) {
     let kept: String = kept_ref(intent.seq);
+    let repository: String = crate::service_timing::in_the_repository_at(intent.repository.as_path());
     match value_of(git, intent.repository.as_path(), kept.as_str()) {
         RefValue::Names(named) if named == intent.new => {
-            crate::service_log!("batch {} is not on its branch, and its commit {} is already kept at {kept}", intent.seq, intent.new);
+            crate::service_log!("batch {} {repository} is not on its branch, and its commit {} is already kept at {kept}", intent.seq, intent.new);
         }
         RefValue::Names(named) => crate::service_error!(
-            "batch {} is not on its branch, and {kept} names {named}, so its commit {} is not kept there and is left where the landing put it",
+            "batch {} {repository} is not on its branch, and {kept} names {named}, so its commit {} is not kept there and is left where the landing put it",
             intent.seq,
             intent.new
         ),
         RefValue::Unasked => crate::service_error!(
-            "batch {} is not on its branch, and {kept} cannot be read, so its commit {} is left where the landing put it",
+            "batch {} {repository} is not on its branch, and {kept} cannot be read, so its commit {} is left where the landing put it",
             intent.seq,
             intent.new
         ),
         RefValue::Absent => match keep_on_a_side_ref(git, intent.repository.as_path(), intent.seq, intent.new.as_str()) {
-            None => crate::service_log!("batch {} is not on its branch, so its commit {} is kept at {kept}", intent.seq, intent.new),
+            None => crate::service_log!("batch {} {repository} is not on its branch, so its commit {} is kept at {kept}", intent.seq, intent.new),
             Some(words) => crate::service_error!(
-                "batch {} is not on its branch, and its commit {} could not be kept at {kept} ({words}), so the commit is left where the landing put it",
+                "batch {} {repository} is not on its branch, and its commit {} could not be kept at {kept} ({words}), so the commit is left where the landing put it",
                 intent.seq,
                 intent.new
             ),

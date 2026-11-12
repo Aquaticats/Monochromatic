@@ -129,6 +129,101 @@ fn shadow_links_shared_entries_and_keeps_private_ones_out() {
     remove(root.as_path());
 }
 
+/// What:
+///  A repository whose directory name is not UTF-8 writes its real object directory into the shadow's alternates
+///  as its own bytes,
+///  and the shadow's Git reads the real store through it.
+/// Why:
+///   A spelling of the path replaced the byte with U+FFFD,
+///  so the alternate named a directory that does not exist and the shadow's Git called the shadow no repository.
+#[test]
+fn the_alternates_keep_a_path_that_is_not_text() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("shadow-create-not-utf8");
+    let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
+    let mut expected: Vec<u8> = path_bytes_of(repo.join(".git").join("objects").as_path()).to_vec();
+    expected.push(b'\n');
+    assert_eq!(
+        std::fs::read(shadow.join("objects").join("info").join("alternates")).expect("alternates"),
+        expected,
+        "the alternate is the object directory's own bytes"
+    );
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        git_text(repo.as_path(), &["rev-parse", "HEAD"]),
+        "the shadow's Git reads the real store through the alternate"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A repository whose directory name holds a line feed writes its real object directory into the shadow's alternates
+///  as a C-quoted line,
+///  and the shadow's Git reads the real store through it.
+/// Why:
+///   The alternates file holds one pathname per line and an unquoted line ends at its first line feed,
+///  so the entry named a directory that does not exist and the shadow's Git called the shadow no repository.
+///  Git reads a line that begins with a double quote as a C-quoted pathname (`parse_alternates` in `odb.c`,
+///  `unquote_c_style` in `quote.c`).
+#[test]
+fn the_alternates_quote_a_path_a_line_feed_would_split() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("shadow-create-line-feed");
+    let repo: PathBuf = root.join(OsString::from_vec(b"a\nb".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
+    let mut expected: Vec<u8> = vec![b'"'];
+    expected.extend_from_slice(path_bytes_of(root.as_path()));
+    expected.extend_from_slice(b"/a\\nb/.git/objects\"\n");
+    assert_eq!(
+        std::fs::read(shadow.join("objects").join("info").join("alternates")).expect("alternates"),
+        expected,
+        "the line feed is escaped in a quoted line"
+    );
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        git_text(repo.as_path(), &["rev-parse", "HEAD"]),
+        "the shadow's Git reads the real store through the quoted alternate"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A quoted alternate keeps a double quote and a backslash inside the one pathname it names.
+/// Why:
+///   A quote inside a quoted line would end the pathname early and a backslash would start an escape,
+///  so both are written as their C escapes and the shadow's Git still reads the real store.
+#[test]
+fn a_quoted_alternate_keeps_a_quote_and_a_backslash_in_one_pathname() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("shadow-create-quoted-name");
+    let repo: PathBuf = root.join(OsString::from_vec(b"q\"b\\s\nf".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
+    let mut expected: Vec<u8> = vec![b'"'];
+    expected.extend_from_slice(path_bytes_of(root.as_path()));
+    expected.extend_from_slice(b"/q\\\"b\\\\s\\nf/.git/objects\"\n");
+    assert_eq!(
+        std::fs::read(shadow.join("objects").join("info").join("alternates")).expect("alternates"),
+        expected,
+        "the quote and the backslash are escaped beside the line feed"
+    );
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        git_text(repo.as_path(), &["rev-parse", "HEAD"]),
+        "one pathname still names the real store"
+    );
+    remove(root.as_path());
+}
+
 /// Creating the shadow leaves the real refs,
 /// the real index and the worktree bytes unchanged.
 #[test]
@@ -190,6 +285,38 @@ fn sha256_and_reftable_repositories_get_matching_shadows() {
     let (reftable_shadow, _reftable_transaction, reftable_capture) = create(reftable.as_path(), reftable.parent().expect("fixture"), "22222222-2222-4222-8222-222222222222");
     assert_eq!(reftable_capture.layout.ref_format, RefFormat::Reftable);
     assert_eq!(shadow_text(reftable_shadow.as_path(), &["rev-parse", "HEAD"]), reftable_head);
+    remove(root.as_path());
+}
+
+/// What:
+///  A reftable repository whose own directory name is not UTF-8 gets its shadow at its own path,
+///  and that shadow answers the real `HEAD`.
+/// Why:
+///   The reftable backend's tables are Git's to create,
+///  so the shadow is made by `git init`,
+///  which was handed a spelling of the shadow's path:
+///  `display()` wrote the bytes that are not UTF-8 as U+FFFD,
+///  Git initialized that other directory,
+///  and the creation then protected a path that did not exist,
+///  so the commit could not be prepared and a stray shadow stayed under the replacement-character name.
+#[test]
+fn a_reftable_shadow_is_made_at_a_path_that_is_not_text() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("shadow-create-reftable-not-utf8");
+    let repo: PathBuf = root.join(OsString::from_vec(b"reftable-\xef".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let (shadow, _transaction, capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
+    assert_eq!(capture.layout.ref_format, RefFormat::Reftable);
+    assert_eq!(
+        shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]),
+        head,
+        "the shadow's Git reads the real reftable refs through the shadow's own path"
+    );
+    let stray: PathBuf = root.join(OsString::from_vec("reftable-\u{fffd}".as_bytes().to_vec()));
+    assert!(!stray.exists(), "no shadow is made at a spelling of the repository's path: {}", stray.display());
     remove(root.as_path());
 }
 

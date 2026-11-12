@@ -10,7 +10,8 @@
 //!  and no reader of the tree is asked whether it is done.
 //!  Age is therefore the only evidence a collection has,
 //!  and a tree is old enough only once nothing that named it can still read it:
-//!  a request that a killed client left queued is landing on it,
+//!  a request whose client went away keeps its tree for the same request sent again,
+//!  and a landing that is reading a tree has it fresh for its own span,
 //!  so a tree goes when it has not been written for `SCRATCH_TREE_ABANDONED_AFTER`,
 //!  and the same decision removes the other entries a scratch place holds.
 //!  Reading the process that made a tree instead asked `/proc` a question that cannot answer this:
@@ -38,7 +39,7 @@ use std::time::{Duration, SystemTime};
 ///  ends every wait of a commit at 20 minutes;
 ///  a live command renews its tree every `SCRATCH_REFRESH_EVERY`,
 ///  so only a tree whose command is gone reaches this age,
-///  and a landing that a killed client left queued reads its tree long before it.
+///  and the longest a landing reads one (a whole commit at `ANSWER_CEILING`) is far below it.
 ///  Two hours is six times that ceiling.
 pub const SCRATCH_TREE_ABANDONED_AFTER: Duration = Duration::from_secs(2 * 60 * 60);
 
@@ -59,7 +60,7 @@ pub const SCRATCH_TREES_REMOVED_PER_COMMAND: usize = 8;
 ///  so the sweep of a scratch place and every other collection ask this one question.
 ///  A commit tree goes once it has not been written for `SCRATCH_TREE_ABANDONED_AFTER`:
 ///  its command renews it while it lives,
-///  and a landing that a killed client left queued reads it inside that age.
+///  and the landing that reads it does so inside that age.
 ///  Every other entry of a scratch place is the wrapper's own and goes by the age the caller gives it,
 ///  because nothing else ever collects it.
 ///  An entry whose age cannot be told,

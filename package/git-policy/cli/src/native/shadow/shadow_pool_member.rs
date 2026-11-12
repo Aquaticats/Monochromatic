@@ -1,21 +1,31 @@
 //! What:
 //!  What a finished shadow in the pool must be for this invocation to take it:
-//!  exactly what a creation would have made,
+//!  the tree a creation would have made of what a commit reads,
 //! or a refusal that names what differs.
 //! Why:
 //!  A commit takes a shadow another process made,
 //! so the one new risk is trusting a tree made earlier.
 //!  That risk has one answer a test can hold:
-//! a member is either the tree a creation makes,
+//! a member is either the tree a creation makes of what a commit reads,
 //! or it is refused
 //! (`doc/handover/questions-for-the-owner.md`,
 //! "May a commit take its private repository from a pool made ahead?").
-//!  Everything here is a read:
+//!  What a commit reads is the named set of shared entries
+//! (`shadow_links.rs`,
+//! `SHARED_ENTRY_NAMES`),
+//! so a member is judged on those and never on the rest of what a common Git directory collects:
+//!  a file another command wrote since the fill
+//!  (`FETCH_HEAD`,
+//! a log generation,
+//! a worktree)
+//!  is state no commit reads,
+//! so it neither makes a member wrong nor refuses one.
+//! Everything here is a read:
 //! the comparison costs no directory-entry creation on the volume a commit already waits on.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const refusal = await resizeMember(template, member); // undefined when the member is what a creation makes
+//! const refusal = await refusalOfMember(template, member); // undefined when the member is what a creation makes
 //! ```
 
 /// The creation's own `HEAD`,
@@ -27,10 +37,22 @@ use crate::shadow_skeleton::SKELETON_DIRECTORIES;
 /// The facts a creation is made from.
 use crate::shadow_create::ShadowTemplate;
 /// The entries a creation links,
+/// the names a member may hold as links,
 /// and the per-worktree file it copies.
-use crate::shadow_links::{has_worktree_config, shared_entries_of};
-/// The directories of a shadow that stay the creation's own.
-use std::path::Path;
+use crate::shadow_links::{has_worktree_config, is_shared_shadow_entry, shared_entries_of};
+/// The directories of a shadow that stay the creation's own,
+/// and the path each check names.
+use std::path::{Path, PathBuf};
+
+#[cfg(test)]
+thread_local! {
+    /// How many link targets this thread's claims have asked for,
+    /// counted by the controls only.
+    /// It is per thread,
+    /// so that a control which shows a claim asks one question per shared entry
+    ///  cannot be disturbed by another test's claim.
+    static LINK_QUESTIONS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
 
 /// What:
 ///  The entries of a member that the skeleton and the creation always make,
@@ -59,7 +81,7 @@ const OWN_ENTRIES: [&str; 4] = ["HEAD", "config", "objects", "refs"];
 const WORKTREE_CONFIG: &str = "config.worktree";
 
 /// What:
-///  Why this member is not what a creation would have made,
+///  Why this member is not the tree a creation would have made,
 /// or nothing when it is.
 /// Why:
 ///   The caller refuses a named member and removes it,
@@ -67,23 +89,32 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// another object directory or another release never reaches a commit.
 ///  A reftable repository is never pooled at all,
 /// so the entries Git's own `init` adds there are not considered.
+///  An entry a commit reads that the repository has gained since the fill is refused,
+/// because the member would give the commit the view of the moment it was made;
+///  an entry it has lost is not,
+/// since a link to a name that is no longer there resolves to nothing,
+/// which is the view a creation of this moment gives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await refusal(template, member); // 'its config is not the one this invocation would write' | undefined
+/// await refusalOfMember(template, member); // 'its config is not the one this invocation would write' | undefined
 /// ```
 pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<String>> {
-    if read_text(member.join("config").as_path())? != template.config_text() {
+    if read_bytes(member.join("config").as_path())? != template.config_bytes() {
         return Ok(Some(String::from("its config is not the one this invocation would write")));
     }
-    if read_text(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_text() {
+    if read_bytes(member.join("objects").join("info").join("alternates").as_path())? != template.alternates_bytes() {
         return Ok(Some(String::from("its alternates do not name this invocation's object directory")));
     }
-    if read_text(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD {
+    if read_bytes(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD.as_bytes() {
         return Ok(Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch")));
     }
+    // The member itself is not asked about: listing it below is the answer to that question.
     for relative in SKELETON_DIRECTORIES {
-        let path: std::path::PathBuf = member.join(relative);
+        if relative.is_empty() {
+            continue;
+        }
+        let path: PathBuf = member.join(relative);
         let Ok(metadata) = std::fs::symlink_metadata(path.as_path()) else {
             return Ok(Some(format!("the skeleton directory {relative} is not a directory")));
         };
@@ -96,39 +127,48 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         return Ok(Some(String::from("this worktree keeps its own info directory, so its shadows are made where the commit is")));
     }
     let copies_worktree_config: bool = has_worktree_config(template.git_dir.as_path())?;
-    // Every entry of the member must be one this invocation's creation makes.
-    for listed in std::fs::read_dir(member)? {
-        let entry: std::fs::DirEntry = listed?;
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        let own: bool = OWN_ENTRIES.contains(&name.as_str()) || (copies_worktree_config && name == WORKTREE_CONFIG);
-        let mut linked: bool = false;
-        for candidate in &shared {
-            if candidate.name.to_string_lossy() == name {
-                linked = true;
-                break;
-            }
+    // One listing of the member answers both questions its entries are asked: that each is one this invocation's
+    // creation makes, or one a creation could have linked, and that every entry at a shared name is the link it made.
+    // The type of each entry comes with the listing (`d_type`), so a shared entry costs the one call that reads its target:
+    // `read_link` alone refuses an entry that is missing and one that is not a link.
+    let listed: Vec<(std::ffi::OsString, bool)> = listing_of(member)?;
+    for (name, is_link) in &listed {
+        let spelled: String = name.to_string_lossy().into_owned();
+        let own: bool = OWN_ENTRIES.contains(&spelled.as_str()) || (copies_worktree_config && spelled == WORKTREE_CONFIG);
+        if own {
+            continue;
         }
-        if !own && !linked {
-            return Ok(Some(format!("it holds {name}, which this invocation's creation does not make")));
+        if !is_shared_shadow_entry(spelled.as_str()) {
+            return Ok(Some(format!("it holds {spelled}, which this invocation's creation does not make")));
+        }
+        // A shared name the repository no longer holds is the view a creation gives too,
+        // but only as the link a creation made: a real directory or file there is a leftover of a use.
+        // The type of a shared entry is settled here, which leaves the loop below the presence and the target of one.
+        if !is_link {
+            return Ok(Some(format!("the shared entry {spelled} is not a link in the member")));
         }
     }
     // Every entry the creation shares is here, and links to the same real entry.
     for entry in &shared {
-        let link: std::path::PathBuf = member.join(&entry.name);
         let shared_named: String = entry.name.to_string_lossy().into_owned();
-        let Ok(metadata) = std::fs::symlink_metadata(link.as_path()) else {
-            return Ok(Some(format!("the shared entry {shared_named} is not in the member")));
-        };
-        if !metadata.file_type().is_symlink() {
-            return Ok(Some(format!("the shared entry {shared_named} is not a link in the member")));
+        let link: PathBuf = member.join(&entry.name);
+        let mut present: bool = false;
+        for (name, _is_link) in &listed {
+            if *name == entry.name {
+                present = true;
+                break;
+            }
         }
-        if std::fs::read_link(link.as_path())? != entry.source {
+        if !present {
+            return Ok(Some(format!("the shared entry {shared_named} is not in the member")));
+        }
+        if link_target(link.as_path())? != entry.source {
             return Ok(Some(format!("the shared entry {shared_named} links somewhere other than the repository's own entry")));
         }
     }
     if copies_worktree_config
-        && read_text(member.join(WORKTREE_CONFIG).as_path())?
-            != read_text(template.git_dir.join(WORKTREE_CONFIG).as_path())?
+        && read_bytes(member.join(WORKTREE_CONFIG).as_path())?
+            != read_bytes(template.git_dir.join(WORKTREE_CONFIG).as_path())?
     {
         return Ok(Some(String::from("its copy of the worktree's configuration is not the one a creation would copy")));
     }
@@ -145,20 +185,115 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
 }
 
 /// What:
-///  A file's bytes as text,
-///  and nothing for one that is not there.
+///  The entries of a directory,
+/// each with the name and whether it is a link.
 /// Why:
-///   A missing entry is a difference the caller refuses,
-/// not an error it has to tell from a real one.
+///   The name and the type come from the one listing,
+/// so a caller that asks both of every entry costs one read of the directory and no question per entry.
+///  The type is the entry's own,
+/// never what a link points at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await readText(path) // '' when absent
+/// await listingOf(directory) // [{ name, isLink }]
 /// ```
-fn read_text(path: &Path) -> std::io::Result<String> {
+fn listing_of(directory: &Path) -> std::io::Result<Vec<(std::ffi::OsString, bool)>> {
+    let mut listed: Vec<(std::ffi::OsString, bool)> = Vec::new();
+    for listed_entry in std::fs::read_dir(directory)? {
+        let entry: std::fs::DirEntry = listed_entry?;
+        listed.push((entry.file_name(), entry.file_type()?.is_symlink()));
+    }
+    return Ok(listed);
+}
+
+/// What:
+///  Where a link points,
+///  and the refusal of one that is not there or is not a link.
+/// Why:
+///   This is the one question a claim asks of an entry the creation shares,
+/// and the answer it needs is the target.
+/// A missing entry and an entry that is not a link are both failures of this call,
+/// so no second question stands before it.
+///  Every answer is counted for the controls,
+/// which hold that a claim asks nothing else of a shared entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await linkTarget(path) // the target, or ENOENT/EINVAL
+/// ```
+fn link_target(link: &Path) -> std::io::Result<PathBuf> {
+    note_link_question();
+    return std::fs::read_link(link);
+}
+
+/// What:
+///  One link question asked by a claim,
+/// counted for the controls only.
+/// Why:
+///   A claim that asks a shared entry's target once and nothing else of it is the shape this file holds to,
+/// and a count is the only way a control can see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noteLinkQuestion()
+/// ```
+fn note_link_question() {
+    #[cfg(test)]
+    LINK_QUESTIONS.with(|counter| { counter.set(counter.get() + 1); });
+}
+
+/// What:
+///  How many link questions this thread's claims have asked since they were last reset.
+/// Why:
+///   The controls read it to see the shape of a claim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// linkQuestions()
+/// ```
+#[cfg(test)]
+fn link_questions() -> u64 {
+    return LINK_QUESTIONS.with(std::cell::Cell::get);
+}
+
+/// What:
+///  Forgets the link questions asked so far on this thread.
+/// Why:
+///   A control starts counting at the claim it makes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// resetLinkQuestions()
+/// ```
+#[cfg(test)]
+fn reset_link_questions() {
+    LINK_QUESTIONS.with(|counter| { counter.set(0); });
+}
+
+/// What:
+///  A file's exact bytes,
+///  and nothing for one that is not there.
+/// Why:
+///   Every file of a member is compared byte for byte:
+/// its config and alternates name paths,
+///  and the worktree's configuration can hold one too,
+/// so two files that differ only in bytes that are not UTF-8
+///  decode to the same text and would be judged equal.
+/// A member that kept the older one would hand a commit the editor,
+/// the hook
+///  or the command the person has since changed.
+/// A missing entry is a difference the caller refuses,
+/// not an error it has to tell from a
+///  real one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readBytes(path) // the empty buffer when absent
+/// ```
+fn read_bytes(path: &Path) -> std::io::Result<Vec<u8>> {
     return match std::fs::read(path) {
-        Ok(bytes) => Ok(String::from_utf8_lossy(bytes.as_slice()).into_owned()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Ok(bytes) => Ok(bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
         Err(error) => Err(error),
     };
 }

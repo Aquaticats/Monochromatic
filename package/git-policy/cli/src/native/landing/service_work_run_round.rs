@@ -11,9 +11,11 @@
 //! Each step here has a face a task of the runtime may ask,
 //! because the loop of the after-commit work is
 //!  a task (`service_server_work_loop_awaiting.rs`):
-//! the awaited face awaits the round's lanes and puts the plan's own writes on the
-//!  blocking pool,
+//! the awaited face awaits the round's lanes,
 //! while the synchronous face is what a thread outside the runtime asks.
+//! Neither face writes the plan's own files:
+//!  the worker that decided a branch's push needs a new try or none wrote or removed that branch's file
+//! itself (`service_work_handlers_replanning_and_acceptance.rs`).
 //! Both faces plan a round,
 //! name its directories and
 //!  read its answer through the same functions,
@@ -27,7 +29,6 @@
 use crate::service_work_handlers_replanning_and_acceptance::*;
 use crate::service_work::GitHandlers;
 use crate::claim_time::ClaimTime;
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::parallel_runner_on_the_runtime::OrderedRunError;
 use crate::push_retry::{PushRetries, RetryChange, Retrying};
 use crate::parallel_budget::HostResources;
@@ -36,46 +37,6 @@ use crate::service_round::{Assignment, RoundAnswer, RoundDrain, drain_directorie
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-
-/// What:
-///  Apply what the round's workers asked of the retry plan,
-/// as a job of the process's blocking pool,
-///  and give the plan back to its owner whichever way the job ended.
-/// Why:
-///   A change writes or removes a plan's own file in the instance's journal,
-/// so it is storage,
-/// and a worker that waited on that write
-///  would hold a thread the runtime needs.
-/// The plan has one owner at a time,
-/// so the job takes it and hands it back,
-/// and nothing locks it.
-/// A job
-///  the system refuses a thread for makes the changes on this task instead,
-/// so nothing the workers promised is lost to a refusal.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// retries = await applyAwaiting(retries, changes)
-/// ```
-async fn apply_awaiting(retries: PushRetries, changes: Vec<RetryChange>) -> PushRetries {
-    let unchanged: PushRetries = retries.clone();
-    return match run_a_job_or_in_turn((retries, changes), apply_in_a_job).await {
-        Ok(back) => back,
-        // Nothing was written and nothing was removed, so every plan on disk stands where it was; this round's own plans
-        //  are made again by the round that asks for them next, and the notice of a new try stands with them.
-        Err(reason) => {
-            crate::service_warn!("the plan of this round's pushes was not kept: {reason}");
-            unchanged
-        }
-    };
-}
-
-/// `apply_awaiting`'s work,
-/// as the job of the pool takes it.
-fn apply_in_a_job((mut retries, changes): (PushRetries, Vec<RetryChange>)) -> PushRetries {
-    retries.apply(changes);
-    return retries;
-}
 
 /// What:
 ///  The directories a round drains,
@@ -297,11 +258,13 @@ pub fn run_planned_round<H: WorkHandlers + Sync + Send + 'static>(host: &HostRes
 /// What:
 ///  `run_planned_round` awaited by a caller that is itself a task of the runtime:
 /// the lanes are awaited rather than entered,
-/// the plan's own writes are jobs of the blocking pool,
-///  and the plan comes back to its owner with the repositories to look at again.
+///  and the round's list of pushes waiting for a new try comes back to its owner with the repositories to look at again.
 /// Why:
 ///   A task may not enter the runtime,
-/// so it awaits the round's lanes and the plan's writes;
+/// so it awaits the round's lanes;
+/// the plan's own files are the workers' own,
+/// written on the thread that decided each change,
+///  so this task writes no storage and no job of the pool can outlast it with a stale change;
 /// a lane that stopped before its last
 ///  directory is said here,
 /// as the synchronous face says it,
@@ -310,7 +273,7 @@ pub fn run_planned_round<H: WorkHandlers + Sync + Send + 'static>(host: &HostRes
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [answer, stopped] = await drainDirectoriesAwaiting(...); retries = await applyAwaiting(retries, answer.changes); return [retries, askedOf(...)];
+/// const [answer, stopped] = await drainDirectoriesAwaiting(...); retries.apply(answer.changes); return [retries, askedOf(...)];
 /// ```
 pub async fn run_planned_round_awaiting<H: WorkHandlers + Sync + Send + 'static>(
     host: &HostResources,
@@ -330,8 +293,14 @@ pub async fn run_planned_round_awaiting<H: WorkHandlers + Sync + Send + 'static>
         crate::service_warn!("the round of the service's work did not finish: {reason}");
     }
     let named: Vec<PathBuf> = named_of(directories, answered.changes.as_slice());
-    retries = apply_awaiting(retries, answered.changes).await;
+    // The workers already told the journal what each change is, on the thread that decided it; this is the list the loop reads.
+    retries.apply(answered.changes);
     let applied_at: Instant = Instant::now();
     let asked: Vec<(PathBuf, Duration)> = asked_of(named, answered.waits.as_slice(), &retries, applied_at);
     return (retries, asked);
 }
+
+/// Controls for the plan of the pushes waiting for a new try stay out of the release executable.
+#[cfg(test)]
+#[path = "service_work_run_round_tests.rs"]
+mod tests;

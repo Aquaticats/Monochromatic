@@ -26,9 +26,10 @@
 use crate::service_durable_syncs::{SyncFigure, syncs_held, syncs_waited_count, syncs_word};
 use crate::service_index_found::WaitNotes;
 use crate::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, cut, one_line};
-use crate::lfs_output_mask::mask_userinfo_text;
+use crate::lfs_output_mask::mask_url_secrets_text;
 use crate::quiet_ledger::longest_healthy;
 use crate::transaction_step_durations::{StepFigure, steps_word};
+use std::path::Path;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -183,6 +184,10 @@ pub struct Answered<'record> {
     /// The batch number,
     /// shared by every request landed together.
     pub batch: u64,
+    /// The worktree root the batch landed in,
+    /// which the line names:
+    /// one journal covers every worktree of the machine.
+    pub repository: &'record Path,
     /// How many requests the batch of this branch held.
     pub size: usize,
     /// This request's place among them,
@@ -257,25 +262,42 @@ fn holder_field(who: &String) -> String {
 /// The words for what the wait for the lock found,
 /// empty when the lock was free at the first placement:
 /// the placements that found it held,
-/// the time spent flushing the marker and the time spent waiting,
+/// the time spent readying the acquisition (`lock_setup_ms`),
+/// flushing the marker (`lock_stage_ms`),
+/// waiting for a holder (`lock_place_ms`)
+/// and removing the staged file once the wait was decided (`lock_after_ms`),
 /// and the first and the last description of the held lock.
+/// Why the four figures are split:
+///  a wait whose whole is far longer than their sum has spent its time outside the acquisition's own work,
+///  which the line must let a reader see
+/// (the gate of 2026-11-11T10:29-05:00:
+/// one landing's wait took 95,277 ms while these parts accounted for 3,003 ms of it).
 pub fn lock_notes_fields(notes: &WaitNotes) -> String {
     if notes.looks == 0 {
-        return format!(" lock_stage_ms={} lock_stage_kind={} lock_place_ms={}", notes.staging.as_millis(), notes.stage_kind, notes.placing.as_millis());
+        return format!(
+            " lock_stage_ms={} lock_stage_kind={} lock_place_ms={} lock_setup_ms={} lock_after_ms={}",
+            notes.staging.as_millis(),
+            notes.stage_kind,
+            notes.placing.as_millis(),
+            notes.setup.as_millis(),
+            notes.after.as_millis()
+        );
     }
     let first: &str = notes.found.as_deref().unwrap_or("none");
     let last: &str = notes.last.as_deref().unwrap_or("none");
     return format!(
-        " lock_stage_ms={} lock_stage_kind={} lock_place_ms={} lock_looks={} lock_found={first:?} lock_last={last:?}",
+        " lock_stage_ms={} lock_stage_kind={} lock_place_ms={} lock_setup_ms={} lock_after_ms={} lock_looks={} lock_found={first:?} lock_last={last:?}",
         notes.staging.as_millis(),
         notes.stage_kind,
         notes.placing.as_millis(),
+        notes.setup.as_millis(),
+        notes.after.as_millis(),
         notes.looks
     );
 }
 
 /// The wait for the index lock that is written down even when no holder was met:
-/// a flush of the marker or a wait that long is a slow landing's first suspect.
+/// the making of the marker or a wait that long is a slow landing's first suspect.
 ///  Exempt from a citation under `LQM` (class:
 /// notice pacing):
 /// it times a line the person reads or a log threshold,
@@ -295,22 +317,25 @@ pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
 ///   Written when the wait ends,
 /// not with the answer,
 /// so a landing that fails afterwards still leaves what it waited for.
-/// It says the total,
-/// how it split between flushing the marker and waiting for a holder,
+/// It names the repository the batch is in,
+/// the total,
+/// how it split between readying the acquisition,
+/// flushing the marker,
+/// waiting for a holder and removing the staged file,
 /// how many times the lock was found held,
 /// and what the first and the last look found (`lock_found`,
 /// `lock_last`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// waitLine(seq, total, notes, taken) // 'waited batch=7 result=taken lock_wait_ms=5629 ...' | undefined
+/// waitLine(seq, repository, total, notes, taken) // 'waited batch=7 repository=/repo result=taken ...' | undefined
 /// ```
-pub fn wait_line(seq: u64, total: Duration, notes: &WaitNotes, taken: bool) -> Option<String> {
+pub fn wait_line(seq: u64, repository: &Path, total: Duration, notes: &WaitNotes, taken: bool) -> Option<String> {
     if notes.looks == 0 && notes.staging < SLOW_LOCK_STEP && total < SLOW_LOCK_STEP {
         return None;
     }
     return Some(format!(
-        "waited for the index lock batch={seq} result={} lock_wait_ms={}{}",
+        "waited for the index lock batch={seq} repository={repository:?} result={} lock_wait_ms={}{}",
         if taken { "taken" } else { "refused" },
         total.as_millis(),
         lock_notes_fields(notes)
@@ -380,7 +405,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
     let mut holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
     holder.push_str(lock_notes_fields(&answered.landing.lock_notes).as_str());
     return format!(
-        "answered request={:?} branch={:?} outcome={} batch={} size={} position={} queued_behind={} read_ms={} queued_ms={} settle_ms={} \
+        "answered request={:?} branch={:?} outcome={} batch={} repository={:?} size={} position={} queued_behind={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} index_update_ms={} attempts={} landing_ms={} \
          reads_config_ms={} reads_branch_ms={} reads_parents_ms={} reads_changed_ms={} reads_content_ms={} \
          reads_witness_ms={} reads_conclusion_ms={} reads_owed_ms={} reads_follow_ms={} \
@@ -390,6 +415,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
         answered.reference,
         answered.outcome,
         answered.batch,
+        answered.repository,
         answered.size,
         answered.position,
         answered.queued_behind,
@@ -441,6 +467,57 @@ pub fn started_line(release: &str, protocol: u32, instance: Option<&str>) -> Str
 /// a client of another release found this service and asked it to finish its batch and exit.
 pub fn retire_line(release: &str) -> String {
     return format!("retire requested by a client; this service is release {release:?} and exits after its batch");
+}
+
+/// What:
+///  The words a line uses to name the repository it is about:
+///  `in the repository at <worktree root>`.
+/// Why:
+///   One service per worktree writes into a journal read across the whole machine,
+///  and a control's fixture runs the same service:
+///  a line that says only `batch 41` can be read as one about the repository its reader is in,
+///  which is how the host run of 0.6.1-alpha.10 had a held fixture commit read as a failed commit on this repository's own `main`.
+///  Every line about a batch,
+/// a landing,
+/// a push or a held commit names the repository it is about,
+///  and names it beside the batch or the branch,
+///  before anything about the outcome.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// inTheRepositoryAt('/home/x/repo') // 'in the repository at /home/x/repo'
+/// ```
+pub fn in_the_repository_at(repository: &Path) -> String {
+    return format!("in the repository at {}", repository_label(repository));
+}
+
+/// What:
+///  The text a prose journal line names one repository by,
+/// distinct for every path:
+/// the path as it reads when it is text,
+/// and Rust's quoted form when it is not,
+/// which escapes each byte that is no text.
+/// Why:
+///  One journal covers every worktree of the machine,
+/// and two worktrees can differ only in bytes that cannot be written as text:
+///  the readable spelling of both is the same string with U+FFFD where the bytes were,
+/// so a label built that way names neither,
+/// and a line cannot be attributed to the repository that wrote it
+/// (`path_bytes::path_message_text` keeps the readable spelling for prose,
+///  and the exact bytes travel in the field beside it).
+///  A line of fields writes the path with Rust's quoted form instead,
+///  so a path that holds a space stays one field and reaches the journal whole
+///  (`answered_line`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// repositoryLabel(path) // '/repo/worktree' | '"/repo/worktree-\\xFF"'
+/// ```
+pub fn repository_label(repository: &Path) -> String {
+    return match repository.to_str() {
+        Some(text) => text.to_string(),
+        None => format!("{repository:?}"),
+    };
 }
 
 /// Why a service ended.
@@ -592,7 +669,7 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     let at_ms: u128 = wall_millis();
     // Masked before it is cut: a cut that falls just before the `@` of `scheme://user:secret@host` would leave a password
     //  that no longer looks like userinfo.
-    let masked: String = mask_userinfo_text(line);
+    let masked: String = mask_url_secrets_text(line);
     let mut all: Vec<(&str, String)> = Vec::new();
     if let Some(context) = CONTEXT.get() {
         for (name, value) in context.iter() {
@@ -601,7 +678,7 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
     }
     all.push(("CLI_GIT_AT_MS", at_ms.to_string()));
     for (name, value) in fields {
-        all.push((*name, mask_userinfo_text(value.as_str())));
+        all.push((*name, mask_url_secrets_text(value.as_str())));
     }
     // A native entry carries the text as written (a newline in the length-prefixed form); the line on standard error is one line.
     let message: String = format!("{} at_ms={at_ms}", cut(masked.as_str(), MESSAGE_LIMIT));

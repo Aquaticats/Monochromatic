@@ -28,8 +28,10 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::iso_time::now_iso;
-use crate::service_client::{START_WAIT, wake};
+use crate::hooks_path_values::{path_answer, without_the_terminator};
+use crate::iso_time::now_iso_never_the_same_twice;
+use crate::service_client::wake;
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
 use crate::service_messages::{ClientFailure, render};
 use crate::service_provision::provision;
@@ -179,21 +181,33 @@ pub fn decode(payload: &str) -> Result<Vec<PrewarmEntry>, String> {
 }
 
 /// What:
-///  The record's object name for a worktree:
-/// a digest of its path,
-/// which no commit and no other worktree shares.
+///  The record's object name for one hand-over:
+/// a digest of the worktree's path and the moment the add asked for the filling.
 /// Why:
-///   The record's id is its idempotency key,
-/// and two worktrees added from the same commit must each get their own prewarm.
+///   A work item's id is its idempotency key,
+/// and the queue answers an id it already knows as known in every state.
+/// With the path alone,
+/// a worktree removed and added again at the same path would be answered by the earlier record,
+/// and a filling that failed could never be asked for again.
+/// The moment tells two hand-overs of one path apart,
+/// and the path keeps two worktrees apart.
+/// The moment comes from `now_iso_never_the_same_twice`,
+/// so two hand-overs the millisecond clock cannot tell apart still get names of their own:
+/// a moment written again would name the second record as the first one,
+/// and its filling would never run.
 /// Forty hexadecimal digits is what a work item's object name must be,
 /// and a SHA-256 slice is cheap to compute.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const objectNameOf = (destination) => sha256(utf8(destination)).toString('hex').slice(0, 40);
+/// const objectNameOf = (destination, queuedAt) => sha256(utf8(`${destination}\n${queuedAt}`)).toString('hex').slice(0, 40);
 /// ```
-pub fn object_name_of(destination: &Path) -> String {
-    let digest: [u8; 32] = crate::subvolume_sha::sha256(destination.as_os_str().as_bytes());
+pub fn object_name_of(destination: &Path, queued_at: &str) -> String {
+    let mut text: Vec<u8> = Vec::new();
+    text.extend_from_slice(destination.as_os_str().as_bytes());
+    text.push(b'\n');
+    text.extend_from_slice(queued_at.as_bytes());
+    let digest: [u8; 32] = crate::subvolume_sha::sha256(text.as_slice());
     return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(&digest[..20]);
 }
 
@@ -202,20 +216,26 @@ pub fn object_name_of(destination: &Path) -> String {
 /// Why:
 ///   The producer and its controls both write exactly this,
 /// so a control can compare a record without reaching a service.
+/// The stamp is read once and is both the record's `created` and part of its object name,
+/// so a control can tell which record it is looking at from the record alone,
+/// and it is a stamp this process has not written before,
+/// so two hand-overs of one path asked for in one millisecond still get records of their own
+/// (`iso_time.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const itemOf = ({ context, commonDir, destination, entries }) => ({ kind: 'prewarm', repository: destination, gitDir: commonDir, ref: PREWARM_REFERENCE, oid: objectNameOf(destination), parent: encode(entries), created: nowISO(), tries: 0 });
+/// const itemOf = ({ context, commonDir, destination, entries }) => { const created = nowISONeverTheSameTwice(); return { kind: 'prewarm', repository: destination, gitDir: commonDir, ref: PREWARM_REFERENCE, oid: objectNameOf(destination, created), parent: encode(entries), created, tries: 0 }; };
 /// ```
 pub fn item_of(common_dir: &Path, destination: &Path, entries: &[PrewarmEntry]) -> Result<WorkItem, String> {
+    let created: String = now_iso_never_the_same_twice();
     return Ok(WorkItem {
         kind: WorkKind::Prewarm,
         repository: destination.to_path_buf(),
         git_dir: common_dir.to_path_buf(),
         branch_ref: String::from(PREWARM_REFERENCE),
-        oid: object_name_of(destination),
+        oid: object_name_of(destination, created.as_str()),
         parent: encode(entries)?,
-        created: now_iso(),
+        created,
         tries: 0,
     });
 }
@@ -232,7 +252,7 @@ pub fn item_of(common_dir: &Path, destination: &Path, entries: &[PrewarmEntry]) 
 /// handOverToTheService({ context, commonDir, destination, entries });
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entries: &[PrewarmEntry]) -> Result<(), String> {
-    return hand_over_with(context, common_dir, destination, entries, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: START_WAIT });
+    return hand_over_with(context, common_dir, destination, entries, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
 /// What:
@@ -264,7 +284,12 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
     {
         return Err(render(&failure));
     }
-    let config: ClientConfig = managed_client_config(address, host.as_ref());
+    // What: The record is written before this wake, so the wake waits the hand-over's own greeting bound and never the
+    //       commit's start wait.
+    // Why:  The worktree must work for the person's next command either way: an answer that does not come within the bound
+    //       means this command does the filling itself instead of waiting on a service
+    //       (`wait_ceilings.rs`, `HAND_OVER_GREETING_WAIT`).
+    let config: ClientConfig = ClientConfig { start_wait: reach.start_wait, start_ceiling: reach.start_wait, ..managed_client_config(address, host.as_ref()) };
     // The wake's lines are not the add's: it says once what became of the filling.
     let mut silent: std::io::Sink = std::io::sink();
     return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
@@ -311,8 +336,15 @@ pub async fn common_directory_awaiting(git: &GitContext, destination: &Path) -> 
     if !output.succeeded() {
         return Err(format!("git could not name the repository's common directory: {}", output.error_text()));
     }
-    let named: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-    return if named.is_empty() { Err(String::from("git named no common directory for the worktree")) } else { Ok(PathBuf::from(named)) };
+    // Git ends the path with one line feed; every other byte is the path's own, so only that terminator goes.
+    //  A directory whose name ends in a space is that directory, and the record is queued there.
+    let named: &[u8] = without_the_terminator(output.stdout.as_slice());
+    return if named.is_empty() {
+        Err(String::from("git named no common directory for the worktree"))
+    } else {
+        // The answer is a pathname, and a pathname is bytes: decoding it replaced a byte that is not UTF-8.
+        Ok(path_answer(named))
+    };
 }
 
 /// What:

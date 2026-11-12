@@ -25,6 +25,8 @@ use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_sequencer::SequencerState;
+use crate::rule_linked_worktree::GuardedCommand;
+use crate::repository_facts_abort_discard::AbortDiscard;
 use crate::rule_worktree_dirty::DirtyScope;
 /// The image's real Git,
 ///  which prepares candidates for scripted facts.
@@ -45,6 +47,9 @@ pub(crate) struct ScriptedFacts {
     pub(crate) index: Result<IndexVsHead, String>,
     /// The answer to `sequencer_state`.
     pub(crate) sequencer: Result<SequencerState, String>,
+    /// The answer to `abort_discard`,
+    ///  whatever the command.
+    pub(crate) abort_discard: Result<AbortDiscard, String>,
     /// The answer to `worktree_dirty`,
     /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
@@ -53,12 +58,19 @@ pub(crate) struct ScriptedFacts {
     pub(crate) selection: Result<StagedSelection, String>,
     /// The answer to `ignored_files_the_tree_tracks`.
     pub(crate) ignored_and_tracked: Result<Vec<String>, String>,
-    /// The answer to `clean_would_delete`.
-    pub(crate) clean_deletes: Result<bool, String>,
+    /// The paths the dry run of the clean as typed names,
+    ///  which is the one carrying the clean's own exclusion patterns.
+    pub(crate) clean_deletes: Result<Vec<Vec<u8>>, String>,
+    /// The paths the same clean names without those patterns;
+    ///  the whole answer is the same when the query carries none.
+    pub(crate) clean_deletes_without_exclusions: Result<Vec<Vec<u8>>, String>,
     /// The answer to `repository_holds_a_stash`.
     pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
     pub(crate) remote_guess: Result<bool, String>,
+    /// The answer to `main_worktree_root`,
+    ///  the checkout that owns the configuration file of a linked worktree's repository.
+    pub(crate) main_worktree: Result<PathBuf, String>,
     /// Every fact asked for,
     ///  in call order;
     ///  the location is logged once,
@@ -104,9 +116,40 @@ impl RepositoryFacts for ScriptedFacts {
         return self.selection.clone();
     }
 
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
+    /// What:
+    ///  Answer the dry runs of one clean apart by what each query carries:
+    ///  a query with `-e`/`--exclude`,
+    /// and the typed clean of a second force,
+    /// name `clean_deletes`;
+    ///  the same clean written with one force and without them names `clean_deletes_without_exclusions`.
+    /// Why:
+    ///   Only a path the typed dry run names and the other does not is one the patterns alone call ignored,
+    ///  and that path is what the policy still refuses;
+    ///  a clean with a second force is the typed clean whether or not it carries a pattern.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// cleanDeletedPaths(arguments) {
+    ///   const patterns = arguments.some((one) => one.startsWith('-e') || one.startsWith('--exclude'));
+    ///   const forces = arguments.filter((one) => one === '-f' || one === '--force').length;
+    ///   return patterns || forces > 1 ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
+    /// }
+    /// ```
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
-        return self.clean_deletes.clone();
+        let mut patterns: bool = false;
+        let mut forces: usize = 0;
+        for argument in &arguments {
+            let bytes: &[u8] = argument.as_encoded_bytes();
+            patterns |= bytes.starts_with(b"-e") || bytes.starts_with(b"--exclude");
+            if bytes == b"-f" || bytes == b"--force" {
+                forces += 1;
+            }
+        }
+        if patterns || forces > 1 {
+            return self.clean_deletes.clone();
+        }
+        return self.clean_deletes_without_exclusions.clone();
     }
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
@@ -127,10 +170,20 @@ impl RepositoryFacts for ScriptedFacts {
         return self.sequencer.clone();
     }
 
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        self.asked.push(format!("abort-discard:{command:?}"));
+        return self.abort_discard.clone();
+    }
+
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
         self.asked
             .push(format!("remote-guess:{}", target.to_string_lossy()));
         return self.remote_guess.clone();
+    }
+
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        self.asked.push(String::from("main-worktree"));
+        return self.main_worktree.clone();
     }
 
     /// Log the question,
@@ -225,6 +278,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         location: Ok(main_worktree("/r", "")),
         index: Ok(IndexVsHead::Matches),
         sequencer: Ok(SequencerState::NotInProgress),
+        abort_discard: Ok(AbortDiscard::NothingWaiting),
         dirty: Ok(false),
         selection: Ok(StagedSelection {
             selected: 0,
@@ -233,8 +287,12 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         }),
         stash: Ok(false),
         remote_guess: Ok(false),
+        // The scripts below name `/r` as the repository whose linked worktree `/w` is,
+        // so the main checkout of a region that refuses there is `/r`.
+        main_worktree: Ok(PathBuf::from("/r")),
         ignored_and_tracked: Ok(Vec::<String>::new()),
-        clean_deletes: Ok(false),
+        clean_deletes: Ok(Vec::<Vec<u8>>::new()),
+        clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
         asked: Vec::<String>::new(),
         candidates_repository: None,
         git_dir: None,

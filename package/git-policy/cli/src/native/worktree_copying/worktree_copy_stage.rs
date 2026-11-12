@@ -17,12 +17,13 @@ use crate::private_storage::create_private_directory;
 use crate::random_id::random_uuid;
 use crate::transaction_git::GitContext;
 use crate::diagnostic_log::debug;
+use crate::worktree_copy_ceiling::CopyCeiling;
 pub use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
 use crate::worktree_copy_stage_leaf_copying::{CopiedManifest, copy_manifest_entries_with, copy_worker_count, create_private_tree, try_clone};
 use crate::worktree_copy_settling::{Settled, SettlingRequest, settle_the_copy};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of, wrap_raw};
 use crate::worktree_copy_manifest::{
-    FileStamp, WorktreeCopyEntry, collect_pruned_manifest,
+    FileStamp, LeftOut, WorktreeCopyEntry, collect_pruned_manifest,
 };
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, is_separator_byte, select_roots, shown_repository_path};
@@ -69,6 +70,11 @@ pub struct StagedSnapshot {
     /// left out of the stage;
     ///  empty for a stage rebuilt from a journal.
     pub unreadable: Vec<Vec<u8>>,
+    /// Repository paths no worktree can hold (sockets,
+    /// named pipes and device nodes),
+    /// left out of the stage;
+    ///  empty for a stage rebuilt from a journal.
+    pub uncopiable: Vec<Vec<u8>>,
     /// Repository paths that kept changing under the copy and were left in their source;
     ///  empty for a stage rebuilt from a journal.
     pub unsettled: Vec<Vec<u8>>,
@@ -117,16 +123,21 @@ fn nested_under(source_root: &Path, roots: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 /// What:
-///  Whether a path component begins the name of a private stage container.
+///  Whether a path component begins the name of a private stage container or of a snapshot the wrapper made ahead.
 /// Why:
-///   A path that goes through one is part of another copy's stage and is never staged.
+///   A path that goes through one is part of another copy's stage,
+/// or a whole copy of the source that no worktree owns yet,
+/// and is
+///  never staged:
+/// a snapshot ahead that the ignored state of one new worktree carried would be a second copy of the
+///  source inside a worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// component.startsWith(STAGE_PREFIX)
+/// component.startsWith(STAGE_PREFIX) || component.startsWith(AHEAD_PREFIX)
 /// ```
 fn starts_private_stage(component: &[u8]) -> bool {
-    return component.starts_with(STAGE_PREFIX.as_bytes());
+    return component.starts_with(STAGE_PREFIX.as_bytes()) || component.starts_with(crate::worktree_snapshot_ahead::AHEAD_PREFIX.as_bytes());
 }
 
 /// What:
@@ -219,6 +230,32 @@ pub fn stage_ignored_snapshot(
     registered_roots: &[PathBuf],
     selection: &CopySelection,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
+    return stage_ignored_snapshot_for(context, source_root, stage_container, registered_roots, selection, None, &CopyCeiling::unbounded());
+}
+
+/// What:
+///  `stage_ignored_snapshot` for a copy bound to one registration,
+/// which records that binding in the container before the first ignored entry is copied.
+/// Why:
+///   A command killed while it stages leaves a container holding part of the source's ignored state and no journal;
+/// the binding inside it is the only proof that the container is that copy's own,
+/// so a later command may remove it and make the copy
+///  again,
+/// and nothing else at that name is ever removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function stageIgnoredSnapshotFor({ context, sourceRoot, stageContainer, registeredRoots, selection, binding }): Promise<StagedSnapshot>;
+/// ```
+pub fn stage_ignored_snapshot_for(
+    context: &GitContext,
+    source_root: &Path,
+    stage_container: &Path,
+    registered_roots: &[PathBuf],
+    selection: &CopySelection,
+    binding: Option<&crate::worktree_add_binding::Binding>,
+    ceiling: &CopyCeiling,
+) -> Result<StagedSnapshot, WorktreeCopyError> {
     let selecting: std::time::Instant = std::time::Instant::now();
     let nested: Vec<PathBuf> = nested_under(source_root, registered_roots);
     let git_selected: Vec<Vec<u8>> = select_roots(context, source_root, nested.as_slice(), selection)?;
@@ -227,6 +264,14 @@ pub fn stage_ignored_snapshot(
         format!("selected {} ignored roots in {} ms", git_selected.len(), selecting.elapsed().as_millis()).as_str(),
     );
     create_private_directory(stage_container).map_err(raw_failure_of)?;
+    // The registration goes in before the first byte of the payload, so a container killed at any later instruction says
+    // which copy it belongs to.
+    if let Some(bound) = binding
+        && let Err(error) = crate::worktree_copy_stage_binding::record_stage_binding(stage_container, bound)
+    {
+        std::fs::remove_dir_all(stage_container).map_err(raw_failure_of)?;
+        return Err(error);
+    }
     let stage_root: PathBuf = stage_container.join(PAYLOAD_NAME);
     create_private_tree(stage_root.as_path())?;
     let staged: Result<StagedSnapshot, WorktreeCopyError> = stage_into(
@@ -237,6 +282,7 @@ pub fn stage_ignored_snapshot(
         git_selected,
         selection.prune(),
         try_clone,
+        ceiling,
     );
     // Any failure removes the whole container, so no partial stage survives the attempt.
     match staged {
@@ -284,6 +330,7 @@ fn stage_into(
     git_selected: Vec<Vec<u8>>,
     prune: Prune,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
+    ceiling: &CopyCeiling,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let excluded_source_roots: Vec<PathBuf> =
         source_exclusions(source_root, registered_roots, stage_container);
@@ -301,13 +348,14 @@ fn stage_into(
         candidate_roots.push(repository_path);
     }
     let started: std::time::Instant = std::time::Instant::now();
-    let mut unreadable: Vec<Vec<u8>> = Vec::new();
+    let mut left_out: LeftOut = LeftOut::default();
     let entries: Vec<WorktreeCopyEntry> = collect_pruned_manifest(
         source_root,
         candidate_roots.as_slice(),
         excluded_source_roots.as_slice(),
         prune,
-        &mut unreadable,
+        &mut left_out,
+        ceiling,
     )?;
     // A root the walk left out whole (another checkout, an unreadable directory) has no entry and is no root of the stage.
     let mut staged_paths: std::collections::HashSet<&[u8]> = std::collections::HashSet::new();
@@ -321,22 +369,35 @@ fn stage_into(
         }
     }
     drop(staged_paths);
-    if !unreadable.is_empty() {
+    if !left_out.unreadable.is_empty() {
         // The person gets the count and the first paths in one notice line; the verbose log keeps the whole list.
         debug(
             "worktreeCopyStage",
             format!(
                 "{} unreadable ignored entries are left out of the copy from {}: {}",
-                unreadable.len(),
+                left_out.unreadable.len(),
                 source_root.display(),
-                shown_unreadable(unreadable.as_slice())
+                shown_unreadable(left_out.unreadable.as_slice())
+            )
+            .as_str(),
+        );
+    }
+    if !left_out.uncopiable.is_empty() {
+        // The same one notice line for the entries a worktree cannot hold, so a dev server's socket never fails an add.
+        debug(
+            "worktreeCopyStage",
+            format!(
+                "{} ignored entries that cannot be copied into a worktree are left out of the copy from {}: {}",
+                left_out.uncopiable.len(),
+                source_root.display(),
+                shown_unreadable(left_out.uncopiable.as_slice())
             )
             .as_str(),
         );
     }
     let walked: std::time::Duration = started.elapsed();
     let copied_manifest: CopiedManifest =
-        copy_manifest_entries_with(source_root, stage_root, entries.as_slice(), clone)?;
+        copy_manifest_entries_with(source_root, stage_root, entries.as_slice(), clone, ceiling)?;
     let copied: std::time::Duration = started.elapsed();
     // The copy settles the stage against the source: what went away is dropped, what changed is copied again,
     //  and what will not hold still stays in its source and is named rather than failing an add Git already made.
@@ -353,6 +414,10 @@ fn stage_into(
     })?;
     let staged_entries: Vec<WorktreeCopyEntry> = settled.entries;
     let stamps: Vec<Option<FileStamp>> = settled.stamps;
+    // The names the copy found in another kind are the entries no worktree can hold, like the ones the walk left out,
+    // so one notice counts and names them all.
+    let mut uncopiable: Vec<Vec<u8>> = left_out.uncopiable;
+    uncopiable.extend(settled.uncopiable);
     debug(
         "worktreeCopyStage",
         format!(
@@ -375,7 +440,8 @@ fn stage_into(
         source_root: source_root.to_path_buf(),
         stage_container: stage_container.to_path_buf(),
         stage_root: stage_root.to_path_buf(),
-        unreadable,
+        unreadable: left_out.unreadable,
+        uncopiable,
         unsettled: settled.unsettled,
     });
 }

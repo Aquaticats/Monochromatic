@@ -17,6 +17,15 @@
 //! size,
 //! modification time and
 //!  permission bits) is left alone.
+//! Another command's stage container is left out of every pass,
+//! and so is a folder that held nothing but one:
+//! the container holds another worktree's ignored state while its own copy fills it,
+//! and nothing names it in the tree this pass builds.
+//! A container is a directory,
+//! so a file or a link whose name merely begins the stage prefix is the source's own entry
+//!  and is copied like any other,
+//! and a deletion pass leaves a container in the destination where it stands,
+//! because it belongs to the command filling it and not to this pass.
 //! The walk uses a work stack,
 //! not recursion,
 //! so a deep tree cannot overflow the stack;
@@ -47,10 +56,12 @@
 //! const stats = await syncTree({ platform, source, destination, delete: true, updateOnly: false, excluded: ['.git/index.lock'] });
 //! ```
 
+use crate::path_bytes::path_bytes_of;
 use crate::subvolume_anchor::Anchor;
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_sync_attrs::preserve_on_descriptor;
+use crate::worktree_copy_prune::{holds_only_private_stages, names_a_private_stage};
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::Metadata;
@@ -139,7 +150,20 @@ impl Pass<'_> {
                 Err(error) => return Err(MigrateError::UnreadableDirectory { path: source_directory.clone(), reason: error.to_string() }),
             };
             names.insert(entry.file_name());
-            if self.options.excluded.contains(&relative.join(entry.file_name())) {
+            let child: PathBuf = relative.join(entry.file_name());
+            // Another command's stage container holds the whole ignored state of a worktree its own copy is filling, so
+            //  nothing of it is copied. Its name stays in `names`, so the delete pass leaves the container that is there
+            //  alone: it is that command's to remove, not this one's. A container is a directory, so a file or a link whose
+            //  name merely begins the prefix is the source's own entry and is copied like any other.
+            let is_a_container: bool = match entry.file_type() {
+                Ok(kind) => kind.is_dir() && names_a_private_stage(path_bytes_of(child.as_path())),
+                Err(_unknown) => false,
+            };
+            if is_a_container {
+                self.stage_holders.insert(relative.to_path_buf());
+                continue;
+            }
+            if self.options.excluded.contains(&child) {
                 continue;
             }
             match vanished_is_counted(entry.metadata(), &mut self.stats.vanished) {
@@ -177,10 +201,65 @@ impl Pass<'_> {
             if self.options.excluded.contains(&relative.join(item.file_name())) {
                 continue;
             }
+            // The same rule as the source side: a stage container belongs to the command filling it, so a deletion pass leaves
+            //  it where it is. The name a source container has is in `names` already; this is the container the source does not
+            //  hold, which is a copy another command is filling into this destination right now.
+            if names_a_private_stage(relative.join(item.file_name()).as_os_str().as_encoded_bytes()) {
+                continue;
+            }
             remove_entry(directory.child(item.file_name().as_os_str()).as_path(), self.shown(relative).join(item.file_name()).as_path())?;
             self.stats.deleted += 1;
         }
         return Ok(());
+    }
+
+    /// What:
+    ///  Forget the destination folder this pass made for a source folder that held nothing but another command's stage
+    ///  container.
+    /// Why:
+    ///   No copy carries a container,
+    /// so a folder that held nothing else is no state of the source either;
+    /// a conversion that
+    ///  kept it would hand the new worktree an empty folder that nothing names.
+    /// Only a folder this pass made is ever
+    ///  forgotten,
+    /// so nothing that was in the destination before the pass leaves,
+    /// and a folder another process wrote
+    ///  into meanwhile stays with its content,
+    /// because that is somebody's work.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// forgetsAFolderOfStageContainersOnly('.claude/worktrees'); // true when the source held only a container there
+    /// ```
+    fn forgets_a_folder_of_stage_containers_only(&mut self, relative: &Path) -> Result<bool, MigrateError> {
+        // A tree with no stage container in it is nearly every tree, and the question costs nothing there: the source
+        //  folders are only looked at when a container was seen in one of them.
+        let mut seen_a_stage_holder: bool = false;
+        for holder in &self.stage_holders {
+            if holder.starts_with(relative) {
+                seen_a_stage_holder = true;
+                break;
+            }
+        }
+        if !seen_a_stage_holder {
+            return Ok(false);
+        }
+        let source_directory: PathBuf = self.source.join(relative);
+        if !holds_only_private_stages(source_directory.as_path()) {
+            return Ok(false);
+        }
+        let destination: PathBuf = self.destination.join(relative);
+        return match std::fs::remove_dir(&destination) {
+            Ok(()) => Ok(true),
+            // The folder holds something another process wrote in the moment since it was made, or was replaced or taken:
+            //  none of it is this pass's to remove, so it stays.
+            Err(error)
+                if error.kind() == std::io::ErrorKind::DirectoryNotEmpty
+                    || error.kind() == std::io::ErrorKind::NotFound
+                    || error.kind() == std::io::ErrorKind::NotADirectory => Ok(false),
+            Err(error) => Err(MigrateError::io("remove the folder the source held nothing of", self.shown(relative).as_path(), &error)),
+        };
     }
 
     /// Handle one source child by its type.
@@ -212,7 +291,7 @@ impl Pass<'_> {
                 MigrateError::from_io_result(std::fs::DirBuilder::new().mode(0o700).create(&destination), "create the directory", self.shown(relative.as_path()).as_path())?;
             }
             self.stats.directories += 1;
-            stack.push(Work::Finish(relative.clone(), metadata));
+            stack.push(Work::Finish { relative: relative.clone(), metadata, created: !is_directory_now });
             stack.push(Work::Visit(relative));
             return Ok(());
         }
@@ -248,13 +327,16 @@ pub fn sync_tree(
     options: SyncOptions<'_>,
     interrupt: &Interrupt,
 ) -> Result<SyncStats, MigrateError> {
-    let mut pass: Pass<'_> = Pass { platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new() };
+    let mut pass: Pass<'_> = Pass { platform, source, destination, options, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
     let root_metadata: Metadata = MigrateError::from_io_result(std::fs::symlink_metadata(source), "examine", source)?;
-    let mut stack: Vec<Work> = vec![Work::Finish(PathBuf::new(), root_metadata), Work::Visit(PathBuf::new())];
+    let mut stack: Vec<Work> = vec![Work::Finish { relative: PathBuf::new(), metadata: root_metadata, created: false }, Work::Visit(PathBuf::new())];
     while let Some(work) = stack.pop() {
         match work {
             Work::Visit(relative) => pass.visit(relative.as_path(), &mut stack)?,
-            Work::Finish(relative, metadata) => {
+            Work::Finish { relative, metadata, created } => {
+                if created && pass.forgets_a_folder_of_stage_containers_only(relative.as_path())? {
+                    continue;
+                }
                 let Some(anchor) = pass.open_destination(relative.as_path())? else { continue };
                 let shown: PathBuf = pass.shown(relative.as_path());
                 attribute_result(preserve_on_descriptor(source.join(&relative).as_path(), anchor.file(), &metadata, !options.update_only, &mut pass.stats.losses)

@@ -1,37 +1,38 @@
 //! What:
-//!  The reconcile of a rejected push,
-//! awaited by a caller that is itself a task of the runtime:
-//! the loop that fetches the remote tip,
+//!  The reconcile of a rejected push:
+//! the one loop that fetches the remote tip,
 //! merges it into the local tip,
 //! publishes the merge and
-//!  moves the branch.
+//!  moves the branch,
+//!  written once and awaited by whichever caller it has.
 //! Why:
 //!  Every step of the loop starts Git,
 //! and a synchronous start is refused from inside the runtime,
-//! so the landing round's push cannot use the synchronous loop.
-//!  The loop's own decisions,
-//! its wording,
-//! its attempt limit and the bookkeeping of a refusal are the synchronous loop's,
-//! so the two cannot publish or say different things.
+//! so the loop is a task's work.
+//!  A command that is not a task of the runtime reaches this one body through
+//! `auto_push_reconcile.rs`,
+//! which runs the merge push that command supplied on a thread of its own;
+//! no decision of the reconcile is written twice,
+//! so the two callers cannot publish or say different things.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const integrated = await integrateAndPushOnTheRuntime({ git, plan, rejected, pushMerge });
 //! ```
 
-use crate::auto_push_reconcile::{Integrated, Reconcile, wording_of};
+use crate::auto_push_reconcile_plan::{Integrated, Reconcile, wording_of};
 use crate::auto_push_reconcile_basics_and_limits::{
     MAX_RECONCILE_ATTEMPTS, TAG, argv, fetch_remote_tip_awaiting, is_ancestor_awaiting, journal_identifier,
     unpublished, was_rejected_as_stale,
 };
 use crate::auto_push_reconcile_branch_advance::advance_local_branch_awaiting;
 use crate::auto_push_reconcile_merge_commit::commit_merge_awaiting;
-use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_output_awaiting};
+use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 use crate::auto_push_destination::{Destination, read_destination_awaiting};
 use crate::diagnostic_log::debug;
 use crate::lfs_bounded_push::run_push_awaiting;
 use crate::merge_second_pass_tree::announce;
-use crate::push_retry::CONFLICT_PHRASE;
+use crate::push_retry_failure::CONFLICT_PHRASE;
 use std::ffi::OsString;
 use std::future::Future;
 use std::pin::Pin;
@@ -94,13 +95,13 @@ impl MergePusherAwaiting for PushMergeThroughGitAwaiting<'_> {
 }
 
 /// What:
-///  The same reconcile loop,
+///  The reconcile loop,
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
 ///   Every step below it is awaited,
 /// so the loop holds no worker while Git runs;
-/// the decisions,
-/// the wording and the limits are the synchronous loop's.
+/// it is the only body of these decisions,
+/// so the entry a command outside the runtime calls cannot drift from it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -278,18 +279,20 @@ pub async fn integrate_and_push_awaiting(
 }
 
 /// What:
-///  The awaited reconcile of a push a moved remote branch rejected.
+///  The awaited reconcile of a push a moved remote branch rejected,
+///  merging the commit the push was allowed to send and never a commit that landed after it.
 /// Why:
 ///   The push of the landing round is a task,
 /// and every step below this one is a start of Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function reconcileDivergentPushOnTheRuntime({ git, branchRef, rejected }): Promise<PushAttempt>;
+/// async function reconcileDivergentPushOnTheRuntime({ git, branchRef, local, rejected }): Promise<PushAttempt>;
 /// ```
 pub async fn reconcile_divergent_push_awaiting(
     git: &PushGit,
     branch_ref: &str,
+    local: &str,
     rejected: PushAttempt,
 ) -> Result<PushAttempt, SingleFlightError> {
     if !was_rejected_as_stale(&rejected.output) {
@@ -302,14 +305,9 @@ pub async fn reconcile_divergent_push_awaiting(
         );
         return Ok(rejected);
     };
-    let local: String = git_output_awaiting(
-        git,
-        &argv(&["rev-parse", "--verify", &format!("{branch_ref}^{{commit}}")]),
-    )
-    .await?;
     let plan = Reconcile {
         destination,
-        local,
+        local: local.to_owned(),
         branch_ref: Some(branch_ref),
         label: "auto-push",
         explicit: false,

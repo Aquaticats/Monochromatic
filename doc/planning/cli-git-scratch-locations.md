@@ -200,6 +200,104 @@ The bound of the leak is therefore one entry per kill,
 collected by the next run that uses the same directory.
 A repository that is never used again keeps at most the one input file of a kill inside that moment.
 
+## What one sweep promises
+
+One sweep removes every stale entry it can finish inside `SCRATCH_REMOVAL_CEILING`,
+and leaves the entry it could not to a later sweep:
+a removal that outlasts the ceiling keeps its thread,
+a removal takes a place from the process's budget for blocking work and a caller that finds every place taken starts nothing,
+and a machine that refuses a thread takes nothing.
+So a sweep never waits,
+which is what keeps a commit from waiting for another command's leftovers,
+and its count is the removals it finished and not the entries that are stale.
+What it promises is which entries remain,
+so the controls state those entries,
+sweep again until they are what remains
+(`scratch_location_tests.rs`,
+`sweep_until`),
+and report the count in their messages instead of asserting it.
+
+## Why a sweep answered nothing for two stale entries
+
+The gate of 2026-11-10T17:10:21-05:00 failed
+`the_sweep_removes_only_stale_entries_and_never_follows_links`
+at the control's second count:
+the sweep of the file and the link two days later answered 0 where it expected 2,
+inside a test that took 0.022 s,
+while the control passed in the gate of 2026-11-10T16:33:54-05:00 on another commit and in 960 runs beside seven other test processes.
+A duration of 0.022 s rules out both a stalled device and a removal cut short by the ceiling:
+either would have cost the test the ceiling.
+
+The cause was the place a removal takes,
+measured in the gate's image with the gate's limits
+(`--cpus=2`,
+so `available_parallelism()` answers 2 and `budgeted_blocking_jobs()` gives a test process two places)
+on 2026-11-11T01:48:22+00:00,
+with four measurements at once on the gate's two processors:
+
+- A removal's place was given back after its caller was told what became of the removal,
+  so a caller holding `Removal::Finished` could find that place still taken:
+  208 and 202 of 20,000 removals of one small file each left it held.
+- A place was still held when the second sweep of the control's shape began in 288 to 316 of 20,000 rounds,
+  and the second sweep then answered 1 of 2 in one round and 0 of 2 in another:
+  a sweep refuses instead of waiting when it finds every place taken.
+- The control's own two count assertions,
+  run in the same conditions,
+  failed in every one of six measurements:
+  two printed the gate's message,
+  `left: 0` and `right: 2`,
+  and four printed `left: 1` and `right: 2`.
+
+So the product was wrong:
+`Removal::Finished` promised the entry was gone and the place it took was not yet back
+(`scratch_entry_removal.rs`,
+`remove_within`).
+The place is now given back when the removal's own work ends and before the answer is sent,
+and the controls that state it hold it,
+for a removal that finished and for one that was refused
+(`scratch_entry_removal_tests.rs`,
+`a_removal_reported_finished_has_given_its_place_back`,
+`a_removal_reported_failed_has_given_its_place_back`).
+The same measurements after that change held no place in 80,000 removals,
+and the control's two counts held in every one of 360,000 rounds across six measurements at once.
+
+## Why the cut-short control waited a ceiling
+
+A cross-vendor review of the integration branch reported that the cut-short control
+(`a_sweep_cut_short_empties_the_stale_entries_over_later_sweeps`)
+failed while the product was right.
+Reproduced on 2026-11-11T08:19:00-05:00 against `82829a1696`,
+with `strace --inject=unlinkat:delay_enter=250ms` around the real test run in a throwaway scope:
+each of the three stale trees then needs about 500 ms of removal work,
+while the helper waited only about 120 ms,
+seven attempts and six looks of 20 ms,
+so it stopped before the removals its own sweeps had cut short finished on their threads.
+The control failed in 4.167 s with
+`every stale tree went over the later sweeps, though only 0 of their removals finished inside a sweep`,
+and the same reproduction passed in 2.565 s after the fix.
+
+The cause was the helper's patience:
+a number of looks is not a span of time,
+because a removal a one-microsecond ceiling cut short finishes when the device finishes and not when the next look comes.
+The helper now waits `SWEEP_UNTIL_PATIENCE`,
+which is `SCRATCH_REMOVAL_CEILING`,
+the ceiling the product itself gives one removal before it leaves that entry to a later sweep,
+and looks every `SWEEP_UNTIL_LOOK`,
+20 ms.
+Nothing waits forever:
+a sweep that never empties the place ends at that ceiling,
+and the assertion names what stayed.
+The control for it is
+`the_sweep_helper_waits_for_a_removal_that_finishes_after_the_sweep_that_started_it`,
+which hands the helper a sweep whose removal finishes on a thread 400 ms later through the `Sweep` seam.
+It failed before the fix with
+`every stale tree went once the removal its sweep cut short finished on its thread, though only 0 of their removals finished inside a sweep`,
+and it passes after it.
+Limit:
+the helper's patience is one removal ceiling for the whole wait,
+so a device that delays a single removal past 30 s still fails the control,
+which is the intended outcome rather than a wait without a bound.
+
 ## Controls
 
 Each production site has a child-process control (`binary_markdown_tests.rs`,

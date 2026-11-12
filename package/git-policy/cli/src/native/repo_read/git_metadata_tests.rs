@@ -134,6 +134,49 @@ fn queries_pass_arguments_and_overlay_and_close_stdin() {
 }
 
 /// What:
+///  Every read the wrapper parses runs in the C locale,
+///  whatever locale the person's command carries.
+/// Why:
+///  The wrapper reads Git's own words to decide what a clean deletes,
+///  and a translated word is not the word it matches
+///  (`Supprimerait nested/` under `fr_FR`),
+/// so a localized Git used to have every nested repository deleted unsaved.
+///  The locale is a setting of the read,
+/// never of the command Git runs for the person.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // probe: print "${LC_ALL-none}"; expect("C")
+/// ```
+#[test]
+fn a_read_the_wrapper_parses_runs_in_the_c_locale() {
+    let root: PathBuf = fixture("metadata-locale");
+    let probe: PathBuf = root.join("locale-probe");
+    let recorded: PathBuf = root.join("locale-recorded");
+    executable(
+        probe.as_path(),
+        format!(
+            "#!/bin/sh\nprintf '%s' \"${{LC_ALL-none}}\" > '{}'\nprintf 'Would remove nested/\\n'\n",
+            recorded.display()
+        )
+        .as_bytes(),
+    );
+    let output: MetadataOutput = run_metadata_git(
+        probe.as_path(),
+        &[OsString::from("clean"), OsString::from("-n")],
+        &[],
+    )
+    .expect("the probe starts");
+    assert!(output.success, "{}", String::from_utf8_lossy(output.stderr.as_slice()));
+    assert_eq!(output.stdout, b"Would remove nested/\n".to_vec());
+    assert_eq!(
+        std::fs::read_to_string(recorded.as_path()).expect("the probe recorded its locale"),
+        "C"
+    );
+    remove(root.as_path());
+}
+
+/// What:
 ///  A read that never returns is ended at the ceiling and said so,
 ///  while the same ceiling lets a
 ///       read that answers through.
@@ -276,4 +319,60 @@ fn an_answer_larger_than_the_capture_keeps_comes_back_whole() {
     remove(root.as_path());
     assert!(answer.success, "the read answered");
     assert_eq!(answer.stdout.len(), too_many, "the answer comes back whole, byte for byte");
+}
+
+/// What:
+///  A read the wrapper starts as `git -C <directory> status` is announced by its subcommand,
+///  and never by the directory it was pointed at,
+///  while a read that names no subcommand still says it is a read-only query.
+/// Why:
+///   A removal of a linked worktree reads the target's tracked changes with exactly that command line,
+///  and the notice a person saw during it said "still waiting for /usr/bin/git (a read-only Git query)",
+///  which names no query at all;
+///  the value of a global option can be a pathname,
+///  so it is stepped over and never printed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // subject(['-C', dir, 'status', '--porcelain=v1']) === `${git} status`
+/// ```
+#[test]
+fn a_read_named_after_a_global_option_is_announced_by_its_subcommand() {
+    let root: PathBuf = fixture("metadata-subject");
+    let hang: PathBuf = root.join("hang");
+    executable(hang.as_path(), b"#!/bin/sh\nsleep 60\n");
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(300);
+    let ended: std::io::Error = run_metadata_git_within(
+        hang.as_path(),
+        &[
+            OsString::from("-C"),
+            OsString::from("/some/where"),
+            OsString::from("status"),
+            OsString::from("--porcelain=v1"),
+            OsString::from("--untracked-files=no"),
+        ],
+        crate::repo_read_hook::switch_off().as_slice(),
+        ceiling,
+    )
+    .expect_err("a read that never returns");
+    let text: String = ended.to_string();
+    assert!(
+        text.contains(" status showed no sign of work"),
+        "the subcommand after a global option's value names the read: {text}"
+    );
+    assert!(!text.contains("a read-only Git query"), "{text}");
+    // The value of the global option is a pathname, and no pathname reaches the sentence.
+    assert!(!text.contains("/some/where"), "{text}");
+    // A read with no subcommand after its global option still says what it is.
+    let unnamed: std::io::Error = run_metadata_git_within(
+        hang.as_path(),
+        &[OsString::from("-C"), OsString::from("/some/where")],
+        crate::repo_read_hook::switch_off().as_slice(),
+        ceiling,
+    )
+    .expect_err("a read that never returns");
+    let unnamed_text: String = unnamed.to_string();
+    assert!(unnamed_text.contains("(a read-only Git query)"), "{unnamed_text}");
+    assert!(!unnamed_text.contains("/some/where"), "{unnamed_text}");
+    remove(root.as_path());
 }

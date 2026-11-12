@@ -135,12 +135,86 @@ Issues whose named module is gone but whose behaviour is not were marked
  and each one that fails maps a non-`NotFound` error through `io_failure` with its operation and path,
  so no io reason is reported as an identity change.
 - `#6007`:
-  `parse_layout` and `replay_*` are gone.
- The layout report is produced in process by `repo_read_adapter::invocation_report`,
- whose path conversions are `to_str()?`,
- so a non-UTF-8 path gives no report instead of a lossy one.
- Whether a non-UTF-8 repository path should work at all is a separate decision,
-  not this defect.
+  `parse_layout` and `replay_*` are gone,
+ and the defect lived on in the layout the commit records,
+ not in the lossy conversion the issue quotes.
+ The report was produced in process by `repo_read_adapter::invocation_report`,
+ which spelled its paths with `to_str()?`,
+ so a name that is not UTF-8 gave no report and the capture asked Git,
+ whose report it then decoded as UTF-8 and refused;
+ and a name holding a line feed gave a report the capture split at every line feed,
+ which moved every path after it.
+ Measured with the built wrapper in throwaway repositories before the fix:
+ a directory whose name is not UTF-8 failed its commit with
+ "Git returned non-UTF-8 output.",
+ and one whose name holds a line feed failed with
+ "repository root is unreadable:
+ No such file or directory (os error 2)".
+ With `CLI_GIT_IN_PROCESS_READS=off`
+ the first failed on a Git directory spelled with
+ U+FFFD in place of the byte,
+ and the second was refused by the identity reader.
+ Branch `fix/git-policy-cli-layout-paths-keep-their-bytes` makes the layout the bytes Git printed,
+ reads the report as bytes,
+ asks each pathname on its own when a report holds more answers than the layout has pathnames,
+ and writes the object directory,
+ the shadow's `config` and its `--git-dir` option from those bytes.
+ Measured after it:
+ a repository whose directory name is not UTF-8 commits,
+ with the in-process reads on and off.
+ One case still fails:
+ a directory name holding a line feed,
+ because `objects/info/alternates` holds one pathname per line and Git has no escape for a line feed in it.
+ That commit stops in the shadow's read-back with "unable to normalize alternate object path",
+ and closing it needs an owner decision:
+ `GIT_ALTERNATE_OBJECT_DIRECTORIES` for the shadow's Git children,
+ or a symlink under a clean name,
+ each with its own lifetime to sweep.
+ The coordinator decided both open questions on 2026-11-10T18:57:00-05:00,
+ for this branch `fix/git-policy-cli-layout-paths-line-feed-and-same-class-sites`:
+ controls in 9b5624b007 (2026-11-10T18:52:34-05:00),
+ fixes in ac586c2b18 (2026-11-10T19:11:37-05:00).
+ The shadow's `objects/info/alternates` line is now written C-quoted when the pathname needs it,
+ which is when it holds a line feed or begins with a double quote or a hash,
+ and every other pathname stays the plain bytes it was.
+ Git 2.56.0 reads that form:
+ `odb/source-files.c:247` hands the file's contents to
+ `parse_alternates(buf.buf, '\n', source->path, out)`,
+ `odb.c:154` sends a line that begins with a double quote through `unquote_c_style`
+ and falls back to the unquoted reading when the quoting is broken,
+ `quote.c:386` is that unquoting,
+ which turns `\n` into a line feed (`quote.c:414`)
+ and keeps `\"` and `\\` as themselves (`quote.c:419`).
+ The environment variable was not needed:
+ the file carries the quoting that the parser already reads.
+ The same class of defect is closed beside it,
+ each with a control that was red on 9b5624b007 and green on ac586c2b18,
+ except the control of an attributes file whose bytes are not text,
+ which names a branch the fix added and was written with it:
+ `service/service_shadow_pool_fill.rs` reads the three facts as bytes
+ and asks each fact in a start of its own when the answer count is not three,
+ `repair/package_repair_prewarm.rs` builds the common directory from the bytes Git printed,
+ `worktree/worktree_ladder_target.rs` reads `core.attributesFile` as a pathname of bytes
+ and every attributes file as the bytes it holds,
+ so a filter name is compared with the standard one as those same bytes,
+ `worktree/worktree_audit.rs` reads a `gitdir:` pointer as bytes,
+ and `repo_read/repo_read_layout.rs` reads a `gitdir:` line as bytes.
+ Measured with the built wrapper in throwaway repositories,
+ one service per case,
+ through `${HOME}/temp/agent/pi-layout-linefeed/probe-lines-and-bytes.ts`:
+ a directory name holding a line feed failed its commit with
+ "unable to normalize alternate object path" before this branch,
+ and `add`,
+ `commit` and `log` each exit 0 after it,
+ for a plain name,
+ a name that is not UTF-8 and a name holding a line feed.
+ With `CLI_GIT_IN_PROCESS_READS=off` the line-feed name is still refused
+ by the identity reader (`worktree/worktree_identity.rs:125`),
+ which is a defect of its own and is not touched here.
+ Two sites of the same class are also left:
+ `repo_read/git_directory_roots.rs` reads `commondir` and a `gitdir:` file as text,
+ and `repo_read/repo_read_odb.rs::alternates_of` declines a quoted alternates line,
+ which is a refusal that sends those reads to Git and never a path with the wrong bytes.
 - `#6005`:
   `index_writer_coordination.rs` and `transaction_lease.rs` are gone,
  and no lossy-write against a strict `Path::to_str` compare survives in
@@ -160,6 +234,20 @@ Issues whose named module is gone but whose behaviour is not were marked
   a replaced lock released,
  a long name classified) lives in `src/native/lock/` and `src/native/transaction/recovery_files.rs`,
  so the six need a fresh read rather than a close.
+  Note 2026-11-10:
+  `#1136`,
+  `#1137` and `#1138` were closed after that fresh read.
+  The release and install they report hold the judged file open and compare the name against that descriptor,
+  in `src/native/landing/service_index_hold.rs` and `src/native/landing/service_index_ownership.rs`.
+  A replacement nobody proved unheld is left where it is,
+  and the reference-lock clearing compares device,
+  inode,
+  size,
+  birth time and modification time (`src/native/lock/stale_ref_lock_identity.rs`).
+  The record is `doc/troubleshooting/git-policy-replaced-lock-filesystem.md`,
+  section "Where the boundary stands on main".
+  `#1135`,
+  `#1139` and `#1140` are closed.
 
 ## Still true, and left in another agent's folder
 

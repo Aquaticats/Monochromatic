@@ -18,6 +18,10 @@
 /// beside the landing loop.
 pub mod service_scratch_release_removal;
 
+/// The collection of the repository scratch directory a killed command left,
+/// beside the landing loop.
+pub mod service_repository_scratch_sweep;
+
 /// The fill of the shadow pool a commit takes its private repository from,
 /// beside the landing loop.
 pub mod service_shadow_pool_fill;
@@ -65,6 +69,10 @@ pub mod service_journal;
 /// written and parsed.
 pub mod service_journal_intent_text_and_parse;
 
+/// How old a finished batch's record is,
+/// read from the clocks the record itself carries.
+pub mod service_journal_record_age;
+
 /// Test-only fault points of the commit service.
 pub mod service_fault;
 
@@ -85,6 +93,10 @@ pub mod service_signal;
 /// waits a bounded time for the Gits and the landing in flight,
 /// and ends the process by the signal.
 pub mod service_server_shutdown_after_a_stop;
+
+/// The plan of the pushes waiting for a new try and the repositories an earlier service was woken for,
+/// read at a service's start on a thread of its own.
+pub mod service_journal_restored_at_start;
 
 /// The commit service's loop.
 pub mod service_server;
@@ -121,6 +133,10 @@ pub mod service_server_land_group_owed_pushes;
 /// Handles one client connection of the commit service.
 pub mod service_server_connection_handling;
 
+/// How the service's own runtime was built,
+/// and the words a task that cannot get a worker ends the service with.
+pub mod service_runtime_build_report;
+
 /// The acceptor of connections:
 /// one task that starts a task per connection.
 pub mod service_server_accept_connections_as_tasks;
@@ -135,8 +151,19 @@ pub mod service_main;
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
 
+/// The words a waiting command is told about its own wait.
+pub mod service_client_waiting_words;
+
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
+
+/// The signals a waiting commit answers by withdrawing its request,
+/// and the flag they set for the wait.
+pub mod service_client_interrupted;
+
+/// Why a request a commit sent is given up,
+/// and the failure that says what became of the commit.
+pub mod service_client_why_withdrawn;
 
 /// Connecting to the service,
 /// reading one line from it,
@@ -160,6 +187,10 @@ pub mod service_provision_earlier_service_retirement;
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
 
+/// The states in which provisioning already knows no service can answer this command,
+/// so the command says why instead of waiting out the start ceiling.
+pub mod service_provision_refusals_before_the_wait;
+
 /// The record of the unit texts the service manager was last told about,
 /// which tells an installation it runs from files a kill left behind.
 pub mod service_provision_loaded_unit_texts;
@@ -181,20 +212,38 @@ pub mod systemd_dbus_wire_format;
 /// socket and unit instances.
 pub mod service_instance;
 
+/// The files an instance of the commit service keeps between runs:
+/// the note beside its socket,
+/// the note and socket file that say it has units,
+/// and the journal that remembers its batches.
+pub mod service_files_of_a_stopped_instance;
+
 /// The commit service units of worktrees that no longer exist:
 /// which worktree a unit belongs to,
 /// whether it is gone,
 /// and the stop of its units through the manager.
 pub mod service_units_of_removed_worktrees;
 
+/// The pushes a service owes a repository that no longer exists:
+/// the retry plan of each branch whose Git directory is proven gone ends.
+pub mod service_plans_of_a_gone_repository;
+
 /// The journal folder the unit gives an instance,
 /// and the state folder that holds it.
 pub mod service_journal_folder_of_an_instance;
+
+/// Whether a stopped service's processes are gone,
+/// which is what lets the journal it writes be removed.
+pub mod service_is_gone_after_a_stop;
 
 /// A manager that records the stops it is asked for,
 /// for the controls of the units of removed worktrees.
 #[cfg(test)]
 pub mod service_unit_manager_recorder_test_support;
+
+/// One disposable machine for the controls of the units of removed worktrees and of the files an instance keeps.
+#[cfg(test)]
+pub mod service_units_fixture_test_support;
 
 /// One entry from the wrapper a person ran to the journal,
 /// sent without waiting.

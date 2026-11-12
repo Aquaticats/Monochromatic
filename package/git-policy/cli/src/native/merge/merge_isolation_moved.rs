@@ -37,7 +37,7 @@ use crate::merge_isolation_journal::MergeIntent;
 use crate::merge_isolation_recovery_cleanup::an_installed_merge_behind_a_held_index;
 use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge_awaiting,
-    install_entries_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes, remove_record,
+    install_entries_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes_awaiting, remove_record,
 };
 use crate::merge_isolation_index_reading::{entries_by_path, index_entries_awaiting, standing_of_index};
 /// The maps of records a settling asks by path.
@@ -85,7 +85,7 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began: true }),
     };
-    put_back_stranded_takes(root, changes.as_slice(), out);
+    put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), intent.owner.transaction_id.as_str(), out).await;
     // The installed state is read once here too,
     // the index first and the worktree second,
     // so a worktree that cannot be read is reported by what
@@ -216,7 +216,7 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
             error: RecoveryError(format!(
             "A merge in {} lost the branch to a newer commit while Git updated these files, and they now hold neither \
              their old content, the merge's nor the newer commit's: {}. Nothing was changed and the record {} was kept. \
-             Save your edits to them elsewhere, restore them with `git restore -- <path>`, then run any git command again.",
+             Save your edits to them elsewhere, restore them with `git restore --no-enforce-worktree -- <path>`, then run any git command again.",
             root.display(),
             foreign.join(", "),
             record.display()
@@ -224,7 +224,7 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
             began,
         });
     }
-    if install_entries_awaiting(place, root, ends.as_slice(), held.as_slice(), began, out).await? == Installed::IndexHeld {
+    if install_entries_awaiting(place, root, ends.as_slice(), held.as_slice(), began, intent.owner.transaction_id.as_str(), out).await? == Installed::IndexHeld {
         // A settling that had already begun has nothing to defer: the command is stopped rather than read the merge as
         //  another session's staged work.
         if began {

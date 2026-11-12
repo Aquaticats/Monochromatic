@@ -51,6 +51,53 @@ fn present_entries_are_copied_and_absent_ones_skipped() {
 }
 
 /// What:
+///  A merge conclusion's entries are copied into the shadow and for comparison without a flush of the disk.
+/// Why:
+///   The shadow's copy is read by this process's own `git commit` immediately after it is written,
+///  and the comparison copy by the landing that this same command asks for;
+///  the service copies both into the batch's journal before the branch moves
+///  (`conclusion_state_copy.rs`),
+///  so nothing recovers them from this directory.
+///  A copy a power cut never gave back keeps the worktree's own entry instead of removing it:
+/// no content is lost.
+///  Measured on this host:
+/// eight client fsyncs of these throwaway files,
+///  2 to 53 s over native Git in ten rounds,
+/// five of ten over native plus five seconds
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+///  "The repository scratch sweep and a conclusion's copies").
+#[test]
+fn a_merge_conclusion_copies_its_entries_without_flushing_the_disk() {
+    let root: PathBuf = fixture("conclusion-copy-no-flush");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    std::fs::write(git_dir.join("MERGE_HEAD"), "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n").expect("merge head");
+    std::fs::write(git_dir.join("MERGE_MSG"), "Merge branch 'side'\n").expect("merge message");
+    std::fs::write(git_dir.join("MERGE_MODE"), "\n").expect("merge mode");
+    let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "files");
+    let transaction: PathBuf = root.join("transaction");
+    std::fs::create_dir(&transaction).expect("transaction");
+    let _earlier = crate::private_storage::take_file_syncs();
+    copy_conclusion_state(
+        &git_context(),
+        repo.as_path(),
+        git_dir.as_path(),
+        shadow.as_path(),
+        transaction.as_path(),
+        RefFormat::Files,
+    )
+    .expect("copy");
+    let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+    assert!(synced.is_empty(), "nothing of a merge conclusion's copy is flushed: {synced:?}");
+    assert_eq!(std::fs::read_to_string(shadow.join("MERGE_HEAD")).expect("shadow"), "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n");
+    assert_eq!(
+        std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join("MERGE_HEAD")).expect("copy"),
+        "0d5ee4b0b6f4b8f4b0c5ee4b0b6f4b8f4b0c5ee4\n"
+    );
+    remove(root.as_path());
+}
+
+/// What:
 ///  A files-backend copy of a worktree with no conclusion state names nothing in the store,
 ///  so no record is written and no file of the copy is synced.
 /// Why:
@@ -217,6 +264,70 @@ fn a_worktree_with_nothing_to_conclude_gets_no_copies_directory() {
         "nothing to conclude makes no copies directory: {}",
         copies.display()
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A merge in progress copies its entries into the shadow and into the transaction,
+///  and flushes neither copy.
+/// Why:
+///  A merge leaves `MERGE_HEAD`,
+/// `MERGE_MSG`,
+/// `MERGE_MODE` and `AUTO_MERGE` behind,
+///  so a copy that flushed every publish would wait for the disk eight times per merge commit
+///  where a plain commit of the same paths waits none,
+///  and the records put that wait at up to 47.9 s for one merge commit
+///  (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+///  "A merge commit's conclusion copies no longer flush").
+///  Every copy here is read inside this commit's own transaction,
+///  which a power loss ends without a verdict (`doc/planning/cli-git-spawn-and-sync-reduction.md`,
+/// the tearing
+///  table),
+///  so nothing is left that a flush would have made findable.
+#[test]
+fn a_merge_in_progress_copies_its_entries_and_flushes_neither_copy() {
+    let root: PathBuf = fixture("conclusion-copy-merge-no-flush");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(git_dir.join("MERGE_HEAD"), format!("{head}\n")).expect("merge head");
+    std::fs::write(git_dir.join("MERGE_MSG"), "Merge branch 'feature'\n").expect("merge message");
+    std::fs::write(git_dir.join("MERGE_MODE"), "").expect("merge mode");
+    // Git 2.56 leaves the auto-merged tree behind as well, and the loop copies it like the other three.
+    std::fs::write(git_dir.join("AUTO_MERGE"), format!("{head}\n")).expect("auto merge");
+    let shadow: PathBuf = bare_shadow(root.as_path(), "shadow", "files");
+    let transaction: PathBuf = root.join("transaction");
+    std::fs::create_dir(&transaction).expect("transaction");
+    // The positive control: the recorder sees the flush of a file this process publishes durably, so a copy that
+    // records none is a copy that made none.
+    let control: PathBuf = root.join("control");
+    let _earlier = crate::private_storage::take_file_syncs();
+    crate::private_storage::write_private_file(control.as_path(), b"control\n").expect("control");
+    let control_syncs: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+    assert_eq!(control_syncs, vec![control], "the durable writer flushes what it publishes");
+    copy_conclusion_state(
+        &git_context(),
+        repo.as_path(),
+        git_dir.as_path(),
+        shadow.as_path(),
+        transaction.as_path(),
+        RefFormat::Files,
+    )
+    .expect("copy");
+    let synced: Vec<PathBuf> = crate::private_storage::take_file_syncs();
+    assert!(synced.is_empty(), "a merge's copies are published without a flush: {synced:?}");
+    for name in ["MERGE_HEAD", "MERGE_MSG", "MERGE_MODE", "AUTO_MERGE"] {
+        assert_eq!(
+            std::fs::read_to_string(shadow.join(name)).expect("shadow copy"),
+            std::fs::read_to_string(git_dir.join(name)).expect("the worktree's entry"),
+            "the shadow holds {name} as the worktree does"
+        );
+        assert_eq!(
+            std::fs::read_to_string(transaction.join(CONCLUSION_COPY_DIRECTORY).join(name)).expect("comparison copy"),
+            std::fs::read_to_string(git_dir.join(name)).expect("the worktree's entry"),
+            "the transaction holds {name} as the worktree does"
+        );
+    }
     remove(root.as_path());
 }
 

@@ -198,8 +198,9 @@ pub struct CommitRequest {
     ///  service instance that lands the commit,
     /// which refuses a request that names another worktree's.
     pub git_dir: PathBuf,
-    /// Full name of the branch the commit goes on.
-    pub reference: String,
+    /// Full name of the branch the commit goes on,
+    /// by the bytes Git printed for its name.
+    pub reference: crate::ref_name::RefName,
     /// The commit the client prepared against.
     pub base: String,
     /// The paths to change.
@@ -255,6 +256,14 @@ pub struct CommitRequest {
     ///  service keeps it with the commit it lands,
     /// and a retry uses it to tell which of two overlapping captures is the later.
     pub captured: u64,
+    /// The command that will decide this commit's post-commit checks,
+    /// spelled as `held_push_holder_and_verdict::this_command` does,
+    /// or empty when it could not be read.
+    /// The service holds the commit's push before it answers,
+    /// and only the command that asked can say who will promote or
+    ///  forget that record,
+    /// so a record whose command is gone can be told from one that is still deciding.
+    pub holder: String,
 }
 
 /// A commit the service landed and when its bytes were captured,
@@ -604,6 +613,21 @@ pub const SCRATCH_PREFIX: &str = SERVICE_SCRATCH_PREFIX;
 /// ```ts
 /// isScratchPath(path, gitDir)
 /// ```
+/// What:
+///  Whether one byte cannot be part of a reference name the service is told.
+/// Why:
+///   The name travels in one line of the protocol,
+/// so a NUL,
+/// a line feed or a space would end it early and name another ref.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endsARefName = (byte: number) => byte === 0 || byte === 10 || byte === 32
+/// ```
+pub fn ends_a_ref_name(byte: &u8) -> bool {
+    return [0_u8, b'\n', b' '].contains(byte);
+}
+
 pub fn is_scratch_path(path: &Path, git_dir: &Path) -> bool {
     let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else { return false };
     let identity: &str = name.strip_prefix(SCRATCH_PREFIX).unwrap_or("");

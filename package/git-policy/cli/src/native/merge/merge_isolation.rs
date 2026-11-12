@@ -41,6 +41,9 @@ use crate::diagnostic_log::debug;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The merge messages.
 use crate::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source};
+/// The ignored untracked files of the person's that stand at the paths a merge writes,
+/// which `git status` never lists.
+use crate::merge_isolation_ignored_paths::ignored_untracked_among;
 /// The word-level second pass over the conflicts of the merge tree,
 /// and the attribute tree it reads.
 use crate::merge_second_pass::Merged;
@@ -49,6 +52,15 @@ use crate::merge_isolation_recovery::recover_interrupted_merges;
 /// The person's own work in the paths the merge changes,
 /// and the durable ref that keeps it.
 use crate::merge_isolation_carry::{capture_work, keep_capture};
+/// The directory a merge would replace with a file,
+/// and the sentence that stops the merge instead.
+use crate::merge_isolation_a_directory_the_merge_replaces::{a_directory_the_merge_would_replace, the_line};
+/// A named pipe,
+/// a socket or a device at a path the merge writes or deletes,
+/// and the sentence that stops the merge instead.
+use crate::merge_isolation_a_special_file_the_merge_changes::{a_special_file_the_merge_changes, the_line as a_special_file_line};
+/// The paths a merge changes whose edit Git's status does not show.
+use crate::merge_isolation_marks_the_status_hides::paths_the_status_hides;
 use crate::merge_isolation_carry_parts::Capture;
 /// The editor a merge opens for its message when the checkout holds the person's own work.
 use crate::merge_isolation_editor::{EditorPlace, EditorRefusal, asked_once};
@@ -232,6 +244,22 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
         FastForwardChoice::Allowed => false,
         FastForwardChoice::Default => config.fast_forward == Some(false),
     };
+    // A path either side changed is a path a merge of the two writes, so these are the merge's own paths before its tree exists.
+    let touched: Vec<Vec<u8>> = diff_paths(
+        session
+            .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, target])?
+            .stdout
+            .as_slice(),
+    );
+    // A directory standing where the merge writes a file is the person's own work, and Git's update of the checkout deletes
+    //  everything in it: measured, an untracked `a.txt/nested/file.txt` and a staged one both went with the directory, the
+    //  staged one with its index entry. No layer of the carry can hold a directory, so the merge stops here, before the
+    //  first byte of the worktree, the index or the branch changes (`SPEC.md`, "A directory that stands where the merge puts a file").
+    if let Some(found) = a_directory_the_merge_would_replace(&session.context, root, head, target, touched.as_slice())
+        .map_err(Bail::from)?
+    {
+        return Err(refused(1, the_line(reference.as_str(), &found)));
+    }
     if config.fast_forward_only && shape.fast_forward == FastForwardChoice::Default {
         return Err(Bail::Forward(None));
     }
@@ -247,18 +275,15 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
         Some(describe_merge_source(reference.as_str(), full_name.as_str(), target).ok_or(Bail::Forward(None))?)
     };
     // The paths whose own work the merge would write over: everything Git's status reports, untracked files included, because
-    //  a merge that adds a path an untracked file stands at is refused by Git too. They are read once here, before the merge
+    //  a merge that adds a path an untracked file stands at is refused by Git too, and the ignored untracked files of the
+    //  person's, which no status lists and which the merge overwrites without a word. They are read once here, before the merge
     //  tree exists. Whether the checkout holds any of the paths the merge touches is what decides that a conflict of the merge
     //  itself is resolved here rather than handed to native Git: its merge refuses such a checkout outright
     //  (`SPEC.md`, "Merges and commits never fail", "Carry edits forward").
-    let dirty: Vec<Vec<u8>> = dirty_paths(&session)?;
-    // A path either side changed is a path a merge of the two writes, so these are the merge's own paths before its tree exists.
-    let touched: Vec<Vec<u8>> = diff_paths(
-        session
-            .run(&["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, target])?
-            .stdout
-            .as_slice(),
-    );
+    let mut dirty: Vec<Vec<u8>> = dirty_paths(&session, root, touched.as_slice())?;
+    // Git's status reads an entry marked assume-unchanged or skip-worktree as one not to compare, so an edit there is work the
+    //  person's, listed here so the capture carries it and Git's own update of the checkout never meets it unjudged.
+    dirty.extend(paths_the_status_hides(&session.context, root, touched.as_slice())?);
     let carrying: bool = !overlapping_paths(dirty.as_slice(), touched.as_slice()).is_empty();
     // A merge that would open an editor is native Git's while the checkout holds nothing the merge would write over:
     //  it performs the merge itself and then opens the editor. Over the person's own work it cannot run at all, because
@@ -283,6 +308,13 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
             .as_slice(),
     );
     let overlap: Vec<Vec<u8>> = overlapping_paths(dirty.as_slice(), incoming.as_slice());
+    // A named pipe, a socket or a device at a path this merge writes or deletes holds no bytes for the carry, and Git's update
+    //  of the checkout would remove it without a copy; reading one could wait for a writer that never comes, so the merge stops
+    //  before the first write and names what it kept (`SPEC.md`, "Merges and commits never fail").
+    let special: Vec<Vec<u8>> = a_special_file_the_merge_changes(root, incoming.as_slice());
+    if !special.is_empty() {
+        return Err(refused(1, a_special_file_line(reference.as_str(), special.as_slice())));
+    }
     let written: Vec<u8> = match (&shape.message, description) {
         (Some(given), _) => given.clone(),
         (None, Some(line)) => default_merge_message(&session.context, line.as_str(), shape.log)?,
@@ -335,17 +367,24 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
 
 /// What:
 ///  Every path whose worktree or index differs from the branch,
-/// untracked files included.
+/// untracked files included,
+/// and the ignored untracked
+///  files of the person's that stand at the paths the merge touches.
 /// Why:
 ///   These are exactly the paths a merge that writes them would discard,
 /// and the untracked ones are why native
 ///  Git refuses a merge that adds a path a file already stands at.
+///  `git status` never lists a file an ignore rule covers,
+/// so those paths are read from Git's own list of the untracked files the
+///  rules cover (`merge_isolation_ignored_paths.rs`);
+/// the merge writes over the only copy of their bytes as it would over
+///  any other untracked file's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const dirty = statusPaths(await git(['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all']));
+/// const dirty = statusPaths(await git(['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'])).concat(ignoredUntrackedAmong(context, root, touched));
 /// ```
-fn dirty_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
+fn dirty_paths(session: &Session, root: &Path, touched: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, Bail> {
     let status: GitOutput = session.run(&[
         "--no-optional-locks",
         "status",
@@ -356,7 +395,13 @@ fn dirty_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
     if !status.succeeded() {
         return Err(Bail::from(format!("git status failed: {}", status.error_text())));
     }
-    return Ok(status_paths(status.stdout.as_slice()));
+    let mut paths: Vec<Vec<u8>> = status_paths(status.stdout.as_slice());
+    for path in ignored_untracked_among(&session.context, root, touched).map_err(Bail::from)? {
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    return Ok(paths);
 }
 
 /// What:

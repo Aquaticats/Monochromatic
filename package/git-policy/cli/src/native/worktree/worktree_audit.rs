@@ -19,13 +19,16 @@
 //!       `HEAD` from two file reads,
 //!  and the number of tracked paths that differ,
 //!  from one `git status` that reads the
-//!       index and never walks the untracked or ignored files
-//!       (measured:
-//! 20 ms on this repository's own worktree).
+//!       index and never walks the untracked or ignored files,
+//!  read under a two-second bound
+//!       (`CHANGED_PATHS_CEILING`)
+//!  so a disk other sessions are hammering cannot hold the removal.
 //!  What it does not
 //!       count,
 //! it says it does not count,
-//!  so a reader is never told the worktree was clean.
+//!  so a reader is never told the worktree was clean,
+//!  and a read the bound
+//!       ends leaves the count out.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,13 +36,15 @@
 //! ```
 
 use crate::discard_audit_facts::AuditFact;
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, run_metadata_git_within};
+use crate::hooks_path_values::{path_answer, without_trailing_newlines};
 use crate::transaction_git::GitContext;
 /// `OsString`/`OsStr` are owned/borrowed operating-system text of raw bytes,
 ///  and `Path`/`PathBuf` owned/borrowed paths.
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// The sentence the record carries about what it counted.
 const COUNTED_TRACKED_ONLY: &str = "tracked changes only";
@@ -51,6 +56,35 @@ const COUNTED_TRACKED_ONLY: &str = "tracked changes only";
 ///  so the read is bounded as well as
 ///       non-blocking.
 const POINTER_BYTES: u64 = 4096;
+
+/// The longest the one Git read of a removal's audit line may hold the removal,
+///  whatever the read shows.
+/// Why:
+///   The count is a best-effort fact about what the removal takes,
+///  and the owner asked for it
+///       "without making the removal slow";
+///  the read is a whole `git status` of the target,
+///  which parses the
+///       index and stats every tracked path,
+///  so a disk other sessions are hammering makes it take seconds.
+///  Measured
+///       on 2026-11-11 on a linked worktree of this repository's size
+///  (23,194 tracked paths,
+///  3.1 MB index):
+///       0.29 to 0.43 s with a warm page cache,
+///  in six runs over two fixtures,
+///  and more than 5 s
+///       under the load of other sessions,
+///  where the removal printed the wait notice for this read.
+///  Two
+///       seconds is 4.6 times the warm figure,
+///  and below the 5 seconds after which a wait is announced
+///       (`PLUMBING_NOTICE_GRACE`),
+///  so a best-effort fact is never announced as a wait.
+///  A read the bound ends
+///       answers nothing and the line leaves the count out,
+///  which is what a fact Git could not answer does here.
+const CHANGED_PATHS_CEILING: Duration = Duration::from_secs(2);
 
 /// What:
 ///  The Git directory a linked worktree's `.git` names,
@@ -66,26 +100,30 @@ const POINTER_BYTES: u64 = 4096;
 ///  resolving a relative pointer against the process's directory
 ///  would read
 ///       another worktree's facts or none.
+///  The line is read as bytes and the path it names is built from them,
+///  because a Git directory whose own path is not UTF-8 is still the one this worktree uses.
+///  Only the trailing line breaks Git's own reader takes are taken,
+///  so a directory whose name ends in a space is that directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function worktreeGitDirectory(target: string): string | undefined;
+/// function worktreeGitDirectory(target: Path): Path | undefined;
 /// ```
 fn worktree_git_directory(target: &Path) -> Option<PathBuf> {
-    let pointer: String = read_pointer_file(target.join(".git").as_path())?;
-    let named: &str = pointer.trim().strip_prefix("gitdir:")?.trim();
+    let pointer: Vec<u8> = read_pointer_file(target.join(".git").as_path())?;
+    let named: &[u8] = without_trailing_newlines(pointer.as_slice()).strip_prefix(b"gitdir: ")?;
     if named.is_empty() {
         return None;
     }
-    let directory: &Path = Path::new(named);
+    let directory: PathBuf = path_answer(named);
     if directory.is_absolute() {
-        return Some(directory.to_path_buf());
+        return Some(directory);
     }
     return Some(target.join(directory));
 }
 
 /// What:
-///  The text of a pointer file,
+///  The bytes of a pointer file,
 ///  or nothing when the path is not a regular file or cannot be read.
 /// Why:
 ///   Opening a FIFO with no writer waits for ever,
@@ -93,12 +131,14 @@ fn worktree_git_directory(target: &Path) -> Option<PathBuf> {
 ///  the type is checked
 ///  first and the open cannot wait,
 ///  so a best-effort fact never holds the command.
+///  The bytes are returned as they are,
+///  because the path the file names may hold bytes that are not UTF-8.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function readPointerFile(path: string): string | undefined;
+/// function readPointerFile(path: Buffer): Buffer | undefined;
 /// ```
-fn read_pointer_file(path: &Path) -> Option<String> {
+fn read_pointer_file(path: &Path) -> Option<Vec<u8>> {
     // `metadata` follows a link, so a link to a regular file is still a regular file; anything else is not read.
     let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
     if !metadata.is_file() {
@@ -108,7 +148,7 @@ fn read_pointer_file(path: &Path) -> Option<String> {
     let mut bytes: Vec<u8> = Vec::new();
     // `.take(n)` bounds the read; a file longer than that is not a pointer file.
     opened.take(POINTER_BYTES).read_to_end(&mut bytes).ok()?;
-    return String::from_utf8(bytes).ok();
+    return Some(bytes);
 }
 
 /// What:
@@ -152,7 +192,8 @@ fn open_without_waiting(path: &Path) -> std::io::Result<std::fs::File> {
 pub fn worktree_head(target: &Path) -> Option<String> {
     // The Git directory the worktree's own `.git` names; a main worktree names none a removal could take.
     let directory: PathBuf = worktree_git_directory(target)?;
-    let head: String = read_pointer_file(directory.join("HEAD").as_path())?;
+    // `HEAD` names a ref or a commit, which is text; a pointer file names a pathname, which is bytes.
+    let head: String = String::from_utf8(read_pointer_file(directory.join("HEAD").as_path())?).ok()?;
     let trimmed: &str = head.trim();
     let named: &str = trimmed.strip_prefix("ref: ").unwrap_or(trimmed);
     if named.is_empty() {
@@ -175,10 +216,13 @@ pub fn worktree_head(target: &Path) -> Option<String> {
 ///  The query names the target with its own `-C`,
 ///  so the invocation's
 ///       global options cannot point it at another repository.
+///  It is read under `CHANGED_PATHS_CEILING`,
+///  so a status that takes seconds answers nothing
+///       instead of holding the removal the line describes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const output = await runGit(['-C', target, '--no-optional-locks', 'status', '--porcelain=v1', '--untracked-files=no']);
+/// const output = await runGitWithin(['-C', target, '--no-optional-locks', 'status', '--porcelain=v1', '--untracked-files=no'], CHANGED_PATHS_CEILING);
 /// ```
 pub fn changed_paths(context: &GitContext, target: &Path) -> Option<usize> {
     let arguments: Vec<OsString> = vec![
@@ -189,8 +233,13 @@ pub fn changed_paths(context: &GitContext, target: &Path) -> Option<usize> {
         OsString::from("--porcelain=v1"),
         OsString::from("--untracked-files=no"),
     ];
-    let output: MetadataOutput =
-        run_metadata_git(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice()).ok()?;
+    let output: MetadataOutput = run_metadata_git_within(
+        context.real_git.as_path(),
+        arguments.as_slice(),
+        context.overlay.as_slice(),
+        CHANGED_PATHS_CEILING,
+    )
+    .ok()?;
     if !output.success {
         return None;
     }

@@ -20,7 +20,7 @@ use crate::service_land_follow::classify;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput};
 use std::path::{Path, PathBuf};
-use crate::service_land_git_steps_and_import_stream::{commits_from_marks, import_stream, run};
+use crate::service_land_git_steps_and_import_stream::{ASideRefWrite, commits_from_marks, import_stream, keep_on_the_scratch_reference, run};
 use crate::service_scratch_ref_marker_of_a_batch::record_scratch_ref;
 
 /// What:
@@ -92,7 +92,28 @@ pub(crate) fn objects_of_batch(
                 return Err(FailureCode::Unavailable);
             }
         }
-        Ok((vec![built.to_string()], built.to_string()))
+        // A commit Git built elsewhere is an object no reference names until the branch write below moves one to it, and
+        //  `git gc --prune=now` takes an object nothing names. It is kept on the batch's side reference here, as the import
+        //  keeps the commits it makes, so a commit that is held behind a reference lock, or a landing a kill leaves, keeps what
+        //  it made (`held_commit_record.rs`, `service_scratch_ref_marker_of_a_batch.rs`).
+        // The write is answered by the reference, not by the wait for it: a wait that ends without its answer is told apart from a
+        //  write that failed, so a slow host never tells a person their commit was not made (`keep_on_the_scratch_reference`).
+        //  A reference that still does not name the commit after that is a write the repository did not take, and the batch ends
+        //  with the person's index and worktree as they were, so the answer that it was not made is true of anything they can reach.
+        //  A step a stop ended is the landing's own ending, and it keeps its code so that the commit is kept beside it
+        //  (`service_land.rs`, `keep_what_an_ended_step_built`).
+        record_scratch_ref(journal, seq, repository, first.git_dir.as_path());
+        return match keep_on_the_scratch_reference(git, repository, scratch, built) {
+            ASideRefWrite::Written => Ok((vec![built.to_string()], built.to_string())),
+            ASideRefWrite::Refused(words) => {
+                crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch} ({words})");
+                Err(FailureCode::Unavailable)
+            }
+            ASideRefWrite::Ended(code) => {
+                crate::service_error!("batch {seq}: the commit Git built cannot be kept on {scratch}, because the write of it was ended ({code:?})");
+                Err(code)
+            }
+        };
     } else {
         let marks: PathBuf = journal.join(format!("marks-{seq}"));
         let marks_argument: String = format!("--export-marks={}", marks.display());

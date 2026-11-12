@@ -15,21 +15,24 @@
 //! and a limit that must hold for the wrapper's children (a process limit
 //!  would stop `timeout` from starting the wrapper at all) is set on the wrapper itself.
 //! The hang guard is a thread that
-//!  ends the group,
-//! so a stuck wrapper fails the control instead of holding the run.
+//!  ends the group when the command's process tree shows no sign of work,
+//! so a stuck wrapper fails the control instead of holding the run,
+//! and a slow one is left alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const wrapper = spawn(gitLink, args, { detached: true }); const guard = setTimeout(() => process.kill(-wrapper.pid, 'SIGKILL'), ms);
+//! const wrapper = spawn(gitLink, args, { detached: true }); const guard = new Judge(QUIET_WINDOW).observe(() => process.kill(-wrapper.pid, 'SIGKILL'));
 //! process.kill(wrapper.pid, 'SIGTERM'); // the wrapper alone
 //! ```
 
+use super::supervisor::{Judge, Limits, Reason};
+use super::supervisor_proc::{Look, look_at, stat_of, tick};
 use super::support::{Fixture, ServiceLaunch, hermetic, restart_ended_services, service_runtime, wrapper_first_path};
 use std::io::{Read, Seek};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Output, Stdio};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -37,10 +40,31 @@ use std::time::{Duration, Instant};
 /// in seconds.
 pub(super) const STRAGGLER_SECONDS: u64 = 30;
 
-/// The most a watched wrapper may run before its group is ended:
+/// How long a watched wrapper's process tree may show no sign of work before its group is ended:
 /// a hang guard of the control,
 /// never part of a verdict.
-pub(super) const WATCHDOG_SECONDS: u64 = 120;
+/// Why not a wall clock:
+///  a traced commit runs under a `ptrace` of every process it starts,
+/// and on a loaded host one such run took 121 to 300 s of wall time while it was moving all the time,
+/// so a clock of 120 s ended eighteen `fault_trace::` controls that had nothing wrong with them
+/// (the suite of 2026-11-10,
+/// `${HOME}/temp/agent/plk/suite2.log`).
+/// A run that is stuck shows nothing instead,
+/// which is the evidence the whole-run watchdog reads
+/// (`testing/test_support.rs`,
+/// `QUIET_WINDOW`,
+/// whose 120 s is the longest quiet stretch a working run ever showed:
+/// 8.0 s),
+/// and a run that moves for ever is ended by the test runner's own per-test limit
+/// (`.config/nextest.toml`).
+const QUIET_WINDOW: Duration = Duration::from_secs(120);
+
+/// The limits a watched wrapper's tree is judged by:
+/// only the quiet window,
+/// because a traced run moves bytes and processor time in the `strace` that carries it,
+/// and its whole duration is the disk's,
+/// never a loop's.
+const LIMITS: Limits = Limits { no_progress: QUIET_WINDOW, cpu_budget: Duration::MAX, backstop: Duration::MAX };
 
 /// The wrapper (the fixture's `bin/git`) with the fixture's environment,
 /// run in `directory`,
@@ -74,8 +98,18 @@ pub(super) struct Watched {
     /// Set when the command was waited for,
     /// so the watchdog stops.
     finished: Arc<AtomicBool>,
-    /// Set by the watchdog when it ended the group.
-    expired: Arc<AtomicBool>,
+    /// The reason the watchdog ended the group,
+    /// and nothing while it has not.
+    expired: Arc<Mutex<Option<Reason>>>,
+    /// When the wrapper started,
+    /// in clock ticks after boot,
+    /// which with the process ID names the one process a look reads.
+    started: u64,
+    /// The process group of the wrapper,
+    /// which is its own process ID.
+    group: i32,
+    /// How long the command's tree may show nothing before the group is ended.
+    window: Duration,
 }
 
 impl Watched {
@@ -90,16 +124,21 @@ impl Watched {
     ///  # Panics
     ///  When the wrapper ends first,
     ///  naming what it printed,
-    ///  or when the marker is still absent after the watchdog's time.
+    ///  or when its tree shows no sign of work before the marker appears.
     pub(super) fn wait_for(&mut self, marker: &Path) {
         let began: Instant = Instant::now();
+        let mut judge: Judge = Judge::new(Limits { no_progress: self.window, ..LIMITS }, tick());
         while !marker.exists() {
             if let Some(status) = self.child.try_wait().expect("the wrapper's state") {
                 let said: String = String::from_utf8_lossy(read_from_start(&mut self.stderr).as_slice()).into_owned();
                 panic!("the wrapper ended with {status:?} before {} appeared: {said}", marker.display());
             }
-            assert!(began.elapsed() < Duration::from_secs(WATCHDOG_SECONDS), "{} never appeared", marker.display());
-            std::thread::sleep(Duration::from_millis(20));
+            if let Look::Seen(sample) = look_at(self.group, self.started)
+                && let Some(reason) = judge.observe(began.elapsed(), &sample, false)
+            {
+                panic!("{} never appeared: the wrapper was ended because it {reason}", marker.display());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
     }
 
@@ -113,7 +152,11 @@ impl Watched {
     ///  When the watchdog had to end the group,
     ///  which names a hang.
     pub(super) fn finish_after_stragglers(self) -> Output {
-        return self.end(true);
+        let (output, ended): (Output, Option<Reason>) = self.wait_and_end(true);
+        if let Some(reason) = ended {
+            panic!("the wrapper's group was ended because it {reason}");
+        }
+        return output;
     }
 
     /// Waits for the command and returns what it printed and how it ended;
@@ -122,7 +165,19 @@ impl Watched {
     ///  When the watchdog had to end the group,
     ///  which names a hang.
     pub(super) fn finish(self) -> Output {
-        return self.end(false);
+        let (output, ended): (Output, Option<Reason>) = self.wait_and_end(false);
+        if let Some(reason) = ended {
+            panic!("the wrapper's group was ended because it {reason}");
+        }
+        return output;
+    }
+
+    /// What the command printed,
+    /// how it ended,
+    /// and the reason the guard ended its group when it did,
+    /// so a control of the guard itself reads the judgement instead of catching a panic.
+    pub(super) fn finish_reporting(self) -> (Output, Option<Reason>) {
+        return self.wait_and_end(false);
     }
 
     /// The end of a run:
@@ -131,8 +186,8 @@ impl Watched {
     /// the
     ///  group is given time to end by itself when `let_stragglers_end`,
     /// then ended.
-    fn end(self, let_stragglers_end: bool) -> Output {
-        let Watched { mut child, mut stdout, mut stderr, finished, expired } = self;
+    fn wait_and_end(self, let_stragglers_end: bool) -> (Output, Option<Reason>) {
+        let Watched { mut child, mut stdout, mut stderr, finished, expired, .. } = self;
         let status: std::process::ExitStatus = child.wait().expect("the wrapper ends");
         finished.store(true, Ordering::SeqCst);
         let group: i32 = i32::try_from(child.id()).expect("a process ID fits");
@@ -147,8 +202,8 @@ impl Watched {
         // SAFETY: `kill` takes two integers and touches no memory of this process.
         unsafe { libc::kill(-group, libc::SIGKILL) };
         let output: Output = Output { status, stdout: read_from_start(&mut stdout), stderr: read_from_start(&mut stderr) };
-        assert!(!expired.load(Ordering::SeqCst), "the wrapper was still running after {WATCHDOG_SECONDS} seconds and its group was ended");
-        return output;
+        let ended: Option<Reason> = *expired.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        return (output, ended);
     }
 }
 
@@ -167,6 +222,12 @@ fn read_from_start(file: &mut std::fs::File) -> Vec<u8> {
 /// and standard output and error in files under the
 ///  fixture.
 pub(super) fn spawn_watched(fixture: &Fixture, command: &mut Command) -> Watched {
+    return spawn_watched_with(fixture, command, QUIET_WINDOW);
+}
+
+/// `spawn_watched` with the quiet window given,
+/// so a control of the guard itself states a window it reaches in a moment.
+pub(super) fn spawn_watched_with(fixture: &Fixture, command: &mut Command, window: Duration) -> Watched {
     let stdout: std::fs::File = tempfile::tempfile_in(&fixture.root).expect("a file for standard output");
     let stderr: std::fs::File = tempfile::tempfile_in(&fixture.root).expect("a file for standard error");
     let child: Child = command
@@ -177,22 +238,29 @@ pub(super) fn spawn_watched(fixture: &Fixture, command: &mut Command) -> Watched
         .spawn()
         .expect("the wrapper starts");
     let group: i32 = i32::try_from(child.id()).expect("a process ID fits");
+    let started: u64 = stat_of(group).expect("the wrapper that just started to be running").started;
     let finished: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    let expired: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    let watching: (Arc<AtomicBool>, Arc<AtomicBool>) = (Arc::clone(&finished), Arc::clone(&expired));
+    let expired: Arc<Mutex<Option<Reason>>> = Arc::new(Mutex::new(None));
+    let watching: (Arc<AtomicBool>, Arc<Mutex<Option<Reason>>>) = (Arc::clone(&finished), Arc::clone(&expired));
     std::thread::spawn(move || {
+        let (done, reason): (Arc<AtomicBool>, Arc<Mutex<Option<Reason>>>) = watching;
         let began: Instant = Instant::now();
-        while !watching.0.load(Ordering::SeqCst) {
-            if began.elapsed() >= Duration::from_secs(WATCHDOG_SECONDS) {
-                watching.1.store(true, Ordering::SeqCst);
+        let mut judge: Judge = Judge::new(Limits { no_progress: window, ..LIMITS }, tick());
+        while !done.load(Ordering::SeqCst) {
+            std::thread::sleep(crate::supervisor::POLL);
+            // A wrapper that has exited is waited for by the control, and its work is over whatever its group still holds.
+            let Look::Seen(sample) = look_at(group, started) else {
+                continue;
+            };
+            if let Some(ending) = judge.observe(began.elapsed(), &sample, false) {
+                *reason.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(ending);
                 // SAFETY: `kill` takes two integers and touches no memory of this process.
                 unsafe { libc::kill(-group, libc::SIGKILL) };
                 return;
             }
-            std::thread::sleep(Duration::from_millis(50));
         }
     });
-    return Watched { child, stdout, stderr, finished, expired };
+    return Watched { child, stdout, stderr, finished, expired, started, group, window };
 }
 
 /// Runs `command` to its end under the watchdog.

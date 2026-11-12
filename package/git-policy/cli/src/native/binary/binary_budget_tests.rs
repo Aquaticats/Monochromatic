@@ -42,6 +42,11 @@ use std::process::{Command, Output};
 // The stat-data refresh that keeps the scratch commit inside its ceiling (`commit_index_stat_staleness.rs`) asks for Git
 //  only when the real index no longer describes the worktree, and every repository here has an index Git has just
 //  written, so the `update-index` counts are the ones measured before that refresh existed.
+// `wrapper_syncs` is 0, and must stay 0: the verdict a commit's own post-commit gate reaches is written into the held
+//  push record through `replace_private_file_unsynced` (`work_item_holding.rs`, `record_verdict`), one rename that
+//  flushes neither the record nor its directory, because native Git's commit makes no sync
+//  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`, "A commit"). A refusal is the one verdict that waits for
+//  the disk (`record_refusal`), and no scenario here refuses.
 // Measured with host Git 2.56.0 on Linux, maintenance kept in the foreground (see `prepared_repository`), over five
 //  runs of every scenario; the counts were identical in every run.
 // Variance sources: another Git than 2.56.0 may start other children (`gc`, `repack`) in the foreground maintenance
@@ -474,6 +479,9 @@ fn a_commit_with_a_worktree_config_costs_what_one_without_costs() {
 /// `config`,
 /// `diff` and
 ///  `diff-tree` starts) answered the questions it would have answered from the files.
+/// The wrapper's own Git passes `-c core.fsmonitor=false` (`hooks_off.rs`),
+/// so the commit starts no daemon either;
+/// the setting reaches only the person's own commands.
 #[test]
 fn a_commit_with_core_fsmonitor_true_costs_what_one_without_costs() {
     require_budget("monitor-on", Scenario::MonitorOn, &WARM);

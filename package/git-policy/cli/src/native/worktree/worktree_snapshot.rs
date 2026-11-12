@@ -35,7 +35,7 @@ use crate::worktree_add_plan::AddPlan;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_clean_content::ConversionEnvironment;
 pub use crate::worktree_snapshot_index_step::CopyState;
-use crate::worktree_snapshot_index_step::{install_index, read_own_index};
+use crate::worktree_snapshot_index_step::{Proof, install_index, read_own_index};
 use crate::worktree_snapshot_placeholders::{HandOver, open_below_stand_ins, remove_snapshot_placeholders};
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_trash::{Pruned, TrashManifest, is_directory_itself, prune_snapshot};
@@ -324,24 +324,42 @@ pub fn record_made_of_the_stage(source: &SnapshotSource, stage: &Path, made: Opt
 /// Why:
 ///   Each step is one the later steps depend on;
 /// the first failure ends the rung with its reason.
-/// The index is installed before the source's
-///  `.git` goes,
+/// Every add takes its own snapshot of the source's ignored files,
+/// never one the commit service made earlier:
+/// a copy taken ahead is the source as of an older instant,
+/// and the owner answered a request to keep installing one with "Fresh snapshot every add" (2026-11-11),
+/// measured at 5.4 s at the median and 26 s at worst against his bound of 60 s for an add.
+/// One `BTRFS_IOC_SNAP_CREATE_V2` forces a btrfs transaction commit on the thread that calls it,
+/// which is what that bound pays for.
+/// The index is installed before the source's `.git` goes,
 /// so a copy the source changed under can still read the index it carries.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await takeSnapshot({ source, plan, stage, admin, pointer, environment });
+/// await takeSnapshot({ source, plan, stage, admin, pointer, environment, service });
 /// ```
 pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8], environment: &ConversionEnvironment) -> Result<Snapshotted, SnapshotFailure> {
+    // The record comes first, and names the container, the instant, and the source and transaction the snapshot below must
+    // follow, while it holds no object yet: the identity of an object cannot be read before it exists, and a kill between
+    // the creation below and the record of the identity left a whole snapshot nothing could prove the wrapper made
+    // (`worktree_copy_stage_reaping_proof_and_words.rs`). The binding record this rung wrote a moment ago was flushed, so
+    // the journal's own subvolume carries the last committed transaction, and the snapshot made now is later than it.
+    let origin: Option<crate::worktree_copy_stage_snapshot_origin::SnapshotOrigin> =
+        crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path(), source.common_dir.as_path());
+    if let Err(error) = crate::worktree_copy_stage_made_object::record_creating_at(source.common_dir.as_path(), stage, std::time::SystemTime::now(), origin.as_ref()) {
+        warn(TAG, format!("monochromatic-git-policy-cli: the creation of the stage {} could not be recorded ({}); a stage a kill leaves behind will be reported and not removed", stage.display(), error.0).as_str());
+    }
     let snapshot_ioctl_entered: bool = begin_step("snapshotIoctl");
     let snapshot_ioctl_outcome = snapshot_create_at(source.root.as_path(), stage);
     end_step(snapshot_ioctl_entered);
     if let Err(error) = snapshot_ioctl_outcome {
         return Err(SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None });
     }
+    let made: Option<ObjectId> = identity_of_name(stage);
+    // The add's own snapshot needs no earlier proof of the index: this rung walks the copy it just made.
+    let proven: Option<Proof> = None;
     // From here the stage exists and this process made it; its identity is what a later removal checks, so it is recorded
     // before the next step can be killed.
-    let made: Option<ObjectId> = identity_of_name(stage);
     record_made_of_the_stage(source, stage, made);
     failing(subject_failure(std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)), &"the stage", "cannot be made private"), made)?;
     // The snapshot's own index is read before its `.git` goes: it is the index of the same instant as the files.
@@ -363,7 +381,7 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     end_step(remove_stubs_entered);
     failing(remove_stubs_outcome, made)?;
     let install_index_entered: bool = begin_step("installIndex");
-    let install_index_outcome = install_index(source, stage, admin, own_index.as_deref(), environment);
+    let install_index_outcome = install_index(source, stage, admin, own_index.as_deref(), environment, proven);
     end_step(install_index_entered);
     let state: CopyState = failing(install_index_outcome, made)?;
     let replace_pointer_entered: bool = begin_step("replacePointer");
@@ -373,7 +391,16 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     let Some(stage_id) = made else {
         return Err(SnapshotFailure { reason: String::from("the stage cannot be examined"), stage: None });
     };
-    return Ok(Snapshotted { stage: stage_id, trash: hand_over.finish(), taken_over: pruned.taken_over, state });
+    let trash: Option<TrashManifest> = hand_over.finish();
+    // The trash says what it is before anything publishes it: the manifest travels with the trash through the swap, so a
+    //  command killed between the swap and its record leaves a trash the next pass can prove and empty, where a trash only a
+    //  record describes left an orphan nothing would ever name.
+    if let Some(manifest) = trash.as_ref()
+        && let Err(reason) = crate::worktree_trash_own_manifest::write(stage, manifest)
+    {
+        warn(TAG, format!("monochromatic-git-policy-cli: the trash {} cannot say what it is ({reason}), so a kill before its record leaves it for the next pass to name and the person to remove", manifest.name).as_str());
+    }
+    return Ok(Snapshotted { stage: stage_id, trash, taken_over: pruned.taken_over, state });
 }
 
 /// What a snapshot that was taken left for the steps after it.

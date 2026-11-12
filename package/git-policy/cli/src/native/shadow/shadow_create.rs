@@ -24,7 +24,7 @@ use crate::shadow_git::{REPOSITORY_REDIRECT_VARIABLES, shadow_repository_path};
 use crate::capture_invocation::{InvocationCapture, InvocationLayout};
 /// The in-process entries of an empty bare repository.
 use crate::shadow_skeleton::create_shadow_skeleton;
-/// Format copy and config text.
+/// Format copy and the config bytes.
 use crate::shadow_config::{RepositoryFormat, format_shadow_config, read_repository_format, repository_format_from_snapshot};
 /// Entry links.
 use crate::shadow_links::link_shadow_entries;
@@ -44,6 +44,9 @@ use std::ffi::OsString;
 /// The build phase's stretches,
 /// which the creation marks as it goes.
 use crate::commit_build_part_durations::BuildPartClock;
+/// The bytes of a path,
+/// for a file that names one.
+use crate::path_bytes::path_bytes_of;
 
 /// What:
 ///  Overwrites a file the shadow's `git init` already created,
@@ -144,23 +147,27 @@ pub(crate) const SHADOW_CREATION_ATTEMPTS: u32 = 2;
 /// Why:
 ///   Reftable tables carry their own format,
 /// so only Git creates them.
+///  The pathname handed to Git is the shadow's own bytes:
+/// a spelling of it writes every byte that is not UTF-8 as U+FFFD,
+/// and Git then initializes a different directory,
+///  so the creation protects a path that does not exist and the commit cannot be prepared.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runGit({ args: ['init', '--bare', '--template=', `--object-format=${format}`, '--ref-format=reftable', shadow] });
+/// await runGit({ args: ['init', '--bare', '--template=', `--object-format=${format}`, '--ref-format=reftable', shadowBytes] });
 /// ```
 fn init_with_git(
     context: &GitContext,
     template: &ShadowTemplate,
     shadow: &Path,
 ) -> Result<(), GitFailure> {
-    let arguments: Vec<String> = vec![
-        String::from("init"),
-        String::from("--bare"),
-        String::from("--template="),
-        format!("--object-format={}", template.object_format),
-        String::from("--ref-format=reftable"),
-        shadow.display().to_string(),
+    let arguments: Vec<OsString> = vec![
+        OsString::from("init"),
+        OsString::from("--bare"),
+        OsString::from("--template="),
+        OsString::from(format!("--object-format={}", template.object_format)),
+        OsString::from("--ref-format=reftable"),
+        shadow.as_os_str().to_os_string(),
     ];
     let mut init: GitRequest = GitRequest::new(template.common_dir.as_path(), &arguments);
     init.without_prefix = true;
@@ -323,32 +330,92 @@ impl ShadowTemplate {
     }
 
     /// What:
-    ///  The text of the shadow's `config` for these facts.
+    ///  The bytes of the shadow's `config` for these facts.
     /// Why:
     ///   The creation writes it and a claim compares a member's own file with it,
-    /// so one function says what the file holds.
+    /// so one function says what the file holds;
+    ///  the included path and the worktree it names are the bytes the layout holds,
+    ///  because a spelling of either loses a name that is not UTF-8.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// template.configText()
+    /// template.configBytes()
     /// ```
-    pub fn config_text(&self) -> String {
+    pub fn config_bytes(&self) -> Vec<u8> {
         return format_shadow_config(&self.format, self.common_dir.as_path(), self.repository_root.as_path());
     }
 
     /// What:
-    ///  The text of the shadow's `objects/info/alternates` for these facts.
+    ///  The bytes of the shadow's `objects/info/alternates` for these facts.
     /// Why:
     ///   The alternates are what lets the shadow's Git read the real object store,
-    /// and a claim checks a member names this invocation's object directory.
+    ///  and a claim checks that a member names this invocation's object directory;
+    ///  the object directory's own bytes name it,
+    ///  because a spelling of it loses a name that is not UTF-8 and would send the shadow to a store that does not exist.
+    ///  A pathname a line would break is written C-quoted,
+    /// which Git reads back exactly:
+    ///  `parse_alternates` in `odb.c` hands a line that begins with a double quote to
+    ///  `unquote_c_style` in `quote.c` of Git 2.56.0.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// template.alternatesText()
+    /// Buffer.concat([alternatesLine(pathBytes), Buffer.from('\n')])
     /// ```
-    pub fn alternates_text(&self) -> String {
-        return format!("{}\n", self.object_directory.display());
+    pub fn alternates_bytes(&self) -> Vec<u8> {
+        let path: &[u8] = path_bytes_of(self.object_directory.as_path());
+        let mut text: Vec<u8> = match alternates_line_needs_quoting(path) {
+            true => c_quoted(path),
+            false => path.to_vec(),
+        };
+        text.push(b'\n');
+        return text;
     }
+}
+
+/// What:
+///  Whether a pathname has to be written as a quoted line of the shadow's alternates.
+/// Why:
+///   The file holds one pathname per line and Git reads a line that begins with a double quote as a C-quoted pathname,
+///  so a line feed would split the entry in two and a leading quote or hash would change how the line is read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// path.includes('\n') || path.startsWith('"') || path.startsWith('#')
+/// ```
+fn alternates_line_needs_quoting(path: &[u8]) -> bool {
+    return path.contains(&b'\n') || path.starts_with(b"\"") || path.starts_with(b"#");
+}
+
+/// What:
+///  A pathname as one C-quoted line of the shadow's alternates,
+/// which Git unquotes byte for byte.
+/// Why:
+///   A quote inside a quoted line would end the pathname early and a backslash would start an escape,
+///  so the quote,
+/// the backslash and the control bytes are written as the escapes Git reads back
+///  (`unquote_c_style` in `quote.c`),
+/// and every other byte is written as itself,
+///  which keeps a name that is not text the name it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `"${path.replace(/[\\"\n\r\t]/g, escapeC)}"`
+/// ```
+fn c_quoted(path: &[u8]) -> Vec<u8> {
+    let mut text: Vec<u8> = Vec::with_capacity(path.len() + 2);
+    text.push(b'"');
+    for byte in path {
+        match byte {
+            b'"' => text.extend_from_slice(b"\\\""),
+            b'\\' => text.extend_from_slice(b"\\\\"),
+            b'\n' => text.extend_from_slice(b"\\n"),
+            b'\r' => text.extend_from_slice(b"\\r"),
+            b'\t' => text.extend_from_slice(b"\\t"),
+            _ => text.push(*byte),
+        }
+    }
+    text.push(b'"');
+    return text;
 }
 
 /// What:
@@ -508,13 +575,13 @@ pub fn create_shadow_template(
     step_failure(set_private_directory_mode(shadow), "protecting", shadow)?;
     clock.next("shadow config");
     named_step_failure(
-        overwrite_private(shadow.join("config").as_path(), template.config_text().as_bytes()),
+        overwrite_private(shadow.join("config").as_path(), template.config_bytes().as_slice()),
         "writing the shadow config",
     )?;
     named_step_failure(
         overwrite_private(
             shadow.join("objects").join("info").join("alternates").as_path(),
-            template.alternates_text().as_bytes(),
+            template.alternates_bytes().as_slice(),
         ),
         "writing the shadow alternates",
     )?;
@@ -564,7 +631,7 @@ fn carry_the_commit_parts(
         cwd,
         shadow,
         layout.ref_format,
-        layout.target_ref.as_str(),
+        &layout.target_ref,
         &layout.symbolic_head,
         &capture.base,
     )?;

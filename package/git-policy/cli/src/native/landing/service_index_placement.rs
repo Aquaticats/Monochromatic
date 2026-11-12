@@ -99,8 +99,29 @@ pub const SYSTEM: Platform<'static> = Platform {
     release: unlink_file,
 };
 
+/// The name the record of the lock marker's flush carries,
+/// in the sync figures,
+/// in a landing's timing records and in the background task's own line.
+/// Why:
+///  A control of what a landing waits for tells the marker's flush from a record's by this name,
+/// so both
+///  read it here instead of writing the word twice.
+pub const LOCK_MARKER_SYNC: &str = "lock-marker";
+
+/// Flushes the lock marker the index lock is made of,
+/// in the background task,
+/// and never waits for it.
+/// Why:
+///  The marker names the process that holds the lock and nothing else,
+/// and a power cut that tears it leaves a lock
+///  the wrapper judges stale and removes (`stale_ref_lock_judge.rs`),
+/// so nothing a person's commit needs is lost by the flush happening
+///  later;
+/// and the flush itself sat on every commit's path,
+/// 8 to 12.5 s of it under load
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
 pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
-    return crate::service_durable::flush_file(file, "lock-marker");
+    return crate::service_durable::defer_file(file, LOCK_MARKER_SYNC);
 }
 
 fn link_file(from: &Path, to: &Path) -> std::io::Result<()> {

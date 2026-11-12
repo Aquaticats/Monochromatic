@@ -39,6 +39,23 @@ const LONG_WINDOW: Duration = Duration::from_secs(60);
 /// A ceiling no control reaches unless the control is about the ceiling.
 const ROOMY: Duration = Duration::from_secs(3600);
 
+/// What:
+///  How long a control waits for the guard's answer before it calls the wait stuck.
+/// Why:
+///  A verdict on a held notice write must rest on what the guard does,
+///  not on how soon a loaded host schedules the job's thread,
+///  so the wait is long enough that only a guard which waits for the write reaches it,
+///  and under `WRITE_HELD_FOR`,
+///  so the write ending cannot be the answer a waiting guard owes.
+const ANSWER_WITHIN: Duration = Duration::from_secs(60);
+
+/// What:
+///  How long a control holds the notice write it planted.
+/// Why:
+///  A guard that waits for that write has to find it held however slowly the host runs,
+///  so the hold outlasts every control's `ANSWER_WITHIN`.
+const WRITE_HELD_FOR: Duration = Duration::from_secs(240);
+
 /// The limits of a control that is about the quiet window only.
 fn limits(window: Duration) -> GuardLimits {
     return GuardLimits { window, ceiling: ROOMY };
@@ -60,12 +77,15 @@ const FAST: Cadence = Cadence {
 ///  The notice is advisory output to a stream whose reader may have stopped draining it,
 ///  which is the state a full still-open stderr pipe has;
 ///  waiting for that write would hold the caller past the only deadline that ends such a wait.
+///  The control's own wait is `ANSWER_WITHIN` and not a multiple of the ceiling:
+///  the ceiling is the guard's subject here,
+///  and how late a host starts the job's thread must not decide the verdict.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // const sink = new ActionSink(shared, 1, () => { entered.send(); release.recv(); });
 /// // const outcome = await onThread(() => runGuarded(blocksForever, { window: 60s, ceiling: 50ms }, cadence(0, 3600s), 'a job', sink));
-/// // expect(await receiveWithin(outcome, ceiling * 10)).toEqual({ kind: 'ceiling' });
+/// // expect(await receiveWithin(outcome, ANSWER_WITHIN)).toEqual({ kind: 'ceiling' });
 /// ```
 #[test]
 fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
@@ -78,7 +98,7 @@ fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
         // The write is entered once the first line is finished and then held, as a full stream holds it.
         let sink: ActionSink = ActionSink::new(&shared, 1, move || {
             let _ = entered.send(());
-            let _ = held.recv_timeout(Duration::from_secs(10));
+            let _ = held.recv_timeout(WRITE_HELD_FOR);
         });
         let mut notices: NoticeSink = Some(Box::new(sink));
         let stopped: Result<(), GuardFailure> = run_guarded(
@@ -94,7 +114,7 @@ fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
         let _ = finished.send(stopped);
     });
     notice_entered.recv_timeout(Duration::from_secs(5)).expect("the notice write started");
-    let answered = outcome.recv_timeout(ceiling * 10);
+    let answered = outcome.recv_timeout(ANSWER_WITHIN);
     // The write is released whatever the answer, so the control leaves no thread holding the sink.
     let _ = release_the_write.send(());
     assert!(
@@ -110,29 +130,32 @@ fn audit_a_blocked_notice_write_does_not_defeat_the_ceiling() {
 ///  The job has answered,
 ///  and the notice is advisory:
 ///  waiting for that write would hold the result past every deadline the caller was promised.
+///  A ceiling is not this control's subject,
+///  so it is given one no wait reaches:
+///  how late a loaded host starts the job's thread must not decide the verdict,
+///  and only a guard that waits for the held write reaches `ANSWER_WITHIN`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // expect(await receiveWithin(outcome, ceiling * 10)).resolves.toBe(7);
+/// // expect(await receiveWithin(outcome, ANSWER_WITHIN)).resolves.toBe(7);
 /// ```
 #[test]
 fn audit_a_blocked_notice_write_does_not_hold_a_finished_result() {
     let (entered, notice_entered): (Sender<()>, Receiver<()>) = channel();
     let (release_the_write, held): (Sender<()>, Receiver<()>) = channel();
     let (finished, outcome): (Sender<Result<u8, GuardFailure>>, Receiver<Result<u8, GuardFailure>>) = channel();
-    let ceiling: Duration = Duration::from_millis(50);
     std::thread::spawn(move || {
         let shared: SharedSink = SharedSink::default();
         let sink: ActionSink = ActionSink::new(&shared, 1, move || {
             let _ = entered.send(());
-            let _ = held.recv_timeout(Duration::from_secs(10));
+            let _ = held.recv_timeout(WRITE_HELD_FOR);
         });
         let mut notices: NoticeSink = Some(Box::new(sink));
         let answered: Result<u8, GuardFailure> = run_guarded(
             || {
                 return 7;
             },
-            GuardLimits { window: LONG_WINDOW, ceiling },
+            limits(LONG_WINDOW),
             NOTICE_AT_ONCE,
             "a job",
             &mut notices,
@@ -140,7 +163,7 @@ fn audit_a_blocked_notice_write_does_not_hold_a_finished_result() {
         let _ = finished.send(answered);
     });
     notice_entered.recv_timeout(Duration::from_secs(5)).expect("the notice write started");
-    let answered = outcome.recv_timeout(ceiling * 10);
+    let answered = outcome.recv_timeout(ANSWER_WITHIN);
     let _ = release_the_write.send(());
     assert!(
         answered.is_ok(),
@@ -318,6 +341,8 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
     const WORKING_WINDOW: Duration = Duration::from_millis(1200);
     let release: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let marker: Arc<AtomicBool> = Arc::clone(&release);
+    let stopped: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let stopping: Arc<AtomicBool> = Arc::clone(&stopped);
     let scratch: std::path::PathBuf = crate::test_support::fixture("guard-ceiling");
     let progress: std::path::PathBuf = scratch.join("progress");
     let began: std::time::Instant = std::time::Instant::now();
@@ -330,6 +355,7 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
                 round += 1;
                 std::thread::sleep(Duration::from_millis(100));
             }
+            stopping.store(true, Ordering::SeqCst);
         },
         GuardLimits { window: WORKING_WINDOW, ceiling: CEILING },
         FAST,
@@ -340,6 +366,10 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
     release.store(true, Ordering::SeqCst);
     assert_eq!(outcome, Err(GuardFailure::Ceiling(CEILING)));
     assert!(waited >= CEILING && waited < CEILING * 5, "the guard answered after {waited:?}");
+    // A job that read the flag just before the release writes once more,
+    //  so the fixture is removed only after the job stopped writing:
+    // a removal that raced that write failed with "Directory not empty".
+    assert!(crate::test_support::wait_until(&|| return stopped.load(Ordering::SeqCst)), "the released job stopped writing");
     crate::test_support::remove(scratch.as_path());
 }
 

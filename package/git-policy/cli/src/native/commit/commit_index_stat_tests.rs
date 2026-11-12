@@ -9,6 +9,7 @@ use crate::commit_preparation::{PreparationError, PreparationRequest, run_native
 use crate::shadow_create::create_shadow_repository;
 use crate::test_support::{REAL_GIT, age, executable, fixture, git, git_context, git_text, remove, renew_inode, repository};
 use crate::transaction_git::GitContext;
+use std::ffi::OsString;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -58,7 +59,7 @@ fn initialize_explicit(repo: &Path, indexes: &CaptureIndexes, base: &str, paths:
         stage_tracked_changes: false,
         base_revision: base,
     };
-    initialize_commit_index(&git_context(), repo, repo.join(".git").join("index").as_path(), indexes, &choice)
+    initialize_commit_index(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), indexes, &choice)
         .expect("initialize");
 }
 
@@ -346,7 +347,23 @@ fn stale_fixture(root: &Path) -> Stale {
     let repo: PathBuf = repository(root, "repo");
     git(repo.as_path(), &["config", "filter.slow.clean", format!("sleep 0.{CLEAN_FILTER_MILLISECONDS}; cat").as_str()]);
     git(repo.as_path(), &["config", "filter.slow.smudge", "cat"]);
-    std::fs::write(repo.join(".gitattributes"), "* filter=slow\n").expect("attributes");
+    // What:
+    //  The slow filter covers the stale files a refresh must read, and not the one file a commit stages.
+    // Why:
+    //  The controls of a ceiling set it for every step of the preparation,
+    //  and a step that pays the filter is the staging `git add` of the named file, whose own cost is about 0.05 s.
+    //  With every file filtered, that start cost one `CLEAN_FILTER_MILLISECONDS` sleep,
+    //  and the 500 ms ceiling of `a_private_refresh_the_ceiling_ends_leaves_the_private_index_as_the_copy_made_it`
+    //  left it a quarter of its own cost as room,
+    //  so a loaded host ended the staging and failed a control about the refresh.
+    //  A step that must outlast the ceiling still does: the refresh reads `STALE_FILES - 1` filtered files,
+    //  which is what `stale_ceiling` already counts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(join(repo, '.gitattributes'), 'f[2-9].txt filter=slow\nf1[0-2].txt filter=slow\n');
+    // ```
+    std::fs::write(repo.join(".gitattributes"), "f[2-9].txt filter=slow\nf1[0-2].txt filter=slow\n").expect("attributes");
     for number in 1..=STALE_FILES {
         std::fs::write(repo.join(format!("f{number}.txt")), format!("file {number}\n")).expect("a file of the worktree");
     }
@@ -379,7 +396,7 @@ fn prepare_stale(stale: &Stale) {
 
 /// Runs the scratch commit of the named path under the stale index's ceiling.
 fn commit_stale(stale: &Stale) -> Result<i32, PreparationError> {
-    let commit_args: Vec<String> = vec![String::from("--quiet"), String::from("--message=stale")];
+    let commit_args: Vec<OsString> = vec![OsString::from("--quiet"), OsString::from("--message=stale")];
     let request: PreparationRequest<'_> = PreparationRequest {
         capture: &stale.capture,
         shadow: stale.shadow.as_path(),
@@ -467,7 +484,7 @@ fn prepare_stale_with(context: &GitContext, stale: &Stale) {
         base_revision: stale.base.as_str(),
     };
     let real: PathBuf = stale.repo.join(".git").join("index");
-    initialize_commit_index(context, stale.repo.as_path(), real.as_path(), &stale.indexes, &selection).expect("the preparation must not fail");
+    initialize_commit_index(context, stale.repo.as_path(), stale.repo.as_path(), real.as_path(), &stale.indexes, &selection).expect("the preparation must not fail");
 }
 
 /// A rebuild after the branch moved keeps its refresh in its own private index too,
@@ -698,9 +715,9 @@ fn prepare_and_commit(filtered: &Filtered, paths: &[OsString]) -> Result<i32, Pr
         base_revision: filtered.base.as_str(),
     };
     let real: PathBuf = filtered.repo.join(".git").join("index");
-    initialize_commit_index(&git_context(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
+    initialize_commit_index(&git_context(), filtered.repo.as_path(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
         .expect("private index");
-    let commit_args: Vec<String> = vec![String::from("--quiet"), String::from("--message=filtered")];
+    let commit_args: Vec<OsString> = vec![OsString::from("--quiet"), OsString::from("--message=filtered")];
     let request: PreparationRequest<'_> = PreparationRequest {
         capture: &filtered.capture,
         shadow: filtered.shadow.as_path(),
@@ -775,7 +792,7 @@ fn an_index_built_from_the_base_alone_cleans_every_filtered_file() {
         &["add", "--all", "--", "other.txt"],
     );
     forget_cleaned(filtered.filter.as_path());
-    let commit_args: Vec<String> = vec![String::from("--quiet"), String::from("--message=control")];
+    let commit_args: Vec<OsString> = vec![OsString::from("--quiet"), OsString::from("--message=control")];
     let request: PreparationRequest<'_> = PreparationRequest {
         capture: &filtered.capture,
         shadow: filtered.shadow.as_path(),
@@ -817,7 +834,7 @@ fn an_intent_to_add_tracked_file_is_not_changed_by_a_commit_that_names_another_p
         base_revision: base.as_str(),
     };
     let real: PathBuf = filtered.repo.join(".git").join("index");
-    initialize_commit_index(&git_context(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
+    initialize_commit_index(&git_context(), filtered.repo.as_path(), filtered.repo.as_path(), real.as_path(), &filtered.indexes, &selection)
         .expect("private index");
     let tree: String = write_private_tree(
         &git_context(),
@@ -959,7 +976,7 @@ fn wrapper_tree(root: &Path, case: &CommitCase) -> String {
         base_revision: base.as_str(),
     };
     let real: PathBuf = repo.join(".git").join("index");
-    initialize_commit_index(&git_context(), repo.as_path(), real.as_path(), &indexes, &selection).expect("private index");
+    initialize_commit_index(&git_context(), repo.as_path(), repo.as_path(), real.as_path(), &indexes, &selection).expect("private index");
     return write_private_tree(&git_context(), repo.as_path(), indexes.commit_index.as_path(), indexes.object_directory.as_path())
         .expect("tree");
 }

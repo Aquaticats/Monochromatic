@@ -143,7 +143,7 @@ pub fn drop_record(record: &Path) -> Result<(), RecoveryError> {
 pub fn edits_on_the_merges_own_paths(root: &Path, paths: &[String], record: &Path) -> RecoveryError {
     return RecoveryError(format!(
         "A merge in {} was interrupted while Git updated these files, and they now hold neither their old nor their merged          content: {}. Nothing was changed and the record {} was kept. Save your edits to them elsewhere, restore them with \
-         `git restore -- <path>`, then run any git command again so recovery can finish the merge; or remove the record to \
+         `git restore --no-enforce-worktree -- <path>`, then run any git command again so recovery can finish the merge; or remove the record to \
          abandon the merge and check `git status` yourself.",
         root.display(),
         paths.join(", "),
@@ -217,7 +217,7 @@ pub fn a_worktree_that_switched(target: &str, root: &Path, checked_out: Option<&
          back where it was and the record {} was kept, but the merge's index entries and files are still in this worktree, which \
          now belongs to {landed}, so its staged content is the merge's until you deal with it. Check `git status` and `git diff \
          --cached` here: finish the merge by checking out {target} and running any git command again, or undo what is staged \
-         with `git restore --staged --worktree -- <path>`, and remove the record {} when the checkout is as you want it.",
+         with `git restore --no-enforce-worktree --staged --worktree -- <path>`, and remove the record {} when the checkout is as you want it.",
         root.display(),
         record.display(),
         record.display()
@@ -244,7 +244,7 @@ pub fn a_branch_that_could_not_be_put_back(target: &str, root: &Path, checked_ou
          back failed, so {target} still names the merge: {cause}. The merge's index entries and files are still in this \
          worktree, which now belongs to {landed}, so its staged content is the merge's until you deal with it. Check `git \
          status` and `git diff --cached` here: check out {target} and run any git command again once whatever holds its ref \
-         lock is gone, so recovery can settle the branch; or undo what is staged with `git restore --staged --worktree -- \
+         lock is gone, so recovery can settle the branch; or undo what is staged with `git restore --no-enforce-worktree --staged --worktree -- \
          <path>` and remove the record {} when the checkout is as you want it.",
         root.display(),
         record.display()
@@ -269,7 +269,7 @@ pub fn a_landed_merge_in_another_branchs_worktree(target: &str, root: &Path, che
         "A merge of {target} in {} is already in {target}, and this worktree has {landed} checked out: the merge's index \
          entries and files may still be in this worktree, which belongs to {landed}. Nothing was changed and the record {} \
          was kept. Check `git status` and `git diff --cached` here; check out {target} and run any git command again so \
-         recovery can settle the merge, or undo what is staged with `git restore --staged --worktree -- <path>`, and remove \
+         recovery can settle the merge, or undo what is staged with `git restore --no-enforce-worktree --staged --worktree -- <path>`, and remove \
          the record {} when the checkout is as you want it.",
         root.display(),
         record.display(),
@@ -301,4 +301,56 @@ pub fn an_installed_merge_behind_a_held_index(target: &str, root: &Path, lock: &
         record.display(),
         record.display()
     ));
+}
+
+/// What:
+///  Settle a merge saved behind an index lock whose paths hold the person's own edits newer than the capture it keeps,
+///  by
+///  removing the record and naming the ref that keeps the merge.
+/// Why:
+///   Nothing of the merge is in the index or the checkout,
+/// so it cannot be installed without writing over bytes only the
+///  person holds;
+/// the record must go or every command meets it again,
+/// and the merge's commit must stay where they can reach it,
+///  which the side ref does and the record did.
+/// The words name the ref and the command that makes the merge on what the files hold now,
+/// so the way forward is one they
+///  can type rather than a decision only the wrapper could make
+/// (`merge_isolation_recovery.rs`, the paths that are nobody's).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settled = await settleASavedMergeOverNewerEdits({ place, root, record, intent, foreign, stderr }); // drops the record, keeps the side ref
+/// ```
+pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
+    place: &RecoveryPlace,
+    root: &Path,
+    record: &Path,
+    intent: &MergeIntent,
+    foreign: &[String],
+    out: &mut W,
+) -> Result<crate::merge_isolation_recovery_steps::MergeRecoveryAction, MergeRefusal> {
+    let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its side ref");
+    let _noted = out.write_all(
+        format!(
+            "monochromatic-git-policy-cli: the merge saved on {side_ref} was not made: {} hold your own edits, which were saved after \
+             that merge saved the work it carries, so installing it would write over them. Nothing was changed and the record {} was \
+             removed; the merge commit {} is kept on {side_ref}, which nothing removes. Run `git merge {}` to make the merge on the bytes \
+             your files hold now, or delete the ref once you have decided.\n",
+            foreign.join(", "),
+            record.display(),
+            intent.new_oid,
+            intent.new_oid
+        )
+        .as_bytes(),
+    );
+    if let Err(error) = remove_merge_intent(record) {
+        return Err(MergeRefusal { error: RecoveryError(format!("{} could not be removed: {error}", record.display())), began: true });
+    }
+    // The capture's bytes are the person's files' own, so the ref that kept them is not one more name to clean up by hand.
+    if let Some(capture) = intent.carried.as_ref() {
+        crate::merge_isolation_carry::drop_capture_ref_awaiting(&place.git, root, capture).await;
+    }
+    return Ok(crate::merge_isolation_recovery_steps::MergeRecoveryAction::DeferredRefused);
 }

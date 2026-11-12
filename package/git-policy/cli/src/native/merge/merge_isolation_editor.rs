@@ -42,6 +42,8 @@ use crate::merge_isolation_editor_words::editor_words;
 /// The editor runs as the person's own program,
 /// with the terminal and the streams they gave this command.
 use std::process::{Command, ExitStatus};
+/// The start that rides out a refused start of a child.
+use crate::start_retry::RetryStart;
 /// Owned operating-system text of raw bytes.
 use std::ffi::OsString;
 
@@ -253,7 +255,7 @@ fn launch(words: &[OsString], path: &Path) -> Result<ExitStatus, String> {
     };
     let mut command: Command = Command::new(program);
     command.args(&words[1..]).arg(path);
-    return match command.status() {
+    return match command.status_retrying() {
         Ok(status) => Ok(status),
         Err(error) => Err(format!("the editor {} could not be started: {error}", program.to_string_lossy())),
     };

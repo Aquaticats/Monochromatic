@@ -16,6 +16,7 @@ use super::{changed_paths, removal_facts, removal_target, worktree_head};
 use crate::discard_audit_facts::AuditFact;
 use crate::command_test_support::git_status;
 use crate::test_support::{fixture, git, isolated_overlay, remove, repository};
+use crate::path_bytes::path_bytes_of;
 use crate::transaction_git::GitContext;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -207,5 +208,148 @@ fn real_git_resolves_a_worktree_whose_path_holds_a_line_break() {
     let removed: std::process::Output = git_status(repo.as_path(), &["worktree", "remove", "--force", "chapter"]);
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(removed.stderr.as_slice()));
     assert!(!linked.exists());
+    remove(root.as_path());
+}
+
+/// What:
+///  A Git whose `status` answers late and whose every other subcommand is real Git,
+///  with a context that reads through it.
+/// Why:
+///   The count is a best-effort fact read before a removal,
+///  and this control has to make that one read take longer than the
+///       bound the wrapper gives it without making any other read slow.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shim = `#!/bin/sh\nfor word in "$@"; do [ "$word" = status ] && sleep 6; done\nexec git "$@"`;
+/// ```
+#[cfg(unix)]
+fn a_git_whose_status_is_late(root: &Path, seconds: u32) -> GitContext {
+    let shim: PathBuf = root.join("late-status-git");
+    let script: String = format!(
+        "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = status ]; then sleep {seconds}; fi\ndone\nexec {} \"$@\"\n",
+        crate::test_support::REAL_GIT
+    );
+    crate::test_support::executable(shim.as_path(), script.as_bytes());
+    return GitContext {
+        real_git: shim,
+        // The in-process readers are off, so the read this control times is the Git process the person waits on.
+        overlay: isolated_overlay()
+            .into_iter()
+            .chain(crate::repo_read_hook::switch_off())
+            .collect(),
+        global_prefix: Vec::new(),
+        common_dir: None,
+    };
+}
+
+/// What:
+///  A removal whose read of the tracked changes takes longer than the bound
+///  leaves the count out and holds the removal only up to the bound,
+///  while the cheap facts of the line are all still there.
+/// Why:
+///  A whole `git status` of the target parses its index and stats every tracked path,
+///  so a disk other
+///       sessions are hammering makes it take seconds;
+///  the owner asked for the line "without making the removal slow",
+///  and
+///       a wait on a best-effort fact is the one thing this line must never cost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const facts = removalFacts(contextWithLateStatus, linked, '../linked', true);
+/// expect(value(facts, 'changed')).toBe(''); expect(elapsed).toBeLessThan(5000);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_read_of_the_tracked_changes_past_its_bound_leaves_the_count_out() {
+    let root: PathBuf = fixture("worktree-audit-bound");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(repo.as_path(), &["add", "--", "tracked.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let linked: PathBuf = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../linked"]);
+    std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    // The positive control: the same fixture through a Git that answers at once names the one changed path.
+    let prompt: GitContext = context(repo.as_path());
+    assert_eq!(changed_paths(&prompt, linked.as_path()), Some(1));
+    let late: GitContext = a_git_whose_status_is_late(root.as_path(), 6);
+    let began: std::time::Instant = std::time::Instant::now();
+    let facts: Vec<AuditFact> = removal_facts(&late, linked.as_path(), OsStr::new("../linked"), true);
+    let took: std::time::Duration = began.elapsed();
+    assert_eq!(
+        value(&facts, "changed"),
+        "",
+        "a read the bound ended answers nothing, and the line leaves the count out"
+    );
+    // The bound ends the read; the late status would otherwise hold this line for its own six seconds.
+    assert!(
+        took < std::time::Duration::from_secs(5),
+        "the removal waited {took:?} on a best-effort count"
+    );
+    // Everything the line can read cheaply is still recorded, so a loss stays attributable.
+    assert_eq!(value(&facts, "worktree"), "../linked");
+    assert_eq!(value(&facts, "force"), "true");
+    assert_eq!(value(&facts, "head"), "refs/heads/topic");
+    assert_eq!(value(&facts, "counted"), "tracked changes only");
+    remove(root.as_path());
+}
+
+/// What:
+///  A `gitdir:` pointer that names a Git directory whose own path is not UTF-8 text names that directory.
+/// Why:
+///   The pointer was read as UTF-8 text,
+/// so such a worktree's facts were reported as unread
+///  and a removal recorded nothing about what it took.
+#[test]
+fn a_pointer_to_a_directory_that_is_not_text_names_it() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("worktree-audit-pointer-not-text");
+    let linked: PathBuf = root.join("linked");
+    let own: PathBuf = linked.join(OsString::from_vec(b"own\xefgit".to_vec()));
+    std::fs::create_dir_all(&own).expect("own Git directory");
+    std::fs::write(own.join("HEAD"), b"ref: refs/heads/topic\n").expect("HEAD");
+    let mut pointer: Vec<u8> = Vec::from(b"gitdir: ".as_slice());
+    pointer.extend_from_slice(path_bytes_of(own.as_path()));
+    pointer.push(b'\n');
+    std::fs::write(linked.join(".git"), pointer).expect("pointer file");
+    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
+    remove(root.as_path());
+}
+
+/// What:
+///  Real Git:
+///  a worktree whose administrative directory name ends in a space still names its `HEAD`.
+/// Why:
+///   Every ASCII whitespace byte was taken from the pointer,
+///  so the space that belongs to the directory name went with the terminator,
+/// no `HEAD` sat at the name left,
+///  and the record of that removal said nothing about the branch the worktree was on.
+#[test]
+fn real_git_keeps_the_head_of_a_worktree_whose_administration_ends_in_a_space() {
+    let root: PathBuf = fixture("worktree-audit-admin-space");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(repo.as_path(), &["add", "--", "tracked.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let linked: PathBuf = root.join("linked");
+    git(
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", linked.to_str().expect("a UTF-8 fixture path")],
+    );
+    // Git registers the worktree under the repository's own Git directory.
+    let administration: PathBuf = repo.join(".git").join("worktrees").join("linked");
+    let spaced: PathBuf = administration.with_file_name("linked ");
+    std::fs::rename(administration.as_path(), spaced.as_path()).expect("the administrative directory is renamed");
+    let mut pointer: Vec<u8> = Vec::from(b"gitdir: ".as_slice());
+    pointer.extend_from_slice(path_bytes_of(spaced.as_path()));
+    pointer.push(b'\n');
+    std::fs::write(linked.join(".git"), pointer).expect("pointer file");
+    // Real Git keeps the space and reads that worktree, so a removal meets exactly this pointer.
+    let read: std::process::Output = git_status(linked.as_path(), &["symbolic-ref", "HEAD"]);
+    assert!(read.status.success(), "{}", String::from_utf8_lossy(read.stderr.as_slice()));
+    assert_eq!(String::from_utf8_lossy(read.stdout.as_slice()).trim_end(), "refs/heads/topic");
+    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
     remove(root.as_path());
 }

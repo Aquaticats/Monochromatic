@@ -82,12 +82,37 @@ directly.
     reading the version from the commit the dispatch runs on,
     which is `main` after the bump.
 5.  The person runs the crate's `release:wait` task with the run URL and the version.
-    It follows the release run,
+    It follows the release run to its end,
     finds the publish run that it started
     (the earliest run built from a commit that holds the released version),
-    follows that,
+    follows that one to its end too,
     and checks crates.io and the GitHub release.
     For a version that never goes to crates.io (see "Labels and crates.io") it leaves crates.io out and says so.
+
+A release therefore runs two workflows,
+and both matter to whoever waits for it:
+
+- `.github/workflows/crate-release.yml`,
+  the run `release` dispatches.
+  Its `release` job bumps the version,
+  checks the crate,
+  dry-runs the publish and pushes the bump to `main`;
+  its `publish` job dispatches the second workflow and does no publishing itself.
+- `.github/workflows/cargo-publish.yml`,
+  the run the `publish` job dispatches.
+  It publishes the crate to crates.io
+  and its per-crate jobs build the tarballs and create the GitHub release,
+  so the archives a released version ships come from this run,
+  never from the release run.
+  It also runs a `detect` job for every crate of the repository,
+  so most of its jobs of another crate are `skipped`:
+  a skipped job is no failure,
+  and a run is a pass only when the run itself concluded with success.
+
+An alpha release leaves part of that out,
+in both workflows,
+because it is never published to crates.io
+("What an alpha release leaves out").
 
 A release that fails before the push leaves `main` as it was.
 A push that finds a path the release depends on changed on `main` pushes nothing,
@@ -180,6 +205,11 @@ What a version that does not go to crates.io skips:
   the crates.io lookup:
   the report says `crates.io <version>: skipped, <reason>` and the result depends on the workflow run and the GitHub release.
 
+An alpha also leaves out the release command's `cargo check`,
+which no other version does,
+whether it goes to crates.io or not
+("What an alpha release leaves out").
+
 A release that does go to crates.io is refused,
 by the release command on the runner before any file is edited and by the dispatch command before it spends a run,
 when a crate of the registry that it depends on is not at such a version.
@@ -189,6 +219,84 @@ and a dependency without a version does not (a published manifest drops it).
 The refusal names each dependency,
 its version and the manifests that hold it.
 An alpha or a beta release has no such need.
+
+## What an alpha release leaves out
+
+The owner's standing rule,
+2026-11-11,
+verbatim:
+
+> make the release pipeline avoid running any extra work for alphas.
+
+It stands on his earlier words,
+all still in force:
+
+> Standing rule.
+> Alphas don't even have to resolve all flakes.
+
+> Release now,
+> fixes in alpha.11
+
+> didn't I also say reviews and mutation testings don't block publishing?
+
+An alpha is the version the label rule calls `-alpha.N` ("Labels and crates.io"),
+and no other:
+the release pipeline reads that one rule through `isAlphaVersion`
+in `src/crates-io-version-label.ts`
+rather than parsing a version a second time,
+and a unit test holds both callers to it.
+A release of an alpha runs
+
+- no dispatch gate.
+  A crate whose registry entry names one does not wait for it,
+  in a real run and in a `--dry-run` alike.
+  The gate holds the checks only the developer machine can make,
+  and it is the last thing before a run nothing can take back,
+  which is a crates.io publish.
+  A beta also never reaches crates.io and still waits for it,
+  so the exemption is the owner's rule for alphas,
+  not the crates.io route:
+  he named alphas,
+  and waiting cost 3286 seconds the last time it was measured
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "When the btrfs controls run").
+- no `cargo check`.
+  The release command commits the bump without compiling the crate.
+  The crate's own `Cargo.lock` is still refreshed there,
+  with `cargo update --workspace` in the crate directory,
+  because the bump moves the crate's own version in it
+  and two `--locked` cargo calls refuse a lockfile the bump left stale:
+  the push command's `cargo metadata --locked`,
+  which fails with "cannot update the lock file ... because --locked was passed",
+  and `cargo-publish.yml`'s `cargo build --release --locked`;
+  a release that checks the crate gets that refresh for free,
+  because `cargo check` rewrites the lockfile.
+  What an alpha gets instead of the check depends on the crate:
+  a crate that ships a binary is compiled by `cargo-publish.yml` on both Linux targets from the same commit,
+  so its compile evidence follows the push,
+  while a library crate,
+  which has no binary job and no GitHub release,
+  is not compiled again at all before its bump reaches `main`,
+  and the next release's check is its first compile
+  (nine of the sixteen registered crates ship a binary;
+  the other seven are libraries).
+  A crate that does not compile therefore leaves its bump on `main` with no release,
+  and the fix lands in the next alpha,
+  which is what "fixes in alpha.11" asks for.
+- no `cargo publish --dry-run`,
+  which every version that never goes to crates.io leaves out.
+
+The release command prints one `no <step>: <why>` line for each step it leaves out,
+before the first step runs,
+so the log of a real release and the log of its `--dry-run` describe the same run
+and no step disappears without a word.
+
+Every other version,
+including a beta,
+behaves exactly as it did.
+The narrowing of the owner's 2026-11-10 choice
+that a wrapper release waits for the btrfs controls
+is in `package/git-policy/cli/README.md` ("Development").
 
 ## Starting a release
 
@@ -234,6 +342,9 @@ Each entry holds
   run from the crate's own directory.
   Every word must hold text and the list must not be empty,
   because a release that waits for nothing is nobody's check.
+  An alpha release does not run it
+  ("What an alpha release leaves out"),
+  and every other release does.
 
 Only `crateDir` and `scope` are required.
 Unknown fields are refused.
@@ -294,10 +405,14 @@ it
 1.  edits the `version` of the `[package]` table in `<crate-dir>/Cargo.toml`;
 2.  edits the exact pin (`version = "=<from>"`) of the crate in each `--pin-file` manifest;
 3.  runs `cargo check` (with one `--bin` per `--check-bin`) in the crate directory;
+    an alpha runs `cargo update --workspace` there instead,
+    which records the new version of the crate in its own `Cargo.lock`
+    ("What an alpha release leaves out");
 4.  runs `cargo update --workspace` in each `--lock-dir`,
     in order,
     which records the new version of the workspace member without moving any other locked version;
-5.  runs `cargo publish --dry-run --locked --allow-dirty` in the crate directory;
+5.  runs `cargo publish --dry-run --locked --allow-dirty` in the crate directory,
+    for a version that goes to crates.io ("Labels and crates.io");
 6.  commits the manifests and the `Cargo.lock` beside each of them,
     and the `Cargo.lock` of each `--lock-dir`,
     with the message
@@ -444,6 +559,10 @@ shows the line that names the gate and its status,
 and never calls `gh`.
 A `--dry-run` skips the gate and prints that it did,
 because a dry run runs nothing the gate's evidence would cover.
+An alpha release skips it in a real run too,
+and prints `no dispatch gate: ...` saying so,
+so a dry run of an alpha claims no missing evidence it would have had
+("What an alpha release leaves out").
 Only `monochromatic-git-policy-cli` names one:
 `node bin/native-release-host-controls.ts`,
 the btrfs controls that cannot run in the container gate
@@ -514,10 +633,21 @@ node bin/await-release.ts --crate <name> [options] <run URL or id> <version>
 
 The command
 
-1.  watches the release run with `gh run watch --exit-status`,
-    and stops with `RELEASE RUN FAILED` and the `gh run view <id> --log-failed` command when it failed,
+1.  follows the release run to its own end,
+    reading the answer of `gh run view --json=createdAt,status,conclusion,jobs`,
+    and never the exit status of a watcher:
+    `gh run watch --exit-status` exits 1 both for a run that failed and for a failure of the watcher itself,
+    which reported a release that passed as failed once
+    (`doc/troubleshooting/gh-run-watch-exit-status-conflates-failures.md`).
+    A run that ended with success passes and is reported as such;
+    a run that failed stops the wait with `RELEASE RUN FAILED`,
+    the job and the step that did not pass,
+    and the `gh run view <id> --log-failed` command,
     because a failed release run starts no publish;
+    a run that has not ended says which jobs it is still running and is looked at again,
+    for a bounded number of looks;
 2.  reads when the release run was created,
+    from the same answer,
     and finds the publish run:
     the earliest manually started run of `cargo-publish.yml` created at or after it
     and built from a commit whose `Cargo.toml` of the crate holds `<version>`,
@@ -533,15 +663,22 @@ The command
     so a dispatch for another crate made on `main` after the bump and before the release's own dispatch cannot be told apart.
     When no run matches,
     the last result lists every run seen and why it was passed over;
-3.  watches the publish run,
+3.  follows the `cargo-publish.yml` run to its own end the same way,
     then checks crates.io (unless the version never goes there) and the GitHub release for the expected assets,
     as the wait command does.
+    A run that is still building keeps the wait going,
+    with a line per look naming the jobs it is still running,
+    until the look limit.
 
-It exits 0 only when every part succeeded.
+It exits 0 only when every part succeeded,
+and its last line names the release it found,
+for example `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.9`.
+
 Its publish check options (`--workflow`,
 `--repo`,
 `--attempts`,
 `--poll-interval`,
+`--follow-attempts`,
 `--run-limit`,
 `--tag-template`,
 `--asset-template`,
@@ -638,25 +775,32 @@ mise run //package/crate-release/cli:release:wait:commit -- --crate-name <name> 
 ```
 
 The command waits for the publish workflow run of commit `<sha>` (a prefix of at least seven hexadecimal digits),
-watches it,
+follows the run to its own end,
 then checks crates.io for `<version>` (unless the version never goes there) and the GitHub release for the expected assets.
 It is for a publish that something other than the release workflow started,
 such as a push to `main`.
 It prints
 
 ```text
-run 40991272842
-watch exit 0
+cargo-publish.yml run 40991272842: completed with success
 crates.io 0.4.3: 2026-10-30T02:26:00.989331Z
 release monochromatic-git-policy-cli-v0.4.3 assets: ...x86_64-unknown-linux-gnu.tar.gz, ...
-PUBLISHED
+PUBLISHED monochromatic-git-policy-cli-v0.4.3
 ```
 
-and exits 0 only when the workflow succeeded,
+and exits 0 only when the run ended with success,
 crates.io has the version and the release holds every expected asset.
-Otherwise it ends with `PUBLISH CHECK FAILED: ...` naming each reason,
+A run that has not ended is reported as such and looked at again:
+
+```text
+cargo-publish.yml run 40991272842 is still going: gpc-build-binary (in_progress); waiting up to 40 minutes
+```
+
+A run that failed names the job and the step that did not pass,
+for example `job gpc-publish-crate concluded failure at step "Publish the crate to crates.io"`.
+Otherwise the report ends with `PUBLISH CHECK FAILED: ...` naming each reason,
 and exits 1.
-A failed workflow run does not skip the checks,
+A failed or unfinished run does not skip the checks,
 so the report shows everything that is and is not in place.
 When no run appears it prints the bound that was waited,
 for example `within 15 minutes`,
@@ -675,7 +819,11 @@ the hash is never placed in a `gh --jq` program.
 - `--attempts <count>` (default 45),
   `--poll-interval <seconds>` (default 20) and `--run-limit <count>` (default 10)
   bound the wait and each listing;
-  the defaults wait at most 15 minutes.
+  the defaults wait at most 15 minutes for a run to appear.
+- `--follow-attempts <count>` (default 120) and the same poll interval bound how long one run is followed to its end,
+  so the defaults follow one run for 40 minutes.
+  Raise it for a crate whose archive build is slower than the two releases measured on 2026-11-11,
+  which took 4 minutes 38 seconds and 7 minutes 28 seconds.
 - `--tag-template <text>` (default `{crate}-v{version}`) and `--asset-template <text>`,
   repeatable (default the `x86_64`
   and `aarch64` Linux tarballs,
@@ -697,6 +845,10 @@ the hash is never placed in a `gh --jq` program.
   they hold no logic.
 - `src/` holds the pure builders and parsers,
   each with a unit test:
+  the reader of a run's own answer,
+  which is the only verdict a wait accepts
+  (`run-outcome.ts`,
+  tested against the answers of real runs recorded under `src/fixture/`),
   version and name validation (`version.ts`,
   `validate.ts`),
   the registry (`crate-registry.ts`),

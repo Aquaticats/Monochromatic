@@ -30,6 +30,7 @@ export {
   POLL_MILLISECONDS,
   SHUTDOWN_GRACE_MILLISECONDS,
   SHUTDOWN_STAGES,
+  START_UP_ANSWER_MILLISECONDS,
   TEARDOWN_ANSWER_MILLISECONDS,
   TEARDOWN_MILLISECONDS,
 } from './driver-constants.ts';
@@ -104,6 +105,10 @@ export {
   startWaitingForAnAnswer,
   type WaitingForAnAnswer,
 } from './wait-for-an-answer.ts';
+export {
+  type Ending,
+  endReasonOfRun,
+} from './take-the-first-prompt.ts';
 export {
   putTheRunAway,
   type RunPutAway,
@@ -209,3 +214,8 @@ export {
   startLineSplitter,
   type SplitPiOutputRequest,
 } from './split-pi-output.ts';
+
+/**
+ The library surface of starting a run, kept in a file of its own so that neither list outgrows the line budget.
+ */
+export * from './index-of-starting-a-run.ts';

@@ -12,13 +12,20 @@
 
 /// Import the classification under test and shared fixtures.
 use super::{
-    EffectiveTarget, ToolCacheDirectory, classify_effective_target, default_allowed_worktree_dirs,
-    is_allowed_worktree_dir, matching_allowed_worktree_dir, mise_data_dir, uv_cache_dir,
+    EffectiveTarget, ToolCacheDirectory, cargo_build_dir, cargo_build_script_output_dir, classify_effective_target,
+    default_allowed_worktree_dirs, matching_allowed_worktree_dir,
+    matching_allowed_worktree_dir_for_repository, mise_data_dir, uv_cache_dir,
 };
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+
+/// One path's whole-segment answer,
+///  the question each path of a repository is asked.
+fn allowed(candidate: &Path, allowed_dirs: &[ToolCacheDirectory]) -> bool {
+    return matching_allowed_worktree_dir(&[candidate], allowed_dirs).is_some();
+}
 
 /// One uv or mise directory as the variable named it.
 fn named(path: &str, named_by: &'static str) -> Option<ToolCacheDirectory> {
@@ -160,6 +167,126 @@ fn mise_data_directory_follows_mise_precedence() {
     );
 }
 
+/// Cargo's build-script output directory is exempt as the third tool directory:
+///  it is where a crate that vendors another project clones it
+///  (`libghostty-vt-sys` cloned Ghostty there),
+/// and an empty value or an absent variable exempts nothing.
+#[test]
+fn cargo_build_script_directory_is_named_by_out_dir() {
+    assert_eq!(cargo_build_script_output_dir(&[]), None);
+    assert_eq!(cargo_build_script_output_dir(environment(&[("OUT_DIR", "")]).as_slice()), None);
+    assert_eq!(
+        cargo_build_script_output_dir(environment(&[("OUT_DIR", "/build/out")]).as_slice()),
+        named("/build/out", "OUT_DIR")
+    );
+    // The three tool directories stand together, each from its own variable.
+    let home: Option<&Path> = Some(Path::new("/home/fixture"));
+    assert_eq!(
+        default_allowed_worktree_dirs(environment(&[("OUT_DIR", "/build/out")]).as_slice(), home),
+        vec![
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.cache/uv"),
+                named_by: "HOME",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.local/share/mise"),
+                named_by: "HOME",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/build/out"),
+                named_by: "OUT_DIR",
+            },
+        ]
+    );
+    // Cargo's directory needs no home directory, unlike the other two.
+    assert_eq!(
+        default_allowed_worktree_dirs(environment(&[("OUT_DIR", "/build/out")]).as_slice(), None),
+        vec![ToolCacheDirectory {
+            path: PathBuf::from("/build/out"),
+            named_by: "OUT_DIR",
+        }]
+    );
+}
+
+/// Cargo's build directory is exempt beside the build script's own directory:
+///  the owner's answer names `CARGO_BUILD_DIR` first,
+///  Cargo's own spelling of `build.build-dir` comes second,
+///  and the target directory that setting defaults to comes last;
+///  an empty value is unset,
+///  and a relative value names nothing because Cargo resolves one against its own directory.
+#[test]
+fn cargo_build_directory_follows_the_variable_order() {
+    // A repository outside a Cargo build names no build directory, and the build-script directory is not it.
+    assert_eq!(cargo_build_dir(&[]), None);
+    assert_eq!(cargo_build_dir(environment(&[("OUT_DIR", "/build/out")]).as_slice()), None);
+    // An empty value is unset, so the next name is asked.
+    assert_eq!(
+        cargo_build_dir(environment(&[("CARGO_BUILD_DIR", ""), ("CARGO_TARGET_DIR", "/target")]).as_slice()),
+        named("/target", "CARGO_TARGET_DIR")
+    );
+    // The owner's name wins over Cargo's spelling and over the target directory.
+    assert_eq!(
+        cargo_build_dir(
+            environment(&[
+                ("CARGO_TARGET_DIR", "/target"),
+                ("CARGO_BUILD_BUILD_DIR", "/cargo-build"),
+                ("CARGO_BUILD_DIR", "/owner-build"),
+            ])
+            .as_slice()
+        ),
+        named("/owner-build", "CARGO_BUILD_DIR")
+    );
+    // Cargo's own spelling of `build.build-dir` wins over the target directory it defaults to.
+    assert_eq!(
+        cargo_build_dir(
+            environment(&[("CARGO_TARGET_DIR", "/target"), ("CARGO_BUILD_BUILD_DIR", "/cargo-build")]).as_slice()
+        ),
+        named("/cargo-build", "CARGO_BUILD_BUILD_DIR")
+    );
+    // A relative value names nothing, whatever the names after it hold:
+    //  Cargo resolves one against a directory a Git process started by a build script does not work in.
+    assert_eq!(cargo_build_dir(environment(&[("CARGO_TARGET_DIR", "target")]).as_slice()), None);
+    assert_eq!(
+        cargo_build_dir(environment(&[("CARGO_BUILD_DIR", "build"), ("CARGO_TARGET_DIR", "/target")]).as_slice()),
+        None
+    );
+    // The four tool directories stand together, each from its own variable,
+    //  and the build script's own output directory is asked before the whole build directory around it.
+    let home: Option<&Path> = Some(Path::new("/home/fixture"));
+    assert_eq!(
+        default_allowed_worktree_dirs(
+            environment(&[("OUT_DIR", "/build/out"), ("CARGO_TARGET_DIR", "/cargo-build")]).as_slice(),
+            home
+        ),
+        vec![
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.cache/uv"),
+                named_by: "HOME",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/home/fixture/.local/share/mise"),
+                named_by: "HOME",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/build/out"),
+                named_by: "OUT_DIR",
+            },
+            ToolCacheDirectory {
+                path: PathBuf::from("/cargo-build"),
+                named_by: "CARGO_TARGET_DIR",
+            },
+        ]
+    );
+    // The build directory needs no home directory, unlike uv's cache and mise's data directory.
+    assert_eq!(
+        default_allowed_worktree_dirs(environment(&[("CARGO_BUILD_DIR", "/owner-build")]).as_slice(), None),
+        vec![ToolCacheDirectory {
+            path: PathBuf::from("/owner-build"),
+            named_by: "CARGO_BUILD_DIR",
+        }]
+    );
+}
+
 /// Containment is by whole segments through resolved links;
 ///  missing allowed directories drop out.
 #[test]
@@ -187,13 +314,13 @@ fn allowlist_matches_whole_segments_through_links() {
         (root.clone(), false),
     ] {
         assert_eq!(
-            is_allowed_worktree_dir(candidate.as_path(), through_link.as_slice()),
+            allowed(candidate.as_path(), through_link.as_slice()),
             expected,
             "{candidate:?}"
         );
     }
-    assert!(!is_allowed_worktree_dir(cache.as_path(), &[]));
-    assert!(!is_allowed_worktree_dir(
+    assert!(!allowed(cache.as_path(), &[]));
+    assert!(!allowed(
         cache.as_path(),
         &[ToolCacheDirectory {
             path: root.join("missing"),
@@ -202,15 +329,22 @@ fn allowlist_matches_whole_segments_through_links() {
     ));
     // The matched entry is the one whose variable is reported.
     assert_eq!(
-        matching_allowed_worktree_dir(cache.join("git/checkout/.git").as_path(), through_link.as_slice())
+        matching_allowed_worktree_dir(&[cache.join("git/checkout/.git").as_path()], through_link.as_slice())
             .map(|found| return found.named_by),
         Some("XDG_CACHE_HOME")
     );
     remove(root.as_path());
 }
 
-/// Each identity maps to its target,
-///  and an allowlisted Git directory exempts main and linked worktrees.
+/// What:
+///  Each identity maps to its target,
+///  and the exemption needs the worktree itself inside the same allowed directory as its Git directory.
+/// Why:
+///  A linked worktree keeps its Git directory in the main clone
+///  (`<clone>/.git/worktrees/<name>`)
+///  while its files stand wherever the person asked for them,
+///  so a Git directory alone would exempt a checkout outside an allowed directory
+///  and lose the uncommitted work there.
 #[test]
 fn identities_map_to_targets() {
     let root: PathBuf = fixture("targets");
@@ -235,10 +369,24 @@ fn identities_map_to_targets() {
         git_dir: cache.join("clone/.git"),
         worktree_root: cache.join("clone"),
     };
+    // A linked worktree of the cached clone that the build step itself keeps inside the cache.
     let cached_linked: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
         common_dir: cache.join("clone/.git"),
         git_dir: cache.join("clone/.git/worktrees/w"),
-        worktree_root: PathBuf::from("/elsewhere"),
+        worktree_root: cache.join("clone/worktrees/w"),
+    };
+    // The same clone's linked worktree checked out where the person works: its Git directory is still
+    //  inside the cache, and its files are not.
+    let linked_outside_the_cache: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: cache.join("clone/.git"),
+        git_dir: cache.join("clone/.git/worktrees/w"),
+        worktree_root: root.join("the-persons-worktree"),
+    };
+    // The mirror image: files inside the cache, Git directory outside it.
+    let linked_with_a_git_directory_outside_the_cache: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: PathBuf::from("/r/.git"),
+        git_dir: PathBuf::from("/r/.git/worktrees/w"),
+        worktree_root: cache.join("clone/worktrees/w"),
     };
     let bare: WorktreeIdentity = WorktreeIdentity::BareRepository {
         common_dir: cache.join("clone/.git"),
@@ -254,6 +402,11 @@ fn identities_map_to_targets() {
         (&linked, EffectiveTarget::LinkedWorktree),
         (&cached_main, EffectiveTarget::Allowlisted),
         (&cached_linked, EffectiveTarget::Allowlisted),
+        (&linked_outside_the_cache, EffectiveTarget::LinkedWorktree),
+        (
+            &linked_with_a_git_directory_outside_the_cache,
+            EffectiveTarget::LinkedWorktree,
+        ),
     ] {
         assert_eq!(
             classify_effective_target(identity, allowed.as_slice()),
@@ -269,6 +422,15 @@ fn identities_map_to_targets() {
     assert_eq!(
         classify_effective_target(&cached_linked, &[]),
         EffectiveTarget::LinkedWorktree
+    );
+    // The main checkout of the cached clone is exempt through its own worktree top too, not only its Git directory.
+    assert_eq!(
+        matching_allowed_worktree_dir_for_repository(&cached_main, allowed.as_slice()).map(|found| return found.named_by),
+        Some("UV_CACHE_DIR")
+    );
+    assert_eq!(
+        matching_allowed_worktree_dir_for_repository(&linked_outside_the_cache, allowed.as_slice()).map(|found| return found.named_by),
+        None
     );
     remove(root.as_path());
 }

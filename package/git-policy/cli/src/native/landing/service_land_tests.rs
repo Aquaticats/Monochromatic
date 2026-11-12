@@ -73,7 +73,7 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
         repository: world.repo.clone(),
         common_dir: world.repo.join(".git"),
         git_dir: world.repo.join(".git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
         changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
@@ -86,6 +86,7 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
         index: world.repo.join(".git/index"),
         scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
+        holder: String::new(),
     };
 }
 
@@ -356,7 +357,7 @@ fn an_amend_of_a_root_commit_and_of_a_merge_keeps_their_parents() {
     git(world.repo.as_path(), &["checkout", "--quiet", "--orphan", "fresh"]);
     git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=orphan root"]);
     let mut amend: CommitRequest = amend_request(&world, "root", "r.txt", "r\n");
-    amend.reference = String::from("refs/heads/fresh");
+    amend.reference = crate::ref_name::RefName::from_text("refs/heads/fresh");
     let outcomes = land_batch(&world.context, 1, &[amend]).expect("landed");
     assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
     assert_eq!(git_text(world.repo.as_path(), &["rev-list", "--parents", "--max-count=1", "fresh"]).split_whitespace().count(), 1, "still a root commit");
@@ -907,7 +908,7 @@ fn a_mixed_batch_is_refused() {
     let world: World = world("service-land-mixed");
     let one: CommitRequest = request(&world, "one", "one.txt", "1\n");
     let mut other: CommitRequest = request(&world, "two", "two.txt", "2\n");
-    other.reference = String::from("refs/heads/other");
+    other.reference = crate::ref_name::RefName::from_text("refs/heads/other");
     assert_eq!(land_batch(&world.context, 1, &[one, other]), Err(FailureCode::Rejected));
     assert_eq!(land_batch(&world.context, 2, &[]), Err(FailureCode::Rejected));
     remove(world.root.as_path());
@@ -1168,7 +1169,7 @@ fn a_commit_on_a_branch_that_does_not_exist_lands_once_and_never_over_a_branch_t
     let world: World = world("service-land-unborn");
     let zero: String = "0".repeat(40);
     let mut first: CommitRequest = built_request(&world, "root", "root.txt", &[]);
-    first.reference = String::from("refs/heads/fresh");
+    first.reference = crate::ref_name::RefName::from_text("refs/heads/fresh");
     first.base = zero;
     let commit: String = first.commit.clone().unwrap_or_default();
     let mut raced: CommitRequest = first.clone();
@@ -1194,7 +1195,7 @@ fn a_detached_head_is_moved_by_a_compare_that_does_not_follow_a_branch() {
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "--detach"]);
     let mut built: CommitRequest = built_request(&world, "loose", "loose.txt", &[base.as_str()]);
-    built.reference = String::from("HEAD");
+    built.reference = crate::ref_name::RefName::from_text("HEAD");
     let commit: String = built.commit.clone().unwrap_or_default();
     // The head became a branch after the commit was prepared: the compare fails and the branch stays where it was.
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
@@ -1274,7 +1275,7 @@ fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
         let blob: String = git_text(linked.as_path(), &["hash-object", "-w", "--", format!("{id}.txt").as_str()]);
         return CommitRequest {
             repository: linked.clone(),
-            reference: String::from("refs/heads/wt"),
+            reference: crate::ref_name::RefName::from_text("refs/heads/wt"),
             base: git_text(linked.as_path(), &["rev-parse", "HEAD"]),
             changes: vec![Change { path: PathBuf::from(format!("{id}.txt")), mode: ALLOWED_MODES[0], blob: Some(blob) }],
             git_dir: git_dir.clone(),
@@ -1489,7 +1490,7 @@ fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest
         repository: world.repo.clone(),
         common_dir: world.repo.join(".git"),
         git_dir: world.repo.join(".git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
         changes: vec![Change { path: name.clone(), mode: ALLOWED_MODES[0], blob: Some(object) }],
         message: format!("message of {id}\n"),
@@ -1502,6 +1503,7 @@ fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest
         index: world.repo.join(".git/index"),
         scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
+        holder: String::new(),
     };
     return (landed, name);
 }
@@ -1903,7 +1905,7 @@ fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
         // Positive control: the records are synced, only elsewhere, so a landing that stopped reporting its syncs fails here.
         assert!(!queued.is_empty(), "the landing queues its syncs: {events:?}");
         assert_eq!(waited, Vec::<String>::new(), "the person waited for a sync: {events:?}");
-        let expected: Vec<&str> = vec!["intent-file", "intent-dir", "lock-marker", "index-dir", "indexed-file", "indexed-dir", "journal-dir"];
+        let expected: Vec<&str> = vec!["intent-file", "intent-dir", crate::service_index_placement::LOCK_MARKER_SYNC, "index-dir", "indexed-file", "indexed-dir", "journal-dir"];
         assert_eq!(queued, expected, "the records one landing queues: {events:?}");
         crate::service_durable::drain();
         let made: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
@@ -1943,6 +1945,15 @@ fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does()
 /// on the
 /// wait,
 /// because the command reports what it kept and that promise must survive a power cut.
+/// The index lock's marker is not one of those records:
+/// it names the holder and nothing else,
+/// so `322079b2f0` handed its flush to the service's background task,
+/// which `sync_file` in `service_index_placement.rs` does through `service_durable::defer_file`,
+/// and no commit waits for it,
+/// a withdrawal included;
+/// a torn marker is judged stale and removed by the next command
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+/// "What was changed").
 #[test]
 fn a_withdrawal_forces_the_records_it_wrote() {
     let world: World = world("service-land-withdrawal-syncs");
@@ -1950,16 +1961,23 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     std::fs::write(world.repo.join(".git/index.lock"), "foreign").expect("foreign lock");
     let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
     crate::service_fault::hooks::take_events();
+    let before: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
     let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| return land_batch(&context, 1, &[request]));
     let events: Vec<String> = crate::service_fault::hooks::take_events();
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let (waited, queued) = syncs_of(events.as_slice());
     assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
+    // Positive control: this withdrawal had the marker's flush to hand over, so a landing that stopped queueing it fails here.
+    let (markers, records): (Vec<String>, Vec<String>) = queued.into_iter().partition(|what| return what.as_str() == crate::service_index_placement::LOCK_MARKER_SYNC);
+    assert_eq!(markers, vec![String::from(crate::service_index_placement::LOCK_MARKER_SYNC)], "the marker's flush is handed to the background task: {events:?}");
     let mut forced: Vec<String> = waited.clone();
-    let mut asked: Vec<String> = queued.clone();
+    let mut asked: Vec<String> = records;
     forced.sort();
     asked.sort();
-    assert_eq!(forced, asked, "every sync the landing queued was made before it returned: {events:?}");
+    assert_eq!(forced, asked, "every record the landing queued was made before it returned: {events:?}");
+    crate::service_durable::drain();
+    let made: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
+    assert!(made >= markers.len() as u64, "the background task made the marker's queued flush, made {made}");
     remove(world.root.as_path());
 }
 

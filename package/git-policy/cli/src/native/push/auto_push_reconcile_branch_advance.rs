@@ -370,10 +370,15 @@ pub(crate) fn refusal_of(stderr: &[u8]) -> String {
 /// never a failure:
 /// the merge is already published.
 ///
+/// Why a control still calls it:
+///   The loop fast-forwards through the awaited face (`advance_local_branch_awaiting`),
+/// and the control that compares the two faces asks both.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function advanceLocalBranch({ git, branchRef, local, mergeOid }): Promise<{ reason?: string; keptChanges?: boolean }>;
 /// ```
+#[cfg(test)]
 pub(crate) fn advance_local_branch(
     git: &PushGit,
     branch_ref: &str,

@@ -45,13 +45,14 @@ use crate::worktree_copy::{GitRunner, GitStatus};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
-use crate::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
+use crate::worktree_dirty_restore::{changes_left_out, left_out_note, record_left_out, restore_dirty};
 use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
+use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
 use crate::worktree_slow_route::{SlowRoute, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
-use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
+use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_subvolume::settle_created_destination;
-use crate::worktree_trash::{PendingTrash, TrashManifest, delete_trash, record_the_trash};
+use crate::worktree_trash::{PendingTrash, TrashManifest};
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -152,7 +153,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     //  reset to the new worktree's HEAD from the index the snapshot carries, which is one instant with its files.
     if source.dirty.is_some() || state == CopyState::ChangedUnderCopy {
         let restore_dirty_entered: bool = begin_step("restoreDirty");
-        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context);
+        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context, &environment);
         end_step(restore_dirty_entered);
         restore_dirty_outcome?;
     } else {
@@ -190,56 +191,6 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
         warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
     }
     return Ok(Served { line: target.line, placed, trash: handed_later });
-}
-
-/// What:
-///  Write the trash's record now that the worktree holding it is published,
-/// and answer what the hand-over still owes,
-///  which is the same trash when the record is written.
-/// Why:
-///   The record is what outlives the command,
-/// so it is written before the rung returns,
-/// and a command killed after
-///  the swap leaves a trash the service empties.
-/// A record that cannot be written is a trash nothing will ever empty,
-/// and the add
-///  pays the emptying itself in that case,
-/// which no ordinary add reaches;
-/// a trash that then stays is reported with its path
-///  and the reason.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const recordBeforeTheRungReturns = (pending) => { try { recordTheTrash(pending); return pending; } catch (reason) { warn(reason); deleteTrash(pending); return undefined; } };
-/// ```
-fn record_before_the_rung_returns(pending: PendingTrash) -> Option<PendingTrash> {
-    let shown: PathBuf = pending.destination.join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
-    if let Err(reason) = record_the_trash(&pending) {
-        warn(TAG, format!("monochromatic-git-policy-cli: the record of the trash {} could not be written ({reason}), so this add empties it before it returns", shown.display()).as_str());
-        if let Err(left) = delete_trash(pending.destination.as_path(), pending.common_dir.as_path(), &pending.manifest) {
-            warn(TAG, format!("monochromatic-git-policy-cli: the trash {} stays: {}", shown.display(), left.reason).as_str());
-        }
-        return None;
-    }
-    return Some(pending);
-}
-
-/// What:
-///  The paths the source has changed since its last commit,
-/// when there are any.
-/// Why:
-///   A snapshot carries the source's uncommitted state,
-/// so the person is told which of it was left out of the new worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// source.dirty?.hasChanges() ? source.dirty : undefined
-/// ```
-fn changes_left_out(source: &SnapshotSource) -> Option<&ChangedPaths> {
-    return match source.dirty.as_ref() {
-        Some(found) if found.has_changes() => Some(found),
-        _ => None,
-    };
 }
 
 /// What:
@@ -335,7 +286,8 @@ fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner)
 /// ```
 fn report_incomplete(plan: &AddPlan) {
     let shown: String = plan.destination.display().to_string();
-    warn(TAG, format!("monochromatic-git-policy-cli: the `git worktree add` of {shown} could not be completed; the worktree and its registration were left as they are. `git -C {shown} reset --hard` retries its checkout, and `git worktree remove --force {shown}` removes it.").as_str());
+    let finish: String = crate::worktree_finish_commands::finish_or_remove_sentence(plan.destination.as_path());
+    warn(TAG, format!("monochromatic-git-policy-cli: the `git worktree add` of {shown} could not be completed; the worktree and its registration were left as they are. {finish}").as_str());
 }
 
 /// What:

@@ -1,11 +1,11 @@
 [tasks."native:test:container"]
-description = "Run native wrapper tests and Clippy in bounded containers with pacman's current Git; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 512 PIDs defaults (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
+description = "Run native wrapper tests and Clippy together in bounded containers with pacman's current Git; `-- --memory <size> --cpus <count> --pids-limit <count>` override this gate's own bounds of 2g, 4 CPUs and 256 processes per test thread, which is 1024, and a --pids-limit below that floor is raised (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
 # Mechanism D: the run-record retention of this package's target/verification runs before a run writes a new record,
 # through cargo-shadow's own sweep so the task does not reimplement it (doc/handover/cargo-shadow-lean-build-folders.md).
 run = ["cargo-shadow lean records target/verification", "node bin/test-native-container.ts"]
 
 [tasks."native:mutation"]
-description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at the default limits (run native:test:container with its own options first to change them)"
+description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at its own default bounds (run native:test:container with its own options first to change them)"
 # The gate step sweeps this package's run records before either step writes another (mechanism D).
 run = ["cargo-shadow lean records target/verification", "node bin/test-native-container.ts", "node bin/mutate-native-container.ts"]
 
@@ -40,14 +40,14 @@ description = "Record a changed dependency list of the native wrapper in its loc
 run = "cargo update --offline --workspace"
 
 [tasks."native:release"]
-description = "Start the wrapper release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish, and skips the host's btrfs controls). A real release waits for the btrfs controls on this host first (`native:release:host-controls`) and dispatches nothing when one fails, when one printed \"BTRFS CONTROL NOT RUN\", or when the run lacks a control the gate requires. The crate-release workflow bumps the crate and the fuzz crate's exact pin, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
+description = "Start the wrapper release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish, and skips the host's btrfs controls). A release of any version but an alpha waits for the btrfs controls on this host first (`native:release:host-controls`) and dispatches nothing when one fails, when one printed \"BTRFS CONTROL NOT RUN\", or when the run lacks a control the gate requires; an alpha is dispatched without them. The crate-release workflow bumps the crate and the fuzz crate's exact pin, checks the crate unless the version is an alpha, dry-runs the publish when it goes to crates.io, pushes the bump to main and starts cargo-publish; nothing compiles here"
 # The registry entry of this crate names the gate (releasable-crates.json "dispatchGate"), so the dispatch command runs it
 # after every refusal that costs nothing and before it starts the workflow; see doc/troubleshooting/nextest-hides-a-passing-tests-output.md
 # for the one BTRFS CONTROL NOT RUN line a btrfs host prints, which the gate lets through.
 run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate monochromatic-git-policy-cli"
 
 [tasks."native:release:host-controls"]
-description = "Run the btrfs controls a real wrapper release waits for, then say whether the release may start: exit zero only when every required control passed on a btrfs fixture root, and otherwise print what refused and what a person does next; `-- <filter>...` narrows the run while iterating, which a release never does and which therefore always refuses"
+description = "Run the btrfs controls a release that is not an alpha waits for, then say whether the release may start: exit zero only when every required control passed on a btrfs fixture root, and otherwise print what refused and what a person does next; `-- <filter>...` narrows the run while iterating, which a release never does and which therefore always refuses"
 # The one definition of the run and its judgement: `native:release` reaches it through the crate's registry entry, and a
 # person can repeat exactly what the release waits for.
 run = "node bin/native-release-host-controls.ts"
@@ -55,6 +55,39 @@ run = "node bin/native-release-host-controls.ts"
 [tasks."native:release:wait"]
 description = "Follow the release run that `native:release` printed, then the cargo-publish run it started, then check crates.io and the GitHub release: `-- <run URL or id> <version>`"
 run = "node ../../crate-release/cli/bin/await-release.ts --crate monochromatic-git-policy-cli"
+
+[tasks."native:gate"]
+description = "Start the wrapper's full release gate (the image build, the compile, the suite and Clippy of native:test:container) as its own capped systemd user unit and print `<unit>.service=<log path>`: `-- [options] <worktree name under .claude/worktrees, or its full path> <label>`. The unit writes the run's own exit status as its log's last line and is collected when it ends, so read the verdict with `native:gate:verdict`, never from `systemctl show`. Options: `--repository <path>`, `--log-directory <path>`, `--unit-cpu-quota <value>`, `--unit-memory-max <value>`, `--unit-tasks-max <count>`, `--unit-io-weight <weight>`, `--container-pids-limit <count>`"
+# The launcher is the promoted `~/temp/agent/gate/launch-gate.ts`; the caps, the label rules and why each value is what it
+# is live in bin/native-gate-caps.ts and bin/native-gate-unit-name.ts.
+run = "node bin/native-gate-launch.ts"
+
+[tasks."native:gate:main-tip"]
+description = "Detach the release gate worktree (`--worktree <name>`, default gate-wrapper-next-alpha) at the commit main points at now and start a gate there, labelled with that commit: `-- [options]`. Prints `gate worktree at <sha>` and `launch status <n>`, and exits 2 without moving the worktree when it holds uncommitted work"
+# The promoted `~/temp/agent/gate/relaunch-gate-on-main-tip.ts`; a real wrapper release is gated this way
+# (doc/handover/cli-git-rust-implementation.md, "Working rules for this effort", "Gates").
+run = "node bin/native-gate-main-tip.ts"
+
+[tasks."native:gate:verdict"]
+description = "Wait, bounded, for a gate log's verdict line and print it with nextest's summary and the failures: `-- <log path> <deadline seconds>`. Exits zero as soon as a verdict line is there whatever the gate's own status was, and nonzero when the deadline passed without one; the printed `gate-exit-status=<n>` line carries the gate's status"
+# The promoted `~/temp/agent/gate/wait-for-gate-verdict.ts`.
+run = "node bin/native-gate-verdict.ts"
+
+[tasks."native:ts-checks"]
+description = "Run the TypeScript checks of this package (or of `-- <task>...`) each in its own capped systemd user scope, all at once, and print one line per check with its status and a failing check's lines: `-- [--worktree <path>] [--deadline-seconds <count>] [--unit-cpu-quota <value>] [--unit-memory-max <value>] [--unit-tasks-max <count>] [--unit-io-weight <weight>] [<task>...]`. Exits 0 when every check passed and 2 when one failed or ran past its deadline; replaces the scratch script `~/temp/agent/gate/ts-checks.ts`"
+# The promoted `~/temp/agent/gate/ts-checks.ts`; the caps, the deadline and the labels live in
+# bin/native-capped-scope-command.ts and bin/native-ts-checks.ts.
+run = "node bin/native-ts-checks.ts"
+
+[tasks."native:install"]
+description = "Move the installed wrapper to a released version and take one real commit sample with it: `-- [--repository <path>] [--deadline-seconds <count>] [--dry-run] <version>`. Re-resolves cargo:monochromatic-git-policy-cli in toolchain.lock.json, prints the lock diff, converges the installed tools, refuses unless `git --version` names the release, commits the lock when it moved, then prints the newest timing line and the service journal of the sample commit; replaces the scratch script `~/temp/agent/upgrade-wrapper.ts`"
+# The promoted `~/temp/agent/upgrade-wrapper.ts`; the steps, the version check and the bounds live in
+# bin/native-install.ts.
+run = "node bin/native-install.ts"
+
+[tasks."native:lock:check"]
+description = "Ask cargo whether every manifest the gate builds still resolves against its own lockfile, and print one line per manifest with the status, the directory and cargo's first error: `-- [--checkout <path>] [--refresh] [<directory>...]`. `--refresh` re-resolves the locked entries first, which writes a lockfile, and prints both answers; the exit status is nonzero when any locked check failed. Replaces the scratch scripts `locked-check.ts` and `lock-refresh.ts`"
+run = "node bin/native-lock-check.ts"
 
 [tasks."native:build"]
 description = "Build the native wrapper executable on the host, for differential runs that start it by path"

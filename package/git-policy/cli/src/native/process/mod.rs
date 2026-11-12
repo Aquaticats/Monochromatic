@@ -42,6 +42,23 @@ pub mod process_start;
 /// and relaying only process-sent signals.
 pub mod signal_relay;
 
+/// The stop signal this process relayed to a child,
+/// kept for the command that waits after it.
+pub mod signal_relay_relayed_stop;
+
+/// Whether this process has a controlling terminal,
+/// and so may have a person to answer a login question.
+pub mod control_terminal;
+
+/// A child started by this process and published to the relay,
+/// so a caller's own bounded wait still relays the process's signals.
+pub mod signal_relay_relayed_child;
+
+/// The guard of a system that has no signal relay,
+/// which keeps the relay's name at every call site.
+#[cfg(not(unix))]
+pub mod signal_relay_without_relay;
+
 /// The descriptor the relay sends through:
 /// made once,
 /// pointed at the child being waited for,
@@ -114,3 +131,8 @@ pub mod child_awaited_until_it_exits_or_the_service_is_stopped;
 /// or ended and reaped here when its step's ceiling comes,
 /// because a number is safe only while the child is this process's own unreaped child.
 pub mod child_awaited_until_it_exits_the_stop_or_the_ceiling;
+
+/// The wait for a step a ceiling stopped and the kernel has not released:
+/// the reap of that step,
+/// and the line that says it for as long as the wait lasts.
+pub mod wait_after_the_stop_saying_the_kernel_holds_it;

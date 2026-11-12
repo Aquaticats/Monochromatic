@@ -124,11 +124,28 @@ pub enum Announce {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface Announcer { announce(note: Announce): void }
+/// interface Announcer { announce(note: Announce): void; clientIsGone(place: number): boolean }
 /// ```
 pub trait Announcer {
     /// Tell the clients `note`.
     fn announce(&self, note: Announce);
+
+    /// What:
+    ///  Whether the client of the request at `place` of the batch is gone,
+    ///  so its commit is not made.
+    /// Why:
+    ///   The landing asks this where it can still stop without moving the branch,
+    /// and a client that is gone cannot be told anything,
+    ///  so its commit exists for nobody (`service_land_batch_body.rs`).
+    ///  A caller that lands without clients answers `false`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// interface Announcer { announce(note: Announce): void; clientIsGone(place: number): boolean }
+    /// ```
+    fn client_is_gone(&self, _place: usize) -> bool {
+        return false;
+    }
 }
 
 /// Why the lock was not taken.
@@ -288,8 +305,8 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Announcer, not
 /// As `acquire`,
 /// and `IndexInUse` when the lock was still held at the ceiling.
 pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
-    // The whole of the preparation counts as staging time: taking the marker made ahead, waiting for a flush that fails or is
-    //  for another batch, and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
+    // The whole of the preparation counts as staging time: taking the marker made ahead, removing the markers it cannot use,
+    //  and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
     let preparing: std::time::Instant = std::time::Instant::now();
     let prepared: Option<Prestaged> = take(index, seq);
     notes.staging = preparing.elapsed();
@@ -331,7 +348,11 @@ fn acquire_placing(
     let lock: PathBuf = lock_path_of(index);
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    // The watch and the marker's text are timed apart from the making of the marker, so a wait whose whole is far longer than
+    //  its parts names the phase that took the time.
+    let watching_began: std::time::Instant = std::time::Instant::now();
     let mut watch: Option<Watch> = (platform.watch)(directory);
+    notes.setup += watching_began.elapsed();
     let (marker, staged, held) = match prestaged {
         Some(made) => {
             // The file was flushed while the service was idle: what was waited for is what the preparation measured.
@@ -339,6 +360,7 @@ fn acquire_placing(
             (made.marker, made.staged, made.held)
         }
         None => {
+            let naming_began: std::time::Instant = std::time::Instant::now();
             let marker: String = match marker_text(seq, platform.identity) {
                 Ok(text) => text,
                 Err(error) => {
@@ -346,6 +368,7 @@ fn acquire_placing(
                     return Err(LockFailure { code: FailureCode::Unavailable });
                 }
             };
+            notes.setup += naming_began.elapsed();
             let staging_began: std::time::Instant = std::time::Instant::now();
             let staged_result = stage_marker_synced(platform.sync, &lock, seq, marker.as_str());
             notes.staging += staging_began.elapsed();
@@ -369,7 +392,9 @@ fn acquire_placing(
         notes,
     );
     notes.placing = placing_began.elapsed();
+    let removing_began: std::time::Instant = std::time::Instant::now();
     let _removed = std::fs::remove_file(&staged);
+    notes.after += removing_began.elapsed();
     let placed: Placed = outcome?;
     remove_dead_staging(&lock);
     return Ok(IndexLock::placed(lock, index, marker, placed.held_or(held), (platform.inspect, platform.release)));

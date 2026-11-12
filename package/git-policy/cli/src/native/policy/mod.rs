@@ -51,6 +51,10 @@ pub mod policy_checks;
 /// in its own file so the registry of shipped policies stays readable.
 pub mod policy_linked_worktree;
 
+/// Keeping the nested Git repositories a clean would delete,
+///  and the one place a form is let through.
+pub mod policy_linked_worktree_nested_repositories;
+
 /// What a lifecycle offers content policies,
 ///  and its candidates once prepared.
 pub mod policy_content;

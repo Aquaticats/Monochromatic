@@ -79,6 +79,9 @@ use crate::service_messages::ClientFailure;
 pub use crate::service_provision_host_and_manager::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME, Manager, ProvisionHost, RETIREMENT_WAIT, STOP_TIMEOUT_SECONDS, platform_without_manager, runtime_unit_dir};
 use crate::service_provision_host_and_manager::refusal;
 use crate::service_provision_earlier_service_retirement::{clear_earlier_units, retire_earlier_service};
+use crate::service_provision_refusals_before_the_wait::{
+    in_plain_words, refuse_a_path_no_socket_address_can_carry, refuse_a_service_that_listens_elsewhere,
+};
 use crate::service_provision_loaded_unit_texts::{record as record_loaded_texts, remembers as manager_was_told};
 use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
 use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
@@ -193,6 +196,10 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
 /// await provisionWith(host, manager)
 /// ```
 pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<(), ClientFailure> {
+    // What: An address no socket can carry ends the provision before anything is written or asked for.
+    // Why:  The manager would bind the unit's address and fail, and the client would then wait out the start ceiling for a
+    //       service that can never answer (`service_provision_refusals_before_the_wait.rs`).
+    refuse_a_path_no_socket_address_can_carry(host)?;
     // A reload makes the manager re-read every unit and interrupts its other clients for a while, so it is asked for only
     //  when a unit it may already hold changed or went away. A file that is new is found by the manager when the unit is
     //  first started.
@@ -200,7 +207,12 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     reload |= clear_earlier_units(host)?;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     if let Err(error) = std::fs::create_dir_all(&directory) {
-        return Err(ClientFailure::CouldNotStart(format!("{} cannot be created: {error}", directory.display())));
+        return Err(ClientFailure::CouldNotStart(format!(
+            "{} cannot be created ({}), and the commit service keeps its settings there, so set XDG_RUNTIME_DIR to a runtime \
+             directory this account can write or make that one writable",
+            directory.display(),
+            in_plain_words(&error)
+        )));
     }
     let texts: [(&'static str, String); 2] = unit_texts(host);
     // Whether the manager may hold state for these units: a unit file was already there, so a start may have failed under it.
@@ -214,7 +226,12 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
             continue;
         }
         if let Err(error) = write_atomically(&path, text.as_str()) {
-            return Err(ClientFailure::CouldNotStart(format!("{} cannot be written: {error}", path.display())));
+            return Err(ClientFailure::CouldNotStart(format!(
+                "{} cannot be written ({}), and the commit service keeps its settings there, so set XDG_RUNTIME_DIR to a runtime \
+                 directory this account can write or make that one writable",
+                path.display(),
+                in_plain_words(&error)
+            )));
         }
         written.push(path);
         reload |= existed;
@@ -234,8 +251,16 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       that exists and needs no manager, so writing it first costs nothing; a refused provisioning leaves a note whose units
     //       never started, which no service reads and the next provisioning writes again.
     note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
-    // Whatever the retirement of the earlier service took, the reload and the start have the time of a whole exchange.
+    // Whatever the retirement of the earlier service took, the question about the address a held unit listens at and the
+    //  start have the time of a whole exchange.
     manager.within(EXCHANGE_WAIT);
+    // What: A socket unit the manager already holds that listens where this command does not look ends the provision before
+    //       anything is started.
+    // Why:  That unit is another runtime directory's service for this worktree: starting here would create and start a unit this
+    //       command can never use, and a client whose runtime directory the manager does not use would leave one more socket
+    //       listening for a worktree nothing reaches (`service_provision_refusals_before_the_wait.rs`). A manager that holds no
+    //       such unit yet proves nothing, so a first provision goes on and the same question is asked once more after the start.
+    refuse_a_service_that_listens_elsewhere(host, manager)?;
     let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
     if let Err(error) = asked {
         // A file the manager never heard about must not look installed to the next commit, which would then skip the
@@ -245,6 +270,11 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         }
         return Err(refusal(error));
     }
+    // What: A service the manager made listen somewhere this command does not look ends the provision here.
+    // Why:  The unit's address is built from the manager's own runtime directory, so a command given another one waits out
+    //       the whole start ceiling for a service that is running, healthy and out of reach
+    //       (`service_provision_refusals_before_the_wait.rs`).
+    refuse_a_service_that_listens_elsewhere(host, manager)?;
     // What: The manager now holds exactly these texts.
     // Why:  The record is written after the manager accepted the reload and never before, so it is the manager's own answer and
     //       the next commit can take the fast path. A record that cannot be written costs one reload per commit and never a
@@ -371,6 +401,13 @@ fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager)
 /// Provisions through the session bus,
 /// unless the units and the socket are already in place.
 pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
+    // What: An address no socket can carry ends the provision before the fast path reads anything.
+    // Why:  An installation that looks current can stand behind a spelling the file system still walks and no connect can
+    //       carry, because a socket name is copied into the address as written; the fast path would then return as
+    //       provisioned and the commit would spend the start ceiling and the reload's second one connecting to an address
+    //       the kernel refuses, and end with "The commit service did not start" and nothing about the setting that made it
+    //       (`service_provision_refusals_before_the_wait.rs`).
+    refuse_a_path_no_socket_address_can_carry(host)?;
     if in_place(host) {
         // Units set up before this release have no note of their worktree yet.
         note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());

@@ -34,6 +34,9 @@ use std::{ffi::OsString, fs, os::unix::ffi::OsStrExt, path::{Path, PathBuf}, pro
 use sha2::{Digest, Sha256};
 /// The reader of `config.toml`.
 use toml_edit::DocumentMut;
+/// Named reads of paths and text:
+/// a ledger is read the way every other name here is.
+use crate::lean_text::read_small_text;
 
 /// The Cargo variable the shadow sets for the child only.
 pub const BUILD_DIR_VARIABLE: &str = "CARGO_BUILD_BUILD_DIR";
@@ -44,6 +47,15 @@ pub const KEYED_DIRECTORY: &str = "toolchain";
 /// The ledger file inside a keyed folder:
 /// the workspace root it was made for.
 pub const LEDGER_FILE: &str = ".cargo-shadow-workspace";
+
+/// The most bytes of a ledger that are read.
+/// Why:
+/// A ledger is one line naming one workspace root,
+/// and a path on Linux is at most 4096 bytes (`PATH_MAX` file and path names,
+/// `limits.h`),
+/// so twice that is longer than any ledger this tool writes and small enough that a file of another kind is rejected
+/// rather than read.
+const LEDGER_BYTES: usize = 8_192;
 
 /// The template token the base is cut at.
 const HASH_TOKEN: &str = "{workspace-path-hash}";
@@ -183,14 +195,20 @@ pub fn leave_ledger(folder: &Path, root: &Path) {
 /// What:
 /// `pub fn read_ledger(folder: &Path) -> Option<PathBuf>` is the workspace root a keyed folder was made for.
 /// Why:
-/// The idle-tree collection reads it.
+/// The idle-tree collection reads it,
+/// and that read must answer at once:
+/// a ledger that is a pipe with no writer would otherwise hold the pass until a writer arrived,
+/// which nothing promises to do,
+/// so the read waits on nothing,
+/// takes a regular file only,
+/// and stops at the length no ledger exceeds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export const readLedger = (folder: string): string | undefined => readFileSync(join(folder, LEDGER_FILE), 'utf8').trim();
+/// export const readLedger = (folder: string): string | undefined => readSmallText(join(folder, LEDGER_FILE), LEDGER_BYTES);
 /// ```
 pub fn read_ledger(folder: &Path) -> Option<PathBuf> {
-    let text: String = fs::read_to_string(folder.join(LEDGER_FILE)).ok()?;
+    let text: String = read_small_text(&folder.join(LEDGER_FILE), LEDGER_BYTES).ok()?;
     let line: &str = text.lines().next()?.trim();
     return if line.is_empty() { None } else { Some(PathBuf::from(line)) };
 }

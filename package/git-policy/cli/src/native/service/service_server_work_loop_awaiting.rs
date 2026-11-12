@@ -1,6 +1,6 @@
 //! What:
 //!  The loop of the commit service's after-commit work as a task of the runtime,
-//! and the two storage steps only it makes:
+//! and the three storage steps only it makes:
 //! it waits for wakes and due retries,
 //! runs a round of repository work for them,
 //!  and keeps the service from exiting idle while a repository waits to be looked at again.
@@ -12,7 +12,7 @@
 //! and the records of both are jobs of the blocking pool
 //!  (`service_work_drain_pending_claims.rs`).
 //! So the loop is a task as well.
-//! The two steps that write a file are jobs of the pool here
+//! The steps that read or write a file are jobs of the pool here
 //!  for the same reason the drain's storage steps are:
 //! a worker that waited on a disk,
 //! a network file system or a FUSE mount would hold a thread the runtime needs.
@@ -25,7 +25,8 @@
 //! for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
 //! ```
 
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than};
+use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::PushRetries;
 use crate::service_claim_watch::ClaimWatch;
@@ -33,8 +34,10 @@ use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most
 use crate::service_retry::RetrySchedule;
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_work_run_round::run_round_awaiting;
+use crate::service_work_slow_lane::SlowLane;
 use crate::stop_of_the_service_noticed_by_its_children::is_stopping;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -50,9 +53,9 @@ use tokio::sync::mpsc::UnboundedReceiver;
 ///  owner at a time,
 /// so the job takes it and hands it back,
 /// and nothing locks it.
-/// A job the system refuses a thread for makes the write
-///  on this task instead
-/// (`run_a_job_or_in_turn`),
+/// A task of the runtime never writes the note itself:
+///  a filesystem that stopped answering would hold a worker the runtime needs,
+/// and a write that gives no answer is kept as a note the watch tries again after its pause,
 /// so a note is not lost to a refusal.
 /// A watch kept in memory only writes nothing,
 /// so it is not a job at all.
@@ -68,15 +71,40 @@ async fn remember_awaiting(watch: ClaimWatch, git_dir: &Path) -> ClaimWatch {
         return kept;
     }
     let unchanged: ClaimWatch = watch.clone();
-    return match run_a_job_or_in_turn((watch, git_dir.to_path_buf()), remember_in_a_job).await {
-        Ok(back) => back,
-        // Nothing was written and the watch is as it was, so the next wake writes this directory down; the notes it
-        //  already holds stand.
-        Err(reason) => {
-            crate::service_warn!("{} could not be written down for a restart: {reason}", git_dir.display());
-            unchanged
+    return match run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, (watch, git_dir.to_path_buf()), remember_in_a_job).await {
+        TheAnswerOfAJobAwaited::Ran(back) => back,
+        // The system gave no thread, so nothing was written and the watch is as it was: this directory is kept as one whose
+        //  note may be missing, so `retry` writes it after the pause and the work goes on either way.
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!("{} could not be written down for a restart, because the system gave no thread for it; it is tried again after a pause", git_dir.display());
+            a_watch_that_tries_again(unchanged, git_dir)
+        }
+        // The job started on another thread or gave no answer within its ceiling, so whether the note was written is not
+        //  known; writing it again at worst writes the same note twice.
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("{} may not have been written down for a restart, because the note gave no answer; it is tried again after a pause", git_dir.display());
+            a_watch_that_tries_again(unchanged, git_dir)
         }
     };
+}
+
+/// What:
+///  `watch` keeping `git_dir` as a directory whose note may be missing.
+/// Why:
+///  A write that did not run,
+/// or whose answer cannot be read,
+/// leaves the journal without the note this call asked for;
+/// the watch tries it again after its pause,
+/// and the work goes on either way,
+/// because a failed note must not stop a backup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watch.aNoteThatMayBeMissing(gitDir)
+/// ```
+fn a_watch_that_tries_again(mut watch: ClaimWatch, git_dir: &Path) -> ClaimWatch {
+    watch.a_note_that_may_be_missing(git_dir);
+    return watch;
 }
 
 /// `remember_awaiting`'s work,
@@ -108,15 +136,29 @@ async fn retry_awaiting(watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
         return (kept, found);
     }
     let unchanged: ClaimWatch = watch.clone();
-    return match run_a_job_or_in_turn(watch, retry_in_a_job).await {
-        Ok((back, found)) => (back, found),
+    return match run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, watch, retry_in_a_job).await {
+        TheAnswerOfAJobAwaited::Ran((back, found)) => (back, found),
         // Nothing was read or written, so the pause for this failure is not grown either: the next round of the schedule
         //  tries the same notes again.
-        Err(reason) => {
-            crate::service_warn!("the notes this service keeps for a restart could not be tried again: {reason}");
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!("the notes this service keeps for a restart could not be tried again, because the system gave no thread for it");
             (unchanged, Vec::new())
         }
+        // Whether the notes were read or written is not known, and a watch without them would schedule nothing:
+        //  the schedule keeps this pause, so they are tried again after it,
+        //  and the job that gave no answer still holds a place of the blocking bound, so that pause grows.
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("the notes this service keeps for a restart gave no answer, so they are tried again after a longer pause");
+            (notes_owed_again(unchanged), Vec::new())
+        }
     };
+}
+
+/// The watch a retry that outlasted its ceiling came to nothing for,
+/// owed again after a longer pause.
+fn notes_owed_again(mut watch: ClaimWatch) -> ClaimWatch {
+    watch.retry_came_to_nothing();
+    return watch;
 }
 
 /// `retry_awaiting`'s work,
@@ -124,6 +166,64 @@ async fn retry_awaiting(watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
 fn retry_in_a_job(mut watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
     let found: Vec<PathBuf> = watch.retry();
     return (watch, found);
+}
+
+/// What:
+///  Read the plan's journal again,
+/// as a job of the process's blocking pool,
+/// and give the plan back with the Git directories that read made known.
+/// Why:
+///   The read is storage,
+/// so a task of the runtime never makes it itself,
+///  and the plan has one owner at a time,
+/// so the job takes it and hands it back
+///  (`PushRetries::restore`).
+/// Either way the job gives no answer,
+/// the plan it was handed comes back as it was and that is said:
+/// the files stand in the journal,
+/// so the loop's next wake reads them again.
+///   The two answers are told apart:
+/// a refusal proves that nothing ran and holds no place of the blocking bound,
+/// so asking again at the shortest pause costs nothing,
+/// while a read that outlasted its ceiling is still holding its place until the journal answers,
+/// so that one is owed again after a longer pause and the attempts thin out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [plan, found] = await restoreThePlan(plan)
+/// ```
+async fn restore_the_plan(retries: PushRetries) -> (PushRetries, Vec<PathBuf>) {
+    let unchanged: PushRetries = retries.clone();
+    return match run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, retries, restore_in_a_job).await {
+        TheAnswerOfAJobAwaited::Ran((back, found)) => (back, found),
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!("the plan of the pushes waiting for a new try could not be read again, because the system gave no thread for it; it is read again after a pause");
+            (unchanged, Vec::new())
+        }
+        // The job may have read the journal before its answer was lost, and the plan it read is not known here: the files are
+        //  still there, so the next read names the same pushes and loses none of them.
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!("the plan of the pushes waiting for a new try gave no answer to its second read, so it is read again after a longer pause");
+            (plan_owed_again(unchanged), Vec::new())
+        }
+    };
+}
+
+/// The plan a read that outlasted its ceiling came to nothing for,
+/// owed again after a longer pause.
+/// Why:
+///   That read is still holding a place of the blocking bound,
+/// so asking for another one at the shortest pause would fill the pool with reads of a journal that never answers.
+fn plan_owed_again(mut retries: PushRetries) -> PushRetries {
+    retries.restore_came_to_nothing();
+    return retries;
+}
+
+/// `restore_the_plan`'s work,
+/// as the job of the pool takes it.
+fn restore_in_a_job(mut retries: PushRetries) -> (PushRetries, Vec<PathBuf>) {
+    let found: Vec<PathBuf> = retries.restore();
+    return (retries, found);
 }
 
 /// What:
@@ -167,15 +267,18 @@ fn retry_in_a_job(mut watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
+/// for await (const dir of wakesOrDueRetries) { lane.ask(dir); await drainPushes(dir) }
 /// ```
 pub async fn work_loop_awaiting(
     receiver: &mut UnboundedReceiver<Wake>,
     handlers: &GitHandlers,
-    busy: &AtomicUsize,
+    busy: &Arc<AtomicUsize>,
     mut push_retries: PushRetries,
     mut watch: ClaimWatch,
 ) {
+    // The work that can take minutes runs beside this loop, so no step of it stands between a landing and its push
+    //  (`service_work_slow_lane.rs`). The lane counts itself busy, so the service does not exit while it holds a claim.
+    let slow: SlowLane = SlowLane::start(handlers, Arc::clone(busy));
     let mut retries: RetrySchedule = RetrySchedule::default();
     let mut counted_waiting: bool = false;
     // A plan that is already there when the loop starts (one rebuilt from disk) is woken for like one made by a round.
@@ -201,6 +304,15 @@ pub async fn work_loop_awaiting(
         restored.push((key, watch.pause(push_retries.first())));
         watch_scheduled = true;
     }
+    // A plan a start could not read is read again after a pause, and the service stays up until it is: the pushes an earlier
+    //  service promised to try are in its files, and nothing else would look for them.
+    let mut plan_scheduled: bool = false;
+    if push_retries.needs_restore()
+        && let Some(directory) = push_retries.plans()
+    {
+        restored.push((directory.to_path_buf(), push_retries.restore_pause()));
+        plan_scheduled = true;
+    }
     retries.replace(&[], restored, started);
     if !retries.is_empty() {
         busy.fetch_add(1, Ordering::SeqCst);
@@ -225,10 +337,15 @@ pub async fn work_loop_awaiting(
             wakes.push(queued_wake);
         }
         let mut watch_due: Vec<PathBuf> = Vec::new();
+        let mut plan_due: bool = false;
         let mut due: Vec<PathBuf> = Vec::new();
         for directory in retries.take_due(Instant::now()) {
             if watch.key().as_ref() == Some(&directory) {
                 watch_due.push(directory);
+            } else if push_retries.plans() == Some(directory.as_path()) {
+                // The plan's own directory is never a repository to drain, whatever the list has already read, so its wake is
+                //  taken here and a read that has nothing left to do says so by finding nothing.
+                plan_due = true;
             } else {
                 due.push(directory);
             }
@@ -245,6 +362,15 @@ pub async fn work_loop_awaiting(
                 wakes.push((directory, None));
             }
         }
+        if plan_due {
+            // The pushes a second read of the plan found are looked at as if their branches were due.
+            plan_scheduled = false;
+            let (back, found): (PushRetries, Vec<PathBuf>) = restore_the_plan(push_retries).await;
+            push_retries = back;
+            for directory in found {
+                wakes.push((directory, None));
+            }
+        }
         let mut ran: Vec<PathBuf> = Vec::new();
         for (directory, _) in &wakes {
             ran.push(directory.clone());
@@ -253,6 +379,11 @@ pub async fn work_loop_awaiting(
         //  that knows where to look. This task does it, never the one that lands commits.
         for directory in &ran {
             watch = remember_awaiting(watch, directory.as_path()).await;
+        }
+        // The same repositories are looked at for the kinds that can take minutes, beside the round below: the round claims the
+        //  pushes alone, so a person's push is taken however long a trash, a prewarm, an upkeep or a review then runs.
+        for wake in &wakes {
+            slow.ask(wake.clone());
         }
         let (back, asked): (PushRetries, Vec<(PathBuf, Duration)>) = run_round_awaiting(wakes, handlers, push_retries, &ClaimTime::read()).await;
         push_retries = back;
@@ -268,6 +399,13 @@ pub async fn work_loop_awaiting(
             retries.replace(&[], vec![(key, watch.pause(push_retries.first()))], Instant::now());
             watch_scheduled = true;
         }
+        if !plan_scheduled
+            && push_retries.needs_restore()
+            && let Some(directory) = push_retries.plans()
+        {
+            retries.replace(&[], vec![(directory.to_path_buf(), push_retries.restore_pause())], Instant::now());
+            plan_scheduled = true;
+        }
         // A repository waiting to be looked at again keeps the service from exiting idle, as running work does.
         if !retries.is_empty() && !counted_waiting {
             busy.fetch_add(1, Ordering::SeqCst);
@@ -279,3 +417,8 @@ pub async fn work_loop_awaiting(
         busy.fetch_sub(1, Ordering::SeqCst);
     }
 }
+
+/// Controls for the notes the loop keeps for a restart stay out of the release executable.
+#[cfg(test)]
+#[path = "service_server_work_loop_awaiting_tests.rs"]
+mod tests;

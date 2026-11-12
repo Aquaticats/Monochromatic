@@ -261,6 +261,17 @@ Else need authorization;
 Drafts stay local;
  read-only research allowed.
 
+XSU:
+ Delete what is superseded unasked,
+ everywhere it lives (branches,
+ worktrees,
+ units,
+ briefs,
+ scratch),
+ once its content is shown to live elsewhere;
+ unshown:
+ keep it and say why.
+
 TSK:
  Broad multi-area requests:
  one task-list item per major area,
@@ -314,10 +325,10 @@ XVS:
  GPT models cannot be trusted on long-horizon work.
 
 KRV:
- Reviews of a change go to Kimi K3.1 Pro alone:
- Pi with `--provider synthetic --model hf:moonshotai/Kimi-K3.1-Pro`,
+ Reviews of a change go to qwen4-max-preview alone:
+ Pi with `--provider qwen-token-plan-individual --model qwen4-max-preview`,
  in a worktree of its own,
- outside the Neuralwatt slots.
+ on the qwen4 pool.
 
 LHZ:
  Long-horizon audits,
@@ -329,7 +340,7 @@ LHZ:
 PFW:
  Alongside advisor,
  never instead:
- a Kimi review reads the paths its prompt names,
+ a qwen4 review reads the paths its prompt names,
  whole files and the diff,
  never prose.
 Background it;
@@ -637,16 +648,18 @@ RT4:
 ## Before briefing an agent
 
 BRQ:
- Briefs and notes carry as requirements only what the user said or decided,
- quoted with source;
- derivations and own ideas are revisable suggestions;
- inferred requirements or policy:
+ Briefs and notes carry as requirements only what the user decided,
+ stated as the project's own,
+ citing its record,
+ implying no human owner;
+ own ideas are suggestions;
+ inferred ones:
  ask first.
 
 DQB:
  Before briefing work on a component,
  grep `doc/decision/` for its records
- and quote every owner decision and amendment that bears on the task,
+ and state every decision and amendment that bears on the task as the project's own,
  with path and lines.
 
 FBN:
@@ -823,6 +836,11 @@ HXR:
  run them in `podman run --cpus --memory --pids-limit --blkio-weight 10 --rm` or `mvm`;
  containers ignore their launcher's `IOWeight`.
 
+MHX:
+ Never start a service manager (`systemd --user`) on the host
+ or claim a well-known name on the owner's session bus;
+ tests needing one run in `podman` or `mvm`.
+
 NLG:
  Never generate synthetic host load in any session or subagent:
  no `stress-ng`,
@@ -910,6 +928,11 @@ FDL:
  then delete exactly those paths in a separate command;
  `-delete` implies `-depth`,
  which turns `-prune` into a no-op.
+
+RLW:
+ `rm` commands as issued never contain environment variables (`$HOME`, `${DIR}`):
+ write every path literally,
+ because an unset or empty variable widens what gets deleted.
 
 VKI:
  Synthetic key input:
@@ -1587,11 +1610,9 @@ VB7:
  lint misses CommonMark emphasis edge cases.
 
 SCF:
- Screenshot after scripted input:
- confirm intended rendered state,
- then capture;
- command completion isn't frame completion.
-Recapture stale or transitional frames.
+ Before accepting a screenshot,
+ verify the target application/window and intended rendered state;
+ recapture mismatches or transitional frames.
 
 ABR:
  End browser verification with `agent-browser close`:

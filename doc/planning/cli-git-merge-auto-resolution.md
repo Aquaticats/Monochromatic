@@ -2334,6 +2334,25 @@ the
 head count of `FETCH_HEAD`,
 `rebase_unspecified` with no `--ff`/`--no-ff` (Git's advice stays Git's),
  and `GIT_REFLOG_ACTION`.
+Whether the settings state a merge is Git's own reading,
+asked with `git config --bool --get` for `branch.<name>.rebase` and then `pull.rebase`
+(branch note of 2026-11-11T13:35:00-05:00,
+`fix/git-policy-cli-alpha-10-audit-pull-rebase-values-as-git-reads-them`):
+the reading of the raw text took the first of several values and five spellings,
+so `pull.rebase=true` followed by `false`,
+and `pull.rebase=00`,
+kept the pull native,
+where native Git's merge refused over another session's staged work
+(status 2,
+`Your local changes to the following files would be overwritten by merge`) although Git read the setting as false.
+The same reading merged where a later `true` had asked for a rebase,
+which native Git answers with
+`cannot pull with rebase: Your index contains uncommitted changes`.
+Both directions now equal native Git:
+the binary control `a_pull_whose_rebase_setting_is_written_twice_or_as_a_number_is_completed`
+covers the duplicate and numeric-zero arms,
+and `the_rebase_setting_is_read_the_way_git_reads_it` checks each arm against Git's own `--bool` answer.
+The extra start runs only when the line does not already state a merge.
 What is left to native Git's whole pull and why:
 a rebase (a separate machine,
 not in scope),
@@ -2598,3 +2617,178 @@ so it is the same end.
  A finish cannot meet such unsaved changes unless another program writes the file in the moment
 between the pass and the commit;
 that interleaving is not constructed.
+
+## Measured again on 2026-11-10: the line level and the refusals
+
+Recorded 2026-11-10T18:20:00-05:00.
+The owner wrote that day,
+verbatim:
+"there are still ways you haven't tried to make this happen less often,
+for example,
+using a better algorithm or something."
+The decision of 2026-11-03 stands:
+the pass stays,
+and its wrong answers are to become rarer.
+This section is the measurement that answered the owner,
+and the change it chose.
+
+### The test set
+
+Every two-parent merge reachable from `main`,
+3,194 merges,
+and the files both sides changed that are text,
+3,862 files.
+Plain line merging conflicts on 722 of those,
+which is the input domain of the pass,
+because a file Git resolves never reaches it.
+The set is those 722 files plus three named ones:
+merge `ef43afe9f9` with `package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`
+(the doubled `return`),
+merge `31f72ecf12` with `doc/handover/questions-for-the-owner.md`
+(the record both sides wrote),
+and merge `b971df44f5` with the same path,
+which the owner named.
+That last merge carried the record rather than producing it:
+its base and its other side are the same bytes,
+so the merge had nothing to decide,
+and on the three stages of `31f72ecf12` the pass leaves three conflicts,
+so the text `b971df44f5` carried was written by whoever resolved it by hand.
+That is a finding of this measurement:
+the record was not the pass's own output,
+although the shape it holds is the shape the pass must never write.
+
+Every candidate is the same all-or-nothing pass:
+a file is resolved only when every region of it resolves,
+and a file that is not resolved keeps exactly what Git left.
+The candidates differ in the line level (the pass's own in-process line merge with the `similar`
+crate's Myers algorithm,
+or Git's own line merge with `--zdiff3` or `--diff3` and one diff algorithm)
+and in whether the two refusals are on.
+
+Each result is scored by mechanical signals,
+which the report of the change names:
+a silent result is one without a conflict marker,
+a doubled word is one that neither side writes twice in a row,
+a line no side holds is one no side's file holds,
+an empty heading is a Markdown heading whose body no side left empty,
+a dropped line is a line both sides hold that the result lost,
+and a duplicated block is three or more consecutive lines that appear twice although each side holds them once.
+The committed blob is printed for context;
+it is not the verdict,
+because in this range the wrapper's own pass wrote many of those blobs.
+
+### The counts
+
+723 triples,
+every candidate on all of them.
+`silent` is files resolved without a marker,
+`defect` counts files whose silent result writes a doubled word,
+an empty heading or a line both sides kept and the merge lost,
+`conflicts` counts conflict regions,
+and `invented` counts lines no side holds.
+
+- The pass as it shipped:
+  silent 142,
+  defect 2,
+  conflict regions 2,807 in 581 files,
+  invented 92.
+- The pass with the refusals,
+  its own line merge:
+  silent 108,
+  defect 0,
+  conflict regions 3,002 in 615 files,
+  invented 21.
+- Git's `--zdiff3` line merge (default algorithm),
+  no refusals:
+  silent 164,
+  defect 2,
+  conflict regions 2,753 in 559 files,
+  invented 91.
+- Git's `--zdiff3` line merge with the refusals,
+  chosen:
+  silent 130,
+  defect 0,
+  conflict regions 2,948 in 593 files,
+  invented 21.
+- Git's `--zdiff3` with `--diff-algorithm=histogram`,
+  with the refusals:
+  silent 129,
+  defect 0,
+  conflict regions 2,951 in 594 files,
+  invented 21.
+- Git's `--zdiff3` with `--diff-algorithm=patience`,
+  with the refusals:
+  silent 130,
+  defect 0,
+  conflict regions 2,948 in 593 files,
+  invented 21.
+- Git's `--zdiff3` with `--diff-algorithm=minimal`,
+  with the refusals:
+  silent 130,
+  defect 0,
+  conflict regions 2,948 in 593 files,
+  invented 21.
+- Git's `--diff3` with `--diff-algorithm=histogram`,
+  with the refusals:
+  silent 108,
+  defect 0,
+  conflict regions 3,002 in 615 files,
+  invented 21.
+- Git's `--diff3` with `--diff-algorithm=patience`,
+  with the refusals:
+  silent 109,
+  defect 0,
+  conflict regions 2,999 in 614 files,
+  invented 21.
+- Of the files each candidate resolved,
+  the number whose bytes differ from the committed blob:
+  52 of 142 as shipped,
+  31 of 108 with the refusals and its own line merge,
+  28 of 130 with `--zdiff3` and the refusals.
+
+### What the counts decided
+
+The refusals remove every silent wrong answer the measurement can name,
+in every line level:
+the two doubled words,
+and 71 lines no side holds that 34 resolved files had joined across lines,
+leaving 21 lines,
+each the merge of a single line all three texts held,
+which is the shape the owner accepted on 2026-11-03.
+They cost conflicts:
+34 files that the pass resolved are left to the person.
+
+The diff algorithm is not what the owner's question was about:
+Git's `patience`,
+`histogram` and `minimal` change at most one file of 723 against `default`.
+The conflict style is:
+`--zdiff3` keeps the lines both sides wrote identically out of a conflict,
+the word pass therefore sees smaller regions,
+and 22 of the 34 files the refusals cost are resolved again,
+with the same refusals and the same 21 lines no side holds.
+`--diff3` gives the pass's own line merge's counts to the file (108 and 3,002),
+because it keeps the matched lines inside the conflict.
+So the line level became `git merge-file --zdiff3`,
+and Git's default diff algorithm stays.
+
+The word level stays as it was,
+because 41 stored inputs of the Jujutsu corpus give the same verdict and the same bytes under
+Git's `--zdiff3` line merge as under the pass's own,
+so the corpus control still holds the word pass to Jujutsu 0.46.0's answers.
+
+### Evidence
+
+The scripts and the 723-file test set are in `${HOME}/temp/agent/git-merge-pass/`
+(`build-corpus3.ts`,
+`metrics.ts`,
+`run-matrix.ts`,
+`score-dir.ts`,
+`corpus/`,
+`out/`),
+with a scratch harness that dumped each candidate's answer for every triple
+(`examples/merge_eval_dump.rs` in the crate while the choice was made,
+deleted before the commit).
+Scratch does not survive a reboot reliably,
+and none of it is in the repository;
+the counts above are the durable record,
+and `src/native/merge/word_merge_refusals/` holds the two real shapes as controls.

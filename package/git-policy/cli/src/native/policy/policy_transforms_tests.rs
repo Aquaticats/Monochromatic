@@ -29,7 +29,7 @@ use crate::rule_commit_sequencer::SequencerState;
 fn transform(values: &[&str], facts: ScriptedFacts) -> (TransformResult, Vec<String>) {
     let mut scripted: ScriptedFacts = facts;
     let result: TransformResult =
-        apply_fixed_transforms(os_arguments(values).as_slice(), false, &mut scripted);
+        apply_fixed_transforms(os_arguments(values).as_slice(), false, false, &mut scripted);
     return (result, scripted.asked);
 }
 
@@ -39,6 +39,7 @@ fn forwards(values: &[&str]) -> TransformResult {
         arguments: os_arguments(values),
         events: Vec::<PolicyEvent>::new(),
         complete: true,
+        notices: Vec::<String>::new(),
     };
 }
 
@@ -52,6 +53,7 @@ fn rejects(values: &[&str], code: &'static str, message: &str) -> TransformResul
             message: String::from(message),
         }],
         complete: true,
+        notices: Vec::<String>::new(),
     };
 }
 
@@ -204,6 +206,7 @@ fn pathless_commit_asks_for_the_sequencer_state() {
                 path: None,
             }],
             complete: false,
+            notices: Vec::<String>::new(),
         }
     );
 }
@@ -266,7 +269,7 @@ fn the_commit_hatch_skips_the_transform() {
     ] {
         let mut facts: ScriptedFacts = unanswerable();
         assert_eq!(
-            apply_fixed_transforms(os_arguments(values.as_slice()).as_slice(), true, &mut facts),
+            apply_fixed_transforms(os_arguments(values.as_slice()).as_slice(), true, false, &mut facts),
             forwards(values.as_slice()),
             "{values:?}"
         );
@@ -275,11 +278,11 @@ fn the_commit_hatch_skips_the_transform() {
     // The hatch belongs to commit-only: the other transforms still run.
     let mut facts: ScriptedFacts = unanswerable();
     assert_eq!(
-        apply_fixed_transforms(os_arguments(&["push"]).as_slice(), true, &mut facts),
+        apply_fixed_transforms(os_arguments(&["push"]).as_slice(), true, false, &mut facts),
         forwards(&["push", "--atomic"])
     );
     assert_eq!(
-        apply_fixed_transforms(os_arguments(&["status"]).as_slice(), true, &mut facts),
+        apply_fixed_transforms(os_arguments(&["status"]).as_slice(), true, false, &mut facts),
         forwards(&["-c", "advice.statusHints=false", "status"])
     );
 }

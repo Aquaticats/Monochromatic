@@ -143,7 +143,7 @@ fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &st
         repository: root.to_path_buf(),
         common_dir,
         git_dir: git_dir.to_path_buf(),
-        reference: format!("refs/heads/{branch}"),
+        reference: git_policy_cli::ref_name::RefName::from_text(format!("refs/heads/{branch}").as_str()),
         base: query(&["rev-parse", "HEAD"]),
         changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
@@ -156,6 +156,7 @@ fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &st
         index: git_dir.join("index"),
         scratch,
         captured: 0,
+        holder: String::new(),
     };
 }
 

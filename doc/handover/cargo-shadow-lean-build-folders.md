@@ -36,6 +36,12 @@ before the tasks sweep the names it adds.
 
 ## State
 
+- Updated 2026-11-10T17:30:00-05:00 (branch `fix/cargo-shadow-lean-read-only-trees-and-run-deadline`,
+  not released and not installed):
+  the two long passes continue after the position each records,
+  a claimed entry holding a directory this user may not write is now removed whole and says so,
+  the Git wrapper's fixtures no longer leave read-only directories in a build tree,
+  and `RUN_DEADLINE_SECONDS` is set from a measurement of this machine.
 - The six mechanisms,
   the dated-nightly retirement and the Podman cleanup are merged to `main` (merge commit
   "Merge branch 'feat/cargo-shadow-lean-build-folders'") and released:
@@ -366,6 +372,34 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   That reachability fact is still measured and named in the proof line,
   so whether a record held by another user's process may go stays the owner's call,
   now with the count and the kind of each process beside it.
+- What the scan compared,
+  fixed 2026-11-11 (branch `fix/cargo-shadow-lean-sweep-never-removes-a-binary-a-running-test-uses`):
+  two spellings of the same proof were never checked,
+  and a probe in a throwaway build folder showed a sweep removing the unit that held the program a live process was
+  running:
+  a root spelled through a symbolic link matched none of the names `/proc` reports,
+  because `/proc` names a held file with every link resolved.
+  The scan now compares each root as spelled and resolved,
+  reads the program and the mappings of a process in another mount namespace,
+  and blocks the whole entry for a use matched by device and inode,
+  which is one of the entry's own build locks.
+  Both cases have controls that fail before the change:
+  `lean_sweep_tests::a_unit_a_process_runs_a_program_from_is_kept_even_through_a_link`,
+  `lean_idle_trees_tests::a_tree_a_process_runs_a_program_from_is_kept_even_through_a_link`,
+  and `lean_proc_scan_tests::a_process_in_another_mount_namespace_holding_a_build_lock_blocks_every_entry_of_the_root`.
+- No lean pass can explain the run that lost its test binaries on 2026-11-11:
+  the day's pass started 04:30:00,
+  finished the trees at 06:21:28 and the units at 07:31:34,
+  and the build folder that run used (`.../toolchain/nightly-2026-11-11/dd/eaf1ac7b9d4d7b`)
+  was first written at 09:16:55,
+  so no pass had judged it.
+  A second cargo run of the same workspace relinks `deps/` and `build/.../out/` in place,
+  and mechanism A keys a folder by the toolchain's name,
+  so a nightly update behind that name relinks every unit of it.
+  Reproduced 2026-11-11 in a throwaway workspace:
+  `nextest run` over thirty generated tests with one shadowed `cargo build --tests` of the same workspace during it,
+  26 passed and four failed with `[double-spawn] failed to exec ... No such file or directory`.
+  The README's "What still takes a binary a run is using" records it for the people who meet it.
 - The timer:
   `cargo-shadow lean timer-install` writes `cargo-shadow-lean.service` and `cargo-shadow-lean.timer` to
   `~/.config/systemd/user` and enables the timer.
@@ -407,10 +441,95 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   and hours for the units pass,
   which that run stopped 40 minutes in after about 700 of several thousand profile directories.
   A budget per mechanism is still open work;
-  today the deadline cuts the units pass,
-  and the next run starts it again at the front of the profile list.
+  what replaces the starvation is the position each long pass records
+  (see the point below on where a run continues).
   Until a release and `mise run toolchain:install`,
   the timer keeps running the installed 0.1.5-alpha.7 and its old order.
+- Where a run continues,
+  in the sources only (2026-11-10,
+  branch `fix/cargo-shadow-lean-read-only-trees-and-run-deadline`):
+  the idle-trees pass and the units pass record the last tree and the last profile directory they judged
+  in `lean-progress` under `$XDG_STATE_HOME/cargo-shadow`,
+  or under `$HOME/.local/state/cargo-shadow` when the variable is unset,
+  written by an atomic rename,
+  and the next run starts after that key.
+  A pass that finishes its list leaves no key,
+  so the run after it starts at the front;
+  a missing,
+  unreadable or unknown-shaped record means the front and never a failure,
+  and the run says which it found.
+  A dry run writes nothing.
+  Both keys are paths,
+  not counts,
+  so a tree the same pass removed still orders the list.
+  Amendment of 2026-11-11 on the same branch,
+  after a review from another vendor found both defects with a reproduction:
+  a resumed idle-trees pass deleted a tree that a pass from the front keeps.
+  The guard against removing a tree that holds another tree's workspace was built from the trees the pass judged,
+  so the trees before the recorded position lost their records,
+  and a tree whose own workspace was gone but which held a live workspace another tree records was removed whole.
+  The pass now reads the ledger of every tree before its position as a guard and judges none of them;
+  only the ledger is read,
+  never the dependency information,
+  so the guard costs one small file read per tree (measured 2026-11-11:
+  29 ms for 4,000 ledgers,
+  best of seven alternating runs against the same base with no ledgers).
+  The same reasoning found a second way to lose that guard,
+  which a control showed on the same day:
+  a retired-toolchain tree is removed even when its ledger names a workspace that still exists,
+  and when that workspace lies inside another tree the ledger is the only thing keeping that tree from removal,
+  so the pass after it removed the tree and the live sources inside it.
+  A tree is now kept while the workspace its own ledger names lies inside another tree of the base and exists,
+  with the reason it reports naming that tree;
+  a retired tree whose recorded workspace is outside the base still goes.
+  The same amendment made both names of the record safe against the shapes a fixed name in a state directory can hold:
+  a symbolic link at `lean-progress.new` used to receive the text through the link and so truncated and rewrote the file it
+  named,
+  and a pipe there (or at `lean-progress`) held the run until someone opened the other end,
+  past any deadline.
+  A hard link at the staging name lost the contents of the other name of that file the same way,
+  and is handled the same way.
+  The staging file is now opened with `NOFOLLOW` and `NONBLOCK` after any name that is not a regular file with one name is
+  removed,
+  and the record is read through a `NONBLOCK` descriptor,
+  so a pipe is read for what it holds and never waited on.
+  Why this matters:
+  the journal of the run that ended 2026-11-10T07:37:24-05:00 shows the idle-trees pass spending the whole bound
+  (`idle trees: 33804 trees read; removed 278 (511.49 GiB by disk blocks); kept 14572; skipped 18954` at 07:30:33,
+  the deadline having passed inside the `b3/` and `b4/` prefixes),
+  after which the units pass reached no profile directory at all
+  (`older-compiler sweep: 46529 profile directories read; removed 0 units ...` and
+  `the deadline passed before every profile directory was reached`).
+  Every run started those two passes at the front,
+  so the trees and profile directories past the bound were never reached.
+  Measured times,
+  `RUN_DEADLINE_SECONDS` and the end time are in the README section
+  "The order a run takes its mechanisms in";
+  the numbers are also below under "Measured 2026-11-10".
+- The read-only directory that stopped a removal,
+  answered in the same branch (issue 6282):
+  a directory inside a claimed entry that this user owns and may not write (`0500`,
+  `0555`,
+  `0000`) gets this user's read,
+  write and search before the walk removes what it holds,
+  the removal's line names every directory whose mode it changed,
+  a directory of another user is left as it is and named,
+  and a tree that could not be emptied whole is reported as partly removed,
+  never as skipped.
+  The 25 read-only directories in the base's trash on 2026-11-10 all came from this repository's own fixtures
+  (`native-unit-*-rollback-read-only`,
+  `remove-old-read-only`,
+  `migrate-unreadable-dir`,
+  `sync-unreadable-dir`),
+  whose teardown now gives the permission back before it removes the tree
+  (commit of the same day,
+  `fix(git-policy-cli)`).
+  Measured on disposable fixture roots:
+  with the teardown as it was,
+  the four controls fail at `remove only the fixture: Os { code: 13 }`
+  and leave seven such directories behind;
+  with it,
+  `find <fixture root> -type d ! -perm -u=w` prints nothing.
 - Podman removed 251 of 1,601 judged on the first run.
   The three refusals its errors showed are answered in the same branch:
   the container list asks for `--external`,
@@ -488,6 +607,115 @@ the profile directory had no leftover trash.
 The fix is in the released binary:
 output ignores a closed pipe,
 and a stopped run's leftover trash is finished by the next one.
+
+## Measured 2026-11-10: what a pass over every tree and profile directory costs
+
+What the journal holds for the two runs that went furthest
+(`journalctl --user --unit=cargo-shadow-lean.service`,
+`-o short-iso`,
+read 2026-11-10):
+
+- The run that ended 2026-11-10T07:37:24-05:00 (pid 1251356,
+  bound `3 * 3_600` s,
+  started 04:30:00,
+  deadline 07:30:00,
+  the unit's own timeout 08:00:00):
+  run records 04:30:00 to 04:30:24 (24 s for 34 verification directories,
+  nothing due),
+  toolchains in the same second (7 dated nightlies judged,
+  none retired),
+  Podman 04:30:24 to 04:35:58 (334 s:
+  56 images removed,
+  172 gone with another image of the run,
+  2044 kept),
+  idle trees 04:35:58 to 07:30:33 (10,475 s,
+  of which the last 33 s were the summary after the deadline),
+  then the units pass 07:30:33 to 07:38:05 (452 s,
+  no profile directory judged:
+  listing them was all it had time for).
+  The idle-trees pass judged 14,850 of 33,804 trees (278 removed for 511.49 GiB of disk blocks,
+  14,572 kept),
+  which is 0.71 s per tree including the removal of those 511 GiB,
+  and it never reached the trees whose shard sorts after `b4/`.
+- The run that ended 2026-11-09T08:00:00-05:00 (pid 2686726,
+  same bound,
+  started 04:30:00):
+  run records 04:30:00 to 04:33:13 (193 s for 25 verification directories,
+  116 records removed),
+  toolchains to 04:33:19 (6 s,
+  1 nightly retired for 2.73 GiB),
+  Podman to 05:05:43 (1,944 s),
+  idle trees from 05:05:43 with no summary line at all:
+  the unit's `TimeoutStartSec` killed it at 08:00:00,
+  30 minutes after the run's own deadline,
+  while a single tree's deletion was still going.
+  systemd recorded `2min 22s CPU time over 3h 30min wall clock`,
+  `516.9M` memory peak.
+  So the trees pass alone was over 2 h 54 min here and did not finish.
+
+A planning pass over the real base,
+2026-11-10,
+`./target/release/cargo-shadow lean run --dry-run`,
+in scopes with `CPUQuota=200%`,
+`MemoryMax=4G`,
+`TasksMax=256` and `IOWeight=1`,
+while other sessions held the host between 70 and 148 on the load average:
+
+- `--only units --deadline-minutes 0`,
+  which lists and judges nothing:
+  `listed 66115 profile directories in 466 s`,
+  471.94 s of wall clock and 1.97 s of user time.
+  The same listing inside the pass below took 880 s for 68,755,
+  so it is almost purely waiting for the disk,
+  and the list grew by 2,640 profile directories in the 74 minutes between the two.
+- `--only units --deadline-minutes 30`:
+  `listed 68755 profile directories in 880 s`,
+  then 1,782 of them judged in the 921 s the 30-minute bound left,
+  which is 0.52 s each,
+  and the dry run also sized the 5,521 units it would remove (16.57 GiB).
+  A pass over 68,755 profile directories therefore costs about 9.9 h today.
+- `--only trees --deadline-minutes 45`:
+  stopped after 65 minutes still inside the fixed read of every tree's recorded workspace,
+  having judged nothing.
+  That read has no deadline of its own,
+  and on that host it was longer than the whole bound;
+  the pass now says how long it took (`read the recorded workspace of N trees in X s`),
+  and the answer a quiet host gives is not measured yet.
+  On the quiet 04:30 runs the journal covers,
+  the same work fits inside the measured 0.71 s per tree,
+  so the fixed read there is a fraction of the pass.
+
+So a whole pass over the trees and the profile directories costs about 17 h today
+(6.6 h + 9.9 h + the 6 minutes the cheap mechanisms took),
+against the 3 h the bound allowed:
+
+`RUN_DEADLINE_SECONDS` is 5 h (`package/cargo-shadow/cli/src/lean_policy.rs`),
+the service's `TimeoutStartSec` is 5.5 h,
+and both reach the installed unit only through a release and `cargo-shadow lean timer-install`
+(the unit installed on 2026-11-10 still holds 12,600 s),
+and a run from the timer's 04:30 ends at 09:30,
+or 10:00 at worst when one large tree's deletion outlasts the run's own bound
+(the run that ended 2026-11-09T08:00:00-05:00 was killed by exactly that,
+30 minutes past its deadline).
+No bound a person would accept makes one run cover seventeen hours,
+so the bound stays below a whole pass and the recorded positions carry the rest:
+the trees pass at 6.6 h needs a second night,
+and that second night's last 3.4 h are the units pass's.
+Measured costs of a longer run to a person:
+`2min 22s CPU time over 3h 30min wall clock` and a 517 MiB peak in that 2026-11-09 run,
+`IOWeight=5` against the default 100 on a disk whose scheduler is BFQ,
+which honours that weight,
+`IOSchedulingClass=idle` and `Nice=15` in the unit,
+and a commit of fourteen files in this repository took 2.69 s while this planning pass was reading the same volume
+under a load average near 100
+(`doc/troubleshooting/git-fsmonitor-daemon-start-wait.md` has the one measured cause of a slow commit here,
+and it is not this run).
+Not measured:
+the fixed workspace read on a quiet host,
+what the units pass costs when its units are deleted rather than sized in a dry run,
+and a commit timed beside a lean pass at the unit's own `IOWeight=5` against the same commit with nothing running,
+because a throwaway repository cannot be put on the build volume,
+so the one commit timing above is not a controlled comparison.
 
 ## First run
 

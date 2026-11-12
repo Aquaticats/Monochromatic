@@ -1,11 +1,11 @@
 //! What:
 //!  The package-manager repair of a new worktree through the built executable:
-//! after `git worktree add` the wrapper starts
-//!  pnpm and Cargo in the new worktree (fixture tools,
+//! after `git worktree add` the commit service starts pnpm and Cargo in the new worktree (fixture tools,
 //! then the real ones),
 //! never for `--no-checkout` or the opt-out,
 //! and a
-//!  tool that fails or is missing leaves the add successful with one line naming the command to run.
+//!  tool that fails or is missing leaves the add successful,
+//! with the add naming what it handed over and a missing tool's line naming the command to run.
 //! Why:
 //!  The owner's rule is that a new worktree works under every configuration of every package manager the repository uses.
 //!  pnpm's links and Cargo's build state are wrong at a new location,
@@ -14,6 +14,10 @@
 //!  `node_modules` entry that resolves,
 //! a build that names the worktree's own paths,
 //! and the source left as it was.
+//!  Where no commit service answers,
+//! the add runs the tools itself;
+//! the lib controls of `repair` cover that arm,
+//! because the fixture of these controls starts a service for every worktree it holds.
 //!  Controls that need a real tool say so and stop with a loud line when it is missing,
 //! as the btrfs controls do.
 //!
@@ -23,12 +27,13 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, stderr_of, while_test_lives, wrapped};
+use super::commit::remove_settled;
+use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
 use super::support::on_btrfs_or_acknowledged;
 use super::worktree_snapshot::{commit_all, subvolume_repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 /// The environment variable that acknowledges a real tool is absent on this machine,
 /// so its controls may be skipped.
@@ -84,6 +89,11 @@ fn repository_with_node_modules(fixture: &Fixture) -> PathBuf {
 
 /// The lines of a record file,
 /// empty when nothing was recorded.
+/// The commit service runs the tools of a new worktree,
+/// so a record read here is read after every observed wrapped command waited for the service's after-commit work to settle
+/// (`supervised_wait`):
+/// an add returns after the record and the wake,
+/// and the line the tool wrote is there once that wait ends.
 fn recorded(record: &Path) -> Vec<String> {
     return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
 }
@@ -103,6 +113,8 @@ fn add(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destinati
 /// with the offline and frozen-lockfile switches;
 /// the source is not a
 ///  directory it runs in.
+/// The commit service starts it once the add has returned,
+/// so the record below is read after this harness waited for that work to settle.
 #[test]
 fn pnpm_runs_in_the_new_worktree_only() {
     let fixture: Fixture = fixture("repair-pnpm-runs");
@@ -170,20 +182,31 @@ fn quiet_runs_the_repair_and_says_nothing_about_success() {
     remove(&fixture);
 }
 
-/// A pnpm that fails leaves the add successful and prints one line that names the command,
-/// even under `--quiet`.
+/// A pnpm that fails leaves the add successful,
+/// and the add names the tool it handed over rather than the tool's end:
+/// the add returns after the record and the wake,
+/// and the commit service runs pnpm there
+/// (`doc/planning/cli-git-worktree-add-package-repair.md`,
+/// "The pnpm relink and the toolchain install are the service's work"),
+/// so the switches and the worktree are read from the run the service made,
+/// and a tool that fails is the service's line,
+/// not the add's.
 #[test]
 fn a_failing_pnpm_never_fails_the_add() {
     let fixture: Fixture = fixture("repair-pnpm-fails");
     let repo: PathBuf = repository_with_node_modules(&fixture);
-    fake_pnpm(&fixture, 1);
-    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "one", "../one");
+    let record: PathBuf = fake_pnpm(&fixture, 1);
+    let created: Observed = add(&fixture, repo.as_path(), &[], "one", "../one");
     let printed: String = stderr_of(&created);
-    let line: &str = printed.lines().find(|line: &&str| { return line.contains(PENDING_WORDS); }).expect("one line about the repair");
-    assert!(line.contains("pnpm --dir") && line.contains("--offline") && line.contains("--frozen-lockfile"), "{line}");
+    let line: &str = printed.lines().find(|line: &&str| { return line.contains(REPAIRED_WORDS); }).expect("one line about the repair");
+    assert!(line.contains("pnpm"), "{line}");
     assert!(line.contains(fixture.root.join("one").to_str().expect("utf8")), "{line}");
     assert!(fixture.root.join("one/node_modules/dep/index.js").exists(), "the copy is kept");
-    remove(&fixture);
+    let ran: Vec<String> = recorded(record.as_path());
+    assert_eq!(ran.len(), 1, "pnpm ran once, in the new worktree: {ran:?}");
+    assert!(ran[0].contains("--offline") && ran[0].contains("--frozen-lockfile"), "{ran:?}");
+    assert!(ran[0].ends_with(format!("| {}", fixture.root.join("one").display()).as_str()), "{ran:?}");
+    remove_settled(&fixture);
 }
 
 /// A missing pnpm is the same:
@@ -220,34 +243,24 @@ const HOLD_PAUSE_MILLISECONDS: u32 = 50;
 /// How long the control waits between two glances at whether the held repair has started.
 const START_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
-/// The longest the control waits for the held repair to start,
-/// which is a backstop that names the wait,
-/// not the bound that decides a healthy run:
-/// the wait ends the moment the repair starts,
-/// or the moment the first add ends.
-/// Measured on 2026-11-09 on this host with about twenty agents running:
-/// the repair of the first add started between 30 and 45 s after the add began,
-/// and the test runner's own per-test bound is 300 s
-/// (`.config/nextest.toml`,
-/// 60 s times 5),
-/// so this control reports a repair that never starts
-///  with its own words before the runner ends the whole test.
-/// A wrong guess here is a named failure,
-/// not a control that reports a lock that is not there.
-const START_BACKSTOP: std::time::Duration = std::time::Duration::from_secs(200);
-
-/// While one add's repair runs,
+/// While the commit service runs one add's repair,
 /// another add in the same repository is not held by it:
-/// the repairs touch only their own new
-///  worktree,
-/// so the settlement lock is released before they start.
-/// The held repair ends when this control writes its release file,
+/// the add returns after the record and the wake,
+/// the tools run in the service,
+/// and they touch only their own new worktree.
+/// Both adds are waited for here rather than through `run_wrapped`,
+/// because that wait is for the service's after-commit work to settle,
+/// and the held repair is exactly the work that has not settled yet.
+/// The wait for the held repair to start ends at that start,
+/// at the end of the fixture or at this process,
+/// and it is bounded by the wait every control gives the service's after-commit work,
+/// so a repair that never starts fails with its own words instead of hanging the run.
+/// The held repair itself ends when this control writes its release file,
 /// at the end of its fixture,
 /// or with this process,
 /// so a loaded host cannot end the hold before the second add returns and make the control report a lock
 ///  that is not there;
-/// every wait of the control ends at an event of the programs it started,
-/// and the one backstop above names what it waits for.
+/// every wait of the control ends at an event of the programs it started.
 #[test]
 fn a_running_repair_does_not_hold_another_add() {
     let fixture: Fixture = fixture("repair-lock-free");
@@ -268,29 +281,27 @@ fn a_running_repair_does_not_hold_another_add() {
         )
         .as_bytes(),
     );
-    let mut first = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "one", "../one"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().expect("start the first add");
+    let first: std::process::Output = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "one", "../one"]).output().expect("the first add runs");
+    assert_eq!(first.status.code(), Some(0), "{}", String::from_utf8_lossy(first.stderr.as_slice()));
     let began: std::time::Instant = std::time::Instant::now();
-    let mut ended: Option<std::process::ExitStatus> = None;
-    while !started.exists() && ended.is_none() {
-        ended = first.try_wait().expect("poll the first add");
-        if !started.exists() && ended.is_none() {
-            assert!(began.elapsed() < START_BACKSTOP, "the first add's repair had not started after {} s and the first add was still running, so the add is stuck before pnpm", START_BACKSTOP.as_secs());
-            std::thread::sleep(START_PAUSE);
-        }
+    while !started.exists() {
+        assert!(
+            began.elapsed() < SERVICE_WORK_PATIENCE,
+            "the service has not started the relink of the first add after {} s; the tools it ran wrote {:?}",
+            SERVICE_WORK_PATIENCE.as_secs(),
+            recorded(record.as_path())
+        );
+        std::thread::sleep(START_PAUSE);
     }
-    if let Some(status) = ended {
-        let collected = first.wait_with_output().expect("collect the first add that ended early");
-        panic!("the first add ended ({status}) before its repair started, so its worktree was never repaired: {}", String::from_utf8_lossy(&collected.stderr));
-    }
-    let second: Observed = add(&fixture, repo.as_path(), &["--quiet"], "two", "../two");
-    assert!(first.try_wait().expect("poll the first add").is_none(), "the first add ended before the second returned, so the second waited for it: {}", stderr_of(&second));
     assert!(!release.exists());
+    let second: std::process::Output = wrapped(&fixture).current_dir(&repo).args(["worktree", "add", "--quiet", "-b", "two", "../two"]).output().expect("the second add runs");
+    assert_eq!(second.status.code(), Some(0), "{}", String::from_utf8_lossy(second.stderr.as_slice()));
+    assert!(!release.exists(), "the first repair ended while the second add ran, so the control held nothing");
     assert!(fixture.root.join("two/node_modules/dep/index.js").exists(), "the second worktree is whole");
     std::fs::write(&release, b"go").expect("release the first repair");
-    let finished = first.wait_with_output().expect("wait for the first add");
-    assert_eq!(finished.status.code(), Some(0), "{}", String::from_utf8_lossy(&finished.stderr));
-    assert_eq!(recorded(record.as_path()).len(), 2, "each add repaired its own worktree: {:?}", recorded(record.as_path()));
-    remove(&fixture);
+    settle_service_work(repo.as_path());
+    assert_eq!(recorded(record.as_path()).len(), 2, "each add was repaired in its own worktree: {:?}", recorded(record.as_path()));
+    remove_settled(&fixture);
 }
 
 /// A real `pnpm` found by the test process,
@@ -519,11 +530,106 @@ fn real_cargo_rebuilds_own_crates_with_an_external_build_directory() {
     cargo_control("repair-real-cargo-external", true);
 }
 
+/// The package whose build artifact the shared-target control builds,
+/// and which a clean through the copied link would delete.
+const SHARED_TARGET_PACKAGE: &str = "shared-target-demo";
+
+/// What:
+///  A repository whose ignored `target` is a link to a directory elsewhere,
+/// already built there.
+/// Why:
+///   That is a person's ordinary setup for sharing one build directory between checkouts,
+///  and the copy of the ignored state copies the link rather than what it names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, shared, artifact } = sharedTargetRepository(fixture);
+/// ```
+fn shared_target_repository(fixture: &Fixture) -> (PathBuf, PathBuf, PathBuf) {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    let shared: PathBuf = fixture.root.join("shared-target");
+    std::fs::create_dir_all(shared.as_path()).expect("the shared build directory");
+    std::fs::create_dir_all(repo.join("src")).expect("the crate's source directory");
+    std::fs::write(repo.join(".gitignore"), b"/target\n").expect("gitignore");
+    std::fs::write(repo.join("Cargo.toml"), format!("[package]\nname = \"{SHARED_TARGET_PACKAGE}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")).expect("the manifest");
+    std::fs::write(repo.join("src/main.rs"), b"fn main() {}\n").expect("the crate");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "Cargo.toml", "src/main.rs"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=the shared target"]);
+    std::os::unix::fs::symlink(shared.as_path(), repo.join("target")).expect("the person's link to one build directory");
+    // `run_tool` ends the control when the build fails, so the artifact below is the only thing checked here.
+    let _built: String = run_tool(fixture, "cargo", repo.as_path(), &["build", "--offline", "--quiet"]);
+    let artifact: PathBuf = shared.join("debug").join(SHARED_TARGET_PACKAGE);
+    assert!(artifact.exists(), "the source's build artifact is there before the add: {}", artifact.display());
+    return (repo, shared, artifact);
+}
+
+/// What:
+///  A copied `target` that is a link leaving the worktree is never cleaned,
+///  so the checkout the link names keeps its build output.
+/// Why:
+///   The worktree's `cargo clean --package` would run through the link and delete the source's built artifacts,
+/// which is a directory outside the worktree the repair serves.
+/// The add still succeeds:
+/// the worktree's own crates are cleaned only where a clean reaches nothing else.
+#[test]
+fn a_shared_target_a_link_carries_out_of_the_worktree_is_left_built() {
+    let fixture: Fixture = fixture("repair-shared-target");
+    if !prepare_cargo(&fixture, "a_shared_target_a_link_carries_out_of_the_worktree_is_left_built") {
+        remove(&fixture);
+        return;
+    }
+    let (repo, shared, artifact): (PathBuf, PathBuf, PathBuf) = shared_target_repository(&fixture);
+    std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
+    let created: Observed = add(&fixture, repo.as_path(), &["--quiet"], "linked", "../deeper/linked");
+    let worktree: PathBuf = fixture.root.join("deeper/linked");
+    assert!(!stderr_of(&created).contains(PENDING_WORDS), "{}", stderr_of(&created));
+    assert!(std::fs::symlink_metadata(worktree.join("target")).expect("the copied link").file_type().is_symlink(), "the copy carried the person's link");
+    assert!(artifact.exists(), "the source's build artifact was deleted through the copied link: {}", artifact.display());
+    // The control that proves this fixture is the hazard: the very clean the repair would have run, by hand in the
+    //  worktree, deletes the source's artifact through the link.
+    let _cleaned: String = run_tool(&fixture, "cargo", worktree.as_path(), &["clean", "--offline", "--package", SHARED_TARGET_PACKAGE]);
+    assert!(!artifact.exists(), "a clean in the worktree reaches the source's build output through the copied link: {}", artifact.display());
+    assert!(shared.join("debug").is_dir(), "the shared build directory is the one the clean deleted from");
+}
+
 /// Cargo's default layout,
 /// where the build state lives in `target/` and arrives with the copy.
 #[test]
 fn real_cargo_rebuilds_own_crates_with_the_default_layout() {
     cargo_control("repair-real-cargo-default", false);
+}
+
+/// The workspace member the committed lock lacks,
+/// which Cargo's rewrite of that lock adds.
+const LATE_MEMBER: &str = "extra";
+
+/// What:
+///  The bytes kept for each `Cargo.lock` a repair's clean displaced,
+/// under the repository's Git directory.
+/// Why:
+///   The copies sit under a directory named by the lock's own path in hexadecimal,
+/// whose names are split to fit a file system,
+///  so the control reads them by walking rather than by rebuilding that name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keptLockCopies = (repo) => walk(join(repo, '.git', DISPLACED_DIRECTORY)).map(readFile);
+/// ```
+fn kept_lock_copies(repo: &Path) -> Vec<Vec<u8>> {
+    let mut found: Vec<Vec<u8>> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![repo.join(".git").join(git_policy_cli::package_repair_cargo_lock::DISPLACED_DIRECTORY)];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(directory) else { continue };
+        for entry in entries.flatten() {
+            let path: PathBuf = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if let Ok(bytes) = std::fs::read(path.as_path()) {
+                found.push(bytes);
+            }
+        }
+    }
+    return found;
 }
 
 /// With real Cargo and a committed `Cargo.lock` that no longer matches a manifest (the state of several workspaces of this
@@ -532,6 +638,7 @@ fn real_cargo_rebuilds_own_crates_with_the_default_layout() {
 /// the add must leave the tracked file as
 ///  checked out,
 /// so `git status` of the new worktree stays clean,
+/// must keep the bytes that rewrite displaced,
 /// and must not report a failure.
 #[test]
 fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
@@ -542,13 +649,13 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     }
     let repo: PathBuf = cargo_repository(&fixture, false);
     // A new member that `app` now depends on, committed without regenerating the lock.
-    std::fs::create_dir_all(repo.join("extra/src")).expect("extra");
-    std::fs::write(repo.join("extra/Cargo.toml"), b"[package]\nname = \"extra\"\nversion = \"0.1.0\"\nedition = \"2024\"\n").expect("extra manifest");
-    std::fs::write(repo.join("extra/src/lib.rs"), b"pub const EXTRA: u8 = 1;\n").expect("extra source");
-    std::fs::write(repo.join("Cargo.toml"), b"[workspace]\nmembers = [\"app\", \"lib\", \"extra\"]\nresolver = \"3\"\n").expect("workspace");
+    std::fs::create_dir_all(repo.join(LATE_MEMBER).join("src")).expect("the late member");
+    std::fs::write(repo.join(LATE_MEMBER).join("Cargo.toml"), format!("[package]\nname = \"{LATE_MEMBER}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")).expect("the late member's manifest");
+    std::fs::write(repo.join(LATE_MEMBER).join("src/lib.rs"), format!("pub const {}: u8 = 1;\n", LATE_MEMBER.to_uppercase())).expect("the late member's source");
+    std::fs::write(repo.join("Cargo.toml"), format!("[workspace]\nmembers = [\"app\", \"lib\", \"{LATE_MEMBER}\"]\nresolver = \"3\"\n")).expect("workspace");
     let app: String = std::fs::read_to_string(repo.join("app/Cargo.toml")).expect("app manifest");
-    std::fs::write(repo.join("app/Cargo.toml"), format!("{app}extra = {{ path = \"../extra\" }}\n")).expect("app manifest with extra");
-    git(&fixture, repo.as_path(), &["add", "--", "Cargo.toml", "app/Cargo.toml", "extra"]);
+    std::fs::write(repo.join("app/Cargo.toml"), format!("{app}{LATE_MEMBER} = {{ path = \"../{LATE_MEMBER}\" }}\n")).expect("app manifest with the late member");
+    git(&fixture, repo.as_path(), &["add", "--", "Cargo.toml", "app/Cargo.toml", LATE_MEMBER]);
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=a member the lock lacks"]);
     let before: Vec<u8> = std::fs::read(repo.join("Cargo.lock")).expect("lock");
     std::fs::create_dir_all(fixture.root.join("deeper")).expect("deeper");
@@ -559,5 +666,18 @@ fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     let status = git(&fixture, worktree.as_path(), &["status", "--porcelain"]);
     assert!(status.stdout.is_empty(), "the new worktree is dirty: {}", String::from_utf8_lossy(&status.stdout));
     assert_eq!(std::fs::read(repo.join("Cargo.lock")).expect("source lock"), before, "the source's lock changed");
+    // The bytes the clean displaced are kept rather than dropped: they are the only record of what stood in the worktree,
+    // and nothing read after a clean can tell Cargo's rewrite from a newer write of the person's
+    // (`package_repair_cargo_lock.rs`).
+    let kept: Vec<Vec<u8>> = kept_lock_copies(repo.as_path());
+    assert_eq!(kept.len(), 1, "the bytes the clean displaced were not kept: {kept:?}");
+    let written: &[u8] = kept[0].as_slice();
+    assert_ne!(written, before.as_slice(), "the kept copy is the checked-out lock itself, so no rewrite was kept");
+    let late_member_line: String = format!("name = \"{LATE_MEMBER}\"");
+    assert!(
+        String::from_utf8_lossy(written).contains(late_member_line.as_str()),
+        "the kept copy is not the lock the clean wrote: {}",
+        String::from_utf8_lossy(written)
+    );
     remove(&fixture);
 }

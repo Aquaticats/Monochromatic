@@ -45,11 +45,25 @@ pub const THEIR_LABEL: &str = "the merge";
 /// The reason a path is named when the merge deletes it and the person changed it.
 pub const MODIFY_DELETE: &str = "the merge deletes it";
 
-/// The reason a path is named when the person deleted it and the merge changed it.
-pub const DELETE_MODIFY: &str = "you deleted it, and the merge changes it";
+/// The reason a path is named when nothing stood at it for the person and the merge changed it.
+///  The capture is what says that,
+/// so the words claim nothing about how the path came to be empty:
+/// a file a
+///  command set aside before the capture leaves the same state,
+/// and the line about that copy names it
+///  (`merge_isolation_kept_copies.rs`).
+pub const DELETE_MODIFY: &str = "nothing stood there when the merge captured it, and the merge changes it";
 
 /// The reason a path is named when both sides hold a kind of entry the text merge cannot take.
 pub const NOT_TEXT: &str = "its changes cannot be merged as text";
+
+/// The Git mode of a symbolic link,
+/// which is not a kind of entry the text merge reads.
+const SYMBOLIC_LINK_MODE: &str = "120000";
+
+/// The Git mode of a submodule,
+/// whose entry is a commit rather than text.
+const SUBMODULE_MODE: &str = "160000";
 
 /// One side of one layer:
 /// the mode Git records and the object it holds.
@@ -129,18 +143,92 @@ pub struct Decision {
     pub mode: Option<String>,
 }
 
-/// Whether one side holds what the other does.
+/// The kind of entry one side holds,
+/// which its mode records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const equal = (a, b) => (a === null && b === null) || (a !== null && b !== null && a.oid === b.oid);
+/// const kindOf = (mode) => mode === '120000' ? 'link' : mode === '160000' ? 'submodule' : 'file';
 /// ```
-fn same_object(left: &Option<Side>, right: &Option<Side>) -> bool {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Kind {
+    /// A regular file,
+    /// whose executable bit is a mode of its own but a kind of the same entry.
+    File,
+    /// A symbolic link,
+    /// whose object is its target's text.
+    Link,
+    /// A submodule,
+    /// whose object is a commit.
+    Submodule,
+}
+
+/// The kind of entry a mode records.
+fn the_kind_of(mode: &str) -> Kind {
+    return match mode {
+        SYMBOLIC_LINK_MODE => Kind::Link,
+        SUBMODULE_MODE => Kind::Submodule,
+        _ => Kind::File,
+    };
+}
+
+/// What:
+///  Whether one side holds what the other does,
+/// as the merge reads a side that changed nothing.
+/// Why:
+///   An object id says what bytes an entry holds,
+/// and a mode says what kind of entry holds them;
+///  a link
+/// to `keep.txt` and a file whose bytes are `keep.txt` share an object id,
+/// so comparing ids alone read a
+///  person's link as the branch's own file and wrote the merge's bytes into the link's target
+/// (a cross-vendor
+///  review,
+/// round 133,
+/// its third finding).
+///  An executable bit changed alone is the same kind,
+/// so a mode the person set is still read as unchanged
+///  bytes and stays theirs,
+/// which a path the merge keeps turns into the merge's bytes written with that mode;
+/// a path
+///  the merge deletes reads that mode through `the_mode_a_deletion_would_leave` instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const equal = (a, b) => (a === null && b === null) || (a !== null && b !== null && a.oid === b.oid && kindOf(a.mode) === kindOf(b.mode));
+/// ```
+fn the_same_entry(left: &Option<Side>, right: &Option<Side>) -> bool {
     return match (left, right) {
         (None, None) => true,
-        (Some(one), Some(other)) => one.oid == other.oid,
+        (Some(one), Some(other)) => one.oid == other.oid && the_kind_of(one.mode.as_str()) == the_kind_of(other.mode.as_str()),
         _ => false,
     };
+}
+
+/// What:
+///  The mode the person set at a path the merge deletes,
+/// when the entry rules would read their side there as no change at all.
+/// Why:
+///   A mode the person set without touching the bytes is theirs,
+/// and a path the merge keeps takes the merge's own
+///  bytes with that mode.
+///  A path the merge deletes has none of the merge's bytes to take the mode,
+/// so the mode
+///  is the whole of what the deletion would discard and their side is kept whole and named instead
+/// (`SPEC.md`,
+///  "Carry edits forward";
+/// the owner's rule "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const deletedMode = (layer) => layer.theirs === null && layer.ours !== null && layer.base !== null && layer.base.mode !== layer.ours.mode ? layer.ours.mode : null;
+/// ```
+fn the_mode_a_deletion_would_leave(layer: &Layer) -> Option<String> {
+    let (Some(base), Some(ours), None) = (&layer.base, &layer.ours, &layer.theirs) else { return None };
+    if base.mode == ours.mode {
+        return None;
+    }
+    return Some(ours.mode.clone());
 }
 
 /// What:
@@ -202,6 +290,32 @@ fn end_mode(layer: &Layer) -> Option<String> {
 }
 
 /// What:
+///  Whether the word pass can read both sides as two texts.
+/// Why:
+///   The pass reads a file's bytes as text;
+/// a link's bytes are its target's text,
+/// and a submodule's
+///  object is a commit,
+/// so a pass over either writes its answer where the entry cannot hold it:
+/// measured,
+///  two added
+/// links were merged into conflict markers and the link's target became that marker text
+/// (a cross-vendor
+///  review,
+/// round 133,
+/// its fourth finding).
+///  A side that is not a plain file keeps the person's entry whole and is
+/// named instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readable = (ours, theirs) => kindOf(ours.mode) === 'file' && kindOf(theirs.mode) === 'file';
+/// ```
+fn the_pass_reads_both_sides(ours: &Side, theirs: &Side) -> bool {
+    return the_kind_of(ours.mode.as_str()) == Kind::File && the_kind_of(theirs.mode.as_str()) == Kind::File;
+}
+
+/// What:
 ///  Read one object's bytes,
 /// which a kept conflict needs to hold both of its sides.
 /// Why:
@@ -250,34 +364,48 @@ fn stage(side: &Option<Side>) -> Option<Stage> {
 ///  What one layer of one path ends as.
 /// Why:
 ///   The three sides decide most layers with no object read at all:
-/// a side that equals the base is the
-///  merge's to take,
+/// a side that holds the base's own
+///  entry is the merge's to take,
 /// and a side the merge leaves alone is the person's.
-/// Only a path both sides changed reaches the
-///  word pass,
-/// whose gating (a plain file,
-/// one mode,
+/// Only two sides that are both
+///  plain files reach the word pass,
+/// whose gating (one mode,
 /// text,
 /// small,
 /// no merge driver) decides whether a
-///  region can be merged or both sides must stay between markers.
+///  region can be merged or both sides must stay between markers;
+/// a link or a submodule on either side keeps
+///  the person's entry whole and is named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function decide(runner, path, layer): Decision; // throws when Git cannot be read
 /// ```
 pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Result<Decision, String> {
-    if same_object(&layer.base, &layer.ours) {
+    // A mode the person set at a path the merge deletes is the whole of what the deletion would discard, and the equality
+    //  rules below read it as no change at all: their side is kept whole and named, as every path the merge deletes is.
+    if let Some(mode) = the_mode_a_deletion_would_leave(layer) {
+        return Ok(Decision { outcome: Outcome::Kept(MODIFY_DELETE), mode: Some(mode) });
+    }
+    if the_same_entry(&layer.base, &layer.ours) {
         return Ok(Decision { outcome: Outcome::Merges, mode: end_mode(layer) });
     }
-    if same_object(&layer.ours, &layer.theirs) || same_object(&layer.theirs, &layer.base) {
+    if the_same_entry(&layer.ours, &layer.theirs) || the_same_entry(&layer.theirs, &layer.base) {
         return Ok(Decision { outcome: Outcome::Ours, mode: end_mode(layer) });
     }
     match (&layer.ours, &layer.theirs) {
         (Some(ours), None) => return Ok(Decision { outcome: Outcome::Kept(MODIFY_DELETE), mode: Some(ours.mode.clone()) }),
         (None, Some(_)) => return Ok(Decision { outcome: Outcome::Gone(DELETE_MODIFY), mode: None }),
-        (Some(_), Some(_)) => {}
         (None, None) => return Ok(Decision { outcome: Outcome::Merges, mode: None }),
+        // A link and a file, two links, and a submodule and a file are not two texts a word pass can merge: measured, a
+        //  merge wrote the person's link target and the merge's lines between markers into a link whose target was that whole
+        //  text, so the link they made was gone. Their entry is kept whole, with their own mode, and named with the merge's
+        //  version in the merge commit.
+        (Some(ours), Some(theirs)) => {
+            if !the_pass_reads_both_sides(ours, theirs) {
+                return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: Some(ours.mode.clone()) });
+            }
+        }
     }
     if layer.base.is_none() {
         // Both sides added the path, so there is no ancestor to merge from: the two texts are the whole of it, and the word
@@ -288,7 +416,7 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
         let ours_bytes: Vec<u8> = bytes_of(runner, ours.oid.as_str()).await?;
         let theirs_bytes: Vec<u8> = bytes_of(runner, theirs.oid.as_str()).await?;
         if unfit(ours_bytes.as_slice()).is_some() || unfit(theirs_bytes.as_slice()).is_some() {
-            return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: end_mode(layer) });
+            return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: Some(ours.mode.clone()) });
         }
         return match merge_by_word(b"", ours_bytes.as_slice(), theirs_bytes.as_slice()) {
             WordMerge::Resolved { merged, parts } => Ok(Decision { outcome: Outcome::Merged { bytes: merged, conflict: false, parts }, mode: end_mode(layer) }),
@@ -313,7 +441,7 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
         }
         Verdict::Left { why, .. } => {
             if !matches!(why, Left::Overlap(_)) {
-                return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: end_mode(layer) });
+                return Ok(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: mode_of(&layer.ours) });
             }
             let (Some(base), Some(ours), Some(theirs)) = (&layer.base, &layer.ours, &layer.theirs) else {
                 return Err(String::from("a conflict the pass resolved as an overlap holds every stage"));
@@ -342,17 +470,25 @@ pub async fn decide(runner: &dyn GitRunner, path: &[u8], layer: &Layer) -> Resul
 /// function decideWithoutThePass(layer): Decision | null;
 /// ```
 pub fn decide_without_the_pass(layer: &Layer) -> Option<Decision> {
-    if same_object(&layer.base, &layer.ours) {
+    if let Some(mode) = the_mode_a_deletion_would_leave(layer) {
+        return Some(Decision { outcome: Outcome::Kept(MODIFY_DELETE), mode: Some(mode) });
+    }
+    if the_same_entry(&layer.base, &layer.ours) {
         return Some(Decision { outcome: Outcome::Merges, mode: end_mode(layer) });
     }
-    if same_object(&layer.ours, &layer.theirs) || same_object(&layer.theirs, &layer.base) {
+    if the_same_entry(&layer.ours, &layer.theirs) || the_same_entry(&layer.theirs, &layer.base) {
         return Some(Decision { outcome: Outcome::Ours, mode: end_mode(layer) });
     }
     match (&layer.ours, &layer.theirs) {
         (Some(ours), None) => return Some(Decision { outcome: Outcome::Kept(MODIFY_DELETE), mode: Some(ours.mode.clone()) }),
         (None, Some(_)) => return Some(Decision { outcome: Outcome::Gone(DELETE_MODIFY), mode: None }),
         (None, None) => return Some(Decision { outcome: Outcome::Merges, mode: None }),
-        (Some(_), Some(_)) => return None,
+        (Some(ours), Some(theirs)) => {
+            if the_pass_reads_both_sides(ours, theirs) {
+                return None;
+            }
+            return Some(Decision { outcome: Outcome::Kept(NOT_TEXT), mode: Some(ours.mode.clone()) });
+        }
     }
 }
 

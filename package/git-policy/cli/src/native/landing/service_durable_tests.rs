@@ -292,3 +292,80 @@ fn the_background_syncs_are_made_without_a_thread_of_their_own() {
     assert!(own.is_empty(), "the background syncs started a thread of their own: {own:?}");
     remove(root.as_path());
 }
+
+/// What:
+///  The flush the index lock marker asks for is queued in the background task and never made on the caller's thread,
+///  even outside a landing,
+///  and the background task makes it.
+/// Why:
+///  The marker names the process that holds the lock and nothing else,
+///  and its flush sat on every commit's waiting path
+///  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
+/// A marker a power cut leaves empty or torn names no holder,
+/// and the step that runs before a landing removes exactly that file at once
+///  (`service_index_unheld_removal.rs`),
+///  so the command after such a cut proceeds without waiting out any age.
+#[test]
+fn the_lock_markers_flush_is_queued_and_the_background_task_makes_it() {
+    let (root, file) = record("durable-lock-marker");
+    let before = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    let events = events_of(|| {
+        crate::service_index_placement::sync_file(&file).expect("queued");
+    });
+    assert_eq!(events, vec![String::from("sync-queued:lock-marker")], "the flush is queued and none is waited for");
+    drain();
+    assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the background thread flushed the marker");
+    remove(root.as_path());
+}
+
+/// What:
+///  A flush no background task takes is left to the operating system's write-back and never made on the caller's thread.
+/// Why:
+///  The marker names the process that holds the lock and nothing else,
+/// so a power cut that loses it loses a name no one needs,
+/// and the
+///  step before a landing removes exactly that file at once (`service_index_unheld_removal.rs`);
+/// a flush made where it was asked for
+///  puts a device's whole wait on the commit's path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const events = listen(() => deferFileTo((batch) => batch)); assert(events === ['sync-queued:lock-marker']);
+/// ```
+#[test]
+fn a_flush_no_background_task_takes_is_never_made_on_the_callers_thread() {
+    let (root, file) = record("durable-lock-marker-refused");
+    let events = events_of(|| {
+        defer_file_with(&|batch: Vec<Pending>| { return Some(batch); }, &file, "lock-marker").expect("queued, or left to the write-back");
+    });
+    assert_eq!(events, vec![String::from("sync-queued:lock-marker")], "no flush is waited for when no task takes it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A landing that published a commit and whose queue no background task takes waits for no flush either.
+/// Why:
+///  The owner's decision for the landing's records is "Force at leaving,
+/// else background":
+/// the person waits for no forced write,
+///  and a machine crash loses that attempt as it does with native Git.
+/// A queue made on the landing's thread instead would put the whole
+///  device's wait back on the commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// inLanding(() => { const d = begin(false); flushFile(f, 'x'); d.settleWith(true, (batch) => batch); }); assert(events === ['sync-queued:x']);
+/// ```
+#[test]
+fn a_published_landing_whose_queue_no_task_takes_waits_for_nothing() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, file) = record("durable-published-refused");
+        let events = events_of(|| {
+            let deferral = begin(false);
+            flush_file(&file, "x").expect("queued");
+            deferral.settle_with(true, &|batch: Vec<Pending>| { return Some(batch); });
+        });
+        assert_eq!(events, vec![String::from("sync-queued:x")], "the commit's thread waits for no flush");
+        remove(root.as_path());
+    });
+}

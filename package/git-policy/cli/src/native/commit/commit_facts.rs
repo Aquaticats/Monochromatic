@@ -22,6 +22,10 @@ use crate::candidate_error::CandidateError;
 use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
 /// Rule facts.
 use crate::repository_facts::RepositoryFacts;
+/// The discarding-command forms.
+use crate::rule_linked_worktree::GuardedCommand;
+/// What one abort form would discard besides the operation's own state.
+use crate::repository_facts_abort_discard::AbortDiscard;
 use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_commit_index::IndexVsHead;
@@ -125,8 +129,8 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
-        return self.inner.clean_would_delete(arguments);
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.clean_deleted_paths(arguments);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -137,8 +141,16 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.sequencer_state();
     }
 
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        return self.inner.abort_discard(command);
+    }
+
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
         return self.inner.remote_guess_creates_branch(target);
+    }
+
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        return self.inner.main_worktree_root();
     }
 
     fn candidates(&mut self, request: &CandidateRequest) -> Result<PreparedCandidates, CandidateError> {
@@ -184,8 +196,8 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_would_delete(&mut self, arguments: Vec<OsString>) -> Result<bool, String> {
-        return (**self).clean_would_delete(arguments);
+    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).clean_deleted_paths(arguments);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -196,8 +208,16 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).sequencer_state();
     }
 
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        return (**self).abort_discard(command);
+    }
+
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {
         return (**self).remote_guess_creates_branch(target);
+    }
+
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        return (**self).main_worktree_root();
     }
 
     fn candidates(&mut self, request: &CandidateRequest) -> Result<PreparedCandidates, CandidateError> {

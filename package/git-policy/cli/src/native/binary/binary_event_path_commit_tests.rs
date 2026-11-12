@@ -17,7 +17,7 @@ use super::commit::{
     COMMIT_BOUND_SECONDS, assert_nothing_left, git_text, keep_maintenance_in_the_foreground,
     remove_settled,
 };
-use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, porcelain, repository, stderr_of, wrapper_first_path};
+use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, porcelain, repository, stderr_of, without_wait_notices, wrapper_first_path};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
@@ -54,9 +54,60 @@ fn wrapped_os(fixture: &Fixture, directory: &Path, arguments: &[OsString]) -> Co
     return command;
 }
 
-/// Run one wrapped command to its end.
+/// Run one wrapped command to its end,
+///  without the lines a healthy wrapper prints about a wait.
+///  Every control here reads the event bytes the command printed,
+///  the exit status,
+/// or the repository it left,
+///  and a wait notice or the service's inside-a-write note says the host was slow,
+///  which none of them claims (`without_wait_notices`).
 fn run_os(fixture: &Fixture, directory: &Path, arguments: &[OsString]) -> Observed {
-    return observe(&mut wrapped_os(fixture, directory, arguments), b"");
+    let observed: Observed = observe(&mut wrapped_os(fixture, directory, arguments), b"");
+    return Observed { stderr: without_wait_notices(observed.stderr.as_slice()), ..observed };
+}
+
+/// What:
+///  The lines a reading leaves out are the notices a wait is named in,
+///  and nothing else:
+///  a wait notice,
+///  the service's short note that the commit's own request is inside a write,
+///  and the longer words of a write that lasted whole minutes.
+/// Why:
+///  Those three are printed however healthy a command is,
+///  and every control here reads event bytes,
+///  an exit status or a repository,
+///  so a filter that also dropped a finding,
+///  or a sentence of the wrapper's,
+///  would hide a fault behind the host's speed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(withoutWaitNotices(wait + inside + minutes + finding + sentence)).toEqual(finding + sentence)
+/// ```
+#[test]
+fn only_the_lines_about_a_wait_are_left_out_of_a_read_command() {
+    let wait: &str = concat!(
+        "monochromatic-git-policy-cli: still waiting for git update-ref (process 7) after 10 seconds; ",
+        "it is ended only after 300 seconds with no sign of work.\n"
+    );
+    let inside: &str = concat!(
+        "monochromatic-git-policy-cli: this commit is inside a write of the commit service, ",
+        "`git update-ref --stdin` in /repo (it moves refs/heads/main to abc123), begun 0 seconds ago. ",
+        "The service never ends a write in the middle, so if it does not return this command reports ",
+        "that the result is not known after its wait.\n"
+    );
+    let minutes: &str = concat!(
+        "monochromatic-git-policy-cli: the commit service has been inside a write for 21 minutes ",
+        "and has not heard back: `git update-ref --stdin` in /repo.\n"
+    );
+    let finding: &str = "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"pre-forward\"}\n";
+    let sentence: &str = "monochromatic-git-policy-cli: copied 1 ignored filesystem entry\n";
+    let mixed: String = format!("{wait}{inside}{minutes}{finding}{sentence}");
+    assert_eq!(
+        String::from_utf8_lossy(&without_wait_notices(mixed.as_bytes())).into_owned(),
+        format!("{finding}{sentence}")
+    );
+    assert_eq!(without_wait_notices(sentence.as_bytes()), sentence.as_bytes());
 }
 
 /// Operating-system string arguments from literals and one name.

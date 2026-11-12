@@ -1,6 +1,7 @@
 //! What:
 //!  Takes the index lock for a batch that is ready to land,
 //! notes the wait in the timing and the log,
+//! starts making the markers of the two batches after it,
 //! and cleans up when the lock is refused.
 //! Why:
 //!  It is a self-contained step of a landing,
@@ -59,13 +60,34 @@ pub(crate) fn take_index_lock(
         timing.lock_notes = notes.clone();
     }
     // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
-    if let Some(line) = wait_line(seq, waited, &notes, taken.is_ok()) {
+    if let Some(line) = wait_line(seq, repository, waited, &notes, taken.is_ok()) {
         // A lock that was refused fails the commit, so the line stands out from a wait that ended in the lock.
         let priority: Priority = if taken.is_ok() { Priority::Info } else { Priority::Error };
         crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
     }
     match taken {
-        Ok(lock) => return Ok(lock),
+        Ok(lock) => {
+            // What:
+            //  The markers of the two batches after this one are started now,
+            // while this landing holds the lock and moves the branch.
+            // Why:
+            //  The making is seconds long on a loaded disk when its flush is the caller's,
+            // and it used to start after the landing's answer,
+            // so the next commit
+            //  met it still running (`lock_stage_kind=pre`,
+            // 9 to 13 s measured 2026-11-10).
+            //  Starting them here spends the landing's own seconds on them and leaves the next commit a finished marker usually,
+            //  and the one after it the spare.
+            //  The batches after this one land on this index and are numbered one and two more, which is known now.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const held = await takeIndexLock(...); prestage.start(first.index, seq + 1); prestage.start(first.index, seq + 2);
+            // ```
+            crate::service_index_prestage::start(first.index.as_path(), seq.saturating_add(1));
+            crate::service_index_prestage::start(first.index.as_path(), seq.saturating_add(2));
+            return Ok(lock);
+        }
         Err(failure) => {
             // Nothing moved: forget the intent, so a restart of the service cannot land the batch later (owner, 2026-11-03: "No,
             //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.
@@ -78,3 +100,8 @@ pub(crate) fn take_index_lock(
         }
     }
 }
+
+/// Controls for taking the index lock stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_take_index_lock_tests.rs"]
+mod tests;

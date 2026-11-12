@@ -42,11 +42,13 @@ pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>)
         Some(mine) => recover_instance(context, mine),
         None => recover(context),
     };
-    // An open batch means an earlier service stopped between its intent and its end; each one settled is said.
+    // An open batch means an earlier service stopped between its intent and its end; each one settled is said, with the
+    //  repository whose batch it is, because one journal can be read across a whole machine.
     for report in &reports {
+        let repository: String = crate::service_timing::in_the_repository_at(report.repository.as_path());
         log_entry(
             Priority::Warning,
-            format!("settled the batch an earlier service left open batch={} decision={}", report.seq, decision_word(report.decision)).as_str(),
+            format!("settled the batch an earlier service left open {repository} batch={} decision={}", report.seq, decision_word(report.decision)).as_str(),
             &[("CLI_GIT_BATCH", report.seq.to_string())],
         );
     }
@@ -55,7 +57,7 @@ pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>)
 
 /// The word a settled batch is logged with,
 /// so the record says which decision was made and not only that one was.
-fn decision_word(decision: Recovery) -> &'static str {
+pub(crate) fn decision_word(decision: Recovery) -> &'static str {
     return match decision {
         Recovery::Finish => "finish",
         Recovery::Drop => "drop",
@@ -87,6 +89,17 @@ impl Announcer for AnnounceToStreams<'_> {
                 Announce::Holder(who) => stream.send(&ServiceMessage::Holder { who: who.clone() }),
             }
         }
+    }
+
+    /// Whether the client of the request at `place` of the batch is gone:
+    /// its channel is closed when the task that writes its
+    /// connection ends,
+    /// which it does when the connection breaks.
+    fn client_is_gone(&self, place: usize) -> bool {
+        return match self.fresh.get(place) {
+            Some((_, stream, _)) => stream.client_is_gone(),
+            None => false,
+        };
     }
 }
 
@@ -183,6 +196,30 @@ pub(crate) fn land_group(
     if fresh.is_empty() {
         return;
     }
+    // What:
+    //  A request whose client is gone before its commit lands is not made.
+    // Why:
+    //  A commit exists for the person who asked for it,
+    //  and nothing reads the answer of a client that went away,
+    //  while native Git makes no commit for a command that was ended.
+    // This is the first of the two places the landing asks:
+    //  the body asks again while it waits for another program's index lock,
+    //  which is where a person's interrupt lands.
+    //  The tree stays for a client that reconnects and sends the same request again,
+    //  and the sweep takes it by age otherwise (`service_prepare_ready_shapes.rs`).
+    let mut present: Vec<Queued> = Vec::with_capacity(fresh.len());
+    for queued in fresh {
+        if queued.1.client_is_gone() {
+            crate::service_log!("dropped the request {} whose client is gone before its commit landed", queued.0.id);
+            handed_back.insert(queued.0.id.clone());
+        } else {
+            present.push(queued);
+        }
+    }
+    fresh = present;
+    if fresh.is_empty() {
+        return;
+    }
     // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
     //  time) left its intent open; settling it first puts the index right before anything else changes it.
     let settling: Instant = Instant::now();
@@ -221,6 +258,11 @@ pub(crate) fn land_group(
     //  landing, on the service's own workers, so the commit that waits for the answer below pays nothing for it.
     if let Some(first) = requests.first() {
         crate::service_shadow_pool_fill::start(&context.git, first);
+        // What: The scratch trees a killed command left are collected while this landing runs.
+        // Why:  The collection lists the repository scratch directory and asks the file system about every entry, which was
+        //       the largest single cause of a commit's own time in the records of 2026-11-11 (13,482 ms of 48). The commit
+        //       that makes its tree no longer collects, so the work is here, beside the loop, on a thread of its own.
+        crate::service_repository_scratch_sweep::start(first.common_dir.as_path());
     }
     let mut landing: LandTiming = LandTiming::default();
     let landing_began: Instant = Instant::now();
@@ -293,6 +335,13 @@ pub(crate) fn land_group(
                         //  commit on the branch as it is now.
                         handed_back.insert(request.id.clone());
                         "branch-moved"
+                    }
+                    // The client went away before its commit landed, so the commit is not made and no answer is written for a
+                    //  reader that is not there: its tree stays where a client that reconnects reads it, and the sweep takes it
+                    //  by age otherwise.
+                    Outcome::ClientGone => {
+                        handed_back.insert(request.id.clone());
+                        "client-gone"
                     }
                 };
                 log_answer(&times, request, arrival, position + 1, word);

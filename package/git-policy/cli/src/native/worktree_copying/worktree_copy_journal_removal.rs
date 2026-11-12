@@ -11,6 +11,7 @@
 //! await removePendingJournal(pending); // removes the stage, then the journal and its unfinished writes
 //! ```
 
+use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::private_storage::sync_directory;
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
@@ -274,6 +275,87 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
 /// async function removeTreeSplit(path: string): Promise<void>;
 /// ```
 async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
+    let (subtrees, shallow): (Vec<PathBuf>, Vec<PathBuf>) = walk_to_the_split_depth_on_the_pool(path).await?;
+    let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
+    let cursor: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    for outcome in remove_subtrees_awaiting((cursor, Arc::from(subtrees)), workers).await {
+        outcome?;
+    }
+    // The directories above the split depth hold nothing now, so this is a handful of known removals rather than a
+    //  walk: it stays on the caller, where the sweep that kills the copy at each `rmdir` still traces the wrapper's own
+    //  thread (`binary/binary_fault_trace_tests.rs`, `copy_flow`).
+    return remove_shallow_directories(shallow.as_slice());
+}
+
+/// What:
+///  `walk_to_the_split_depth` as a job of the blocking pool,
+/// run on this task where the system refuses a thread.
+/// Why:
+///   A walk of a stage can read an unbounded number of directories,
+/// and a disk,
+/// a lock or a mount holds it,
+///  so it belongs off the worker that carries the call.
+/// A thread is only a way to work sooner (`foundation/scoped_start.rs`):
+/// where the system refuses one,
+///  the walk runs in turn,
+/// as the removal it serves did before the pool was asked,
+/// and the control that runs it with no
+///  thread to start still removes the tree.
+/// The pool queues a job's closure before it asks the system for a thread
+/// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+/// `spawn_task`),
+/// so only a refusal that took the claim on the job's work
+/// (`run_a_job_or_in_turn`,
+/// and `a_refused_thread_start`)
+/// proves the queued closure will do nothing and the same walk may run here:
+/// walking in turn beside a queued walk that runs later deletes an entry a later writer put at that path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function walkToTheSplitDepthOnThePool(path: string): [string[], string[]]
+/// ```
+async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    return match run_a_job_or_in_turn(path.to_path_buf(), walk_to_the_split_depth_of).await {
+        Ok(lists) => lists,
+        // Another answer leaves the walk on another thread, outlasting its ceiling, or ended with the runtime, so no
+        //  result of it can be read here and nothing is walked in turn.
+        Err(other) => Err(std::io::Error::other(format!(
+            "the walk to the split depth below {} has no result this call can read ({other})",
+            path.display()
+        ))),
+    };
+}
+
+/// What:
+///  `walk_to_the_split_depth` as the work a place of the process's bound covers,
+/// for the runners that take a function and its state.
+/// Why:
+///   `run_a_job_or_in_turn` hands the state to a function of its own on both paths,
+/// so the walk reads the path it was given either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function walkToTheSplitDepthOf(path: string): [string[], string[]]
+/// ```
+fn walk_to_the_split_depth_of(path: PathBuf) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+    return walk_to_the_split_depth(path.as_path());
+}
+
+/// What:
+///  The entries of the tree at `path` down to the split depth:
+/// the subtrees at that depth,
+/// and the directories above it that
+///  are removed once those subtrees are gone.
+/// Why:
+///   This is one job of the blocking pool rather than a walk of the task that called the removal,
+/// because a stage holds an
+///  unbounded number of directories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function walkToTheSplitDepth(path: string): [string[], string[]]
+/// ```
+fn walk_to_the_split_depth(path: &Path) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
     let mut shallow: Vec<PathBuf> = vec![path.to_path_buf()];
     let mut level: Vec<PathBuf> = vec![path.to_path_buf()];
     let mut subtrees: Vec<PathBuf> = Vec::new();
@@ -315,11 +397,24 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
         }
         level = next;
     }
-    let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
-    let cursor: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    for outcome in remove_subtrees_awaiting((cursor, Arc::from(subtrees)), workers).await {
-        outcome?;
-    }
+    return Ok((subtrees, shallow));
+}
+
+/// What:
+///  Removes the directories above the split depth,
+/// deepest first,
+/// treating an absent one as removed.
+/// Why:
+///   The subtrees were removed by their own jobs,
+/// so what is left above them is empty;
+/// this is the second
+///  job of the split removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removeShallowDirectories(shallow: string[]): void
+/// ```
+fn remove_shallow_directories(shallow: &[PathBuf]) -> std::io::Result<()> {
     for directory in shallow.iter().rev() {
         match std::fs::remove_dir(directory.as_path()) {
             Ok(()) => {}
@@ -377,6 +472,28 @@ pub fn remove_file_if_present(path: &Path) -> Result<(), WorktreeCopyError> {
 }
 
 /// What:
+///  Remove one file and say whether it was there.
+/// Why:
+///   A sweep that flushes the directory it changed must know whether it changed it:
+/// a removal that found nothing costs no filesystem commit,
+/// and one that found a file does.
+/// Absence is no failure,
+/// as it is for [`remove_file_if_present`].
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removed = await removeFileSayingWhetherItWasThere(path); // false when nothing stood there
+/// ```
+pub fn remove_file_and_say(path: &Path) -> Result<bool, WorktreeCopyError> {
+    // `match` on the removal: absence answers false and every other refusal is reported.
+    return match std::fs::remove_file(path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(raw_failure(&error)),
+    };
+}
+
+/// What:
 ///  Removes the temporary writes an interrupted write of one journal left beside it.
 /// Why:
 ///   Only temporaries named after this journal are removed,
@@ -403,3 +520,8 @@ pub fn remove_unfinished_writes(path: &Path) -> Result<(), WorktreeCopyError> {
     }
     return Ok(());
 }
+
+/// Removal controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_copy_journal_removal_tests.rs"]
+mod tests;

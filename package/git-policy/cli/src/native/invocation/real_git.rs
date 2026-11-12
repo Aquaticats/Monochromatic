@@ -21,6 +21,9 @@
 /// import { classifyCandidate } from './real-git-candidate.ts';
 /// ```
 use crate::child_environment::environment_value;
+/// The two answers to "has this process a controlling terminal",
+///  which decides the overlay of a command the caller typed.
+use crate::control_terminal::{Terminal, control_terminal};
 use crate::real_git_candidate::{CandidateKind, classify_candidate};
 use crate::real_git_record::service_unit_file;
 /// `pub use` re-exports names so callers keep importing the resolution from this module.
@@ -72,17 +75,21 @@ pub enum Platform {
 }
 
 /// What:
-///  Everything resolution reads from the process,
+///  Every fact about this process that planning and resolution read,
 ///  gathered into one value.
 ///       `Vec<PathBuf>` is an owned list of owned paths.
 /// Why:
-///   Tests inject a disposable PATH and executable identity instead of mutating
-///       the real process environment.
+///   Tests inject a disposable PATH,
+///  executable identity,
+/// current directory and terminal
+///       instead of mutating the real process environment;
+///  the planned action stays a function of these values alone,
+///  so a control states which case it pins instead of inheriting the runner's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type ResolutionInputs = { platform: Platform; path: string; pathExtensions: string;
-///   currentDirectory: string; commonPaths: string[]; ownExecutable: string };
+///   currentDirectory: string; commonPaths: string[]; ownExecutable: string; terminal: Terminal };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolutionInputs {
@@ -106,6 +113,12 @@ pub struct ResolutionInputs {
     ///  nothing when the runtime directory is unknown.
     ///  It is read only when `PATH` offers no real Git.
     pub service_unit: Option<PathBuf>,
+    /// Whether this process has a controlling terminal,
+    ///  read once when these inputs are gathered.
+    ///  A command without one gets the never-prompt pair in the overlay of every Git child,
+    ///  so Git's and git-lfs's prompt programs cannot open a desktop window nobody can answer;
+    ///  a command at a terminal keeps Git's own prompting.
+    pub terminal: Terminal,
 }
 
 /// What:
@@ -596,6 +609,15 @@ pub fn process_resolution_inputs(
     // ```
     let service_unit: Option<PathBuf> =
         environment_value(environment, "XDG_RUNTIME_DIR").and_then(service_unit_below);
+    // What: The controlling terminal is read here, once, beside the other process facts.
+    // Why:  Every plan this process makes is decided from these inputs, so a control hands in the answer it pins
+    //  instead of taking whatever terminal the test runner happens to have.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const terminal = hasControllingTerminal() ? 'present' : 'absent';
+    // ```
+    let terminal: Terminal = control_terminal();
     return Ok(ResolutionInputs {
         platform,
         path,
@@ -604,6 +626,7 @@ pub fn process_resolution_inputs(
         common_paths: common_git_paths(platform, environment),
         own_executable,
         service_unit,
+        terminal,
     });
 }
 

@@ -7,6 +7,10 @@
 //! Why:
 //!  `core.untrackedCache` makes Git keep,
 //! add or remove the untracked cache;
+//! `feature.manyFiles` is the three defaults Git makes of it (a version 4 index file,
+//! the untracked cache and a
+//!  skipped trailing hash),
+//! and `index.skipHash` decides whether the file ends with its checksum;
 //! `core.fsmonitor` makes it keep the fsmonitor
 //!  extension and clear the untracked cache of replaced entries,
 //! and drop the extension when it is off;
@@ -45,6 +49,9 @@ pub struct IndexSettings {
     pub monitor: bool,
     /// What happens to the untracked cache.
     pub untracked: UntrackedMode,
+    /// Whether the file's trailing hash is skipped (`index.skipHash`,
+    /// `core.skipHash` of Git 2.56.0's `feature.manyFiles`).
+    pub skip_hash: bool,
     /// `core.sharedRepository` as Git reads it (`git_config_perm`):
     /// zero for the umask alone,
     /// a positive permission bit set that
@@ -54,10 +61,9 @@ pub struct IndexSettings {
 }
 
 /// The keys whose mere presence makes the update decline.
-const DECLINED: [&str; 8] = [
+const DECLINED: [&str; 7] = [
     "core.splitindex",
     "index.sparse",
-    "index.skiphash",
     "index.recordendofindexentries",
     "index.recordoffsettable",
     "index.threads",
@@ -66,7 +72,7 @@ const DECLINED: [&str; 8] = [
 ];
 
 /// The keys that decline when their value is true (or not a recognised boolean).
-const DECLINED_WHEN_TRUE: [&str; 3] = ["core.sparsecheckout", "core.ignorecase", "feature.manyfiles"];
+const DECLINED_WHEN_TRUE: [&str; 2] = ["core.sparsecheckout", "core.ignorecase"];
 
 /// The mode bits `core.sharedRepository = group` adds.
 const SHARED_GROUP: i32 = 0o660;
@@ -163,10 +169,45 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
             },
         },
     };
+    // What:
+    //  Whether the configuration asks for the set of defaults Git's `feature.manyFiles` is.
+    // Why:
+    //  `prepare_repo_settings` sets those three defaults before it reads the keys that can replace them,
+    //  so a boolean key beside the feature wins,
+    //  `core.untrackedCache=keep` leaves the untracked-cache default alone,
+    //  and a value Git dies on is left to Git.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const manyFiles = last('feature.manyFiles') ?? false;
+    // ```
+    let many_files: bool = match last_entry(listed, "feature.manyfiles") {
+        None => false,
+        Some(entry) => parse_bool(entry.value.as_deref())?,
+    };
+    // What:
+    //  What the update does with the untracked cache.
+    // Why:
+    //  Git's `feature.manyFiles` default is to add a cache,
+    //  and `core.untrackedCache` replaces that default only when its value reads as a boolean
+    //  (`git_parse_maybe_bool`, `repo-settings.c` of Git 2.56.0).
+    //  `keep` is a value that reader refuses,
+    //  so it leaves the default alone and a repository with the feature still adds the cache;
+    //  reading `keep` as "leave the file as it is" made the landing install an index without the cache Git adds.
+    //  Any other value the reader refuses makes the whole update decline and Git answer.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const untrackedDefault = manyFiles ? Write : Keep;
+    // const untracked = absentOrKept(last('core.untrackedCache'))
+    //   ? untrackedDefault
+    //   : readBoolean(last('core.untrackedCache')); // undefined: ask Git
+    // ```
+    let untracked_default: UntrackedMode = if many_files { UntrackedMode::Write } else { UntrackedMode::Keep };
     let untracked: UntrackedMode = match last_entry(listed, "core.untrackedcache") {
-        None => UntrackedMode::Keep,
+        None => untracked_default,
         Some(entry) => match entry.value.as_deref() {
-            Some(text) if text.eq_ignore_ascii_case(b"keep") => UntrackedMode::Keep,
+            Some(text) if text.eq_ignore_ascii_case(b"keep") => untracked_default,
             other => match parse_bool(other)? {
                 true => UntrackedMode::Write,
                 false => UntrackedMode::Remove,
@@ -177,7 +218,22 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
         None => 0,
         Some(entry) => shared_permission(entry.value.as_deref())?,
     };
-    return Some(IndexSettings { monitor, untracked, shared_repository });
+    // What:
+    //  Whether the file ends with its checksum.
+    // Why:
+    //  Git writes zeros there under `index.skipHash`,
+    //  which `feature.manyFiles` sets by default,
+    //  and this update must write the same file Git would.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const skipHash = last('index.skipHash') ?? manyFiles;
+    // ```
+    let skip_hash: bool = match last_entry(listed, "index.skiphash") {
+        None => many_files,
+        Some(entry) => parse_bool(entry.value.as_deref())?,
+    };
+    return Some(IndexSettings { monitor, untracked, shared_repository, skip_hash });
 }
 
 #[cfg(test)]

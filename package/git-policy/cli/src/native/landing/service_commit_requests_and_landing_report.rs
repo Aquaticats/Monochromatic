@@ -65,6 +65,9 @@ pub(crate) fn request_for_git_built(ready: &Ready, native_inputs: &NativeInputs,
         index: native_inputs.capture.layout.real_index_path.clone(),
         scratch: ready.scratch.0.clone(),
         captured: ready.captured_at,
+        // The command that will run this commit's post-commit gate, named so the push record the service holds for the commit
+        //  can be settled by a later command when this one is gone (`held_push_holder_and_verdict.rs`).
+        holder: crate::held_push_holder_and_verdict::this_command(),
     };
 }
 
@@ -98,6 +101,9 @@ pub(crate) fn request_for_embedded(ready: &Ready, native_inputs: &NativeInputs, 
         index: native_inputs.capture.layout.real_index_path.clone(),
         scratch: ready.scratch.0.clone(),
         captured: ready.captured_at,
+        // The command that will run this commit's post-commit gate, named so the push record the service holds for the commit
+        //  can be settled by a later command when this one is gone (`held_push_holder_and_verdict.rs`).
+        holder: crate::held_push_holder_and_verdict::this_command(),
     };
 }
 
@@ -146,7 +152,7 @@ pub(crate) fn report_landing(
             native_inputs.capture.layout.config_snapshot.as_ref(),
             commit,
         );
-        print_summary(summary_line(ready.reference.as_str(), first_parent, name.as_str(), subject_of(made.message.as_str()).as_str()).as_str());
+        print_summary(summary_line(&ready.reference, first_parent, name.as_str(), subject_of(made.message.as_str()).as_str()).as_str());
     }
     // A commit the wrapper wrote itself, from the fields of the commit the person's line prepared: its own summary line
     //  (unless `--quiet`), and, for an amend, the words that say what it became and that the commit it named was left as it is.
@@ -160,10 +166,10 @@ pub(crate) fn report_landing(
             commit,
         );
         if !amended.quiet() {
-            print_summary(summary_line(ready.reference.as_str(), first_parent, name.as_str(), amended.subject().as_str()).as_str());
+            print_summary(summary_line(&ready.reference, first_parent, name.as_str(), amended.subject().as_str()).as_str());
         }
         if invocation.region.amend {
-            print_note(amend_lands_as_new_note(ready.reference.trim_start_matches("refs/heads/"), name.as_str()).as_str());
+            print_note(amend_lands_as_new_note(ready.reference.short().spoken().as_str(), name.as_str()).as_str());
         }
     }
     // A commit Git built again printed a summary for each build; one line names the builds that did not land and the one that

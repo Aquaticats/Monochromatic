@@ -259,6 +259,11 @@ extern "C" fn relay_handler(
         return;
     };
     PENDING[slot].store(signal, std::sync::atomic::Ordering::SeqCst);
+    // The two signals a waiting commit answers are noted as well, because the child this one is relayed to may be gone, and
+    //  the command that waits must still learn that the person stopped it (`signal_relay_relayed_stop.rs`).
+    if signal == libc::SIGINT || signal == libc::SIGTERM {
+        crate::signal_relay_relayed_stop::note(signal);
+    }
     relay_pending();
 }
 
@@ -444,6 +449,23 @@ pub fn leave_signals_to_the_service() {
 #[cfg(unix)]
 impl SignalGuard {
     /// What:
+    ///  Whether this guard owns the process's handlers,
+    /// and so relays to the child it publishes.
+    /// Why:
+    ///   A guard made while another owns them,
+    /// or in a process whose service owns its stop signals,
+    /// publishes nothing;
+    /// the sibling module that starts and publishes a child asks this rather than reading the field.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// relays(): boolean
+    /// ```
+    pub(crate) fn relays(&self) -> bool {
+        return self.relaying;
+    }
+
+    /// What:
     ///  Install the relaying handlers when no other guard owns them and no service owns the stop signals;
     /// otherwise make a guard
     ///  that relays nothing.
@@ -529,7 +551,7 @@ impl SignalGuard {
     /// ```
     pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
         let unheeded: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None };
+        let duty: CeilingDuty<'_> = CeilingDuty { told: &unheeded, bound: None, while_held: None };
         let (outcome, _no_ceiling): (ChildOutcome, Option<CeilingStop>) = run_relayed(command, self.relaying, duty).await?;
         return Ok(outcome);
     }
@@ -586,7 +608,57 @@ pub struct CeilingDuty<'a> {
     /// counted from its start;
     /// nothing when a message may be typed into an editor in it.
     pub bound: Option<std::time::Duration>,
+    /// Where the command says that the kernel has not released the step it stopped,
+    /// and how often it says it again while this wait lasts;
+    /// nothing when the command has no line to say.
+    pub while_held: Option<crate::wait_after_the_stop_saying_the_kernel_holds_it::HeldStepWords<'a>>,
 }
+
+/// What:
+///  Publish a child this process started to the relay's handler,
+/// for the sibling module that owns the token.
+/// Why:
+///   The descriptor is this module's business alone,
+/// so the token asks here rather than reaching for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// publishChild(childId): boolean
+/// ```
+pub(crate) fn publish_child(child_id: u32) -> bool {
+    return publish(child_id);
+}
+
+/// What:
+///  Stop the handler pointing at the child that token published,
+/// for the sibling module that owns the token.
+/// Why:
+///   The same reason as `publish_child`:
+/// one module points the descriptor,
+/// and one stops it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// retireChild(published: boolean): void
+/// ```
+pub(crate) fn retire_child(published: bool) {
+    retire(published);
+}
+
+/// What:
+///  Stop publishing the child,
+/// on a system that has no relay to point.
+/// Why:
+///   The relayed-child token drops on every platform,
+/// and there is nothing to point back on this one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function retire(published: boolean): void {}
+/// ```
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(unix))]
+pub(crate) fn retire_child(_published: bool) {}
 
 /// Spawns the child,
 /// publishes it to the handler when `relaying`,
@@ -619,6 +691,7 @@ async fn run_relayed(command: &mut Command, relaying: bool, duty: CeilingDuty<'_
             stop,
             ceiling,
             "a Git step of a commit",
+            duty.while_held,
         )
         .await?,
         None => (
@@ -720,50 +793,18 @@ impl Drop for SignalGuard {
     }
 }
 
-/// What:
-///  Non-Unix guard:
-/// no signal relay exists,
-/// so the child runs and the wrapper waits.
+/// The guard of a system with no signal relay,
+/// which keeps the same name at every call site.
 /// Why:
-///   Callers keep one API;
-/// Windows ends a console child differently and is not covered by these controls.
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+///   The two implementations are the same API and only one is compiled,
+/// so the call sites name `SignalGuard` and never a platform.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { SignalGuard } from './signal-relay-without-relay';
+/// ```
 #[cfg(not(unix))]
-pub struct SignalGuard;
-
-/// Methods over the non-Unix guard.
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(unix))]
-impl SignalGuard {
-    /// What:
-    ///  Return a guard that relays nothing.
-    /// Why:
-    ///   Keeps the call site identical on every platform.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// static install(): SignalGuard
-    /// ```
-    pub fn install() -> io::Result<Self> {
-        return Ok(Self);
-    }
-
-    /// What:
-    ///  Start `command` and wait for it.
-    /// Why:
-    ///   Without relaying,
-    /// the wait is the whole job.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// async runChild(command): Promise<ChildOutcome>
-    /// ```
-    pub fn run_child(&self, command: &mut Command) -> io::Result<ChildOutcome> {
-        let mut child: std::process::Child = crate::start_retry::RetryStart::spawn_retrying(command)?;
-        let status: ExitStatus = child.wait()?;
-        return Ok(crate::forwarding::outcome_of(status));
-    }
-}
+pub use crate::signal_relay_without_relay::SignalGuard;
 
 /// Signal controls live beside the guard.
 #[cfg(test)]

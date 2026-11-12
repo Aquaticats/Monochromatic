@@ -477,3 +477,166 @@ fn a_ref_update_that_loses_the_race_inside_gits_fast_forward_is_made_again_on_th
     assert_eq!(std::fs::read_dir(repo.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "no record is left");
     remove(parent.as_path());
 }
+
+/// What:
+///  A named pipe where the merge writes or deletes a path,
+///  and the sentence that stops the merge there.
+/// Why:
+///  A pipe holds no bytes,
+/// so no layer of the carry can hold it,
+/// and opening one for reading waits for a writer that
+///  nothing promises:
+/// the merge would wait without an end while it holds the checkout,
+/// and Git's own update of the
+///  checkout would remove the pipe without a copy (owner's rules
+/// "nothing should ever wait forever or indefinitely",
+///  "never discard user data").
+/// The deadline is what turns the wait this control forbids into a failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answered = finishedWithinAt(PATIENCE, () => attempted(repo, ['merge', '--no-ff', '--no-edit', 'feature'])); expect(answered?.code).toBe(1);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_named_pipe_where_the_merge_changes_a_path_stops_the_merge_without_waiting() {
+    /// `is_fifo` reads the type of the entry a named pipe is.
+    use std::os::unix::fs::FileTypeExt;
+    let shapes: [(&str, fn(&str) -> (PathBuf, PathBuf), &str); 2] = [
+        ("added", an_untracked_pipe_the_merge_adds, "pipe"),
+        ("tracked", a_pipe_over_a_tracked_path_the_merge_changes, "tracked.txt"),
+    ];
+    for (label, build, path) in shapes {
+        let (parent, repo): (PathBuf, PathBuf) = build(label);
+        let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+        let wanted: PathBuf = repo.clone();
+        let answered: Option<IsolatedMerge> = crate::parallel_test_support::finished_within_at(
+            crate::parallel_test_support::PATIENCE,
+            move || {
+                return attempted(wanted.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+            },
+        );
+        let Some(outcome) = answered else {
+            panic!("{label}: the merge waited for a writer of the named pipe at {path} that never came");
+        };
+        let (code, stdout, stderr): (i32, String, String) = match outcome {
+            IsolatedMerge::Finished { code, stdout, stderr } => (code, stdout, stderr),
+            other => panic!("{label}: the merge is the wrapper's to stop, and it was forwarded: {other:?}"),
+        };
+        assert_eq!(code, 1, "{label}: {stderr}");
+        assert!(stdout.is_empty(), "{label}: nothing is printed about a merge that was not made: {stdout}");
+        assert!(stderr.contains(path), "{label}: the path is named: {stderr}");
+        assert!(stderr.contains("a named pipe, a socket or a device"), "{label}: {stderr}");
+        assert!(stderr.contains("nothing in the worktree, the index or the branch changed"), "{label}: {stderr}");
+        let kind: std::fs::FileType = std::fs::symlink_metadata(repo.join(path)).expect("the pipe is still in the checkout").file_type();
+        assert!(kind.is_fifo(), "{label}: the pipe is untouched");
+        assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "{label}: nothing was merged");
+        assert!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/"]).is_empty(), "{label}: no ref keeps anything");
+        remove(parent.as_path());
+    }
+}
+
+/// A repository where `feature` adds `pipe` and `main` holds an untracked named pipe where it would be written.
+#[cfg(unix)]
+fn an_untracked_pipe_the_merge_adds(name: &str) -> (PathBuf, PathBuf) {
+    let parent: PathBuf = fixture(format!("merge-special-pipe-{name}").as_str());
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("base.txt"), b"base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "base.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("pipe"), b"the branch's bytes\n").expect("file");
+    git(repo.as_path(), &["add", "--", "pipe"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=add-pipe"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    a_named_pipe(repo.join("pipe").as_path());
+    return (parent, repo);
+}
+
+/// A repository where `feature` changes `tracked.txt`,
+/// whose worktree copy on `main` is a named pipe.
+#[cfg(unix)]
+fn a_pipe_over_a_tracked_path_the_merge_changes(name: &str) -> (PathBuf, PathBuf) {
+    let parent: PathBuf = fixture(format!("merge-special-tracked-{name}").as_str());
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("tracked.txt"), b"base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "tracked.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("tracked.txt"), b"the branch's bytes\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::remove_file(repo.join("tracked.txt")).expect("the tracked copy makes way for the pipe");
+    a_named_pipe(repo.join("tracked.txt").as_path());
+    let status: String = git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]);
+    assert_eq!(status, " M tracked.txt", "the pipe over a tracked path is what Git's status reports, which is how the capture met it: {status}");
+    return (parent, repo);
+}
+
+/// Put a named pipe at `path`,
+/// which stands for the entry a program left where a file was,
+/// and holds no bytes for a merge to carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// execFileSync('mkfifo', [path]);
+/// ```
+#[cfg(unix)]
+fn a_named_pipe(path: &Path) {
+    let made: std::process::ExitStatus = std::process::Command::new("mkfifo").arg(path).status().expect("mkfifo");
+    assert!(made.success(), "mkfifo must create {}", path.display());
+}
+
+/// What:
+///  An edit at a path whose index entry carries `assume-unchanged` or `skip-worktree` is carried,
+///  and the merge is made.
+/// Why:
+///  Git's status reads both marks as "do not compare the worktree copy",
+/// so the edit entered no capture and Git's own
+///  update of the checkout refused the merge with `merge-isolation/not-applied`
+/// (a cross-vendor audit of
+///  0.6.1-alpha.10).
+/// The merge is work the wrapper completes over unsaved work,
+/// and the person's bytes are theirs
+///  (`SPEC.md`,
+/// "Merges and commits never fail",
+/// "Carry edits forward").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const mark of ['--assume-unchanged', '--skip-worktree']) expect(attempted(repo, ['merge', '--no-ff', '--no-edit', 'feature'])).toHaveCode(0);
+/// ```
+#[test]
+fn an_edit_an_index_mark_hides_is_carried_and_the_merge_is_made() {
+    for mark in ["--assume-unchanged", "--skip-worktree"] {
+        let (parent, repo): (PathBuf, PathBuf) = diverged_with_a_hidden_edit(mark, mark);
+        let status: String = git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]);
+        assert_eq!(status, "", "{mark}: Git's own status hides the edit, which is the premise of this control: {status}");
+        let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+        let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+        assert!(is_completed(&outcome), "{mark}: the merge is completed over the hidden edit: {outcome:?}");
+        assert_ne!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "{mark}: the merge commit landed");
+        let content: String = std::fs::read_to_string(repo.join("a.txt")).expect("a.txt");
+        assert!(content.contains("the person's own line"), "{mark}: the hidden edit is carried: {content}");
+        assert!(content.contains("the other branch's line"), "{mark}: the merge's own line is there: {content}");
+        assert!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/"]).is_empty(), "{mark}: the capture's ref went with the merge");
+        remove(parent.as_path());
+    }
+}
+
+/// A repository where `feature` changes `a.txt`
+/// and `main` holds a person's edit at that path whose bytes the given index mark hides.
+fn diverged_with_a_hidden_edit(name: &str, mark: &str) -> (PathBuf, PathBuf) {
+    let parent: PathBuf = fixture(format!("merge-hidden-{name}").as_str());
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("a.txt"), b"base\nthe other branch's line\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    git(repo.as_path(), &["update-index", mark, "--", "a.txt"]);
+    std::fs::write(repo.join("a.txt"), b"base\nthe person's own line\n").expect("file");
+    return (parent, repo);
+}

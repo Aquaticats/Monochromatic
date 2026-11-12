@@ -21,6 +21,14 @@ pub mod checkout_workers;
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 
+/// The folder a taken worktree folder is kept in when the name it came from is taken,
+/// and the cleanup that must leave it alone.
+pub mod worktree_kept_folders;
+
+/// The line a `git worktree add` prints while it is still running,
+/// naming the step it is in.
+pub mod add_standing_notice;
+
 /// The record of where one wrapped `git worktree add` spent its time,
 /// step by step,
 /// appended beside the commit timing record.
@@ -34,6 +42,9 @@ pub mod worktree_completion_file_inspection;
 
 /// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 pub mod worktree_removal_rescue;
+
+/// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
+pub mod worktree_removal_held_commits;
 
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves:
 /// its destination and insertion point.
@@ -87,10 +98,16 @@ pub mod worktree_clean_content_attribute_sources;
 #[cfg(unix)]
 pub mod worktree_remove_plan;
 
+/// The directories one removal holds open,
+/// the last look at them before the destroy,
+/// and the lock that keeps a worktree.
+pub mod worktree_removal_holds_the_worktree;
+
 /// The removal of a clean subvolume worktree by one ioctl,
 /// and the plan of the `git worktree remove` it serves.
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
+pub mod worktree_remove_hand_over;
 
 pub mod worktree_remove_registry;
 
@@ -112,6 +129,18 @@ pub mod worktree_removal_interrupted_destroy;
 /// The stop of a removed worktree's commit service units,
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;
+
+/// The removal of the shadow pool a removed worktree's commits were served from,
+/// taken after the removal proved the worktree is gone.
+pub mod worktree_removal_clears_the_pool;
+
+/// The snapshots this program made ahead of an add,
+/// taken out of a worktree's administrative directory before that worktree is removed.
+pub mod worktree_removal_clears_the_ahead_pool;
+
+/// The refusal of a removal for a worktree that holds a subvolume or a mount point of its own,
+/// which the kernel can never destroy in one step.
+pub mod worktree_removal_refuses_a_nested_volume;
 
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
@@ -146,6 +175,23 @@ pub mod worktree_snapshot;
 ///  snapshot's own index when the source changed under the copy.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_index_step;
+
+/// The snapshots the wrapper makes ahead of an add,
+/// and the add's claim of one instead of a snapshot of its own.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead;
+
+/// What one add does with the snapshots the service made ahead of it:
+/// the proof,
+/// the claim,
+/// the bounded wait and the sweep.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_claim;
+
+/// The commit service's own snapshot of a worktree,
+/// made for the add after the one that asked for it.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_job;
 
 /// The empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 /// found below the folders that
@@ -193,6 +239,11 @@ pub mod worktree_slow_route;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
 
+/// The record of the trash a snapshot's leave-out made,
+/// written before the rung that published the worktree returns.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish_trash_record;
+
 /// The restore of a snapshot of a main checkout with uncommitted changes,
 /// and its proof.
 #[cfg(target_os = "linux")]
@@ -210,6 +261,10 @@ pub mod worktree_ladder;
 #[cfg(target_os = "linux")]
 pub mod shell_quote;
 
+/// The commands a message prints to finish or remove a worktree an interrupted `git worktree add` left.
+#[cfg(target_os = "linux")]
+pub mod worktree_finish_commands;
+
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
 /// resumably.
 #[cfg(target_os = "linux")]
@@ -223,6 +278,10 @@ pub mod worktree_convert_inspection;
 /// The journaled phases of one worktree conversion.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_phases;
+
+/// What a conversion does about a stage container another command is filling below the tree it would swap or delete.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_filled_stages;
 
 /// The empty stage a conversion created and did not record,
 /// and whether the object at the converting name is it.
@@ -292,7 +351,50 @@ pub mod worktree_trash_entries;
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_manifest;
 
+/// The manifest a trash carries inside itself,
+/// written before the swap publishes it,
+/// so a later pass can prove what the trash is without a record.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_own_manifest;
+
+/// What every later command in a worktree says about the trash left there:
+///  which directory nothing will empty,
+///  which trash it records again,
+///  and the wake that tells the service so.
+pub mod worktree_trash_unaccounted;
+
 /// Removal of a directory tree beneath a held parent handle,
 /// never following a link.
 #[cfg(target_os = "linux")]
 pub mod worktree_trash_remove;
+
+/// The record that says the wrapper made one linked worktree,
+/// which every automatic removal asks for first.
+pub mod worktree_added_by_the_wrapper;
+
+/// Whether a directory is one of this repository's linked worktrees,
+/// proved from the pointer and the registration Git wrote there,
+/// which every command that changes state in a recorded worktree asks for first.
+pub mod worktree_registration_proof;
+
+/// The commit and the branch one merge stood between,
+/// and the sweep of the worktrees whose branches it landed.
+pub mod worktree_landed_after_a_merge;
+
+/// The linked worktrees a repository registers,
+/// with the branch each one has checked out.
+pub mod worktree_landed_registrations;
+
+/// The ignored entries of a landed worktree that nothing else in the repository holds,
+/// which keep it.
+pub mod worktree_landed_ignored_files;
+
+/// The removal of every wrapper-made worktree whose branch a merge landed.
+pub mod worktree_landed_removal;
+
+/// The words one landed sweep prints.
+pub mod worktree_landed_sweep_notice;
+
+/// Whether any process is working inside a folder,
+/// which keeps a landed worktree.
+pub mod worktree_process_inside;

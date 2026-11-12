@@ -8,6 +8,7 @@
 use super::*;
 use crate::private_index_request::CaptureIndexes;
 use crate::commit_index::{IndexSelection, initialize_commit_index, list_changed_index_paths, write_private_tree};
+use crate::commit_selection_staging::SelectionStagingFailure;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_journal::TransactionMode;
 use std::path::PathBuf;
@@ -45,7 +46,7 @@ fn selected(
     base: &str,
     pathspecs: &[&str],
     file: Option<(&Path, bool)>,
-) -> Result<Vec<String>, GitFailure> {
+) -> Result<Vec<String>, SelectionStagingFailure> {
     let specs: Vec<OsString> = pathspecs.iter().map(OsString::from).collect();
     let choice: IndexSelection = IndexSelection {
         mode: TransactionMode::ExplicitPath,
@@ -56,7 +57,7 @@ fn selected(
         stage_tracked_changes: false,
         base_revision: base,
     };
-    initialize_commit_index(&git_context(), repo, repo.join(".git").join("index").as_path(), indexes, &choice)?;
+    initialize_commit_index(&git_context(), repo, repo, repo.join(".git").join("index").as_path(), indexes, &choice)?;
     return Ok(list_changed_index_paths(
         &git_context(),
         repo,
@@ -184,8 +185,11 @@ fn pathspec_files_select_staged_additions() {
 fn an_ignored_path_that_is_not_staged_is_refused_with_the_remedy() {
     let (root, repo, indexes, base) = scenario("staged-additions-refusal");
     std::fs::write(repo.join("lib").join("_c.js"), "c1\n").expect("_c");
-    let failure: GitFailure =
+    let stop: SelectionStagingFailure =
         selected(&repo, &indexes, &base, &["lib/_c.js"], None).expect_err("an unstaged ignored path is refused");
+    let SelectionStagingFailure::Git(failure) = stop else {
+        panic!("the ignored refusal is Git's failure: {stop:?}");
+    };
     assert!(failure.0.contains("ignored by one of your .gitignore files"), "{failure}");
     assert!(failure.0.contains("git add --force -- <path>"), "{failure}");
     remove(root.as_path());

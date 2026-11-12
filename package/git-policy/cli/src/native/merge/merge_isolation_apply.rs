@@ -32,12 +32,18 @@ use crate::merge_isolation_apply_findings::failure_text;
 /// the carry after it,
 /// and the ref that keeps their bytes.
 use crate::merge_isolation_carry::drop_capture_ref;
-use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, carry, changes_between, clear};
-use crate::merge_isolation_carry_notice::report_lines;
+use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, changes_between, clear};
+/// What Git's own update left at each path,
+/// and the read of it.
+use crate::merge_isolation_carry_landed::{LandedFile, landed_of, write_landed_record};
 /// The words a merge that could not be finished now prints,
 /// which its own file holds so this one stays inside the code-line limit.
-use crate::merge_isolation_apply_findings::{a_carry_that_stopped, a_deferred_save_finding, a_merge_that_could_not_be_saved};
+use crate::merge_isolation_apply_findings::{a_deferred_save_finding, a_merge_that_could_not_be_saved};
 use crate::merge_isolation_apply_stops::{a_clear_that_met_newer_bytes, settle_a_failed_step};
+/// The carry of a merge that landed,
+/// its lines,
+/// and what a branch that moved under it does about them.
+use crate::merge_isolation_apply_moved::{CarryEnding, carry_and_settle};
 /// The raw differences between the two commits of the merge.
 use crate::merge_isolation_changes::Change;
 /// The command-line reading.
@@ -239,7 +245,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     //  the branch before it runs. Their bytes are the objects the record names, so nothing of theirs is lost by it; a path written
     //  after the capture stops the clear with nothing written, and the round is made again on the newer bytes.
     if let Some(capture) = plan.carried
-        && let Err(failure) = clear(&session.context, root, git_dir, changes.as_slice(), capture, LockWait::BeforeTheApply, &mut std::io::stderr())
+        && let Err(failure) = clear(&session.context, root, git_dir, changes.as_slice(), capture, transaction_id.as_str(), LockWait::BeforeTheApply, &mut std::io::stderr())
     {
         // A path holding bytes newer than the capture is the person's, so the clear wrote nothing to it, the capture goes back
         //  where it can, and the merge is made again on what the file holds now instead of being refused for a save.
@@ -277,25 +283,27 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
             moved.stderr.as_slice(),
         ));
     }
+    // The file the file system hands out at every path Git just wrote, read before the marker a control pauses at: a save that
+    //  arrives afterwards is a different entry, so the carry after the merge never replaces it with the person's older layer.
+    let mut written_paths: Vec<Vec<u8>> = Vec::with_capacity(changes.len());
+    for change in &changes {
+        written_paths.push(change.path.clone());
+    }
+    let landed_paths: Vec<LandedFile> = landed_of(root, written_paths.as_slice());
+    let landed: &[LandedFile] = landed_paths.as_slice();
+    // What Git wrote is recorded beside the merge's record, so a command that is killed from here to the end of the carry
+    //  reads the same entries this command read, and a save that arrives after the kill is never read as the merge's own file.
+    write_landed_record(git_dir, transaction_id.as_str(), landed);
     reach_phase(Phase::MergeApplied)?;
     // The merge's own paths hold the merge now, and the person's two layers are merged with it: an edit away from the merge's
     //  lines comes back where it was, a staged edit stays staged, and an edit of the merge's own lines keeps both sides between
     //  markers. A carry that cannot write the index says where the bytes are and exits 0, and the next command finishes it.
     let mut report_stderr: String = String::new();
     let mut carry_finished: bool = true;
-    if let Some(capture) = plan.carried {
-        match carry(&session.context, root, git_dir, changes.as_slice(), capture, LockWait::WhileFinishing, &mut std::io::stderr()) {
-            Ok(report) => {
-                for line in report_lines(reference.as_str(), &report) {
-                    report_stderr.push_str(line.as_str());
-                    report_stderr.push('\n');
-                }
-            }
-            Err(failure) => {
-                carry_finished = false;
-                report_stderr.push_str(a_carry_that_stopped(reference.as_str(), &failure, capture).as_str());
-            }
-        }
+    if plan.carried.is_some() {
+        let ending: CarryEnding = carry_and_settle(session, plan, reference.as_str(), &intent, changes.as_slice(), landed, transaction_id.as_str());
+        report_stderr.push_str(ending.lines.as_str());
+        carry_finished = ending.finished;
         if carry_finished {
             reach_phase(Phase::MergeCarriedBack)?;
         }

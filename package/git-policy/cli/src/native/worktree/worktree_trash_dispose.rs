@@ -37,17 +37,15 @@ use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
 use crate::idle_io_priority::with_idle_io_priority;
-use crate::service_work::{Verdict, work_directory};
-use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, state_directory};
-use crate::plain_file::read_plain_file;
+use crate::service_work::Verdict;
+use crate::work_item::WorkItem;
 use crate::worktree_trash::TRASH_PARENT;
-use crate::worktree_trash_manifest::{TrashManifest, is_trash_name};
+use crate::worktree_trash_manifest::TrashManifest;
 use crate::parallel_budget::HostResources;
 use crate::worktree_trash_entries::{EntryRemoval, remove_entries, remove_entries_awaiting};
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
-use std::io::Write;
 use std::sync::Arc;
 use std::path::{Path, PathBuf};
 
@@ -56,8 +54,9 @@ const TAG: &str = "worktreeTrashDispose";
 
 /// The most bytes of a work item record that is read:
 /// the manifest of one trash,
-/// which is short.
-const RECORD_LIMIT: u64 = 64 * 1024;
+/// which is short;
+/// the scan that names what nothing will empty reads them with this bound.
+pub const RECORD_LIMIT: u64 = 64 * 1024;
 
 /// The reference every trash work item carries;
 /// the service accepts only a reference under `refs/`.
@@ -146,111 +145,12 @@ pub struct PendingTrash {
     pub quiet: bool,
 }
 
-/// What:
-///  Name every trash in this worktree that nothing will empty,
-/// read from the records of the repository's common directory.
-/// Why:
-///   The add hands its trash to the commit service (`worktree_trash_hand_over.rs`),
-/// which empties it after the command returns,
-/// so a trash still there is one whose service could not empty it,
-/// and nothing else mentions it again.
-/// The trash is a full copy of the directories the snapshot left out,
-/// so one that stays is disk a person cannot find without being told.
-/// A record an earlier release wrote accounts for its trash while the service still works on it,
-/// because its own handler empties that one (`empty_trash`);
-/// the service settles a trash it cannot empty as failed and never tries it again,
-/// so a failed record accounts for nothing here.
-/// A record that is still pending after one claim lease accounts for nothing either:
-/// a service woken for the repository claims a record within the wake that asked it to,
-/// so a pending record older than
-///  `CLAIM_LEASE` is one no service ever looked at,
-/// and naming it is the only way the person learns of it.
-/// This scan deletes nothing:
-/// a directory nothing recorded cannot be proven to be one the leave-out moved.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// nameUnaccountedTrash(commonDir, worktree, notices);
-/// ```
-pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn Write) {
-    // A worktree whose trash parent is gone has nothing to name, and that is the ordinary case.
-    let parent: PathBuf = worktree.join(TRASH_PARENT);
-    if std::fs::symlink_metadata(&parent).is_err() {
-        return;
-    }
-    let work: PathBuf = work_directory(git_dir);
-    let mut accounted: Vec<String> = Vec::new();
-    for state in [PENDING, CLAIMED, RECOVERING, FAILED] {
-        let Ok(listing) = std::fs::read_dir(state_directory(work.as_path(), state)) else { continue };
-        for entry in listing.flatten() {
-            let record: PathBuf = entry.path();
-            // A record is a plain file: a named pipe or a device in a state directory is somebody's own entry, and
-            // opening it would wait for a writer that never comes, on every command in this worktree.
-            let Ok(bytes) = read_plain_file(record.as_path(), RECORD_LIMIT) else { continue };
-            let Ok(text) = String::from_utf8(bytes) else { continue };
-            let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
-            if item.kind != WorkKind::Trash {
-                continue;
-            }
-            // A record the service still works on accounts for its trash: its own handler empties that one, and naming
-            // it here would send the person to look at work that is not theirs. A failed record is settled for good, so
-            // it accounts for nothing. A pending record is only the service's work until one claim lease has passed
-            // without anything claiming it, which means no service ever looked at it.
-            let the_service_owns_it: bool = state == CLAIMED || state == RECOVERING || (state == PENDING && !waited_longer_than_a_claim(record.as_path()));
-            if !the_service_owns_it {
-                continue;
-            }
-            accounted.push(item.oid.clone());
-        }
-    }
-    name_trash_nothing_will_empty(worktree, &accounted, notices);
-}
-
-/// What:
-///  Whether this record has been pending for longer than one claim lease without being claimed.
-/// Why:
-///   The lease is the one the drain already keeps (`CLAIM_LEASE`),
-/// so no new number decides when a record is stale:
-/// the service renews a claim every third of it,
-/// and a record a woken service would have claimed within the wake that
-/// woke it stays pending only when no service ever read it.
-/// A record whose age cannot be read is left alone,
-/// because a reason to name it
-///  that cannot be shown is none.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const waitedLongerThanAClaim = (record) => Date.now() - mtimeMs(record) > CLAIM_LEASE_MS;
-/// ```
-fn waited_longer_than_a_claim(record: &Path) -> bool {
-    let Ok(found) = std::fs::metadata(record) else { return false };
-    let Ok(written) = found.modified() else { return false };
-    return written.elapsed().is_ok_and(|age: std::time::Duration| return age > crate::service_work::CLAIM_LEASE);
-}
-
-/// Say what sits in the trash parent of `worktree` that nothing will empty.
-/// A directory nothing recorded cannot be proven to be one the leave-out moved,
-/// so it is only named.
-/// Only a directory named the way the wrapper names a trash is a trash:
-/// the parent is kept out of every
-///  commit,
-/// so a person may keep their own directories there,
-/// and a line that called one of those a trash nothing
-///  will empty would send them to delete their own files.
-fn name_trash_nothing_will_empty(worktree: &Path, accounted: &[String], notices: &mut dyn Write) {
-    let parent: PathBuf = worktree.join(TRASH_PARENT);
-    let Ok(listing) = std::fs::read_dir(&parent) else { return };
-    for entry in listing.flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if accounted.contains(&name) || !is_trash_name(name.as_str()) {
-            continue;
-        }
-        let _told = writeln!(
-            notices,
-            "monochromatic-git-policy-cli: {} holds directories a snapshot left out that nothing will empty now (the commit service gave up on the record, or there is none), so they are left as they are: look at them, and remove them yourself if nothing in them is wanted.",
-            entry.path().display()
-        );
-    }
+/// The trash's own name,
+/// the last component of its path,
+/// for the manifest inside it.
+fn trash_name_of(inside: &Path) -> String {
+    let Some(name) = inside.file_name() else { return String::new() };
+    return name.to_string_lossy().into_owned();
 }
 
 /// Whether an error says a directory is not empty.
@@ -493,6 +393,43 @@ fn entry_removal_of(TheRemovalOfTrashEntries { inside, trash, manifest }: TheRem
 }
 
 /// What:
+///  Remove the trash's own directory,
+/// which only its permissions kept.
+/// Why:
+///   The name inside its parent is the trash's name,
+/// so the removal deletes exactly what the snapshot made and nothing beside it.
+fn remove_the_trash_parent(state: (&File, &Path)) -> std::io::Result<()> {
+    let (parent, inside) = state;
+    return remove_at(parent, std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true);
+}
+
+/// What:
+///  Remove the manifest file from the trash,
+///  only while the name still holds the object whose bytes were read as that manifest.
+/// Why:
+///   A name can be taken between the read and the unlink,
+/// and nothing in the kernel makes the two one step;
+/// comparing the
+///  identity means the file that is removed is one that was examined,
+/// and a file another process moved onto the name
+///  keeps the whole directory and is reported instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removeTheManifest(trash, inside, expected) { const outcome = removeIfIdentical(trash, '.manifest', expected); if (outcome !== 'removed' && outcome !== 'absent') throw kept(`the manifest inside ${inside} ...`); }
+/// ```
+fn remove_the_manifest(trash: &File, inside: &Path, expected: crate::fs_beneath::ObjectId) -> Result<(), TrashLeft> {
+    return match crate::fs_beneath::remove_if_identical(trash, std::ffi::OsStr::new(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME), expected) {
+        Ok(crate::fs_beneath::Owned::Removed | crate::fs_beneath::Owned::Absent) => Ok(()),
+        Ok(crate::fs_beneath::Owned::Kept(reason)) => Err(TrashLeft::kept(format!(
+            "the manifest inside {} is not the file that was read as it ({reason}), so the trash directory is left alone",
+            inside.display()
+        ))),
+        Err(error) => Err(TrashLeft::kept(format!("the manifest inside {} cannot be removed ({error}), so the trash directory is left alone", inside.display()))),
+    };
+}
+
+/// What:
 ///  Remove the trash directory itself once its entries are gone,
 /// and the parent above it when nothing else is in it.
 /// Why:
@@ -506,18 +443,29 @@ fn entry_removal_of(TheRemovalOfTrashEntries { inside, trash, manifest }: TheRem
 /// ```
 fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     let HeldTrash { holders, trash, inside, shown, names } = held;
+    let own: Option<crate::worktree_trash_own_manifest::OwnManifest> = crate::worktree_trash_own_manifest::its_own(&trash, trash_name_of(inside.as_path()).as_str());
     let mut strangers: Vec<String> = Vec::new();
     for entry in path_failure(std::fs::read_dir(handle_path(&trash)), inside.as_path(), "cannot be listed").map_err(TrashLeft::kept)?.flatten() {
-        strangers.push(entry.file_name().to_string_lossy().into_owned());
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        // The manifest the wrapper wrote inside its own trash goes with it, and only while the file at that name is the object the
+        //  bytes were read through; a file of that name that is not that manifest keeps the whole directory, as every other thing
+        //  the snapshot did not put there does.
+        if own.is_some() && name == crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME {
+            continue;
+        }
+        strangers.push(name);
     }
     if !strangers.is_empty() {
         return Err(TrashLeft::kept(format!("{} also holds {}, which the snapshot did not put there, so the trash directory is left alone", inside.display(), strangers.join(", "))));
+    }
+    if let Some(leaving) = own.as_ref() {
+        remove_the_manifest(&trash, inside.as_path(), leaving.file)?;
     }
     drop(trash);
     let Some(parent) = holders.last() else { return Ok(()) };
     // Everything the trash held is gone, so only its parent's permissions kept it: a removal that names it deletes
     //  exactly what the snapshot made.
-    path_failure(with_idle_io_priority(|| return remove_at(parent.as_ref(), std::ffi::OsStr::new(inside.file_name().unwrap_or_default()), true)), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
+    path_failure(with_idle_io_priority((parent.as_ref(), inside.as_path()), remove_the_trash_parent), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
     // The parent goes when nothing else is in it; a refusal only means another trash directory is still there.
     if let [.., above, _] = holders.as_slice()
         && let Some(last) = names.last()
@@ -645,3 +593,8 @@ pub fn empty_trash(item: &WorkItem) -> Verdict {
         Err(left) => Verdict::Failed(left.reason),
     };
 }
+
+/// The emptying's own controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_trash_dispose_tests.rs"]
+mod tests;

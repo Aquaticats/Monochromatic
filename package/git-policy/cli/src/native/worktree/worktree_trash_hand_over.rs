@@ -15,7 +15,8 @@
 //! with 2,182 of 2,796 blocked samples inside `unlink` or `rmdir` and the drive 99% busy
 //!  (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`).
 //! So the add writes the record,
-//! tells the service, and returns.
+//! tells the service,
+//! and returns.
 //! The record lives in the
 //!  repository's common work directory rather than in the new worktree's,
 //! because that is what makes one repository empty its trashes
@@ -42,7 +43,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::iso_time::now_iso;
-use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for, wake};
+use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
 use crate::service_messages::{ClientFailure, render};
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::service_provision::{ProvisionHost, provision};
@@ -50,8 +51,8 @@ use crate::service_provision_host_and_manager::units_record_dir_of;
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
 use crate::transaction_git::GitContext;
-use crate::wait_ceilings::{ANSWER_CEILING, SHORT_EXTRA_WAIT, START_CEILING, WITHDRAW_CEILING, waiting_notice_after};
-use crate::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
+use crate::work_item::{Enqueued, FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_trash::{PendingTrash, TRASH_PARENT, TRASH_REFERENCE};
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt as _;
@@ -97,19 +98,42 @@ pub struct Reach<'a> {
 }
 
 /// What:
+///  Set the host a route names up for the wake,
+/// when the route names one,
+/// and answer the failure the setup gave.
+/// Why:
+///   A repository whose service units were never installed needs them before its service can be reached,
+/// and the failure is what the person reads when that cannot be done;
+/// naming the step as its own function keeps the state it needs (the provisioner) a parameter.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const provisionedHost = (provisioner, host) => (host === undefined ? undefined : provisioner(host));
+/// ```
+fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ProvisionHost>) -> Option<ClientFailure> {
+    let setup: &ProvisionHost = host?;
+    return (provisioner)(setup).err();
+}
+
+/// What:
 ///  Hand this add's trash to the commit service of the repository,
 /// and answer the reason it stays when the service
 ///  could not be told about it.
 /// Why:
 ///   The production reach is the one a commit uses,
-/// so a trash is handed over exactly as a push record is.
+/// so a trash is handed over exactly as a push record is,
+///  with one difference:
+/// the record is written before the wake and every later command of the repository wakes the same
+///  service,
+/// so the wake waits the hand-over's own greeting bound and never the commit's start wait
+///  (`HAND_OVER_GREETING_WAIT`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// handOverToTheService({ context, trash, notices });
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, trash: &PendingTrash, notices: &mut dyn Write) -> Result<(), String> {
-    return hand_over_with(context, trash, notices, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: START_WAIT });
+    return hand_over_with(context, trash, notices, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
 /// What:
@@ -144,8 +168,38 @@ fn trash_item(trash: &PendingTrash) -> WorkItem {
 }
 
 /// What:
+///  What the queue said when the record of one trash was offered to it.
+/// Why:
+///   The id of the record is the trash's name,
+/// so a queue that already holds that id holds the record of this trash,
+/// and
+///  the answer decides what the person is told:
+/// a record the service gave up on never empties the trash,
+/// while one
+///  that waits is the promise the trash was recorded for.
+/// A command that said "recorded now" for a record it did not
+///  write promised an emptying nothing would ever claim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Recorded = 'written' | 'there' | 'given-up';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Recorded {
+    /// A new pending record was written now.
+    Written,
+    /// The queue already holds the record of this trash,
+    /// and the service empties it when it next runs.
+    There,
+    /// The service gave up on the record of this trash,
+    /// and never claims it again.
+    GivenUp,
+}
+
+/// What:
 ///  Write this trash as a durable work item now,
-/// and answer the reason it could not be written.
+/// and answer what the queue said,
+/// or the reason it could not be written.
 /// Why:
 ///   The record is what outlives the command,
 /// so it is written the moment its trash stands in the published worktree,
@@ -156,15 +210,22 @@ fn trash_item(trash: &PendingTrash) -> WorkItem {
 /// Writing it twice is one record:
 /// the queue's id
 ///  is the trash's name,
-/// so a second write finds the first.
+/// so a second write finds the first,
+/// and the answer says whether that first record is one the service
+///  still works on or one it gave up on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// recordTheTrash(trash) // enqueue(workDir(trash.commonDir), trashItem(trash))
 /// ```
-pub fn record_the_trash(trash: &PendingTrash) -> Result<(), String> {
-    return match enqueue(work_directory(trash.common_dir.as_path()).as_path(), &trash_item(trash)) {
-        Ok(_added) => Ok(()),
+pub fn record_the_trash(trash: &PendingTrash) -> Result<Recorded, String> {
+    let work: PathBuf = work_directory(trash.common_dir.as_path());
+    let item: WorkItem = trash_item(trash);
+    return match enqueue(work.as_path(), &item) {
+        Ok(Enqueued::Added) => Ok(Recorded::Written),
+        // The queue answers one word for an id it already holds, and the two cases behind it need different words: a
+        //  record in `failed` is settled for good, while one in `pending` is what the service claims when it next runs.
+        Ok(Enqueued::Known) => Ok(if state_directory(work.as_path(), FAILED).join(item.id()).exists() { Recorded::GivenUp } else { Recorded::There }),
         Err(reason) => Err(reason),
     };
 }
@@ -184,17 +245,27 @@ pub fn record_the_trash(trash: &PendingTrash) -> Result<(), String> {
 /// handOverWith({ context, trash, notices, reach });
 /// ```
 pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut dyn Write, reach: &Reach<'_>) -> Result<(), String> {
-    if let Err(reason) = record_the_trash(trash) {
-        debug(TAG, format!("the work item could not be written: {reason}").as_str());
-        return Err(stays_words(trash, format!("the work item could not be written: {reason}").as_str(), None));
+    match record_the_trash(trash) {
+        Ok(Recorded::Written | Recorded::There) => {}
+        // A record the service gave up on is never claimed again, so waking the service for it would promise an emptying
+        //  that cannot come; the answer says what stands there and who removes it.
+        Ok(Recorded::GivenUp) => {
+            let failed: PathBuf = state_directory(work_directory(trash.common_dir.as_path()).as_path(), FAILED).join(trash_item(trash).id());
+            debug(TAG, format!("the service gave up on the record {}", failed.display()).as_str());
+            return Err(stays_words(trash, "the commit service gave up on the record of its trash and never claims it again", Next::GivenUp(failed.as_path())));
+        }
+        Err(reason) => {
+            debug(TAG, format!("the work item could not be written: {reason}").as_str());
+            return Err(stays_words(trash, format!("the work item could not be written: {reason}").as_str(), Next::Nobody));
+        }
     }
     let record: PathBuf = state_directory(work_directory(trash.common_dir.as_path()).as_path(), PENDING).join(trash_item(trash).id());
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
         // The record stays for the next wake a command of this repository gives, which is every commit and every add.
         None => Err(String::from("no commit service can be started from this session")),
-        Some(Route { address, provision: host }) => match host.as_ref().map(|setup: &ProvisionHost| return (reach.provisioner)(setup)) {
-            Some(Err(failure)) => Err(render(&failure)),
-            _ => {
+        Some(Route { address, provision: host }) => match provisioned_host(reach.provisioner, host.as_ref()) {
+            Some(failure) => Err(render(&failure)),
+            None => {
                 let config: ClientConfig = ClientConfig {
                     address,
                     activation: Activation::Managed,
@@ -206,12 +277,14 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
                     withdraw_ceiling: WITHDRAW_CEILING,
                     waiting_notice_after: waiting_notice_after(),
                     extra_wait: SHORT_EXTRA_WAIT,
-                    start_ceiling: START_CEILING,
+                    // A wake reads the record once and returns: with a manager to ask, the commit's start ceiling would hold the add
+                    //  for a start this command does not need, so the wait ends at the hand-over's own bound.
+                    start_ceiling: reach.start_wait,
                     units_record_dir: host.as_ref().map(units_record_dir_of),
                 };
-                // The wake's own lines are not the add's report: the add says what became of the trash once.
-                let mut silent: std::io::Sink = std::io::sink();
-                match wake(&config, trash.common_dir.as_path(), None, &mut silent) {
+                // The wait says what it is for, and the line is the add's own: the trash is handed over once, so there is no
+                //  second report of it.
+                match wake(&config, trash.common_dir.as_path(), None, notices) {
                     Ok(()) => Ok(()),
                     Err(failure) => Err(render(&failure)),
                 }
@@ -229,7 +302,7 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
         }
         // The record stays and the service it names runs when the repository is next worked on, so this is a report and never
         //  the add's failure: the worktree is whole either way.
-        Err(why) => Err(stays_words(trash, why.as_str(), Some(record.as_path()))),
+        Err(why) => Err(stays_words(trash, why.as_str(), Next::TheService(record.as_path()))),
     };
 }
 
@@ -272,29 +345,54 @@ fn handed_words(trash: &PendingTrash) -> String {
 }
 
 /// What:
+///  Who empties a trash that stays.
+/// Why:
+///   The last part of the report says what happens to the trash next,
+/// and three states have three answers:
+/// no record
+///  names it,
+/// a written record means the service empties it when it next runs,
+/// and a record the service gave
+///  up on means only the person will.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Next = { kind: 'nobody' } | { kind: 'service' | 'given-up', record: string };
+/// ```
+enum Next<'a> {
+    /// No record names the trash.
+    Nobody,
+    /// A pending record names it,
+    /// and the service empties it when it next runs.
+    TheService(&'a Path),
+    /// The service gave up on its record and never claims it again.
+    GivenUp(&'a Path),
+}
+
+/// What:
 ///  What stays when the service could not be told,
 ///  named with the reason,
 ///  the trash and the record that holds it.
 /// Why:
 ///   The trash outlives the command in that case,
 /// so the person is told which directory to look at and why nothing empties
-///  it now;
-/// a record that was written means the service empties it when it next runs for the repository,
-///  and no record means only the person will.
+///  it now,
+/// and who empties it if anything will.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const staysWords = (trash, why, record) => record === undefined ? `... no record names them, so only you will remove them` : `... the record ${record} names them, so the commit service empties them when it next runs for this repository`;
+/// const staysWords = (trash, why, next) => next.kind === 'nobody' ? `... no record names them, so only you will remove them` : next.kind === 'given-up' ? `... the record ${next.record} is settled as failed, so only you will remove them` : `... the record ${next.record} names them, so the commit service empties them when it next runs for this repository`;
 /// ```
-fn stays_words(trash: &PendingTrash, why: &str, record: Option<&Path>) -> String {
+fn stays_words(trash: &PendingTrash, why: &str, next: Next<'_>) -> String {
     let trash_shown: PathBuf = trash.destination.join(TRASH_PARENT).join(&trash.manifest.name);
     let quoted: String = crate::shell_quote::shell_quote(trash_shown.as_os_str().as_bytes());
-    let next: String = match record {
-        Some(path) => format!("the record {} names them, so the commit service empties them when it next runs for this repository", path.display()),
-        None => String::from("no record names them, so only you will remove them"),
+    let empties: String = match next {
+        Next::Nobody => String::from("no record names them, so only you will remove them"),
+        Next::TheService(path) => format!("the record {} names them, so the commit service empties them when it next runs for this repository", path.display()),
+        Next::GivenUp(path) => format!("the record {} holds its failure, and the commit service never claims it again, so only you will remove them", path.display()),
     };
     return format!(
-        "the directories left out of the new worktree {} were not handed to the commit service ({why}); the trash {quoted} stays inside the worktree, {next}, and every later command in this worktree names it and deletes nothing from it.",
+        "the directories left out of the new worktree {} were not handed to the commit service ({why}); the trash {quoted} stays inside the worktree, {empties}, and every later command in this worktree names it and deletes nothing from it.",
         trash.destination.display()
     );
 }

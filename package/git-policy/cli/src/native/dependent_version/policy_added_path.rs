@@ -36,6 +36,10 @@ use crate::git_metadata::path_from_git_bytes;
 use crate::path_bytes::os_from_path_bytes;
 /// The Git context and request the real index is listed in.
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
+/// The repository location Git answered for the invocation the listing serves.
+use crate::repository_location::RepositoryLocation;
+/// The worktree top the listing runs in.
+use crate::worktree_identity::worktree_root;
 /// `BTreeMap<K, V>` is a map kept sorted by key.
 use std::collections::BTreeMap;
 /// `Path` is a borrowed filesystem path.
@@ -361,17 +365,32 @@ fn is_space_byte(byte: &u8) -> bool {
 ///  One start lists every path,
 ///  so a commit that
 ///       adds several dependents pays one Git process and not one per file.
+///  The listing keeps none of the caller's other options,
+///  so it names the repository the location holds:
+/// the pair Git resolved once,
+///  rather than the caller's `--git-dir` and `--work-tree` read again from a directory the wrapper discovered.
+///  A relative `--git-dir` is resolved after the caller's last `-C`,
+///  so reading it again from the worktree top applies that directory change a second time
+///  and names a repository that does not exist.
+///  A Git directory beside its work tree has no `.git` inside the work tree to find,
+/// so a listing that named no repository would answer "not a git repository"
+/// for every dependent whose copy it was asked to prove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function realIndexEntries({ gitPath, repositoryRoot, realIndexPath, paths }): Promise<Map<string, { mode; oid }>>;
+/// async function realIndexEntries({ gitPath, location, realIndexPath, paths }): Promise<Map<string, { mode; oid }>>;
 /// ```
 pub fn real_index_entries(
     context: &GitContext,
-    repository_root: &Path,
+    location: &RepositoryLocation,
     index: &Path,
     paths: &[Vec<u8>],
 ) -> Result<BTreeMap<Vec<u8>, Entry>, String> {
+    let Some(repository_root) = worktree_root(&location.identity) else {
+        return Err(String::from(
+            "the repository holds no work tree to list the real index in",
+        ));
+    };
     let mut request: GitRequest = GitRequest::new(repository_root, &["ls-files", "--stage", "-z", "--full-name", "--"]).own_pathspecs();
     for path in paths {
         let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
@@ -380,6 +399,7 @@ pub fn real_index_entries(
     }
     // The listing is the caller's own pathspecs, and the caller's pathspec mode would read them as file names.
     request.without_prefix = true;
+    request.repository_selection = crate::repository_selection::of_identity(&location.identity);
     request.index = Some(index.to_path_buf());
     let output: GitOutput = run_git_checked(context, &request).map_err(git_failure_message)?;
     let mut entries: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();

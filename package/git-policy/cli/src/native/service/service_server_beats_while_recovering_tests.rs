@@ -95,7 +95,7 @@ fn a_request(world: &World, id: &str, message: &str) -> CommitRequest {
         repository: world.repo.clone(),
         common_dir: world.repo.join(".git"),
         git_dir: world.repo.join(".git"),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
         changes: vec![Change { path: PathBuf::from(format!("{message}.txt")), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("{message}\n"),
@@ -108,6 +108,7 @@ fn a_request(world: &World, id: &str, message: &str) -> CommitRequest {
         index: world.repo.join(".git/index"),
         scratch: world.repo.join(".git/monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
+        holder: String::new(),
     };
 }
 

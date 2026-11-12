@@ -19,11 +19,12 @@
 use super::{Selection, plan_management, plan_management_with_section, retired_explanation, status_git_dir};
 use crate::service_instance::{SOCKET_DIRECTORY, socket_for};
 use crate::action::Action;
+use crate::control_terminal::Terminal;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::{MANAGEMENT_HELP, MANAGEMENT_USAGE, RetiredCommand};
 use crate::policy_registry::PolicyId;
 use crate::real_git::{Platform, ResolutionInputs};
-use crate::test_support::{REAL_GIT, executable, fixture, isolated_overlay, remove, repository};
+use crate::test_support::{REAL_GIT, executable, fixture, git, isolated_overlay, remove, repository};
 use crate::wrapper_controls::{Controls, no_controls};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -44,6 +45,8 @@ fn no_git(root: &Path) -> ResolutionInputs {
         common_paths: Vec::<PathBuf>::new(),
         own_executable: root.join("own-wrapper"),
         service_unit: None,
+        // Management commands are answered by the wrapper and start no Git child, so the terminal decides nothing.
+        terminal: Terminal::Present,
     };
 }
 
@@ -738,11 +741,12 @@ fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_com
         seq: 1,
         repository: repo.clone(),
         common_dir: git_dir.clone(),
-        reference: String::from("refs/heads/main"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
         old: "a".repeat(40),
         new: "b".repeat(40),
         ids: vec![String::from("id")],
         commits: vec!["c".repeat(40)],
+        holders: vec![String::new()],
         paths: vec![b"a.txt".to_vec()],
         derived: false,
         cleanup: None,
@@ -790,6 +794,66 @@ fn the_status_names_the_worktree_for_a_user_the_typed_proof_cannot_vouch_for() {
     for settings in ["[core]\n\tfsmonitor = true\n", "[diff]\n\tdirstat = changes\n", "[core]\n\tfilemode = maybe\n"] {
         let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), settings);
         assert_eq!(status_git_dir(in_directory(repo.as_path()).as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))), Selection::Found(expected.clone()), "{settings:?}");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A status asked of Git names the Git directory by the bytes Git printed.
+/// Why:
+///   The answer is a pathname,
+///  and a name that is not UTF-8 spelled through lossy text named a directory that does not exist:
+///  a commit that asked whether a service held the worktree was then refused as
+///  "the Git directory cannot be resolved".
+#[test]
+fn a_status_asked_of_git_keeps_a_git_directory_that_is_not_text() {
+    use std::os::unix::ffi::OsStringExt;
+    let root: PathBuf = fixture("management-status-not-utf8");
+    let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
+    // `--git-dir` is a selection the in-process reader leaves to Git, so this asks Git itself.
+    let selected: Vec<OsString> = vec![OsString::from("--git-dir"), repo.join(".git").into_os_string()];
+    assert_eq!(
+        status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))),
+        Selection::Found(std::fs::canonicalize(repo.join(".git")).expect("git directory")),
+        "the Git directory keeps the bytes Git printed"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A status asked of Git keeps a trailing space or line feed that is part of the Git directory's name.
+/// Why:
+///   An answer that is a pathname loses only Git's one terminator,
+///  so trimming whitespace after it named a different directory,
+///  and the status then counted no service for the worktree the person selected.
+#[test]
+fn a_status_asked_of_git_keeps_a_trailing_space_or_line_feed() {
+    let root: PathBuf = fixture("management-status-trailing-whitespace");
+    let environment: Vec<(OsString, OsString)> = user_environment(root.join("user.gitconfig").as_path(), "[user]\n\tname = Someone\n");
+    for (label, name) in [("space", "metadata "), ("line-feed", "metadata\n")] {
+        let worktree: PathBuf = root.join(format!("worktree-{label}"));
+        std::fs::create_dir(worktree.as_path()).expect("worktree directory");
+        let metadata: PathBuf = root.join(name);
+        git(
+            root.as_path(),
+            &[
+                "init",
+                "--quiet",
+                "--initial-branch=main",
+                "--separate-git-dir",
+                metadata.to_str().expect("UTF-8 fixture name"),
+                worktree.to_str().expect("UTF-8 fixture path"),
+            ],
+        );
+        let selected: Vec<OsString> = vec![OsString::from("--git-dir"), metadata.clone().into_os_string()];
+        assert_eq!(
+            status_git_dir(selected.as_slice(), environment.as_slice(), Some(Path::new(REAL_GIT))),
+            Selection::Found(std::fs::canonicalize(metadata.as_path()).expect("git directory")),
+            "{label}: the Git directory keeps every byte of its name"
+        );
     }
     remove(root.as_path());
 }

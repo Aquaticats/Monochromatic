@@ -39,8 +39,10 @@ pub use crate::service_prepare_ready_shapes::{HandedBackTree, NativeInputs, Prep
 pub(crate) use crate::service_prepare_unmerged_staging::unmerged_staging_request;
 use crate::service_prepare_ready_shapes::ReadyShape;
 pub use crate::service_prepare_changes_config_and_pathspec_steps::{config_needs_native, config_signs};
-use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, pathspec_texts, the_pathspec_file, zero_object};
+use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, the_pathspec_file, zero_object};
 use crate::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
+/// A reference name as the bytes Git printed it.
+use crate::ref_name::RefName;
 use crate::commit_prepare_part_durations::PreparePartClock;
 use crate::private_index_request::{CaptureIndexes, indexed_request};
 use crate::commit_conclusion::events_with_changed_summary;
@@ -50,7 +52,8 @@ use crate::commit_index::{
     IndexSelection, initialize_commit_index, initialize_retry_index, list_changed_index_paths, list_unmerged_index_paths, prepare_interactive_selection,
     write_private_tree,
 };
-use crate::service_prepare_selection_refusals::{named_ignored_ending, staged_deletion_ending};
+use crate::commit_selection_staging::SelectionStagingFailure;
+use crate::service_prepare_selection_refusals::{named_ignored_ending, pathspec_matching_nothing_ending, staged_deletion_ending};
 use crate::commit_transaction::{
     CommitInvocation, Selection, TransactionResult, TransactionStop, base_object, decide_selection, failed, private_checks, settled_passes, staged_at_base,
 };
@@ -130,15 +133,17 @@ pub fn prepare<F: RepositoryFacts>(
     };
     part.next("capture");
     let selection: Selection = decide_selection(region, layout.conclusion);
-    let reference: String = match &layout.symbolic_head {
+    let reference: RefName = match &layout.symbolic_head {
         SymbolicHead::Branch(name) => name.clone(),
-        SymbolicHead::Detached => String::from("HEAD"),
+        SymbolicHead::Detached => RefName::from_text("HEAD"),
     };
     let detached: bool = layout.symbolic_head == SymbolicHead::Detached;
 
     let named: bool = selection.mode == TransactionMode::ExplicitPath;
     let capture: InvocationCapture = capture_invocation_base(context, cwd, layout)?;
-    part.next("stagedDeletions");
+    // The worktree Git answered for this invocation, which the selection's relative pathspecs are read from, whichever way
+    //  the caller named it (`pathspec_base`).
+    let worktree_root: &Path = capture.layout.repository_root.as_path();
     let unborn: bool = matches!(capture.base, Base::Unborn);
     // Read from the snapshot the layout already holds, so nothing starts Git for the message or the identities before the
     //  cheap decisions above are made, and before a service is provisioned.
@@ -154,20 +159,6 @@ pub fn prepare<F: RepositoryFacts>(
         pathspecs.push(region_arguments[*at].clone());
     }
     let retry: Option<&Retry<'_>> = inputs.replay.as_ref();
-    if named && retry.is_none() {
-        // Before any private staging, so Git's "nothing to commit" or its force-add hint never stands in for the reason.
-        let present: Option<TransactionResult> = staged_deletion_ending(
-            context,
-            cwd,
-            capture.layout.repository_root.as_path(),
-            capture.layout.real_index_path.as_path(),
-            base.as_str(),
-            pathspecs.as_slice(),
-        )?;
-        if let Some(ending) = present {
-            return Ok(Prepared::Ended(ending));
-        }
-    }
     part.next("scratch");
     let amends: bool = region.amend;
     // The tree goes where the sweep of the repository scratch directory covers it, so a command killed at any instruction leaves
@@ -191,6 +182,23 @@ pub fn prepare<F: RepositoryFacts>(
         stage_tracked_changes: selection.staged_all,
         base_revision: base.as_str(),
     };
+    part.next("stagedDeletions");
+    if named && retry.is_none() {
+        // Before any private staging, so Git's "nothing to commit" or its force-add hint never stands in for the reason.
+        //  The selection is asked as one thing, so a path a `--pathspec-from-file` names reaches this guard exactly as a
+        //  path on the command line does (finding `commit-only/staged-deletion-worktree-present`).
+        let present: Option<TransactionResult> = staged_deletion_ending(
+            context,
+            cwd,
+            capture.layout.repository_root.as_path(),
+            capture.layout.real_index_path.as_path(),
+            base.as_str(),
+            &index_selection,
+        )?;
+        if let Some(ending) = present {
+            return Ok(Prepared::Ended(ending));
+        }
+    }
     part.next("index");
     // The parts the word-level second pass merged when a retry combined the change with the branch, told with the commit.
     let mut word_merge_events: Option<PolicyEvent> = None;
@@ -202,7 +210,7 @@ pub fn prepare<F: RepositoryFacts>(
         //  abandoned the merge, the cherry-pick or the revert meanwhile leaves nothing this commit could conclude, and an
         //  ordinary commit of the same tree is not what the person asked for (`Captured::conclusion`).
         if let Some(expected) = again.captured.conclusion.as_deref() {
-            the_same_conclusion(context, cwd, &capture, expected, reference.trim_start_matches("refs/heads/"))?;
+            the_same_conclusion(context, cwd, &capture, expected, reference.short().spoken().as_str())?;
         }
         // The change this command captured when it started, on the branch as it is now; the worktree is not read.
         let site: MergeSite<'_> = MergeSite {
@@ -228,11 +236,16 @@ pub fn prepare<F: RepositoryFacts>(
     } else {
         // A path an ignore rule matches is refused before the private staging runs, from the elements the command names,
         //  so the refusal is the command line's and never read from the words of a Git message (issue 6278).
-        if let Some(ending) = named_ignored_ending(context, cwd, capture.layout.real_index_path.as_path(), &index_selection)? {
+        if let Some(ending) = named_ignored_ending(context, cwd, worktree_root, capture.layout.real_index_path.as_path(), &index_selection)? {
             return Ok(Prepared::Ended(ending));
         }
-        if let Err(error) = initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
-            return Err(failed(error.0));
+        if let Err(stop) = initialize_commit_index(context, cwd, worktree_root, capture.layout.real_index_path.as_path(), &indexes, &index_selection) {
+            // Git refused a pathspec the caller wrote for matching nothing: that is the caller's input, not the engine's, so it
+            // ends as the finding that names the token. Every other failure of the staging stays an engine failure (issue 6283).
+            return match stop {
+                SelectionStagingFailure::Git(git) => Err(failed(git.0)),
+                SelectionStagingFailure::PathspecMatchesNothing(refused) => Ok(Prepared::Ended(pathspec_matching_nothing_ending(refused.as_slice()))),
+            };
         }
     }
     // A commit that landed but did not finish its index update leaves this worktree's index describing the branch before that
@@ -278,7 +291,6 @@ pub fn prepare<F: RepositoryFacts>(
     let cleanup: Option<Cleanup> = if state_present { Some(Cleanup { git_dir: capture.layout.git_dir.clone(), scratch: scratch.0.clone(), reftable }) } else { None };
     let selected_privately: bool = selection.read_only;
     let fixed_parents: bool = selection.concludes_sequencer || unborn;
-    let pathspec_texts: Vec<String> = pathspec_texts(&pathspecs);
     // What a conclusion was prepared over, read here and not when a retry needs it: another command may conclude the
     //  operation while this commit waits, and the replay must compare against the state this preparation saw.
     let conclusion_state: Option<String> = the_state_of_a_conclusion(
@@ -291,7 +303,7 @@ pub fn prepare<F: RepositoryFacts>(
     .map_err(the_state_read_failure)?;
     // What every `Ready` of this preparation shares; the closures that carried it are the methods of this record.
     let shape: ReadyShape = ReadyShape {
-        pathspecs: pathspec_texts,
+        pathspecs: pathspecs.clone(),
         mode: selection.mode,
         staged_all: selection.staged_all,
         selected_privately,
@@ -323,7 +335,7 @@ pub fn prepare<F: RepositoryFacts>(
     if candidate_paths.is_empty() && !inputs.allow_empty && !amends {
         if retry.is_some() {
             // Commits that landed meanwhile hold everything this one changes.
-            return Ok(Prepared::Ended(already_committed_result(reference.trim_start_matches("refs/heads/"))));
+            return Ok(Prepared::Ended(already_committed_result(reference.short().spoken().as_str())));
         }
         return Ok(Prepared::Ready(shape.by_git(capture, Vec::new(), None, Vec::new(), invocation.arguments.to_vec(), scratch)));
     }

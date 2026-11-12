@@ -34,19 +34,23 @@
 //! ```
 
 use crate::add_timing::{begin_work, end_work};
+use crate::blocking_job::BlockingJobError;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::call_catching_panics_awaiting::call_catching_panics_awaiting;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
 use crate::package_repair_cargo::{repair_cargo, repair_cargo_awaiting};
-use crate::package_repair_pnpm::{repair_pnpm, repair_pnpm_awaiting};
+use crate::package_repair_pnpm::{PnpmNeed, repair_pnpm, repair_pnpm_awaiting};
+use crate::package_repair_prewarm::common_directory_awaiting;
+use crate::package_repair_relink::{NotTaken, QueuedRelink, RelinkEntry, RelinkTool, SearchPathOfTheAdd, hand_over_in_a_job};
 /// What the repairs read,
 /// who asks,
 /// and the switches of the person;
 /// kept in a file of their own and named here so the paths
 ///  outside this folder stay the same.
 pub use crate::package_repair_request::{RepairEnvironment, RepairRequest, RepairSwitch, workers_for};
-use crate::package_repair_report::{Finding, render};
-use crate::package_repair_toolchain::{repair_toolchain, repair_toolchain_awaiting};
+use crate::package_repair_report::{Finding, Outcome, Tool, render};
+use crate::package_repair_toolchain::{MANUAL_COMMAND as TOOLCHAIN_MANUAL_COMMAND, ToolchainNeed, repair_toolchain, repair_toolchain_awaiting};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -56,37 +60,23 @@ use std::time::Instant;
 const TAG: &str = "packageRepair";
 
 /// What:
-///  One repair the add runs once a worktree is filled.
+///  What the add's hand-over of the copied package state came to for each tool.
 /// Why:
-///   Each is one wait of the same task,
-/// named by a value so the work reads no string and the report keeps the order the findings
-///  always had (pnpm,
-/// Cargo,
-/// toolchain).
+///   The report has always named pnpm's findings first,
+/// then Cargo's,
+/// then the toolchain's,
+/// and the two tools of the hand-over are read separately from the Cargo repair,
+/// so each keeps its own list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TheTool = 'pnpm' | 'toolchain' | 'cargo';
+/// type LinksHandedOver = { pnpm: Finding[]; toolchain: Finding[] };
 /// ```
-#[derive(Clone, Copy)]
-enum TheTool {
-    /// The pnpm relink of the copied `node_modules`.
-    Pnpm,
-    /// The toolchain install of the worktree's own links and launchers.
-    Toolchain,
-    /// The Cargo repair of every workspace.
-    Cargo,
-}
-
-impl TheTool {
-    /// The words a diagnostic gives this repair.
-    fn name(self) -> &'static str {
-        return match self {
-            TheTool::Pnpm => "pnpm",
-            TheTool::Toolchain => "toolchain",
-            TheTool::Cargo => "cargo",
-        };
-    }
+struct LinksHandedOver {
+    /// pnpm's findings.
+    pnpm: Vec<Finding>,
+    /// mpm-shadow's findings.
+    toolchain: Vec<Finding>,
 }
 
 /// What:
@@ -136,57 +126,26 @@ impl OwnedRequest {
 }
 
 /// What:
-///  One repair,
-/// timed as the work its add timing record names.
+///  The Cargo repair on the runtime,
+/// with a panic of its work reported as no findings for it.
 /// Why:
-///  The record sums the work of the tools by name,
-/// and the name must not depend on how the work is started.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function repairTheTool(tool: TheTool, request: RepairRequest): Promise<Finding[]>;
-/// ```
-async fn repair_the_tool(tool: TheTool, request: RepairRequest<'_>) -> Vec<Finding> {
-    return match tool {
-        TheTool::Pnpm => {
-            let began: Instant = begin_work();
-            let found: Option<Finding> = repair_pnpm_awaiting(request.destination, request.environment).await;
-            end_work("repairPnpm", began);
-            found.into_iter().collect()
-        }
-        TheTool::Toolchain => {
-            let began: Instant = begin_work();
-            let found: Option<Finding> = repair_toolchain_awaiting(request.destination, request.environment).await;
-            end_work("repairToolchain", began);
-            found.into_iter().collect()
-        }
-        TheTool::Cargo => {
-            let began: Instant = begin_work();
-            let cargo: Vec<Finding> = repair_cargo_awaiting(&request).await;
-            end_work("repairCargo", began);
-            cargo
-        }
-    };
-}
-
-/// What:
-///  One repair on the runtime,
-/// with a panic of its work reported as no findings for that tool.
-/// Why:
-///   A tool that stopped unexpectedly reports nothing and the other two still report,
+///   A workspace that stopped unexpectedly reports nothing and the other lanes still report,
 /// as a scoped thread's panic did before
 ///  the move;
-/// the panic is turned into a value so it cannot end the task that runs all three.
+/// the panic is turned into a value so it cannot end the task that runs every repair.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function repairOne(tool: TheTool, request: RepairRequest): Promise<Finding[]>;
+/// async function repairCargoOne(request: RepairRequest): Promise<Finding[]>;
 /// ```
-async fn repair_one(tool: TheTool, request: RepairRequest<'_>) -> Vec<Finding> {
-    return match call_catching_panics_awaiting(repair_the_tool(tool, request)).await {
+async fn repair_cargo_one(request: RepairRequest<'_>) -> Vec<Finding> {
+    let began: Instant = begin_work();
+    let repaired: Result<Vec<Finding>, String> = call_catching_panics_awaiting(repair_cargo_awaiting(&request)).await;
+    end_work("repairCargo", began);
+    return match repaired {
         Ok(findings) => findings,
         Err(_words) => {
-            debug(TAG, format!("the {} repair stopped unexpectedly and reports nothing", tool.name()).as_str());
+            debug(TAG, "the cargo repair stopped unexpectedly and reports nothing");
             Vec::new()
         }
     };
@@ -212,16 +171,199 @@ fn report(destination: &Path, findings: Vec<Finding>, quiet: bool, notices: &mut
 }
 
 /// What:
+///  What the add tells the person about one tool it handed over:
+/// the tool's line when the record reached the service.
+/// Why:
+///   The record is the service's work,
+/// so the line says the relinking happens after this command returns;
+/// a hand-over no service took is the add's own run,
+/// and each tool reports it as it always did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handedOver = (tool, millis, destination) => Finding
+/// ```
+fn handed_over(tool: RelinkTool, millis: u128, destination: &Path) -> Finding {
+    let (as_report, detail): (Tool, &str) = match tool {
+        RelinkTool::Pnpm => (Tool::Pnpm, "pnpm will relink the copied node_modules here"),
+        RelinkTool::Toolchain => (Tool::Toolchain, "mpm-shadow will rebuild the toolchain links here"),
+    };
+    debug(TAG, format!("{}: {} is the service's work", destination.display(), tool.name()).as_str());
+    return Finding { tool: as_report, outcome: Outcome::Repaired { detail: format!("{detail}, because the commit service runs it after this command returns"), millis } };
+}
+
+/// What:
+///  How far the hand-over of a worktree's relink got.
+/// Why:
+///   The three answers differ in what the add does next:
+/// a service that took the record means the tools run there,
+/// and any other answer means the add runs them here,
+/// because a worktree whose copied links were never relinked is wrong for the person's next command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Told = { kind: 'taken'; millis: number } | { kind: 'stays'; reason: string; queued?: QueuedRelink };
+/// ```
+enum Told {
+    /// The record reached the service,
+    /// so the tools are its work;
+    /// the time is what the record and the wake cost.
+    Taken(u128),
+    /// No service took the record,
+    /// so the add relinks the worktree here;
+    /// the text says why the hand-over failed,
+    /// and the record still queued is taken back after this run has finished.
+    Stays { reason: String, queued: Option<QueuedRelink> },
+}
+
+/// What:
+///  Write the relink's record and wake the service that runs it,
+/// timed as the step `relinkHandOver`,
+/// and say whether the tools are the service's work or the add's.
+/// Why:
+///   The record and the wake are storage and socket waits,
+/// so they run as a job of the blocking pool and never on the task that also runs the Cargo repair;
+/// a hand-over no service took takes its record back,
+/// and the add relinks the worktree itself,
+/// so no record waits for a directory that may hold other work later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function handOverTheRecord(request, entry): Promise<Told>
+/// ```
+async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) -> Told {
+    let began: Instant = begin_work();
+    let common_dir: Result<PathBuf, String> = common_directory_awaiting(request.git, request.destination).await;
+    let told: Result<Result<(), NotTaken>, BlockingJobError> = match common_dir {
+        Ok(common) => {
+            let state: crate::package_repair_relink::TheHandOver =
+                (request.git.clone(), common, request.destination.to_path_buf(), entry.clone());
+            run_a_job_or_in_turn(state, hand_over_in_a_job).await
+        }
+        Err(reason) => Ok(Err(NotTaken { reason, queued: None })),
+    };
+    end_work("relinkHandOver", began);
+    let millis: u128 = began.elapsed().as_millis();
+    return match told {
+        Ok(Ok(())) => Told::Taken(millis),
+        Ok(Err(not_taken)) => Told::Stays { reason: not_taken.reason, queued: not_taken.queued },
+        Err(refusal) => Told::Stays { reason: format!("{refusal}"), queued: None },
+    };
+}
+
+/// What:
+///  Relink the worktree here,
+/// for a hand-over no service took,
+/// and report each tool's own line.
+/// Why:
+///   The copied links must work at the new location before the person's next command there,
+/// so a session that cannot reach a service does what the add always did,
+/// and the record that hand-over wrote is taken back by then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function relinkHere(request, tools): Promise<LinksHandedOver>
+/// ```
+async fn relink_here(request: &RepairRequest<'_>, tools: &[RelinkTool]) -> LinksHandedOver {
+    let mut pnpm: Vec<Finding> = Vec::new();
+    let mut toolchain: Vec<Finding> = Vec::new();
+    for tool in tools {
+        match tool {
+            RelinkTool::Pnpm => {
+                let began: Instant = begin_work();
+                let found: Option<Finding> = repair_pnpm_awaiting(request.destination, request.environment).await;
+                end_work("repairPnpm", began);
+                pnpm.extend(found);
+            }
+            RelinkTool::Toolchain => {
+                let began: Instant = begin_work();
+                let found: Option<Finding> = repair_toolchain_awaiting(request.destination, request.environment).await;
+                end_work("repairToolchain", began);
+                toolchain.extend(found);
+            }
+        }
+    }
+    return LinksHandedOver { pnpm, toolchain };
+}
+
+/// What:
+///  Take the relinking of the worktree's copied package state off the add's waiting path,
+/// or do it here when no service can be told.
+/// Why:
+///   Both tools rewrite link layouts in place,
+/// and a traced add spent 49.6 s in pnpm's relink and 11.8 s in mpm-shadow's install
+/// (`doc/planning/cli-git-worktree-add-package-repair.md`),
+/// so they are the service's work exactly as the Cargo build-state clone is.
+/// A worktree that needs neither leaves no record,
+/// and one whose tool is missing gets the line that names the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function handTheLinksOver(request): Promise<LinksHandedOver>
+/// ```
+async fn hand_the_links_over(request: &RepairRequest<'_>) -> LinksHandedOver {
+    let mut findings: LinksHandedOver = LinksHandedOver { pnpm: Vec::new(), toolchain: Vec::new() };
+    let mut tools: Vec<RelinkTool> = Vec::new();
+    match crate::package_repair_pnpm::need_of(request.destination, request.environment) {
+        PnpmNeed::Nothing => {}
+        PnpmNeed::NoProgram(finding) => findings.pnpm.push(finding),
+        PnpmNeed::Needed => tools.push(RelinkTool::Pnpm),
+    }
+    match crate::package_repair_toolchain::need_within_the_budget(request.destination, request.environment).await {
+        Ok(ToolchainNeed::Nothing) => {}
+        Ok(ToolchainNeed::NoProgram(finding)) => findings.toolchain.push(finding),
+        Ok(ToolchainNeed::Needed) => tools.push(RelinkTool::Toolchain),
+        Err(refusal) => findings.toolchain.push(Finding {
+            tool: Tool::Toolchain,
+            outcome: Outcome::Failed { reason: format!("the launcher records of the worktree could not be read ({refusal})"), run_instead: String::from(TOOLCHAIN_MANUAL_COMMAND) },
+        }),
+    }
+    if tools.is_empty() {
+        return findings;
+    }
+    // The add's environment travels as the three answers it can be: a path it held, no path at all, or (for a record this
+    //  release reads and writes again) none recorded.
+    let search_path: SearchPathOfTheAdd = match request.environment.search_path.as_ref() {
+        None => SearchPathOfTheAdd::Unset,
+        Some(path) => SearchPathOfTheAdd::Set(path.clone()),
+    };
+    let entry: RelinkEntry = RelinkEntry { root: request.destination.to_path_buf(), search_path, tools: tools.clone() };
+    let told: Told = hand_over_the_record(request, &entry).await;
+    match told {
+        Told::Taken(millis) => {
+            for tool in tools {
+                let finding: Finding = handed_over(tool, millis, request.destination);
+                match tool {
+                    RelinkTool::Pnpm => findings.pnpm.push(finding),
+                    RelinkTool::Toolchain => findings.toolchain.push(finding),
+                }
+            }
+        }
+        Told::Stays { reason, queued } => {
+            debug(TAG, format!("{}: no service took the relink ({reason}), so it runs here", request.destination.display()).as_str());
+            let here: LinksHandedOver = relink_here(request, tools.as_slice()).await;
+            // The record goes only now: a kill before this run finished leaves it queued, and a service then relinks the
+            //  worktree this record names rather than nothing at all.
+            if let Some(still_queued) = queued {
+                still_queued.take_back();
+            }
+            findings.pnpm.extend(here.pnpm);
+            findings.toolchain.extend(here.toolchain);
+        }
+    }
+    return findings;
+}
+
+/// What:
 ///  Repair the package-manager state of one new worktree on the runtime and print what the person needs to know.
 /// Why:
-///   The tools are independent,
-/// so the three waits run beside each other on one task of the runtime:
-/// the add ends when the
-///  slowest does,
-/// and no worker is held while a tool runs,
-/// because every suspension of a repair is an await.
-/// A tool
-///  whose work panicked reports nothing and the others go on.
+///   Cargo's repair and the hand-over of the other two tools are independent,
+/// so the two waits run beside each other on one task of the runtime:
+/// the add ends when the slowest does,
+/// and no worker is held while either runs,
+/// because every suspension is an await.
+/// The worktree's relink is the commit service's work when a service answers,
+/// and the add's own when none does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -234,15 +376,13 @@ pub(crate) async fn repair_worktree_awaiting(request: &RepairRequest<'_>, notice
     }
     let started: Instant = Instant::now();
     let owned: OwnedRequest = OwnedRequest::of_the_caller(request);
-    // One wait per tool, driven together on this task: the repairs suspend on their tools rather than holding a thread,
-    //  so the three overlap without a task of their own and without the lane machinery of the ordered runners.
-    let (pnpm, toolchain, cargo): (Vec<Finding>, Vec<Finding>, Vec<Finding>) = tokio::join!(
-        repair_one(TheTool::Pnpm, owned.lent()),
-        repair_one(TheTool::Toolchain, owned.lent()),
-        repair_one(TheTool::Cargo, owned.lent()),
-    );
+    // One wait for Cargo's repair and one for the relink, driven together on this task: both suspend rather than hold
+    //  a thread, so they overlap without a task of their own.
+    let links_request: RepairRequest<'_> = owned.lent();
+    let cargo_request: RepairRequest<'_> = owned.lent();
+    let (links, cargo): (LinksHandedOver, Vec<Finding>) = tokio::join!(hand_the_links_over(&links_request), repair_cargo_one(cargo_request));
     // The report's order has always been pnpm's findings, then Cargo's, then the toolchain's.
-    let findings: Vec<Finding> = pnpm.into_iter().chain(cargo).chain(toolchain).collect();
+    let findings: Vec<Finding> = links.pnpm.into_iter().chain(cargo).chain(links.toolchain).collect();
     return report(request.destination, findings, request.switch.quiet, notices, started);
 }
 

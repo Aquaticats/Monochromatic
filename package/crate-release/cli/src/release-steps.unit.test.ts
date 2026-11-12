@@ -26,6 +26,8 @@ import {
   buildReleaseSteps,
   commitPaths,
   lockFileBeside,
+  releasePlanNotes,
+  releaseRunsCargoCheck,
 } from './release-steps.ts';
 
 /**
@@ -472,7 +474,7 @@ await describe({
           name: 'plans no publish dry run for a version that never goes to crates.io, on either host',
           fn: async () => {
             for (const host of ['local', 'runner'] as const)
-              for (const to of ['0.4.3-alpha.1', '0.4.3-beta.2', '0.4.3-dev.1']) {
+              for (const to of ['0.4.3-beta.2', '0.4.3-dev.1']) {
                 const labels = buildReleaseSteps({ ...gitPolicyOptions, host, to })
                   .map(function labelOf(step) {
                     return step.label;
@@ -492,6 +494,97 @@ await describe({
                   });
                 expect(labels).toEqual(['cargo check', 'lock members', 'publish dry run', 'commit']);
               }
+          },
+        }),
+        it({
+          name: 'plans no cargo check for an alpha on either host, and lands its version in the lockfile instead',
+          fn: async () => {
+            for (const host of ['local', 'runner'] as const) {
+              const steps = buildReleaseSteps({
+                ...gitPolicyOptions,
+                host,
+                to: '0.4.3-alpha.2'
+              });
+              expect(steps.map(function labelOf(step) {
+                return step.label;
+              })).toEqual(['lock the crate', 'lock members', 'commit']);
+              // The crate's own refresh runs in the crate directory, with the lock command of this host.
+              expect(steps[0]?.cwd).toBe('/repo/package/git-policy/cli');
+              expect(steps[0]?.args).toEqual(host === 'local'
+                ? ['update', '--offline', '--workspace']
+                : ['update', '--workspace']);
+              // The commit still names the path the check used to build, so an alpha's commit is the same commit.
+              expect(steps.at(-1)?.args).toContain('package/git-policy/cli/Cargo.toml');
+            }
+          },
+        }),
+        it({
+          name: 'records the new version in the crate\'s own lockfile before the commit, whatever the label',
+          fn: async () => {
+            /**
+             Label of the first step, which is the one that records the crate's version, per version released.
+             */
+            const firstLabelByVersion = new Map([
+              ['0.4.3-alpha.2', 'lock the crate'],
+              ['0.4.3-beta.2', 'cargo check'],
+              ['0.4.3-rc.1', 'cargo check'],
+              ['0.4.3', 'cargo check'],
+              ['0.4.3-dev.1', 'cargo check'],
+            ]);
+            for (const [to, firstLabel] of firstLabelByVersion) {
+              const steps = buildReleaseSteps({
+                ...gitPolicyOptions,
+                host: 'runner',
+                to
+              });
+              // The first step in the crate directory either checks the crate, which rewrites Cargo.lock as a side
+              // effect, or refreshes the lockfile on purpose; either way the pushed commit's locked build resolves.
+              expect(steps[0]?.cwd).toBe('/repo/package/git-policy/cli');
+              expect(steps[0]?.program).toBe(cargoProgram);
+              expect(steps[0]?.label).toBe(firstLabel);
+            }
+          },
+        }),
+        it({
+          name: 'says in a note what an alpha leaves out and why, so the log never looks like a whole plan',
+          fn: async () => {
+            const notes = releasePlanNotes({
+              ...gitPolicyOptions,
+              to: '0.4.3-alpha.2'
+            });
+            expect(notes).toHaveLength(2);
+            expect(notes[0]).toContain('no cargo check');
+            expect(notes[0]).toContain('alpha');
+            expect(notes[0]).toContain('cargo-publish.yml');
+            expect(notes[0]).toContain('lockfile is still refreshed');
+            expect(notes[1]).toContain('no publish dry run');
+            expect(notes[1]).toContain('the alpha label is not published to crates.io');
+          },
+        }),
+        it({
+          name: 'names only the step the label rule leaves out, and nothing at all for a release that runs the whole plan',
+          fn: async () => {
+            expect(releasePlanNotes({
+              ...gitPolicyOptions,
+              to: '0.4.3-beta.2'
+            })).toEqual(['no publish dry run: the beta label is not published to crates.io (only a plain number and -rc.N are)']);
+            expect(releasePlanNotes({
+              ...gitPolicyOptions,
+              to: '0.4.3'
+            })).toEqual([]);
+          },
+        }),
+        it({
+          name: 'keeps the compile before the commit for every release that is not an alpha',
+          fn: async () => {
+            for (const to of ['0.4.3', '0.4.3-rc.1', '0.4.3-beta.2', '0.4.3-dev.1']) {
+              expect(releaseRunsCargoCheck(to)).toBe(true);
+              expect(buildReleaseSteps({
+                ...gitPolicyOptions,
+                to
+              })[0]?.label).toBe('cargo check');
+            }
+            expect(releaseRunsCargoCheck('0.4.3-alpha.2')).toBe(false);
           },
         }),
       ],

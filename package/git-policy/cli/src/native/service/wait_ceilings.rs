@@ -59,6 +59,47 @@ pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
 /// One minute is 58 times that.
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
+/// The longest a command waits for the greeting of a service it only has to tell about work whose record it has
+/// already written:
+/// the trash an add sets aside,
+/// the subvolume a remove renamed out of the way,
+/// and a push record.
+///  Why:
+///   The record is durable and every later command of the repository wakes the same service,
+/// so an answer that does not come costs one later wake and never the work;
+/// this wait is what a person waits for nothing,
+/// and the owner's rule is that no command waits on a service it does not need (`AGENTS.md`,
+/// "Agents should never wait on each other on commits or merges").
+/// A command whose next step depends on the answer (a relink or a prewarm the command must otherwise run itself)
+/// keeps the longer `START_WAIT`.
+///  Measured:
+/// the slowest of 52 cold starts greeted in 1,041 ms (`START_WAIT`),
+/// and a service that is already running greets in well under a millisecond,
+/// so two seconds is twice the slowest start this repository has recorded.
+pub const HAND_OVER_GREETING_WAIT: Duration = Duration::from_secs(2);
+
+/// How long a commit lets a service the manager reports as running stay silent before it asks the manager to restart
+/// it.
+///  Why:
+///  A service greets a connection before it restores anything
+/// (`service_server_greets_before_the_journal_is_restored_tests.rs`),
+/// so a unit the manager calls `active` that has greeted nothing is not starting:
+/// it is stopped inside its own process (a frozen control group,
+/// a debugger,
+/// a suspended machine,
+/// a kernel wait
+/// nothing ends),
+/// and no start brings it back while the manager believes it runs.
+/// Restarting is the one repair of that state,
+/// and the commit is what needs the answer.
+///  Measured:
+/// the slowest of 52 cold starts greeted in 1,041 ms (`START_WAIT`),
+/// so three seconds is nearly three times the slowest start,
+/// and it is under the owner's 5,000 ms bound on what a commit may add to native Git
+/// (`native:perf`,
+/// "commits vs native git should not take 5s longer").
+pub const SERVICE_GREETING_SILENCE: Duration = Duration::from_secs(3);
+
 /// The longest the look at the running processes (`landing/earlier_service_process_look.rs`) takes before the adoption of an
 ///  earlier helper's journal counts the answer as "a service may be running".
 /// A read of another process's command line waits
@@ -70,7 +111,23 @@ pub const START_CEILING: Duration = Duration::from_secs(60);
 /// 0.64 s in all
 ///  (the look itself starts no process,
 /// so it is faster).
-/// Ten seconds is 15 times that and well below `START_CEILING`.
+/// Read again on 2026-11-10 as the look itself makes it,
+/// with the host's load average at 56 of 8 threads:
+/// 40 samples of the socket table,
+/// the process table and one read of every command line of the user's 617 to 625 processes
+/// (1,336 processes of all users were listed),
+/// 23.0 ms at the median,
+/// 43.0 ms at the 90th percentile and 54.1 ms at the slowest;
+/// the command-line reads took 16.9 ms at the median and 35.7 ms at the slowest,
+/// and the socket table 3.5 to 6.2 ms.
+/// The slowest read of one process took 6.4 ms.
+/// Ten seconds is 185 times the slowest whole look read here:
+/// it is the bound a read that waits for a process stuck in the kernel needs,
+/// never what an ordinary look costs.
+/// What does not end at this bound is a command line the look cannot prove:
+/// `landing/earlier_service_process_look.rs` reads up to the kernel's own ceiling on a command line,
+/// and a process it may not read at all holds the look back until that process ends
+/// (`doc/troubleshooting/cli-git-settle-look-could-not-prove-a-process.md`).
 pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
 
 /// The longest wait for a foreign program's `index.lock` that ended because the program let go,
@@ -404,6 +461,97 @@ pub const OBJECT_STEP_CEILING: Duration = Duration::from_secs(10 * 60);
 /// one minute is 17 times the longest.
 pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
 
+/// The longest the after-commit work waits for one step that reads or writes state which is not a Git command:
+/// the plan of the pushes waiting for a new try,
+/// the applied changes of a round,
+/// the note of a repository to look at when the service starts again,
+/// and the common directory that names a round's lane.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a step can wait in the kernel with no end on a filesystem that stopped answering,
+/// so the wait is bounded and the work is planned again by the next round.
+/// No measurement fixes the value:
+/// it is the wait a client's own start is granted (`START_CEILING`),
+/// because a state step that outlasts it is one the round after it serves better.
+pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
+
+/// The longest a landing's own state step waits:
+/// the read of a worktree's `HEAD` file and of the `commondir` that proves the directory is that
+///  worktree's,
+/// which `landing/service_head.rs` reads as a job of the blocking pool.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a read waits in the kernel on a mount that stopped answering,
+/// so the wait is bounded and a read that gives no answer is reported through Git's own answer.
+/// No measurement fixes the value:
+/// it is `START_CEILING`,
+/// the wait a state step of the after-commit work is granted (`AFTER_COMMIT_STATE_CEILING`),
+/// because both are the same kind of read and a step that outlasts either is one the answer Git
+///  gives serves better.
+pub const LANDING_STATE_CEILING: Duration = START_CEILING;
+
+/// The longest the route decision reads the file system for:
+///  the walk up from the start directory and the files it reads,
+///  which `landing/service_route.rs` reads as a job of the blocking pool.
+/// The owner's rule is "nothing should ever wait forever or indefinitely",
+/// and such a walk waits in the kernel on a mount that stopped answering,
+/// so the wait is bounded and a walk that gives no answer is reported through Git's own answer.
+/// No measurement fixes the value:
+/// it is `START_CEILING`,
+/// the wait a landing's own state step is granted (`LANDING_STATE_CEILING`),
+/// because both are the same kind of read and a step that outlasts either is one the answer Git
+///  gives serves better.
+pub const ROUTE_STATE_CEILING: Duration = START_CEILING;
+
+/// How long one package-manager tool of a worktree repair may run before the command says which tool it waits for,
+/// where,
+/// and until when.
+///  Why:
+///  A tool that hangs showed nothing at all:
+/// an add whose `pnpm` never ended printed its last line at two seconds and nothing for the next 613 s,
+/// though the quiet window that ends it and the ceiling above that were both running.
+/// The line is a notice threshold,
+/// not a bound:
+/// nothing ends at it,
+/// and the quiet window (600 s) and `REPAIR_TOOL_CEILING` (18 minutes) stay what ends the tool.
+///  Measured:
+/// the longest `pnpm install` stage of the add timing log took 53.1 s and the longest `mpm-shadow install` stage 30.0 s
+/// (`REPAIR_TOOL_CEILING`),
+/// so a tool still running after two seconds is one the person is waiting for and should hear about;
+/// two seconds is twice the slowest of 52 cold service starts,
+/// under the owner's 5,000 ms bound on what a command may add (2026-11-09).
+pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
+
+/// The longest one package-manager tool of a worktree repair (`pnpm install`,
+/// `cargo metadata`,
+/// `cargo clean`,
+/// `mpm-shadow install`)
+///  takes to start,
+/// before the run says it gave no answer and stops the child it finally starts.
+///  Why:
+///  `Command::spawn` returns only after the child's own `exec`,
+///  which can wait in the kernel with no end:
+/// a program on a mount whose server stopped answering,
+/// a disk that stalls.
+///  The quiet window,
+/// the ceiling and the notice above are all read from a clock the command has not reached
+///  while that wait stands,
+/// so the start is what has to be bounded;
+/// the owner's rule is "nothing should ever wait
+///  forever or indefinitely".
+///  Measured:
+/// no log here holds the length of a start,
+/// because every start it recorded returned as soon as
+///  the program was found;
+/// the value is `START_CEILING`,
+/// the wait a client grants the commit service's own start
+///  (the slowest of 52 cold starts took 1,041 ms),
+/// because both are one program's start on this host and a start that
+///  outlasts either is one the answer by hand serves better.
+/// A start that reaches it costs the repair and never the worktree:
+/// the finding names the tool
+///  and the command to run,
+/// and the worktree keeps the files Git wrote.
+pub const REPAIR_TOOL_START_CEILING: Duration = START_CEILING;
+
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
 /// `cargo metadata`,
 /// `cargo clean`,
@@ -613,9 +761,42 @@ pub const SHORT_EXTRA_WAIT: Duration = Duration::from_secs(7);
 /// so a request nothing is landing costs one look and no wait.
 pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 
+/// How long the record of a batch that landed is kept after it was written,
+/// because a client of that batch may still read it or send its request again.
+/// Why:
+///   A client whose answer was lost reads the finished record to learn which commit its request became
+/// (`service_commit_looking_for_what_landed.rs`),
+/// and it sends the same request again to be told it already landed,
+/// so the record must outlive every client that can still be inside those two steps.
+/// A client's whole wait for an answer ends at `ANSWER_CEILING`,
+/// counted from its first send and longer than any batch takes to land,
+/// and it looks for `LOOKING_FOR_A_LANDED_COMMIT` after that;
+/// the `SHORT_EXTRA_WAIT` inside the ceiling is what a client inside a stuck write waits on top of it.
+/// A record older than the sum cannot be read by any client of it,
+/// and the cleanup that removes a removed worktree's journal may then take it.
+pub const A_FINISHED_RECORD_IS_READ: Duration = ANSWER_CEILING.saturating_add(SHORT_EXTRA_WAIT).saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
+
+/// How long a command that stopped an instance's service waits for the manager to report its processes gone
+/// before it leaves the instance's journal to a later sweep.
+/// Why:
+///   A stop call returns when the job is queued (`systemd_dbus.rs`),
+/// so the journal may still be written while the report says the stop was taken,
+/// and removing it then can delete a record the service published in between
+/// or make its next write fail.
+///  Measured:
+/// nothing measures how long a service with nothing in flight takes to end after a stop;
+/// the service's own bound on settling a stop is `SETTLE_CEILING` (tens of seconds),
+/// which a worktree removal must not wait for.
+/// Two seconds is a pick under this brief,
+/// and a service that outlasts it keeps its journal and the files that name it,
+/// which the next sweep removes once the manager reports it gone.
+/// Open to the owner's veto.
+pub const SERVICE_GONE_AFTER_A_STOP: Duration = Duration::from_secs(2);
+
 /// How long a commit waits before the wrapper says where it stands:
 /// the place the service reported,
-/// or that the service has not started on it.
+/// or that the service has not started on it,
+/// and the words of a write the command's own request is inside.
 /// A notice threshold,
 /// not a bound:
 /// nothing ends at it,
@@ -635,6 +816,12 @@ pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 /// Ten seconds is twice the owner's 5 s bound on what a commit may add to native Git,
 /// so a commit that finishes quickly says nothing,
 /// and 97 of 100 commits say nothing.
+/// A branch write is what the words of a write inside the service are about,
+/// and it is shorter than that by far:
+/// the 6,703 landings this host's service journal recorded from 2026-11-01 to 2026-11-11 took 5 ms at the median,
+/// 601 ms at the 99th percentile and 4,785 ms at the 99.9th,
+/// and 6 of them reached 5,000 ms,
+/// so a commit whose write is a normal one lands before this wait is over and says nothing of it.
 pub const WAITING_NOTICE_AFTER: Duration = Duration::from_secs(10);
 
 /// The environment variable that sets how long a commit waits before the wrapper says where it stands,
@@ -656,7 +843,61 @@ pub const WAITING_NOTICE_VARIABLE: &str = "CLI_GIT_STANDING_NOTICE_SECONDS";
 /// waitingNoticeAfter() // Duration
 /// ```
 pub fn waiting_notice_after() -> Duration {
-    return notice_after_of(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref());
+    return notice_after_from(std::env::var(WAITING_NOTICE_VARIABLE).ok().as_deref(), WAITING_NOTICE_AFTER);
+}
+
+/// How long a `git worktree add` runs before it says which step it is in,
+/// then again at `ADD_STANDING_NOTICE_REPEAT` while it stays in one step.
+/// A notice threshold,
+/// not a bound:
+/// nothing ends at it.
+///  Owner,
+/// 2026-11-03:
+/// "60s is fine for adding worktrees",
+/// with the brief's "an add that is still waiting after a few seconds says what it
+///  waits for".
+///  Measured on this host,
+/// 2026-11-11,
+/// load average 58 to 61:
+/// five concurrent adds of a 24-package checkout took 29,487,
+/// 29,493,
+/// 31,652,
+/// 31,659 and 35,574 ms,
+/// and a single one took 4,288 ms;
+/// the steps of one add ran from a few milliseconds to 12,177 ms,
+/// and one `fsync` of its own bookkeeping took 11,239 ms.
+/// Five seconds is longer than a step of an add that is making progress on an idle host,
+/// and short enough that a person waiting on a loaded one is told before the wait looks like a hang.
+pub const ADD_STANDING_NOTICE_AFTER: Duration = Duration::from_secs(5);
+
+/// How long an add that stays in one step waits between two of the lines that name it.
+/// A notice threshold,
+/// not a bound.
+///  Measured on this host,
+/// 2026-11-11:
+/// the longest step of the five concurrent adds above was 13,903 ms,
+///  so fifteen seconds prints one line for a step and no second line for a step too short to be one.
+pub const ADD_STANDING_NOTICE_REPEAT: Duration = Duration::from_secs(15);
+
+/// The environment variable that sets how long an add waits before it says which step it is in,
+/// in whole
+///  seconds.
+/// Why:
+///   A control that checks what a healthy add prints must not depend on how slowly the host runs one,
+/// so it sets
+///  this past its own bound.
+pub const ADD_STANDING_NOTICE_VARIABLE: &str = "CLI_GIT_ADD_NOTICE_SECONDS";
+
+/// How long an add waits before it says which step it is in:
+/// the setting when it holds a positive number of seconds,
+/// `ADD_STANDING_NOTICE_AFTER` otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// addStandingNoticeAfter() // Duration
+/// ```
+pub fn add_standing_notice_after() -> Duration {
+    return notice_after_from(std::env::var(ADD_STANDING_NOTICE_VARIABLE).ok().as_deref(), ADD_STANDING_NOTICE_AFTER);
 }
 
 /// What:
@@ -671,13 +912,29 @@ pub fn waiting_notice_after() -> Duration {
 /// noticeAfterOf('30') // 30 s
 /// ```
 pub fn notice_after_of(setting: Option<&str>) -> Duration {
+    return notice_after_from(setting, WAITING_NOTICE_AFTER);
+}
+
+/// What:
+///  The wait a setting stands for,
+/// or `shipped` when the setting means nothing.
+/// Why:
+///   More than one notice has a variable of its own,
+/// and each shipped wait has its own measurement,
+/// so the reader of a setting and its fallback are one rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noticeAfterFrom('30', shipped) // 30 s
+/// ```
+pub fn notice_after_from(setting: Option<&str>, shipped: Duration) -> Duration {
     let seconds: Option<u64> = match setting {
         Some(text) => text.trim().parse::<u64>().ok(),
         None => None,
     };
     return match seconds {
         Some(found) if found > 0 => Duration::from_secs(found),
-        _ => WAITING_NOTICE_AFTER,
+        _ => shipped,
     };
 }
 /// The longest the optional configuration warning of a commit may take to reach the stream it is written to.
@@ -724,6 +981,28 @@ pub const WARNING_WRITE_CEILING: Duration = Duration::from_millis(250);
 /// so 5 s is about 14,000 times the median and 6,300 times the
 ///  slowest of them.
 pub const REPORT_SCAN_CEILING: Duration = Duration::from_secs(5);
+
+/// The longest a `git worktree add` waits for the snapshot the commit service makes ahead of it.
+///  The ceiling covers the whole wait,
+/// not one look:
+/// the add asks the service for a snapshot,
+///  looks for what it published,
+/// and ends the snapshot rung when this passes so that Git's own checkout makes the
+///  worktree.
+///  Measured on this volume,
+/// the 473 adds of this repository's own add timing log to
+///  2026-11-11T01:53:18.713Z spent 5,413.0 ms in the snapshot ioctl at the median,
+///  15,238.4 ms at the
+///  ninetieth percentile and 39,828.5 ms at the worst (402 of them recorded that step),
+/// so 1.5 times the
+///  worst measured call is about an hour of this volume's worst traffic,
+/// and it is the owner's own bound for an add:
+///  "60s is fine for adding worktrees".
+/// A wait that reaches it costs the add Git's own checkout of the tree,
+/// which
+///  is what a worktree add does on any filesystem that cannot snapshot,
+/// and the command says why it took that route.
+pub const SNAPSHOT_AHEAD_CEILING: Duration = Duration::from_secs(60);
 
 /// The ceilings are derived and checked as controls in the test module.
 #[cfg(test)]

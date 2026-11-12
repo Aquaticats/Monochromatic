@@ -18,7 +18,10 @@
 //! await enqueue(workDir, push); await enqueue(workDir, maintenance); await wake(commonDir);
 //! ```
 
+use crate::blocked_commit_lines::named_reason;
 use crate::held_push_commit_on_the_remote::{OnTheRemote, RemoteRecord};
+use crate::held_push_holder_and_verdict::{Holding, Verdict, holding_in, pid_of, proven_gone};
+use crate::held_push_release_wakes_the_service::WakeTheService;
 use crate::iso_time::now_iso;
 use crate::service_client::{ClientConfig, wake};
 use crate::service_messages::ClientFailure;
@@ -39,8 +42,9 @@ pub struct ServiceHandoff {
     /// The worktree's own Git directory,
     /// which holds the work records and names the service instance.
     pub git_dir: PathBuf,
-    /// The branch the commit went to.
-    pub reference: String,
+    /// The branch the commit went to,
+    /// by the bytes Git printed for its name.
+    pub reference: crate::ref_name::RefName,
     /// The branch value the commit was made on.
     pub parent: String,
 }
@@ -97,6 +101,13 @@ pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write
 /// await handOverWithKey(handoff, landed, key)
 /// ```
 pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    // A work item spells its branch in text, and a spelling with replacement characters would push another branch. A commit on a
+    //  branch whose name is not text therefore leaves no item, and the person is told once: the commit is on the branch, and a
+    //  push they make themselves sends it.
+    let Some(reference) = handoff.reference.text() else {
+        let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), landed));
+        return Ok(());
+    };
     let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     // A review is left only where the repository keeps a shadow log; the file is the repository's own switch.
     let review: &[WorkKind] = if has_shadow_log(handoff.repository.as_path()) { &[WorkKind::Review] } else { &[] };
@@ -108,7 +119,7 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
             kind,
             repository: handoff.repository.clone(),
             git_dir: handoff.git_dir.clone(),
-            branch_ref: handoff.reference.clone(),
+            branch_ref: reference.to_string(),
             oid: landed.to_string(),
             parent: handoff.parent.clone(),
             created: now_iso(),
@@ -139,15 +150,24 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 ///
 /// The work queue's own words when the record cannot be written.
 pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
-    let item: WorkItem = push_item(handoff, landed);
+    // Nothing was held for a branch whose name is not text (`hand_over_with_key`), so there is nothing to promote.
+    let Some(reference) = handoff.reference.text() else { return Ok(()) };
+    let item: WorkItem = push_item(handoff, landed, reference);
+    let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     // A record an earlier release held is named by the kind and the commit alone, and it is this push's.
     for name in [item.id(), item.id_before_the_branch()] {
-        if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), name.as_str()) {
+        // The pass is written into the record before it runs: a command killed in this gap leaves a record whose own words say the
+        //  checks passed, and a later command releases it from them (`held_push_holder_and_verdict.rs`). The record then names this
+        //  command, which is the retry's own when a retry is what finishes the commit.
+        if crate::work_item::record_pass(work_dir.as_path(), name.as_str()) {
+            crate::service_fault::reach(crate::service_fault::AFTER_THE_VERDICT);
+        }
+        if crate::work_item::promote(work_dir.as_path(), name.as_str()) {
             return Ok(());
         }
     }
     // Nothing was held for this commit: the record is written here instead, so the push is not lost.
-    return match enqueue(work_directory(handoff.git_dir.as_path()).as_path(), &item) {
+    return match enqueue(work_dir.as_path(), &item) {
         Ok(_enqueued) => Ok(()),
         Err(reason) => Err(ClientFailure::WorkNotHandedOver(reason)),
     };
@@ -169,28 +189,73 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// forgetThePush(handoff, landed, reason) // unlink the pending record, keep the verdict
+/// forgetThePush(handoff, landed, reason) // unlink the pending record, keep the verdict; words when the verdict could not be kept
 /// ```
-pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str) {
+/// The words a command says when the verdict could not be kept,
+/// or nothing when it was.
+pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str) -> Option<String> {
+    // A branch whose name is not text held no record (`hand_over_with_key`), so there is none to take back and no verdict to keep.
+    let reference: &str = handoff.reference.text()?;
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = push_item(handoff, landed);
-    // The verdict is durable: a later recovery of the same batch must not hold the push again, and the next push of the branch
-    //  reads the same verdict to know where it must stop.
-    crate::work_item::block(work_dir.as_path(), &item, reason);
-    // A record an earlier release named by the kind and the commit alone is this push's too, so the gate forgets it as well:
-    //  left in `pending`, the next wake would push a commit the gate kept local.
-    for id in [item.id(), item.id_before_the_branch()] {
-        let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id));
+    let item: WorkItem = push_item(handoff, landed, reference);
+    // The refusal is written into the record before it is settled: a command killed in this gap leaves a record whose own words say
+    //  the gate refused this commit, and a later command settles it into the same verdict instead of leaving it held
+    //  (`held_push_holder_and_verdict.rs`).
+    for name in [item.id(), item.id_before_the_branch()] {
+        if crate::work_item::record_refusal(work_dir.as_path(), name.as_str(), reason) {
+            crate::service_fault::reach(crate::service_fault::AFTER_THE_VERDICT);
+        }
     }
+    // The verdict is durable: a later recovery of the same batch must not hold the push again, and the next push of the branch
+    //  reads the same verdict to know where it must stop. A verdict that could not be written says so, and the held records then
+    //  stay: a record with a verdict keeps the commit local, and a record without one does too (`work_item_holding.rs`).
+    let durable: bool = crate::work_item::block(work_dir.as_path(), &item, reason);
+    // A record an earlier release named by the kind and the commit alone is this push's too, so the gate forgets it as well:
+    //  left in `pending`, the next wake would push a commit the gate kept local, and left in `held`, every command would name a push
+    //  nothing may make. The held record is kept while the verdict could not be, because it is then the only copy of the refusal.
+    for id in [item.id(), item.id_before_the_branch()] {
+        let _removed: std::io::Result<()> = std::fs::remove_file(state_directory(work_dir.as_path(), crate::work_item::PENDING).join(id.as_str()));
+        if durable {
+            crate::work_item::forget_held(work_dir.as_path(), id.as_str());
+        }
+    }
+    if durable {
+        return None;
+    }
+    return Some(format!(
+        "the commit {landed} stays local, because its post-commit checks refused it ({reason}), but the verdict that stops this branch's automatic push could not be written to {}. The held record keeps the refusal, so no push this repository makes sends the commit, and every later command tries to keep that verdict again; a push you make of the branch still sends it.",
+        work_directory(handoff.git_dir.as_path()).join(crate::work_item_holding::BLOCKED).display()
+    ));
+}
+
+/// What:
+///  The one line a commit on a branch whose name is not text leaves instead of its work records.
+/// Why:
+///   A work item names its branch in text,
+/// so none is written for such a branch;
+///  saying so keeps the person from believing a push was queued,
+/// and names the commit and the branch that hold it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const note = `the commit ${landed} landed on ${shellQuote(ref)} ...`
+/// ```
+pub fn unqueued_branch_note(reference: &std::ffi::OsStr, landed: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the commit {landed} landed on {}, whose name is not text. Its automatic push was not queued, \
+         because a push record names a branch in text and a spelling with replacement characters would push another branch; the commit \
+         is on the branch, and a push you make yourself sends it.",
+        crate::shell_quote::shell_quote(crate::path_bytes::argument_bytes(reference))
+    );
 }
 
 /// The push record of one landed commit of a worktree.
-fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
+fn push_item(handoff: &ServiceHandoff, landed: &str, reference: &str) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Push,
         repository: handoff.repository.clone(),
         git_dir: handoff.git_dir.clone(),
-        branch_ref: handoff.reference.clone(),
+        branch_ref: reference.to_string(),
         oid: landed.to_string(),
         parent: handoff.parent.clone(),
         created: now_iso(),
@@ -218,12 +283,15 @@ fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
 /// ```ts
 /// await writePushRecord({ repository, gitDir, reference, tip, parent })
 /// ```
-pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, tip: &str, parent: &str) -> Result<(), ClientFailure> {
+pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &crate::ref_name::RefName, tip: &str, parent: &str) -> Result<(), ClientFailure> {
+    // A push record names its branch in text, and a spelling with replacement characters would push another branch, so a branch
+    //  whose name is not text has none; `hand_over_push` tells the person that instead.
+    let Some(name) = reference.text() else { return Ok(()) };
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: repository.to_path_buf(),
         git_dir: git_dir.to_path_buf(),
-        branch_ref: reference.to_string(),
+        branch_ref: name.to_string(),
         oid: tip.to_string(),
         parent: parent.to_string(),
         created: now_iso(),
@@ -245,7 +313,11 @@ pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path
 /// await handOverPush(handoff, tip)
 /// ```
 pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), handoff.reference.as_str(), tip, handoff.parent.as_str())?;
+    if !handoff.reference.is_text() {
+        let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), tip));
+        return Ok(());
+    }
+    write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), &handoff.reference, tip, handoff.parent.as_str())?;
     return wake(&handoff.config, handoff.git_dir.as_path(), None, notices).map_err(not_handed_over);
 }
 
@@ -289,22 +361,124 @@ fn not_handed_over(failure: ClientFailure) -> ClientFailure {
 mod tests;
 
 /// What:
-///  The one sentence the worktree says about a held push.
+///  The one sentence the worktree says about a held push,
+/// and what still holds it.
 /// Why:
-///   What is known is that the push is held and that the next push of its branch carries the commit.
-/// Whether the
-///  command that held it has stopped cannot be told,
-/// so the sentence does not claim it.
+///   What is known is that the record is held,
+/// that the commit's checks have not cleared it,
+/// and what a
+///  later look found about the command that would have decided them;
+/// the sentence says exactly that and names what sends the
+///  commit,
+/// so a hold is never silent and never waits for something nobody will do.
+///  The sentence never claims a commit stays local when nothing stops a push:
+/// a record with no verdict holds no branch back (`push_held_back_by_a_blocked_commit.rs`),
+/// so the next automatic push of the branch carries the commit,
+/// and a record that names no command or whose command ended can only say that and what a person's own push does.
+/// A ref that lags the remote cannot make this line false,
+/// because the line claims no publication state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// heldPushLine(branchRef, commit)
+/// heldPushLine(branchRef, commit, holding, gone)
 /// ```
-pub fn held_push_line(reference: &str, commit: &str) -> String {
-    if reference.is_empty() {
-        return format!("the commit {commit} is held: its push has not been released yet, and it goes out with the next push of its branch");
+pub fn held_push_line(reference: &str, commit: &str, holding: &Holding, gone: bool) -> String {
+    // A refusal the record holds and no verdict answers is the one state in which this worktree has the gate's words and no reader of
+    //  them beside the record: the commit must never be published here, and the line says why nothing has been and what happens next.
+    //  It says nothing about the command's liveness, because the refusal is the same whether that command ended or not.
+    if holding.verdict == Verdict::Blocked {
+        return a_refusal_that_could_not_be_kept(reference, commit, holding.reason.as_str());
     }
-    return format!("the commit {commit} is held: its push has not been released yet, and it goes out with the next push from {reference}");
+    // The command still runs: the wait is its own, the automatic push stops before the commit, and it ends with that command's answer.
+    if !holding.holder.is_empty() && !gone {
+        let waited: String = format!(
+            "the commit {commit} is held: the command that landed it (process {}) has not finished its checks, and the push goes out when it does",
+            pid_text(holding.holder.as_str())
+        );
+        return match reference.is_empty() {
+            true => format!("{waited}, and a push you make yourself sends it"),
+            false => format!("{waited}, and a push you make of {reference} sends it"),
+        };
+    }
+    // A record that names no command, and one whose command ended, holds nothing back: no push stops before the commit, so the next
+    //  push of the branch carries it, and the line says that instead of claiming the commit stays local.
+    let carried: String = match reference.is_empty() {
+        true => String::from(
+            "the next automatic push of this repository carries the commit if it is not published yet, and a push you make yourself sends it the same way",
+        ),
+        false => format!(
+            "the next automatic push of {reference} carries the commit if it is not published yet, and a push you make of {reference} sends it the same way"
+        ),
+    };
+    return match holding.holder.is_empty() {
+        // A record that names no command is one of an earlier release, or one whose hold was written without an answer.
+        true => format!("the commit {commit} is held: no command has said whether its checks passed, so this record pushes nothing; {carried}"),
+        // The command that would have decided is proven gone, so nothing will ever write a verdict for this commit.
+        false => format!(
+            "the commit {commit} is held: the command that landed it (process {}) ended before its checks ran, so this record pushes nothing; {carried}",
+            pid_text(holding.holder.as_str())
+        ),
+    };
+}
+
+/// What:
+///  The one sentence the worktree says about a commit whose refusal the queue could not keep as a verdict beside it,
+/// and what still holds it.
+/// Why:
+///   The refusal is in the held record,
+/// and the `blocked` verdict every push reads is not,
+///  so the record stays where it is and the line says what holds the commit and what still sends it.
+/// A push the person makes of their own branch is forwarded unchanged,
+/// which is the one thing that does send such a commit
+///  (`work_item_holding.rs`,
+/// `block`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aRefusalThatCouldNotBeKept(branchRef, commit, reason)
+/// ```
+pub fn a_refusal_that_could_not_be_kept(reference: &str, commit: &str, reason: &str) -> String {
+    let by_the_person: &str = if reference.is_empty() { "a push you make yourself still sends it" } else { "a push you make of it still sends it" };
+    return format!(
+        "the commit {commit} is held: the checks refused it ({}), and the verdict that stops this branch's push could not be written, so nothing this \
+         repository pushes sends it, and {by_the_person}",
+        named_reason(reason)
+    );
+}
+
+/// How a sentence names the command a holder text names,
+/// or says that its number could not be read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pidText = (holder) => String(pidOf(holder) ?? 'of unknown number');
+/// ```
+fn pid_text(holder: &str) -> String {
+    return match pid_of(holder) {
+        Some(pid) => pid.to_string(),
+        None => String::from("of unknown number"),
+    };
+}
+
+/// What:
+///  The one sentence the worktree says about a push that is queued and has not been made.
+/// Why:
+///   What is known is that the record is queued and that no service has taken it,
+/// and that the service makes it
+///  without another commit;
+/// the sentence claims exactly that and nothing about why.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// queuedPushLine(branchRef, commit)
+/// ```
+pub fn queued_push_line(reference: &str, commit: &str) -> String {
+    if reference.is_empty() {
+        return format!("the commit {commit} is queued for its push: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit");
+    }
+    return format!(
+        "the commit {commit} is queued for its push from {reference}: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit"
+    );
 }
 
 /// What:
@@ -321,48 +495,90 @@ pub fn held_push_line(reference: &str, commit: &str) -> String {
 /// A release,
 /// a block or a claim removes or moves the record,
 ///  and the line goes with it.
-/// The wording claims only what is known,
-/// which is that the push has not been
-///  released yet.
-///   A held record outlives the reason for its line when a later push of its branch carries the commit anyway,
-/// because the
-///  queue pushes the branch and not the commit;
-/// `record` is the proof that Git already holds the commit in the
-///  branch's remote,
-/// and a record it proves is settled as done before the line is worded,
-/// so the line
-///  and `git status` agree.
-/// A question that answers nothing leaves the line standing,
-/// which is the record's
-///  own state.
+///   Two proofs settle a record here rather than leaving it named.
+/// Git's own record of the branch's remote
+///  (`record`) settles a commit a later push of the branch carried,
+/// so the line and `git status` agree;
+/// a question
+///  that answers nothing leaves the line standing.
+/// And a record whose own words say what the command that landed the commit
+///  decided settles from them once that command is proven gone:
+/// a pass becomes a push the service is woken for,
+/// a refusal becomes the
+///  verdict every later push of the branch stops before,
+/// and a record with no verdict stays held with the line saying what holds it
+///  (`held_push_holder_and_verdict.rs`).
+/// While the command still runs,
+/// the wait is its own,
+/// and this look leaves the record to it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// heldPushNotices(gitDir, record) // one line per held record Git does not already hold
+/// heldPushNotices(gitDir, record, wake) // one line per held record Git does not already hold, and a settlement for each whose command is gone
 /// ```
-pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord) -> Vec<String> {
+pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn WakeTheService) -> Vec<String> {
     let work_dir: PathBuf = work_directory(git_dir);
     let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD);
     let Ok(listing) = std::fs::read_dir(held.as_path()) else {
         return Vec::new();
     };
     let mut lines: Vec<String> = Vec::new();
+    // One wake for every record this command released, sent once at the end: a released push runs the next time the service looks,
+    //  and a command that says the push is queued wakes it rather than waiting for the next commit.
+    let mut released: bool = false;
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) else { continue };
         // A record that cannot be read still names its commit through its own file name, and its branch is unknown: the line is
         //  said with the branch the record would have carried when it can be read, and without a branch otherwise.
-        let branch: String = match std::fs::read_to_string(entry.path()).ok().and_then(work_item_of) {
-            Some(item) => item.branch_ref,
-            None => String::new(),
-        };
+        let text: Option<String> = std::fs::read_to_string(entry.path()).ok();
+        let item: Option<WorkItem> = text.clone().and_then(work_item_of);
+        let branch: String = item.as_ref().map_or_else(String::new, branch_of);
         if !branch.is_empty() && record.on_the_remote(branch.as_str(), commit) == OnTheRemote::There {
             // Git holds the commit in the branch's remote, so the push this record would make has been made by another push of the
             //  branch. Nothing waits on it: it is settled where a finished push goes.
             settle_held(work_dir.as_path(), name.as_str());
             continue;
         }
-        lines.push(held_push_line(branch.as_str(), commit));
+        let holding: Holding = text.as_deref().map_or_else(Holding::undecided, holding_in);
+        // Only a proven-gone command settles a record: while the command that landed the commit lives, the wait is its own, and a
+        //  record it is about to promote or forget is not this command's to decide (`held_push_holder_and_verdict.rs`).
+        let gone: bool = proven_gone(holding.holder.as_str());
+        if gone {
+            match holding.verdict {
+                // The checks passed and nothing is left to run the record: it becomes runnable, and this command says so.
+                Verdict::Passed => {
+                    if crate::work_item::promote(work_dir.as_path(), name.as_str()) {
+                        released = true;
+                        lines.push(queued_push_line(branch.as_str(), commit));
+                        continue;
+                    }
+                }
+                // The checks refused the commit and nothing is left to write the verdict: it is settled exactly as the command that
+                //  refused it would have settled it, so the commit stays local and the next push of the branch stops before it. The
+                //  record is given up only once that verdict is kept. When it cannot be, the record is the only copy of the gate's words
+                //  and a refusal it states is one of the verdicts that stop a push, so it is left where it is and the line says what holds
+                //  the commit and what still sends it.
+                Verdict::Blocked => {
+                    if let Some(found) = item.as_ref() {
+                        if crate::work_item::block(work_dir.as_path(), found, holding.reason.as_str()) {
+                            crate::work_item::forget_held(work_dir.as_path(), name.as_str());
+                            continue;
+                        }
+                        // The verdict could not be written, so this record is the only statement that the commit stays local: it is
+                        //  left where it is and the line below says what holds it.
+                        lines.push(a_refusal_that_could_not_be_kept(branch.as_str(), commit, holding.reason.as_str()));
+                        continue;
+                    }
+                }
+                // No verdict was ever written: the commit stays local, and the line says what holds it.
+                Verdict::Undecided => {}
+            }
+        }
+        lines.push(held_push_line(branch.as_str(), commit, &holding, gone));
+    }
+    if released {
+        wake.wake(git_dir);
     }
     return lines;
 }
@@ -388,6 +604,16 @@ fn settle_held(work_dir: &Path, name: &str) {
         return;
     }
     let _settled: std::io::Result<()> = std::fs::rename(state_directory(work_dir, crate::work_item::HELD).join(name), done.join(name));
+}
+
+/// The branch one held record names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const branchOf = (item) => item.branchRef;
+/// ```
+fn branch_of(item: &WorkItem) -> String {
+    return item.branch_ref.clone();
 }
 
 /// The item one held record's text holds,
@@ -472,25 +698,4 @@ pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime) -> Vec<St
         lines.push(format!("{more} more {subject} queued for {possessive} push the same way"));
     }
     return lines;
-}
-
-/// What:
-///  The one sentence the worktree says about a push that is queued and has not been made.
-/// Why:
-///   What is known is that the record is queued and that no service has taken it,
-/// and that the service makes it
-///  without another commit;
-/// the sentence claims exactly that and nothing about why.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// queuedPushLine(branchRef, commit)
-/// ```
-pub fn queued_push_line(reference: &str, commit: &str) -> String {
-    if reference.is_empty() {
-        return format!("the commit {commit} is queued for its push: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit");
-    }
-    return format!(
-        "the commit {commit} is queued for its push from {reference}: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit"
-    );
 }

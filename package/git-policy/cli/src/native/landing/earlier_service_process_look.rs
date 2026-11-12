@@ -42,8 +42,16 @@
 //!    (device and inode),
 //!    because the same folder has several spellings (a symbolic link such as `/home` for `/var/home`,
 //!    a
-//!    relative path);
-//!    a spelling that cannot be resolved proves nothing,
+//!    relative path).
+//!    When that folder is not there,
+//!    the word is compared by the path it spells,
+//!    resolved as far as the file system
+//!    knows it,
+//!    because an earlier helper of the worktree shows its journal word before it makes the folder;
+//!    a folder that is not there
+//!    holds no batch of the worktree,
+//!    so another program that takes a `--journal` option holds nothing back.
+//!    A spelling that cannot be resolved that far proves nothing,
 //!    so it counts as "may be running".
 //!  - A command line is read up to a limit;
 //!    one that fills it has words that were not looked at,
@@ -65,6 +73,9 @@
 //! const mayRun: boolean = await withDeadline(ceiling, () => earlierSocketListens(procRoot, look) || scan(procRoot, look)) ?? true
 //! ```
 
+use crate::earlier_service_command_line_read::UnreadableProcess;
+#[cfg(unix)]
+use crate::earlier_service_command_line_read::{CommandLine, command_line_of};
 use crate::scan_awaited_under_a_ceiling::scan_under_ceiling_to_its_end;
 use crate::earlier_service_unsure_program::UnsureProgram;
 #[cfg(unix)]
@@ -86,12 +97,6 @@ const INSTANCE_OPTION: &str = "--instance";
 ///  own,
 /// followed by the folder.
 const JOURNAL_OPTION: &str = "--journal";
-
-/// Most bytes of one process's command line that are looked at;
-///  the options of the service are in the first few hundred bytes.
-///  One byte more is read,
-/// to tell a command line that ends at the limit from one that goes on.
-pub const COMMAND_LINE_BYTES: u64 = 65_536;
 
 /// The folder below the user's runtime directory that holds the sockets of the earlier units:
 /// the earlier data folder's name
@@ -143,7 +148,7 @@ impl Hold {
             Hold::InstanceHelperRuns => "a program of the earlier release is running as the commit service of this worktree, and it finishes its own batches",
             Hold::SharedHelperRuns => "a program of the first releases is running as the single commit service of every worktree, and it finishes its own batches",
             Hold::HelperUnsure => "a running program has the earlier commit service's journal option with a folder this check could not resolve, so it may be that service",
-            Hold::CannotLook => "the sockets and processes of the earlier helper could not be looked at in time, so it is not known whether one runs",
+            Hold::CannotLook => "the sockets and processes of the earlier helper could not be looked at, so it is not known whether one runs",
         };
     }
 }
@@ -162,11 +167,14 @@ pub struct Holding {
     /// The program behind [`Hold::HelperUnsure`];
     /// nothing for every other reason.
     pub program: Option<UnsureProgram>,
+    /// The process behind [`Hold::CannotLook`] when a command line could not be proved;
+    /// nothing for every other reason.
+    pub unreadable: Option<UnreadableProcess>,
 }
 
 impl From<Hold> for Holding {
     fn from(because: Hold) -> Self {
-        return Holding { because, program: None };
+        return Holding { because, program: None, unreadable: None };
     }
 }
 
@@ -277,6 +285,54 @@ fn hold_of_journal_at(index: usize) -> Hold {
 }
 
 /// What:
+///  The path a journal word names,
+/// with the longest part of it that exists resolved and the names below that part as the word spells them.
+/// Why:
+///   A journal folder that the process has not made yet has no device and inode to compare,
+///  and the same folder is spelled
+///  differently by the process that runs this command and by the unit that started an earlier helper
+///  (`/home/user/...` through the link `/home`,
+///  `/var/home/user/...`).
+/// The longest existing part is what the
+///  file system can answer for,
+/// so resolving it compares the two spellings,
+/// and a name below it that does not exist yet is the
+///  same name in both.
+/// A word that reaches past a name the file system will not look through resolves to nothing,
+/// and a
+///  word that resolves to nothing proves nothing either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const resolvedSoFar = (word: string): string => { let at = word; const below: string[] = []; for (;;) { try { return join(realpathSync(at), ...below) } catch (e) { if (e.code !== 'ENOENT') throw e; below.unshift(basename(at)); at = dirname(at) } } }
+/// ```
+#[cfg(unix)]
+fn resolved_as_far_as_the_file_system_knows(word: &Path) -> std::io::Result<PathBuf> {
+    let mut below: Vec<&std::ffi::OsStr> = Vec::new();
+    let mut at: &Path = word;
+    loop {
+        match std::fs::canonicalize(at) {
+            Ok(known) => {
+                let mut path: PathBuf = known;
+                for name in below.iter().rev() {
+                    path.push(*name);
+                }
+                return Ok(path);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                // A path whose last name is `..` has no name to carry down, and where it points is not known here.
+                let (Some(name), Some(parent)) = (at.file_name(), at.parent()) else {
+                    return Err(error);
+                };
+                below.push(name);
+                at = parent;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+/// What:
 ///  Which earlier journal a journal word of a command line names:
 /// the instance's own (the first of the look's journals),
 /// the
@@ -293,14 +349,21 @@ fn hold_of_journal_at(index: usize) -> Hold {
 ///  relative word means the folder in the working directory of the process that was started with it,
 /// which `/proc/<pid>/cwd`
 ///  gives (the kernel follows it).
-/// A stat that fails says nothing about which folder the word names,
-/// and an open question must
+/// A stat that fails for a reason other than the folder being absent says nothing about which folder the word names,
+///  and neither does a relative word whose working directory cannot be read:
+/// an open question must
 ///  not start a second service on the journal.
+/// An absolute word whose folder is not there is the one case that is settled without the folder:
+/// it is
+///  compared by the path it spells,
+/// and a folder that is not there holds no batch of this worktree,
+/// so a
+///  program that names one settles nothing here.
 /// Which journal it is decides what the person is told to stop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const journalNamed = (word: string, names: JournalNames) => spelled(word) ?? sameFolderAs(resolve(word, names.process + '/cwd')) ?? (resolvable(word) ? undefined : unsure(word, whyNot(word)))
+/// const journalNamed = (word: string, names: JournalNames) => spelled(word) ?? sameFolderAs(resolve(word, names.process + '/cwd')) ?? (absent(word) ? samePathAs(resolvedSoFar(word)) : undefined) ?? (resolvable(word) ? undefined : unsure(word, whyNot(word)))
 /// ```
 #[cfg(unix)]
 fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<ServiceFound> {
@@ -312,10 +375,26 @@ fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<ServiceFound>
         }
     }
     let spelled: &Path = Path::new(std::ffi::OsStr::from_bytes(word));
-    let resolved: PathBuf = if spelled.is_absolute() { spelled.to_path_buf() } else { names.process.join("cwd").join(spelled) };
+    let absolute: bool = spelled.is_absolute();
+    let resolved: PathBuf = if absolute { spelled.to_path_buf() } else { names.process.join("cwd").join(spelled) };
     let found = match std::fs::metadata(resolved.as_path()) {
         Ok(found) => found,
-        Err(error) => return Some(ServiceFound::Unsure { word: word.to_vec(), relative: !spelled.is_absolute(), reason: error.to_string() }),
+        // An absolute word whose folder is not there names a folder that holds no batch now,
+        // and a starting earlier helper of the worktree is in that state until it makes its folder:
+        // the path it spells says whether it is one of this worktree's journals.
+        Err(error) if absolute && error.kind() == std::io::ErrorKind::NotFound => {
+            let named: PathBuf = match resolved_as_far_as_the_file_system_knows(spelled) {
+                Ok(named) => named,
+                Err(unknown) => return Some(ServiceFound::Unsure { word: word.to_vec(), relative: false, reason: unknown.to_string() }),
+            };
+            for (index, journal) in names.spellings.iter().enumerate() {
+                if journal.is_absolute() && matches!(resolved_as_far_as_the_file_system_knows(journal), Ok(known) if known == named) {
+                    return Some(ServiceFound::Hold(hold_of_journal_at(index)));
+                }
+            }
+            return None;
+        }
+        Err(error) => return Some(ServiceFound::Unsure { word: word.to_vec(), relative: !absolute, reason: error.to_string() }),
     };
     for (index, journal) in names.spellings.iter().enumerate() {
         if matches!(std::fs::metadata(journal), Ok(known) if (known.dev(), known.ino()) == (found.dev(), found.ino())) {
@@ -382,15 +461,6 @@ fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> O
     return if mode_in_a_row && instance_named { Some(ServiceFound::Hold(Hold::InstanceHelperRuns)) } else { None };
 }
 
-/// Whether an error says the process ended while it was looked at:
-/// its entry is gone (`ENOENT`) or `read` found no process
-///  (`ESRCH`).
-/// Any other error says nothing about the process.
-#[cfg(unix)]
-fn process_is_gone(error: &std::io::Error) -> bool {
-    return error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
-}
-
 /// What:
 ///  Which socket of the earlier units listens,
 /// if one does:
@@ -426,63 +496,6 @@ fn earlier_socket_that_listens(look: &ServiceLook, proc_root: &Path) -> Option<H
             ListeningSockets::None => None,
         },
     };
-}
-
-/// What a look at one process found.
-#[cfg(unix)]
-enum CommandLine {
-    /// The words of the command line,
-    /// split at NUL bytes.
-    Words(Vec<u8>),
-    /// The process ended while it was looked at,
-    /// or belongs to another user.
-    Skipped,
-    /// The command line cannot be read whole:
-    /// any reason but the process having ended,
-    /// or more bytes than the limit.
-    Unproven,
-}
-
-/// What:
-///  Reads the command line of one entry of the process table,
-/// up to the limit and one byte more.
-/// Why:
-///   The limit keeps one process from filling memory;
-/// the extra byte tells a line that ends at the limit from a line that
-///  goes on,
-/// whose later words were not looked at and may be the service's options.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const bytes = read(`${pid}/cmdline`, limit + 1); return bytes.length > limit ? 'unproven' : bytes
-/// ```
-#[cfg(unix)]
-fn command_line_of(entry: &std::fs::DirEntry, own_user: u32) -> CommandLine {
-    use std::io::Read;
-    use std::os::unix::fs::MetadataExt;
-    // The owner of a process's folder is the user it runs as; another user's service is not this user's to wait for.
-    //  The owner is read before the command line, so a host that hides other users' processes cannot make them "unreadable".
-    match entry.metadata() {
-        Ok(metadata) if metadata.uid() != own_user => return CommandLine::Skipped,
-        Ok(_) => {}
-        Err(error) if process_is_gone(&error) => return CommandLine::Skipped,
-        Err(_) => return CommandLine::Unproven,
-    }
-    let file = match std::fs::File::open(entry.path().join("cmdline")) {
-        Ok(file) => file,
-        Err(error) if process_is_gone(&error) => return CommandLine::Skipped,
-        Err(_) => return CommandLine::Unproven,
-    };
-    let mut bytes: Vec<u8> = Vec::new();
-    match file.take(COMMAND_LINE_BYTES + 1).read_to_end(&mut bytes) {
-        Ok(_) => {}
-        Err(error) if process_is_gone(&error) => return CommandLine::Skipped,
-        Err(_) => return CommandLine::Unproven,
-    }
-    if bytes.len() as u64 > COMMAND_LINE_BYTES {
-        return CommandLine::Unproven;
-    }
-    return CommandLine::Words(bytes);
 }
 
 /// The identity of each earlier journal that exists,
@@ -571,10 +584,12 @@ fn scan_processes(look: &ServiceLook, proc_root: &Path) -> Option<Holding> {
         if pid == look.own_pid {
             continue;
         }
-        let bytes: Vec<u8> = match command_line_of(&entry, look.own_user) {
+        let bytes: Vec<u8> = match command_line_of(&entry, pid, look.own_user) {
             CommandLine::Words(bytes) => bytes,
             CommandLine::Skipped => continue,
-            CommandLine::Unproven => return Some(Holding::from(Hold::CannotLook)),
+            CommandLine::Unproven(unreadable) => {
+                return Some(Holding { because: Hold::CannotLook, program: None, unreadable: Some(unreadable) });
+            }
         };
         let process: PathBuf = entry.path();
         let names: JournalNames = JournalNames { spellings: look.journals.as_slice(), process: process.as_path() };
@@ -590,7 +605,7 @@ fn scan_processes(look: &ServiceLook, proc_root: &Path) -> Option<Holding> {
                     journal_word_is_relative: relative,
                     reason,
                 };
-                return Some(Holding { because: Hold::HelperUnsure, program: Some(program) });
+                return Some(Holding { because: Hold::HelperUnsure, program: Some(program), unreadable: None });
             }
             None => {}
         }

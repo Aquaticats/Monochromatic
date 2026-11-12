@@ -219,7 +219,12 @@ pub fn commit_line(request: &CommitRequest) -> String {
     path_bytes::write_field(&mut fields, "gitDir", request.git_dir.as_path());
     path_bytes::write_field(&mut fields, "index", request.index.as_path());
     path_bytes::write_field(&mut fields, "scratch", request.scratch.as_path());
-    put(&mut fields, "reference", Value::from(request.reference.as_str()));
+    // A name that is not text travels as its bytes in the field the reader prefers, and the plain field holds the text
+    //  spelling only when text spells every byte of the name (`path_bytes_in_records`).
+    if request.reference.is_text() {
+        put(&mut fields, "reference", Value::from(request.reference.to_string()));
+    }
+    fields.insert(String::from("referenceHex"), Value::from(request.reference.hex()));
     put(&mut fields, "base", Value::from(request.base.as_str()));
     put(&mut fields, "changes", Value::Array(request.changes.iter().map(change_json).collect()));
     put(&mut fields, "message", Value::from(request.message.as_str()));
@@ -229,6 +234,7 @@ pub fn commit_line(request: &CommitRequest) -> String {
     put(&mut fields, "tree", request.tree.as_deref().map_or(Value::Null, Value::from));
     put(&mut fields, "commit", request.commit.as_deref().map_or(Value::Null, Value::from));
     put(&mut fields, "captured", Value::from(request.captured));
+    put(&mut fields, "holder", Value::from(request.holder.as_str()));
     put(&mut fields, "cleanup", request.cleanup.as_ref().map_or(Value::Null, cleanup_json));
     return Value::Object(fields).to_string();
 }

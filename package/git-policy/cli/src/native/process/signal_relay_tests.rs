@@ -242,6 +242,35 @@ fn handler_marks_a_signal_only_for_a_process_sender() {
     PENDING[0].store(0, std::sync::atomic::Ordering::SeqCst);
 }
 
+/// What:
+///  A stop signal a child was relayed is kept for a wait that asks,
+///  and taken once.
+/// Why:
+///   A Git child a person's interrupt is relayed to may already be gone,
+///  so the relay is the last thing that knows the person stopped the command:
+///  a commit that waited afterwards must withdraw instead of landing
+///  (`service_client_interrupted.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// relay_handler(SIGINT, infoWith(SI_USER)); expect(takeRelayedStop()).toBe(SIGINT); expect(takeRelayedStop()).toBe(undefined);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_relayed_stop_is_kept_for_the_wait_that_asks() {
+    let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
+    let _cleared = crate::signal_relay_relayed_stop::take();
+    // SAFETY: a zeroed `siginfo_t` is a valid buffer; only its header fields are written below.
+    let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+    let header: *mut SignalHeader = (&mut info as *mut libc::siginfo_t).cast::<SignalHeader>();
+    // SAFETY: `header` points into the live `info` buffer above.
+    unsafe { (*header).code = SI_USER };
+    relay_handler(libc::SIGTERM, &mut info, std::ptr::null_mut());
+    assert_eq!(crate::signal_relay_relayed_stop::take(), Some(libc::SIGTERM), "the wait is told which signal the person sent");
+    assert_eq!(crate::signal_relay_relayed_stop::take(), None, "one stop is applied once");
+    PENDING[1].store(0, std::sync::atomic::Ordering::SeqCst);
+}
+
 /// On macOS the handler marks a signal for relay whatever `si_code` it carries,
 /// including the 0 a real `kill` gives.
 #[cfg(target_os = "macos")]
@@ -281,7 +310,7 @@ fn a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published() {
     let mut command: Command = Command::new("sleep");
     command.arg("30");
     let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, true, CeilingDuty { told: &told, bound: None })).expect("the runtime runs the child").expect("child runs").0;
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, true, CeilingDuty { told: &told, bound: None, while_held: None })).expect("the runtime runs the child").expect("child runs").0;
     assert_eq!(
         outcome,
         ChildOutcome::Signaled(libc::SIGTERM),
@@ -605,7 +634,7 @@ fn waiting_ends_at_the_childs_exit_and_reports_it() {
     // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
     let started: Instant = Instant::now();
     let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None };
+    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None, while_held: None };
     let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty)).expect("the runtime runs the child").expect("the child runs").0;
     assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     assert_eq!(outcome, ChildOutcome::Exited(0));
@@ -641,7 +670,7 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
         }
     });
     let told: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
-    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None };
+    let duty: CeilingDuty<'_> = CeilingDuty { told: &told, bound: None, while_held: None };
     let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false, duty)).expect("the runtime runs the child").expect("interrupts do not end the wait").0;
     assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     interrupter.join().expect("interrupter finishes");

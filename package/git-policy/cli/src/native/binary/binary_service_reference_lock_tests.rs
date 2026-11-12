@@ -132,6 +132,19 @@ fn commit_paths(fixture: &Fixture, repo: &Path, message: &str, path: &str) -> (O
 }
 
 /// What:
+///  The one held record of a worktree,
+///  as the wrapper wrote it.
+/// Why:
+///  The record is what a settlement reads and what names the side reference,
+///  so a control that asks about a held commit keeps the question to the state the wrapper left.
+fn held_record_of(repo: &Path) -> git_policy_cli::held_commit_record::Held {
+    let (records, damaged) = git_policy_cli::held_commit_record::list(repo.join(".git").as_path());
+    assert_eq!(damaged, Vec::<PathBuf>::new(), "every held record reads");
+    assert_eq!(records.len(), 1, "one commit is held");
+    return records[0].clone();
+}
+
+/// What:
 ///  A commit that meets a lock a live Git holds waits for it,
 ///  and lands once the holder lets go,
 ///  with nothing for the person to do.
@@ -303,6 +316,110 @@ fn two_held_commits_wait_beside_each_other_and_both_land_in_order() {
     assert_eq!(git_text(&fixture, &repo, &["show", format!("HEAD:{FILE}").as_str()]), "the first edit\n", "the first commit's bytes landed");
     assert_eq!(git_text(&fixture, &repo, &["show", format!("HEAD:{other}").as_str()]), "the second edit\n", "the second commit's bytes landed");
     assert_eq!(git_text(&fixture, &repo, &["status", "--porcelain=v1"]), "", "the index caught up with both");
+    drop(service);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit real Git built,
+///  held behind a lock,
+///  is on the side reference the answer names,
+///  and real Git's maintenance keeps it.
+/// Why:
+///  The answer says the commit is kept at `refs/worktree/cli-git-service/<batch>` either way,
+///  and the owner's rule is "never discard user data":
+///  an object no reference names is what `git gc --prune=now` removes,
+///  and a settlement that finds it gone cannot move the branch to it.
+///  `--verbose` is a line the service does not build itself,
+///  so real Git builds this commit (`service_commit_request_of.rs`),
+///  which is the arm whose commit has no reference of its own.
+#[test]
+fn a_held_commit_real_git_built_is_kept_on_the_side_reference_and_survives_a_prune() {
+    let (fixture, repo, service) = scene("reference-lock-held-git-built");
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    plant_a_lock(lock.as_path());
+    std::fs::write(repo.join(FILE), "the edit\n").expect("the edit");
+    let (code, said) = command(&fixture, repo.as_path(), &["commit", "--verbose", "--message=held behind the lock", "--", FILE]);
+    assert_eq!(code, Some(0), "the commit is made and held: {said}");
+    assert!(said.contains("is held"), "the commit is held: {said}");
+    let record: git_policy_cli::held_commit_record::Held = held_record_of(repo.as_path());
+    let held: String = record.new.clone();
+    let side: String = git_policy_cli::held_commit_settle::kept_reference(record.seq);
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-parse", side.as_str()]).trim(),
+        held,
+        "the side reference the answer names holds the held commit: {said}"
+    );
+    git(&fixture, &repo, &["gc", "--prune=now"]);
+    assert_eq!(git_text(&fixture, &repo, &["cat-file", "-t", held.as_str()]), "commit\n", "the held commit survives a maintenance that drops what no reference names");
+    std::fs::remove_file(&lock).expect("the holder lets go");
+    let (resumed, said_now) = command(&fixture, repo.as_path(), &["status"]);
+    assert_eq!(resumed, Some(0), "the command that settles the commit runs: {said_now}");
+    wait_for_at_most("the held commit to land", SETTLE_PATIENCE, || { return head_subject(&fixture, repo.as_path()) == "held behind the lock\n"; });
+    assert_eq!(git_text(&fixture, &repo, &["show", format!("HEAD:{FILE}").as_str()]), "the edit\n", "the commit kept on the side reference is the one that landed");
+    drop(service);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  Every line the service writes about a batch names the repository that batch belongs to.
+/// Why:
+///   The host run of the 0.6.1-alpha.10 release printed,
+///  among passing controls,
+///  "batch 1794399384028651 was refused the write of refs/heads/main while the branch still names 3ad2a9ab2e32eaf6f484b23fafe0cba5c5172a98,
+///  so a reference lock stands in the way",
+///  from a control that held a lock on purpose and whose commits both landed.
+///  Nothing in the line said which repository the service acted on,
+///  so the coordinator and then the owner read it as a commit on this repository's own `main` that failed.
+///  A line a fixture's service writes must never read as one about another repository,
+///  so a line about a batch names the worktree the batch belongs to.
+#[test]
+fn every_line_about_a_batch_names_the_repository_the_batch_belongs_to() {
+    let (fixture, repo, service) = scene("reference-lock-names-its-repository");
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    plant_a_lock(lock.as_path());
+    std::fs::write(repo.join(FILE), "the edit\n").expect("the edit");
+    let (code, said) = commit(&fixture, repo.as_path(), "held behind the lock");
+    assert_eq!(code, Some(0), "the commit is made and held: {said}");
+    let logged: String = service_log(fixture.root.as_path());
+    // The phrase the service uses to name the repository of a batch, and not a path a line mentions on its way to something
+    //  else: a lock's own path is inside the repository and says nothing about which repository the batch is in.
+    let names_it: String = format!("in the repository at {}", repo.display());
+    let about_a_batch: Vec<&str> = logged.lines().filter(|line| { return line.contains("batch "); }).collect();
+    assert!(!about_a_batch.is_empty(), "the service said something about the batch: {logged}");
+    for line in about_a_batch {
+        assert!(line.contains(names_it.as_str()), "a line about a batch says `{names_it}`: {line}");
+    }
+    drop(service);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit the service makes and keeps behind a lock is never worded as one it refused.
+/// Why:
+///   The owner's rule is "Commits should never fail",
+///  and the alpha.10 host run's "was refused the write of refs/heads/main" belonged to a commit the service wrote,
+///  kept and then landed.
+///  The word refused belongs to the states where nothing was made,
+///  so the line a lock raises says the commit is kept and the branch has not moved yet,
+///  and says what the person may do.
+#[test]
+fn the_words_for_a_commit_a_lock_holds_never_call_it_refused() {
+    let (fixture, repo, service) = scene("reference-lock-words-the-hold");
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    plant_a_lock(lock.as_path());
+    std::fs::write(repo.join(FILE), "the edit\n").expect("the edit");
+    let (code, said) = commit(&fixture, repo.as_path(), "held behind the lock");
+    assert_eq!(code, Some(0), "the commit is made and held: {said}");
+    let logged: String = service_log(fixture.root.as_path());
+    // The lines about the batch itself, which are the ones that word what became of the commit: a wait for another program's
+    //  index lock says `result=refused` and is about the lock, not about the commit.
+    let about_a_batch: String = logged.lines().filter(|line| { return line.contains("batch "); }).collect::<Vec<&str>>().join("\n");
+    assert!(about_a_batch.contains("a reference lock stands in the way"), "the lock the commit waits for is said: {logged}");
+    assert!(!about_a_batch.contains("refus"), "a commit that is kept and lands is not one that was refused: {logged}");
+    assert!(about_a_batch.contains("the commit ") && about_a_batch.contains("is kept"), "the line says the commit is kept: {logged}");
+    assert!(about_a_batch.contains("has not moved yet"), "the line says the branch has not moved yet: {logged}");
+    assert!(about_a_batch.contains("removing the lock") && about_a_batch.contains("rm -- "), "the line says what the person may do and gives the command: {logged}");
     drop(service);
     remove_settled(&fixture);
 }

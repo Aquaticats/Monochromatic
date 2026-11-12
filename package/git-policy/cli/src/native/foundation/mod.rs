@@ -68,6 +68,10 @@ pub mod plain_file;
 /// with its bytes in hexadecimal beside the plain text.
 pub mod path_bytes_in_records;
 
+/// A reference name as the bytes Git printed,
+/// with the spelling each reader of it takes.
+pub mod ref_name;
+
 /// How many workers independent items may use together,
 /// from the CPUs allowed,
 /// the memory free and a measured ceiling.

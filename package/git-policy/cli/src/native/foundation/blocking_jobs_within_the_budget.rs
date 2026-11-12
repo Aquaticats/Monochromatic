@@ -37,6 +37,7 @@ use crate::runtime_limits::RuntimeLimits;
 use crate::runtime_plan::budgeted_workers;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use tokio::sync::Semaphore;
 
 /// The places of the process,
@@ -103,6 +104,31 @@ fn decide_the_budget() -> TheBudget {
 /// ```
 pub fn budgeted_blocking_jobs() -> usize {
     return budget().allowed;
+}
+
+/// What:
+///  How many of the process's places a round's own long work may take:
+/// every place but one,
+/// and at least one.
+/// Why:
+///   A round of the after-commit work removes trash entries side by side,
+/// and each removal is a job of the blocking pool,
+/// so a round that takes every place holds the steps that answer a client behind it:
+/// the check of which instance a commit belongs to,
+/// a withdrawal's decision,
+/// and the note of a beat
+/// all run there,
+/// and the measurement of 2026-11-10 shows what that cost (`clients_keep_a_place_of_the_pool`,
+/// `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// The one place kept back is small (a read of one directory's name or of a few journal files)
+/// and never idle while a client waits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const places = Math.max(1, budgetedBlockingJobs() - 1);
+/// ```
+pub fn places_a_round_may_take() -> usize {
+    return budget().allowed.saturating_sub(1).max(1);
 }
 
 /// What:
@@ -174,6 +200,28 @@ where
     // The place is this job's, so it is no longer one of the jobs waiting for one.
     #[cfg(test)]
     drop(_asking);
+    return run_a_job_holding_the_place(place, job).await;
+}
+
+/// What:
+///  `run_blocking_job_within_the_budget`'s work,
+/// once its place of the bound is taken.
+/// Why:
+///   A caller that may not wait without an end takes the place under a ceiling of its own
+/// (`run_a_job_once_awaited_no_longer_than`),
+/// and the rest of the job is the same for both:
+///  the claim,
+/// the pool's thread and the place that goes back when the work ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const value = await runTheJobHoldingThePlace(place, job);
+/// ```
+async fn run_a_job_holding_the_place<T, J>(place: tokio::sync::OwnedSemaphorePermit, job: J) -> Result<T, BlockingJobError>
+where
+    T: Send + 'static,
+    J: FnOnce() -> T + Send + 'static,
+{
     // The place and the claim travel together: a job the pool queued can run after this frame stops waiting, and then
     //  it must still hold a place, while a job this frame gives up on must do nothing at all.
     let claimed: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
@@ -286,6 +334,108 @@ fn a_refused_thread_start(failed: BlockingJobError, claimed: &TheClaimOnAJobsWor
 }
 
 /// What:
+///  What a job of the pool answered,
+///  when the caller may not wait for it without an end:
+/// the value it gave,
+/// nothing at all,
+/// or nothing this caller can read.
+/// Why:
+///   A step whose answer is a value of the caller's own state can be asked again when nothing ran,
+/// and must be treated as
+///  possibly done when the job started on another thread or outlasted its ceiling;
+/// a caller that took
+///  `StartedAfterItsThreadWasRefused` for "nothing ran" left a promised retry with no wake
+/// (finding 1 of the review of `b3d00b3be4`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AnswerOfAJob<T> = { ran: T } | 'notRun' | 'noAnswer';
+/// ```
+pub enum TheAnswerOfAJobAwaited<T> {
+    /// The job ran and gave this.
+    Ran(T),
+    /// The system gave no thread,
+    /// so the job will do nothing and nothing changed.
+    NotRun,
+    /// The job started on another thread and its value cannot be read here,
+    /// or it outlasted its ceiling:
+    ///  it may have done its work.
+    NoAnswer,
+}
+
+/// What:
+///  Run `work(state)` as a job of the blocking pool,
+/// with a place of the process's bound held while it runs,
+/// and await it no longer than `ceiling`.
+/// Why:
+///   A caller that polls the runtime may not run a step that can wait on storage itself:
+/// a filesystem that stopped answering would hold a worker the runtime needs,
+/// and a timer around work on that worker cannot end it.
+/// The ceiling bounds the caller's wait,
+/// not the job:
+/// a job that outlasts it is
+///  left behind with its place held until its work ends,
+/// as `blocking_jobs_within_the_budget.rs` holds every place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await runAJobAwaitedNoLongerThan(ceiling, state, work);
+/// ```
+pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'static>(ceiling: Duration, state: S, work: fn(S) -> T) -> TheAnswerOfAJobAwaited<T> {
+    #[cfg(test)]
+    if let Some(answering) = a_controls_answer::the_answer_a_control_states() {
+        // The work runs, as it does on the pool, so a control sees the step's own changes; only the answer is the control's.
+        let _ran: T = work(state);
+        return match answering {
+            a_controls_answer::AStatesAnswer::NotRun => TheAnswerOfAJobAwaited::NotRun,
+            a_controls_answer::AStatesAnswer::NoAnswer => TheAnswerOfAJobAwaited::NoAnswer,
+        };
+    }
+    return run_a_job_once_awaited_no_longer_than(ceiling, move || { return work(state); }).await;
+}
+
+/// What:
+///  Run `job` as a job of the blocking pool,
+/// with a place of the process's bound held while it runs,
+/// awaiting the place no longer than `ceiling` and then the job no longer than another `ceiling`.
+/// Why:
+///   A place is held by the job that took it until that job ends,
+/// so a job whose read outlasted its own ceiling leaves the place held with no end in sight
+/// (`blocking_jobs_within_the_budget.rs`).
+/// A caller that waited for a place without one would then wait for a place nothing gives back,
+/// which is the unbounded wait the owner forbids:
+///  a service that never leaves its round runs no later push,
+/// no upkeep round and never exits idle
+/// (finding 4 of the review of `5686c7bb29`).
+/// The two waits are told apart because they mean different things:
+/// no place within the ceiling proves the job never started and changed nothing,
+/// while a job that outlasted its own ceiling may have done its work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await runAJobOnceAwaitedNoLongerThan(ceiling, job);
+/// ```
+pub async fn run_a_job_once_awaited_no_longer_than<T: Send + 'static, J: FnOnce() -> T + Send + 'static>(ceiling: Duration, job: J) -> TheAnswerOfAJobAwaited<T> {
+    // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
+    #[cfg(test)]
+    let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
+    let place: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(&budget().places).acquire_owned()).await {
+        Ok(Ok(taken)) => taken,
+        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
+        Ok(Err(_)) | Err(_) => return TheAnswerOfAJobAwaited::NotRun,
+    };
+    #[cfg(test)]
+    drop(_asking);
+    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, job)).await {
+        Ok(Ok(value)) => TheAnswerOfAJobAwaited::Ran(value),
+        // Only a refusal that promised the job will not run leaves the state as it was.
+        Ok(Err(BlockingJobError::NoThreadToStart)) => TheAnswerOfAJobAwaited::NotRun,
+        Ok(Err(_started_anyway)) => TheAnswerOfAJobAwaited::NoAnswer,
+        Err(_outlasted_its_ceiling) => TheAnswerOfAJobAwaited::NoAnswer,
+    };
+}
+
+/// What:
 ///  The claim and the place of one job,
 ///  until the call that made them settles them.
 /// Why:
@@ -326,6 +476,11 @@ impl Drop for TheCallOnAJob {
 #[cfg(test)]
 #[path = "jobs_waiting_for_a_place.rs"]
 pub(crate) mod jobs_waiting_for_a_place;
+
+/// The answer a control states for the jobs its own thread asks for stays out of the release executable.
+#[cfg(test)]
+#[path = "the_answer_a_control_states.rs"]
+pub(crate) mod a_controls_answer;
 
 /// Blocking-budget controls stay out of the release executable.
 #[cfg(test)]

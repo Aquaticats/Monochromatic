@@ -57,6 +57,14 @@ const MEBIBYTE: u64 = 1 << 20;
 /// in mebibytes.
 const MOST_MEBIBYTES: u64 = 1 << 16;
 
+/// The largest descriptor limit the searches for the smallest landing limit try,
+/// so that a machine on which no commit lands at any limit the control examines is told apart from one whose flip is
+///  below that ceiling,
+/// and a flip at the ceiling itself from both:
+/// a landing there is a landing the search proves,
+/// and a case per limit below it would outlast the control.
+const FURTHEST_DESCRIPTOR_LIMIT_SEARCHED: u64 = 1024;
+
 /// How many steps a memory sweep takes between its smallest and its largest limit.
 const MEMORY_STEPS: u64 = 10;
 
@@ -151,20 +159,77 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     return Case { landed, verdict };
 }
 
-/// The smallest value in `low..=high` for which `works` holds,
-/// found by halving;
-/// `works` is taken to hold from some value on.
-pub(super) fn smallest_working(low: u64, high: u64, works: &dyn Fn(u64) -> bool) -> u64 {
+/// What:
+///  The smallest value in `low..=high` for which `works` holds,
+///  found by halving and proven by a probe of that value,
+///  or nothing when `works` holds for none of them.
+/// Why:
+///  `works` is taken to hold from some value on,
+/// so the halving finds where it starts;
+///  the ceiling the halving starts from is only ever lowered by a probe that held,
+///  so an answer that is still the ceiling proves nothing,
+///  and a caller that read it as a landing said no commit landed while one did exactly there.
+///  The answer is therefore probed before it is returned,
+///  and a range in which nothing works is answered as nothing rather than as its ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const smallest: number | undefined = smallestWorking(3, 1024, (limit) => lands(limit));
+/// ```
+pub(super) fn smallest_working(low: u64, high: u64, works: &dyn Fn(u64) -> bool) -> Option<u64> {
     let (mut below, mut above): (u64, u64) = (low, high);
+    // Whether a probe of `above` held: the halving only lowers it after one did.
+    let mut proven: bool = false;
     while below < above {
         let middle: u64 = below + (above - below) / 2;
         if works(middle) {
             above = middle;
+            proven = true;
         } else {
             below = middle + 1;
         }
     }
-    return above;
+    if proven || works(above) {
+        return Some(above);
+    }
+    return None;
+}
+
+/// What:
+///  The search answers only a limit its own probe accepted,
+///  and never the ceiling it started from without a probe of that ceiling.
+/// Why:
+///  The halving begins with the ceiling as its upper end and lowers it only on a probe that held,
+///  so an answer that is still the ceiling was never probed:
+///  where a commit lands at the ceiling and nowhere below it the descriptor control then said no commit landed,
+///  and it skipped the sweep that landing at the ceiling would have had.
+#[test]
+fn the_search_answers_only_a_limit_its_own_probe_accepted() {
+    let probed: Mutex<Vec<u64>> = Mutex::new(Vec::new());
+    let records_and_refuses = |value: u64| -> bool {
+        probed.lock().expect("the probe list").push(value);
+        return false;
+    };
+    let answered: Option<u64> = smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &records_and_refuses);
+    assert_eq!(answered, None, "no limit in the search's range let a commit land, so the search answers nothing");
+    assert!(
+        probed.lock().expect("the probe list").contains(&FURTHEST_DESCRIPTOR_LIMIT_SEARCHED),
+        "the search says nothing in its range worked, so it must have probed its ceiling"
+    );
+    // A commit that lands at the ceiling and nowhere below it is a landing, and a control is told so.
+    let only_the_ceiling = |value: u64| -> bool { return value == FURTHEST_DESCRIPTOR_LIMIT_SEARCHED; };
+    assert_eq!(
+        smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &only_the_ceiling),
+        Some(FURTHEST_DESCRIPTOR_LIMIT_SEARCHED),
+        "the search answers a landing at its own ceiling instead of saying no commit landed"
+    );
+    // A landing below the ceiling is answered where it starts, not at the ceiling.
+    let half_upwards = |value: u64| -> bool { return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2; };
+    assert_eq!(
+        smallest_working(3, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, &half_upwards),
+        Some(FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2),
+        "the search answers the smallest limit that worked"
+    );
 }
 
 /// Runs a case for each value,
@@ -318,8 +383,11 @@ fn smallest_service_limit(kind: LimitKind, high: u64) -> u64 {
         let applied: u64 = if kind == LimitKind::AddressSpace { limit * MEBIBYTE } else { limit };
         return start_service_under(kind, applied, probes.root.as_path()).greeted;
     };
-    let smallest: u64 = smallest_working(3, high, &starts);
+    let found: Option<u64> = smallest_working(3, high, &starts);
     remove_settled(&probes);
+    let Some(smallest): Option<u64> = found else {
+        panic!("the commit service started and greeted no client at any {kind:?} limit from 3 to {high} that the search probed, so this control has no limit to sweep from");
+    };
     return smallest;
 }
 
@@ -333,6 +401,109 @@ fn spread(low: u64, high: u64, count: u64) -> Vec<u64> {
     return values;
 }
 
+/// What:
+///  The limits from `low` to the smallest under which a commit lands,
+///  each run once with the sweep's own breadth,
+///  and one case on its own at twice that smallest landing limit,
+///  with the recovery checked.
+/// Why:
+///  The smallest limit under which a commit lands is the limit at which the outcome flips,
+///  and the flip is one descriptor wide:
+///  measured on a loaded host on 2026-11-11,
+///  a commit run one at a time refused at 23 twice and landed at 24 twice.
+///  The flip moves with everything else that holds a descriptor while a commit runs,
+///  because a step that waits holding one keeps it held into the next step,
+///  so the search that finds it can answer a limit that the next case refuses,
+///  and `SWEEP_WIDTH` cases at once move it further still.
+///  The landing this control needs is therefore asked for at twice the limit the search landed at,
+///  where a commit needs the same descriptors it needed at the boundary and the limit leaves as much room again,
+///  which is a landing rather than the boundary's coin flip:
+///  the caller counts it with the batch's landings,
+///  so it supplies the landing exactly when the batch refused every limit.
+///  The batch proves the rest of the promise:
+///  every limit fails with a message or lands,
+///  and the repository recovers after each.
+///  Twice a figure the search measured is the only margin this control states.
+fn sweep_up_to_the_smallest_landing(label: &str, low: u64, lands_at: u64, limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>)) -> (usize, usize) {
+    let values: Vec<u64> = (low..=lands_at).collect();
+    let (landed, refused): (usize, usize) = sweep(label, values.as_slice(), limits_for, false);
+    let (service, wrapper): (Vec<Limit>, Vec<Limit>) = limits_for(lands_at.saturating_mul(2));
+    let alone: Case = run_case(format!("{label}-twice-the-smallest-landing-{lands_at}").as_str(), service.as_slice(), wrapper.as_slice(), false, true);
+    assert!(alone.verdict.is_ok(), "twice the smallest landing limit left the repository unrecovered: {:?}", alone.verdict);
+    return (landed + usize::from(alone.landed), refused + usize::from(!alone.landed));
+}
+
+/// What:
+///  The smallest descriptor limit under which a commit lands,
+///  when the search proved one below its own ceiling.
+/// Why:
+///  The sweep runs one case per limit from the floor to that landing,
+///  so a landing at the ceiling would run a case per descriptor the search examined
+///  and outlast the five minutes this crate's nextest profile gives one test
+///  (`.config/nextest.toml`).
+///  Measured on this host on 2026-11-11:
+///  `a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository`
+///  ran its 23 cases in 72 s alone and in 26.8 s beside the module's own tests,
+///  so a case per descriptor up to 1024 would need between about 1 200 s and 3 000 s,
+///  four to ten times that bound.
+///  A landing at the ceiling is a fact of the machine and not a defect of the product,
+///  so the control says it did not run instead of failing or claiming no commit landed
+///  (`FURTHEST_DESCRIPTOR_LIMIT_SEARCHED`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const landsAt = smallestLandingBelowTheCeiling('nofile-wrapper', 3, (limit) => lands(limit)); // number | undefined
+/// ```
+fn smallest_landing_below_the_ceiling(label: &str, low: u64, probe: &dyn Fn(u64) -> bool) -> Option<u64> {
+    let found: Option<u64> = smallest_working(low, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED, probe);
+    let Some(lands_at): Option<u64> = found else {
+        panic!(
+            "a commit landed at none of the descriptor limits {low} to {FURTHEST_DESCRIPTOR_LIMIT_SEARCHED} that the search probed, so this control has no landing to be close to exhaustion"
+        );
+    };
+    if lands_at < FURTHEST_DESCRIPTOR_LIMIT_SEARCHED {
+        return Some(lands_at);
+    }
+    eprintln!(
+        "control not run: a commit lands at {label}'s search ceiling {lands_at} and at no lower limit the search probed, so one case per limit below it would outlast this control; raise FURTHEST_DESCRIPTOR_LIMIT_SEARCHED to sweep it"
+    );
+    return None;
+}
+
+/// What:
+///  The landing search answers a landing below its ceiling,
+///  and answers nothing when the landing is the ceiling itself.
+/// Why:
+///  A landing at the ceiling is the branch that says the control did not run,
+///  and nothing else would ever run it:
+///  no machine this control has run on lands a commit anywhere near 1024 descriptors
+///  (`FURTHEST_DESCRIPTOR_LIMIT_SEARCHED`).
+#[test]
+fn the_landing_search_answers_below_the_ceiling_and_says_so_at_it() {
+    let halfway = |value: u64| -> bool { return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2; };
+    assert_eq!(
+        smallest_landing_below_the_ceiling("control-probe-below", 3, &halfway),
+        Some(FURTHEST_DESCRIPTOR_LIMIT_SEARCHED / 2),
+        "a landing below the search's ceiling is the landing the sweep examines"
+    );
+    let at_the_ceiling = |value: u64| -> bool { return value >= FURTHEST_DESCRIPTOR_LIMIT_SEARCHED; };
+    assert_eq!(
+        smallest_landing_below_the_ceiling("control-probe-ceiling", 3, &at_the_ceiling),
+        None,
+        "a landing at the ceiling itself is not the landing the sweep can examine"
+    );
+}
+
+/// What:
+///  A range in which no limit lands fails the control,
+///  naming the probed fact rather than claiming no commit landed under a limit nothing probed.
+#[test]
+#[should_panic(expected = "a commit landed at none of the descriptor limits")]
+fn the_landing_search_names_a_machine_where_no_limit_lands() {
+    let nothing = |_value: u64| -> bool { return false; };
+    let _answered: Option<u64> = smallest_landing_below_the_ceiling("control-probe-none", 3, &nothing);
+}
+
 /// A descriptor limit of each size on the wrapper,
 /// from the smallest under which a commit lands downward:
 /// the commit fails with a
@@ -340,11 +511,12 @@ fn spread(low: u64, high: u64, count: u64) -> Vec<u64> {
 /// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
-    let lands_at: u64 = smallest_working(3, 1024, &|value| { return lands_with("nofile-wrapper", value, wrapper_descriptors); });
-    let values: Vec<u64> = (3..=lands_at).collect();
-    let (landed, refused): (usize, usize) = sweep("nofile-wrapper", values.as_slice(), wrapper_descriptors, false);
+    let Some(lands_at): Option<u64> = smallest_landing_below_the_ceiling("nofile-wrapper", 3, &|value| { return lands_with("nofile-wrapper", value, wrapper_descriptors); }) else {
+        return;
+    };
+    let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-wrapper", 3, lands_at, wrapper_descriptors);
     assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
-    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion");
+    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
 }
 
 /// A descriptor limit of each size on the commit service,
@@ -355,12 +527,13 @@ fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_re
 /// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository() {
-    let starts_at: u64 = smallest_service_limit(LimitKind::OpenFiles, 1024);
-    let lands_at: u64 = smallest_working(starts_at, 1024, &|value| { return lands_with("nofile-service", value, service_descriptors); });
-    let values: Vec<u64> = (starts_at..=lands_at).collect();
-    let (landed, refused): (usize, usize) = sweep("nofile-service", values.as_slice(), service_descriptors, false);
+    let starts_at: u64 = smallest_service_limit(LimitKind::OpenFiles, FURTHEST_DESCRIPTOR_LIMIT_SEARCHED);
+    let Some(lands_at): Option<u64> = smallest_landing_below_the_ceiling("nofile-service", starts_at, &|value| { return lands_with("nofile-service", value, service_descriptors); }) else {
+        return;
+    };
+    let (landed, refused): (usize, usize) = sweep_up_to_the_smallest_landing("nofile-service", starts_at, lands_at, service_descriptors);
     assert!(refused > 0, "no descriptor limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
-    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion");
+    assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion (the smallest limit at which a commit landed, {lands_at}, refused in the sweep and at twice itself alone)");
 }
 
 /// Whether a process limit makes the next start fail for this user (a privileged test run is exempt from `RLIMIT_NPROC`),
@@ -468,7 +641,9 @@ fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_reposit
 /// and the repository recovers after each.
 #[test]
 fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
-    let lands_at: u64 = smallest_working(1, MOST_MEBIBYTES, &|value| { return lands_with("as-wrapper", value, wrapper_memory); });
+    let Some(lands_at): Option<u64> = smallest_working(1, MOST_MEBIBYTES, &|value| { return lands_with("as-wrapper", value, wrapper_memory); }) else {
+        panic!("a commit landed at none of the address-space sizes from 1 to {MOST_MEBIBYTES} MiB that the search probed, so this control has no landing to be close to exhaustion");
+    };
     let values: Vec<u64> = spread(1, lands_at, MEMORY_STEPS);
     let (landed, refused): (usize, usize) = sweep("as-wrapper", values.as_slice(), wrapper_memory, true);
     assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");

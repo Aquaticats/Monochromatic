@@ -28,6 +28,7 @@ catalog:
   '@deepseek-ai/dsh-attachment': '0.2.2-rc.1'
   '@deepseek-ai/dsh-brand': '0.2.2-rc.1'
   '@deepseek-ai/dsh-commands': '0.2.2-rc.1'
+  '@deepseek-ai/dsh-credentials': '0.2.2-rc.1'
   '@deepseek-ai/dsh-fs': '0.2.2-rc.1'
   '@deepseek-ai/dsh-llm': '0.2.2-rc.1'
   '@deepseek-ai/dsh-ptc-runtime': '0.2.2-rc.1'

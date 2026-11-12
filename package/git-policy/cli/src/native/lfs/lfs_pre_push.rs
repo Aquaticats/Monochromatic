@@ -334,6 +334,107 @@ pub fn failed_message(status: &str) -> String {
     );
 }
 
+/// What:
+///  The words that say a login was needed,
+/// as Git 2.56.0 and git-lfs 3.8.1 print them when the wrapper has told them never to prompt.
+/// Why:
+///   The upload's own words name the cause,
+/// and a person reading them may not know that "terminal prompts disabled" means
+///  "a login is missing,
+/// and nothing was allowed to ask for one";
+/// these are the spellings the refusal is recognized by.
+/// What a run printed on 2026-11-10,
+/// with the pair set and a server answering `401` with `LFS-Authenticate`
+///  (`binary_lfs_server_tests.rs`,
+/// the control of the incident's own invocation):
+/// `fatal: could not read Username for 'http://127.0.0.1:46731': terminal prompts disabled`
+///  and `batch response: Git credentials for http://127.0.0.1:46731/lfs not found.`
+/// The last entry is git-lfs 3.8.1's own answer when a login it was given is refused,
+///  read in this session's control of the same incident with a prompt program that answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const LOGIN_NEEDED = ['terminal prompts disabled', 'could not read Username', 'could not read Password', 'too many authentication attempts'];
+/// ```
+const LOGIN_NEEDED: [&str; 4] = [
+    // Git's own words from `prompt.c`, with terminal prompts off.
+    "terminal prompts disabled",
+    // Git's credential prompt when no askpass program and no terminal answer.
+    "could not read Username",
+    "could not read Password",
+    // git-lfs's words when every login it was given was refused.
+    "too many authentication attempts",
+];
+
+/// What:
+///  Whether text a failed upload printed says that it needed a login.
+/// Why:
+///   Only that failure has a way forward the person must be told about,
+/// and a missing object or an unreachable server has others.
+/// A server that refused a login it was given says "Authorization error" and is not one of these:
+/// a login is there,
+/// and the ways forward are the repository's access and not a credential helper.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// LOGIN_NEEDED.some((words) => text.includes(words))
+/// ```
+pub fn reads_as_a_login_failure(text: &str) -> bool {
+    for words in LOGIN_NEEDED {
+        if text.contains(words) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The refusal that follows a failed upload which needed a login:
+///  it names the server,
+/// says what the wrapper did about prompting,
+/// and names every way to give git-lfs a login it can use.
+/// Why:
+///   The incident of 2026-11-10 ran for seven minutes because nothing said what was missing,
+/// and the push it belonged to could not be
+///  published (`doc/troubleshooting/lfs-credential-in-url.md`).
+/// The server is named without any credential,
+/// and the setting that stores one is named without its value.
+///  `prompting_disabled` is whether the overlay the program ran under carried the never-prompt pair:
+/// a command at a terminal keeps Git's and `git-lfs`'s own prompting,
+/// and telling its person that no terminal existed
+///  names a cause that cannot be fixed because it was never there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// promptingDisabled ? `...this command has no controlling terminal, so ...` : `...this command has a controlling terminal, so ...`
+/// ```
+pub fn login_needed_message(server: &str, prompting_disabled: bool) -> String {
+    if !prompting_disabled {
+        return format!(
+            "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login and stopped. This command has a \
+             controlling terminal, so the wrapper left prompting to `git-lfs` and the Git it asks (`GIT_ASKPASS` and \
+             `GIT_TERMINAL_PROMPT` unchanged): either a login they already had was refused, or a variable or Git setting of this \
+             command stopped them from asking. Ways forward: store a login the server accepts in a Git credential helper for that \
+             URL (`git config --global credential.helper libsecret` on a desktop, `store` for a file only you can read, or `cache` \
+             for a while), and push again, because objects the server already has are not sent twice; or check a \
+             `GIT_TERMINAL_PROMPT`, `GIT_ASKPASS`, `core.askPass` or `credential.helper` setting of this command that refuses the \
+             login. A login written into the `lfs.url` of a repository's configuration instead of a helper is the defect \
+             `doc/troubleshooting/lfs-credential-in-url.md` describes.\n"
+        );
+    }
+    return format!(
+        "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login, and this command has no controlling \
+         terminal, so `git-lfs` and the Git it asks were told never to prompt (`GIT_ASKPASS` set to the empty string and \
+         `GIT_TERMINAL_PROMPT=0`). That is why no password window opened for nobody to answer, and why the program stopped \
+         instead. Ways forward: store the login where `git-lfs` finds it without a person, in a Git credential helper for \
+         that URL (`git config --global credential.helper libsecret` on a desktop, `store` for a file only you can read, or \
+         `cache` for a while), and push again, because objects the server already has are not sent twice; or run this push \
+         from a terminal, where Git's and `git-lfs`'s own prompting is kept. A login written into the `lfs.url` of a \
+         repository's configuration instead of a helper is the defect \
+         `doc/troubleshooting/lfs-credential-in-url.md` describes.\n"
+    );
+}
+
 /// Pure parts are controlled in the test module.
 #[cfg(test)]
 #[path = "lfs_pre_push_tests.rs"]

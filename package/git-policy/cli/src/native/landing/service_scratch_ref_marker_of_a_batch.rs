@@ -1,10 +1,12 @@
 //! What:
-//!  The record a landing writes beside its batch before the import,
+//!  The record a landing writes beside its batch before it puts the batch's commits on a reference,
 //! naming the worktree whose scratch reference the
-//!  import is about to create,
+//!  landing is about to create,
 //! and the sweep a restart runs over the records it finds.
 //! Why:
 //!  A landing protects the objects of its batch with `refs/worktree/cli-git-service/<seq>`,
+//! the reference the import moves and the one a
+//!  commit Git built is kept on,
 //! and the branch write
 //!  removes that reference in the same transaction that moves the branch.
 //! A service killed between the import of the
@@ -109,7 +111,7 @@ fn decode(text: &str) -> Option<(PathBuf, PathBuf)> {
 ///  Leaves the record of batch `seq`'s scratch reference,
 /// naming the worktree it belongs to.
 /// Why:
-///   The import is about to create `refs/worktree/cli-git-service/<seq>`,
+///   The batch is about to have its commits on `refs/worktree/cli-git-service/<seq>`,
 /// and a kill after that instant leaves the reference
 ///  with nothing else that names the worktree it is in.
 /// The record is published whole and never flushed:
@@ -131,7 +133,9 @@ pub(crate) fn record_scratch_ref(journal: &Path, seq: u64, repository: &Path, gi
         //  the same worktree: nothing is written a second time.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
         Err(error) => crate::service_warn!(
-            "batch {seq}: the record of its scratch reference could not be written to {} ({error}), so a kill before its intent would leave that reference with nothing to find it by",
+            "batch {seq} {}: the record of its scratch reference could not be written to {} ({error}), so a kill before its intent would leave \
+that reference with nothing to find it by",
+            crate::service_timing::in_the_repository_at(repository),
             path.display()
         ),
     }
