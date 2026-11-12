@@ -21,6 +21,11 @@ import {
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { errorCodeOf, } from './error-code-of.ts';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
+import {
+  StartRefusedError,
+  startRefusalsIn,
+} from './checks-before-a-start.ts';
 import {
   fieldsOf,
   isRecord,
@@ -70,14 +75,7 @@ const git = gitRunnerOf(runCommandWithChildProcess,);
 /**
  The top of the checkout this command runs in, which is where a run's worktree is made unless the caller names another checkout.
  */
-const checkoutFolder = await requiredOutputOf({
-  run: runCommandWithChildProcess,
-  command: 'git',
-  words: [
-    'rev-parse',
-    '--show-toplevel',
-  ],
-},);
+const checkoutFolder = await checkoutFolderOf({ from: process.cwd(), },);
 
 /**
  What this run of the command was asked for.
@@ -291,6 +289,22 @@ async function statusOf({
     status: shown.status,
     statusText: shown.stdout,
   };
+}
+
+/**
+ Every reason this start is refused, which is read before anything is made: a start that was refused leaves no worktree, no run
+ folder and no unit, and spends no provider slot on a run that could not have worked.
+ */
+const refusals = await startRefusalsIn({
+  promptFile: options.promptFile,
+  git,
+  checkoutFolder: options.checkoutFolder,
+  base: options.base,
+  run: runCommandWithChildProcess,
+  runName: options.name,
+},);
+if (refusals.length > 0) {
+  throw new StartRefusedError(`${options.name} was not started:\n${refusals.join('\n')}`,);
 }
 
 if (!readOnlyInMain) {

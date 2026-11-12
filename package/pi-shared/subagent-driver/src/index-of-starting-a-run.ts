@@ -102,6 +102,22 @@ export {
 } from './session-file-of-a-run.ts';
 export { nextRunNumber, } from './next-run-number.ts';
 export {
+  CHECKOUT_MARKER,
+  CheckoutNotFoundError,
+  checkoutFolderOf,
+} from './checkout-of-a-command.ts';
+export {
+  StartRefusedError,
+  baseProblemIn,
+  nameProblemIn,
+  promptProblemIn,
+  startRefusalsIn,
+} from './checks-before-a-start.ts';
+export {
+  ENTRY_REASON_CHARACTERS,
+  reasonInFailedStart,
+} from './reason-in-a-failed-start.ts';
+export {
   type FinishedRunTurns,
   NO_FINISHED_RUN,
   RUNS_OF_ONE_KIND_TO_TRUST,
@@ -146,11 +162,13 @@ export {
   BATCH_DEFAULT_MEMORY,
   BATCH_DEFAULT_TASK_COUNT,
   BATCH_DEFAULT_WALL_SECONDS,
+  BATCH_ENTRY_FIELDS,
   BATCH_RETRY_PERIOD_SECONDS,
   BATCH_STAGGER_MILLISECONDS,
+  BatchListError,
   type BatchEntry,
   ENTRY_LINE_CHARACTERS,
-  ENTRY_OUTPUT_TAIL_CHARACTERS,
+  ENTRY_OUTPUT_KEPT_CHARACTERS,
   type StartedEntry,
   batchEntriesIn,
   entryLineOf,

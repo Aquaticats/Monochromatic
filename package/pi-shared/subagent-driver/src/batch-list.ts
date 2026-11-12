@@ -12,6 +12,10 @@ import {
   isAbsolute,
   join,
 } from 'node:path';
+import {
+  ENTRY_REASON_CHARACTERS,
+  reasonInFailedStart,
+} from './reason-in-a-failed-start.ts';
 
 /**
  Milliseconds between starting one entry and the next, which is what keeps a batch's starts from all asking for a slot at once.
@@ -49,13 +53,25 @@ export const BATCH_DEFAULT_TASK_COUNT = 3_000;
 export const BATCH_RETRY_PERIOD_SECONDS = 30;
 
 /**
- How much of what the retrying start printed is kept for the entry's line. A run that failed prints why at the end, and a
- status 1 with no reason left the round 164 failures of 2026-11-11 unexplained.
+ How many kibibytes of what a start printed are kept for its line and for the file the line names.
  */
-export const ENTRY_OUTPUT_TAIL_CHARACTERS = 400;
+const KEPT_OUTPUT_KIBIBYTES = 64;
 
 /**
- How much of an entry's line is printed. One entry's line names one run, and a report of thirty entries stays readable.
+ How many characters one kibibyte of what a start printed is.
+ */
+const CHARACTERS_PER_KIBIBYTE = 1_024;
+
+/**
+ How much of what a start printed is kept for its line and for the file the line names. A Node stack with the command that failed
+ and the git refusal it printed fits well inside this; a git refusal alone ran to a kilobyte. The reason is always at the end, so
+ a longer log loses only what no reader needs.
+ */
+export const ENTRY_OUTPUT_KEPT_CHARACTERS: number = KEPT_OUTPUT_KIBIBYTES * CHARACTERS_PER_KIBIBYTE;
+
+/**
+ How much of an entry's line is printed. One entry's line names one run and says why it failed, and a report of thirty entries stays
+ readable.
  */
 export const ENTRY_LINE_CHARACTERS = 300;
 
@@ -115,6 +131,11 @@ export type BatchEntry = {
   readonly sessionOf?: string;
 
   /**
+   A session file to resume directly, for a run that ended with no summary to read a session from.
+   */
+  readonly session?: string;
+
+  /**
    The provider the run asks for.
    */
   readonly provider?: string;
@@ -124,6 +145,36 @@ export type BatchEntry = {
    */
   readonly model?: string;
 };
+
+/**
+ The fields one entry of a batch list may name, which are the launcher's own options. A field outside this list is refused, because
+ dropping it would start a run other than the one the list describes.
+ */
+export const BATCH_ENTRY_FIELDS: readonly string[] = [
+  'name',
+  'branch',
+  'base',
+  'prompt',
+  'cpu',
+  'memory',
+  'tasks',
+  'wall',
+  'run',
+  'sessionOf',
+  'session',
+  'provider',
+  'model',
+];
+
+/**
+ A batch list this command cannot read as the list it was given.
+ */
+export class BatchListError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'BatchListError';
+}
 
 /**
  What starting one entry answered.
@@ -175,6 +226,31 @@ export function batchEntriesIn({
   if (!Array.isArray(listed,)) {
     throw new Error(`${listFile} holds no JSON array of entries, so nothing could be started from it.`,);
   }
+  listed.forEach(function checkEntry(
+    entry: unknown,
+    index: number,
+  ) {
+    if (((typeof entry) !== 'object') || (entry === null)) {
+      throw new BatchListError(`${listFile}: entry ${String(index + 1,)} is no JSON object, so it cannot be a run.`,);
+    }
+    /**
+     The fields this entry names that the command does not read.
+     */
+    const unread = Object.keys(entry,)
+      .filter(function isUnread(field,) {
+        return !BATCH_ENTRY_FIELDS.includes(field,);
+      },);
+    if (unread.length === 0) {
+      return;
+    }
+    /**
+     The run the entry names, which tells a reader which entry to fix.
+     */
+    const named = ('name' in entry) ? entry.name : undefined;
+    throw new BatchListError(
+      `${listFile}: entry ${String(index + 1,)}${((typeof named) === 'string') ? ` (${named})` : ''} names a field this command does not read: ${unread.join(', ')}. It reads ${BATCH_ENTRY_FIELDS.join(', ')}, so a field that would be dropped is refused rather than ignored.`,
+    );
+  },);
   return listed as readonly BatchEntry[];
 }
 
@@ -254,15 +330,50 @@ export function retryWordsOf({
     ...((entry.provider === undefined) ? [] : [`--provider=${entry.provider}`,]),
     ...((entry.model === undefined) ? [] : [`--model=${entry.model}`,]),
     ...((entry.sessionOf === undefined) ? [] : [`--session-of=${entry.sessionOf}`,]),
+    ...((entry.session === undefined) ? [] : [`--session=${entry.session}`,]),
   ];
 }
 
 /**
- Reads the line one entry ends with.
+ Reads what one line of a failed entry can say about why it failed: the reason it printed, cut to the room the line has left, or
+ the fact that it printed none.
+
+ @param reason - what the start printed as its reason, or nothing when it printed none
+
+ @param characters - how much of the reason the line has room for
+
+ @returns the words the line carries
+
+ @example
+ ```ts
+ const said = reasonCutTo({ reason: 'Error: no prompt', characters: 200 });
+ ```
+ */
+function reasonCutTo({
+  reason,
+  characters,
+}: {
+  readonly reason?: string;
+  readonly characters: number;
+}): string {
+  if (reason === undefined) {
+    return 'it printed no reason';
+  }
+  return reason.slice(
+    0,
+    characters,
+  );
+}
+
+/**
+ Reads the line one entry ends with: the reason it failed by, never the last line of a stack, and where the whole of what it
+ printed was kept.
 
  @param name - the run's name
 
  @param started - what starting it answered
+
+ @param keptAt - where the whole of what a failed start printed was kept, when it was kept
 
  @returns the line to print
 
@@ -274,26 +385,50 @@ export function retryWordsOf({
 export function entryLineOf({
   name,
   started,
+  keptAt,
 }: {
   readonly name: string;
   readonly started: StartedEntry;
-}): string {
+  readonly keptAt?: string;
+},): string {
   if ((started.startProblem !== undefined) || (started.status === undefined)) {
     return `${name}: could not start the retry (${started.startProblem ?? 'it answered no status'})`;
   }
   /**
-   What the entry printed, of which the end is what says why it ended so.
+   What the line says before the reason, which is what the reason has to fit beside.
    */
-  const tail = started.output
-    .trim()
-    .slice(-ENTRY_OUTPUT_TAIL_CHARACTERS,);
-  return `${name}: status ${String(started.status,)}${(started.status === 0) ? '' : ` ${tail.split('\n',)
-    .at(-1)
-    ?? ''}`}`
-    .slice(
-    0,
-    ENTRY_LINE_CHARACTERS,
-    );
+  const head = `${name}: status ${String(started.status,)}`;
+  if (started.status === 0) {
+    return head;
+  }
+  /**
+   Where the whole of what it printed is kept, for a reader who needs more than the reason.
+   */
+  const kept = (keptAt === undefined) ? '' : ` (all it printed: ${keptAt})`;
+  /**
+   How much of the reason is left once the name and the kept file have their room.
+   */
+  /**
+   How much of the line the run's name and the kept file already take.
+   */
+  const saidSoFar = head.length + kept.length;
+  /**
+   How much of the reason is left once they have their room.
+   */
+  const roomForReason = Math.max(
+    ENTRY_LINE_CHARACTERS
+      - saidSoFar
+      - 1,
+    ENTRY_REASON_CHARACTERS,
+  );
+  /**
+   Why the start failed, which is what a reader scans for.
+   */
+  const reason = reasonCutTo({
+    ...reasonInFailedStart({ output: started.output, },),
+    characters: roomForReason,
+  },);
+  return `${head} ${reason}${kept}`;
 }
 
 /**
@@ -309,11 +444,13 @@ export function entryLineOf({
 
  @param wait - how the batch passes time between starts
 
+ @param keepFailure - where the whole of what a failed start printed is kept, or nothing when it is not kept anywhere
+
  @returns one line per entry, in the list's order
 
  @example
  ```ts
- const lines = await startBatch({ entries, runsFolder: '/runs', deadlineSeconds: 7_200, start, wait, },);
+ const lines = await startBatch({ entries, runsFolder: '/runs', deadlineSeconds: 7_200, start, wait, keepFailure, },);
  ```
  */
 export async function startBatch({
@@ -322,6 +459,7 @@ export async function startBatch({
   deadlineSeconds,
   start,
   wait,
+  keepFailure,
 }: {
   readonly entries: readonly BatchEntry[];
   readonly runsFolder: string;
@@ -331,6 +469,10 @@ export async function startBatch({
     readonly words: readonly string[];
   }) => Promise<StartedEntry>;
   readonly wait: (milliseconds: number) => Promise<void>;
+  readonly keepFailure?: (request: {
+    readonly name: string;
+    readonly output: string;
+  }) => Promise<{ readonly keptAt?: string }>;
 },): Promise<readonly string[]> {
   /**
    What each entry ended with, in the list's order.
@@ -350,15 +492,33 @@ export async function startBatch({
     await wait(BATCH_STAGGER_MILLISECONDS,);
   }
   /* oxlint-enable eslint/no-await-in-loop */
-  return (await Promise.all(started,)).map(function lineFor(
+  /**
+   What each entry answered, in the list's order.
+   */
+  const answered = await Promise.all(started,);
+  return await Promise.all(answered.map(async function lineFor(
     startedEntry,
     index,
   ) {
+    /**
+     The run this line is about.
+     */
+    const name = entries[index]
+      ?.name
+      ?? '';
+    /**
+     Where the whole of a failed start's output was kept, which only a failure that printed something has.
+     */
+    const keptAt = (((startedEntry.status === 0) || (startedEntry.status === undefined)) || (keepFailure === undefined))
+      ? undefined
+      : (await keepFailure({
+        name,
+        output: startedEntry.output,
+      },)).keptAt;
     return entryLineOf({
-      name: entries[index]
-        ?.name
-        ?? '',
+      name,
       started: startedEntry,
+      ...(keptAt === undefined ? {} : { keptAt, }),
     },);
-  },);
+  },),);
 }
