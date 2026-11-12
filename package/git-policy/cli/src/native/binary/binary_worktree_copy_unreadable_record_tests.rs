@@ -210,7 +210,7 @@ fn kept_names(common: &Path) -> Vec<String> {
 
 /// The records one command kept that were not kept before it ran.
 fn newly_kept(before: &[String], after: &[String]) -> Vec<String> {
-    return after.iter().filter(|name| !before.contains(name)).cloned().collect();
+    return after.iter().filter(|name| { return !before.contains(name); }).cloned().collect();
 }
 
 /// Require that one record of `name` joined the folder when it could not be read,
@@ -386,7 +386,7 @@ fn an_unreadable_claim_without_its_folder_is_moved_aside_and_named() {
     let stderr: String = require_the_command_ran(&fixture, one.as_path(), &damage);
 
     require_the_settlement_line(stderr.as_str(), &damage);
-    assert!(kept_names(common.as_path()).iter().any(|found| found == &name), "the claim is kept aside: {stderr}");
+    assert!(kept_names(common.as_path()).iter().any(|found| { return found == &name; }), "the claim is kept aside: {stderr}");
     assert!(stderr.contains("destination record"), "the line says what else is settled: {stderr}");
     remove(&fixture);
 }

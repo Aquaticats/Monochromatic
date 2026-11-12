@@ -108,14 +108,14 @@ fn measure_what_a_flush_of_one_record_costs() {
     let mut wrapped_micros: Vec<u128> = Vec::new();
     let mut direct_micros: Vec<u128> = Vec::new();
     for attempt in 0..ADDS {
-        let started: Instant = Instant::now();
-        let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", format!("wrapped{attempt}").as_str(), format!("../wrapped{attempt}").as_str()]);
-        assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
-        wrapped_micros.push(started.elapsed().as_micros());
-        let started: Instant = Instant::now();
-        let added: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", format!("direct{attempt}").as_str(), format!("../direct{attempt}").as_str()]);
-        assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
-        direct_micros.push(started.elapsed().as_micros());
+        let wrapped_started: Instant = Instant::now();
+        let wrapped_added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", format!("wrapped{attempt}").as_str(), format!("../wrapped{attempt}").as_str()]);
+        assert_eq!(wrapped_added.code, Some(0), "{}", stderr_of(&wrapped_added));
+        wrapped_micros.push(wrapped_started.elapsed().as_micros());
+        let direct_started: Instant = Instant::now();
+        let direct_added: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", format!("direct{attempt}").as_str(), format!("../direct{attempt}").as_str()]);
+        assert_eq!(direct_added.code, Some(0), "{}", stderr_of(&direct_added));
+        direct_micros.push(direct_started.elapsed().as_micros());
     }
     let wrapped_spread: (u128, u128, u128) = spread(wrapped_micros);
     let direct_spread: (u128, u128, u128) = spread(direct_micros);

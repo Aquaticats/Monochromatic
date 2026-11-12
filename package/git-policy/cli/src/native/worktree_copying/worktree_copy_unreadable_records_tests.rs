@@ -26,8 +26,8 @@ use std::path::{Path, PathBuf};
 /// A directory under the test's own scratch space,
 /// private to this account like every item of a copy.
 fn scratch(name: &str) -> PathBuf {
-    let base: PathBuf = std::env::temp_dir().join(format!("cli-git-unreadable-{}-{name}", std::process::id()));
-    std::fs::remove_dir_all(base.as_path()).ok();
+    let base: PathBuf = crate::test_support::fixture_with_prefix("unreadable", name);
+    std::fs::remove_dir_all(base.join("common").as_path()).ok();
     std::fs::create_dir_all(base.join("common").as_path()).expect("common directory");
     std::fs::create_dir_all(base.join("worktrees").as_path()).expect("worktree parents");
     std::fs::set_permissions(base.join("common").as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("private common directory");

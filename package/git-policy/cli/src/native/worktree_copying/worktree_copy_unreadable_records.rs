@@ -165,7 +165,11 @@ fn suffixed(moved_name: &OsStr, attempt: usize) -> PathBuf {
     if attempt == 0 {
         return PathBuf::from(moved_name);
     }
-    let unique: String = random_uuid().map_or_else(|_unmade| { return format!("{attempt}"); }, |made| { return made; });
+    // A random source that fails still gives this try a name of its own, so a run never loops on one taken name.
+    let unique: String = match random_uuid() {
+        Ok(made) => made,
+        Err(_unmade) => format!("{attempt}"),
+    };
     let mut name: OsString = moved_name.to_owned();
     name.push(format!(".{unique}"));
     return PathBuf::from(name);
@@ -319,10 +323,10 @@ fn settle_unreadable_journals(common_dir: &Path, notices: &mut Vec<String>) -> R
             JournalFile::Pending(pending) => {
                 // A copy whose writer is gone is one a later command finishes; the registration it was made for is
                 // settled first, so that finishing it never stops for a record nothing can read.
-                if journal_owner_is_dead(&pending)? {
-                    if let Some(notice) = settle_unreadable_binding(common_dir, pending.journal.stage_container.as_path())? {
-                        notices.push(notice);
-                    }
+                if journal_owner_is_dead(&pending)?
+                    && let Some(notice) = settle_unreadable_binding(common_dir, pending.journal.stage_container.as_path())?
+                {
+                    notices.push(notice);
                 }
             }
             JournalFile::Unreadable { path, reason } => {
