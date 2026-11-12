@@ -196,7 +196,13 @@ fn every_abandoned_stage_is_removed() {
     let second: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("second");
     abandoned_stage(first.container());
     abandoned_stage(second.container());
+    // The stage of a copy whose journal a power cut took is settled at once, with no filesystem commit asked for: the
+    // wrapper's own record goes, and nothing of a person's is in it (`SPEC.md`, "The records an add writes for itself").
+    take_file_syncs();
+    take_directory_syncs();
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reaped");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the reaping flushes no file");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "the reaping flushes no directory");
     assert_eq!(notices.len(), 2);
     assert!(!first.container().exists());
     assert!(!second.container().exists());
@@ -830,7 +836,8 @@ fn an_unsynced_release_removes_the_records_and_flushes_nothing() {
 /// and the page cache keeps a killed command's writes;
 /// a flush of any of them is a commit of the whole btrfs filesystem on the add's waiting path,
 /// where native Git flushes nothing for the worktree add they serve
-///  (`SPEC.md`, "Local durability follows what the remote already holds").
+///  (`SPEC.md`,
+/// "Local durability follows what the remote already holds").
 /// The control that the recorders see a flush is the completion marker of the same claim.
 ///
 /// In TS you'd write (pseudocode):
@@ -860,8 +867,8 @@ fn the_records_of_an_add_are_published_whole_and_flush_nothing() {
     let leftovers: Vec<String> = std::fs::read_dir(journal_root(repo.join(".git").as_path()).as_path())
         .expect("listing")
         .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .filter(|name: &String| name.contains(".tmp.") || name.ends_with(".partial"))
+        .map(|entry| return entry.file_name().to_string_lossy().into_owned())
+        .filter(|name: &String| return name.contains(".tmp.") || name.ends_with(".partial"))
         .collect();
     assert_eq!(leftovers, Vec::<String>::new(), "no temporary stays beside the records");
     claim.mark_complete().expect("durable marker");
@@ -890,8 +897,8 @@ fn an_absent_destination_record_costs_no_flush_and_loses_no_bytes() {
     let claims: Vec<PathBuf> = std::fs::read_dir(journal_root(repo.join(".git").as_path()).as_path())
         .expect("listing")
         .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "stage"))
+        .map(|entry| return entry.path())
+        .filter(|path| return path.extension().is_some_and(|extension| return extension == "stage"))
         .collect();
     assert_eq!(claims.len(), 1, "one claim names the add that was killed");
     std::fs::remove_file(claims[0].with_extension("add").as_path()).expect("a power cut took the record");

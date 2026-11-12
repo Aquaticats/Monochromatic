@@ -27,10 +27,9 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::private_storage::sync_directory;
 use crate::worktree_add_binding::{Binding, Recorded, binding_still_holds, decode_record};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
-use crate::worktree_copy_journal::write_atomic;
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use crate::worktree_copy_journal::write_atomic_unsynced;
 use std::path::{Path, PathBuf};
 
 /// The name of the binding record inside a stage container.
@@ -52,6 +51,8 @@ pub const STAGE_BINDING_NAME: &str = "registration";
 /// so a journal this release writes always has one,
 /// and a copy killed
 ///  between staging and its journal is still bound to the worktree it was made for.
+/// It is published whole by its rename and flushed by nobody,
+/// for the reason `SPEC.md` gives under "The records an add writes for itself".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -59,8 +60,7 @@ pub const STAGE_BINDING_NAME: &str = "registration";
 /// ```
 pub fn record_stage_binding(container: &Path, binding: &Binding) -> Result<(), WorktreeCopyError> {
     let path: PathBuf = container.join(STAGE_BINDING_NAME);
-    write_atomic(path.as_path(), binding.encode().as_bytes(), "stage binding")?;
-    return sync_directory(container).map_err(raw_failure_of);
+    return write_atomic_unsynced(path.as_path(), binding.encode().as_bytes(), "stage binding");
 }
 
 /// What:

@@ -57,6 +57,39 @@ Every wrapped add writes its own split into
 so the steps below are the wrapper's own record of the same runs,
 not a second instrument.
 
+## The measurements
+
+Two runs of the fixture above, four arms each (the base commit's wrapper, this branch's wrapper,
+and native Git twice), every add warmed the same way and every arm drawn in a rotating order:
+
+- `pair-2`, 2026-11-11T23:45:00Z-05:00, this branch with the add's own records changed:
+  before median 13,027 ms (MAD 7,049 ms, largest 26,645 ms),
+  after median 11,209 ms (MAD 7,611 ms, largest 28,742 ms),
+  native median 3,078 ms and 3,442 ms.
+- `pair-3`, 2026-11-12T00:45:00Z-05:00, this branch with the copy's records changed too,
+  while a gate built in another worktree:
+  before median 41,477 ms, after median 43,075 ms, native median 16,066 ms and 21,065 ms,
+  and the two native copies differed by up to 40,692 ms in one round.
+
+The spread of one binary against itself is larger than any difference between the arms in both runs,
+so the wall clock of one add cannot judge this change on this host.
+What does judge it is the same instrument on the same add:
+the step record the wrapper writes, and the syscalls a `strace -f` counts:
+
+- `fsync` calls in one add: none in native Git, twelve before, one after.
+- Time in `fsync`: none in native Git, 12,646 ms in one traced add before and 43,437 ms in another,
+  15 ms after.
+- `recordDestination`: 1,015 ms at the median and 5,932 ms at the largest before, 1 ms after.
+- `recordBinding`: 109 ms at the median and 6,488 ms at the largest before, nothing after.
+- `copyIgnored`: 5,795 ms at the median and 15,433 ms at the largest before, 878 ms in the traced add after.
+
+The steps that remain in a wrapped add are the tree's own work:
+`git status` of the clean check,
+the snapshot's ioctl and index install inside `finishRung`,
+and `git ls-files`,
+which take 12.4 s, 20.4 s and 9.1 s in a traced add on a host whose load average was 95 and whose
+native `git worktree add` took 8.5 s to 45 s in the same hours.
+
 ## What an add spends, and what native Git spends
 
 A `strace -f` of one wrapped add and one native add of the same fixture,

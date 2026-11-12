@@ -3342,13 +3342,12 @@ so no later invocation replays the same failure.
 
 Each destination uses a schema-versioned journal under
 `<git-common-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
-Journal writes use a private no-follow temporary file,
-file synchronization,
-atomic rename,
-and parent-directory synchronization where supported.
+Journal writes use a private no-follow temporary file and an atomic rename,
+and no synchronization
+(see "The records an add writes for itself").
 The journal record is rewritten only when the transaction changes phase.
 Selected-entry intents and proven post-creation identities are appended to a private install log inside the stage,
-one synchronized line per bounded batch of manifest entries:
+one line per bounded batch of manifest entries:
 the batch's absent paths are claimed before any of them is created,
 and their identities are recorded after.
 Installation cost therefore grows linearly with the entry count.
@@ -3455,11 +3454,19 @@ The completion marker keeps its flush:
 recovery removes a registered worktree whose add has no such record,
 so a lost marker would remove a worktree a person was told about
 (`worktree_copy_stage_claim.rs`).
-The journal of a copy,
-its install log and the record of an unfilled worktree keep their synchronization:
-what they prove is what the copy wrote into the worktree,
-which a later command rolls back or names,
-and the rule above leaves that decision to a change of its own.
+The same holds for a copy's own bookkeeping:
+its journal,
+the journal's adoption by a command that takes over a dead owner's,
+its stage binding,
+each batch line of its install log,
+the record of an unfilled worktree,
+and the removals that settle them.
+What they prove is what the copy wrote into a worktree Git has just made,
+whose every byte the source still holds,
+so a power cut costs the rollback of a partial installation and the notice that names it,
+never a byte of a person's.
+An install log that is cut by a power cut is read as its complete lines and truncated before the next append,
+so the record stays usable.
 
 Every root a copy record holds is written as its bytes.
 The journal carries `destinationRootHex`,
