@@ -30,8 +30,8 @@
 //! a named pipe,
 //! a socket or a device,
 //! is not read here:
-//!  the gates that stop a merge for such an entry own it, and reading
-//! a pipe could wait for a writer nothing promises.
+//!  the gates that stop a merge for such an entry own it,
+//! and reading a pipe could wait for a writer nothing promises.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -182,7 +182,9 @@ async fn paths_the_status_hides_awaiting(context: &GitContext, root: &Path, touc
 ///   Every entry is compared by the clean-filtered object its bytes make and the mode it has,
 /// and the listing is
 ///  only a candidate set:
-/// a path outside the merge's own or one with no worktree file is no work to carry.
+/// a path outside the merge's own is no work to carry,
+/// and a marked path with no worktree file is one only where the
+///  mark is not the reason it is gone.
 ///  An entry that holds no bytes at all,
 /// a directory,
 /// a named pipe,

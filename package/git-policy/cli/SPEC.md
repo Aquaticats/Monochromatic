@@ -4655,9 +4655,22 @@ and "never discard user data"):
   by the clean-filtered object of the bytes and
   the mode the worktree entry has
   (`src/native/merge/merge_isolation_marks_the_status_hides.rs`).
-  A marked path whose worktree file is gone is no edit of the person's:
+  A marked path whose worktree file is gone is read by which mark it is:
   a `skip-worktree` entry with no file is a sparse checkout's own state,
-  and a missing worktree file is one Git's own update writes back.
+  and Git's own update writes that file back,
+  while an `assume-unchanged` entry has no such reading,
+  so the absence is a deletion of the person's that the merge carries like any other,
+  which keeps it with `git status` naming it again (a cross-vendor review of 0.6.1-alpha.11,
+  its second finding:
+  the merge put the branch's file back with exit `0` and an empty status).
+  A marked entry that holds no bytes at all,
+  a directory,
+  a named pipe,
+  a socket or a device,
+  is not read here:
+  it is left to the gates that stop the merge for such an entry,
+  which run before the first byte of the checkout changes,
+  and reading a pipe could wait for a writer nothing promises.
   A tree or a temporary index is not written for this read:
   it runs `git ls-files -v --stage -z` over the merge's own paths and
   `git hash-object --path` for the entries that carry a mark.
@@ -4868,6 +4881,17 @@ says what stands there,
 that nothing was changed,
 and that the entries are still in the checkout
 (`src/native/merge/merge_isolation_a_special_file_the_merge_changes.rs`).
+That gate is the answer whatever index mark the entry carries:
+the read of the marks that hide a path from status leaves every entry that holds no bytes to it,
+so a pipe at an `assume-unchanged` path stops the merge as a pipe at a plain one does.
+The same holds for a pipe at a path the two branches differ in but the merge writes nothing to,
+which stops nothing at all.
+Those two were one defect of 0.6.1-alpha.11,
+found by a cross-vendor review of it:
+reading the mark answered a pipe with a refusal,
+the refusal made the whole merge native Git's,
+and native Git's aborted merge restored every `assume-unchanged` path to the branch's content,
+which replaced the pipe with a plain file and left `git status` empty.
 No worktree read ever opens one:
 the bytes of a captured path come from a handle that can only be a plain file,
 and a name swapped for a pipe between the type check and the open is refused
