@@ -70,7 +70,7 @@ jsonschema = { workspace = true }
 directories = ">=6"
 globset = ">=0.4.21"
 ignore = ">=0.4.34"
-jsonschema = ">=0.61.0"
+jsonschema = ">=0.61.1"
 libc = ">=0.2.191"
 notify = ">=8.2.2"
 schemars = ">=1.2.3"

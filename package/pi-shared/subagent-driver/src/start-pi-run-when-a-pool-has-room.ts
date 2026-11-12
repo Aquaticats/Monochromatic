@@ -27,6 +27,11 @@ import {
   REPLACED_LAUNCHER_ENTRY_NAMES,
 } from './going-runs.ts';
 import { parsePoolGateOptions, } from './parse-pool-gate-options.ts';
+import {
+  limitsIn,
+  POOL_LIMITS_VARIABLE,
+  poolsWithTheseLimits,
+} from './pool-limits.ts';
 import { gateOutcomeOf, } from './pool-gate.ts';
 import { talliesOf, } from './pool-tallies.ts';
 import {
@@ -72,6 +77,12 @@ const freeSpace: FreeSpace = (GIVEN_FREE_SPACE_BYTES === '')
 const options = parsePoolGateOptions(argv.slice(2,),);
 
 /**
+ The pools this run counts against: the shipped table, with the limits a caller set in the environment overriding them, so a pool
+ whose provider has a weekly or monthly quota is closed and reopened without a code change.
+ */
+const pools = poolsWithTheseLimits({ limits: limitsIn({ listed: env[POOL_LIMITS_VARIABLE] ?? '', },), },);
+
+/**
  The runs going now, and every launcher that has not made its unit yet.
  */
 const runs = await goingRunsNow({
@@ -81,6 +92,7 @@ const runs = await goingRunsNow({
     ...LAUNCHER_ENTRY_NAMES,
     ...REPLACED_LAUNCHER_ENTRY_NAMES,
   ],
+  pools,
   onProblem: function onProblem(problem,) {
     // The pools are counted from what could be read; a unit whose own command line could not be read still holds the fallback
     // pool, and saying so is what tells a reader which run that was.
@@ -95,7 +107,10 @@ const runs = await goingRunsNow({
 const outcome = await gateOutcomeOf({
   options,
   runs,
-  tallies: talliesOf({ runs, },),
+  tallies: talliesOf({
+    runs,
+    pools,
+  },),
   freeSpace,
   sessionFileOf: function sessionFileOf(runFolder,) {
     return sessionFileOfRun({

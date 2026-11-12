@@ -70,6 +70,9 @@ pub(crate) fn place_number(place: (usize, usize)) -> usize {
 /// The telling costs one clock read of the loop the client already runs and one line;
 /// it waits for nothing,
 ///  takes no lock and writes no file.
+///   The caller says them only when its read is about to wait and nothing the service sent is already here,
+/// since a place is
+///  news of a wait that is still on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,6 +113,8 @@ pub(crate) fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig
 ///  (`waiting_notice_after`),
 /// and every change of them past that wait is said,
 /// so a write that has stayed stuck a new minute is told in its new words.
+///   The caller says them only when its read is about to wait and nothing the service sent is already here:
+/// the words can only say a write is under way to a person whose wait is still on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -5,6 +5,9 @@
 //! groups the pushes by branch,
 //! and runs each kind with its awaited handler,
 //!  every storage step in a job of the blocking pool.
+//! Inside one kind the items of different worktrees run beside each other and one worktree's items keep their turn
+//! (`service_work_items_side_by_side.rs`),
+//! and the pushes of different branches of the repository run beside each other.
 //! Why:
 //!  It is the largest step of the service's work and has a file of its own,
 //! so the drains that call it stay short.
@@ -40,12 +43,75 @@ use crate::service_work_storage_awaited::{acceptable_awaiting, claim_all_awaitin
 use crate::journald_native::Priority;
 use crate::service_claim_renewal::{HeldClaims, held_claims, renewal_interval};
 use crate::service_work_drain_deletes_subvolumes::delete_subvolumes_awaiting;
-use crate::service_work_settling_with_words::settle_with_the_words;
+use crate::service_work_items_side_by_side::{pushes_side_by_side, run_and_settle_side_by_side, slow_items_side_by_side, waves_of};
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
+use crate::parallel_budget::HostResources;
+use crate::side_by_side_on_the_current_task::run_all_side_by_side_on_the_current_task;
 use crate::work_item::{Claimed, DONE, FAILED, PENDING, WorkItem, WorkKind};
+use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::pin::Pin;
+use std::time::{Duration, Instant, SystemTime};
+
+/// The key two pushes may stand in each other's way over:
+/// the repository and the branch the group's newest record names.
+/// A group is never empty,
+/// so a group with no newest record is a state this module cannot make.
+fn branch_of(members: &[Claimed]) -> (PathBuf, String) {
+    return match members.last() {
+        Some(newest) => (newest.item.repository.clone(), newest.item.branch_ref.clone()),
+        None => (PathBuf::new(), String::new()),
+    };
+}
+
+/// What:
+///  Ask the relink of one item and say how long it took,
+///  as the wave of relinks asks it.
+/// Why:
+///  A named function rather than a closure,
+/// because what a wave's item is asked for is a body that outlives the poll
+/// that started it and captures nothing of the caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function askRelink(handlers, item) { const t0 = now(); const v = await handlers.relink(item); if (v.done) log(t0); return v }
+/// ```
+fn ask_relink<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
+    return Box::pin(async move {
+        let relinking: Instant = Instant::now();
+        let verdict: Verdict = handlers.relink_awaiting(item).await;
+        if matches!(verdict, Verdict::Done) {
+            crate::service_log!("the package state of {} was relinked relink_ms={}", item.repository.display(), relinking.elapsed().as_millis());
+        }
+        return verdict;
+    });
+}
+
+/// The prewarm of one item,
+/// as its wave asks it.
+fn ask_prewarm<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
+    return Box::pin(async move { return handlers.prewarm_awaiting(item).await; });
+}
+
+/// The emptying of one trash,
+/// as its wave asks it.
+fn ask_trash<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
+    return Box::pin(async move { return handlers.trash_awaiting(item).await; });
+}
+
+/// The review of one item and the line that says how long it took,
+/// as its wave asks it.
+fn ask_review<'lent, H: WorkHandlers + Sync + ?Sized>(handlers: &'lent H, item: &'lent WorkItem) -> Pin<Box<dyn Future<Output = Verdict> + Send + 'lent>> {
+    return Box::pin(async move {
+        let review_began: Instant = Instant::now();
+        let verdict: Verdict = handlers.review_awaiting(item).await;
+        if matches!(verdict, Verdict::Done) {
+            crate::service_log!("the review of {} is done review_ms={}", item.oid, review_began.elapsed().as_millis());
+        }
+        return verdict;
+    });
+}
 
 /// What:
 ///  The identity of a claimed item,
@@ -82,6 +148,32 @@ fn may_start_housekeeping(slice: &HousekeepingOfOneRound, started: &mut bool) ->
 }
 
 /// What:
+///  The items of one housekeeping step this round may start, in the order they were claimed,
+///  and the ones it leaves for a later round.
+/// Why:
+///   A step runs its items as one batch of waves (`service_work_items_side_by_side.rs`),
+/// so the round answers "may I start this one now" for the whole batch before it begins,
+///  the first item whatever the slice has spent and the rest only while it has room
+/// (`housekeeping_of_one_round.rs`);
+/// an item it may not start is handed back by the caller and named in the round's line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const starting = whatTheRoundMayStart(items, slice, started, left); // the rest go to left
+/// ```
+fn what_the_round_may_start(items: Vec<Claimed>, slice: &HousekeepingOfOneRound, started: &mut bool, left_for_a_later_round: &mut Vec<Claimed>) -> Vec<Claimed> {
+    let mut starting: Vec<Claimed> = Vec::new();
+    for item in items {
+        if !may_start_housekeeping(slice, started) {
+            left_for_a_later_round.push(item);
+            continue;
+        }
+        starting.push(item);
+    }
+    return starting;
+}
+
+/// What:
 ///  Claims and runs every pending item of one work directory of the kinds `kinds` names,
 /// until none is left;
 /// the claims held are renewed every third of `lease`,
@@ -110,7 +202,7 @@ fn may_start_housekeeping(slice: &HousekeepingOfOneRound, started: &mut bool) ->
 /// ```ts
 /// await drainPendingAwaiting(gitDir, handlers, lease, renewal, replanning, kinds, housekeeping) // Duration | undefined
 /// ```
-pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
+pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     lease: Duration,
@@ -155,6 +247,8 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             Some(back) => held = back,
             None => break 'round,
         }
+        // The host's CPUs and memory, read once for every batch of this round, so a round's widths are one reading.
+        let host: HostResources = HostResources::read();
         let mut pushes: Vec<Claimed> = Vec::new();
         let mut trashes: Vec<Claimed> = Vec::new();
         let mut prewarms: Vec<Claimed> = Vec::new();
@@ -190,6 +284,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 None => groups.push((key, vec![item])),
             }
         }
+        // The claims of every branch are checked before any push starts, so one listing of the claim directory serves
+        //  them all, and a branch another instance took over is left to it.
+        let mut branches: Vec<Vec<Claimed>> = Vec::new();
         for (_, claimed_members) in groups {
             let members: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), claimed_members).await {
                 Some((back, mine)) => {
@@ -198,47 +295,63 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 }
                 None => break 'round,
             };
-            if members.is_empty() {
-                continue;
+            if !members.is_empty() {
+                branches.push(members);
             }
-            let mut items: Vec<WorkItem> = Vec::new();
-            for member in &members {
-                items.push(member.item.clone());
+        }
+        // The pushes of different branches run side by side: each names its own branch, its own objects are already in the
+        //  repository's store, and only the branch it updates and the reference it tracks are its own. The same branch's
+        //  records are one group, so one branch is never pushed twice at once.
+        let branches_wide: usize = pushes_side_by_side(branches.len(), &host);
+        let branch_keys: Vec<(PathBuf, String)> = branches.iter().map(Vec::as_slice).map(branch_of).collect();
+        for wave in waves_of(branch_keys.as_slice(), branches_wide) {
+            let mut running: Vec<Pin<Box<dyn Future<Output = (Verdict, SystemTime, u128)> + Send + '_>>> = Vec::with_capacity(wave.len());
+            for index in &wave {
+                let mut items: Vec<WorkItem> = Vec::new();
+                for member in &branches[*index] {
+                    items.push(member.item.clone());
+                }
+                running.push(Box::pin(async move {
+                    // The push carries what existed when it began; a notice written after this moment is about something newer.
+                    let pushing_since: SystemTime = SystemTime::now();
+                    let pushing: Instant = Instant::now();
+                    let verdict: Verdict = handlers.push_awaiting(items.as_slice()).await;
+                    return (verdict, pushing_since, pushing.elapsed().as_millis());
+                }));
             }
-            // The push carries what existed when it began; a notice written after this moment is about something newer.
-            let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
-            let pushing: Instant = Instant::now();
-            let verdict: Verdict = handlers.push_awaiting(items.as_slice()).await;
-            if let Some(newest) = members.last() {
-                // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
-                let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
-                    Verdict::Done => (Priority::Info, "done", ""),
-                    Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
-                    Verdict::Retry(text) => (Priority::Warning, "retrying", text.as_str()),
-                    Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
-                };
-                let fields: [(&str, String); 3] = [
-                    ("CLI_GIT_BRANCH", newest.item.branch_ref.clone()),
-                    ("CLI_GIT_OID", newest.item.oid.clone()),
-                    ("CLI_GIT_OUTCOME", outcome.to_string()),
-                ];
-                log_entry(
-                    priority,
-                    format!(
-                        "pushed branch={:?} oid={} items={} outcome={outcome} push_ms={}{}{said}",
-                        newest.item.branch_ref,
-                        newest.item.oid,
-                        members.len(),
-                        pushing.elapsed().as_millis(),
-                        if said.is_empty() { "" } else { ": " }
-                    )
-                    .as_str(),
-                    &fields,
-                );
-            }
-            match settle_after_the_push(held, work_dir.as_path(), git_dir, &members, verdict, pushing_since, replanning).await {
-                Some(back) => held = back,
-                None => break 'round,
+            let pushed: Vec<(Verdict, SystemTime, u128)> = run_all_side_by_side_on_the_current_task(running).await;
+            for (index, (verdict, pushing_since, push_ms)) in wave.iter().zip(pushed) {
+                let members: &Vec<Claimed> = &branches[*index];
+                if let Some(newest) = members.last() {
+                    // One line for every push the service ran, so a branch that was not backed up (or was) is found by its name.
+                    let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
+                        Verdict::Done => (Priority::Info, "done", ""),
+                        Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
+                        Verdict::Retry(text) => (Priority::Warning, "retrying", text.as_str()),
+                        Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
+                    };
+                    let fields: [(&str, String); 3] = [
+                        ("CLI_GIT_BRANCH", newest.item.branch_ref.clone()),
+                        ("CLI_GIT_OID", newest.item.oid.clone()),
+                        ("CLI_GIT_OUTCOME", outcome.to_string()),
+                    ];
+                    log_entry(
+                        priority,
+                        format!(
+                            "pushed branch={:?} oid={} items={} outcome={outcome} push_ms={push_ms}{}{said}",
+                            newest.item.branch_ref,
+                            newest.item.oid,
+                            members.len(),
+                            if said.is_empty() { "" } else { ": " }
+                        )
+                        .as_str(),
+                        &fields,
+                    );
+                }
+                match settle_after_the_push(held, work_dir.as_path(), git_dir, members, verdict, pushing_since, replanning).await {
+                    Some(back) => held = back,
+                    None => break 'round,
+                }
             }
         }
         // A snapshot ahead is the one kind of work a person's own command waits for, so it runs before the upkeep
@@ -284,19 +397,17 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
             None => break 'round,
         };
-        for item in relinked {
-            let relinking: Instant = Instant::now();
-            let verdict: Verdict = handlers.relink_awaiting(&item.item).await;
-            if matches!(verdict, Verdict::Done) {
-                crate::service_log!("the package state of {} was relinked relink_ms={}", item.item.repository.display(), relinking.elapsed().as_millis());
-            }
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "relink").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
+        let relinks_wide: usize = slow_items_side_by_side(relinked.len(), &host);
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, relinked, relinks_wide, "relink", ask_relink)
+        .await
+        {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // A new worktree's Cargo build directory is filled before the left-out files are emptied: the filling is the work
         //  the add stopped doing, and the sooner it lands the more likely the first build in the worktree finds it.
+        // The step runs in the waves the round may start, and the items it may not start are the housekeeping a later round
+        //  is named.
         let prewarmed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), prewarms).await {
             Some((back, mine)) => {
                 held = back;
@@ -304,13 +415,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
             None => break 'round,
         };
-        for item in prewarmed {
-            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
-                left_for_a_later_round.push(item);
-                continue;
-            }
-            let verdict: Verdict = handlers.prewarm_awaiting(&item.item).await;
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "prewarm").await {
+        let starting: Vec<Claimed> = what_the_round_may_start(prewarmed, &slice, &mut housekeeping_has_started, &mut left_for_a_later_round);
+        if !starting.is_empty() {
+            let prewarms_wide: usize = slow_items_side_by_side(starting.len(), &host);
+            match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, starting, prewarms_wide, "prewarm", ask_prewarm).await {
                 Some(back) => held = back,
                 None => break 'round,
             }
@@ -326,16 +434,12 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
             None => break 'round,
         };
-        for item in reviewed {
-            let review_began: Instant = Instant::now();
-            let verdict: Verdict = handlers.review_awaiting(&item.item).await;
-            if matches!(verdict, Verdict::Done) {
-                crate::service_log!("the review of {} is done review_ms={}", item.item.oid, review_began.elapsed().as_millis());
-            }
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "review").await {
-                Some(back) => held = back,
-                None => break 'round,
-            }
+        let reviews_wide: usize = slow_items_side_by_side(reviewed.len(), &host);
+        match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, reviewed, reviews_wide, "review", ask_review)
+        .await
+        {
+            Some(back) => held = back,
+            None => break 'round,
         }
         // A removed worktree's subvolume is deleted before the left-out files are emptied: it is one kernel call on a directory
         //  nothing else names, and it frees everything the worktree held.
@@ -352,8 +456,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
                 }
             }
         }
-        // The left-out files of a snapshot-made worktree are emptied last: freeing them is a local job nothing waits for, and a
-        //  trash of a removed worktree can take minutes (`worktree_trash_dispose.rs`).
+        // The left-out files of a snapshot-made worktree are emptied last, in the waves the round may start: freeing them is
+        //  a local job nothing waits for, and a trash of a removed worktree can take minutes (`worktree_trash_dispose.rs`).
+        //  The items the round may not start are the housekeeping a later round is named.
         let trashed: Vec<Claimed> = match still_held_awaiting(held, work_dir.as_path(), trashes).await {
             Some((back, mine)) => {
                 held = back;
@@ -361,13 +466,10 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + ?Sized>(
             }
             None => break 'round,
         };
-        for item in trashed {
-            if !may_start_housekeeping(&slice, &mut housekeeping_has_started) {
-                left_for_a_later_round.push(item);
-                continue;
-            }
-            let verdict: Verdict = handlers.trash_awaiting(&item.item).await;
-            match settle_with_the_words(held, work_dir.as_path(), item, verdict, "trash").await {
+        let emptying: Vec<Claimed> = what_the_round_may_start(trashed, &slice, &mut housekeeping_has_started, &mut left_for_a_later_round);
+        if !emptying.is_empty() {
+            let trashes_wide: usize = slow_items_side_by_side(emptying.len(), &host);
+            match run_and_settle_side_by_side(held, work_dir.as_path(), handlers, emptying, trashes_wide, "trash", ask_trash).await {
                 Some(back) => held = back,
                 None => break 'round,
             }

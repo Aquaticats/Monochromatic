@@ -22,7 +22,16 @@
     "start-pi-run-in-a-worktree": "dist/final/node/start-pi-run-in-a-worktree.mjs",
     "retry-pi-run-start-until-a-pool-has-room": "dist/final/node/retry-pi-run-start-until-a-pool-has-room.mjs",
     "start-pi-runs-from-a-batch-list": "dist/final/node/start-pi-runs-from-a-batch-list.mjs",
-    "save-the-final-message-of-a-review-that-wrote-no-review-file": "dist/final/node/save-the-final-message-of-a-review-that-wrote-no-review-file.mjs"
+    "save-the-final-message-of-a-review-that-wrote-no-review-file": "dist/final/node/save-the-final-message-of-a-review-that-wrote-no-review-file.mjs",
+    "list-processes-whose-command-line-holds-text": "dist/final/node/list-processes-whose-command-line-holds-text.mjs",
+    "list-running-units-whose-worktree-is-gone": "dist/final/node/list-running-units-whose-worktree-is-gone.mjs",
+    "print-the-final-report-of-the-newest-run-of-each-agent": "dist/final/node/print-the-final-report-of-the-newest-run-of-each-agent.mjs",
+    "list-launchers-whose-unit-has-ended": "dist/final/node/list-launchers-whose-unit-has-ended.mjs",
+    "remove-finished-worktrees": "dist/final/node/remove-finished-worktrees.mjs",
+    "start-a-batch-in-its-own-unit": "dist/final/node/start-a-batch-in-its-own-unit.mjs",
+    "write-a-brief-for-a-review": "dist/final/node/write-a-brief-for-a-review.mjs",
+    "start-reviews-of-finished-branches": "dist/final/node/start-reviews-of-finished-branches.mjs",
+    "write-a-fix-brief-for-each-review": "dist/final/node/write-a-fix-brief-for-each-review.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

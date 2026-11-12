@@ -32,6 +32,7 @@
 //! const placed = await placeFile({ context, root, path, judged, write }); // renameNoReplace take, check, place or put back
 //! ```
 
+use crate::merge_isolation_carry_permissions::keep_the_permissions_of_the_entry_it_replaces;
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
 use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
 use crate::merge_isolation_take_aside_names::{CARRY_PREFIX, aside_name};
@@ -541,6 +542,17 @@ async fn place_bytes_awaiting(
             return Ok(Placed::Changed { kept: stranded });
         }
     };
+    // The entry that made way for this write is the person's own mode as well as its bytes, and Git records only the
+    //  executable bit of it.
+    if let Err(error) = keep_the_permissions_of_the_entry_it_replaces(private.as_path(), aside.as_path()) {
+        let _left = std::fs::remove_file(private.as_path());
+        // Nothing was written at the path, so the entry the take moved aside goes back where it was found; one that cannot
+        //  go back stays under its private name, which the failure names.
+        return match rename_noreplace(aside.as_path(), location.as_path()) {
+            Ok(()) => Err(CarryFailure::Failed(format!("{error}; nothing was written to {}", location.display()))),
+            Err(_stayed) => Err(CarryFailure::Failed(format!("{error}; the file it held before is at {}", aside.display()))),
+        };
+    }
     let placed: Placed = match rename_noreplace(private.as_path(), location.as_path()) {
         Ok(()) => Placed::Written,
         // Another write took the path in the gap; the entry put aside is kept and named, and the bytes this write
