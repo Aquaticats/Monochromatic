@@ -175,6 +175,12 @@ mod conflict_side;
 #[path = "binary_discard_tests.rs"]
 mod discard;
 
+/// The two audits' matrices:
+/// every discarding form against every kind of file in the way,
+/// with what real Git loses and what the wrapper keeps or saves.
+#[path = "binary_discard_in_the_way_matrix_tests.rs"]
+mod discard_in_the_way_matrix;
+
 /// The remote settings every worktree of a repository shares:
 /// refused from a linked worktree,
 /// unchanged in the main checkout,

@@ -64,6 +64,8 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
 ///  so a directory, a glob and a literal name reach exactly what the form reaches.
 ///  A revision that does not resolve writes no path;
 ///  a query that could not run at all is a failure.
+///  `-` is the previous branch only to `switch` and `checkout`,
+///  so it is read as `@{-1}` before the tree is listed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,8 +76,16 @@ fn tree_paths(facts: &mut GitFacts, revision: Option<&OsStr>, pathspecs: &[OsStr
     for token in ["--no-optional-locks", "ls-tree", "-r", "-z", "--name-only"] {
         arguments.push(OsString::from(token));
     }
-    // `-` is the previous branch only to `switch` and `checkout`, and the form reader already spelled it.
-    arguments.push(revision.map_or_else(|| OsString::from("HEAD"), OsStr::to_os_string));
+    // `-` is the previous branch only to `switch` and `checkout`, so it is read as the expression Git resolves
+    //  wherever an object name is read; `@{-N}` needs no such reading.
+    let named: OsString = match revision {
+        Some(written) => match crate::command_discard::previous_branch_expression(written.as_encoded_bytes()) {
+            Some(expression) => OsString::from(String::from_utf8_lossy(expression).into_owned()),
+            None => written.to_os_string(),
+        },
+        None => OsString::from("HEAD"),
+    };
+    arguments.push(named);
     if !pathspecs.is_empty() {
         arguments.push(OsString::from("--"));
         arguments.extend(pathspecs.iter().cloned());

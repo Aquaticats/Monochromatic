@@ -600,6 +600,14 @@ fn saved_nested_repository_line(lines: &[String]) -> String {
     return matching.first().expect("the saved line").to_string();
 }
 
+/// The one audit line a save of an overwritten entry leaves,
+/// or a failure naming what was written instead.
+fn saved_overwritten_line(lines: &[String]) -> String {
+    let matching: Vec<&String> = lines.iter().filter(|line| { return line.contains("\"outcome\":\"saved-overwritten\""); }).collect();
+    assert_eq!(matching.len(), 1, "one saved-overwritten line among {lines:?}");
+    return matching.first().expect("the saved line").to_string();
+}
+
 /// What:
 ///  A clean with a second force deletes a nested repository whole,
 /// and every byte it holds is kept first.
@@ -1174,56 +1182,68 @@ fn repository_that_tracks_an_ignored_file(fixture: &Fixture) -> (PathBuf, PathBu
 /// A forced `checkout`,
 /// a forced `switch` and a hard `reset` replace an ignored file the target tree tracks,
 /// and the ignored file is where a person keeps their environment and their local secrets,
-/// so the guard reads the target tree and the ignored paths and refuses while they share a path.
+/// so the guard copies it first,
+/// names the copy,
+/// and lets the form run.
 #[test]
-fn a_forced_head_move_keeps_an_ignored_file_the_target_branch_tracks() {
-    let fixture: Fixture = fixture("discard-forced-ignored");
-    let (repo, linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&fixture);
+fn a_forced_head_move_saves_an_ignored_file_the_target_branch_tracks() {
     let person_value: &[u8] = b"SECRET=the person value\n";
-    // What real Git does with the same command, so the loss the guard prevents is measured and not presumed.
-    let replaced: Observed = run_direct(&fixture, linked.as_path(), &["checkout", "--force", "tracks"]);
+    for (number, arguments) in [
+        (1, vec!["checkout", "--force", "tracks"]),
+        (2, vec!["switch", "--force", "tracks"]),
+        (3, vec!["reset", "--hard", "tracks"]),
+    ] {
+        let fixture: Fixture = fixture(format!("discard-forced-ignored-{number}").as_str());
+        let (repo, linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&fixture);
+        let before: usize = audit_lines_of(repo.as_path()).len();
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert_eq!(
+            std::fs::read(linked.join(".env")).expect("ignored file"),
+            b"the tracked version\n",
+            "{arguments:?} did not write the target tree"
+        );
+        let line: String = saved_overwritten_line(audit_lines_since(repo.as_path(), before).as_slice());
+        let place: PathBuf = saved_place(line.as_str(), ".env");
+        assert_eq!(
+            std::fs::read(place.as_path()).expect("the kept file"),
+            person_value,
+            "{arguments:?} kept a file that is not the person's"
+        );
+        assert!(stderr_of(&observed).contains("saved your copy of .env"), "{arguments:?}: {}", stderr_of(&observed));
+        remove(&fixture);
+    }
+    // What real Git does with the same command, so the loss the guard saves is measured and not presumed.
+    let control: Fixture = fixture("discard-forced-ignored-control");
+    let (_repo, linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&control);
+    let replaced: Observed = run_direct(&control, linked.as_path(), &["checkout", "--force", "tracks"]);
     assert_eq!(replaced.code, Some(0), "{}", stderr_of(&replaced));
     assert_eq!(
         std::fs::read(linked.join(".env")).expect("ignored file"),
         b"the tracked version\n",
         "real Git kept the ignored file, so this control proves nothing"
     );
-    git(&fixture, linked.as_path(), &["checkout", "--force", "side"]);
-    keep_ignored_work(linked.as_path());
-    for arguments in [
-        vec!["checkout", "--force", "tracks"],
-        vec!["switch", "--force", "tracks"],
-        vec!["reset", "--hard", "tracks"],
-    ] {
-        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-        assert!(
-            rejected_by_policy(&observed),
-            "{arguments:?} replaced the ignored file: {}",
-            stderr_of(&observed)
-        );
-        assert_eq!(
-            std::fs::read(linked.join(".env")).expect("ignored file"),
-            person_value,
-            "{arguments:?} replaced the ignored file"
-        );
-        assert!(stderr_of(&observed).contains(".env"), "{arguments:?}: {}", stderr_of(&observed));
-    }
-    // The line names what the refusal saw, so a reader knows which paths were at stake.
-    let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
-    let text: String = std::fs::read_to_string(&audit).expect("audit file");
-    let last: &str = text.lines().last().expect("a last line");
-    assert!(last.contains("\"form\":\"ResetHard\""), "{last}");
-    assert!(last.contains("\"ignoredAndTracked\":\".env\""), "{last}");
-    // A target tree that tracks no ignored path leaves the worktree nothing to lose, so the form runs.
+    remove(&control);
+    // A target tree that tracks no ignored path leaves the worktree nothing to save, so the form runs with no line
+    //  of its own.
+    let quiet: Fixture = fixture("discard-forced-ignored-nothing");
+    let (repo, linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&quiet);
     std::fs::remove_file(linked.join(".env")).expect("drop the ignored file");
+    let before: usize = audit_lines_of(repo.as_path()).len();
     for arguments in [
         vec!["reset", "--hard", "side"],
         vec!["checkout", "--force", "tracks"],
     ] {
-        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        let observed: Observed = run_wrapped(&quiet, linked.as_path(), arguments.as_slice());
         assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert!(!stderr_of(&observed).contains("saved your copy"), "{arguments:?}: {}", stderr_of(&observed));
     }
-    remove(&fixture);
+    let lines: Vec<String> = audit_lines_since(repo.as_path(), before);
+    assert!(
+        lines.iter().all(|line| { return !line.contains("saved-overwritten"); }),
+        "a worktree with nothing in the way recorded a save: {lines:?}"
+    );
+    remove(&quiet);
 }
 
 /// A stash entry the repository holds,
@@ -1820,37 +1840,41 @@ fn repository_whose_target_needs_a_directory(fixture: &Fixture) -> (PathBuf, Pat
     return (repo, linked);
 }
 
-/// A forced form whose target needs a directory where the worktree has an ignored file removes that file,
-/// so the guard refuses and names it.
+/// A forced form whose target needs a directory where the worktree has an ignored file copies that file first
+/// and the form runs,
+/// because a refusal would only send the person to move it by hand.
 #[test]
-fn a_forced_form_keeps_an_ignored_file_where_the_target_needs_a_directory() {
-    let fixture: Fixture = fixture("discard-ignored-ancestor");
-    let (repo, linked): (PathBuf, PathBuf) = repository_whose_target_needs_a_directory(&fixture);
-    for arguments in [
-        vec!["reset", "--hard", "tracks"],
-        vec!["checkout", "--force", "tracks"],
-        vec!["switch", "--force", "tracks"],
+fn a_forced_form_saves_an_ignored_file_where_the_target_needs_a_directory() {
+    for (number, arguments) in [
+        (1, vec!["reset", "--hard", "tracks"]),
+        (2, vec!["checkout", "--force", "tracks"]),
+        (3, vec!["switch", "--force", "tracks"]),
     ] {
+        let fixture: Fixture = fixture(format!("discard-ignored-ancestor-{number}").as_str());
+        let (repo, linked): (PathBuf, PathBuf) = repository_whose_target_needs_a_directory(&fixture);
+        let before: usize = audit_lines_of(repo.as_path()).len();
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-        assert!(
-            rejected_by_policy(&observed),
-            "{arguments:?} removed the ignored file: {}",
-            stderr_of(&observed)
-        );
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
         assert_eq!(
-            std::fs::read(linked.join("private")).expect("ignored file"),
-            b"the person file\n",
-            "{arguments:?} removed the ignored file"
+            std::fs::read(linked.join("private/config.txt")).expect("tracked file"),
+            b"the tracked version\n",
+            "{arguments:?} did not write the target tree"
         );
         assert!(stderr_of(&observed).contains("private"), "{arguments:?}: {}", stderr_of(&observed));
+        let line: String = saved_overwritten_line(audit_lines_since(repo.as_path(), before).as_slice());
+        let place: PathBuf = saved_place(line.as_str(), "private");
+        assert_eq!(
+            std::fs::read(place.as_path()).expect("the kept file"),
+            b"the person file\n",
+            "{arguments:?} kept a file that is not the person's"
+        );
+        assert!(stderr_of(&observed).contains(place.display().to_string().as_str()), "{arguments:?}: {}", stderr_of(&observed));
+        remove(&fixture);
     }
-    // The line names the path the refusal saw.
-    let text: String = std::fs::read_to_string(repo.join(".git/monochromatic-git-policy-cli-audit.jsonl"))
-        .expect("the audit file of the repository");
-    let last: &str = text.lines().last().expect("a last line");
-    assert!(last.contains("\"ignoredAndTracked\":\"private\""), "{last}");
-    // Real Git removes the file to make the directory, so the loss the guard prevents is measured.
-    let removed: Observed = run_direct(&fixture, linked.as_path(), &["reset", "--hard", "tracks"]);
+    // Real Git removes the file to make the directory, so the save is measured against a loss that happens.
+    let control: Fixture = fixture("discard-ignored-ancestor-control");
+    let (_repo, linked): (PathBuf, PathBuf) = repository_whose_target_needs_a_directory(&control);
+    let removed: Observed = run_direct(&control, linked.as_path(), &["reset", "--hard", "tracks"]);
     assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
     assert!(
         !linked.join("private").is_file(),
@@ -1860,15 +1884,14 @@ fn a_forced_form_keeps_an_ignored_file_where_the_target_needs_a_directory() {
         std::fs::read(linked.join("private/config.txt")).expect("tracked file"),
         b"the tracked version\n"
     );
-    remove(&fixture);
+    remove(&control);
 }
 
-/// A forced switch to the previous branch keeps an ignored file that branch tracks,
-/// in both shorthands Git
-///  reads for it.
-#[test]
-fn a_forced_switch_to_the_previous_branch_keeps_an_ignored_file() {
-    let fixture: Fixture = fixture("discard-previous-branch");
+/// A forced switch to the previous branch saves an ignored file that branch tracks,
+/// in both shorthands Git reads for it,
+/// and the switch runs.
+fn fixture_whose_previous_branch_tracks_an_ignored_file(name: &str) -> (Fixture, PathBuf, PathBuf) {
+    let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
     git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
     std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
@@ -1881,50 +1904,40 @@ fn a_forced_switch_to_the_previous_branch_keeps_an_ignored_file() {
     git(&fixture, linked.as_path(), &["switch", "--quiet", "tracks"]);
     git(&fixture, linked.as_path(), &["switch", "--quiet", "side"]);
     std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("ignored file");
-    // The named expression is the previous branch, and `-` is Git's own shorthand for it in a switch.
-    let resolved: Output = git(&fixture, linked.as_path(), &["rev-parse", "--symbolic-full-name", "@{-1}"]);
-    assert_eq!(
-        String::from_utf8_lossy(resolved.stdout.as_slice()).trim(),
-        "refs/heads/tracks",
-        "the control needs the previous-branch expression to name the branch"
-    );
-    let replaced: Observed = run_direct(&fixture, linked.as_path(), &["switch", "--force", "-"]);
-    assert_eq!(replaced.code, Some(0), "{}", stderr_of(&replaced));
-    assert_eq!(branch_of(&fixture, linked.as_path()), "tracks", "Git reads - as the previous branch");
-    assert_eq!(
-        std::fs::read(linked.join(".env")).expect("ignored file"),
-        b"the tracked version\n",
-        "real Git kept the ignored file, so this control proves nothing"
-    );
-    // Back to where the person was, with the person's content again.
-    git(&fixture, linked.as_path(), &["switch", "--force", "side"]);
-    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("ignored file");
-    for expression in ["-", "@{-1}"] {
-        let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["switch", "--force", expression]);
-        assert!(
-            rejected_by_policy(&observed),
-            "switch --force {expression} replaced the ignored file: {}",
-            stderr_of(&observed)
+    return (fixture, repo, linked);
+}
+
+#[test]
+fn a_forced_switch_to_the_previous_branch_saves_an_ignored_file() {
+    for (number, expression) in [(1, "-"), (2, "@{-1}")] {
+        let (fixture, repo, linked): (Fixture, PathBuf, PathBuf) =
+            fixture_whose_previous_branch_tracks_an_ignored_file(format!("discard-previous-branch-{number}").as_str());
+        // The named expression is the previous branch, and `-` is Git's own shorthand for it in a switch.
+        let resolved: Output = git(&fixture, linked.as_path(), &["rev-parse", "--symbolic-full-name", "@{-1}"]);
+        assert_eq!(
+            String::from_utf8_lossy(resolved.stdout.as_slice()).trim(),
+            "refs/heads/tracks",
+            "the control needs the previous-branch expression to name the branch"
         );
+        let before: usize = audit_lines_of(repo.as_path()).len();
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["switch", "--force", expression]);
+        assert_eq!(observed.code, Some(0), "{expression}: {}", stderr_of(&observed));
         assert_eq!(
             std::fs::read(linked.join(".env")).expect("ignored file"),
+            b"the tracked version\n",
+            "switch --force {expression} did not write the target tree"
+        );
+        let line: String = saved_overwritten_line(audit_lines_since(repo.as_path(), before).as_slice());
+        let place: PathBuf = saved_place(line.as_str(), ".env");
+        assert_eq!(
+            std::fs::read(place.as_path()).expect("the kept file"),
             b"SECRET=the person value\n",
-            "switch --force {expression} replaced the ignored file"
+            "switch --force {expression} kept a file that is not the person's"
         );
         assert!(stderr_of(&observed).contains(".env"), "{expression}: {}", stderr_of(&observed));
-        assert_eq!(branch_of(&fixture, linked.as_path()), "side", "switch --force {expression} moved HEAD");
+        assert_eq!(branch_of(&fixture, linked.as_path()), "tracks", "switch --force {expression} moved HEAD");
+        remove(&fixture);
     }
-    // A branch that tracks nothing the worktree ignores still switches, in the same shorthand.
-    git(&fixture, linked.as_path(), &["switch", "--quiet", "tracks"]);
-    git(&fixture, linked.as_path(), &["switch", "--quiet", "side"]);
-    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("ignored file");
-    git(&fixture, repo.as_path(), &["branch", "free"]);
-    git(&fixture, linked.as_path(), &["switch", "--quiet", "free"]);
-    git(&fixture, linked.as_path(), &["switch", "--quiet", "side"]);
-    let free: Observed = run_wrapped(&fixture, linked.as_path(), &["switch", "--force", "-"]);
-    assert_eq!(free.code, Some(0), "{}", stderr_of(&free));
-    assert_eq!(branch_of(&fixture, linked.as_path()), "free");
-    remove(&fixture);
 }
 
 /// A deletion that names the previous branch resolves the name Git resolves,
@@ -2018,52 +2031,45 @@ fn repository_whose_target_replaces_a_directory(fixture: &Fixture) -> (PathBuf, 
     return (repo, linked);
 }
 
-/// A forced form whose target holds a regular file where the worktree keeps an ignored directory deletes the
-/// files inside it,
-/// so the guard refuses and names the file.
+/// A forced form whose target holds a regular file where the worktree keeps an ignored directory moves that
+/// directory aside whole and the form runs.
 #[test]
-fn a_forced_form_keeps_an_ignored_directory_the_target_replaces_with_a_file() {
-    let fixture: Fixture = fixture("discard-ignored-inside-replaced");
-    let (repo, linked): (PathBuf, PathBuf) = repository_whose_target_replaces_a_directory(&fixture);
-    for arguments in [
-        vec!["reset", "--hard", "tracks"],
-        vec!["checkout", "--force", "tracks"],
-        vec!["switch", "--force", "tracks"],
+fn a_forced_form_saves_an_ignored_directory_the_target_replaces_with_a_file() {
+    for (number, arguments) in [
+        (1, vec!["reset", "--hard", "tracks"]),
+        (2, vec!["checkout", "--force", "tracks"]),
+        (3, vec!["switch", "--force", "tracks"]),
     ] {
+        let fixture: Fixture = fixture(format!("discard-ignored-inside-replaced-{number}").as_str());
+        let (repo, linked): (PathBuf, PathBuf) = repository_whose_target_replaces_a_directory(&fixture);
+        let before: usize = audit_lines_of(repo.as_path()).len();
         let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
-        assert!(
-            rejected_by_policy(&observed),
-            "{arguments:?} deleted the ignored file: {}",
-            stderr_of(&observed)
-        );
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
         assert_eq!(
-            std::fs::read(linked.join("private/secret.txt")).expect("ignored file"),
+            std::fs::read(linked.join("private")).expect("tracked file"),
+            b"the tracked version\n",
+            "{arguments:?} did not write the target tree"
+        );
+        let line: String = saved_overwritten_line(audit_lines_since(repo.as_path(), before).as_slice());
+        let place: PathBuf = saved_place(line.as_str(), "private");
+        assert_eq!(
+            std::fs::read(place.join("secret.txt")).expect("the kept file"),
             b"the person secret\n",
-            "{arguments:?} deleted the ignored file"
+            "{arguments:?} kept a directory without the person's file"
         );
-        assert!(
-            stderr_of(&observed).contains("private/secret.txt"),
-            "{arguments:?}: {}",
-            stderr_of(&observed)
-        );
+        assert!(stderr_of(&observed).contains("private"), "{arguments:?}: {}", stderr_of(&observed));
+        remove(&fixture);
     }
-    // The line names the file the refusal saw.
-    let text: String = std::fs::read_to_string(repo.join(".git/monochromatic-git-policy-cli-audit.jsonl"))
-        .expect("the audit file of the repository");
-    let last: &str = text.lines().last().expect("a last line");
-    assert!(last.contains("\"ignoredAndTracked\":\"private/secret.txt\""), "{last}");
-    // Real Git replaces the directory with the tracked file, so the loss the guard prevents is measured.
-    let removed: Observed = run_direct(&fixture, linked.as_path(), &["reset", "--hard", "tracks"]);
+    // Real Git replaces the directory with the tracked file, so the save is measured against a loss that happens.
+    let control: Fixture = fixture("discard-ignored-inside-replaced-control");
+    let (_repo, linked): (PathBuf, PathBuf) = repository_whose_target_replaces_a_directory(&control);
+    let removed: Observed = run_direct(&control, linked.as_path(), &["reset", "--hard", "tracks"]);
     assert_eq!(removed.code, Some(0), "{}", stderr_of(&removed));
     assert!(
         !linked.join("private/secret.txt").exists(),
         "real Git kept the ignored file, so this control proves nothing"
     );
-    assert_eq!(
-        std::fs::read(linked.join("private")).expect("tracked file"),
-        b"the tracked version\n"
-    );
-    remove(&fixture);
+    remove(&control);
 }
 
 /// A branch whose name holds bytes that are not UTF-8 keeps its deletion line,
