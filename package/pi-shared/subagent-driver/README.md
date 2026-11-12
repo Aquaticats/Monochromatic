@@ -57,8 +57,12 @@ and mise appends a word its `usage` spec does not claim to the script's text ins
 `--help` is mise's own flag,
 so `mise run ...:start-reviews-of-finished-branches -- --help` ended in
 `SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]` rather than help.
-Each task's `usage` line stays,
-so `mise run ...:<command> --help` still prints mise's own help for it.
+A task declares no `usage` argument for the words after `--`,
+because mise claims a word any declared argument could take and refuses one it cannot place,
+which is how `--help` came to be appended to the task's script.
+`mise run ...:<command> --help` therefore prints mise's own help for the task,
+and `mise run ...:<command> -- --help` prints the command's usage line with its options.
+The description of each task says what the command does and which options it needs.
 
 ### The git a session would run
 

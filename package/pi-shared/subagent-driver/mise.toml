@@ -41,70 +41,56 @@ run = ["mise run build", "mise run test:unit"]
 
 [tasks."start-pi-run-when-a-pool-has-room"]
 description = "Start one Pi run when its provider pool has room, or say why it started none: the worktree launcher's options, plus --session-of=<run folder> and --counts-only"
-usage = 'arg "[args]" help="Options of the worktree launcher, plus --session-of=<run folder> and --counts-only"'
 run = "node src/start-pi-run-when-a-pool-has-room.ts"
 
 [tasks."start-pi-run-in-a-worktree"]
 description = "Make a run's worktree with its branch started at the commit or branch the run names, link its dependencies, start the driver as a capped unit, and remove the worktree once the run has finished with it"
-usage = 'arg "[args]" help="--name, --branch, --prompt, --cpu, --memory, --tasks and --wall are required; --base names the commit or branch a new branch starts at, and the rest have defaults"'
 run = "node src/start-pi-run-in-a-worktree.ts"
 
 [tasks."retry-pi-run-start-until-a-pool-has-room"]
 description = "Ask the pool gate for a slot until it starts the run or the deadline passes: --deadline-seconds and --period-seconds, then -- and the pool gate's words"
-usage = 'arg "[args]" help="--deadline-seconds=<n> --period-seconds=<n> [--] <pool gate options>"'
 run = "node src/retry-pi-run-start-until-a-pool-has-room.ts"
 
 [tasks."start-pi-runs-from-a-batch-list"]
 description = "Start every entry of a batch list through the retrying start, one at a time, and print the line each entry ended with: a failed entry names its own reason, the whole of what it printed is kept beside the runs, and the task exits non-zero when any entry failed"
-usage = 'arg "[args]" help="--batch-file=<file> [--runs-folder=<folder>] [--deadline-seconds=<n>]"'
 run = "node src/start-pi-runs-from-a-batch-list.ts"
 
 [tasks."save-the-final-message-of-a-review-that-wrote-no-review-file"]
 description = "Write the last assistant message of a review's newest finished run as that review's review.md, when the run wrote none"
-usage = 'arg "[args]" help="--review=<name> (repeatable), [--runs-folder=<folder>], [--review-folder=<folder>]"'
 run = "node src/save-the-final-message-of-a-review-that-wrote-no-review-file.ts"
 
 [tasks."list-processes-whose-command-line-holds-text"]
 description = "List every process whose command line holds a text, with its number, its parent, its age and the head of its command line"
-usage = 'arg "[args]" help="--text=<text> [--command-characters=<n>]"'
 run = "node src/list-processes-whose-command-line-holds-text.ts"
 
 [tasks."list-running-units-whose-worktree-is-gone"]
 description = "Name every running unit whose worktree folder is gone, and count the units listed"
-usage = 'arg "[args]" help="[--checkout-folder=<folder>] [--unit-pattern=<pattern>]"'
 run = "node src/list-running-units-whose-worktree-is-gone.ts"
 
 [tasks."print-the-final-report-of-the-newest-run-of-each-agent"]
 description = "Print the newest finished run of each agent named, why it ended, and the head of the report it ended with"
-usage = 'arg "[args]" help="--agent=<name> [--agent=<name>]... [--runs-folder=<folder>] [--lines=<n>] [--width=<n>]"'
 run = "node src/print-the-final-report-of-the-newest-run-of-each-agent.ts"
 
 [tasks."list-launchers-whose-unit-has-ended"]
 description = "Name every launcher still running although its unit has ended, and with --stop end each of them, children first"
-usage = 'arg "[args]" help="[--launcher-entry=<basename>]... [--minimum-age-seconds=<n>] [--stop]"'
 run = "node src/list-launchers-whose-unit-has-ended.ts"
 
 [tasks."remove-finished-worktrees"]
 description = "Remove the worktree of every finished Pi run, saying why each other one is left alone; without --apply it only lists them"
-usage = 'arg "[args]" help="[--checkout-folder=<folder>] [--runs-folder=<folder>] [--review-folder=<folder>] [--paused-file=<file>] [--process-folder=<folder>] [--apply] [--clean-folder=<path>] [--clean-word=<word>]..."'
 run = "node src/remove-finished-worktrees.ts"
 
 [tasks."start-a-batch-in-its-own-unit"]
 description = "Start a batch list in a systemd user unit of its own, so its launchers outlive the process that asked for them"
-usage = 'arg "[args]" help="--batch-file=<file> [--deadline-seconds=<n>] [--output-file=<file>]"'
 run = "node src/start-a-batch-in-its-own-unit.ts"
 
 [tasks."write-a-brief-for-a-review"]
 description = "Write what one review of a change reads: the diff of its ranges under the reviewed source folder, the brief naming its files, and its reproductions folder"
-usage = 'arg "[args]" help="--review=<change> --commit=<commit> --range=<a>...<b>... --source=<folder> [--focus=<text>] [--reviews-folder=<folder>] [--runs-folder=<folder>] [--rules-file=<file>]"'
 run = "node src/write-a-brief-for-a-review.ts"
 
 [tasks."start-reviews-of-finished-branches"]
 description = "Write and start one review of each finished branch, on the review pool, and save the last message of a review that wrote no review file"
-usage = 'arg "[args]" help="--branch=<branch>... --integration=<branch> --source=<folder> [--reviews-folder=<folder>] [--runs-folder=<folder>]"'
 run = "node src/start-reviews-of-finished-branches.ts"
 
 [tasks."write-a-fix-brief-for-each-review"]
 description = "Write one brief for each review whose defects a fix answers, and the batch list that starts those agents"
-usage = 'arg "[args]" help="--review=<name>... --base=<commit or branch> --branch-prefix=<prefix> --package=<folder> [--reviews-folder=<folder>] [--runs-folder=<folder>] [--batch-file=<file>] [--wall-seconds=<n>]"'
 run = "node src/write-a-fix-brief-for-each-review.ts"
