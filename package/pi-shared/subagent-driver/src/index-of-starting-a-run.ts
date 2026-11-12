@@ -113,8 +113,10 @@ export {
   checkoutFolderOf,
 } from './checkout-of-a-command.ts';
 export {
+  PI_LOAD_FAILURE_TEXT,
   StartRefusedError,
   baseProblemIn,
+  piProblemIn,
   nameProblemIn,
   promptProblemIn,
   startRefusalsIn,

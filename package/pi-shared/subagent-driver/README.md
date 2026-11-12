@@ -301,12 +301,20 @@ It used to wait on `systemd-run --wait` alone,
 and while an impostor manager held the session bus name on 2026-11-11,
 sixteen launchers never heard their units end and waited about ten hours.
 
-Nothing is made before four checks pass,
+Nothing is made before five checks pass,
 the first of which is the one above:
 the `git` the session would run is this repository's policy wrapper,
 the prompt file exists and can be read,
 the base names a commit,
-and no unit of the run's name is there.
+no unit of the run's name is there,
+and Pi starts in this session and loads the extensions its settings name.
+That last one is `pi --help` in the session's `PATH` and `HOME`:
+Pi loads its extensions before it prints the help, and exits without calling a model.
+It took 1.55 to 2.90 seconds in this checkout on 2026-11-11, with a 7.89 second outlier under load,
+so it is asked at each start rather than remembered,
+and a session whose extension cannot be loaded is refused with Pi's own error.
+On 2026-11-11 a rebuilt extension imported a workspace package the checkout had not linked,
+and thirteen runs ended `pi-exited` with no turn before anyone read what Pi had printed.
 A start that fails one of them prints every reason it found and exits non-zero,
 with no worktree, no run folder and no unit,
 so no provider slot is spent on a run that could not have worked.

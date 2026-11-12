@@ -28,11 +28,18 @@ import {
   baseProblemIn,
   checkoutFolderOf,
   nameProblemIn,
+  piProblemIn,
   promptProblemIn,
   reasonInFailedStart,
   startRefusalsIn,
   unitNameOfGiven,
 } from '../dist/final/node/index.mjs';
+
+/**
+ Pi's own words when a session extension could not be loaded, which is the failure this check exists for.
+ */
+const EXTENSION_LOAD_FAILURE = 'Failed to load extension "/repo/index.mjs": Failed to load extension: Cannot find module '
+  + "'@monochromatic-dev/async-time-core/ts'";
 
 /**
  A folder a test throws away.
@@ -320,14 +327,22 @@ await describe({
               },).git,
               checkoutFolder: folder.path,
               base: 'no-such-branch',
-              run: async function answered() {
-                return {
-                  status: 0,
-                  stdout: 'active\n',
-                  stderr: '',
-                };
+              run: async function answered(request,) {
+                return (request.command === 'pi')
+                  ? {
+                    status: 0,
+                    stdout: 'Usage: pi\n',
+                    stderr: '',
+                  }
+                  : {
+                    status: 0,
+                    stdout: 'active\n',
+                    stderr: '',
+                  };
               },
               runName: 'copy-route',
+              sessionPath: '/bin',
+              home: folder.path,
             },);
             expect(refusals.length,).toBe(3,);
           },
@@ -358,7 +373,84 @@ await describe({
                 };
               },
               runName: 'copy-route',
+              sessionPath: '/bin',
+              home: folder.path,
             },),).toEqual([],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: piProblemIn.name,
+      children: [
+        it({
+          name: 'says nothing when Pi prints its help and loads the extensions this session names',
+          fn: async () => {
+            expect(await piProblemIn({
+              run: async function answered() {
+                return {
+                  status: 0,
+                  stdout: 'Usage: pi [options]\n',
+                  stderr: 'Warning: No models match pattern "hyper/kimi-k3"\n',
+                };
+              },
+              sessionPath: '/bin',
+              home: '/home/a',
+              folder: '/repo',
+            },),).toEqual({},);
+          },
+        },),
+        it({
+          name: 'names the extension Pi could not load, which is a start that would end before its first turn',
+          fn: async () => {
+            /**
+             What this check is asked.
+             */
+            const asked: {
+              readonly command: string;
+              readonly words: readonly string[];
+              readonly environment?: Readonly<Record<string, string>>
+            }[] = [];
+            const problem = await piProblemIn({
+              run: async function answered(request,) {
+                asked.push({
+                  command: request.command,
+                  words: request.words,
+                  ...(request.environment === undefined ? {} : { environment: request.environment, }),
+                },);
+                return {
+                  status: 0,
+                  stdout: 'Usage: pi [options]\n',
+                  stderr: `Error: ${EXTENSION_LOAD_FAILURE}\nHint: Start without extensions using "pi -ne".\n`,
+                };
+              },
+              sessionPath: '/session/bin',
+              home: '/home/a',
+              folder: '/repo',
+            },);
+            expect(problem.problem,).toContain('Cannot find module',);
+            expect(problem.problem,).toContain('would end before its first turn',);
+            expect(asked[0]?.command,).toBe('pi',);
+            expect(asked[0]?.words,).toEqual(['--help',],);
+            expect(asked[0]?.environment?.PATH,).toBe('/session/bin',);
+            expect(asked[0]?.environment?.HOME,).toBe('/home/a',);
+          },
+        },),
+        it({
+          name: 'names a Pi that would not start at all, saying what it answered',
+          fn: async () => {
+            expect((await piProblemIn({
+              run: async function answered() {
+                return {
+                  status: 1,
+                  stdout: '',
+                  stderr: 'pi: error while loading shared libraries\n',
+                };
+              },
+              sessionPath: '/bin',
+              home: '/home/a',
+              folder: '/repo',
+            },)).problem,).toContain('error while loading shared libraries',);
           },
         },),
       ],

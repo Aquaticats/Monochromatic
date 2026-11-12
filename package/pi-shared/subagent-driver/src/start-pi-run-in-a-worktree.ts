@@ -167,7 +167,7 @@ async function sizedTurnCap(): Promise<number> {
  It is read before any check that asks about the session, and reading it makes nothing: it is one question of the mise
  environment the run is about to be started with, and a start refused after it leaves no worktree, no run folder and no unit.
  */
-const pathOfMiseEnvironment = await requiredOutputOf({
+const sessionPath = await requiredOutputOf({
   run: runCommandWithChildProcess,
   command: 'mise',
   words: [
@@ -190,7 +190,7 @@ const pathOfMiseEnvironment = await requiredOutputOf({
 try {
   console.log(`git: ${await refuseUnlessTheWrapperAnswersGit({
     run: runCommandWithChildProcess,
-    sessionPath: pathOfMiseEnvironment,
+    sessionPath,
     workingFolder: options.checkoutFolder,
   },)} answers as the policy wrapper`,);
 }
@@ -213,6 +213,8 @@ const refusals = await startRefusalsIn({
   base: options.base,
   run: runCommandWithChildProcess,
   runName: options.name,
+  sessionPath,
+  home: env.HOME ?? '',
 },);
 if (refusals.length > 0) {
   throw new StartRefusedError(`${options.name} was not started:\n${refusals.join('\n')}`,);
@@ -266,7 +268,7 @@ const unit = unitCommandOf({
   memory: options.memory,
   taskCount: options.taskCount,
   wallSeconds: options.wallSeconds,
-  pathOfMiseEnvironment,
+  pathOfMiseEnvironment: sessionPath,
   home: env.HOME ?? '',
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,

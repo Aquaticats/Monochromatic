@@ -511,6 +511,14 @@ await describe({
           body: `printf '%s\\n' "$*" >> '${sessionGitLog}'\nprintf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
         },);
         /**
+         The Pi the session would find, which prints its help and loads the extensions of an empty home.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
+        },);
+        /**
          What the launcher ended with.
          */
         const ended = await launch({
@@ -623,6 +631,14 @@ await describe({
           folder: sessionBin,
           name: 'git',
           body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         The Pi the session would find, which loads its extensions and prints its help.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
         },);
         /**
          What the launcher ended with.
