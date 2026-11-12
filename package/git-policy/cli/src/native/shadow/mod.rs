@@ -75,6 +75,9 @@ pub mod shadow_pool;
 /// What a member of that pool must be for one invocation to take it.
 pub mod shadow_pool_member;
 
+/// The finished shadows the service draws out of the pool ahead of the commits that ask for one.
+pub mod shadow_drawn;
+
 /// The entries of an empty bare repository,
 /// created in-process instead of by `git init`.
 pub mod shadow_skeleton;
