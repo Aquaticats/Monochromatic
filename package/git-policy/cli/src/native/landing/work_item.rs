@@ -572,8 +572,8 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
     // An id that is not a kind and what that kind names could make names that do not fit; it never becomes a claim.
     if !crate::work_item_ids_and_names::is_id_suffix(kind, &id[kind.name().len() + 1..]) {
         // A later release may add a kind whose name begins with one this build knows, and its record is that release's.
-        let queued: PathBuf = state_directory(work_dir, PENDING).join(id);
-        if left_for_a_later_release(queued.as_path()) {
+        let waiting: PathBuf = state_directory(work_dir, PENDING).join(id);
+        if left_for_a_later_release(waiting.as_path()) {
             log(format!("the queued entry {id:?} is a record of a later release, so it is left for that release").as_str());
             return Ok(None);
         }

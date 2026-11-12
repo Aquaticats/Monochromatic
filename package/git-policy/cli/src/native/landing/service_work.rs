@@ -90,6 +90,15 @@ use std::time::Duration;
 /// option B).
 pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 
+/// The thread name one removal of a whole worktree carries in a process listing,
+/// so a removal that gave no answer is recognisable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const REMOVAL_THREAD_NAME = 'cli-git-worktree-removal';
+/// ```
+const REMOVAL_THREAD_NAME: &str = "cli-git-worktree-removal";
+
 /// What:
 ///  Runs everything pending for one repository:
 /// takes back the claims whose holder stopped renewing them,
@@ -602,6 +611,47 @@ impl WorkHandlers for GitHandlers {
     /// ```
     fn subvolume_delete(&self, item: &WorkItem) -> Verdict {
         return crate::worktree_remove_hand_over::delete_subvolume_of(item);
+    }
+
+    /// What:
+    ///  The same delete,
+    ///  run on a thread of its own that no runtime owns.
+    /// Why:
+    ///  The removal of a whole worktree starts Git,
+    ///  and a step the wrapper watches is waited for through the runtime,
+    ///  which refuses a call made from inside itself,
+    ///  while a thread of the blocking pool still carries that runtime with it.
+    ///  So the removal gets a thread of its own,
+    ///  and the round awaits its answer no longer than a bulk Git step may take:
+    ///  a thread the system refuses, and one that gives no answer at the ceiling, are both a removal that did not run,
+    ///  and the record keeps its lease for the next round.
+    ///  Before this, every removal the service made answered "the runtime that runs this command's waits was asked for
+    ///  from inside itself",
+    ///  which read as ignored files nothing could vouch for,
+    ///  and the service kept every worktree it was handed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// subvolumeDeleteAwaiting(item) { return await withAnOwnThreadWithin(OBJECT_STEP_CEILING, () => deleteSubvolumeOf(item)); }
+    /// ```
+    fn subvolume_delete_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            let held: WorkItem = item.clone();
+            let (sender, receiver): (tokio::sync::oneshot::Sender<Verdict>, tokio::sync::oneshot::Receiver<Verdict>) = tokio::sync::oneshot::channel::<Verdict>();
+            let started = std::thread::Builder::new().name(String::from(REMOVAL_THREAD_NAME)).spawn(move || {
+                // A round that stopped waiting is gone with its receiver, and the verdict goes with the send.
+                let _sent = sender.send(crate::worktree_remove_hand_over::delete_subvolume_of(&held));
+            });
+            if started.is_err() {
+                return Verdict::Retry(format!("the system refused a thread for the removal of {}", item.repository.display()));
+            }
+            return match tokio::time::timeout(crate::wait_ceilings::OBJECT_STEP_CEILING, receiver).await {
+                Ok(Ok(verdict)) => verdict,
+                // The thread went without a verdict, which a removal cannot do while it runs.
+                Ok(Err(_dropped)) => Verdict::Retry(format!("the removal of {} gave no verdict", item.repository.display())),
+                Err(_expired) => Verdict::Retry(format!("the removal of {} gave no answer within {:?}", item.repository.display(), crate::wait_ceilings::OBJECT_STEP_CEILING)),
+            };
+        });
     }
 
     /// What:

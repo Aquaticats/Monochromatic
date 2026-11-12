@@ -918,9 +918,10 @@ fn only_deletions(context: &GitContext, worktree: &Path, admin: &Path) -> bool {
 ///    no process working in it,
 ///    no ignored file the worktree the proof was made from does not hold,
 ///    and every record of its own Git directory copied into a removal snapshot.
-///  A worktree that stays is named in the repository's kept-worktree notices,
-///  which the next command of any worktree shows,
-///  so nothing is kept in silence.
+///
+/// A worktree that stays is named in the repository's kept-worktree notices,
+/// which the next command of any worktree shows,
+/// so nothing is kept in silence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -467,8 +467,8 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
     // (an audit of the release changeover, finding 7).
     let wake_failed: std::cell::RefCell<Option<String>> = std::cell::RefCell::new(None);
     let told = |context: &GitContext, git_dir: &Path| -> Result<(), String> {
-        if let Some(earlier) = wake_failed.borrow().as_ref() {
-            return Err(earlier.clone());
+        if let Some(already) = wake_failed.borrow().as_ref() {
+            return Err(already.clone());
         }
         let answer: Result<(), String> = (place.told)(context, git_dir);
         if let Err(reason) = &answer {
