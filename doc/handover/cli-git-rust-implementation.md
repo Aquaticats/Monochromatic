@@ -135,6 +135,74 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The hourly pass before 10:00: eleven runs ended, four reviews and one continuation started (2026-11-12T09:59:00-05:00)
+
+#### State
+
+- Free space 209 GiB.
+- Under 0.6.1-alpha.13 in this repository:
+  seventy commit records,
+  sixty-eight landed,
+  median 825 ms,
+  ninetieth percentile 3,439 ms,
+  largest 14,579 ms.
+  The two that did not land are real Git's own refusals (`native-exit`, status 1) in worktrees that are mid-merge.
+- The largest,
+  at 09:13:13 on pass 17's integration branch:
+  `buildMs` 13,999 of the 14,579 ms,
+  every other step under 400 ms.
+  Whether real Git takes as long for the same commit is not measured;
+  it is over the five-second bound until a native control says otherwise,
+  and it goes to the next agent that works on the build step.
+- The user manager's reloads since the install,
+  corrected:
+  nine,
+  between 08:40:01 and 08:48:12,
+  eight of them between 154 and 487 ms and one of 2,762 ms at 08:45:30;
+  none in the seventy minutes after,
+  in which fifty-seven commits were made.
+  The section of 09:05:26 counted two.
+
+#### What ended, and nothing culled
+
+- Eleven runs ended since 09:03,
+  each by its own stop with a report,
+  none closed by the driver:
+  seven qwen4 reviews
+  (vendored-clone exemption, package repair owns its children, clean saves nested repositories,
+  commit service hands a commit its shadow, landed sweep and a reset worktree,
+  a late runtime does not fail a commit, landed removal proves again before it destroys)
+  and four continued fix runs
+  (push notices of round 231, cargo-shadow lean's deadline, the worktree-copy record that cannot be read,
+  worktree add without waiting for package repair).
+- Two Sonnet digests are being written:
+  `~/temp/agent/digest-2026-11-12T0956-work/` and `~/temp/agent/digest-2026-11-12T0956-reviews/`.
+  The review digest says for each finding whether its branch is in pass 17,
+  so that it can be weighed before that pass is merged.
+- Nothing in flight is superseded;
+  nothing was stopped.
+
+#### Started
+
+- Round 285,
+  qwen4 reviews of three of the ended fix branches at their tips:
+  push notices (`9da2d237ed`),
+  the worktree-copy record (`aba9bce1d4`),
+  worktree add without waiting (`9e1b450341`).
+- Round 286,
+  a qwen4 review of the cargo-shadow lean branch (`743059e153`).
+- Round 287,
+  the continuation of
+  `subagent-driver-a-real-batch-start-works-and-the-remaining-commands-are-usable`
+  from `58586fa985`:
+  its first run was itself closed as `idle` after 394 turns,
+  its keep-and-wake for a run that ends a turn with work of its own running was tested with a stub only,
+  and the scratch scripts are not all ported.
+- The next audits read 0.6.1-alpha.14,
+  not alpha.13:
+  pass 17 carries sixteen branches that answer the audits of alpha.12,
+  and an audit before it lands would report them again.
+
 ### A wrapper killed for memory in a 512 MB scope: the holder scan's read of a descriptor record, issue 6287 (2026-11-12T09:50:16-05:00)
 
 #### What the owner said
