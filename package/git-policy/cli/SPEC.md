@@ -13221,6 +13221,25 @@ and only the directory the sweep already covers collects them.
 The place is also swept of entries older than `SCRATCH_STALE_AFTER` at every preparation of it,
 which a preparation of a commit now is.
 
+The preparation is the one stretch of a commit's path that must ask the device about directories
+before anything of the commit can be written:
+a proof that the repository scratch directory is this account's and private,
+and the creation of the attempt's own tree.
+Both are round trips a stalled device holds for seconds,
+and the audit of 2026-11-12 charged 8,594 ms of one 9,892 ms commit to this preparation
+(`measure-commit-latency-against-native-git.ts` in the audit's reproductions),
+so a commit makes only the calls whose answer it needs.
+The directory that was there already is proved,
+because another account may own it or its mode may have been loosened;
+a directory either call just made is not proved after the fact,
+because `mkdir` gives the new directory to this account with mode `0700` less the umask;
+and the repository scratch directory is created only when it is not there,
+which is the first commit of a repository,
+so every later commit proves it in the one call that reads it.
+Code:
+`proved_or_made_private` and `prepare_commit_scratch`
+in `src/native/foundation/scratch_location.rs`.
+
 Who removes it,
 and how long anyone waits:
 
@@ -13287,6 +13306,19 @@ and how long anyone waits:
   was handed back to its client,
   or was withdrawn,
   so what is left of its tree is collected by the age rule below.
+  A release is one send's end,
+  never the identity's:
+  the landing answers a request inside the call that lands its group,
+  and the release of that group comes after the answer,
+  after the journal's entries for it are written and removed,
+  so a client told to prepare again queues the same identity with the next attempt's tree in that window,
+  and a client whose answer was lost sends the same identity again with the tree it already had
+  (`submit_loop`,
+  `src/native/service/service_client.rs`).
+  The record therefore counts the sends it has noted of one identity
+  and spares the tree the newest of them named until the last of them is released
+  (`src/native/service/service_scratch_trees_of_queued_requests.rs`):
+  a release that forgot the identity took the hold off the tree the next attempt was still to read.
   The record lives in one service,
   so it covers the requests that service holds;
   the loss the subsection "A command stopped for longer than the tree's age" describes
