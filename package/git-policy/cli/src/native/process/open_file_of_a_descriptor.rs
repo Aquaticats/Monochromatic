@@ -102,11 +102,14 @@ fn mount_id_of(process: &Path, fd: &OsStr) -> std::io::Result<Option<u64>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (await readFile(`${process}/mountinfo`, 'utf8')).split('\n').find(line => Number(line) === mntId)?.split(' - ')[1].split(' ')[0]
+/// readPlainTextAt(`${process}/mountinfo`, 4 << 20).split('\n').find(line => Number(line) === mntId)?.split(' - ')[1].split(' ')[0]
 /// ```
 #[cfg(target_os = "linux")]
 fn file_system_of_mount(process: &Path, mount: u64) -> std::io::Result<Option<String>> {
-    let table: String = std::fs::read_to_string(process.join("mountinfo"))?;
+    // The table's length is the system's state, not this command's: a process of a container host can hold tens of
+    //  thousands of mounts, and one past the bound is refused rather than read whole
+    //  (`crate::plain_file::MOUNT_TABLE_LIMIT`).
+    let table: String = crate::plain_file::read_plain_text_at(process.join("mountinfo").as_path(), crate::plain_file::MOUNT_TABLE_LIMIT)?;
     for line in table.lines() {
         let fields: Vec<&str> = line.split(' ').collect();
         let first: Option<u64> = match fields.first() {
