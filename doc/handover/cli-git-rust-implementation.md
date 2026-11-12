@@ -135,6 +135,74 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### What eight more finished runs showed: losses in the new hand-over, and a wait without a bound (2026-11-11T23:04:22-05:00)
+
+The digest is `${HOME}/temp/agent/digest-2026-11-11T2245/digest.md`,
+with each run's whole final report beside it.
+Its writer ran no build or test;
+every "reproduced" is the run's own claim, and the Git facts are checked.
+
+#### In the installed release
+
+- The removal of a landed worktree, handed to the service since alpha.12, has three loss paths.
+  The second-pass qwen4 review of that change (`7533b7202d`, in `main`) reproduced each
+  by calling the hand-over and the service's removal as library functions, not through the built wrapper:
+  the service's removal keeps no held commit;
+  an ignored file written into a handed-over worktree is deleted with it;
+  and a stale removal record removes a worktree added later at the same path,
+  which a launcher restarting an agent does.
+  All three went to the round 259 agent, whose task is to move the proof to where the destruction is.
+  This is the gap the pass 15 agent named, now with three concrete cases.
+  The coordinator released alpha.12 knowing of the gap and not of the cases.
+- A wait without a bound.
+  Kimi's review of `259f83cbab` (in `main`):
+  "The fallback repeats the layout read synchronously on the Tokio worker, outside every ceiling"
+  (`landing/service_route.rs:343`),
+  reproduced inside a package test with a library that holds `realpath`.
+  It needs a filesystem that stops answering.
+  It went to the round 257 agent on the runtime's next step.
+
+Until alpha.13 or a later release carries the round 259 fix,
+the coordinator restarts no agent at a path whose branch has landed without first checking that no removal is pending for it.
+
+#### The five finished fix branches, all in pass 16
+
+None of their reports says whether the branch is fit to merge.
+
+- `...-commit-does-not-fail-when-its-scratch-commit-stalls` (`0076cb74ed`):
+  "Decided: wait on, with a line. A step the kernel holds is not ended at the ceiling.";
+  the ceiling gets a floor of 60 s and a stall bound of 300 s.
+  Its tests were shown failing by mutation only,
+  and it made no commit through a built wrapper.
+  The failure of 22:52 is the real case; alpha.13 is the first test of the fix against it.
+- `...-kimi-findings-held-commit-survives-a-prune-round-210-findings` (`e11086623c`):
+  three ways a kept commit was lost to `git gc --prune=now`, each fixed with a test that failed first.
+- `...-kimi-findings-lfs-upload-config-round-210-findings` (`fbbef3e316`):
+  an upload to the wrong server and a push failing with `--config-env`, fixed with tests that failed first.
+- `...-kimi-findings-worktree-remove-audit-ceiling-round-210-findings` (`33804eeee4`):
+  a 13.6 s delay in a removal, fixed; two slow reads left.
+- `...-commit-options-end-of-options-and-abbreviated-only` (`e68caf343b`):
+  a file silently dropped from a commit that exits 0, and an exit status 128, fixed with tests that failed first;
+  two other findings did not reproduce.
+
+#### Added to the list for the owner's return
+
+- The held-commit agent: "the landing still fails a batch whose scratch-reference write it cannot prove,
+  where real Git (which needs no such reference) would have committed.
+  Continuing would move the risk to the window before the branch write, so I kept the existing decision;
+  it is worth an owner decision."
+  Two of the owner's rules meet there ("Commits should never fail." and "never discard user data"),
+  so the coordinator did not decide it.
+- The LFS agent asks whether the switch it fixed should also be read from an inherited `GIT_CONFIG_PARAMETERS`.
+  Git itself reads configuration from there,
+  so the coordinator's answer under delegation is yes, in a later change; open to veto.
+
+#### Lost
+
+Kimi's review of the non-UTF-8 commit-message branch (`b89d510fbf`) was ended by its four-hour wall with no review file,
+while a test of its own was failing on its fixture.
+Its question (whether a non-UTF-8 message is rewritten) is unanswered and is put to the commit-path audits of alpha.12.
+
 ### A commit failed on 0.6.1-alpha.12, and integration pass 16 for alpha.13 (2026-11-11T22:59:30-05:00)
 
 #### The failure
