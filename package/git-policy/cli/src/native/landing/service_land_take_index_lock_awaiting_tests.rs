@@ -17,16 +17,16 @@ use std::sync::{Arc, Mutex};
 const A_SHORT_CEILING: Duration = Duration::from_millis(300);
 
 /// A ceiling long enough that a notice the clients did not get while they waited is told apart from one they did:
-/// the first look of the wait comes milliseconds after it begins,
-/// and a notice only forwarded when the job ends arrives at this ceiling.
-const A_HELD_CEILING: Duration = Duration::from_secs(2);
+/// the wait's first look comes after its staging and then waits this long,
+/// so a notice forwarded when the wait ran arrives in the first part of the whole take
+/// and one forwarded only when the job ended arrives at its end.
+const A_HELD_CEILING: Duration = Duration::from_secs(5);
 
-/// The part of a held wait a notice must arrive inside,
-/// so a notice the clients got while the wait ran is told from one that waited for the job to end.
-const WHILE_IT_WAITS: Duration = Duration::from_secs(1);
-
-/// The longest a control lets a take run before it calls the wait a hang.
-const THE_PATIENCE: Duration = Duration::from_secs(10);
+/// The longest a control lets a take run before it calls the wait a hang:
+/// a take waits for a place of the process's blocking budget before its own ceiling starts,
+/// and the host this suite runs on carries other work at the same time,
+/// so this is far beyond what a take on a free host needs.
+const THE_PATIENCE: Duration = Duration::from_secs(60);
 
 /// A runtime of two workers:
 /// one runs the job that waits for the lock and one polls the task that awaits it.
@@ -126,7 +126,7 @@ fn the_holder_of_a_held_lock_is_named_while_the_take_waits() {
     assert_eq!(answer.err(), Some(FailureCode::IndexInUse), "a lock its holder still holds is refused at the ceiling");
     assert!(!notes.is_empty(), "the wait said nothing at all, so its notices never reached the clients that await it");
     let (first_at, _first): &(Duration, Announce) = &notes[0];
-    assert!(*first_at < WHILE_IT_WAITS, "the holder's notice reached the clients while the wait still ran ({first_at:?} of {took:?})");
+    assert!(*first_at * 2 < took, "the holder's notice reached the clients while the wait still ran ({first_at:?} of {took:?})");
     assert!(
         notes.iter().any(|(_, note)| { return matches!(note, Announce::Waiting(text) if text.contains(format!("PID {}", std::process::id()).as_str())); }),
         "the wait names the holder to the clients while it runs: {notes:?}"

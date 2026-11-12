@@ -171,6 +171,11 @@ pub(crate) async fn take_index_lock_awaiting(
             answered = &mut waiting => break answered,
         }
     };
+    // The notices the job made before it ended are the clients' too: the loop above may have read the job's answer first,
+    //  so what is still under the channel goes on here.
+    while let Ok(said) = hearing.try_recv() {
+        announce.announce(said);
+    }
     let waited: Duration = waiting_since.elapsed();
     let TheLockTakeAnswer { taken, notes, memory } = match answer {
         Ok(answered) => answered,

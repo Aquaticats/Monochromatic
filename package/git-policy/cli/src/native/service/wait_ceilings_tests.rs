@@ -201,7 +201,7 @@ fn a_journal_record_waits_five_times_the_longest_write_measured() {
     let stating: [(&str, &str); 3] = [
         ("landing/conclusion_state_copy.rs", include_str!("../landing/conclusion_state_copy.rs")),
         ("landing/service_scratch_ref_marker_of_a_batch.rs", include_str!("../landing/service_scratch_ref_marker_of_a_batch.rs")),
-        ("service/service_journal.rs", include_str!("service_journal.rs")),
+        ("service/service_journal_writes_awaited.rs", include_str!("service_journal_writes_awaited.rs")),
     ];
     for (path, source) in stating {
         assert!(source.contains("JOURNAL_WRITE_CEILING"), "{path} waits for its own record within this ceiling");
