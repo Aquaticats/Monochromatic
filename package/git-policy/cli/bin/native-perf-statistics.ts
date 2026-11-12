@@ -199,6 +199,41 @@ export function pairedDeltas({
   readonly direct: readonly RoundSample[];
   readonly wrapped: readonly RoundSample[];
 }): readonly number[] {
+  return pairedRounds({
+    direct,
+    wrapped,
+  })
+    .map(function delta(round) {
+      return round.delta;
+    });
+}
+
+/**
+ Both sides' times for every round in which they both succeeded, in round order, so a bound that depends on the direct
+ time of a round can be worked out for that round alone.
+ A round where either side failed contributes nothing, so a failure never shifts the pairing of the later rounds.
+
+ @param direct - successful direct samples with their rounds
+
+ @param wrapped - successful wrapped samples with their rounds
+
+ @returns one round per round that has both samples
+
+ @example
+ ```ts
+ pairedRounds({ direct: [{ sample: 0, elapsed: 4 }], wrapped: [{ sample: 0, elapsed: 9 }] });
+ ```
+ */
+export function pairedRounds({
+  direct,
+  wrapped,
+}: {
+  readonly direct: readonly RoundSample[];
+  readonly wrapped: readonly RoundSample[];
+}): readonly {
+  readonly direct: number;
+  readonly delta: number;
+}[] {
   /**
    Direct elapsed milliseconds by round.
    */
@@ -208,12 +243,22 @@ export function pairedDeltas({
       entry.elapsed,
     ] as const;
   }));
-  return wrapped.flatMap(function deltaOf(entry): readonly number[] {
+  return wrapped.flatMap(function roundOf(entry): readonly {
+    readonly direct: number;
+    readonly delta: number;
+  }[] {
     /**
      Direct sample of the same round, absent when the direct side failed in it.
      */
     const partner = directByRound.get(entry.sample);
-    return partner === undefined ? [] : [entry.elapsed - partner];
+    return partner === undefined
+      ? []
+      : [
+        {
+          direct: partner,
+          delta: entry.elapsed - partner,
+        },
+      ];
   });
 }
 

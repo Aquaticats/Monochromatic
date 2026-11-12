@@ -6764,7 +6764,7 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   so a running unit that greets nothing is one whose program stopped inside its own process,
   and a start of a unit the manager believes runs brings nothing back.
   Nearly three times the slowest of the 52 measured cold starts (1.04 s),
-  and under the owner's 5,000 ms bound on what a commit may add to native Git.
+  and under the five seconds that the bound on what a commit may add to native Git never falls below.
 - `HAND_OVER_GREETING_WAIT` 2 seconds:
   the longest a command waits for the greeting of a service it only has to tell about work whose record it has
   already written (a snapshot's trash,
@@ -6922,7 +6922,7 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   how long a client looks for the commit a request it already sent made,
   after its answer was lost,
   before it says the result is not known.
-  Twice the owner's 5 s bound on what a commit may add to native Git,
+  Twice the five seconds that the bound on what a commit may add to native Git never falls below,
   the derivation `WAITING_NOTICE_AFTER` uses;
   it covers the 5 to 9 s inside which the audit of service restarts and version skew (2026-11-09) saw the client give up
   while the commit landed seconds later.
@@ -11763,7 +11763,7 @@ Measured on 2026-11-12 on this host,
 one look at the held records of a worktree that holds none costs 27.8 microseconds
 (2,000 looks through the command's notice desk,
 `push_notices_for`),
-which is nothing beside the owner's limit of five seconds per commit.
+which is nothing beside the five seconds the bound on what a commit may add never falls below.
 The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
 blocks,
 so a blocked gate keeps the commit local,
@@ -12865,7 +12865,8 @@ Starting them there matters because the flush is seconds long on a loaded disk:
 a measured landing waited 9 to 13 seconds for a marker whose flush was still running
 (`lock_stage_kind=pre`,
 2026-11-10),
-against the owner's rule that a commit through the wrapper is not five seconds slower than native Git.
+against the owner's rule that what a commit through the wrapper adds over real Git's own time is at most the larger
+of five seconds and twice that time (see "Latency requirements" in the README).
 A landing that finds a marker still being made never waits for it:
 it stages its own marker the ordinary way,
 as one does when nothing was made ahead,
@@ -18495,12 +18496,26 @@ The scanner reads candidate content in process,
 and no scanner file is materialized.
 Wrapper-added latency for every forwarded real Git command must remain strictly less than `2,000 ms`.
 
-Every commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git;
-the bound holds for each commit,
-not for a percentile of them.
+Every commit made through the wrapper must add, over real Git's own time for that same commit,
+strictly less than the larger of `5,000 ms` and twice that time:
+with real Git's time `n`,
+the wrapper's time minus `n` is under the larger of `5,000 ms` and twice `n`.
+The bound holds for each commit,
+and each commit is judged against the real Git time measured for that same commit,
+not against a fixed figure and not for a percentile.
 This is the only latency requirement on a commit;
 no wrapped command has to finish within a fixed time.
-The owner's words (2026-11-01):
+The owner changed the measure on 2026-11-12:
+
+> "Change the 5s rule to max(5s, double what native git takes)"
+
+Asked which bound that is, the owner said it is the extra over real Git:
+
+> "Extra over real Git"
+
+So a commit beside real Git's 50 ms may add five seconds,
+and one beside real Git's 30 s may add a minute.
+The earlier words still hold wherever real Git is fast (2026-11-01):
 
 > " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
 > The measure is always just commits vs native git should not take 5s longer.
@@ -18509,7 +18524,8 @@ The 5-second kill in the binary tests (`TIME_BOUND_SECONDS`) is a hang guard of 
 not this requirement.
 The `native:perf` task enforces both latency requirements:
 the forwarded bound on the added p95 of each forwarded command,
-and the commit bound on the maximum paired delta of each commit arm.
+and the commit bound round by round,
+each round judged against the larger of `5,000 ms` and twice its own direct time.
 
 Explicit dry runs bypass manual-push policies.
 Pure ref deletion is clean.

@@ -4709,7 +4709,7 @@ Each line names what the command waits for,
    A commit that opens the person's editor prints nothing and has no ceiling.
 - A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
   `service/wait_ceilings.rs`;
-  twice the owner's bound of 5 s on what a commit may add to native Git,
+  twice the five seconds that the bound on what a commit may add to native Git never falls below,
   and reached by 26 of the 909 answer waits in this host's commit timing log of 2026-11-09):
   one line says where the commit stands,
   and it is said once for each place the service names,
@@ -4972,13 +4972,24 @@ Two requirements bound the latency the wrapper adds,
 and `native:perf` enforces both:
 
 - A forwarded real Git command gains strictly less than `2,000 ms` (`SPEC.md`).
-- Every commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git
+- Every commit made through the wrapper must add, over real Git's own time for that same commit,
+  strictly less than the larger of `5,000 ms` and twice that time
   (each commit,
-  not a percentile of them).
+  judged against the real Git time measured for that same commit,
+  not a percentile and not a fixed figure).
 
-No wrapped command is required to finish within a fixed time,
-and there is no 5-second bound on wrapped commands.
-The owner's words (2026-11-01):
+No wrapped command is required to finish within a fixed time.
+The owner changed the commit measure on 2026-11-12:
+
+> "Change the 5s rule to max(5s, double what native git takes)"
+
+Asked which bound that is, the owner said it is the extra over real Git:
+
+> "Extra over real Git"
+
+So a commit beside real Git's 50 ms may add five seconds,
+and one beside real Git's 30 s may add a minute.
+The earlier words said the same wherever real Git is fast (2026-11-01):
 
 > " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
 > The measure is always just commits vs native git should not take 5s longer.
@@ -5577,7 +5588,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   p95 and maximum of the paired deltas (the wrapped time minus the direct time of the
   same round).
   It fails when a forwarded command's added p95 reaches the 2,000 ms bound,
-  when any commit's paired delta reaches the 5,000 ms bound (the owner's measure,
+  when any commit round's paired delta reaches that round's own bound, the larger of the 5,000 ms floor and twice the
+  round's direct time (the owner's measure,
   see "Latency requirements"),
   or when any sample fails.
   The reasons are the text of a thrown error (`bin/native-perf-verdict.ts`),

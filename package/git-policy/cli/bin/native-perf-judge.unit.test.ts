@@ -220,6 +220,102 @@ await describe({
       },
     }),
     it({
+      name: 'a commit round that adds more than five seconds over a slow real Git is not named while twice that time covers it',
+      fn: async () => {
+        /**
+         A round whose real Git took four seconds and whose wrapper took ten, so it adds six seconds against a bound of
+         eight.
+         */
+        const slow = scenarioReport({
+          scenario: 'commit-explicit',
+          kind: 'commit',
+          direct: [
+            {
+              sample: 0,
+              elapsed: 4_000,
+            },
+          ],
+          wrapped: [
+            {
+              sample: 0,
+              elapsed: 10_000,
+            },
+          ],
+        });
+        expect(judge([slow])).toEqual([]);
+      },
+    }),
+    it({
+      name: "a commit round that reaches twice a slow real Git's own time is named with that round's bound",
+      fn: async () => {
+        /**
+         A round whose real Git took four seconds and whose wrapper took twelve, which is the bound of that round.
+         */
+        const slow = scenarioReport({
+          scenario: 'commit-explicit',
+          kind: 'commit',
+          direct: [
+            {
+              sample: 0,
+              elapsed: 4_000,
+            },
+          ],
+          wrapped: [
+            {
+              sample: 0,
+              elapsed: 12_000,
+            },
+          ],
+        });
+        /**
+         The requirement the round broke.
+         */
+        const violations = judge([slow]);
+        expect(violations.map((violation) => violation.scenario)).toEqual(['commit-explicit']);
+        expect(violations.map((violation) => violation.value)).toEqual([8_000]);
+        expect(violations.map((violation) => violation.limit)).toEqual([8_000]);
+      },
+    }),
+    it({
+      name: 'the commit round printed is the one furthest past its own bound, and a larger delta that stays inside its bound is not printed',
+      fn: async () => {
+        /**
+         Two rounds: one adds six seconds where its own bound is eight, the other adds 5,100 ms where its own bound is
+         five seconds. The second is over its bound although the first is the larger delta.
+         */
+        const entry = scenarioReport({
+          scenario: 'commit-explicit',
+          kind: 'commit',
+          direct: [
+            {
+              sample: 0,
+              elapsed: 4_000,
+            },
+            {
+              sample: 1,
+              elapsed: 100,
+            },
+          ],
+          wrapped: [
+            {
+              sample: 0,
+              elapsed: 10_000,
+            },
+            {
+              sample: 1,
+              elapsed: 5_200,
+            },
+          ],
+        });
+        /**
+         The requirement the report broke.
+         */
+        const violations = judge([entry]);
+        expect(violations.map((violation) => violation.value)).toEqual([5_100]);
+        expect(violations.map((violation) => violation.limit)).toEqual([COMMIT_DELTA_BOUND_MILLISECONDS]);
+      },
+    }),
+    it({
       name: 'a forwarded command whose added p95 reaches the forwarded bound is named, and not by the commit bound',
       fn: async () => {
         /**

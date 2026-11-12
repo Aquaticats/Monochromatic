@@ -140,7 +140,7 @@ description = "Build the native wrapper executable `monochromatic-git-policy-cli
 run = "cargo build --release --locked --offline --bins"
 
 [tasks."native:perf"]
-description = "Measure the latency the release wrapper adds to forwarded Git commands (added p95 under 2,000 ms) and commits (every paired delta under 5,000 ms) against paired direct Git; `-- --output perf/native-latency-<date>.json` stores the raw samples"
+description = "Measure the latency the release wrapper adds to forwarded Git commands (added p95 under 2,000 ms) and commits (each paired delta under the larger of 5,000 ms and twice that round's direct time) against paired direct Git; `-- --output perf/native-latency-<date>.json` stores the raw samples"
 depends = ["build"]
 run = "node bin/native-perf.ts --binary target/release/monochromatic-git-policy-cli --samples 30"
 

@@ -5,8 +5,9 @@
  Why:
   `SPEC.md` ("Benchmark method") requires a paired direct-Git baseline for every scenario, the median, p95 and median
   absolute deviation of each, the wrapper-added delta, and the raw samples; the added latency of a forwarded
-  command must stay strictly under two seconds, and (owner's measure of 2026-11-01) a commit through the wrapper must
-  not take five seconds or more longer than the same commit with native Git.
+  command must stay strictly under two seconds, and (owner's measure, changed on 2026-11-12) what a commit through the
+  wrapper adds over real Git's own time for that same commit must stay under the larger of five seconds and twice that
+  time.
 
  In TS you'd write (pseudocode):
  ```ts

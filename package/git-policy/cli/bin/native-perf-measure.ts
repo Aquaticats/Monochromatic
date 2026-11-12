@@ -10,14 +10,15 @@ import {
   median,
   pairedDeltas,
   pairedDeltaSummary,
+  pairedRounds,
   percentile95,
   type RoundSample,
   summary,
 } from './native-perf-statistics.ts';
 
 /**
- Which latency requirement a scenario is held to: a forwarded command by the wrapper-added p95, a commit by the maximum
- of its paired deltas against native Git. See `native-perf-judge.ts`.
+ Which latency requirement a scenario is held to: a forwarded command by the wrapper-added p95, a commit by every paired
+ round's delta against the bound that round's own direct time gives. See `native-perf-judge.ts`.
  */
 export type ScenarioKind = 'forwarded' | 'commit';
 
@@ -50,6 +51,11 @@ export type ScenarioReport = {
   readonly rawDirect: readonly number[];
   readonly rawWrapped: readonly number[];
   readonly rawPairedDeltas: readonly number[];
+  /**
+   Real Git's own time for each of the rounds `rawPairedDeltas` holds, in the same order, because the bound a commit
+   round must stay under is worked out from that round's own direct time.
+   */
+  readonly rawPairedDirectMilliseconds: readonly number[];
 };
 
 /**
@@ -269,9 +275,15 @@ export function scenarioReport({
   /**
    Wrapped minus direct for every round in which both sides succeeded.
    */
-  const deltas = pairedDeltas({
+  const rounds = pairedRounds({
     direct,
     wrapped,
+  });
+  /**
+   Those rounds' deltas, in the order the report states them.
+   */
+  const deltas = rounds.map(function delta(round) {
+    return round.delta;
   });
   return {
     scenario,
@@ -284,6 +296,9 @@ export function scenarioReport({
     rawDirect: directMilliseconds,
     rawWrapped: wrappedMilliseconds,
     rawPairedDeltas: deltas,
+    rawPairedDirectMilliseconds: rounds.map(function directOf(round) {
+      return round.direct;
+    }),
   };
 }
 
@@ -338,11 +353,11 @@ export async function measure(setting: Readonly<ScenarioSetting>): Promise<Scena
   /**
    Wrapped minus direct for every round in which both sides succeeded.
    */
-  const pairedRounds = pairedDeltas({
+  const deltas = pairedDeltas({
     direct,
     wrapped: wrappedSamples,
   });
-  if (pairedRounds.length === 0) {
+  if (deltas.length === 0) {
     return { failures, };
   }
   return {
