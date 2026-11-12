@@ -1,7 +1,8 @@
 //! What:
 //!  The subvolumes this program left inside a worktree for its commit service to delete,
 //!  moved out of that worktree before its removal hands anything to the kernel or to Git,
-//!  and the volume that is nobody's but the person's, which the removal refuses.
+//!  and the volume that is nobody's but the person's,
+//! which the removal refuses.
 //! Why:
 //!  A removal of a subvolume worktree hands the worktree's own subvolume to the commit service by renaming it
 //!  inside the directory it holds (`worktree_remove_hand_over.rs`),
@@ -81,7 +82,8 @@ pub(crate) enum VolumesBelow {
 /// and a name of the
 ///  shape `cli-git-deleting-<16 lowercase hexadecimal digits>` is one nothing but `deleting_name` makes
 ///  (`{id:016x}`).
-/// An upper-case digit is no part of that shape, and a directory somebody named with one is theirs.
+/// An upper-case digit is no part of that shape,
+/// and a directory somebody named with one is theirs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

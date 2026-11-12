@@ -33,7 +33,6 @@ use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{open_directory_at, open_root, rename_at};
 use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
 use crate::iso_time::now_iso;
-use crate::private_storage::create_private_directory_all;
 use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
 use crate::service_messages::render;
 use crate::service_protocol::HEARTBEAT_SILENCE;
@@ -52,20 +51,29 @@ use std::fs::File;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
+/// What:
+///  The name a subvolume this program leaves for the service takes,
+///  and the record that names its delete,
+///  re-exported where every reader of them already names them.
+/// Why:
+///   The shape of a leaving name and of its record is one subject
+/// (`worktree_removal_leaves_a_subvolume_for_the_service.rs`),
+/// and a caller names them by this module,
+/// so the subject moved and the names did not.
+pub use crate::worktree_removal_leaves_a_subvolume_for_the_service::{DELETE_REFERENCE, DELETING_PREFIX, deleting_name, removal_item};
+
+/// What:
+///  The move that leaves one subvolume for the service,
+///  re-exported so every caller keeps naming it by this module.
+/// Why:
+///   A caller names the move and the record together,
+/// and the two moved to the file that owns them
+/// (`worktree_removal_leaves_a_subvolume_for_the_service.rs`),
+/// so the names stay where the callers already read them.
+pub(crate) use crate::worktree_removal_leaves_a_subvolume_for_the_service::leave_a_subvolume_for_the_service;
+
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeRemoveHandOver";
-
-/// What a renamed subvolume's name starts with while the service deletes it:
-/// a name no person gives a worktree,
-/// so it is never mistaken for one,
-/// and one the next commands report when it stays.
-pub const DELETING_PREFIX: &str = "cli-git-deleting-";
-
-/// The reference an item of this kind names,
-/// which is no branch:
-/// an item carries a reference-shaped field so that every reader of a record keeps one shape,
-/// and no push is ever made for this kind.
-pub const DELETE_REFERENCE: &str = "refs/worktree/cli-git-service/subvolume-delete";
 
 /// What:
 ///  The reference an item of this kind names when what waits for the service is a whole worktree Git removes file by file,
@@ -78,49 +86,6 @@ pub const DELETE_REFERENCE: &str = "refs/worktree/cli-git-service/subvolume-dele
 ///  Git's own refuse-or-remove of the tracked files it finds is the whole proof of the removal,
 ///  and a path renamed away first would leave a registration naming nothing.
 pub const WORKTREE_REMOVAL_REFERENCE: &str = "refs/worktree/cli-git-service/worktree-remove";
-
-/// What:
-///  The name a removed worktree's subvolume takes while it waits for the service's delete.
-/// Why:
-///   The subvolume id names one subvolume for good,
-/// while a name names whatever is there when the call runs,
-/// so a name built
-///  from the id can never stand for another person's directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const deletingName = (id: bigint) => `cli-git-deleting-${id.toString(16).padStart(16, '0')}`;
-/// ```
-pub fn deleting_name(id: u64) -> OsString {
-    return OsString::from(format!("{DELETING_PREFIX}{id:016x}"));
-}
-
-/// What:
-///  The item that names one renamed subvolume for the service.
-/// Why:
-///   The record is the only thing that outlives the command,
-/// so it names the exact path the rename made and the subvolume id it
-///  holds:
-/// a delete acts on that path alone,
-/// and a path that is gone is nothing to delete.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const removalItem = ({ commonDir, parentPath, id, deleting }) => ({ kind: 'subvolume-delete', repository: parentPath, gitDir: commonDir, ref: DELETE_REFERENCE, oid: hex40(id), parent: join(parentPath, deleting), created: now, tries: 0 });
-/// ```
-pub fn removal_item(common_dir: &Path, parent_path: &Path, id: u64) -> WorkItem {
-    let deleting: PathBuf = parent_path.join(deleting_name(id));
-    return WorkItem {
-        kind: WorkKind::SubvolumeDelete,
-        repository: parent_path.to_path_buf(),
-        git_dir: common_dir.to_path_buf(),
-        branch_ref: String::from(DELETE_REFERENCE),
-        oid: format!("{id:040x}"),
-        parent: deleting.display().to_string(),
-        created: now_iso(),
-        tries: 0,
-    };
-}
 
 /// What:
 ///  The item that names one landed worktree for the commit service to remove with Git,
@@ -720,67 +685,6 @@ pub fn delete_subvolume_of(item: &WorkItem) -> Verdict {
         )),
         Err(error) => Verdict::Retry(format!("the subvolume of {} cannot be destroyed ({error})", path.display())),
     };
-}
-
-/// What:
-///  Leave one subvolume this program made for the commit service to delete,
-///  by writing the record that names the place it will stand,
-///  moving it out of the tree that is being removed,
-///  and answering that place.
-/// Why:
-///   The removal's own subvolume is not the only one it leaves:
-/// a pool of snapshots ahead of an add and a
-///  pending deletion this program wrote earlier are subvolumes inside the tree as well,
-/// and the kernel refuses
-///  to destroy a tree that holds one.
-/// Moving one out is one `rename(2)` on the filesystem it stands on,
-///  so nothing waits for the kernel's write lock the way a destroy does
-/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`),
-/// and the record written before the move names
-///  what the service deletes later
-/// (a review finding,
-/// F5).
-///  The folder it is moved into is on the same filesystem by construction:
-/// a pool sits in the repository's Git
-///  directory,
-/// and a pending deletion sits in the tree its own removal renamed it out of.
-/// A record that
-///  cannot be written leaves the subvolume where it is and answers the reason,
-/// so the caller refuses while
-///  nothing has moved.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const left = await leaveASubvolumeForTheService({ commonDir, from, into }); // its new path
-/// ```
-pub(crate) fn leave_a_subvolume_for_the_service(common_dir: &Path, from: &Path, into: &Path) -> Result<PathBuf, String> {
-    // The entry was read with `symlink_metadata` by the caller, and the paths a removal builds start at a held directory
-    // (`/proc/self/fd/<n>`), which `open_root` refuses as reached through a link. A link that takes the entry's place after
-    // that read is no harm here: the rename moves the link and never its target, and the service deletes a path only while
-    // a directory stands there.
-    let held: File = match File::open(from) {
-        Ok(held) => held,
-        Err(error) => return Err(format!("the subvolume {} cannot be opened ({error})", from.display())),
-    };
-    let id: u64 = match subvolume_id(&held, from) {
-        Ok(found) => found,
-        Err(error) => return Err(format!("the subvolume {} cannot be identified ({error})", from.display())),
-    };
-    if let Err(error) = create_private_directory_all(into) {
-        return Err(format!("the folder {} cannot be made ({error})", into.display()));
-    }
-    // The record goes before the move, so a command killed between the two leaves a record whose path is not there yet
-    // (which deletes nothing) and never a directory nothing names.
-    let item: WorkItem = removal_item(common_dir, into, id);
-    if let Err(reason) = enqueue(work_directory(common_dir).as_path(), &item) {
-        return Err(format!("the delete of {} cannot be recorded: {reason}", from.display()));
-    }
-    let left: PathBuf = PathBuf::from(item.parent.as_str());
-    if let Err(error) = std::fs::rename(from, left.as_path()) {
-        return Err(format!("the subvolume {} cannot be moved to {} ({error})", from.display(), left.display()));
-    }
-    debug(TAG, format!("the subvolume {} waits for the service's delete at {}", from.display(), left.display()).as_str());
-    return Ok(left);
 }
 
 /// Whether an errno from the destroy by id means this kernel lacks the call,

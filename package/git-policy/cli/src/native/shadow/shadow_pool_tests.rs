@@ -126,7 +126,8 @@ fn an_empty_pool_leaves_the_creation_to_the_commit() {
 /// and the sweep of a killed fill removes nothing through it.
 /// Why:
 ///   Every name below the pool folder is the wrapper's own,
-///  so a link there puts a creation, a claim and a removal inside whatever tree somebody else chose.
+///  so a link there puts a creation,
+/// a claim and a removal inside whatever tree somebody else chose.
 /// The sweep is the one that loses data:
 /// it removes a whole tree for each name that looks like a half-made member.
 #[test]
@@ -160,7 +161,8 @@ fn a_pool_folder_that_is_a_link_is_left_alone() {
 ///  A worktree's pool folder that is a link is left alone for the same reason,
 ///  since the pool's path has that name as well as the pool folder's.
 /// Why:
-///   A link at either name sends the creation, the claim and the sweep into the tree it names.
+///   A link at either name sends the creation,
+/// the claim and the sweep into the tree it names.
 #[test]
 fn a_pool_directory_that_is_a_link_is_left_alone() {
     let root: PathBuf = fixture("shadow-pool-linked-directory");
@@ -750,7 +752,8 @@ fn removing_the_pool_of_a_gone_worktree_leaves_what_a_member_links_to() {
 }
 
 /// What:
-///  A symbolic link at the pool's folder, or at a pool's own name,
+///  A symbolic link at the pool's folder,
+/// or at a pool's own name,
 ///  is no pool of this program:
 ///  the sweep reads nothing below either name and removes nothing.
 /// Why:
@@ -758,7 +761,8 @@ fn removing_the_pool_of_a_gone_worktree_leaves_what_a_member_links_to() {
 /// and a name it built is no proof of
 ///  what stands at it:
 /// the listing followed the link and every removal below it deleted a directory of
-///  the linked tree, then reported the pool of a gone worktree as collected (a review finding,
+///  the linked tree,
+/// then reported the pool of a gone worktree as collected (a review finding,
 /// F4).
 ///  A name is not a proof of what is at it.
 #[test]

@@ -203,7 +203,8 @@ struct PlantedAtTheHandOver<'a> {
     folder: &'a Path,
     /// The branch the planted worktree has checked out.
     branch: &'a str,
-    /// Whether the plant happened, so the stand-in plants once.
+    /// Whether the plant happened,
+    /// so the stand-in plants once.
     planted: std::cell::Cell<bool>,
 }
 
@@ -505,7 +506,8 @@ fn entries_with_prefix(folder: &Path, prefix: &str) -> Vec<PathBuf> {
 ///  removal that made it waited for another add's snapshot to commit,
 /// which is what the hand-over of the worktree's own
 ///  subvolume exists to keep off the person's path
-///  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`, a review finding,
+///  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`,
+/// a review finding,
 /// F5).
 #[test]
 fn btrfs_a_snapshot_ahead_is_left_for_the_service_instead_of_destroyed_by_the_removal() {

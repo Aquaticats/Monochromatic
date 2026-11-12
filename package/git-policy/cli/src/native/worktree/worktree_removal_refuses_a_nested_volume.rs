@@ -77,7 +77,8 @@ pub(crate) fn refusal_for_nested_volume(target: &Path, common_dir: &Path, found:
 ///  A detached `HEAD` is a worktree state the repository registers like any other,
 /// and the command named here
 ///  keeps the commits it names as it keeps a branch:
-/// the report says which of the two the worktree is, because the two
+/// the report says which of the two the worktree is,
+/// because the two
 ///  are what the person loses sight of if they follow an instruction to delete the directory.
 ///
 /// In TS you'd write (pseudocode):
@@ -114,7 +115,8 @@ fn named_worktree_report(target: &Path, worktree: &RegisteredWorktree) -> String
 ///  deletion too,
 /// so the report names it and every way to move,
 /// unmount or delete it.
-///  Nothing here is a command the wrapper would refuse to run itself, and the two commands that destroy
+///  Nothing here is a command the wrapper would refuse to run itself,
+/// and the two commands that destroy
 ///  are named last and for what they are:
 /// a subvolume may be another repository's worktree with
 ///  commits only its own removal keeps,

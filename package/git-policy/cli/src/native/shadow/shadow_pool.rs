@@ -191,7 +191,8 @@ fn the_wrappers_own_directory(path: &Path) -> bool {
 ///  or are not there yet.
 /// Why:
 ///   The pool's path is the pool's folder and the worktree's folder inside it,
-///  and a link at either one sends a creation, a claim and the sweep of a killed fill into
+///  and a link at either one sends a creation,
+/// a claim and the sweep of a killed fill into
 ///  whatever tree somebody else chose,
 ///  where the sweep removes whole trees.
 ///  A path that is not there is the empty pool every caller already handles,
@@ -262,7 +263,8 @@ pub fn take(template: &ShadowTemplate, destination: &Path) -> bool {
 ///  Removes a claimed entry that was refused,
 ///  whatever kind of entry the claim renamed here.
 /// Why:
-///   The pool's names are the wrapper's, but the claim trusts nothing about them:
+///   The pool's names are the wrapper's,
+/// but the claim trusts nothing about them:
 /// a link or a file at a member's name is refused,
 ///  and `remove_dir_all` refuses those two,
 /// so a claim left at this path would make the creation that follows fail on every later commit of the worktree.

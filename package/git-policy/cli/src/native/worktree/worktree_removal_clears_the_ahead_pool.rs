@@ -318,7 +318,8 @@ fn is_an_identity(text: &str) -> bool {
 ///  a durable record
 /// (`leave_a_subvolume_for_the_service`).
 /// An entry that is no subvolume is a name this
-///  program wrote and goes as a plain tree, which waits on nothing;
+///  program wrote and goes as a plain tree,
+/// which waits on nothing;
 /// a member another process claimed first
 ///  is gone,
 /// which is the same end state.

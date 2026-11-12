@@ -126,6 +126,14 @@ pub mod worktree_removal_snapshot_promotion;
 /// The finish of a removal whose destroy happened and whose registration did not go.
 pub mod worktree_removal_interrupted_destroy;
 
+/// The finish of a removal a command killed once its destroy happened,
+/// and the words for what a person still has to do.
+pub mod worktree_removal_finishes_an_interrupted_destroy;
+
+/// The subvolumes this program leaves for the commit service to delete,
+/// moved out of a tree that is being removed with one rename and a record.
+pub mod worktree_removal_leaves_a_subvolume_for_the_service;
+
 /// The stop of a removed worktree's commit service units,
 /// named from the registration before the removal and stopped after it.
 pub mod worktree_removal_stops_units;

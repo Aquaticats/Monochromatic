@@ -16,13 +16,15 @@ use crate::fs_beneath::identity_of;
 use crate::fs_btrfs_ioctl::{subvolume_create_at, subvolume_destroy_at};
 use crate::fs_btrfs_test_support::{btrfs_fixture, removal_allowed};
 use crate::test_support::{git, remove, repository};
+use std::fs::File;
 use std::path::PathBuf;
 
 /// What:
 ///  The answer the hand-over's wake gives,
 ///  so a control reaches no commit service and no session bus.
 /// Why:
-///   This tree's hand-over asks a value that says who is told, not a closure,
+///   This tree's hand-over asks a value that says who is told,
+/// not a closure,
 /// and a control needs one answer:
 /// `Some(..)` is a wake that did not reach a service,
 /// `None` one that did.
