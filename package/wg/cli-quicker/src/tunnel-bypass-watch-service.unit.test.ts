@@ -115,24 +115,35 @@ async function pollFor(
   },
 ): Promise<string> {
   /**
-   Attempts made so far.
+   Attempts this wait still has.
    */
-  const attempts = { count: 0, };
-  /* oxlint-disable eslint/no-await-in-loop -- Each attempt must follow the one before it. */
-  while (attempts.count < 300) {
+  const remaining = { count: 300, };
+  /**
+   Makes one attempt,
+   waits before the next,
+   and counts down,
+   so the bound holds however long one read took.
+
+   @returns The answer the caller waited for.
+
+   @throws {@link Error} when the attempts run out.
+   */
+  async function attempt(): Promise<string> {
     /**
      What this attempt read.
      */
     const answer = await read();
     if (until(answer,))
       return answer;
-    attempts.count += 1;
+    if (remaining.count === 0)
+      throw new Error(`the wait for ${what} never saw it: the last read answered nothing usable.`,);
+    remaining.count -= 1;
     await new Promise(function later(resolve,) {
       setTimeout(resolve, 20,);
     },);
+    return attempt();
   }
-  /* oxlint-enable eslint/no-await-in-loop */
-  throw new Error(`the wait for ${what} never saw it: the last read answered nothing usable.`,);
+  return attempt();
 }
 
 /**
