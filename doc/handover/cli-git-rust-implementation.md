@@ -135,6 +135,75 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The first hourly pass after the restart: pass 17 started, what the reload's own commit printed (2026-11-12T09:05:26-05:00)
+
+#### State
+
+- Free space 244 GiB. Sixteen runs alive at 09:03, every feed moving; none superseded, nothing stopped.
+- Under 0.6.1-alpha.13: thirteen commits in this repository, twelve landed, median 1,338 ms, largest 4,481 ms.
+  The one that did not land is real Git's own refusal (`native-exit`, status 1, 140 ms) in the tokio agent's worktree, which is mid-merge.
+- The user manager's reloads since the install: two, both at 08:48, 452 ms and 225 ms,
+  requested from the units of the push-notices agent and the fast-forward agent. The manager holds 370 units.
+
+#### What two of the three digests found
+
+`~/temp/agent/digest-2026-11-12T0830-a/digest.md` and `-b/digest.md`: twenty work runs, all finished, all tips on the remote, none in `main`.
+The third digest (nine work runs and four reviews) is still being written.
+
+- The commit whose wrapper asked for the reload of 01:22:34 was read in its own session.
+  It started at 01:21:10 and returned at 01:24:54. It printed
+  "the commit service of this worktree has answered nothing for 3 seconds, so it is stopped inside its own process; it is asked to restart"
+  and then "The commit service did not start, so this commit was not made".
+  So the three-second greeting rule is the first link of the chain that ended the session, and the commit failed as well.
+  Four other agents' ordinary commands were held about three minutes in the same window.
+  This went to the issue 6286 agent by note at 08:44, with the morning's 487 ms reload at 319 units.
+- After the session was lost, the commit service could not find `git-lfs` in two worktrees, because the user manager's `PATH` lacked its folder;
+  their pushes were refused. Sent to `lfs-push-uploads-every-object-the-remote-lacks-2` by note at 09:05.
+- Eight worktree deletions waited thirty-one to sixty-five minutes behind one wave of trashes in the single slow lane (read in one run's report);
+  no branch fixes it yet. It belongs with the waves agent's branch at its next pass.
+- The landed-removal fix (`32323116f1`): the four audit scripts were run against its own build and the fixtures show the files kept.
+  Open on it: it is 188 commits behind `main`, one defect its own probe found was fixed without a test,
+  and it never ran the changeover audit's two scripts.
+
+#### Started
+
+- Round 281, `integration-pass-17-for-alpha-14` (base `main`): sixteen finished branches, the landed-removal fix first,
+  then the landed sweep, the merge asides and the named pipe, the three service-queue fixes, the waves, the late runtime, the gate failures,
+  the add that says why it waits, the ceiling's one decision, the five-second findings, the first commit after an install,
+  the pooled shadow against `.git/lfs`, and the commit-time measurement's three small fixes.
+  Its brief names the held-back branches and has it check that none comes in through another.
+  After the merges it runs the four data-loss reproductions against its own build.
+- Round 282, four qwen4 reviews: the landed-removal fix, the landed-sweep fix, the merge asides, the late runtime.
+  That makes eight qwen4 runs at once.
+
+#### The third digest, arrived at 09:08, not yet routed
+
+`~/temp/agent/digest-2026-11-12T0830-c/digest.md`. For the next pass:
+
+- The second run of the worktree-add review confirms the reading about unreadable records for the journal, the stage claim and the unfilled record,
+  cut by cut. One point contradicts it: a commit served by the commit service in a linked worktree exited 0 with an empty journal and an empty claim.
+  Its probes ran against this machine's own runtime directory, so the service was the installed one, not the reviewed build.
+  The fix agent (`worktree-copy-record-that-cannot-be-read-never-stops-another-command-2`) is running; this goes to it.
+- Candidates for the pass after 17, by the digest's assessment:
+  the tracking-repair second pass (ready, one shared file; its `%(upstream)` fix is in the merge commit `f8ab4d48cf`, not where its report says),
+  the tokio next step, the delivered matching push and the vendored-clone exemption (each after a merge of `main` and a rerun of its modules).
+- Not ready: the gate-and-install review findings (its review found three defects in code that branch added);
+  the trash hand-over (a heavy hand merge, fourteen shared files);
+  removal while linking (its own verdict: do not merge as it stands);
+  the nested-subvolume review findings (cut from an alpha.10-era tree, 692 commits behind);
+  the cheaper add (take only its reaping fix `39578c37ec`; it measured the cost steps and did not make them cheaper).
+- Data loss still on `main`, shown through the built wrapper: a hard reset and a forced clean run with no save-first guard below `CARGO_TARGET_DIR`
+  (fixed on the vendored-clone branch); a symlink at a pool name is followed and a person's file deleted (fixed on the nested-subvolume branch).
+- The wg review is final: a hook that puts itself in the background stalls `up` or `down` for the whole ten-minute hook deadline;
+  a concurrent `up` can destroy another tunnel and two tunnels can share one policy table (both shown with shims that widen the race).
+  These go with the wg branch that is held for the owner.
+- Wrapper misbehaviour in agents' own worktrees under alpha.12: commits of 295, 201 and 158 seconds; a commit that printed its name and was then not made;
+  a wrapped `git worktree remove` that `SIGKILL` could not end because it sat in a disk wait.
+
+Left out of pass 17, with the reason: the three held-back branches (abort second pass, the LFS mask, the commit made without a service);
+`commit-records-the-bytes-git-records-and-refuses-what-git-refuses`, whose base is the commit-options branch that pass 16 could not merge;
+and the subagent-driver branch, which is another package and is not finished.
+
 ### After the restart: 0.6.1-alpha.13 published, the agent for issue 6286 started, the fleet held until the install (2026-11-12T08:39:44-05:00)
 
 The machine was restarted at 04:03:18.
