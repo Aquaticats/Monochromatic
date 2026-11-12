@@ -766,6 +766,86 @@ Open:
   The drafted questions are in `${HOME}/temp/agent/optique-questions-for-maintainer-2026-11-12.md`,
   which is scratch and not committed.
 
+### State when this work wound down, 2026-11-12T16:10:00-05:00
+
+The owner's note in commits `6b88bafc75` and `869cd1ff95` asked every agent to wind down,
+because `/var/home` was full
+(`df` read 148K available at the time).
+The work stopped part way,
+and nothing was sent upstream.
+
+Done and checked:
+
+- The reproduction repository `Aquaticat/optique-parse-cost-reproduction` exists,
+  private,
+  created 2026-11-12T21:02:23Z,
+  at commit `43cc2885d6492923c7cfefae2dec9d3402730a4d`,
+  authored with the account's noreply address.
+- Its workflow ran twice on GitHub's runners,
+  runs `43306241322` (push) and `43306311950` (started by hand),
+  and both gave the same result:
+  the job for discarded diagnostics passed on `1.4.0-dev.2971` and failed on 1.3.6,
+  both token-count jobs failed,
+  and the separator job failed,
+  each on its asserting step.
+  In run `43306311950` the separator job read 41.3 ms on 1.3.6 against 77.0 ms on `1.4.0-dev.2971`,
+  a ratio of 1.86,
+  and the fitted exponent of parse time against token count was 1.7 on 1.3.6 and 1.564 on `1.4.0-dev.2971`.
+- `doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md` is written.
+
+Not done:
+
+- The repository's `README.md` gives an exponent range of 1.75 to 1.97,
+  which came from a local check over other token counts;
+  the runs measured 1.56 to 1.7,
+  so that sentence needs the measured figures.
+  Its claim that the scripts were run on Node,
+  Deno and Bun is unverified:
+  only Node ran,
+  locally and in the workflow.
+- The new troubleshooting doc's lint run was stopped before it answered.
+  Its draft issue holds a pipe table inside a code fence,
+  which the lint may or may not accept.
+- The fix prototype for the input trace was at its changelog step when it was asked to stop
+  (run folder `optique-input-trace-fix-prototype-4`,
+  clone `${HOME}/temp/agent/upstream-prototype.O1iPjcqr`).
+  Its patch has not been checked by anyone but the agent that wrote it,
+  and the troubleshooting doc for that finding is not written.
+- The agent that was to run the scripts on Deno and Bun did not get going
+  (run folder `optique-cross-runtime-reproducers-7`).
+- No reviewer from another vendor has read the rewritten reply draft or the new doc.
+- `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip` predates the later check runs.
+- The repository has not been made public.
+  The rule in `.agents/skills/troubleshooting-doc/SKILL.md` asks for every file,
+  commit message and commit author to be read first.
+- The owner has not yet been asked which of the remaining questions to send,
+  nor what to do with the findings that are held back from this repository
+  because upstream's `SECURITY.md` asks for a private report.
+
+Scratch lives under `${HOME}/temp/agent` on the full disk.
+The small files that cannot be regenerated were copied on 2026-11-12 to
+`/var/mnt/encrypted/temp/agent/optique-session-2026-11-12/`:
+the question list,
+the held-back report,
+the staging folder and publish script for the reproduction repository,
+one run's log,
+the coordinator's check scripts and their records,
+and the prototype's logs and commit message.
+The prototype's patch itself is only in its clone.
+
+Two defects in this repository's own tools showed during the work and are not yet written up:
+
+- Pi refused to start with
+  "Cannot restore the openai-codex model catalog: Error: Lock file is already being held"
+  while `~/.pi/agent/.models-store.json.lock` was an empty folder left by a process that had gone;
+  removing the folder let Pi start.
+- With `/var/home` full,
+  `git commit` printed the new commit's summary line and then
+  "The commit service could not finish this commit, so it was not made.",
+  leaving the commit object in the store,
+  the branch unmoved
+  and a newly added file staged.
+
 ## Next action
 
 When the user returns,

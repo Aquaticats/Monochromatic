@@ -644,38 +644,55 @@ per upstream's policy.
 An AI session wrote every line of it and no person has reviewed it;
 it speaks for nobody until the owner makes it theirs.
 
+It answers both things the maintainer asked:
+a reassessment on 1.3.6 and on `main`,
+and a reproducer.
+The reassessment itself is the owner's to state,
+so that line is a placeholder.
+
 ~~~md
-Thanks for the pointer. I reran the old parser from the parent of this commit against several versions. One parse of
-`['--message', 'x', ...1000 paths]`, median of 49 timed parses, Node 26 in a two-CPU container:
+Thanks for #992 and #997, and for following up. I reran the parser this commit removed, unchanged from its parent,
+against several versions. One parse of `['--message', 'x', ...1000 paths]`, median of 49 timed parses, Node 26 in a
+two-CPU container:
 
 - 1.1.1: 2,696 ms
-- 1.3.1: 2,707 ms
-- 1.3.2: 180 ms
-- 1.3.6: 184 ms
-- 1.4.0-dev.2664 (main before #997): 229 ms
-- 1.4.0-dev.2971 (current dev): 95 ms
+- 1.3.2 and 1.3.6: 180 ms and 184 ms
+- 1.4.0-dev.2971: 95 ms
 
-So #992 removed 93% of it and #997 about half of the rest. Three things you may not have:
+So #992 removed 93% of it and #997 about half of what was left. Counting mismatches with a function-valued
+`errors.noMatch`, a successful parse makes exactly tokens times options of them on 1.3.6 and none on main.
 
-- On 1.3.6, a CPU profile still puts about three quarters of the parse in `suggestion.js` and `usage.js`
-  (`traverseUsage`, `findSimilar`, `createErrorWithSuggestions`); `levenshteinDistance` itself is down to 6%.
-- `main` at #997's base, which contains 1.3.2, took 229 ms on this input against 180 ms for 1.3.2 itself.
-- Short tokens did improve at 1.3.2 here (300 ms to 185 ms for a thousand 1 to 3 character names), unlike the
-  short-path note in #992. My guess, untested, is that this parser's long option names fail the new length check.
+[Owner: your answer to "would you consider reassessing". What the record here shows: performance was the reason for
+one parser only, the Git wrapper's, which has since been rewritten; the rest of the migration rests on the grammar
+and Valibot reasons you noticed.]
 
-On the current dev build the suggestion code is gone from the profile; what is left is `short-option.js` (31%),
-`input-trace.js` (23%) and `constructs.js` (14%), because every token is still offered to every option parser. Is
-that the intended end state?
+Three things from the measurement that may be of use:
 
-A standalone script (only `@optique/core`) that shows the same effect is in
-`doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md` in this repository.
+1. On 1.3.6 the default path still collects the option names and searches them on every mismatch; a profile puts
+   about three quarters of the parse there. The new length check skips a name only when its length differs from the
+   token's by more than three, so a token about as long as the option names still pays in full. That may be why
+   your short-path run showed no change. A literal `errors.noMatch` on every option avoids all of it.
+2. On main, with `--` before the paths, the same parse takes about 1.8 times as long as on 1.3.6 (1.5 to 2.1 over
+   seven paired rounds). The profile puts the difference in *short-option.js* from #981.
+3. On every version from 1.1.1 to main, parse time is close to quadratic in the number of positional tokens:
+   `InputTraceImpl.set()` copies its whole map for each token it records. With one option, eight times the tokens
+   costs 40 to 55 times as long.
+
+Scripts for all three run unchanged on Node, Deno and Bun, against an npm version or a checkout, and a workflow
+runs them on pinned versions: https://github.com/Aquaticat/optique-parse-cost-reproduction
+
+One question: after #997 every token is still offered to every option parser, a constant cost per token and option.
+Is that the intended end state?
 
 For context: the parser we replaced Optique with here was a different parser with bugs of its own and has since been
 deleted, so our old 4.24 s and 0.89 s compared two different things.
 
-[Owner: add here, in your own words, anything you want to say about the cost not having been reported upstream in
-July, and the disclosure of AI assistance that upstream's policy asks for.]
+[Owner: add, in your own words, the disclosure of AI assistance that upstream's policy asks for, and anything you
+want to say about the cost not having been reported upstream in July.]
 ~~~
+
+The repository the draft links was created private on 2026-11-12T21:02:23Z
+and is not readable by the maintainer until the owner makes it public.
 
 [object loop]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/constructs.ts#L5869-L5884
 [no-match 1.1.1]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/primitives.ts#L1232-L1271
