@@ -3375,6 +3375,19 @@ as "A merge saved for a later command" says,
 and the next command in the worktree finishes it.
 A merge that waited and found the mark gone merges into what the other merge left.
 
+The mark orders merges;
+it does not stop a commit.
+A commit that arrives while a merge installs moves the branch as a commit always does,
+and a merge whose branch moved is computed again on the branch as it is then.
+Measured with the person's staged path committed through the worktree's own service,
+in a merge that writes no path the person has work in:
+both commands exit 0,
+both sets of content are on the branch,
+and the worktree is left with nothing in it,
+whichever of the two landed first.
+A commit the policies refuse (`--all`,
+or no path at all) changes nothing and exits nonzero.
+
 #### A merge that is partly installed stops writes, never reads
 
 A merge whose process died can leave part of itself in the index and the worktree and a state no settling can finish:

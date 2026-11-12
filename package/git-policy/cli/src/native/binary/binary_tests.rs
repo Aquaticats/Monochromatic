@@ -275,6 +275,13 @@ mod merge_carries_edits_kill;
 #[path = "binary_merge_one_install_at_a_time_tests.rs"]
 mod merge_one_install_at_a_time;
 
+/// A commit that arrives while an isolated merge is part-way installed,
+/// through the worktree's own commit service:
+/// what the commit does in each phase of the install,
+/// and the state the worktree is left in.
+#[path = "binary_merge_commit_arrives_tests.rs"]
+mod merge_commit_arrives;
+
 /// Another command landing a commit on the branch while a landed merge still carries:
 /// the later commit stands,
 /// and the person's work is merged onto the branch as it is now.

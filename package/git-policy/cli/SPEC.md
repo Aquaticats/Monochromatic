@@ -5262,6 +5262,26 @@ because nothing of that merge was installed and their bytes are where they were
 A merge that waited and found the mark gone computes its round again on the branch as it is then,
 so it merges into what the other merge left instead of into a branch that moved under it.
 
+The mark orders installs;
+it does not stop a commit.
+A commit that arrives while a merge installs moves the branch the way a commit always does,
+and the merge answers it by a rule it already has:
+a branch that moved under a merge's round is computed again on the branch as it is then
+(`merge_isolation_recovery.rs`).
+Measured in the shape where the merge writes no path the person has work in,
+with the person's staged path landing through the worktree's own commit service
+(`binary_merge_commit_arrives_tests.rs`):
+the commit exits 0 and lands,
+the merge exits 0,
+and the worktree ends whole,
+whichever of the two lands first.
+At `merge-intent` the merge came out on top of the commit
+(`Merge branch 'feature'`, then `second`);
+at `merge-applied` the commit came out on top of the merge.
+A commit that the policies refuse, such as `git commit --all` or one with no path,
+changes nothing and exits nonzero in either case,
+and a merge still holds its mark until its own install is whole.
+
 #### A merge that is partly installed stops writes, never reads
 
 A merge whose process died can leave part of itself in the index and the worktree,
