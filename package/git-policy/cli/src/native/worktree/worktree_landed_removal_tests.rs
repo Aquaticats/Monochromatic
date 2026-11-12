@@ -1149,7 +1149,7 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
     std::fs::write(notes.as_path(), b"work the person has not committed\n").expect("an untracked file the person wrote there");
     let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = an_empty_process_table(&landed);
-    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
     let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
     assert_eq!(
         std::fs::read(changed.as_path()).expect("the changed file is still there"),
@@ -1203,7 +1203,7 @@ fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
     .expect("a failed push nobody has seen yet, recorded after the snapshot");
     let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = an_empty_process_table(&landed);
-    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
+    let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
     let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice());
     assert!(matches!(examined, Examined::Removed), "the account is clean, so the worktree is removed");
     assert!(!admin.exists(), "the removal took the record's original with the Git directory");
@@ -1296,6 +1296,8 @@ fn a_worktree_whose_branch_was_reset_onto_another_branchs_commit_is_not_removed(
         current_root: Some(merged_in.as_path()),
         proc_root: table.as_path(),
         registered_before: &registered_before,
+        git_dir: common.as_path(),
+        told: &no_service_answers,
     };
     let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), now.as_str(), "feature");
     assert!(sweep.removed.is_empty(), "a branch the person reset onto another branch's commit landed no work of its own: {sweep:?}");

@@ -234,8 +234,8 @@ pub async fn push_once_awaiting(
             Some(named) => named,
             None => of.to_owned(),
         };
-        if !crate::push_tracking_ref_repair::bring_up_to_date_awaiting(git, full.as_str(), source.as_str()).await {
-            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), source.as_str());
+        if !crate::push_tracking_ref_repair::bring_up_to_date_awaiting(git, full.as_str(), pinned.as_str()).await {
+            note = crate::push_tracking_ref_repair::still_behind(full.as_str(), pinned.as_str());
         }
     }
     // A push held back by a verdict is never reconciled: the merge the reconcile publishes is made above the local tip, so it would
