@@ -417,7 +417,8 @@ pub fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyEr
 /// and native Git flushes nothing for the worktree add they serve,
 /// while a flush of the journal root is a commit of the whole btrfs filesystem on the
 ///  path of every command of the repository
-/// (`SPEC.md`, "Local durability follows what the remote already holds").
+/// (`SPEC.md`,
+/// "Local durability follows what the remote already holds").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -545,7 +545,8 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
 /// the flush would buy only that a power cut finds it,
 /// and native Git flushes nothing for the worktree add it serves,
 /// while a flush of it is a commit of the whole btrfs filesystem on the add's waiting path
-/// (`SPEC.md`, "Local durability follows what the remote already holds").
+/// (`SPEC.md`,
+/// "Local durability follows what the remote already holds").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
