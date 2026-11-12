@@ -372,6 +372,128 @@ and `monochromatic-lint` with `--max-warnings 0` reports nothing in the changed 
 or in `SPEC.md`.
 The package-wide `monochromatic-lint` run still fails on findings in
 `worktree_copying` and `worktree` files this branch did not touch.
+### A second Kimi K3.1 Pro review of the commit-argument fixes: two defects, both reproduced and fixed, and a third of the same kind (2026-11-11T18:28:31-05:00)
+
+Branch `fix/git-policy-cli-kimi-findings-commit-message-options-round-210-findings`,
+from `fd3ede1fad` on `integrate/git-policy-cli-jam-fixes-after-alpha-9`.
+The report
+`~/temp/agent/kimi-reviews/alpha-10-audit-commit-message-options-as-git-reads-them-round-210/review.md`
+reads the commit that landed the commit-argument fixes
+and names two defects in the transforms that commit added;
+both are reproduced on `fd3ede1fad` through the built wrapper
+in a disposable repository under a disposable `HOME` and `XDG_RUNTIME_DIR`,
+with the worktree's own commit service started by hand,
+and each is fixed with a control that failed first.
+The owner's standing words behind all three are "Commits should never fail."
+and "never discard user data".
+
+#### A selection control was removed even where it was a message value
+
+`private_selection_commit_args` filtered the settled arguments by spelling alone,
+so `git commit --include --mess -i -- a.txt` lost the `-i` that Git reads as the
+message,
+and the real commit answered ``error: option `message' requires a value``
+with exit 129.
+The same message value under an explicit path,
+`git commit --mess -i -- a.txt`,
+landed with the message `-i`,
+so the loss was the selection removal's.
+A control now leaves only where `value_positions` says a token is an option,
+so a value that spells `-i`,
+`-p`,
+`--include`,
+`--interactive` or `--patch` stays.
+
+Controls:
+`commit_args::tests::selection_removal_keeps_a_message_that_spells_a_selection_control`
+failed with `left: ["--mess"]` against `right: ["--mess", "-i"]`,
+and the binary control
+`commit::an_include_commit_keeps_a_message_value_that_spells_a_selection_control`
+failed on `fd3ede1fad` with `left: Some(129)` and
+``error: option `message' requires a value`` against `right: Some(0)`.
+
+#### An abbreviated pathspec-file control reached the real commit
+
+The removal matched the exact spellings `--pathspec-from-file`,
+`--pathspec-from-file=...` and `--pathspec-file-nul`,
+while Git accepts every unambiguous prefix,
+so `git commit --include --pathspec-fr list.txt --message=x` landed a
+pathspec-limited commit of the one path the list names:
+the staged `b.txt` stayed staged and the commit exited 0.
+The full spelling of the same command landed both paths,
+so the abbreviation was the difference.
+Both rows are now recognized through Git's own long-option resolution
+(`long_option_names` in `command_options_long_resolution.rs`),
+so no spelling of them reaches the real commit and its value leaves with it.
+
+Controls:
+`commit_args::tests::an_abbreviated_pathspec_file_control_leaves_with_its_value`
+failed with `left: ["--pathspec-fr", "list.txt", "--message=x"]` against
+`right: ["--message=x"]`,
+and the binary control
+`commit::an_abbreviated_pathspec_file_include_commit_keeps_every_selected_path`
+failed on `fd3ede1fad` with `left: "base-b\n"` against `right: "new-b\n"`.
+
+#### Selection controls spelled as an abbreviation or inside a cluster reached the real commit
+
+Found while reproducing the two above,
+and of the same kind:
+`private_selection_commit_args` knew only the exact spellings,
+so `--patc` and `-ip` had already selected against the private index
+and were forwarded,
+and the real commit asked for the same hunks a second time.
+On `fd3ede1fad`,
+`git commit --patc --message=z -- a.txt` with no terminal printed
+`Stage this hunk` twice and made no commit;
+with the fix it prints it once,
+from the private selection only.
+The long names are read through the same resolution and the short letters leave a
+cluster with the other flags,
+while a letter that takes a value ends the flags,
+so `-mip` (the message `ip`) and `-Skey-i` (the key `key-i`) reach the real commit
+whole.
+
+Control:
+`commit_args::tests::selection_removal_drops_every_spelling_of_the_controls`
+failed with `left: ["--includ", "--message=x"]` against `right: ["--message=x"]`.
+It has no binary control:
+its harm is a second interactive selection,
+which a binary control would need a terminal to drive.
+
+The region reading moved to `src/native/commit/commit_args_reading.rs`
+so `commit_args.rs` stays under the 300 code-line limit,
+and `commit_args.rs` re-exports every moved name its callers use,
+so no caller path changed.
+
+Checks on the branch:
+`native:test:host` over `commit::`,
+`command::`,
+`service_commit_line_reissued` and `service_commit_args` is 788 run and 788 passed,
+`native:test:binary:host` over the two new controls is 2 run and 2 passed,
+`native:clippy` passes,
+and `monochromatic-lint` with `--max-warnings 0` reports nothing in the changed Rust
+files.
+The whole `native:test:host` suite with `--no-fail-fast` is 6795 run,
+6793 passed,
+2 failed and 19 skipped;
+neither failure is in a module this branch touched.
+`landing::service_work::tests::a_retryable_answer_keeps_the_record_for_a_later_round`
+emptied a list the image was still deleting
+(`the subvolume  could not be deleted: the volume is busy`) and passes when run alone,
+so it is the btrfs control the gate container acknowledges and this host runs for
+real.
+`worktree_copying::worktree_copy::tests::a_creation_recovers_a_dead_journal_first`
+fails alone as well,
+naming the ignored-state copy an interrupted `git worktree add` still owes,
+and no file under `worktree_copying` is part of this branch.
+The package-wide `monochromatic-lint` run still fails on findings in
+`worktree_copying` and `worktree` files this branch did not touch,
+as the record of the previous branch on this page already says.
+A separate commit of this branch lists `RestartUnit` in the guard's allowed members:
+`source_guard::no_start_at_login_tests::the_manager_is_called_only_with_the_members_on_the_list`
+failed on the branch base with `members outside the list: ["RestartUnit"]`
+while `RESTART_UNIT` and the `SPEC.md` sentence describing it stand in the base's code,
+so the guard's list was the stale half.
 ### A Kimi K3.1 Pro review of the released held push and of the blocked commit's record: four findings fixed, one read as intended (2026-11-11T06:33:22-05:00)
 
 Branch `fix/git-policy-cli-kimi-findings-blocked-commits-are-never-published`,
