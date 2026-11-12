@@ -48,7 +48,8 @@ fn dead_owner() -> CopyOwner {
     return CopyOwner { pid, birth_identity: birth, pid_namespace: crate::pid_namespace::current_pid_namespace() };
 }
 
-/// One journal record of a copy into `destination`, written by `owner`.
+/// One journal record of a copy into `destination`,
+/// written by `owner`.
 fn write_journal(common: &Path, destination: &Path, owner: &CopyOwner, body: &[u8]) {
     let root: PathBuf = ensure_journal_root(common).expect("journal root");
     let container: PathBuf = destination.parent().expect("a destination parent").join(format!(".cli-git-worktree-copy-{}", owner.token()));
