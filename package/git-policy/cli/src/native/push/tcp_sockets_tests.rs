@@ -116,11 +116,20 @@ fn a_socket_whose_peer_closed_is_not_listed_as_connected() {
 }
 
 /// The sockets a process holds are the inodes of its socket links,
-/// and a process that does not exist holds none.
+/// and a process that does not exist answers that its descriptors cannot be read,
+/// which is not the same answer as holding no socket.
 #[test]
 fn the_sockets_of_a_process_are_the_inodes_of_its_socket_links() {
     let (client, server) = pair();
-    let mine: Vec<u64> = socket_inodes_of(i32::try_from(std::process::id()).expect("a pid"));
+    let mine: Vec<u64> = socket_inodes_of(i32::try_from(std::process::id()).expect("a pid")).expect("this process's descriptors");
     assert!(mine.contains(&inode_of(&client)) && mine.contains(&inode_of(&server)), "{mine:?}");
-    assert_eq!(socket_inodes_of(i32::MAX), Vec::<u64>::new());
+    assert_eq!(socket_inodes_of(i32::MAX), None);
+    // The positive control for the other answer: a live process whose descriptors were read answers a list, whatever it holds.
+    let mut command: std::process::Command = std::process::Command::new("sleep");
+    command.arg("30");
+    let mut sleeper: std::process::Child = crate::test_support::spawn_owned(&mut command).expect("a sleeper");
+    let read: Option<Vec<u64>> = socket_inodes_of(i32::try_from(sleeper.id()).expect("pid"));
+    let _killed = sleeper.kill();
+    let _reaped = sleeper.wait();
+    assert!(read.is_some(), "the descriptors of a live process are read");
 }

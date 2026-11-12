@@ -1,8 +1,8 @@
 //! What:
 //!  Hide every secret-shaped part of the URLs in the text the wrapper relays from `git-lfs` and from Git:
 //! the userinfo,
-//! a path segment that is not a plain label,
-//! and every value of the query and of the fragment.
+//! the path,
+//! the query and the fragment.
 //! Why:
 //!  An `lfs.url` can carry its token in three places,
 //! and `git-lfs` names the URL it used in its errors:
@@ -32,28 +32,32 @@
 //! angle bracket,
 //! backtick,
 //! white space or control character.
-//!  A path segment,
-//! a query key and a fragment key is kept only while it is a plain label:
-//! the letters `a` to `z` and the separators `-`,
-//! `.`,
-//! `_` and `~` alone,
-//! which is what `lfs`,
-//! `objects`,
-//! `batch`,
-//! `info` and `repo.git` are.
-//! A token carries a capital,
-//! a digit,
-//! a percent encoding or another punctuation mark,
-//! and a value is a secret wherever it sits,
-//! so it is always hidden.
-//!  What this cannot do:
-//! a token that is made of lowercase letters alone reads as a label,
-//! so a path segment of that shape is not hidden here.
-//! Whether a whole path should be hidden instead is an open question for the owner.
+//!  What a URL keeps is its scheme,
+//! its host and its port,
+//! the separators `/`,
+//! `?`,
+//! `#`,
+//! `&` and `=`,
+//! and the punctuation that ends it in a sentence:
+//! every path segment,
+//! every query and fragment key and every value is the mask,
+//! so a person still reads which server answered and whether the URL carried a path,
+//! a query or a fragment.
+//! Nothing in the shape of a word tells a token from a name a person reads,
+//! so a plain lowercase word is hidden as well:
+//! a token made of lowercase letters alone reads exactly as `lfs` or `objects` does,
+//! and a rule that kept those kept the token too.
+//! An empty segment (the one before a leading `/`,
+//! after a trailing `/`,
+//! or between two) carries nothing and stays empty.
+//!  The head of an output kept at its size cap is masked as the head of a longer text it is:
+//! a URL that reaches the end of what was kept may go on past it,
+//! so an authority with no `@` that runs to that end is hidden whole
+//! ([`mask_url_secrets_cut`]).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const masked = text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\/?#\\\s"'<>`]*@/gi, '$1<credentials>@'); // then the path, query and fragment
+//! const masked = text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\/?#\\\s"'<>`]*@/gi, '$1<credentials>@'); // then mask the path, query and fragment
 //! ```
 
 /// What replaces the userinfo of a URL and every other secret-shaped part of it.
@@ -182,11 +186,6 @@ fn ends_a_sentence(byte: &&u8) -> bool {
     return matches!(**byte, b',' | b';' | b')' | b']' | b'}' | b'.' | b'!' | b'?' | b':' | b'\'');
 }
 
-/// Whether a byte is one a plain label is made of.
-fn is_label_byte(byte: &u8) -> bool {
-    return byte.is_ascii_lowercase() || matches!(byte, b'-' | b'.' | b'_' | b'~');
-}
-
 /// Whether an offset into an authority is a byte for the userinfo,
 /// which needs at least one byte before it.
 fn is_not_the_first(offset: &usize) -> bool {
@@ -228,51 +227,42 @@ fn url_end_of(text: &[u8], from: usize) -> usize {
 }
 
 /// What:
-///  Whether a path segment,
-/// a query key or a fragment key is a plain label,
-/// which carries no token.
+///  Append one path segment,
+/// a query key or a fragment key:
+/// nothing when it is empty,
+/// and the mask otherwise.
 /// Why:
-///   The rule is one sentence a person can check against a URL they wrote:
-/// a label is lowercase letters and the separators of a filename,
-/// and anything else,
-/// a capital,
-/// a digit,
-/// a percent encoding,
-/// a slash written encoded,
-/// is what a token looks like.
-/// An empty label is plain:
-/// `//` and a trailing `/` carry nothing.
+///   An empty segment (the one before a leading `/`,
+/// after a trailing `/`,
+/// or between two) carries nothing,
+/// and a segment that carries anything is hidden whole:
+/// nothing in the shape of a word tells a token from a name a person reads,
+/// and a token made of lowercase letters alone reads as [`CREDENTIALS_MASK`]'s neighbours `lfs` and `objects`
+/// do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// /^[a-z._~-]*$/.test(label)
+/// masked.push(segment === '' ? '' : '<credentials>')
 /// ```
-fn is_plain_label(label: &[u8]) -> bool {
-    return label.iter().all(is_label_byte);
-}
-
-/// Append one label as it stands when it is plain,
-/// and the mask when it is not.
-fn push_label(label: &[u8], masked: &mut Vec<u8>) {
-    if is_plain_label(label) {
-        masked.extend_from_slice(label);
-    } else {
-        masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+fn push_hidden_segment(segment: &[u8], masked: &mut Vec<u8>) {
+    if segment.is_empty() {
+        return;
     }
+    masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
 }
 
-/// Append the path of a URL with every segment that is not a plain label masked.
+/// Append the path of a URL with every segment hidden.
 fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
     loop {
         match path.get(from..).and_then(next_slash) {
             Some(offset) => {
-                push_label(&path[from..from + offset], masked);
+                push_hidden_segment(&path[from..from + offset], masked);
                 masked.push(b'/');
                 from += offset + 1;
             }
             None => {
-                push_label(path.get(from..).unwrap_or_default(), masked);
+                push_hidden_segment(path.get(from..).unwrap_or_default(), masked);
                 return;
             }
         }
@@ -280,19 +270,21 @@ fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
 }
 
 /// What:
-///  Append a query or fragment with every value masked and every plain key kept.
+///  Append a query or fragment with every key and every value hidden.
 /// Why:
 ///   A value is a secret wherever it sits:
 /// `?token=`,
 /// `?sig=` and a bare token with no `=` are all hidden,
-/// and a key that is not a plain label (a token used as a name,
-/// as the incident's config key was) is hidden with it.
-///  The separators and the key stay,
-/// so a person still reads which setting the server was given.
+/// and a key is hidden too,
+/// because a token can be written as the name of a setting,
+/// and a lowercase word is what both a token and a name look like.
+///  The separators stay,
+/// so a person still reads whether the URL carried a query or a fragment,
+/// and how many settings it held.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// values.split('&').map((chunk) => { const [key, value] = chunk.split('='); return value === undefined ? mask : `${plain(key) ? key : mask}=${mask}` }).join('&')
+/// values.split('&').map((chunk) => { const [key, value] = chunk.split('='); return value === undefined ? mask : `${mask}=${mask}` }).join('&')
 /// ```
 fn push_masked_values(values: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
@@ -306,7 +298,7 @@ fn push_masked_values(values: &[u8], masked: &mut Vec<u8>) {
         };
         match chunk.iter().position(is_equals_sign) {
             Some(equals) => {
-                push_label(&chunk[..equals], masked);
+                push_hidden_segment(&chunk[..equals], masked);
                 masked.push(b'=');
                 masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
             }
@@ -379,11 +371,24 @@ fn push_masked_url(rest: &[u8], masked: &mut Vec<u8>) {
     }
 }
 
+/// Where the text a mask is applied to ended.
+/// Why:
+///   A text cut at a size cap can end inside a URL,
+/// and a URL cut before the `@` that ends its userinfo reads as a host,
+/// so the last URL of a cut text is classified differently from the last URL of a whole one.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TextEnd {
+    /// The text holds all of it: a URL that reaches its end ended there.
+    Whole,
+    /// The text is the head of a longer one, cut at a size cap: a URL that reaches its end may go on past it.
+    Cut,
+}
+
 /// What:
 ///  The text with the secrets of every URL in it replaced by [`CREDENTIALS_MASK`]:
 /// the userinfo,
-/// every path segment that is not a plain label,
-/// and every query and fragment value.
+/// every path segment,
+/// and every query and fragment key and value.
 /// Why:
 ///   One pass over the bytes:
 /// each search starts where the previous URL ended,
@@ -397,6 +402,33 @@ fn push_masked_url(rest: &[u8], masked: &mut Vec<u8>) {
 /// function maskUrlSecrets(text: Uint8Array): Uint8Array;
 /// ```
 pub fn mask_url_secrets(text: &[u8]) -> Vec<u8> {
+    return mask_url_secrets_in(text, TextEnd::Whole);
+}
+
+/// What:
+///  The same mask for the first bytes of a longer text,
+/// cut at a size cap.
+/// Why:
+///   A text cut at a cap can end inside a URL,
+/// and a URL cut before the `@` that ends its userinfo has no userinfo for the rule above:
+/// `https://user:<token>` would read as a host and be relayed whole.
+/// An authority that reaches the end of a cut text and holds no `@` is therefore hidden whole,
+/// host included,
+/// because no byte of it can be told from a user and a token.
+///  A URL whose authority ended inside the text is read as in [`mask_url_secrets`]:
+/// its userinfo is the text up to the last `@` of that authority,
+/// which the cut kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function maskUrlSecretsOfCutText(text: Uint8Array): Uint8Array;
+/// ```
+pub fn mask_url_secrets_cut(text: &[u8]) -> Vec<u8> {
+    return mask_url_secrets_in(text, TextEnd::Cut);
+}
+
+/// The one pass both masks are made of.
+fn mask_url_secrets_in(text: &[u8], end: TextEnd) -> Vec<u8> {
     let mut masked: Vec<u8> = Vec::with_capacity(text.len());
     let mut copied: usize = 0;
     let mut search_from: usize = 0;
@@ -413,6 +445,13 @@ pub fn mask_url_secrets(text: &[u8]) -> Vec<u8> {
             .iter()
             .rposition(is_at_sign)
             .filter(is_not_the_first);
+        // A cut can end inside a userinfo, before its `@`, so an authority that reaches the end of a cut text without
+        //  one is hidden whole: it may be a user and a token, and its bytes cannot be told from a host's.
+        if end == TextEnd::Cut && authority_end == text.len() && userinfo_end.is_none() {
+            masked.extend_from_slice(&text[copied..authority_start]);
+            masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
+            return masked;
+        }
         if let Some(offset) = userinfo_end {
             masked.extend_from_slice(&text[copied..authority_start]);
             masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());

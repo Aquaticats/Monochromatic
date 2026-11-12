@@ -96,9 +96,19 @@ and
 every query and fragment value (`package/git-policy/cli/src/native/lfs/lfs_output_mask.rs`;
 the rule is stated in `package/git-policy/cli/SPEC.md`,
 "An LFS upload").
-What it still cannot hide is a token made of lowercase letters alone,
-which reads as a path label;
-whether the whole path of an LFS URL should be hidden instead is an open question for the owner.
+That rule kept a plain label,
+so a token made of lowercase letters alone was copied through,
+and it masked only after the output was cut at the 4 MiB it keeps,
+so a credential whose `@` fell past the cut was relayed whole.
+The review of `1b8b6fad9d` (2026-11-11T16:01:40-05:00) reported both,
+and the wrapper now hides every path segment and every query and fragment key as well,
+keeping the scheme,
+host,
+port and separators,
+and masks the kept head of an output as a text that may go on,
+so an authority cut before its `@` is hidden whole.
+That answers the open question this file left for the owner (hide the whole path);
+the owner may veto it for the path's readability.
 `git-lfs`'s own `.git/lfs/logs/*.log` files are outside the wrapper and still hold the URL it used.
 
 ## Inventory of every copy (paths and counts; nothing edited or deleted)

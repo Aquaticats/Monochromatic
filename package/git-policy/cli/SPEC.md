@@ -7857,6 +7857,15 @@ in-process reader can) gives every value of the multi-valued keys.
   the pack it makes,
   the delta search,
   the listing of what to send.
+  A process that held the connection and closed it is at work again:
+  a look that read every descriptor list and the kernel's socket list,
+  and found it holding nothing,
+  counts its bytes and its processor time,
+  because a helper that closes its connection and goes on with the push (a pack written,
+  a ref updated) is doing the push's work.
+  A look that could not tell who holds a socket counts a holder's own signs for nothing,
+  so a look that failed under load never clears a wait by the holder's own account,
+  and keeps the holder remembered for the next look that can tell.
   A socket carries no progress on the look that first sees it,
   because its counters then stand for this side's handshake and request,
   and that is also why a client that reconnects on its own is bounded:
@@ -9607,20 +9616,28 @@ The step:
   What counts as a secret is one rule for every line the wrapper prints or journals,
   in `src/native/lfs/lfs_output_mask.rs`:
   the userinfo of the URL,
-  which ends at the last `@` of its authority;
-  every path segment that is not a plain label,
-  a label being the letters `a` to `z` and the separators `-`,
-  `.`,
-  `_` and `~` alone,
-  which is what `lfs`,
-  `objects`,
-  `batch` and `info` are,
-  so a capital,
-  a digit,
-  a percent encoding or another punctuation mark is hidden;
-  and every value of its query and of its fragment,
-  with a key kept only while it is a plain label,
-  as the incident's `lfs.<url>.locksverify` key name was not.
+  which ends at the last `@` of its authority,
+  and everything after that authority:
+  every path segment,
+  and every key and value of its query and of its fragment.
+  What a URL keeps is its scheme,
+  its host and its port,
+  and the separators `/`,
+  `?`,
+  `#`,
+  `&` and `=`,
+  so a person still reads which server answered,
+  and whether the URL carried a path,
+  a query or a fragment.
+  Nothing in the shape of a word tells a token from a name a person reads,
+  so a path segment,
+  a query key and a fragment key is hidden however plain it looks:
+  a token made of lowercase letters alone reads exactly as `lfs` or `objects` does.
+  This replaced the rule of `f1f08fbb35` (2026-11-11T09:20:48-05:00),
+  which kept a plain label and so copied a lowercase token through,
+  and it answers the question that rule left for the owner (a mask that hides more is the one that
+  cannot leak,
+  and the owner may veto it for the path's readability).
   The punctuation that ends a URL in a sentence,
   a comma or a closing bracket,
   is printed after the mask,
@@ -9628,8 +9645,12 @@ The step:
   The owner's rule,
   quoted:
   "Never print or commit secrets".
-  A token made only of lowercase letters reads as a label and is not hidden;
-  whether the whole path of an LFS URL should be hidden instead is an open question for the owner.
+  The most of a run's standard error the wrapper keeps is 4 MiB (`MAX_RELAYED_BYTES`),
+  and the bytes it keeps are masked as the head of the text they are:
+  a URL that reaches the end of what was kept may go on past it,
+  so an authority with no `@` that runs to that end is hidden whole,
+  because a user and a token cut before their `@` would read as a host
+  (`mask_url_secrets_cut`).
   When that file cannot be made,
   the push is refused with the ways forward.
   A run that fails is never run again by the wrapper,

@@ -40,6 +40,8 @@
 
 /// The attempt record a finished or stopped push produces.
 use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
+/// The masks a URL's secrets get in the text a person reads.
+use crate::lfs_output_mask::{mask_url_secrets, mask_url_secrets_cut};
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::{debug, warn};
 /// How to allow a push longer,
@@ -171,20 +173,29 @@ fn quiet_gap_kept(watched: &Clock) -> Option<Duration> {
 }
 
 /// Read the shared output file back from its start,
-///  keeping at most the output cap so a flood is never held in memory.
+///  masking the secrets of its URLs and keeping at most the output cap so a flood is never held in memory.
+/// Why:
+///   The text is what a person reads in the attempt and what the service journals,
+/// and a text cut at the cap before it was masked kept a credential whose `@` the cut dropped:
+/// `https://user:<token>` has no userinfo for the mask.
+/// So the bytes are masked as the head of a longer text and only then cut,
+/// and the byte past the cap is what says whether anything was cut at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await readFile(outputPath, 'utf8')
+/// const kept = (await readFile(outputPath, 'utf8')).slice(0, cap); maskUrlSecretsOfCutText(kept)
 /// ```
 fn read_output(file: &mut File) -> Result<String, SingleFlightError> {
     file.seek(SeekFrom::Start(0))
         .map_err(SingleFlightError::Start)?;
     let mut bytes: Vec<u8> = Vec::new();
-    file.take(MAX_PUSH_OUTPUT)
+    file.take(MAX_PUSH_OUTPUT.saturating_add(1))
         .read_to_end(&mut bytes)
         .map_err(SingleFlightError::Start)?;
-    return Ok(String::from_utf8_lossy(&bytes).into_owned());
+    let cut: bool = u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_PUSH_OUTPUT;
+    bytes.truncate(usize::try_from(MAX_PUSH_OUTPUT).unwrap_or(usize::MAX));
+    let masked: Vec<u8> = if cut { mask_url_secrets_cut(bytes.as_slice()) } else { mask_url_secrets(bytes.as_slice()) };
+    return Ok(String::from_utf8_lossy(masked.as_slice()).into_owned());
 }
 
 /// What:

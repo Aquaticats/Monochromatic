@@ -502,4 +502,32 @@ fn a_connected_stop_says_its_window_is_fixed_and_a_stall_stop_offers_the_setting
     assert!(stalled.contains("to allow longer"), "the setting that moves this window is offered: {stalled}");
 }
 
+/// What:
+///  The head of a push's output kept at its cap hides a credential the cap split before its `@`.
+/// Why:
+///   `read_output` keeps at most `MAX_PUSH_OUTPUT` bytes of a push's output, and that text is what a person reads in
+/// the attempt and what the service journals.
+/// Masking the head after the cut could not repair a userinfo whose `@` the cut dropped,
+/// and the review found the same ordering here as in the typed upload (finding 2).
+#[cfg(unix)]
+#[test]
+fn the_output_kept_at_the_cap_hides_a_credential_the_cut_split() {
+    let root: std::path::PathBuf = crate::test_support::fixture("push-output-cap");
+    let canary: &str = "truncatedcanarycanary";
+    let head: String = format!("https://user:{canary}");
+    let padding: usize = usize::try_from(MAX_PUSH_OUTPUT).expect("the cap fits this host") - head.len();
+    let path: std::path::PathBuf = root.join("output");
+    let mut content: Vec<u8> = vec![b'x'; padding];
+    content.extend_from_slice(head.as_bytes());
+    content.extend_from_slice(b"@host.invalid/lfs\n");
+    std::fs::write(path.as_path(), content.as_slice()).expect("the output of a push");
+    let mut file: std::fs::File = std::fs::File::open(path.as_path()).expect("the output file");
+    let shown: String = read_output(&mut file).expect("the kept output");
+    crate::test_support::remove(root.as_path());
+    let kept: &str = shown.get(shown.len().saturating_sub(120)..).unwrap_or_default();
+    assert!(!shown.contains(canary), "the cap left the whole secret in the kept output: {kept}");
+    assert!(shown.contains(crate::lfs_output_mask::CREDENTIALS_MASK), "the URL at the cap is masked: {kept}");
+    assert!(!shown.contains("@host.invalid"), "the bytes past the cap are not kept, so the control exercised the cut: {kept}");
+}
+
 //endregion

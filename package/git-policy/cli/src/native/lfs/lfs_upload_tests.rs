@@ -1,6 +1,7 @@
 //! Controls for the parent's run of the Git LFS upload.
 
 use super::*;
+use crate::lfs_output_mask::CREDENTIALS_MASK;
 use crate::test_support::{executable, fixture, remove};
 use std::path::PathBuf;
 
@@ -758,6 +759,51 @@ fn a_failure_that_names_no_login_keeps_the_words_it_had() {
     assert_eq!(code, Some(2), "{diagnostics}");
     assert!(!diagnostics.contains("needed a login"), "{diagnostics}");
     assert_eq!(diagnostics, format!("Git LFS upload failed:\n  (missing) big.bin (abc)\n{}", failed_message("exited with status 2")), "{diagnostics}");
+    remove(root.as_path());
+}
+
+/// The last bytes of a text,
+/// for a failure message that must not print the four million before them.
+fn tail(text: &str) -> String {
+    let keep: usize = 120;
+    return text.get(text.len().saturating_sub(keep)..).unwrap_or_default().to_owned();
+}
+
+/// What:
+///  An upload whose standard error is longer than the wrapper keeps relays a head in which the URL at its end is
+/// hidden whole,
+/// so a credential the cap split before its `@` is hidden.
+/// Why:
+///   The file is cut at `MAX_RELAYED_BYTES`, and masking after the cut cannot repair a userinfo whose `@` the cut
+/// dropped:
+/// the review reproduced a relayed head that ended in `https://user:<token>` whole (2026-11-11T16:01:40-05:00,
+/// finding 2).
+#[test]
+fn an_upload_whose_output_is_cut_at_its_cap_hides_the_credential_the_cut_split() {
+    let root: PathBuf = fixture("lfs-upload-cut");
+    let canary: &str = "truncatedcanarycanary";
+    let head: String = format!("https://user:{canary}");
+    let padding: u64 = MAX_RELAYED_BYTES - u64::try_from(head.len()).expect("a length");
+    let directory: PathBuf = root.join("bin");
+    std::fs::create_dir_all(directory.as_path()).expect("bin directory");
+    // The URL straddles the cap: the bytes kept end after the password, and the `@` that ends the userinfo is past them.
+    let source: String = format!(
+        "#!/bin/sh\nhead -c {padding} /dev/zero | tr '\\0' x >&2\nprintf '%s' '{head}' >&2\nprintf '%s\\n' '@host.invalid/lfs' >&2\nexit 1\n"
+    );
+    executable(directory.join("git-lfs").as_path(), source.as_bytes());
+    let (code, diagnostics) = run(root.as_path(), &[directory.as_path()], &[], &plan());
+    assert_eq!(code, Some(1), "the program's own status ends the push: {}", tail(diagnostics.as_str()));
+    assert!(
+        !diagnostics.contains(canary),
+        "the cap left the whole secret in the relayed text: {}",
+        tail(diagnostics.as_str())
+    );
+    assert!(diagnostics.contains(CREDENTIALS_MASK), "the URL at the cap is masked: {}", tail(diagnostics.as_str()));
+    assert!(
+        !diagnostics.contains("@host.invalid"),
+        "the bytes past the cap are not relayed, so the control exercised the cut: {}",
+        tail(diagnostics.as_str())
+    );
     remove(root.as_path());
 }
 

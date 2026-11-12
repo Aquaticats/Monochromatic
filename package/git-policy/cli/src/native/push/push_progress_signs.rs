@@ -39,8 +39,13 @@ pub struct Signs {
 }
 
 /// The sockets one process of the tree holds,
-/// with its number.
-pub fn inodes_of(member: &TreeMember) -> (i32, Vec<u64>) {
+/// with its number,
+/// or nothing where its descriptor list could not be read.
+/// Why the difference matters:
+///   A list that was read and names no socket says the process holds none,
+/// while a list that could not be read says nothing about what it holds,
+/// and a look at a tree with one of those cannot tell who holds a connection.
+pub fn inodes_of(member: &TreeMember) -> (i32, Option<Vec<u64>>) {
     return (member.pid, socket_inodes_of(member.pid));
 }
 
@@ -55,7 +60,13 @@ pub fn start_time_of(members: &[TreeMember], pid: i32) -> u64 {
     return 0;
 }
 
-/// Whether a process of the tree holds no socket at all.
-pub fn holds_no_socket(held: &(i32, Vec<u64>)) -> bool {
-    return held.1.is_empty();
+/// Whether a process of the tree holds no socket at all,
+/// its descriptor list having been read.
+pub fn holds_no_socket(held: &(i32, Option<Vec<u64>>)) -> bool {
+    return matches!(held.1.as_deref(), Some([]));
+}
+
+/// Whether a process of the tree's own descriptor list could be read.
+pub fn read_its_descriptors(held: &(i32, Option<Vec<u64>>)) -> bool {
+    return held.1.is_some();
 }

@@ -358,12 +358,14 @@ pub fn established_sockets() -> Option<Vec<TcpSocket>> {
 
 /// The inodes of the sockets a process holds open,
 /// or nothing where its descriptors cannot be read.
+/// Why nothing rather than an empty list:
+///   A process that holds no socket and one whose descriptors could not be read are different answers,
+/// and the push meter may not read the second as the first
+/// (`read_its_descriptors` in `push_progress_signs.rs`).
 #[cfg(target_os = "linux")]
-pub fn socket_inodes_of(pid: i32) -> Vec<u64> {
+pub fn socket_inodes_of(pid: i32) -> Option<Vec<u64>> {
     let mut inodes: Vec<u64> = Vec::new();
-    let Ok(descriptors) = std::fs::read_dir(format!("/proc/{pid}/fd")) else {
-        return inodes;
-    };
+    let descriptors = std::fs::read_dir(format!("/proc/{pid}/fd")).ok()?;
     for entry in descriptors.flatten() {
         let Ok(link) = std::fs::read_link(entry.path()) else { continue };
         let text: String = link.to_string_lossy().into_owned();
@@ -375,15 +377,15 @@ pub fn socket_inodes_of(pid: i32) -> Vec<u64> {
             inodes.push(inode);
         }
     }
-    return inodes;
+    return Some(inodes);
 }
 
 /// Only Linux lists the sockets of a process;
 /// elsewhere none is found.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
-pub fn socket_inodes_of(_pid: i32) -> Vec<u64> {
-    return Vec::new();
+pub fn socket_inodes_of(_pid: i32) -> Option<Vec<u64>> {
+    return Some(Vec::new());
 }
 
 /// Controls for what the kernel reports.

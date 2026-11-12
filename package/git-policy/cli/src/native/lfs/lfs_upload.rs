@@ -56,7 +56,7 @@ use crate::lfs_upload_explanations::{
     stopped_upload_words,
 };
 /// Hides the credentials in a URL of relayed text.
-use crate::lfs_output_mask::mask_url_secrets;
+use crate::lfs_output_mask::{mask_url_secrets, mask_url_secrets_cut};
 use crate::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
 use crate::scratch_location::scratch_file;
@@ -205,14 +205,21 @@ fn run_with_captured_stderr(
     let mut bytes: Vec<u8> = Vec::new();
     // The file is read only after the seek to its start succeeded, as `.and_then(...)` ran the read.
     let rewound: std::io::Result<u64> = captured.seek(SeekFrom::Start(0));
+    // One byte past what the wrapper keeps says whether the bytes read are all of the program's words.
     let read: std::io::Result<usize> = match rewound {
-        Ok(_) => captured.by_ref().take(MAX_RELAYED_BYTES).read_to_end(&mut bytes),
+        Ok(_) => captured.by_ref().take(MAX_RELAYED_BYTES.saturating_add(1)).read_to_end(&mut bytes),
         Err(error) => Err(error),
     };
     if let Err(error) = read {
         return Err(CaptureError::Scratch(error.to_string()));
     }
-    return Ok((ended, mask_url_secrets(bytes.as_slice())));
+    let cut: bool = u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_RELAYED_BYTES;
+    bytes.truncate(usize::try_from(MAX_RELAYED_BYTES).unwrap_or(usize::MAX));
+    // What: The bytes are masked before the cap is applied to them, and a cut text is masked as the head of a longer one.
+    // Why:  A credential whose `@` fell past the cap read as a host and was relayed whole, so masking only after the cut
+    //       could not repair it (`mask_url_secrets_cut`).
+    let masked: Vec<u8> = if cut { mask_url_secrets_cut(bytes.as_slice()) } else { mask_url_secrets(bytes.as_slice()) };
+    return Ok((ended, masked));
 }
 
 /// What:

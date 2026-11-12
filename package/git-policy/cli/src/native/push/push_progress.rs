@@ -127,7 +127,7 @@ use crate::push_deadline_and_patience_settings::Patience;
 use crate::process_tree::{TreeMember, descendants_of, member_of};
 /// What one look at one process found,
 /// and the identities a look at a tree's sockets works with.
-pub use crate::push_progress_signs::{Signs, holds_no_socket, inodes_of, start_time_of};
+pub use crate::push_progress_signs::{Signs, holds_no_socket, inodes_of, read_its_descriptors, start_time_of};
 /// The connected sockets of the machine with their byte counts,
 /// and the sockets a process holds.
 use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
@@ -284,8 +284,21 @@ pub struct Meter {
     /// Every process of the tree that has been seen to hold a connected socket,
     /// by its number and start time:
     /// the helpers that speak to the remote,
-    /// whose own bytes and processor time are not work.
+    /// whose own bytes and processor time are not work while they hold it.
     holders: Vec<(i32, u64)>,
+    /// The processes of the tree that hold a connected socket at the last look,
+    /// by their number and start time.
+    holding: Vec<(i32, u64)>,
+    /// Whether the last look could tell which process of the tree holds a socket:
+    /// every member's descriptor list was read,
+    /// and either none of them held a socket or the kernel's list of connected sockets was read.
+    /// A look that could not tell says nothing about who holds what,
+    /// so a remembered holder's own signs stay uncounted on it.
+    sockets_decided: bool,
+    /// The processor ticks one process of the tree is reported to have used,
+    /// supplied by a control that cannot make a process spend them without spinning the machine it runs on.
+    #[cfg(test)]
+    supplied_ticks: Option<(i32, u64)>,
     /// How many times a sample listed the processes of the whole machine to find the tree;
     /// a stand-in for the cost of a
     ///  sample,
@@ -348,27 +361,39 @@ impl Meter {
 
     /// Take one look at the connected sockets of the tree:
     /// true when a socket it has seen before carried bytes since the last look,
-    /// and records the processes that hold them.
+    /// and records the processes that hold them, and whether this look could tell.
     /// Why a socket seen for the first time is kept apart:
     ///   Its counters stand for the handshake and the request this side wrote,
     /// not for an answer from the remote,
     /// so a client that goes on reconnecting would reset the wait for its remote for good.
     /// Why the processes that held one are remembered for the life of the clock:
-    ///   A look that cannot read the kernel's socket list answers nothing about who holds what,
+    ///   A look that cannot read the kernel's socket list or a descriptor list answers nothing about who holds what,
     /// and a holder whose own meter counted again on such a look would reset the window:
     /// under load those looks fail now and then,
     /// and the window would then never be reached.
     /// Each holder is remembered by its number and start time,
     /// so a number the kernel reuses is not taken for the process that held a connection before.
+    ///  The look also records which of the tree's processes hold one now (`Meter::holding`),
+    /// and whether it could tell at all (`Meter::sockets_decided`),
+    /// because a holder that closed its connection is at work again
+    /// (`Meter::counts_as_work`).
     fn observe_sockets(&mut self, members: &[TreeMember]) -> bool {
-        let held: Vec<(i32, Vec<u64>)> = members.iter().map(inodes_of).collect();
+        let held: Vec<(i32, Option<Vec<u64>>)> = members.iter().map(inodes_of).collect();
         self.connected = false;
+        self.holding.clear();
+        self.sockets_decided = false;
+        // A member whose descriptor list could not be read says nothing about which socket, if any, it holds.
+        let lists_read: bool = held.iter().all(read_its_descriptors);
         if held.iter().all(holds_no_socket) {
+            // Every list was read and none of them names a socket, so no process of the tree holds a connection now. A look
+            //  over no process at all tells nothing, so it stays undecided.
+            self.sockets_decided = lists_read && !members.is_empty();
             return false;
         }
         let Some(connected) = established_sockets() else {
             return false;
         };
+        self.sockets_decided = lists_read;
         let mut progressed: bool = false;
         for socket in connected {
             if socket.state != ESTABLISHED {
@@ -376,12 +401,19 @@ impl Meter {
             }
             let mut carried_by_a_holder: bool = false;
             for (pid, inodes) in &held {
-                if inodes.contains(&socket.inode) {
-                    carried_by_a_holder = true;
-                    let holder: (i32, u64) = (*pid, start_time_of(members, *pid));
-                    if !self.holders.contains(&holder) {
-                        self.holders.push(holder);
-                    }
+                let Some(inodes) = inodes.as_ref() else {
+                    continue;
+                };
+                if !inodes.contains(&socket.inode) {
+                    continue;
+                }
+                carried_by_a_holder = true;
+                let holder: (i32, u64) = (*pid, start_time_of(members, *pid));
+                if !self.holders.contains(&holder) {
+                    self.holders.push(holder);
+                }
+                if !self.holding.contains(&holder) {
+                    self.holding.push(holder);
                 }
             }
             if !carried_by_a_holder {
@@ -410,7 +442,7 @@ impl Meter {
     /// Why:
     ///   The two are kept apart because they say different things about a process that holds the connection:
     /// its processor time is a poll of the socket,
-    /// and its bytes are its own account of waiting (`Meter::look`).
+    /// and its bytes are its own account of waiting (`Meter::look_over`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -451,15 +483,10 @@ impl Meter {
     ///   The holders of the connections are known from this look then,
     /// and a holder's own processor time is what a helper that polls its silent socket spends,
     /// never work the remote sees.
-    /// Every byte the tree moves is work,
-    /// and so is the processor time of every process that does not hold a connection:
-    /// the pack a push is making,
-    /// a delta search,
-    /// the listing of what to send.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// progressed = observeSockets(members); for (const member of members) { const s = observe(member); if (s.moved || (s.busy && !holders.includes(member.pid))) progressed = true; }
+    /// const members = [root, ...descendants(root)]; return meter.lookOver(members)
     /// ```
     fn look(&mut self, root: i32, whole_tree: bool) -> bool {
         let mut members: Vec<TreeMember> = member_of(root).into_iter().collect();
@@ -467,24 +494,84 @@ impl Meter {
             self.scans += 1;
             members.extend(descendants_of(root));
         }
-        // The connected sockets count too: `libcurl` moves the bytes of an HTTP push with `send` and `recv`, which `rchar` and
-        //  `wchar` do not see.
-        let mut progressed: bool = self.observe_sockets(members.as_slice());
-        for member in &members {
+        return self.look_over(members.as_slice());
+    }
+
+    /// What:
+    ///  One look at these processes of the tree.
+    /// Why:
+    ///   Every byte the tree moves is work,
+    /// and so is the processor time of every process whose own signs count (`Meter::counts_as_work`):
+    /// the pack a push is making,
+    /// a delta search,
+    /// the listing of what to send.
+    /// The connected sockets count too:
+    /// `libcurl` moves the bytes of an HTTP push with `send` and `recv`,
+    /// which `rchar` and `wchar` do not see.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// progressed = observeSockets(members); for (const member of members) { const s = observe(member); if ((s.moved || s.busy) && countsAsWork(member)) progressed = true; }
+    /// ```
+    fn look_over(&mut self, members: &[TreeMember]) -> bool {
+        let mut progressed: bool = self.observe_sockets(members);
+        for member in members {
             let bytes: Option<u64> = bytes_moved_by(member.pid);
-            let activity: Option<(u64, bool)> = activity_of(member.pid);
+            let activity: Option<(u64, bool)> = self.activity_reading(member.pid);
             if bytes.is_none() && activity.is_none() {
                 continue;
             }
             let (ticks, working): (u64, bool) = activity.unwrap_or((0, false));
             let signs: Signs = self.observe((member.pid, member.started), bytes.unwrap_or(0), ticks, working);
-            // A process that holds the connection reports its own wait while it waits, and what it writes about itself is no
-            //  work the remote sees; everything it really sends shows on the socket's own counters, which are counted above.
-            if (signs.moved || signs.busy) && !self.holders.contains(&(member.pid, member.started)) {
+            if (signs.moved || signs.busy) && self.counts_as_work((member.pid, member.started)) {
                 progressed = true;
             }
         }
         return progressed;
+    }
+
+    /// What:
+    ///  Whether the signs one process of the tree showed are work the push is doing.
+    /// Why:
+    ///   A process that holds the connection reports its own wait while it waits,
+    /// and what it writes about itself is no work the remote sees;
+    /// everything it really sends shows on the socket's own counters.
+    /// So its signs count for nothing while it holds one.
+    ///  A look that cannot tell who holds a socket counts a remembered holder's signs for nothing too,
+    /// so a look that failed under load never clears a wait by the holder's own account.
+    /// A look that can tell,
+    /// and finds a remembered holder holding nothing,
+    /// counts its work again:
+    /// a helper that closed its connection and goes on with the push (a pack written,
+    /// a ref updated) is at work,
+    /// not stalled.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// !holders.includes(key) || (socketsDecided && !holding.includes(key))
+    /// ```
+    fn counts_as_work(&self, key: (i32, u64)) -> bool {
+        if !self.holders.contains(&key) {
+            return true;
+        }
+        return self.sockets_decided && !self.holding.contains(&key);
+    }
+
+    /// What:
+    ///  The processor ticks and the state of one process of the tree.
+    /// Why:
+    ///   A control that proves the clock ignores the processor time of the process that holds the connection must
+    /// supply that time:
+    /// a process that really spent it would spin the machine the control runs on,
+    /// and this package's tests may not do that.
+    fn activity_reading(&self, pid: i32) -> Option<(u64, bool)> {
+        #[cfg(test)]
+        if let Some((supplied, ticks)) = self.supplied_ticks
+            && supplied == pid
+        {
+            return Some((ticks, false));
+        }
+        return activity_of(pid);
     }
 }
 

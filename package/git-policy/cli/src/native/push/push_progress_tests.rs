@@ -659,32 +659,38 @@ fn a_silent_open_connection_is_ended_at_the_connected_window() {
 /// never reaches a connected window,
 /// which is what the audit's F8 measured:
 /// 290 to 330 seconds of a service push that had a 150 second window.
-///  The holder here does what that helper does:
-/// it holds its connection and burns a few processor milliseconds between two polls of it,
-/// so every look finds either a tick or a task able to run,
-/// and the tree is still waiting.
+///  The ticks are supplied by the control (`Meter::supplied_ticks`),
+/// and the holder itself touches no processor:
+/// a process that really spends the ticks a poll spends has to spin,
+/// and no test of this package spins the machine it runs on.
+///  What a tick means to the clock when no connection is held is the control beside this one,
+/// `supplied_processor_time_is_work_while_no_connection_is_held`:
+/// without it this control could pass on a supply the clock never reads.
 #[test]
 fn a_connected_tree_that_only_uses_processor_time_is_waiting() {
     let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
     let port: u16 = listener.local_addr().expect("address").port();
-    // No fork and no write: the holder only burns the processor between two timed reads of the socket it holds.
+    // No fork, no write and no arithmetic: the holder only holds the connection it opened.
     let mut holder: Command = Command::new("bash");
     holder
-        .args([
-            "-c",
-            format!("exec 3<>/dev/tcp/127.0.0.1/{port}; while :; do n=0; while [ $n -lt 4000 ]; do n=$((n+1)); done; read -t 0.1 -u 3 line; done")
-                .as_str(),
-        ])
+        .args(["-c", format!("exec 3<>/dev/tcp/127.0.0.1/{port}; exec sleep 30").as_str()])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     let child: Child = spawn_owned(&mut holder).expect("start the holder");
     let (_accepted, _) = listener.accept().expect("the holder connects");
+    let pid: i32 = i32::try_from(child.id()).expect("pid");
     let stall: Duration = Duration::from_millis(1500);
     let window: Duration = Duration::from_secs(4);
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
     let began: Instant = Instant::now();
+    let mut ticks: u64 = 0;
     let cause: Option<StopCause> = loop {
+        // A poll of a silent socket is one tick between two looks, which the mock reading supplies for the holder alone.
+        ticks += 1;
+        if let Some(meter) = clock.meter.as_mut() {
+            meter.supplied_ticks = Some((pid, ticks));
+        }
         if let Some(cause) = clock.check() {
             break Some(cause);
         }
@@ -699,6 +705,42 @@ fn a_connected_tree_that_only_uses_processor_time_is_waiting() {
     };
     assert_eq!(report.window, StopWindow::Connected, "ended by the connected window after {:?}", began.elapsed());
     assert!(began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+}
+
+/// What:
+///  The same supplied processor time is work for a tree that holds no connection:
+/// a tree that only ticks is not stopped at the stall window.
+/// Why:
+///   The control above proves nothing about the rule if the supply never reaches it,
+/// and a process that really spends the ticks a poll spends has to spin,
+/// which no test of this package may do.
+#[test]
+fn supplied_processor_time_is_work_while_no_connection_is_held() {
+    let mut sleeper: Command = Command::new("sleep");
+    sleeper.arg("30").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut sleeper).expect("start a tree that holds no connection");
+    let pid: i32 = i32::try_from(child.id()).expect("pid");
+    let stall: Duration = Duration::from_millis(600);
+    let watched: Duration = stall * 3;
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
+    let began: Instant = Instant::now();
+    let mut ticks: u64 = 0;
+    let mut stopped: Option<StopCause> = None;
+    while stopped.is_none() && began.elapsed() < watched {
+        ticks += 1;
+        if let Some(meter) = clock.meter.as_mut() {
+            meter.supplied_ticks = Some((pid, ticks));
+        }
+        stopped = clock.check();
+        std::thread::sleep(LOOK);
+    }
+    end(child);
+    assert!(
+        stopped.is_none(),
+        "a tree that keeps using processor time and holds no connection is not stopped for time: {:?}",
+        stopped
+    );
+    assert!(ticks > 0, "the control supplied the ticks it measured");
 }
 
 /// What:
@@ -801,6 +843,7 @@ fn a_holder_is_remembered_after_a_look_that_finds_no_socket() {
     // A look that cannot read the socket list finds no socket, and must not forget who held one.
     assert!(!meter.observe_sockets(&[]), "a look with no socket carries no progress");
     assert!(!meter.connected(), "nothing says the connection is open on that look");
+    assert!(!meter.sockets_decided, "a look over no process at all cannot tell who holds a socket");
     assert!(
         meter.holders.contains(&(holder_member.pid, holder_member.started)),
         "a holder stays remembered across a look that could not read the socket list: {:?}",
@@ -884,4 +927,168 @@ fn a_child_that_has_just_started_is_looked_at_without_listing_the_machine() {
     assert_eq!(clock.meter.as_ref().map(Meter::scans), Some(1), "the next look, one interval later, lists them");
     end(child);
     remove(root.as_path());
+}
+
+/// What:
+///  A process that held the connection and closed it is at work again when it writes:
+/// a look that can read the socket list finds it holding nothing,
+/// so its bytes count.
+/// Why:
+///   A holder's own account of waiting is not work while it holds the connection,
+/// and that is why a remembered holder's signs are not counted.
+/// It ends when the holder closes its connection:
+/// the helper that goes on with the push (a pack written,
+/// a ref updated) is doing the push's work,
+/// and counting it for nothing stopped healthy runs at the stall window (finding 3, 2026-11-11T16:01:40-05:00).
+///  The child holds a real socket,
+/// closes it,
+/// and writes a file,
+/// so the control is the change of a real tree and needs no load.
+#[test]
+fn a_former_holder_that_writes_is_at_work_again() {
+    let root: std::path::PathBuf = fixture("progress-former-holder");
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    let connected: std::path::PathBuf = root.join("connected");
+    let release: std::path::PathBuf = root.join("release");
+    let work: std::path::PathBuf = root.join("work");
+    let stop: std::path::PathBuf = root.join("stop");
+    // The holder says it is connected, waits to be released, closes its socket, and then writes its own work every
+    //  twentieth of a second without starting a process or spinning.
+    let script: String = format!(
+        concat!(
+            "exec 3<>/dev/tcp/127.0.0.1/{port}\n",
+            ": > '{connected}'\n",
+            "while [ ! -e '{release}' ]; do sleep 0.02; done\n",
+            "exec 3>&-\n",
+            "exec 3<&-\n",
+            "while [ ! -e '{stop}' ]; do printf 'local pack work\\n' >> '{work}'; sleep 0.05; done\n",
+        ),
+        port = port,
+        connected = connected.display(),
+        release = release.display(),
+        work = work.display(),
+        stop = stop.display(),
+    );
+    let child: Child = spawn_owned(
+        Command::new("bash")
+            .arg("-c")
+            .arg(script.as_str())
+            .current_dir(root.as_path())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null()),
+    )
+    .expect("start the holder");
+    let pid: i32 = i32::try_from(child.id()).expect("pid");
+    let began: Instant = Instant::now();
+    while !connected.exists() {
+        assert!(began.elapsed() < PATIENCE, "the child never connected");
+        std::thread::sleep(POLL);
+    }
+    let (_accepted, _) = listener.accept().expect("accept the child's connection");
+    let mut meter: Meter = Meter::new();
+    while !meter.connected() {
+        let _progress = meter.sample(pid);
+        assert!(began.elapsed() < PATIENCE, "the socket was never observed");
+        std::thread::sleep(LOOK);
+    }
+    let holder: TreeMember = member_of(pid).expect("the child");
+    assert!(meter.holders.contains(&(holder.pid, holder.started)), "the holder is remembered");
+    std::fs::write(release.as_path(), b"close the socket").expect("release the holder");
+    while meter.connected() {
+        let _progress = meter.sample(pid);
+        assert!(began.elapsed() < PATIENCE, "the closed socket stayed connected");
+        std::thread::sleep(LOOK);
+    }
+    while !work.exists() {
+        assert!(began.elapsed() < PATIENCE, "the child never began its own writes");
+        std::thread::sleep(POLL);
+    }
+    let before: u64 = std::fs::metadata(work.as_path()).expect("work metadata").len();
+    std::thread::sleep(Duration::from_millis(250));
+    let progressed: bool = meter.sample(pid);
+    let after: u64 = std::fs::metadata(work.as_path()).expect("work metadata").len();
+    std::fs::write(stop.as_path(), b"stop the writer").expect("stop the child");
+    end(child);
+    remove(root.as_path());
+    assert!(after > before, "the child wrote while it was measured: {before} -> {after}");
+    assert!(progressed, "the former holder wrote {after} bytes, up from {before}, and the meter counted that for nothing");
+}
+
+/// What:
+///  A look that cannot read a member's descriptor list counts a remembered holder's own signs for nothing,
+/// and a look that can read every list counts them again.
+/// Why:
+///   A holder's own account of waiting must not clear the wait on a look that says nothing about who holds what,
+/// because those looks fail now and then under load and the connected window would then never be reached.
+/// The member whose list cannot be read is a process number no process has.
+#[test]
+fn a_look_that_cannot_read_a_descriptor_list_counts_a_holder_for_nothing() {
+    let root: std::path::PathBuf = fixture("progress-holder-undecided");
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    let connected: std::path::PathBuf = root.join("connected");
+    let release: std::path::PathBuf = root.join("release");
+    let work: std::path::PathBuf = root.join("work");
+    let stop: std::path::PathBuf = root.join("stop");
+    let script: String = format!(
+        concat!(
+            "exec 3<>/dev/tcp/127.0.0.1/{port}\n",
+            ": > '{connected}'\n",
+            "while [ ! -e '{release}' ]; do sleep 0.02; done\n",
+            "exec 3>&-\n",
+            "exec 3<&-\n",
+            "while [ ! -e '{stop}' ]; do printf 'local pack work\\n' >> '{work}'; sleep 0.05; done\n",
+        ),
+        port = port,
+        connected = connected.display(),
+        release = release.display(),
+        work = work.display(),
+        stop = stop.display(),
+    );
+    let child: Child = spawn_owned(
+        Command::new("bash")
+            .arg("-c")
+            .arg(script.as_str())
+            .current_dir(root.as_path())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null()),
+    )
+    .expect("start the holder");
+    let pid: i32 = i32::try_from(child.id()).expect("pid");
+    let began: Instant = Instant::now();
+    while !connected.exists() {
+        assert!(began.elapsed() < PATIENCE, "the child never connected");
+        std::thread::sleep(POLL);
+    }
+    let (_accepted, _) = listener.accept().expect("accept the child's connection");
+    let mut meter: Meter = Meter::new();
+    while !meter.connected() {
+        let _progress = meter.sample(pid);
+        assert!(began.elapsed() < PATIENCE, "the socket was never observed");
+        std::thread::sleep(LOOK);
+    }
+    let holder: TreeMember = member_of(pid).expect("the child");
+    std::fs::write(release.as_path(), b"close the socket").expect("release the holder");
+    while meter.connected() {
+        let _progress = meter.sample(pid);
+        assert!(began.elapsed() < PATIENCE, "the closed socket stayed connected");
+        std::thread::sleep(LOOK);
+    }
+    while !work.exists() {
+        assert!(began.elapsed() < PATIENCE, "the child never began its own writes");
+        std::thread::sleep(POLL);
+    }
+    std::thread::sleep(Duration::from_millis(250));
+    let undecided: Vec<TreeMember> = vec![holder.clone(), TreeMember { pid: i32::MAX, started: 0 }];
+    let counted_by_an_undecided_look: bool = meter.look_over(undecided.as_slice());
+    std::thread::sleep(Duration::from_millis(250));
+    let counted_by_a_decided_look: bool = meter.look_over(std::slice::from_ref(&holder));
+    std::fs::write(stop.as_path(), b"stop the writer").expect("stop the child");
+    end(child);
+    remove(root.as_path());
+    assert!(!counted_by_an_undecided_look, "a look that cannot tell who holds a socket counted a holder's own signs");
+    assert!(counted_by_a_decided_look, "a look that read every list counted the former holder's work");
 }
