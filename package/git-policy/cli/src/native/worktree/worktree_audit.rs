@@ -82,7 +82,8 @@ const POINTER_BYTES: u64 = 4096;
 ///       the read is started with this ceiling and the wait for its answer ends its tree there
 ///  (`git_metadata.rs`,
 ///       `run_metadata_git_within`),
-///  so no watch of the read, no stop of one and no grace of an ending stands between the ceiling
+///  so no watch of the read,
+///  no stop of one and no grace of an ending stands between the ceiling
 ///       and the removal.
 ///  What a read that cannot be ended at once costs is the five seconds every ended child of the
 ///       wrapper is given to go before it is handed to a reaper

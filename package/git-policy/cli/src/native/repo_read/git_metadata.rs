@@ -302,7 +302,7 @@ pub fn run_metadata_git_without_within(
 ///  ended by it for showing no sign of work,
 ///  and ended by it at its ceiling:
 ///  the watch then needs the bound of its own ending
-///  (`child_watch_running_task.rs`, `THE_WATCH_HAS_ITS_ENDING`)
+///  (`child_watch_running_task.rs` and `THE_WATCH_HAS_ITS_ENDING`)
 ///  to put the tree away,
 ///       and a wait that gave up before that would take the ending from a watch still at it.
 ///  A caller that sets its own ceiling is holding a command of its own to it,
@@ -318,7 +318,8 @@ pub fn run_metadata_git_without_within(
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ReadEnding {
-    /// A watch announces the wait and ends the read, and a read it ended is reported in the watch's words.
+    /// A watch announces the wait and ends the read,
+    ///  and a read it ended is reported in the watch's words.
     Watched,
     /// The wait for the read's answer carries the ceiling and ends the read's whole tree at it,
     ///  so the ceiling is the whole bound.
@@ -330,7 +331,8 @@ enum ReadEnding {
 ///  ended `ending` says how,
 ///       under `ceiling`.
 /// Why:
-///   Every read shares the start, the subject it is announced under and the step the timing record keeps,
+///   Every read shares the start,
+///  the subject it is announced under and the step the timing record keeps,
 ///  and only the ending
 ///       differs between a watched read and one whose caller's ceiling is the whole bound.
 ///
