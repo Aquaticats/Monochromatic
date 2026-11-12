@@ -177,6 +177,23 @@ Round 246, both from `main`:
   split the 17.6 s by its steps, then take off the commit's wait what need not be on it,
   the old service's stop first (the owner's suggestion, stated in the brief as the project's direction to be checked by measurement).
 
+A fourth commit on alpha.11 (this section's own, 20:07:25 to 20:07:47) landed in 22 s and printed
+"The commit service has not said where this commit stands yet; it has waited 10 seconds."
+
+Decided under the owner's delegation while away, each open to veto:
+
+- alpha.11 stays installed (reason and the condition for going back are in this section).
+- Integration pass 15 for 0.6.1-alpha.12 started at 20:09 (round 247, `integrate/git-policy-cli-pass-15-for-alpha-12`, from `main`):
+  the twelve finished branches pass 14 did not hold, among them the two that fix the day's worst jams
+  (`fix/git-policy-cli-landed-sweep-spares-a-new-worktree-and-never-holds-the-merge`,
+  `perf/git-policy-cli-service-runs-independent-work-side-by-side`),
+  the Clippy fix, and the shadow pool planning record. It compiles the code and the tests and runs Clippy once; no suite.
+  When it ends with a compiling tip, alpha.12 is released the way alpha.11 was. Reviews of those branches run on qwen4 beside it
+  and do not hold the release (the owner: "didn't I also say reviews and mutation testings don't block publishing?").
+- The long audits (Kimi and Sonnet side by side) are run on the alpha.12 code, not on alpha.11:
+  the fixes for the alpha.10 audits' findings are still landing (round 235 and the branches in pass 15),
+  so an audit of alpha.11 would mostly find again what is already being fixed.
+
 Also: every Git command printed `mpm-shadow`'s warning that the machine's global lock still named 0.6.1-alpha.10.
 Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`, again did not run as printed
 (`bash: command not found: mpm-shadow`), so the installed binary was run by its full path, as after alpha.9.
