@@ -2884,7 +2884,8 @@ the walk met the relink's writes,
 and Git deletes the registration whether or not its walk emptied the folder
 (`builtin/worktree.c`,
 `remove_worktree`:
-"continue on even if ret is non-zero, there's no going back from here").
+"continue on even if ret is non-zero,
+there's no going back from here").
 The removal therefore proves such a worktree by content,
 and the folder leaves the person's path in one call,
 so a writer the wrapper started cannot keep it there.
@@ -2911,12 +2912,14 @@ the record is settled the same way
 
 - A registration that is still there means Git refused the removal and nothing moved,
   so the folder is where it belongs and the record is dropped.
-- A folder that is gone means the removal finished, so the record is dropped.
+- A folder that is gone means the removal finished,
+  so the record is dropped.
 - A folder that is still there with nothing in it the record does not name is the removal's own:
   it is destroyed in one call when it is a subvolume root on a mount that allows the ioctl,
   and emptied and removed by name otherwise,
   and the record is dropped.
-  This is the common case, and it is what makes a walk that met a writer end as the removal the person asked for.
+  This is the common case,
+  and it is what makes a walk that met a writer end as the removal the person asked for.
 - An entry the record does not name appeared while the removal was running,
   so it is somebody's:
   every entry the record does name still goes,
@@ -2929,7 +2932,9 @@ The command that asked for the removal says what happened on standard error
 (`finished_notice` and `kept_notice` in the same module),
 and so does every later command that finds a record it cannot finish yet,
 until it can.
-A write into an entry the record does name, made while the removal runs, goes with that entry:
+A write into an entry the record does name,
+made while the removal runs,
+goes with that entry:
 the removal was asked for the whole worktree,
 which is the risk of `git worktree remove` stated above.
 

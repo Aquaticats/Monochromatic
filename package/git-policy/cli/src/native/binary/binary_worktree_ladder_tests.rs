@@ -213,10 +213,12 @@ fn a_freshly_added_worktree_is_destroyed_without_aging_its_files() {
 ///  Git's walk deletes the registration whether or not it emptied the folder
 ///  (`builtin/worktree.c`,
 ///  `remove_worktree`:
-///  "continue on even if ret is non-zero, there's no going back from here"),
+///  "continue on even if ret is non-zero,
+/// there's no going back from here"),
 ///  so a walk something defeats leaves a folder no registration names and nothing finishes.
 ///  A directory the owner cannot write makes that failure certain:
-///  a worktree real Git made is an ordinary directory, so the wrapper hands its removal to Git,
+///  a worktree real Git made is an ordinary directory,
+/// so the wrapper hands its removal to Git,
 ///  and Git cannot unlink the file inside the directory and takes the registration anyway.
 ///
 /// In TS you'd write (pseudocode):

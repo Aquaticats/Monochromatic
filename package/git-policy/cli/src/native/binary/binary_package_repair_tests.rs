@@ -244,7 +244,8 @@ const HOLD_PAUSE_MILLISECONDS: u32 = 50;
 /// How long the control waits between two glances at whether the held repair has started.
 const START_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
-/// How long the held relink writes one link before its next, in seconds as a shell reads it.
+/// How long the held relink writes one link before its next,
+/// in seconds as a shell reads it.
 const LINK_PAUSE: &str = "0.020";
 
 /// `git worktree remove` of a worktree whose package-manager links the commit service is still writing ends with the
@@ -262,7 +263,8 @@ const LINK_PAUSE: &str = "0.020";
 ///  and Git deletes the registration whether or not its walk emptied the folder
 ///  (`builtin/worktree.c`,
 ///  `remove_worktree`:
-///  "continue on even if ret is non-zero, there's no going back from here").
+///  "continue on even if ret is non-zero,
+/// there's no going back from here").
 ///  A folder no registration names is what this control watches for.
 #[test]
 fn a_removal_while_the_relink_writes_leaves_no_folder() {

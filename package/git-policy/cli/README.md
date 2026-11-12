@@ -1141,7 +1141,9 @@ Its files and its index are written in the same instant,
  so the recorded times and inodes of every tracked file prove nothing,
  and the removal reads those files and compares them with the committed blobs instead.
 That is what keeps the package-manager relink of a new worktree
- (which runs `pnpm install` in it, in the commit service, after the add returned)
+ (which runs `pnpm install` in it,
+in the commit service,
+after the add returned)
  from being written into while a removal walks the same folder:
 the folder leaves your path in the one call,
  and whatever the relink writes afterwards reaches nothing.
@@ -1152,7 +1154,8 @@ The removal the wrapper hands to Git is a walk it does not control,
  and Git deletes the worktree's registration whether or not that walk emptied the folder
  (`builtin/worktree.c`,
  `remove_worktree`:
- "continue on even if ret is non-zero, there's no going back from here").
+ "continue on even if ret is non-zero,
+there's no going back from here").
 So the removal writes down what the folder held before Git ran,
  and once Git returns it removes what the removal asked for itself;
 when the walk had already emptied the folder,

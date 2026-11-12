@@ -93,7 +93,21 @@ fn is_a_zero_byte(byte: &u8) -> bool {
 /// const isAnOwnerLine = (line: Uint8Array) => new TextDecoder().decode(line).startsWith('owner=');
 /// ```
 fn is_an_owner_line(line: &[u8]) -> bool {
-    return std::str::from_utf8(line).is_ok_and(|text: &str| { return text.starts_with(OWNER_PREFIX); });
+    return std::str::from_utf8(line).is_ok_and(names_the_owner);
+}
+
+/// What:
+///  Whether one line of text is the header that names the process.
+/// Why:
+///   The prefix is the whole of what makes the line a header,
+///  and a named function keeps that one question out of a closure the linter refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesTheOwner = (line: string) => line.startsWith('owner=');
+/// ```
+fn names_the_owner(line: &str) -> bool {
+    return line.starts_with(OWNER_PREFIX);
 }
 
 /// The path of the record of one registration.
