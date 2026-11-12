@@ -272,6 +272,42 @@ move its durable facts to their canonical doc and delete it from this page.
 
 - The run for issue 6286 and integration pass 18 (both units active).
 
+#### Commits in the main checkout take a minute and more since 13:00 (recorded 13:30)
+
+- The commit of this section's first version (`56301a3373`, about 13:19) printed
+  "The commit service has not said where this commit stands yet; it has waited 11 seconds.",
+  "This commit is next." and
+  "still waiting for /usr/bin/git ls-tree (process 3013228) after 5 seconds".
+- The timing log under 0.6.1-alpha.15 (`commit-timing-by-release.ts`):
+  hour 16Z, 18 commits, median 5117 ms;
+  hour 17Z, 41 commits, median 5651 ms, largest 145816 ms;
+  hour 18Z until 13:25, 7 commits, median 56156 ms, largest 199431 ms.
+  A median of five seconds is itself at the edge of the requirement.
+- In the six slowest since 12:30 the largest share is the wait for the service's answer
+  (`answerWaitMs` 150247, 97095, 70972, 54781, 38736, 25020);
+  others carry a start wait of 37 s, a prepare of 77 s, a build of 30 s and of 37 s
+  (`~/temp/agent/scratch-scripts/slowest-commits-of-a-release-and-where-their-time-went.ts`;
+  its lines for the `steps` list read a field whose meaning is not established, so only the phase fields are quoted here).
+- The machine at 13:25:55: load average 132.78;
+  `/proc/pressure/io` some avg10=59.25, full avg10=47.49; memory some avg10=8.73.
+  Sixteen runs were started since 12:00 and build; several `git worktree add` commands sat twenty minutes in their package repair;
+  the owner's deletion and move of data ran on the same disk between 12:31 and 12:51.
+  Pressure is normal here and explains nothing by itself: what the wrapper adds over real Git under it is the defect.
+- Whether a commit stood in a queue behind other work of the service, or its own steps were slow under the pressure, is not established.
+  A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
+  (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
+
+#### Launchers at 13:21
+
+- Round 310's first launcher ended at about 12:52 with all three entries failed:
+  `PiUnitsUnreadableError: systemctl could not list the Pi units` (`package/pi-shared/subagent-driver/src/going-runs.ts:388`).
+  One failed listing ends every entry, where the retry beside it exists for a pool without room.
+  A defect of the launcher, for the package.
+  The output is kept as `~/temp/agent/gate/agents-batch-round-310-first-start-that-failed.out`; round 310 was started again at 13:21:34.
+- Round 311's launcher began at 13:01:44 (the `mise` task that starts it took four minutes to come up)
+  and its `git worktree add` was still running at 13:20, with `cargo` children.
+- Round 309's four runs are all up.
+
 ### The owner's answers of 2026-11-12T12:26:24-05:00, through the question tool: who reviews, a file mode through a merge, what Git refuses, how far publishing reaches; and the first audit of 0.6.1-alpha.14
 
 The answers were read before 12:26:24.
