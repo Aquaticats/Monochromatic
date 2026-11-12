@@ -37,57 +37,122 @@ export const FIX_BRIEF_PLACEHOLDERS: readonly string[] = [
 ];
 
 /**
- The start of the run name of a fix, so a fix that answers the review `x` is the run `fix-of-x` and never the run of the review it
- answers.
+ A fix run's name that repeats a segment of the branch prefix it lives under.
  */
-export const FIX_RUN_PREFIX = 'fix-of-';
-
-/**
- Reads the run name of a fix agent, which says what it fixes and shares nothing with the review's own run: the two used to be
- named alike, and their worktrees and units could not stand beside each other.
-
- @param review - the review whose defects the fix answers, as `rewrite-the-gate-round-133`
-
- @returns the run's name, as `fix-of-rewrite-the-gate-round-133`
-
- @example
- ```ts
- const run = fixRunNameOf({ review: 'rewrite-the-gate-round-133', },);
- ```
- */
-export function fixRunNameOf({ review, }: { readonly review: string },): string {
-  return `${FIX_RUN_PREFIX}${review}`;
+export class DoubledBranchSegmentError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'DoubledBranchSegmentError';
 }
 
 /**
- Reads the branch a fix agent's work goes on.
+ The word that ends one segment of a branch name, which a run name repeating a segment also repeats.
+ */
+const SEGMENT_SEPARATOR = '-';
 
- The branch is named after the review it answers, never after the change alone: a change's own branch is one an agent already has
- checked out, so Git would refuse the fix's worktree, and two rounds of review would otherwise answer on one branch.
+/**
+ The word that separates a branch's namespaces.
+ */
+const BRANCH_SEPARATOR = '/';
 
- @param review - the review whose defects the fix answers
+/**
+ Reads the branch a fix agent's work goes on: the namespace the fixes of this package live under, then the run's own name.
 
- @param branchPrefix - the namespace the fix branches of this package live under, such as `fix/`
+ The name comes from the caller, so the branch says what the fix fixes rather than which review round found it. A prefix whose own
+ last segment the name begins with is refused: `fix/git-policy-cli-review-findings-` with the name
+ `review-findings-a-late-runtime` reads `fix/git-policy-cli-review-findings-review-findings-a-late-runtime`, which says the same
+ thing twice.
+
+ @param name - the fix run's own name, as the caller gave it
+
+ @param branchPrefix - the namespace the fix branches of this package live under, such as `fix/git-policy-cli-`
 
  @returns the branch's name
 
+ @throws DoubledBranchSegmentError when the name repeats the last segment of the prefix
+
  @example
  ```ts
- const branch = branchOfAFixFor({ review: 'fix-the-gate-round-133', branchPrefix: 'fix/', },);
+ const branch = branchOfAFixFor({ name: 'a-late-runtime', branchPrefix: 'fix/git-policy-cli-', },);
  ```
  */
 export function branchOfAFixFor({
-  review,
+  name,
   branchPrefix,
 }: {
-  readonly review: string;
+  readonly name: string;
   readonly branchPrefix: string;
 }): string {
-  return `${branchPrefix}${review}`;
+  /**
+   The prefix's own last segment, which is the part a repeated name would double.
+   */
+  const segments = branchPrefix.split(BRANCH_SEPARATOR,);
+  /**
+   The prefix's own last segment.
+   */
+  const segment = segments.at(-1,) ?? '';
+  /**
+   The segment's words, which are what a repeated run is counted in.
+   */
+  const segmentWords = segment.split(SEGMENT_SEPARATOR,)
+    .filter(function isAWord(word,) {
+      return word !== '';
+    },);
+  /**
+   The longest run of the prefix's words that the name begins with, which is the run it would repeat.
+   */
+  const repeated = longestRepeatedRun({
+    name,
+    segmentWords,
+  },);
+  if (repeated !== '') {
+    throw new DoubledBranchSegmentError(
+      `the branch ${branchPrefix}${name} says "${repeated}" twice, because the name begins with the prefix's own last words: `
+        + `name the fix run for what it fixes, as the branch ${branchPrefix}<what it fixes>`,
+    );
+  }
+  return `${branchPrefix}${name}`;
+}
+
+/**
+ Reads the longest run of a prefix's words that a run name begins with.
+
+ @param name - the run's own name
+
+ @param segmentWords - the words of the prefix's last segment, in order
+
+ @returns the repeated run with its own trailing separator, or empty text when the name repeats none of it
+
+ @example
+ ```ts
+ const repeated = longestRepeatedRun({ name: 'review-findings-a', segmentWords: ['cli', 'review', 'findings'], },);
+ ```
+ */
+function longestRepeatedRun({
+  name,
+  segmentWords,
+}: {
+  readonly name: string;
+  readonly segmentWords: readonly string[];
+},): string {
+  for (let taken = segmentWords.length; taken > 0; taken -= 1) {
+    /**
+     The run of the prefix's last words, with the separator that ends one word.
+     */
+    const run = `${segmentWords.slice(-taken,)
+      .join(SEGMENT_SEPARATOR,)}${SEGMENT_SEPARATOR}`;
+    if (name.startsWith(run,)) {
+      return run;
+    }
+  }
+  return '';
 }
 
 /**
  Builds the value of every placeholder the fix brief carries.
+
+ @param name - the fix run's own name
 
  @param review - the review whose defects the fix answers
 
@@ -113,6 +178,7 @@ export function branchOfAFixFor({
  ```
  */
 export function fixBriefValues({
+  name,
   review,
   branch,
   base,
@@ -122,6 +188,7 @@ export function fixBriefValues({
   checkoutFolder,
   rulesFile,
 }: {
+  readonly name: string;
   readonly review: string;
   readonly branch: string;
   readonly base: string;
@@ -136,7 +203,7 @@ export function fixBriefValues({
     PACKAGE: packageFolder,
     WORKTREE: worktreeFolderOf({
       checkoutFolder,
-      runName: fixRunNameOf({ review, },),
+      runName: name,
     },),
     BRANCH: branch,
     BASE: base,
@@ -158,6 +225,8 @@ export function fixBriefValues({
 
 /**
  Fills the brief of one fix agent.
+
+ @param name - the fix run's own name
 
  @param review - the review whose defects the fix answers
 
@@ -185,6 +254,7 @@ export function fixBriefValues({
  ```
  */
 export function briefOfAFix({
+  name,
   review,
   branch,
   base,
@@ -194,6 +264,7 @@ export function briefOfAFix({
   checkoutFolder,
   rulesFile,
 }: {
+  readonly name: string;
   readonly review: string;
   readonly branch: string;
   readonly base: string;
@@ -206,6 +277,7 @@ export function briefOfAFix({
   return filledTemplate({
     template: FIX_THE_DEFECTS_A_REVIEW_FOUND_TEMPLATE,
     values: fixBriefValues({
+      name,
       review,
       branch,
       base,

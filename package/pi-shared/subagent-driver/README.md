@@ -598,8 +598,11 @@ and exits `0` only when every start ended `0`.
 
 `--review`,
 repeatable;
+`--name`,
+the name the fix run of that review gets,
+given once per `--review` and in the same order;
 `--branch-prefix`,
-the namespace a fix's branch lives under, such as `fix/`;
+the namespace a fix's branch lives under, such as `fix/git-policy-cli-`;
 `--package`,
 the package the fix changes;
 `--reviews-folder`;
@@ -617,6 +620,35 @@ A branch moves on as soon as anyone commits to it,
 so a fix that started at the branch would answer a change nobody reviewed.
 A review that recorded nothing gets no brief,
 and the line says which file is missing.
+
+The name is the caller's, never the review's:
+on 2026-11-12 five reviews named after the runs that made the branches they read
+sent the fix briefs to those runs' own brief paths,
+which replaced five of them without a word,
+and a fix named after a run that exists restarts inside that run's worktree,
+on that run's branch.
+So `--name` is required once per review,
+a name a review already has is refused,
+and a name the runs folder already holds is refused too:
+nothing of that name may be there,
+neither a run folder,
+nor a brief,
+nor a start's failure log.
+The command writes nothing at all when it refuses,
+and it never replaces a brief whose text is not the one it would write:
+a brief that holds exactly that text is left alone and reported,
+and one that holds anything else refuses the run and names the file.
+Every refusal goes to standard error and exits `1`,
+and the batch list is not written,
+because a list holding no entry would replace the one the caller named.
+
+The branch is the prefix and that name,
+and a name that begins with the prefix's own last words is refused:
+`--branch-prefix=fix/git-policy-cli-review-findings-` with the name
+`review-findings-a-late-runtime` reads
+`fix/git-policy-cli-review-findings-review-findings-a-late-runtime`,
+which says the same thing twice.
+Name the fix run for what it fixes instead.
 
 A fix run is `fix-of-<the review's own name>`,
 so it shares neither a name, a worktree nor a unit with the review it answers,

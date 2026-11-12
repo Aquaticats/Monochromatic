@@ -23,8 +23,14 @@ import {
  The command's command line, for the error message.
  */
 export const FIX_BRIEFS_USAGE: string =
-  'write-a-fix-brief-for-each-review --review=<name> [--review=<name>]... --branch-prefix=<prefix> '
-    + '--package=<folder> [--reviews-folder=<folder>] [--runs-folder=<folder>] [--batch-file=<file>] [--wall-seconds=<n>]';
+  'write-a-fix-brief-for-each-review --review=<name> --name=<run name> [--review=<name> --name=<run name>]... '
+    + '--branch-prefix=<prefix> --package=<folder> [--reviews-folder=<folder>] [--runs-folder=<folder>] '
+    + '[--batch-file=<file>] [--wall-seconds=<n>]';
+
+/**
+ The option that names the run a fix gets, which is given once per review and in the same order.
+ */
+const NAME_OPTION = '--name=';
 
 /**
  The option that names one review whose defects a fix answers, which may be given once per review.
@@ -95,6 +101,15 @@ export type FixBriefOptions = {
    The reviews whose defects the fixes answer, in the order given.
    */
   readonly reviews: readonly string[];
+
+  /**
+   The name each fix run gets, in the same order as the reviews.
+
+   A name of its own is what keeps a fix out of the worktree and the brief of the run it answers: a batch entry named after a run
+   that exists restarts inside that run's worktree, on that run's branch, and its brief would then disagree with the branch its
+   work goes on.
+   */
+  readonly names: readonly string[];
 
   /**
    The namespace a fix branch lives under.
@@ -173,6 +188,41 @@ export function parseFixBriefOptions({
     throw fixBriefOptionsErrorOf(`--review is required at least once.\nUsage: ${FIX_BRIEFS_USAGE}`,);
   }
   /**
+   The names the fix runs get, in the order given.
+   */
+  const names = commandLine.filter(function namesAFix(argument,) {
+    return argument.startsWith(NAME_OPTION,);
+  },)
+    .map(function nameOf(argument,) {
+      return requiredText({
+        value: argument.slice(NAME_OPTION.length,),
+        name: 'name',
+        usage: FIX_BRIEFS_USAGE,
+        errorOf: fixBriefOptionsErrorOf,
+      },);
+    },);
+  if (names.length !== reviews.length) {
+    throw fixBriefOptionsErrorOf(
+      `--name is required once per --review, and ${String(reviews.length,)} reviews got ${String(names.length,)} names.\n`
+        + `Usage: ${FIX_BRIEFS_USAGE}`,
+    );
+  }
+  /**
+   The first name that is taken twice, or that names a review rather than a fix.
+   */
+  const clash = names.find(function isTaken(
+    name,
+    at,
+  ) {
+    return (names.indexOf(name,) !== at) || reviews.includes(name,);
+  },);
+  if (clash !== undefined) {
+    throw fixBriefOptionsErrorOf(
+      `--name=${clash} is already a name in this command line: a fix run needs a name of its own, different from every other `
+        + `fix and from the reviews it answers.\nUsage: ${FIX_BRIEFS_USAGE}`,
+    );
+  }
+  /**
    The namespace a fix branch lives under.
    */
   const branchPrefix = requiredText({
@@ -226,6 +276,7 @@ export function parseFixBriefOptions({
   },);
   return {
     reviews,
+    names,
     branchPrefix,
     packageFolder,
     reviewsFolder: (reviewsFolder === '')

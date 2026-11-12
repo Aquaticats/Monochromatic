@@ -60,11 +60,10 @@ export {
 export {
   FIX_BRIEF_PLACEHOLDERS,
   FIX_BRIEF_WALL_SECONDS,
-  FIX_RUN_PREFIX,
+  DoubledBranchSegmentError,
   branchOfAFixFor,
   briefOfAFix,
   fixBriefValues,
-  fixRunNameOf,
   placeholdersInTheFixBrief,
 } from './fix-brief.ts';
 export {
