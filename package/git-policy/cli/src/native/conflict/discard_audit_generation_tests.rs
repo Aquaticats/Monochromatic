@@ -103,6 +103,27 @@ fn saved_nested_repository_line(root: &Path, copies: &[String]) -> String {
     return line.trim_end().to_string();
 }
 
+/// The real audit line of a `saved-exempt` decision that copied `copies` (each `path => place`).
+fn saved_exempt_line(root: &Path, copies: &[String]) -> String {
+    let place: (PathBuf, &'static str) = (root.join(".git"), "main");
+    let arguments = os_arguments(&["reset", "--hard", "HEAD"]);
+    let line: String = audit_line(&AuditRecord {
+        time_millis: 1_700_000_000_000,
+        process: 1,
+        parent: 1,
+        form: DecidedForm::Guarded(GuardedCommand::ResetHard),
+        outcome: AuditOutcome::SavedExempt,
+        place: &place,
+        git_dir: place.0.as_path(),
+        directory: root,
+        arguments: arguments.as_slice(),
+        dirty: Some(true),
+        copies,
+        facts: &[],
+    });
+    return line.trim_end().to_string();
+}
+
 /// A saved repository that exists on disk,
 /// and the `path => place` text an audit line names it by.
 fn existing_repository_copy(root: &Path, name: &str) -> String {
@@ -313,4 +334,28 @@ fn a_saved_nested_repository_line_pins_its_generation() {
     assert_ne!(generations(unpinned_target.as_path()).first(), Some(&1), "a place nothing holds pins nothing");
     remove(root.as_path());
     remove(gone.as_path());
+}
+
+/// What:
+///  A `saved-exempt` line pins its generation while the copy it names exists.
+/// Why:
+///   The line is the only pointer to the work an exempt repository's form discarded,
+///  so dropping it would leave a person a folder nothing names;
+///  the direction the other two marks prove,
+///  that a place nothing holds pins nothing,
+///  is the same code for every mark.
+#[test]
+fn a_saved_exempt_line_pins_its_generation() {
+    let root: PathBuf = fixture("generations-exempt-pin");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    let extra: u64 = 3;
+    let saved: String = existing_repository_copy(root.as_path(), "saved-exempt-copy");
+    write_generation(target.as_path(), 1, &[marker("g1"), saved_exempt_line(root.as_path(), &[saved])]);
+    for number in 2..=kept_generations() + extra - 1 {
+        write_generation(target.as_path(), number, &[marker(&format!("g{number}"))]);
+    }
+    rotate_once(target.as_path(), "newest");
+    let numbered: Vec<u64> = generations(target.as_path());
+    assert_eq!(numbered.first(), Some(&1), "the generation that names the copy stays: {numbered:?}");
+    remove(root.as_path());
 }

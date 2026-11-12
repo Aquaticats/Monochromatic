@@ -301,7 +301,7 @@ fn exemption_facts(
 ///  A `struct` is a record with named fields.
 /// Why:
 ///  The two places an exempt repository saves from (a worktree that holds changes,
-///  and a tree that would overwrite an ignored file) hold the same eight things,
+///  and a tree that would overwrite an ignored file) pass the same things,
 ///  so one record keeps them from drifting apart.
 ///
 /// In TS you'd write (pseudocode):

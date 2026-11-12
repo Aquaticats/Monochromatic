@@ -77,7 +77,7 @@ fn untracked_query_arguments(global_prefix: &[OsString]) -> Vec<OsString> {
 /// const files = paths.filter((path) => !path.endsWith('/'));
 /// ```
 fn untracked_files(paths: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
-    return paths.into_iter().filter(|path| !path.ends_with(b"/")).collect();
+    return paths.into_iter().filter(|path| { return !path.ends_with(b"/"); }).collect();
 }
 
 /// What:

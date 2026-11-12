@@ -383,11 +383,11 @@ fn saved_copies(common_dir: &Path) -> Vec<(String, Vec<u8>)> {
     let Ok(stamps) = std::fs::read_dir(root.as_path()) else {
         return found;
     };
-    for stamp in stamps {
-        let Ok(stamp) = stamp else { continue };
+    for candidate in stamps {
+        let Ok(stamp) = candidate else { continue };
         let Ok(copies) = std::fs::read_dir(stamp.path()) else { continue };
-        for copy in copies {
-            let Ok(copy) = copy else { continue };
+        for entry in copies {
+            let Ok(copy) = entry else { continue };
             let name: String = copy.file_name().to_string_lossy().into_owned();
             let bytes: Vec<u8> = std::fs::read(copy.path()).expect("a copy holds bytes");
             found.push((name, bytes));
@@ -521,7 +521,11 @@ fn linked_worktree_exempt_clean_saves_the_untracked_files_it_deletes() {
         saved_copies(clone.join(".git").as_path()),
         vec![(String::from("notes.txt"), b"untracked user bytes\n".to_vec())]
     );
-    assert!(exempt.notices.iter().any(|notice| notice.contains("notes.txt => ")), "{:?}", exempt.notices);
+    assert!(
+        exempt.notices.iter().any(|notice| { return notice.contains("notes.txt => "); }),
+        "{:?}",
+        exempt.notices
+    );
     remove(root.as_path());
 }
 

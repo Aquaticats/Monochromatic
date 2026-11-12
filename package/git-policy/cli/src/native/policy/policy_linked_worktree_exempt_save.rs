@@ -197,11 +197,13 @@ pub(crate) fn save_the_exempt_discard(facts: &mut dyn RepositoryFacts, form: Exe
     // The ignored files the written tree tracks are the ones the form overwrites whatever `--no-overwrite-ignore` says.
     let shared: Vec<String> = match ignored_paths {
         Some(found) => found,
-        None if tree.is_some() => match facts.ignored_files_the_tree_tracks(tree.and_then(|written| written.revision.as_deref())) {
-            Ok(found) => found,
-            Err(message) => return ExemptVerdict::Stopped(exempt_save_stopped_message(command, "", &message)),
+        None => match tree {
+            Some(written) => match facts.ignored_files_the_tree_tracks(written.revision.as_deref()) {
+                Ok(found) => found,
+                Err(message) => return ExemptVerdict::Stopped(exempt_save_stopped_message(command, "", &message)),
+            },
+            None => Vec::<String>::new(),
         },
-        None => Vec::<String>::new(),
     };
     for path in shared {
         paths.push(path.into_bytes());

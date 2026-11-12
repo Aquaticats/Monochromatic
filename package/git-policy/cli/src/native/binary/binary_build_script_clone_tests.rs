@@ -150,11 +150,11 @@ fn saved_copies(common_dir: &Path) -> Vec<(String, Vec<u8>)> {
     let Ok(stamps) = std::fs::read_dir(root.as_path()) else {
         return found;
     };
-    for stamp in stamps {
-        let Ok(stamp) = stamp else { continue };
+    for candidate in stamps {
+        let Ok(stamp) = candidate else { continue };
         let Ok(copies) = std::fs::read_dir(stamp.path()) else { continue };
-        for copy in copies {
-            let Ok(copy) = copy else { continue };
+        for entry in copies {
+            let Ok(copy) = entry else { continue };
             let name: String = copy.file_name().to_string_lossy().into_owned();
             let bytes: Vec<u8> = std::fs::read(copy.path()).expect("a copy holds bytes");
             found.push((name, bytes));
@@ -170,8 +170,8 @@ fn audit_lines(common_dir: &Path) -> String {
     let Ok(entries) = std::fs::read_dir(common_dir) else {
         return text;
     };
-    for entry in entries {
-        let Ok(entry) = entry else { continue };
+    for candidate in entries {
+        let Ok(entry) = candidate else { continue };
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if !name.starts_with("monochromatic-git-policy-cli") || !name.contains("audit") || !name.ends_with(".jsonl") {
             continue;
