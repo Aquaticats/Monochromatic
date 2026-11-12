@@ -43,6 +43,7 @@ import {
   runCommandShowingItsOutput,
   runCommandWithChildProcess,
 } from './run-command.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 import { unitStateOf, } from './wait-for-a-unit-to-end.ts';
 import { processesAtTheirFolders, } from './wake-a-run-whose-work-outlives-its-turn.ts';
 
@@ -115,9 +116,26 @@ const DEFAULT_REVIEW_FOLDER_IN_HOME: readonly string[] = [
 ];
 
 /**
+ The command's command line, which `--help` prints and an option the command cannot use is named against.
+ */
+const USAGE =
+  'remove-finished-worktrees [--checkout-folder=<folder>] [--runs-folder=<folder>] [--review-folder=<folder>] '
+    + '[--paused-file=<file>] [--process-folder=<folder>] [--apply] [--clean-folder=<path>] [--clean-word=<word>]...';
+
+/**
  The words the command was given.
  */
 const words = argv.slice(2,);
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words,
+  usage: USAGE,
+},)) {
+  process.exit(0,);
+}
 
 /**
  The option that names the checkout, as it was written.

@@ -49,6 +49,17 @@ and each offers the step it owns:
 Each has a `mise` task of its own name under
 `//package/pi-shared/subagent-driver:`.
 
+A task hands every word after `--` to its command as an argument,
+so `-- --name=copy-route` reaches the command's own command line,
+and `-- --help` prints that command's usage line and exits zero.
+Before 2026-11-11 the tasks were `node -e` scripts reading mise's `usage_args`,
+and mise appends a word its `usage` spec does not claim to the script's text instead:
+`--help` is mise's own flag,
+so `mise run ...:start-reviews-of-finished-branches -- --help` ended in
+`SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]` rather than help.
+Each task's `usage` line stays,
+so `mise run ...:<command> --help` still prints mise's own help for it.
+
 ### The git a session would run
 
 A session whose `git` resolves to the system binary never runs this repository's Git policy wrapper,

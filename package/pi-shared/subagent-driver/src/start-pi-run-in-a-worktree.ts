@@ -32,6 +32,7 @@ import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
 import { nextRunNumber, } from './next-run-number.ts';
 import {
   NO_WORKTREE_BRANCH,
+  WORKTREE_LAUNCHER_USAGE,
   parseWorktreeLauncherOptions,
   worktreeFolderOf,
 } from './parse-worktree-launcher-options.ts';
@@ -41,6 +42,7 @@ import {
 } from './required-output-of-a-command.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 import {
   UNIT_WAIT_GRACE_SECONDS,
   waitForUnitToEnd,
@@ -55,6 +57,17 @@ import {
 import { unitCommandOf, } from './unit-command-of-a-run.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
 import { makeWorktree, } from './worktree-of-a-run.ts';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: WORKTREE_LAUNCHER_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  How git is asked a question in this command.

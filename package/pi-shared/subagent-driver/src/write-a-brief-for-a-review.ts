@@ -12,9 +12,24 @@
 import { argv, } from 'node:process';
 import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import { gitRunnerOf, } from './git-command.ts';
-import { parseReviewBriefOptions, } from './parse-review-brief-options.ts';
+import {
+  REVIEW_BRIEF_USAGE,
+  parseReviewBriefOptions,
+} from './parse-review-brief-options.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 import { writeReviewBrief, } from './writing-a-review-brief.ts';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: REVIEW_BRIEF_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  The top of the checkout this command runs in, which every path it writes is read from.

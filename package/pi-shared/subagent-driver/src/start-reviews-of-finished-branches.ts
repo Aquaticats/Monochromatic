@@ -25,7 +25,10 @@ import {
 } from './kept-start-failure.ts';
 import { saveTheLastMessage, } from './last-message-of-a-review.ts';
 import { outputOfGit, } from './material-of-a-review.ts';
-import { parseStartReviewsOptions, } from './parse-start-reviews-options.ts';
+import {
+  START_REVIEWS_USAGE,
+  parseStartReviewsOptions,
+} from './parse-start-reviews-options.ts';
 import { FOCUS_OF_A_CHANGE_REVIEW, } from './review-brief.ts';
 import {
   briefFileOfAReview,
@@ -39,7 +42,19 @@ import {
   retryingStartEntry,
   startThroughTheRetryingStart,
 } from './start-through-the-retrying-start.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 import { writeReviewBrief, } from './writing-a-review-brief.ts';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: START_REVIEWS_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  The code the operating system gives a path that is not there.

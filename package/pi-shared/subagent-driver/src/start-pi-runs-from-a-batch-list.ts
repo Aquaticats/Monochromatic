@@ -24,11 +24,26 @@ import {
   keepFailedOutput,
   reportOnStandardError,
 } from './kept-start-failure.ts';
-import { parseBatchOptions, } from './parse-batch-options.ts';
+import {
+  BATCH_USAGE,
+  parseBatchOptions,
+} from './parse-batch-options.ts';
 import {
   retryingStartEntry,
   startThroughTheRetryingStart,
 } from './start-through-the-retrying-start.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: BATCH_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  What this run of the command was asked for.

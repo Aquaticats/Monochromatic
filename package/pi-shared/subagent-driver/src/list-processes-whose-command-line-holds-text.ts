@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  `list-processes-whose-command-line-holds-text`: lists every process whose command line holds a text, with its number, its
  parent, its age and the head of its command line. See `README.md` for the options.
@@ -25,12 +26,24 @@ import {
   requiredText,
 } from './required-option-values.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 
 /**
  The command's command line, for the error message.
  */
 const PROCESS_LIST_USAGE =
   'list-processes-whose-command-line-holds-text --text=<text> [--command-characters=<n>]';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: PROCESS_LIST_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  The option that names the text a command line must hold.

@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  `list-running-units-whose-worktree-is-gone`: names every running unit whose worktree folder a merge or a removal took away, and
  says how many running units were listed. See `README.md` for the options.
@@ -24,6 +25,7 @@ import {
   serviceUnitsIn,
   unitsWhoseWorktreeIsGone,
 } from './units-whose-worktree-is-gone.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -35,6 +37,17 @@ const MISSING_PATH_CODE = 'ENOENT';
  */
 const RUNNING_UNITS_USAGE =
   'list-running-units-whose-worktree-is-gone [--checkout-folder=<folder>] [--unit-pattern=<pattern>]';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: RUNNING_UNITS_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  The option that names the checkout whose worktrees the launcher makes.

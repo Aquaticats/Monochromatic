@@ -23,12 +23,27 @@ import {
   briefOfAFix,
   changeNameOfAFixFor,
 } from './fix-brief.ts';
-import { parseFixBriefOptions, } from './parse-fix-brief-options.ts';
+import {
+  FIX_BRIEFS_USAGE,
+  parseFixBriefOptions,
+} from './parse-fix-brief-options.ts';
 import {
   diffFileOfAReview,
   reviewFileOfAReview,
 } from './reviewer-of-a-change.ts';
 import { rulesFileIn, } from './rules-every-pi-brief-carries.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: FIX_BRIEFS_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  The code the operating system gives a path that is not there.
