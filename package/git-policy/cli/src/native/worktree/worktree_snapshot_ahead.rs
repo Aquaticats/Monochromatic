@@ -19,8 +19,9 @@
 //!  person's.
 //! The owner's bound for an add is 60 s ("60s is fine for adding worktrees") and nothing may wait indefinitely,
 //! so an add waited no longer than `SNAPSHOT_AHEAD_CEILING` for a copy.
-//! The owner answered "Fresh snapshot every add" when he was asked on 2026-11-11 to keep that copy or to take one on
-//! every add, so no add claims a copy from this pool and no add waits for one:
+//! The owner answered "Fresh snapshot every add" on 2026-11-11 when he was asked to keep that copy
+//!  or to take one on every add,
+//! so no add claims a copy from this pool and no add waits for one:
 //! the modules stay for a record an earlier release queued and a removal clears a folder it filled.
 //!
 //! A snapshot made ahead is a copy of the source as it was when the service made it,

@@ -212,7 +212,8 @@ fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
 /// "Fresh snapshot every add".
 /// A ceiling that stayed here would bound a wait no code makes,
 /// which is what this control reported at the alpha.11 gate:
-/// it asserted that the snapshot rung names the ceiling, and the rung no longer takes one.
+/// it asserted that the snapshot rung names the ceiling,
+/// and the rung no longer takes one.
 #[test]
 fn an_add_takes_its_own_snapshot_and_waits_for_none_made_ahead() {
     let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");

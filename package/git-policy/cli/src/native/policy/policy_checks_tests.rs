@@ -765,8 +765,8 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
 /// Why:
 ///   An operation that stopped with conflicts makes `git status` report its own state,
 /// so the rule above refused every abort form for exactly as long as it was the command a person needed;
-/// the abort is decided by `MERGE_HEAD`, `rebase-merge` and the other markers of the operation instead
-/// (`SPEC.md`, "The abort forms while their operation waits").
+/// the markers of the operation itself decide the abort instead,
+/// and `SPEC.md` records it under "The abort forms while their operation waits".
 /// What it asks:
 ///  where the worktree is,
 /// and which operation waits,
