@@ -8,7 +8,8 @@ What:
 Why:
  The owner's bound is "60s is fine for adding worktrees",
  and the repair was the largest part of an add that passed it:
- 34 `cargo clean` runs, 32.8 to 47.7 s of workspace resolutions in each of three real adds,
+ 34 `cargo clean` runs,
+32.8 to 47.7 s of workspace resolutions in each of three real adds,
  every one of them deleting nothing.
 Future sessions read this before moving any step of the repair,
 and before measuring an add again.
@@ -16,6 +17,7 @@ Status:
  measured on 2026-11-12 from the wrapper's own timing records of this repository,
  from a btrfs fixture of it,
  and from one `strace` of each arm;
+ re-verified at the merge of `main`'s 0.6.1-alpha.13 (below);
  changed on branch `perf/git-policy-cli-worktree-add-does-not-wait-for-its-package-repair`.
 
 ## The steps, what each is for, and what recorded the reason
@@ -54,7 +56,8 @@ and the add waits for the slowest:
   the owner chose "Install online during the add" on 2026-11-03
   (`doc/planning/cli-git-main-worktree-ignored-copy.md`),
   told that an add can then download.
-- Cargo, which had four steps before this change:
+- Cargo,
+  which had four steps before this change:
   1. `cargo metadata --locked --offline --no-deps` for each Cargo workspace among the tracked
      `Cargo.toml` files,
      timed as `cargoMetadataWorktree`.
@@ -71,7 +74,9 @@ and the add waits for the slowest:
   3. `cargo clean --offline --package <member>` for every member of the workspace,
      timed as `cargoClean`.
      This is the step this change moves.
-     Without it, where the copy carried build state of the worktree's own crates, Cargo treats those
+     Without it,
+     where the copy carried build state of the worktree's own crates,
+     Cargo treats those
      artifacts as fresh and a build reuses them at the wrong paths:
      measured below.
      The reason is recorded:
@@ -110,22 +115,30 @@ built with its own `CARGO_HOME`:
   nothing is written but the workspace's `target/` directory,
   which is not even made (a copy without `target/` gained none from the read),
   so a build started at once compiles everything and is correct.
-- Before the clone of an external build directory, where the worktree has no build directory of
+- Before the clone of an external build directory,
+  where the worktree has no build directory of
   its own:
-  a copy of a built workspace, `target/` included,
+  a copy of a built workspace,
+  `target/` included,
   whose Cargo home keys the build directory by workspace path,
   recompiled its crate on the copy's first build and the binary named the copy's own path.
-  Correct, and only slower.
-- Before `cargo clean`, where the copy carried build state of the worktree's own crates
-  (`target/` inside the worktree, Cargo's default layout):
+  Correct,
+  and only slower.
+- Before `cargo clean`,
+  where the copy carried build state of the worktree's own crates
+  (`target/` inside the worktree,
+  Cargo's default layout):
   `cargo build` in the copy answered `Finished dev profile in 0.15s` without compiling,
   and the binary still printed the source checkout's `CARGO_MANIFEST_DIR`.
-  Wrong, and wrong silently.
+  Wrong,
+  and wrong silently.
   This is why the clean cannot be moved after the add returns on that layout.
-- Before the pnpm relink: an entry of the copied `node_modules` resolves into the source checkout
+- Before the pnpm relink:
+  an entry of the copied `node_modules` resolves into the source checkout
   or not at all;
   the control cited above holds the dead entry.
-- Before the toolchain install: the worktree runs the tool versions its launchers name,
+- Before the toolchain install:
+  the worktree runs the tool versions its launchers name,
   which are the source's.
 
 ## What the add waited for, measured
@@ -136,13 +149,23 @@ The wrapper writes one line per add to
 `<git-common-dir>/monochromatic-git-policy-cli-worktree-add-timing.jsonl`.
 Three adds of release 0.6.1-alpha.12 on 2026-11-12 between 03:41 and 03:43:
 
-- `totalMs` 39,694, 48,606 and 62,634 ms;
-- `cargoClean` 32,823 ms over 34 calls, 47,692 over 34 and 44,376 over 34,
+- `totalMs` 39,694,
+  48,606 and 62,634 ms;
+- `cargoClean` 32,823 ms over 34 calls,
+  47,692 over 34 and 44,376 over 34,
   which is the largest single item of the repair in all three;
-- `cargoMetadataWorktree` 838, 3,131 and 1,597 ms over 35 calls;
-- `cargoMetadataSource` 2,376, 1,081 and 3,253 ms over 35 calls;
-- `repairCargo`, the whole Cargo lane, 9,768, 14,835 and 12,849 ms;
-- `relinkHandOver` 7, 16 and 41 ms, and `cargoPrewarmHandOver` 106, 10 and 14 ms.
+- `cargoMetadataWorktree` 838,
+  3,131 and 1,597 ms over 35 calls;
+- `cargoMetadataSource` 2,376,
+  1,081 and 3,253 ms over 35 calls;
+- `repairCargo`,
+  the whole Cargo lane,
+  9,768,
+  14,835 and 12,849 ms;
+- `relinkHandOver` 7,
+  16 and 41 ms,
+  and `cargoPrewarmHandOver` 106,
+  10 and 14 ms.
 
 ### The fixture
 
@@ -151,44 +174,71 @@ a btrfs subvolume holding a clone of this repository (36 tracked workspaces,
 each with the `target/` directory a developer's checkout holds,
 one of them a tiny workspace the fixture built so its external build directory exists),
 snapshotted once per add.
-Every arm has its own `HOME`, `XDG_RUNTIME_DIR`, `CARGO_HOME` and `RUSTUP_HOME`,
+Every arm has its own `HOME`,
+`XDG_RUNTIME_DIR`,
+`CARGO_HOME` and `RUSTUP_HOME`,
 the tool caches reached through links so `--offline` finds the crates,
 a `DBUS_SESSION_BUS_ADDRESS` naming a socket that is not there (so no arm reaches a commit service),
 and the same Git configuration.
-Four arms, four rounds, the order rotating:
+Four arms,
+four rounds,
+the order rotating:
 
-- the merge commit's wrapper (`wrapper-before`, a debug build of `451f7d330b`),
-- the same binary a second time, to bound the spread of one binary against itself,
+- the merge commit's wrapper (`wrapper-before`,
+  a debug build of `451f7d330b`),
+- the same binary a second time,
+  to bound the spread of one binary against itself,
 - this branch's wrapper (`wrapper-after`),
 - native `git worktree add`.
 
-Wall clock, which cannot judge this change:
+Wall clock,
+which cannot judge this change:
 
-- `before` median 26,938 ms, MAD 11,563 ms, largest 103,055 ms;
-- `before` again median 12,480 ms, MAD 4,284 ms, largest 51,479 ms,
-  and the two runs of that one binary differ by 51,576, 21,112, 13,361 and 996 ms round by round;
-- `after` median 10,298 ms, MAD 3,611 ms, largest 15,406 ms;
-- native median 9,285 ms, MAD 3,090 ms, largest 13,587 ms.
+- `before` median 26,938 ms,
+  MAD 11,563 ms,
+  largest 103,055 ms;
+- `before` again median 12,480 ms,
+  MAD 4,284 ms,
+  largest 51,479 ms,
+  and the two runs of that one binary differ by 51,576,
+  21,112,
+  13,361 and 996 ms round by round;
+- `after` median 10,298 ms,
+  MAD 3,611 ms,
+  largest 15,406 ms;
+- native median 9,285 ms,
+  MAD 3,090 ms,
+  largest 13,587 ms.
 
-The wrapper's own record of the same adds, which is what judges it:
+The wrapper's own record of the same adds,
+which is what judges it:
 
-- `before`: 36 `cargo clean` calls in every add,
+- `before`:
+  36 `cargo clean` calls in every add,
   `cargoClean` 249,188 ms of summed work over the four adds (median 33,420 ms in one add),
   and the Cargo lane (`repairCargo`) 12,042 ms at the median and 67,840 ms at the largest;
-- `after`: no `cargo clean` call at all,
+- `after`:
+  no `cargo clean` call at all,
   and the Cargo lane 460 ms at the median and 2,289 ms at the largest;
 - in both arms the add read its own 36 workspaces and their 36 source counterparts,
   at a median of 764 and 664 ms of work before and 618 and 602 ms after.
 
 ### What the add starts, from `strace --follow-forks`
 
-One add per arm, traced, counting the Cargo runs the add starts and the flushes it makes:
+One add per arm,
+traced,
+counting the Cargo runs the add starts and the flushes it makes:
 
-- `before`: 72 `cargo metadata` starts and 36 `cargo clean` starts
-  (144 and 72 `execve` lines, because the rustup proxy execs the real Cargo),
-  403 `execve` calls in all, and 19 flush calls;
-- `after`: 72 `cargo metadata` starts and none for a clean,
-  187 `execve` calls, and one flush call.
+- `before`:
+  72 `cargo metadata` starts and 36 `cargo clean` starts
+  (144 and 72 `execve` lines,
+  because the rustup proxy execs the real Cargo),
+  403 `execve` calls in all,
+  and 19 flush calls;
+- `after`:
+  72 `cargo metadata` starts and none for a clean,
+  187 `execve` calls,
+  and one flush call.
 
 ## The change
 
@@ -207,11 +257,18 @@ One add per arm, traced, counting the Cargo runs the add starts and the flushes 
   (`stage_the_worktrees_own_state` in `package_repair_prewarm_job.rs`)
   and adds the workspace to the same `prewarm` record,
   as an entry whose `stagedIn` names where the state waits.
-  The staging name lies under the repository's Git directory
-  (`monochromatic-git-policy-cli-prewarm-staging/<hex of the build directory>`),
-  never in the worktree,
-  because a name beside the build directory would show in `git status` and a `git add -A` would
-  commit a copy of `target/`.
+  The staging name lies beside the build directory it takes,
+  inside the worktree,
+  because a worktree of this repository is a btrfs subvolume and btrfs refuses to rename a directory
+  out of one (`EXDEV`,
+  measured while trying to stage the state under the repository's Git directory).
+  That name therefore stands inside the worktree,
+  so the add names the three staging patterns in the repository's own `info/exclude` once,
+  before the
+  rename (`*.monochromatic-prewarm/`,
+  `*.monochromatic-prewarm.target/`,
+  `*.monochromatic-prewarm.owner`),
+  and the person's `git status` and `git add -A` never see them.
   The filling cleans that copy and publishes it back with the rename that never replaces,
   exactly as it already filled an external build directory.
   The add runs no `cargo clean` on this path at all,
@@ -240,16 +297,22 @@ One add per arm, traced, counting the Cargo runs the add starts and the flushes 
   A line that says work happens after the command returns without saying where to look is not a line
   a person can act on.
 
-What stays on the waiting path, and why:
+What stays on the waiting path,
+and why:
 
-- One `cargo metadata` read per workspace, and their source counterparts where a fill is possible.
+- One `cargo metadata` read per workspace,
+  and their source counterparts where a fill is possible.
   A clean has to be decided before a build can start,
   so the layout question cannot move after the add,
   and moving the source read into the commit service would make the service resolve every
   workspace of every add for an answer the add already has
-  (it is the same reads, so no work is saved, only moved into the queue commits share).
-  Measured: 1,382 ms of work at the median across 72 reads after the change.
-- The relink and prewarm hand-overs, which are a record and a wake.
+  (it is the same reads,
+  so no work is saved,
+  only moved into the queue commits share).
+  Measured:
+  1,382 ms of work at the median across 72 reads after the change.
+- The relink and prewarm hand-overs,
+  which are a record and a wake.
 
 ## The two findings of the 2026-11-11 audit
 
@@ -280,35 +343,54 @@ and
 
 ### The clean of an already copied `target/` ran inside the add
 
-The second audit (`alpha-12-merge-discarding-commands-lfs-and-package-repair`, finding F08) showed the
+The second audit (`alpha-12-merge-discarding-commands-lfs-and-package-repair`,
+finding F08) showed the
 `CleanOnly` plan still running `cargo clean` inside the add under the tool's own window:
-with a stand-in `cargo` whose `clean` never ends, `git worktree add` exited zero after 615.7 and 635.3
+with a stand-in `cargo` whose `clean` never ends,
+`git worktree add` exited zero after 615.7 and 635.3
 seconds.
-That is the arm this change takes off the add's path, as "The change" describes:
+That is the arm this change takes off the add's path,
+as "The change" describes:
 the add moves the carried state aside in one rename and hands the clean to the filling.
 
 The audit's own probe (`reproductions/repair_probe.ts hang-cargo`) run against the wrapper built from
-this worktree, on the same fixture it makes (a repository whose copy carries `target/`, a `cargo` whose
-`clean` never ends, and no commit service reachable):
+this worktree,
+on the same fixture it makes (a repository whose copy carries `target/`,
+a `cargo` whose
+`clean` never ends,
+and no commit service reachable):
 
-- `add: 20.5 s exit=0`, and
+- `add: 20.5 s exit=0`,
+  and
 - the stand-in `cargo` record holds one `metadata` run and no `clean` at all.
 
 What the first build in such a worktree does:
-it finds no build directory, because the add moved the copy's state aside, so Cargo compiles
-everything itself, including the dependencies the copy carried.
-That is correct, and slower than a build that starts after the filling has cleaned and published that
+it finds no build directory,
+because the add moved the copy's state aside,
+so Cargo compiles
+everything itself,
+including the dependencies the copy carried.
+That is correct,
+and slower than a build that starts after the filling has cleaned and published that
 state back.
-The record stays queued, so a service that runs later still cleans and publishes it.
+The record stays queued,
+so a service that runs later still cleans and publishes it.
 
 Two properties of this repository's filesystem shaped that step:
 
-- A worktree of this repository is a btrfs subvolume, and btrfs refuses to rename a directory out of a
-  subvolume (`EXDEV`, measured here while trying to stage the state under the repository's Git
-  directory), so the state is staged beside the build directory it is taken from.
-- That name stands inside the worktree, so the add names the three staging patterns in the repository's
-  own `info/exclude` (`*.monochromatic-prewarm/`, `*.monochromatic-prewarm.target/`,
-  `*.monochromatic-prewarm.owner`), once, before the rename:
+- A worktree of this repository is a btrfs subvolume,
+  and btrfs refuses to rename a directory out of a
+  subvolume (`EXDEV`,
+  measured here while trying to stage the state under the repository's Git
+  directory),
+  so the state is staged beside the build directory it is taken from.
+- That name stands inside the worktree,
+  so the add names the three staging patterns in the repository's
+  own `info/exclude` (`*.monochromatic-prewarm/`,
+  `*.monochromatic-prewarm.target/`,
+  `*.monochromatic-prewarm.owner`),
+  once,
+  before the rename:
   without it the person's `git status` would show the wrapper's staging and a `git add -A` could commit
   a copy of `target/`.
 
@@ -337,29 +419,45 @@ and the line it printed while it waited was:
 worktree; it is stopped when it shows no sign of work for 600 seconds, or after 18 minutes at the
 latest.`"
 So an add whose `pnpm` is slow reaches 72 s here,
-and the two bounds that end that tool are the tool's, not the add's.
+and the two bounds that end that tool are the tool's,
+not the add's.
 
-The options, and what each costs:
+The options,
+and what each costs:
 
 - Give the inline fallback the add's remaining budget as its quiet window and ceiling.
-  Pros: the add is bounded as the owner asked, and a slow `pnpm` becomes a printed line naming the
-  command to run, which the tool already prints when its own bounds end it.
-  Cons: the owner's 600-second window is one number for every tool run, and a second, smaller number
+  Pros:
+  the add is bounded as the owner asked,
+  and a slow `pnpm` becomes a printed line naming the
+  command to run,
+  which the tool already prints when its own bounds end it.
+  Cons:
+  the owner's 600-second window is one number for every tool run,
+  and a second,
+  smaller number
   for this path asks for a decision about which one wins;
   the tool's line would name a bound no other run has.
 - Leave the relink to the service alone and print the command instead of running it inline.
-  Pros: the add never waits for pnpm at all, and the wait for a service is already bounded
+  Pros:
+  the add never waits for pnpm at all,
+  and the wait for a service is already bounded
   (`HAND_OVER_GREETING_WAIT`).
-  Cons: a session with no service manager (a container),
+  Cons:
+  a session with no service manager (a container),
   which is where the inline fallback does its work today,
   would leave every new worktree with the source's links until a person runs the command.
   `SPEC.md` says such a worktree resolves the source's packages without an error,
   so this is a loss of correctness-of-location rather than a broken build.
 - Leave it as it is and record the exception.
-  Pros: no change.
-  Cons: an add's bound is stated as 60 s and this path does not hold it.
+  Pros:
+  no change.
+  Cons:
+  an add's bound is stated as 60 s and this path does not hold it.
 
-Ranking: the first, then the second, then the third.
+Ranking:
+the first,
+then the second,
+then the third.
 The first keeps what the fallback is for and bounds it;
 the second is the stronger bound at the cost of a worktree whose links name the source checkout;
 the third keeps a stated bound that is not held.
@@ -388,34 +486,140 @@ The failing lines are quoted from the runs at the commits named beside them.
   `a clean must never reach outside the worktree it was started for: CleanOnly`.
 - `package_repair_prewarm_job_tests::a_filling_killed_after_it_published_leaves_nothing_of_its_own`:
   `the staging directory the killed filling left is given back: .../worktree-build.monochromatic-prewarm`
-  (the staging name the entry gives now lies under the Git directory,
+  (the staging name lies beside the build directory it took,
   and the control follows it).
 - `package_repair_prewarm_job_tests::a_staged_state_the_add_moved_aside_is_cleaned_and_published`,
   `a_build_that_got_there_first_keeps_its_own_and_the_staged_state_is_given_back`,
   `a_staging_name_another_writer_holds_is_never_renamed_over`,
   and `a_worktree_with_no_build_state_has_nothing_to_move_aside`.
 - `binary_package_repair_tests::a_build_started_at_once_is_correct_and_the_add_starts_no_clean`,
-  run against the merge commit's code:
+  run against `451f7d330b`,
+  the branch's merge of main whose repair code is the pre-change one:
   `the add starts no clean for a workspace whose build directory the worktree does not have; it ran:
   ... clean --offline --package other | .../deeper/at-once/other`.
   After the change the same control builds the new worktree at once,
-  the worktree's own crates rebuild, and the binary names the worktree's own paths.
+  the worktree's own crates rebuild,
+  and the binary names the worktree's own paths.
 - `binary_package_repair_tests::an_external_build_directory_never_cleans_through_a_linked_target`,
-  run against the merge commit's code:
+  run against `451f7d330b`,
+  the same pre-change repair code:
   `the add's cargo clean deleted the source artifact through the copied target link`.
+- `binary_package_repair_tests::the_line_for_work_left_behind_names_the_queue_and_the_journal`,
+  a control of the line itself (brief step 5):
+  one add without `--quiet`,
+  requiring the line to name the queue and the journal.
+  Shown able to fail by taking the journal's name out of the line and rerunning it:
+  `the line for work left behind names where its progress shows: Preparing worktree (new branch
+  'named')` ... `Cargo kept dependency builds and handed the filling of 1 build directory to the
+  commit service, whose progress shows in
+  `.../.git/monochromatic-git-policy-cli/work/{pending,claimed,done,failed}`, and which fills or
+  cleans it after this command returns`.
+  Restored,
+  it passes.
+
+## Re-verified after `main` moved to 0.6.1-alpha.13
+
+`main` held 0.6.1-alpha.12 when this branch started.
+It now holds 0.6.1-alpha.13 (merge `157d07cd3b`,
+tip `f667e67676`),
+and that was merged into this branch as `05ce1edcb0`.
+One file conflicted,
+`src/native/worktree_copying/worktree_copy_stage_claim_reaping.rs`,
+and it was resolved to `main`'s side:
+`main` had gone further than this branch's base on the same cost,
+removing even the conditional flush of the journal directory that the base still made,
+and taking the branch's side there would have put that flush back.
+Nothing of `main`'s release touches the package repair:
+the repair modules of this branch are the only difference in `src/native/repair/`
+(`git diff --stat main..HEAD -- package/git-policy/cli/src/native/repair/`),
+so this change is not already on `main` and was not fixed twice.
+
+What was run at `05ce1edcb0`,
+and what it printed:
+
+- `mise run //package/git-policy/cli:native:check`:
+  `Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 1m 23s`.
+- `mise run //package/git-policy/cli:native:test:host -- --no-fail-fast package_repair`:
+  `Summary [   9.212s] 156 tests run: 156 passed, 7283 skipped`.
+- `mise run //package/git-policy/cli:native:test:binary:host -- --no-fail-fast
+  an_external_build_directory_never_cleans_through_a_linked_target
+  a_build_started_at_once_is_correct_and_the_add_starts_no_clean real_cargo_rebuilds_own_crates`:
+  `Summary [   9.058s] 4 tests run: 4 passed, 1080 skipped`,
+  naming `real_cargo_rebuilds_own_crates_with_the_default_layout` and
+  `real_cargo_rebuilds_own_crates_with_an_external_build_directory`.
+- `mise run //package/git-policy/cli:native:clippy`:
+  `Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 41.22s`,
+  with no finding.
+- `mise run //package/git-policy/cli:native:build:release`:
+  `Finished \`release\` profile [optimized] target(s) in 2m 04s`.
+
+One add of the fixture,
+three ways,
+with a stand-in `cargo` on the arm's `PATH` that records every run it sees
+and can make `clean` never end
+(`${HOME}/temp/agent/pkgrepair-verify/probe-clean.ts`,
+from the same base clone and the same arm environments as the measurement above):
+
+- the merge base's wrapper (`bin/wrapper-before`,
+  the positive control):
+  `add 8797 ms`,
+  `repairCargo 4709 ms`,
+  `cargoClean 36 calls`,
+  and the stand-in saw 108 runs,
+  36 of them `clean`;
+- this branch's wrapper:
+  `add 8520 ms`,
+  `repairCargo 230 ms`,
+  no `cargoClean` at all,
+  and the stand-in saw 72 runs,
+  all of them `metadata`;
+- this branch's wrapper with a `cargo clean` that never ends:
+  `add 6931 ms, status 0`,
+  no clean,
+  72 metadata runs,
+  which is the audit's own F08 case answered in seconds instead of the tool's window.
+
+A last look at what the change is worth today,
+from the repository's own ledger of real adds
+(`.git/monochromatic-git-policy-cli-worktree-add-timing.jsonl`),
+the six newest adds of the installed 0.6.1-alpha.13,
+which does not hold this change:
+three of them recorded `cargoClean` 34 times,
+for 4,567,
+5,055 and 7,603 ms of summed work in adds that took 7,806,
+4,781 and 8,227 ms,
+and three recorded no clean at all,
+because which arm an add takes depends on the build state its copy carried.
+So the clean is still most of what the repair costs on the adds that take it,
+and this change removes the ones that delete nothing.
 
 ## What this does not cover
 
-- The in-tree layout's kill window.
-  Where the worktree holds build state of its own,
-  the clean still runs on the add's path,
-  and a kill in the middle of it leaves some members cleaned and others not,
-  with nothing recording that the clean was interrupted.
-  Closing it means handing that clean to the service in the shape the prewarm filling already has
-  (take the state aside under a name this job proves it owns,
-  clean it there,
-  publish it with a rename that never replaces),
-  which is a change of the filling and not of this one.
+- The repository linter's state outside this branch.
+  `mise run //:lint:monochromatic-lint` is not green on `main` either:
+  it reports `rust/max-lines` (305 code lines against a limit of 300) and
+  `avoidable_closure` warnings in `src/native/worktree_copying/worktree_copy.rs`,
+  a file this branch does not change.
+  The files this branch changes report no finding at `beaf41d5ce`,
+  after the hand-over moved to `package_repair_cargo_hand_over.rs`.
+  The release gate does not run that linter at all
+  (`bin/native-gate-checks.ts`:
+  the container test run and Clippy only).
+
+- The fallback clean's tool window.
+  Where the copied state cannot be moved aside at all (a staging name another writer holds,
+  a directory that cannot be renamed,
+  a repair handed no Git directory),
+  the add cleans it where it stands,
+  and that clean waits under the tool's own 600-second quiet window and 18-minute ceiling,
+  so that path is not inside the add's bound.
+  It is the path the tests keep at
+  `package_repair_prewarm_job_tests` (a staging name another writer holds),
+  and it is rare:
+  every add measured here took the one-rename path or none,
+  which their own records show by holding no `cargo clean` at all.
+  Closing it means giving that clean the add's remaining budget as its own bound,
+  which asks which of the two numbers wins (`src/native/service/wait_ceilings.rs`).
 - A bound on the metadata reads.
   They run under the repair tool's own 600-second window,
   because the fallback where no service answers keeps that window for its tools.

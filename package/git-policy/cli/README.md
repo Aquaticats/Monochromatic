@@ -2225,9 +2225,13 @@ the two tools that rewrite link layouts in place are the commit service's work w
   Where the copy carried the worktree's own build state inside the worktree,
    the add moves that state aside in one rename before it returns and the commit service cleans it,
    so a build you start at once finds no build directory and compiles everything itself:
-   correct, and slower than a build that waits for the service's clean.
+   correct,
+  and slower than a build that waits for the service's clean.
    The worktree's own crates never come back from the repair as fresh artifacts with another checkout's paths.
-  The add's clean runs in a worktree you may already be working in,
+  The clean that still runs inside the add,
+  which is the case only where the copied state cannot be
+   moved aside,
+  runs in a worktree you may already be working in,
    and nothing read afterwards can tell Cargo's own rewrite of the lock from a newer one of yours,
    so the bytes standing there when the clean ends are kept whole under the repository's Git directory,
    in `monochromatic-git-policy-cli-displaced-locks`,
