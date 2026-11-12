@@ -19,8 +19,9 @@
 //! const [write, note, target] = await planWorktreeAwaiting(places, change, entry);
 //! ```
 
-use crate::merge_isolation_carry_layers::{Decision, Layer, Outcome, Side, decide, write_layer_bytes};
+use crate::merge_isolation_carry_layers::{Decision, Layer, Outcome, Side, MODIFY_DELETE, decide, write_layer_bytes};
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath};
+use crate::merge_isolation_carry_permissions::{carries_a_mode_a_person_set, the_mode_with_the_persons_bits};
 use crate::merge_isolation_carry_reads::{file_form_awaiting, raw_bytes_awaiting};
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
 use crate::merge_isolation_changes::Change;
@@ -62,6 +63,21 @@ pub(crate) fn side(change: &Change, after: bool) -> Option<Side> {
     return Some(Side { mode: mode.clone(), oid: oid.clone() });
 }
 
+/// What:
+///  The permission bits the capture read for one worktree entry.
+/// Why:
+///   A record an older release wrote holds none,
+/// and a link has none of its own,
+///  so a write takes Git's mode alone where this answers nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thePermissionsOf = (file) => file.permissions;
+/// ```
+fn the_permissions_of(file: &CapturedFile) -> Option<u32> {
+    return file.permissions;
+}
+
 /// The mode a written path carries when neither side names one.
 pub(crate) fn plain_file_mode() -> String {
     return String::from(PLAIN_FILE_MODE);
@@ -85,8 +101,21 @@ pub(crate) async fn plan_worktree_awaiting(
 ) -> Result<(FileWrite, Note, Option<String>), CarryFailure> {
     let (runner, context, root) = places;
     let layer: Layer = Layer { base: side(change, false), ours: entry.worktree.as_ref().map(side_of_file), theirs: side(change, true) };
+    // A mode the person set at a path the merge deletes is the whole of what the deletion would discard, and the entry rules
+    //  read it as no change at all when the bytes and Git's executable bit are the branch's own: nothing of the merge's stands
+    //  there to take the mode, so their file stays with it and is named (a Kimi K3.1 Pro audit of `0.6.1-alpha.12`, its second
+    //  finding).
+    if !change.exists_after()
+        && let Some(file) = &entry.worktree
+        && carries_a_mode_a_person_set(file.mode.as_str(), file.permissions)
+    {
+        let bytes: Vec<u8> = raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?;
+        return Ok((FileWrite::Bytes(bytes, the_mode_with_the_persons_bits(file.mode.as_str(), file.permissions)), Note::Kept(MODIFY_DELETE), Some(file.blob.clone())));
+    }
     let decision: Decision = decide(runner, entry.path.as_slice(), &layer).await.map_err(CarryFailure::Failed)?;
-    let mode: String = decision.mode.clone().unwrap_or_else(plain_file_mode);
+    // Every bit the person set goes with the bytes this plan writes, because Git's mode records the executable bit alone and the
+    //  entry a write replaces is not there when a path the merge deleted is made again.
+    let mode: String = the_mode_with_the_persons_bits(decision.mode.as_deref().unwrap_or(PLAIN_FILE_MODE), entry.worktree.as_ref().and_then(the_permissions_of));
     return match decision.outcome {
         // The merge's own bytes with a mode of the person's: the layer holds nothing of theirs to merge, but the mode they
         //  set is theirs, and Git's update writes the merge's own.

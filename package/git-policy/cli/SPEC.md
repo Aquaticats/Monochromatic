@@ -4765,7 +4765,20 @@ and "never discard user data"):
   so a file the merge puts where a link stood keeps the mode Git's entry implies.
   A mode at a path the merge deletes keeps the person's side whole and is named with the others,
   because nothing of the merge's stands there to take it
-  (`the_mode_a_deletion_would_leave` in `src/native/merge/merge_isolation_carry_layers.rs`).
+  (`the_mode_a_deletion_would_leave` in `src/native/merge/merge_isolation_carry_layers.rs`,
+  and `plan_worktree_awaiting` in `src/native/merge/merge_isolation_carry_plans.rs` for a mode the capture read).
+  A mode the capture read is every permission bit the entry carried,
+  which Git records only the executable one of,
+  and it is recorded because a path the merge deletes stands empty when the carry writes the person's entry back:
+  the entry that would have given the bits back is gone,
+  so a private file came back world-readable and a `chmod 0600` on a path the merge deletes was dropped
+  (`CapturedFile` in `src/native/merge/merge_isolation_carry_parts.rs`,
+  and `paths_with_a_mode_a_person_set` in `src/native/merge/merge_isolation.rs`,
+  which puts such a path among the paths the merge would discard because `git status` compares the executable bit alone;
+  a checkout that wrote the file under another umask reads as the person's there,
+  which keeps a file rather than lose one;
+  a Kimi K3.1 Pro audit of `0.6.1-alpha.12`,
+  its second finding).
   A layer another program wrote keeps its bytes while the other layer of the same path is still carried.
   Every such finding exits 0:
   the merge is made,
@@ -14706,7 +14719,7 @@ A file written into a taken one after the take checked it is kept rather than re
 and its private name is said.
 The private name is removed only on a proof that nothing can write into the file any more,
 asked in this order:
-a scan of every process this command can read finds none with the file open,
+a scan of every process finds none with the file open,
 which is the proof the commit service's lock removal acts on,
 and then,
 as the last step before the unlink,
@@ -14739,10 +14752,17 @@ the window is the length of those two reads.
 The person would see a program's write into a file that was set aside vanish,
 with the merge's content in the checkout and nothing in the output saying that anything was removed.
 The limit is that removal's:
-a process in another user namespace,
-or one that cannot be read,
-is not seen,
-so a file such a process holds open is removed with its private name.
+a process of this account whose descriptors cannot be read,
+as a program that made itself non-dumpable has,
+may hold the file open,
+so a file it may hold is kept with its private name and named (a Kimi K3.1 Pro audit of `0.6.1-alpha.12`,
+its first finding,
+where a non-dumpable program's write and fsync landed in an unlinked inode).
+A descriptor whose record named the file and could not be identified may be a holder too,
+so it keeps the file as well.
+A process another account owns cannot write into a file of this account's,
+and is the one unread process a removal acts through,
+the limit the commit service's lock removal has always had.
 A scan that was cut at its bound,
 or could not list the processes,
 proves nothing and the file is kept.

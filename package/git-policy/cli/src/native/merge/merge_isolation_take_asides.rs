@@ -30,6 +30,11 @@
 //! ```
 
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
+/// The proof that no program can write into a file whose last name is about to go.
+pub(crate) use crate::merge_isolation_take_asides_proof::ProofNothingCanWrite;
+/// The proof,
+///  asked the way a removal asks it.
+use crate::merge_isolation_take_asides_proof::the_proof_that_nothing_can_write_into;
 use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_carry_parts::Capture;
 use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, the_objects_a_link_hashes_to_awaiting, worktree_path};
@@ -435,10 +440,11 @@ pub fn finish_asides(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], 
 pub async fn finish_asides_awaiting<W: std::io::Write + ?Sized>(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut W) -> Result<(), RecoveryError> {
     let _ = (place, root);
     for entry in taken {
-        // `may_remove_the_aside_awaiting` proves that nothing can write into the file any more;
-        // a file it cannot prove that of is kept where it is,
+        // `may_remove_the_aside_awaiting` proves that nothing can write into the file any more,
+        // and the proof is held while its last name goes: a file it cannot prove that of is kept where it is,
         //  because its private name is then one of that write's only names.
-        if !may_remove_the_aside_awaiting(&place.git, root, entry.path.as_slice(), entry.aside.as_path(), entry.taken, entry.expected.as_str()).await {
+        let Some(proof) = may_remove_the_aside_awaiting(&place.git, root, entry.path.as_slice(), entry.aside.as_path(), entry.taken, entry.expected.as_str()).await
+        else {
             let _noted = out.write_all(
                 format!(
                     "monochromatic-git-policy-cli: {} was written or is still held open after this command checked it, so it is kept \
@@ -449,8 +455,8 @@ pub async fn finish_asides_awaiting<W: std::io::Write + ?Sized>(place: &Recovery
                 .as_bytes(),
             );
             continue;
-        }
-        match std::fs::remove_file(entry.aside.as_path()) {
+        };
+        match proof.remove(entry.aside.as_path()) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(io_failure("removing", entry.aside.as_path(), &error)),
@@ -459,13 +465,10 @@ pub async fn finish_asides_awaiting<W: std::io::Write + ?Sized>(place: &Recovery
     return Ok(());
 }
 
-/// The beginning of a scan's reason for a process whose descriptors were refused,
-/// as opposed to a scan cut at its bound or unable to list the processes.
-const UNREADABLE_PROCESS_REASON: &str = "PID ";
-
 /// What:
-///  Whether nothing can write into a file that was taken aside any more,
+///  The proof that nothing can write into a file that was taken aside any more,
 ///  so removing its private name loses nothing,
+///  held while that name goes,
 ///  and whether its bytes are
 ///  the branch's own form rather than bytes a clean filter hides.
 /// Why:
@@ -482,43 +485,40 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 /// because the
 ///  write can arrive in the instant after the comparison
 /// (a cross-vendor review of the second round).
-/// Two things are
+/// Three things are
 ///  asked instead,
-/// and both must hold:
+/// and all must hold:
 /// the file's identity is the one the take checked,
-/// and a scan of every process
-///  this command can read finds none with that file open.
-/// That is the proof the commit service's lock removal acts on,
-/// with
-///  the same limit:
-/// a process in another user namespace,
-/// or one that cannot be read,
-/// is not seen.
-///  A scan that was cut at its bound,
-/// or could not list the processes,
-/// proves nothing and the file is kept.
+/// the kernel grants a read lease on the file,
+///  which it refuses while any program has it open for writing,
+/// and its bytes are the judged ones.
+///  A file system without leases,
+/// a lease the kernel refuses,
+/// and a scan that saw a holder or proved nothing
+/// all keep the file and its name
+///  (a Kimi K3.1 Pro audit of `0.6.1-alpha.12`,
+/// its first finding,
+/// where a non-dumpable program of this account wrote and fsynced into an unlinked inode).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function mayRemoveTheAside(git, root, path, aside, taken, expected): boolean; // identity unchanged && no readable process has it open && the scan finished && the bytes are the judged ones
+/// function mayRemoveTheAside(git, root, path, aside, taken, expected): ProofNothingCanWrite | undefined; // identity unchanged && the kernel's lease granted && the bytes are the judged ones
 /// ```
-pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path, path: &[u8], aside: &Path, taken: FileIdentity, expected: &str) -> bool {
-    // The scan comes first, and the two looks come after it, as the last steps before the unlink: a writer that still holds
-    //  the file is seen by the scan, a writer that let go has already written so the bytes and the identity then show it, and
-    //  the identity is read because a clean filter can hide changed bytes: an appended line that the filter drops leaves the
-    //  object as it was and the size changed.
+pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path, path: &[u8], aside: &Path, taken: FileIdentity, expected: &str) -> Option<ProofNothingCanWrite> {
+    // The scan comes first and names a holder it can see, then a control may write as a program that kept its descriptor would,
+    //  and then the proof is taken: a writer that still holds the file keeps the kernel from granting a lease to it, a writer
+    //  that let go has already written so the bytes then show it, and the identity is read because a clean filter can hide
+    //  changed bytes: an appended line that the filter drops leaves the object as it was and the size changed.
     let scanned: HolderEvidence = scan_platform_holders_bounded(aside, taken.device, taken.inode);
     if !scanned.holders.is_empty() {
-        return false;
+        return None;
     }
-    for reason in &scanned.partial {
-        if !reason.starts_with(UNREADABLE_PROCESS_REASON) {
-            return false;
-        }
-    }
-    // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("aside-scanned");
-    return are_the_file_form_of_awaiting(git, root, path, aside, expected).await == Some(true);
+    let proof: ProofNothingCanWrite = the_proof_that_nothing_can_write_into(aside, &scanned)?;
+    if are_the_file_form_of_awaiting(git, root, path, aside, expected).await != Some(true) {
+        return None;
+    }
+    return Some(proof);
 }
 
 /// What one last look at a copy and the file at its path came to.
@@ -528,8 +528,9 @@ pub(crate) async fn may_remove_the_aside_awaiting(git: &GitContext, root: &Path,
 /// type CopyRemoval = 'proven' | 'held-open' | 'changed';
 /// ```
 pub(crate) enum CopyRemoval {
-    /// Nothing can write into the copy and the file at its path still holds the bytes that were compared.
-    Proven,
+    /// Nothing can write into the copy and the file at its path still holds the bytes that were compared,
+    /// with the proof held until the copy's name goes.
+    Proven(ProofNothingCanWrite),
     /// A program this command can read still holds the copy open,
     /// or nothing could prove that none does.
     HeldOpen,
@@ -579,13 +580,12 @@ pub(crate) async fn may_remove_the_copy_awaiting(git: &GitContext, root: &Path, 
     if !scanned.holders.is_empty() {
         return CopyRemoval::HeldOpen;
     }
-    for reason in &scanned.partial {
-        if !reason.starts_with(UNREADABLE_PROCESS_REASON) {
-            return CopyRemoval::HeldOpen;
-        }
-    }
     // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("copy-scanned");
+    // The proof is taken before the last looks, so what they read cannot change before the name goes.
+    let Some(proof) = the_proof_that_nothing_can_write_into(aside, &scanned) else {
+        return CopyRemoval::HeldOpen;
+    };
     if file_identity(aside) != Some(taken) {
         return CopyRemoval::Changed;
     }
@@ -598,7 +598,7 @@ pub(crate) async fn may_remove_the_copy_awaiting(git: &GitContext, root: &Path, 
     if raw_bytes_of_awaiting(git, root, the_file).await.as_deref() != Some(held.as_str()) {
         return CopyRemoval::Changed;
     }
-    return CopyRemoval::Proven;
+    return CopyRemoval::Proven(proof);
 }
 
 /// What:

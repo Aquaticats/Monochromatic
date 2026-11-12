@@ -9,7 +9,7 @@ use crate::merge_isolation_carry_parts::CapturedFile;
 /// A captured worktree entry of one path,
 /// as the capture records it.
 fn captured(path: &str, mode: &str) -> CapturedPath {
-    let file: CapturedFile = CapturedFile { mode: String::from(mode), raw: String::from("raw"), blob: String::from("blob") };
+    let file: CapturedFile = CapturedFile { mode: String::from(mode), raw: String::from("raw"), blob: String::from("blob"), permissions: None };
     return CapturedPath { path: path.as_bytes().to_vec(), worktree: Some(file), index: None };
 }
 

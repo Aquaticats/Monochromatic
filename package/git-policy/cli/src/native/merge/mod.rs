@@ -122,6 +122,9 @@ pub mod merge_isolation_recovery_notice;
 /// The index read the way a merge's recovery needs it.
 pub mod merge_isolation_index_reading;
 
+/// The paths a merge that writes or deletes them would discard.
+pub mod merge_isolation_dirty_paths;
+
 /// The private name a take gives a file it moves aside,
 /// and the merge record that name is tied to.
 pub mod merge_isolation_take_aside_names;
@@ -129,6 +132,9 @@ pub mod merge_isolation_take_aside_names;
 /// The take of a worktree file a merge must replace or delete,
 /// and the private names it leaves behind.
 pub mod merge_isolation_take_asides;
+
+/// The proof that no program can write into a file whose last name is about to go.
+pub mod merge_isolation_take_asides_proof;
 
 /// The copies of the person's own bytes a merge keeps beside a path,
 /// and the record of each.

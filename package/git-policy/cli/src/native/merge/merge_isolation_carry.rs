@@ -166,7 +166,7 @@ async fn run_bytes_awaiting(context: &GitContext, root: &Path, arguments: &[OsSt
 /// ```ts
 /// function modeOf(metadata): '120000' | '100755' | '100644';
 /// ```
-fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
+pub(crate) fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -189,10 +189,16 @@ fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
 /// What:
 ///  The bytes the worktree holds at one path:
 /// a file's content,
-/// or a link's target text.
+/// or a link's target text,
+/// with the mode Git records for it and every permission bit a person set on it.
 /// Why:
 ///   These are the bytes written back,
-/// so they are read exactly and never through a filter.
+/// so they are read exactly and never through a filter,
+/// and the permission bits are read beside them because Git records the
+///  executable bit alone:
+/// a capture that kept only that bit gave a `chmod 0600` file back as `0644`
+///  (a Kimi K3.1 Pro audit of `0.6.1-alpha.12`,
+/// its second finding).
 ///  A name that holds a named pipe,
 /// a socket,
 /// a device or a directory holds no bytes a merge can carry,
@@ -202,12 +208,14 @@ fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
 ///  from its type and the bytes are read from a handle that can only be a plain file
 /// (`crate::plain_file`,
 ///  owner's rule "nothing should ever wait forever or indefinitely").
+///  A link carries no permission bits of a person's,
+/// so its own are not read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function bytesAt(location: string): { bytes: Uint8Array; mode: string } | null;
+/// function bytesAt(location: string): { bytes: Uint8Array; mode: string; permissions?: number } | null;
 /// ```
-pub(crate) fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str)>, String> {
+pub(crate) fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str, Option<u32>)>, String> {
     let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -222,7 +230,7 @@ pub(crate) fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str)
             Ok(found) => found,
             Err(error) => return Err(could_not_be_read(location, error)),
         };
-        return Ok(Some((target.as_os_str().as_encoded_bytes().to_vec(), mode)));
+        return Ok(Some((target.as_os_str().as_encoded_bytes().to_vec(), mode, None)));
     }
     // The type is settled before the open and again on the handle the open returns, so a name swapped for a pipe or a device
     //  between the two is refused instead of waited on.
@@ -237,7 +245,32 @@ pub(crate) fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str)
     if let Err(error) = std::io::Read::read_to_end(&mut plain, &mut bytes) {
         return Err(could_not_be_read(location, error));
     }
-    return Ok(Some((bytes, mode)));
+    return Ok(Some((bytes, mode, the_permissions(&metadata))));
+}
+
+/// What:
+///  The permission bits a plain file carries,
+///  or nothing on a platform whose permissions are not these bits.
+/// Why:
+///  A capture keeps them because Git records one bit of a file's mode and a person sets all of them;
+///  the rest of the write's mode comes from the entry a write replaces,
+///  which is gone when the path stands empty.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thePermissions = (metadata) => process.platform === 'win32' ? undefined : metadata.mode & 0o7777;
+/// ```
+fn the_permissions(metadata: &std::fs::Metadata) -> Option<u32> {
+    #[cfg(unix)]
+    {
+        return Some(crate::merge_isolation_carry_permissions::the_permission_bits_of(metadata));
+    }
+    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        return None;
+    }
 }
 
 /// What:
@@ -396,14 +429,14 @@ pub async fn capture_work_awaiting(context: &GitContext, root: &Path, paths: &[V
     for path in paths {
         let location = worktree_path(root, path.as_slice());
         let worktree: Option<CapturedFile> = match bytes_at(location.as_path())? {
-            Some((bytes, mode)) => {
+            Some((bytes, mode, permissions)) => {
                 let raw: String = object_for_awaiting(context, root, path.as_slice(), bytes.as_slice(), false).await?;
                 let blob: String = if mode == SYMBOLIC_LINK_MODE {
                     raw.clone()
                 } else {
                     object_for_awaiting(context, root, path.as_slice(), bytes.as_slice(), true).await?
                 };
-                Some(CapturedFile { mode: String::from(mode), raw, blob })
+                Some(CapturedFile { mode: String::from(mode), raw, blob, permissions })
             }
             None => None,
         };

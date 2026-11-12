@@ -19,6 +19,10 @@ mod git_stop_lock_tests;
 ///  found by device and inode.
 pub mod index_lock_holders;
 
+/// Which account owns one process of the scan,
+///  which tells a holder this account cannot read from another account's.
+pub mod index_lock_holders_accounts;
+
 /// Parsers of `lsof -F pcDi` records and Restart Manager lines,
 ///  matched by device and inode.
 pub mod index_lock_holder_parsers;

@@ -40,7 +40,7 @@ use serde_json::{Map, Value};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CapturedFile = { mode: string; raw: string; blob: string };
+/// type CapturedFile = { mode: string; raw: string; blob: string; permissions?: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CapturedFile {
@@ -54,6 +54,10 @@ pub struct CapturedFile {
     /// The object Git records for the file at its path,
     /// with the path's clean filters and line endings applied.
     pub blob: String,
+    /// Every permission bit the entry carried when it was read,
+    /// which Git records only the executable one of,
+    /// and nothing for a link or a record an older release wrote.
+    pub permissions: Option<u32>,
 }
 
 /// What:
@@ -152,6 +156,21 @@ pub struct Slot {
 }
 
 /// What:
+///  The permission bits a record's text names.
+/// Why:
+///   A record an older release wrote holds no bits,
+/// and a text that is not a number names none either,
+///  so a capture that cannot read them keeps Git's mode alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const permissionsOf = (text) => { const bits = Number.parseInt(text, 10); return Number.isSafeInteger(bits) ? bits >>> 0 : undefined; };
+/// ```
+fn permissions_of(text: &str) -> Option<u32> {
+    return text.parse::<u32>().ok();
+}
+
+/// What:
 ///  Whether one object is already a slot of this capture.
 /// Why:
 ///   Two layers of one path can name the same object,
@@ -203,13 +222,16 @@ pub fn slots(paths: &[CapturedPath]) -> Vec<Slot> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const fileJson = (file: CapturedFile) => ({ mode: file.mode, raw: file.raw, blob: file.blob });
+/// const fileJson = (file: CapturedFile) => ({ mode: file.mode, raw: file.raw, blob: file.blob, permissions: file.permissions });
 /// ```
 fn file_json(file: &CapturedFile) -> Value {
     let mut map: Map<String, Value> = Map::new();
     map.insert(String::from("mode"), Value::String(file.mode.clone()));
     map.insert(String::from("raw"), Value::String(file.raw.clone()));
     map.insert(String::from("blob"), Value::String(file.blob.clone()));
+    if let Some(permissions) = file.permissions {
+        map.insert(String::from("permissions"), Value::String(permissions.to_string()));
+    }
     return Value::Object(map);
 }
 
@@ -301,6 +323,7 @@ pub fn decode(value: &Value) -> Option<Capture> {
                 mode: String::from(field(file, "mode")?),
                 raw: String::from(field(file, "raw")?),
                 blob: String::from(field(file, "blob")?),
+                permissions: field(file, "permissions").and_then(permissions_of),
             }),
             None => None,
         };
