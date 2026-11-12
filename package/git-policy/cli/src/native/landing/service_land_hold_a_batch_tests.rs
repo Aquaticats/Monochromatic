@@ -191,6 +191,6 @@ fn a_dropped_batch_does_not_remove_a_scratch_reference_another_command_wrote() {
     let still: String = git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]);
     assert_eq!(still, other, "the reference another command wrote is not removed");
     git(repo.as_path(), &["prune", "--expire=now"]);
-    assert_eq!(git_output(repo.as_path(), &["cat-file", "-e", other.as_str()]).status.success(), true, "the other command's commit is still in the object store after a prune");
+    assert!(git_output(repo.as_path(), &["cat-file", "-e", other.as_str()]).status.success(), "the other command's commit is still in the object store after a prune");
     remove(root.as_path());
 }
