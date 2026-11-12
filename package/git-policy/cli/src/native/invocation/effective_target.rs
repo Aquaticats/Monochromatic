@@ -236,6 +236,28 @@ pub fn cargo_build_script_output_dir(
     return None;
 }
 
+/// One name an invocation's environment can give Cargo's build directory,
+///  and whether Cargo reads that name itself.
+///  A `struct` is a record with named fields.
+/// Why:
+///   A relative value under a name Cargo reads describes a directory Cargo resolves against a base
+///  this invocation cannot know, so a later name does not describe the directory Cargo uses;
+///  a relative value under a name Cargo never reads describes no directory at all,
+///  so the later names are still worth asking
+///  (`cargo_build_dir`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type BuildDirectoryVariable = { name: string; readByCargo: boolean };
+/// ```
+struct BuildDirectoryVariable {
+    /// The environment variable's name.
+    name: &'static str,
+    /// Whether Cargo itself reads this name,
+    ///  which decides what a relative value under it means.
+    read_by_cargo: bool,
+}
+
 /// The names an invocation's environment can give Cargo's build directory,
 ///  in the order the wrapper asks them.
 /// Why:
@@ -244,13 +266,17 @@ pub fn cargo_build_script_output_dir(
 ///  setting;
 /// and `build.build-dir` defaults to `build.target-dir`,
 ///  which `CARGO_TARGET_DIR` names.
+///  Cargo reads the last two and never the first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const CARGO_BUILD_DIRECTORY_VARIABLES = ['CARGO_BUILD_DIR', 'CARGO_BUILD_BUILD_DIR', 'CARGO_TARGET_DIR'];
+/// const CARGO_BUILD_DIRECTORY_VARIABLES = [{ name: 'CARGO_BUILD_DIR', readByCargo: false }, /* ... */];
 /// ```
-const CARGO_BUILD_DIRECTORY_VARIABLES: [&str; 3] =
-    ["CARGO_BUILD_DIR", "CARGO_BUILD_BUILD_DIR", "CARGO_TARGET_DIR"];
+const CARGO_BUILD_DIRECTORY_VARIABLES: [BuildDirectoryVariable; 3] = [
+    BuildDirectoryVariable { name: "CARGO_BUILD_DIR", read_by_cargo: false },
+    BuildDirectoryVariable { name: "CARGO_BUILD_BUILD_DIR", read_by_cargo: true },
+    BuildDirectoryVariable { name: "CARGO_TARGET_DIR", read_by_cargo: true },
+];
 
 /// What:
 ///  Cargo's build directory as the invocation's environment names it:
@@ -279,6 +305,11 @@ const CARGO_BUILD_DIRECTORY_VARIABLES: [&str; 3] =
 ///  and a configuration value against the directory of the file that set it.
 ///  A Git process a build script starts works in that script's package directory,
 ///  so exempting a guess could cover a repository nobody named.
+///  What a relative value leaves behind differs by the name that carried it:
+///  under a name Cargo never reads it leaves the later names to be asked,
+///  because it cannot describe or override the directory Cargo uses;
+///  under a name Cargo reads it ends the question,
+///  because that setting is what Cargo build there and no later name describes it.
 ///  The environment is injected so tests never read the real one.
 /// Limit:
 ///  The exemption covers every repository under the build directory,
@@ -292,8 +323,8 @@ const CARGO_BUILD_DIRECTORY_VARIABLES: [&str; 3] =
 pub fn cargo_build_dir(
     environment: &[(OsString, OsString)],
 ) -> Option<ToolCacheDirectory> {
-    // `for named_by in CARGO_BUILD_DIRECTORY_VARIABLES` asks each name in the order the answer ranks them.
-    for named_by in CARGO_BUILD_DIRECTORY_VARIABLES {
+    // `for variable in CARGO_BUILD_DIRECTORY_VARIABLES` asks each name in the order the answer ranks them.
+    for variable in CARGO_BUILD_DIRECTORY_VARIABLES {
         // What: `let Some(value) = ... else { continue; };` moves on when this name is absent.
         // Why:  The next name still describes the same directory.
         //
@@ -301,7 +332,7 @@ pub fn cargo_build_dir(
         // ```ts
         // const value = environment.get(name); if (value === undefined) continue;
         // ```
-        let Some(value) = environment_value(environment, named_by) else {
+        let Some(value) = environment_value(environment, variable.name) else {
             continue;
         };
         // An empty value is unset: an empty path would exempt whatever the current directory is.
@@ -309,18 +340,22 @@ pub fn cargo_build_dir(
             continue;
         }
         let path: PathBuf = PathBuf::from(value);
-        // What: `path.is_absolute()` decides whether the value can be used at all.
+        if path.is_absolute() {
+            return Some(ToolCacheDirectory { path, named_by: variable.name });
+        }
+        // What: `if !absolute` decides what a relative value leaves of the question.
         // Why:  Cargo resolves a relative value against its own base, which this invocation does not know,
-        //       so a guess could exempt a directory nobody named.
+        //       so a guess could exempt a directory nobody named. Only the name decides how much is left:
+        //       a name Cargo never reads cannot describe the directory Cargo uses, so the next name is asked;
+        //       a name Cargo reads is a setting Cargo build with, so no later name describes that directory.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // if (!path.isAbsolute()) return undefined;
+        // if (!path.isAbsolute()) { if (readByCargo) return undefined; else continue; }
         // ```
-        if !path.is_absolute() {
+        if variable.read_by_cargo {
             return None;
         }
-        return Some(ToolCacheDirectory { path, named_by });
     }
     return None;
 }

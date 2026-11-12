@@ -214,6 +214,12 @@ fn cargo_build_script_directory_is_named_by_out_dir() {
 ///  and the target directory that setting defaults to comes last;
 ///  an empty value is unset,
 ///  and a relative value names nothing because Cargo resolves one against its own directory.
+///  What a relative value leaves behind differs by the name that carried it:
+///  `CARGO_BUILD_DIR` is a name Cargo never reads,
+///  so a relative value there describes nothing Cargo uses and the later names are still asked;
+///  the two names Cargo reads are the settings Cargo builds with,
+///  so a relative value there leaves the build directory unknown
+///  and no later name describes it.
 #[test]
 fn cargo_build_directory_follows_the_variable_order() {
     // A repository outside a Cargo build names no build directory, and the build-script directory is not it.
@@ -243,11 +249,32 @@ fn cargo_build_directory_follows_the_variable_order() {
         ),
         named("/cargo-build", "CARGO_BUILD_BUILD_DIR")
     );
-    // A relative value names nothing, whatever the names after it hold:
-    //  Cargo resolves one against a directory a Git process started by a build script does not work in.
+    // A relative value names nothing, because Cargo resolves one against a directory a Git process
+    //  started by a build script does not work in.
     assert_eq!(cargo_build_dir(environment(&[("CARGO_TARGET_DIR", "target")]).as_slice()), None);
+    // The owner's name is not one Cargo reads, so its unusable value cannot suppress the names that are:
+    //  a build step that exports it must not lose the absolute directory Cargo really uses.
     assert_eq!(
         cargo_build_dir(environment(&[("CARGO_BUILD_DIR", "build"), ("CARGO_TARGET_DIR", "/target")]).as_slice()),
+        named("/target", "CARGO_TARGET_DIR")
+    );
+    assert_eq!(
+        cargo_build_dir(
+            environment(&[
+                ("CARGO_BUILD_DIR", "build"),
+                ("CARGO_BUILD_BUILD_DIR", "/cargo-build"),
+                ("CARGO_TARGET_DIR", "/target"),
+            ])
+            .as_slice()
+        ),
+        named("/cargo-build", "CARGO_BUILD_BUILD_DIR")
+    );
+    // The names Cargo reads are the settings Cargo builds with, so a relative value there ends the
+    //  question: the target directory `build.build-dir` would otherwise default to is not the one Cargo uses.
+    assert_eq!(
+        cargo_build_dir(
+            environment(&[("CARGO_BUILD_BUILD_DIR", "cargo-build"), ("CARGO_TARGET_DIR", "/target")]).as_slice()
+        ),
         None
     );
     // The four tool directories stand together, each from its own variable,
