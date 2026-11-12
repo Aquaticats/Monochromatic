@@ -214,6 +214,94 @@ move its durable facts to their canonical doc and delete it from this page.
   briefed with what is already known and in work,
   and with the rule on destructive commands as the owner restated it today.
 
+#### The fix for issue 6287 is finished, merges cleanly, and goes out as 0.6.1-alpha.15 (2026-11-12T11:18:42-05:00)
+
+The agent of round 284 ended at 11:18:05 after 217 turns,
+with seven commits on `fix/git-policy-cli-descriptor-scan-never-reads-a-record-whose-size-another-process-decides`,
+tip `564011eb5e`,
+on the remote.
+Its report,
+read whole by this session:
+`~/temp/agent/final-reports-2026-11-12T1112/descriptor-scan.md`.
+
+- The fix:
+  one function every scan goes through (`src/native/process/descriptor_record.rs`).
+  It reads a descriptor's link text first;
+  a text that is not a path,
+  and `anon_inode:`,
+  are answered without opening the record;
+  a record that is opened is taken up to 4 KiB;
+  the scan has a ceiling of two seconds,
+  and a scan that stops there says it did not finish,
+  which every caller already reads as "may be held".
+  Six other whole-file reads under `/proc` are bounded.
+- Why reading the link text cannot wait:
+  `proc_pid_readlink` calls `d_path`,
+  which answers from the directory cache with no call into the target's file system;
+  cited from the kernel's source at tag `v7.3`,
+  each link confirmed in a browser.
+  Not shown by a run against a stalled FUSE mount:
+  the package has no such fixture.
+- Measured with a fixture of its own:
+  a record costs about 144 bytes per watch and the kernel charges the next power of two above it;
+  256,000 watches made one read cost 1,281 ms and 67 MB.
+- Measured on this machine against the IDE's watcher,
+  a merge with `index.lock` held eight seconds by the agent's own process:
+  the installed alpha.13,
+  53.75 s with a scope peak of 887,349,248 bytes,
+  and a repeat still waiting in `inotify_show_fdinfo` after 140 s;
+  the fix,
+  7.72 s with a peak of 6 to 34 MB.
+  So the record needs the kernel's largest buffer,
+  and the 4G floor of the workaround was enough.
+- Two of the package's own controls went from 163 s and 171 s to 0.14 s and 0.27 s.
+- A fact that explains more than the kill:
+  the kernel prints an inotify descriptor's record under the group's mutex,
+  the one the holder's own add and remove of watches take.
+  Readers of that record wait on each other,
+  and the IDE's watcher waits on them.
+  Every wrapper command that scanned for a holder was in that queue.
+- Left by the author for a reviewer:
+  a descriptor whose link text is a path still has its record read
+  (no file type reachable through a path prints a list,
+  and the 4 KiB take bounds what the wrapper holds,
+  not what the kernel builds);
+  tests were shown failing by restoring the defect,
+  not by session order;
+  the container gate and the whole suite were not run.
+
+The trial merge into `main` at 11:18:29 was clean.
+It is merged with `Closes #6287` and released as 0.6.1-alpha.15 without waiting for a review
+(alphas do not wait for one;
+this is the jam the owner asked to be fixed first).
+A qwen4 review follows through the package's launcher.
+
+After the install,
+the check at the user boundary,
+with its control first:
+`readlink` shows the watcher still holds its inotify descriptor;
+then a merge with a held `index.lock`,
+in a fixture with its own `HOME` and `XDG_RUNTIME_DIR`,
+in a scope capped at 512 MB,
+with the installed alpha.15.
+Then the workaround leaves the rules every brief carries.
+
+A hazard seen in passing,
+in the scratch listing of landed worktrees
+(`~/temp/agent/pi-runs/remove-landed-agent-worktrees.ts`,
+run without `--remove`,
+log `~/temp/agent/gate/list-landed-worktrees-2026-11-12T1110.log`):
+of ninety-six agent worktrees it calls two safe,
+and one of the two is `pi-kimi-audit-alpha-14-discarding-commands`,
+an audit that had been started two minutes earlier and whose unit was not up yet when it looked.
+Its `--remove` was not run and is not to be run from that list.
+The others are kept for uncommitted paths,
+or for a handful of ignored files that are local tool configuration,
+which that script cannot tell from a person's.
+So no space comes from there;
+free space is watched,
+and the build trees are the cleaner's.
+
 #### The slow commits are one child, `git for-each-ref`, that real Git answers in 15 to 37 ms (2026-11-12T11:15:55-05:00)
 
 The digest of the two commit-path runs:
