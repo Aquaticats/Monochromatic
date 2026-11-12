@@ -135,6 +135,53 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The owner is away for eight hours, and the first commits on 0.6.1-alpha.11 (2026-11-11T20:05:00-05:00)
+
+The owner, at about 20:03: "I'll be away for 8h, you keep working. Make decisions I'd definitely approve (based on my apparent taste) yourself."
+And, on reading that the first commit on alpha.11 spent 17.6 s starting the new release's commit service:
+"Also, I believe stopping the old commit service can be made async."
+
+`native:install -- 0.6.1-alpha.11` finished at 20:02:14:
+`monochromatic-git-policy-cli 0.6.1-alpha.11, shadowing git at /usr/bin/git`, the lock committed as
+`chore(toolchain): monochromatic-git-policy-cli 0.6.1-alpha.11` (only the wrapper's entry and the digest moved).
+The machine at the time: load average about 121, `/proc/pressure/io` `some avg10=58.91`, `full avg10=36.66`
+(the gate's container build, the install and several dozen agents writing).
+
+Three commits on alpha.11 in the main checkout, each one file:
+
+- The install's sample commit, 28,662 ms. Its timing line: `provisionMs` 17,621 ("Starting the commit service..."),
+  `submitMs` 6,937 (`reachMs` 1,746, `answerWaitMs` 5,190), `prepareMs` 3,580 (index copy 2,395, index stat check 777),
+  `buildMs` 266 with one "shadow pool refused".
+- The handover commit started 20:02:58 failed at 20:04:15 with nothing committed:
+  "the `git commit` this commit runs in its scratch repository was stopped after 21 seconds, the most a commit whose message came
+  with the command may take (16 seconds, three times the slowest `git commit` step this repository's commit timing log holds)".
+  The scratch child was in uninterruptible sleep (state `D`), waiting for the disk, and the line about `SIGKILL` printed three times.
+  The ceiling was 16,332 ms, taken from a timing log of 52 lines.
+- The same command again, 20:04:39 to 20:04:50, committed (`c9d2b92aaf`).
+
+One failed commit in three is against "Commits should never fail."
+alpha.11 stays installed: the failure says what happened, the retry lands, and going back would give up the 25 merged fixes.
+This is the coordinator's decision under the owner's delegation; the count of failed commits on alpha.11 is read from the timing log
+at each hourly pass, and a rate that makes agents lose work is the reason to reinstall 0.6.1-alpha.10.
+
+Pushes on alpha.11: the lock commit `cda4585cf2` and the handover commit `c9d2b92aaf` were both on the remote at 20:07:00
+with no hand push, where alpha.10's `d9580168f5` had sat unpushed for three and a half minutes.
+Two commits are a small sample; the hourly pass looks again.
+
+Round 246, both from `main`:
+
+- `fix/git-policy-cli-commit-does-not-fail-when-its-scratch-commit-stalls`:
+  a scratch step that passes its ceiling while it waits for the disk is slow, not stuck, and the commit goes on;
+  the ceiling gets a floor or a wider memory than a freshly rotated log; the `SIGKILL` line is said once.
+- `perf/git-policy-cli-first-commit-after-an-install-does-not-wait-for-the-old-service`:
+  split the 17.6 s by its steps, then take off the commit's wait what need not be on it,
+  the old service's stop first (the owner's suggestion, stated in the brief as the project's direction to be checked by measurement).
+
+Also: every Git command printed `mpm-shadow`'s warning that the machine's global lock still named 0.6.1-alpha.10.
+Its printed remedy, `mpm-shadow update -g cargo:monochromatic-git-policy-cli`, again did not run as printed
+(`bash: command not found: mpm-shadow`), so the installed binary was run by its full path, as after alpha.9.
+The fix that puts `mpm-shadow` on `PATH` (`fix/mpm-shadow-printed-global-lock-remedy-runs-as-printed`) is not in the installed `mpm-shadow`.
+
 ### 0.6.1-alpha.11 dispatched, and the third cull pass (2026-11-11T19:51:30-05:00)
 
 The integration branch `integrate/git-policy-cli-jam-fixes-after-alpha-9` was fast-forwarded to pass 14's tip `e33452755e`
