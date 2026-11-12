@@ -1763,6 +1763,50 @@ fn a_commit_nothing_answers_states_the_bound_that_ran_out() {
 }
 
 /// What:
+///  A commit whose session bus accepts the connection and answers nothing says so,
+///  with the time its one exchange was given,
+///  and never that this computer cannot start the service on demand.
+/// Why:
+///  This is the shape three of the seven stopped records of 2026-11-12 have:
+///  `provisionMs` of twenty seconds,
+///  `reachMs` and `sends` at zero,
+///  and no service ever greeted,
+///  while the person read that their computer cannot start the commit service on demand
+///  and the record said `unidentified`.
+///  The bus here is a listener that accepts and says nothing,
+///  which is what a stopped or overloaded manager looks like from outside.
+#[test]
+fn a_commit_whose_session_bus_answers_nothing_states_the_bound_that_ran_out() {
+    use std::os::unix::net::UnixListener;
+    let fixture: Fixture = fixture("timing-manager-silent");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-manager-silent-{}", std::process::id());
+    let runtime: PathBuf = runtime_for(name.as_str());
+    std::fs::create_dir_all(runtime.as_path()).expect("the runtime directory");
+    let _silent: UnixListener = UnixListener::bind(runtime.join("bus"))
+        .expect("a session bus that accepts nothing and answers nothing");
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let served = commit_a(&fixture, &repo, runtime.as_path());
+    let stderr: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
+    println!("COMMIT WITHOUT AN ANSWER FROM THE MANAGER: {stderr}");
+    assert_eq!(served.code, Some(1), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed: {stderr}");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the stopped commit wrote no record") });
+    println!("TIMING RECORD (manager answers nothing): {record}");
+    assert_eq!(record["outcome"], "stopped", "{record}");
+    assert_eq!(record["sends"], 0, "no request was ever written: {record}");
+    assert_eq!(record["reachMs"], 0, "the client never reached a service: {record}");
+    assert!(number(record, "provisionMs") >= 19_000, "the record states the exchange that ran out: {record}");
+    assert_eq!(record["stop"]["kind"], "client-failure", "{record}");
+    assert_eq!(record["stop"]["reason"], "manager-did-not-answer", "{record}");
+    assert!(stderr.contains("did not answer"), "the person is told what happened: {stderr}");
+    assert!(stderr.contains("20 seconds"), "the words name the time one exchange is given: {stderr}");
+    assert!(!stderr.contains("cannot start the commit service on demand"), "a busy manager is not an absent one: {stderr}");
+    remove_settled(&fixture);
+}
+
+/// What:
 ///  A commit the person stops says the signal and the process that sent it,
 ///  so a record tells a keyboard's interrupt from another program's own bound.
 /// Why:
