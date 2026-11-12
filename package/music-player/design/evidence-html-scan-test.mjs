@@ -1,4 +1,7 @@
-import { hasTagAttribute } from './evidence-html-scan.mjs';
+import {
+  hasExactlyOneTagOpening,
+  hasTagAttribute
+} from './evidence-html-scan.mjs';
 
 // The review refuses to pass when a tag can load something from outside the document, so a scan that misses one shape
 // admits an offline review that reaches the network, and one that reports a shape the document does not carry blocks a
@@ -33,7 +36,10 @@ function imageTagLoadsRemoteSource({ text }) {
     text,
     tagName: 'img',
     attributeName: 'src',
-    valuePrefixes: ['="http:', '="https:'],
+    valuePrefixes: [
+      '="http:',
+      '="https:'
+    ],
     ignoreAsciiCase: true
   });
 }
@@ -49,7 +55,11 @@ function scriptTagMentionsSource({ text }) {
   });
 }
 
-function expectFinding({ scan, text, expected }) {
+function expectFinding({
+  scan,
+  text,
+  expected
+}) {
   const actual = scan({ text });
   if (actual !== expected) {
     throw new Error(`${scan.name} returned ${String(actual)} for ${JSON.stringify(text)}, expected ${String(expected)}.`);
@@ -57,36 +67,100 @@ function expectFinding({ scan, text, expected }) {
 }
 
 // Positive control: every shape is seen when it is present before any absence is trusted.
-expectFinding({ scan: scriptTagLoadsSource, text: '<script src="app.js"></script>', expected: true });
-expectFinding({ scan: linkTagLoadsSource, text: '<link rel="stylesheet" href="print.css">', expected: true });
+expectFinding({
+  scan: scriptTagLoadsSource,
+  text: '<script src="app.js"></script>',
+  expected: true
+});
+expectFinding({
+  scan: linkTagLoadsSource,
+  text: '<link rel="stylesheet" href="print.css">',
+  expected: true
+});
 expectFinding({
   scan: imageTagLoadsRemoteSource,
   text: '<img src="https://example.test/a.png">',
   expected: true
 });
-expectFinding({ scan: scriptTagMentionsSource, text: '<script src>', expected: true });
+expectFinding({
+  scan: scriptTagMentionsSource,
+  text: '<script src>',
+  expected: true
+});
 
 // The tag name must end at a boundary, so a longer tag name is not this tag.
-expectFinding({ scan: scriptTagLoadsSource, text: '<scripted src="app.js">', expected: false });
-expectFinding({ scan: linkTagLoadsSource, text: '<linkhref="print.css">', expected: false });
-expectFinding({ scan: imageTagLoadsRemoteSource, text: '<imgx src="https://example.test/a.png">', expected: false });
+expectFinding({
+  scan: scriptTagLoadsSource,
+  text: '<scripted src="app.js">',
+  expected: false
+});
+expectFinding({
+  scan: linkTagLoadsSource,
+  text: '<linkhref="print.css">',
+  expected: false
+});
+expectFinding({
+  scan: imageTagLoadsRemoteSource,
+  text: '<imgx src="https://example.test/a.png">',
+  expected: false
+});
 
 // The boundary in the patterns is a word boundary, not a name boundary: the hyphen in a `data-` attribute is not a
 // word character, so `data-src=` still carries a `\bsrc=`. A word character before the name does suppress it.
-expectFinding({ scan: scriptTagLoadsSource, text: '<script data-src="app.js">', expected: true });
-expectFinding({ scan: linkTagLoadsSource, text: '<link data-href="print.css">', expected: true });
-expectFinding({ scan: imageTagLoadsRemoteSource, text: '<img data-src="https://example.test/a.png">', expected: true });
-expectFinding({ scan: scriptTagLoadsSource, text: '<script xsrc="app.js">', expected: false });
-expectFinding({ scan: scriptTagMentionsSource, text: '<script srcx="app.js">', expected: false });
+expectFinding({
+  scan: scriptTagLoadsSource,
+  text: '<script data-src="app.js">',
+  expected: true
+});
+expectFinding({
+  scan: linkTagLoadsSource,
+  text: '<link data-href="print.css">',
+  expected: true
+});
+expectFinding({
+  scan: imageTagLoadsRemoteSource,
+  text: '<img data-src="https://example.test/a.png">',
+  expected: true
+});
+expectFinding({
+  scan: scriptTagLoadsSource,
+  text: '<script xsrc="app.js">',
+  expected: false
+});
+expectFinding({
+  scan: scriptTagMentionsSource,
+  text: '<script srcx="app.js">',
+  expected: false
+});
 
 // The scan folds ASCII case the way the `i` flag did, in the tag name, the attribute name and the URL scheme.
-expectFinding({ scan: scriptTagLoadsSource, text: '<SCRIPT SRC="app.js"></SCRIPT>', expected: true });
-expectFinding({ scan: linkTagLoadsSource, text: '<link HREF="print.css">', expected: true });
-expectFinding({ scan: imageTagLoadsRemoteSource, text: '<IMG SRC="HTTPS://example.test/a.png">', expected: true });
+expectFinding({
+  scan: scriptTagLoadsSource,
+  text: '<SCRIPT SRC="app.js"></SCRIPT>',
+  expected: true
+});
+expectFinding({
+  scan: linkTagLoadsSource,
+  text: '<link HREF="print.css">',
+  expected: true
+});
+expectFinding({
+  scan: imageTagLoadsRemoteSource,
+  text: '<IMG SRC="HTTPS://example.test/a.png">',
+  expected: true
+});
 
 // A newline or a tab inside the tag body is whitespace like any other, so the attribute is still found.
-expectFinding({ scan: scriptTagLoadsSource, text: '<script\n  src="app.js"\n></script>', expected: true });
-expectFinding({ scan: scriptTagMentionsSource, text: '<script\tsrc=app.js>', expected: true });
+expectFinding({
+  scan: scriptTagLoadsSource,
+  text: '<script\n  src="app.js"\n></script>',
+  expected: true
+});
+expectFinding({
+  scan: scriptTagMentionsSource,
+  text: '<script\tsrc=app.js>',
+  expected: true
+});
 
 // The tag body ends at the first `>`, which is where the pattern's `[^>]*` run ended: an attribute in the next tag is
 // not this tag's.
@@ -95,7 +169,11 @@ expectFinding({
   text: '<script>inline(' + ') > 0</script><script src="app.js">',
   expected: true
 });
-expectFinding({ scan: scriptTagLoadsSource, text: '<script>inline()</script>', expected: false });
+expectFinding({
+  scan: scriptTagLoadsSource,
+  text: '<script>inline()</script>',
+  expected: false
+});
 expectFinding({
   scan: scriptTagLoadsSource,
   text: '<div data-x="<script src=1>">',
@@ -121,12 +199,139 @@ expectFinding({
 });
 
 // A bare attribute name is bounded on the right too, so `src=` is a mention and `srcx` is not.
-expectFinding({ scan: scriptTagMentionsSource, text: '<script src="app.js">', expected: true });
-expectFinding({ scan: scriptTagMentionsSource, text: '<script data-src>', expected: true });
-expectFinding({ scan: scriptTagMentionsSource, text: '<script data-srcx>', expected: false });
+expectFinding({
+  scan: scriptTagMentionsSource,
+  text: '<script src="app.js">',
+  expected: true
+});
+expectFinding({
+  scan: scriptTagMentionsSource,
+  text: '<script data-src>',
+  expected: true
+});
+expectFinding({
+  scan: scriptTagMentionsSource,
+  text: '<script data-srcx>',
+  expected: false
+});
 
 // A document that never closes the tag leaves the body open to its end, as the pattern's `[^>]*` run did.
-expectFinding({ scan: scriptTagLoadsSource, text: '<script src="app.js"', expected: true });
-expectFinding({ scan: linkTagLoadsSource, text: '<link rel="stylesheet"', expected: false });
+expectFinding({
+  scan: scriptTagLoadsSource,
+  text: '<script src="app.js"',
+  expected: true
+});
+expectFinding({
+  scan: linkTagLoadsSource,
+  text: '<link rel="stylesheet"',
+  expected: false
+});
 
-console.log('Evidence HTML scan: tag attributes keep their tag body, word boundaries, ASCII case folding and value prefixes.');
+// The review asks each page for one form and one inline script, which the removed patterns answered with
+// `(html.match(/<form\b/g) ?? []).length === 1` and its case-folded `<script\b` sibling.
+function expectSingleOpening({
+  text,
+  tagName,
+  ignoreAsciiCase,
+  expected
+}) {
+  const actual = hasExactlyOneTagOpening({
+    text,
+    tagName,
+    ignoreAsciiCase
+  });
+  if (actual !== expected) {
+    throw new Error(
+      `hasExactlyOneTagOpening returned ${String(actual)} for ${JSON.stringify(text)} and ${tagName},`
+        + ` expected ${String(expected)}.`
+    );
+  }
+}
+
+// Positive control: one opening is one opening.
+expectSingleOpening({
+  text: '<form id="review-form"></form>',
+  tagName: 'form',
+  ignoreAsciiCase: false,
+  expected: true
+});
+expectSingleOpening({
+  text: '<script src="app.js"></script>',
+  tagName: 'script',
+  ignoreAsciiCase: true,
+  expected: true
+});
+
+// Closing tags are not openings, and a longer tag name is not this tag.
+expectSingleOpening({
+  text: '</form>',
+  tagName: 'form',
+  ignoreAsciiCase: false,
+  expected: false
+});
+expectSingleOpening({
+  text: '<formx id="a">',
+  tagName: 'form',
+  ignoreAsciiCase: false,
+  expected: false
+});
+
+// Two openings are not one, whether they nest or sit side by side.
+expectSingleOpening({
+  text: '<form id="a"><form id="b">',
+  tagName: 'form',
+  ignoreAsciiCase: false,
+  expected: false
+});
+expectSingleOpening({
+  text: '<script></script><script src="app.js"></script>',
+  tagName: 'script',
+  ignoreAsciiCase: true,
+  expected: false
+});
+
+// A page with no opening of that tag holds none.
+expectSingleOpening({
+  text: '<div></div>',
+  tagName: 'form',
+  ignoreAsciiCase: false,
+  expected: false
+});
+expectSingleOpening({
+  text: '',
+  tagName: 'form',
+  ignoreAsciiCase: false,
+  expected: false
+});
+
+// Case folding is the caller's choice: the filename review counts lowercase `<form` only, the scan viewer folds.
+expectSingleOpening({
+  text: '<FORM>',
+  tagName: 'form',
+  ignoreAsciiCase: false,
+  expected: false
+});
+expectSingleOpening({
+  text: '<FORM>',
+  tagName: 'form',
+  ignoreAsciiCase: true,
+  expected: true
+});
+
+// The opening is recognised without a following space and in the middle of a document.
+expectSingleOpening({
+  text: '<form>',
+  tagName: 'form',
+  ignoreAsciiCase: false,
+  expected: true
+});
+expectSingleOpening({
+  text: '<body><form id="a">',
+  tagName: 'form',
+  ignoreAsciiCase: false,
+  expected: true
+});
+
+console.log(
+  'Evidence HTML scan: tag attributes keep their tag body and boundaries, and tag openings are counted with boundaries and the requested case folding.'
+);

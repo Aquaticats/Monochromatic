@@ -5,7 +5,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { containsAnyLiteral, isSearchFilenameCaptureName } from './evidence-text-scan.mjs';
-import { hasTagAttribute } from './evidence-html-scan.mjs';
+import { hasExactlyOneTagOpening, hasTagAttribute } from './evidence-html-scan.mjs';
 
 //region Provenance, only committed sanitized images enter the offline review
 const root = process.cwd();
@@ -287,7 +287,7 @@ if (command === 'build') {
       valuePrefixes: ['="http:', '="https:'],
       ignoreAsciiCase: true
     })
-    || ((html.match(/<form\b/g) ?? []).length !== 1)) {
+    || !hasExactlyOneTagOpening({ text: html, tagName: 'form', ignoreAsciiCase: false })) {
     throw new Error('Filename review is not a self-contained evidence-only form with optional observations.');
   }
   if (/<input\b[^>]*\btype="radio"|name="placement"|name="visibility"|data\.get\('(placement|visibility)'\)|<textarea\b(?:[^"'<>]|"[^"]*"|'[^']*')*?\srequired(?:\s|=|>)/i.test(html)) {

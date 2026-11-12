@@ -12,7 +12,10 @@
 // (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`). A `.ts` sibling of a copied builder cannot load there.
 // `doc/troubleshooting/node-type-stripping-under-node-modules.md` records the probe.
 
-import { matchesAtWithin, findWithin } from './evidence-text-scan.mjs';
+import {
+  matchesAtWithin,
+  findWithin
+} from './evidence-text-scan.mjs';
 
 //region Character classes
 
@@ -35,21 +38,65 @@ function isAsciiWordCharacter({ character }) {
 
 //region Tag bodies
 
+// Position of the next `<tagName` whose name ends at a word boundary, or -1 when the document holds no such opening.
+//
+// `<tag\b` is the shape every scan here starts from: a longer tag name such as `<scripted` is a different element.
+function findTagOpening({
+  text,
+  tagOpen,
+  from,
+  ignoreAsciiCase
+}) {
+  for (let searchFrom = from; searchFrom < text.length;) {
+    const tagAt = findWithin({
+      haystack: text,
+      needle: tagOpen,
+      from: searchFrom,
+      to: text.length,
+      ignoreAsciiCase
+    });
+    if (tagAt === (-1))
+      return -1;
+    const afterTagName = tagAt + tagOpen.length;
+    if (!isAsciiWordCharacter({ character: text.charAt(afterTagName) }))
+      return tagAt;
+    searchFrom = afterTagName;
+  }
+  return -1;
+}
+
 // End of the tag body that starts at `from`, which is the first `>` or the end of the document.
 //
 // A pattern's `[^>]*` run stops there too, so an attribute after that position belongs to a later tag even when the
 // document never closes the current one.
-function tagBodyEnd({ text, from }) {
-  const closeAt = text.indexOf('>', from);
-  return closeAt === -1 ? text.length : closeAt;
+function tagBodyEnd({
+  text,
+  from
+}) {
+  const closeAt = text.indexOf(
+    '>',
+    from
+  );
+  return closeAt === (-1) ? text.length : closeAt;
 }
 
 // Whether `attributeName` follows the tag open at `tagNameStart` as a whole word, with one of `valuePrefixes` after it.
 function tagOpenHasAttribute(
-  { text, tagNameStart, tagName, attributeName, valuePrefixes, ignoreAsciiCase }
+  {
+    text,
+    tagNameStart,
+    tagName,
+    attributeName,
+    valuePrefixes,
+    ignoreAsciiCase
+  }
 ) {
-  const bodyStart = tagNameStart + tagName.length + 1;
-  const bodyEnd = tagBodyEnd({ text, from: bodyStart });
+  const bodyStart = tagNameStart + tagName.length
+    + 1;
+  const bodyEnd = tagBodyEnd({
+    text,
+    from: bodyStart
+  });
   for (let searchFrom = bodyStart; searchFrom < bodyEnd;) {
     const attributeAt = findWithin({
       haystack: text,
@@ -58,7 +105,7 @@ function tagOpenHasAttribute(
       to: bodyEnd,
       ignoreAsciiCase
     });
-    if (attributeAt === -1)
+    if (attributeAt === (-1))
       return false;
     const afterAttribute = attributeAt + attributeName.length;
     // `\b<name>`: the code unit before the name must not extend a longer word.
@@ -69,7 +116,12 @@ function tagOpenHasAttribute(
           return true;
       } else {
         for (const prefix of valuePrefixes) {
-          if (matchesAtWithin({ haystack: text, needle: prefix, at: afterAttribute, ignoreAsciiCase }))
+          if (matchesAtWithin({
+            haystack: text,
+            needle: prefix,
+            at: afterAttribute,
+            ignoreAsciiCase
+          }))
             return true;
         }
       }
@@ -85,35 +137,63 @@ function tagOpenHasAttribute(
 // immediately follow the attribute name, and an empty list asks for the bare attribute name bounded on both sides.
 // Prose and quoted attribute values are not parsed, exactly as the pattern was not: the first `>` ends the body.
 export function hasTagAttribute(
-  { text, tagName, attributeName, valuePrefixes, ignoreAsciiCase }
+  {
+    text,
+    tagName,
+    attributeName,
+    valuePrefixes,
+    ignoreAsciiCase
+  }
 ) {
   const tagOpen = `<${tagName}`;
   for (let searchFrom = 0; searchFrom < text.length;) {
-    const tagAt = findWithin({
-      haystack: text,
-      needle: tagOpen,
+    const tagAt = findTagOpening({
+      text,
+      tagOpen,
       from: searchFrom,
-      to: text.length,
       ignoreAsciiCase
     });
-    if (tagAt === -1)
+    if (tagAt === (-1))
       return false;
-    const afterTagName = tagAt + tagOpen.length;
-    // `<tag\b`: a longer tag name such as `<scripted` is not this tag.
-    if (!isAsciiWordCharacter({ character: text.charAt(afterTagName) })) {
-      if (tagOpenHasAttribute({
-        text,
-        tagNameStart: tagAt,
-        tagName,
-        attributeName,
-        valuePrefixes,
-        ignoreAsciiCase
-      }))
-        return true;
-    }
-    searchFrom = afterTagName;
+    if (tagOpenHasAttribute({
+      text,
+      tagNameStart: tagAt,
+      tagName,
+      attributeName,
+      valuePrefixes,
+      ignoreAsciiCase
+    }))
+      return true;
+    searchFrom = tagAt + tagOpen.length;
   }
   return false;
+}
+
+// Whether the document opens `tagName` exactly once, counting openings the way `<tag\b` did.
+//
+// The review asks for a page with one form and one inline script, so a count compared to one becomes this predicate and
+// stops scanning once a second opening exists.
+export function hasExactlyOneTagOpening({
+  text,
+  tagName,
+  ignoreAsciiCase
+}) {
+  const tagOpen = `<${tagName}`;
+  const first = findTagOpening({
+    text,
+    tagOpen,
+    from: 0,
+    ignoreAsciiCase
+  });
+  if (first === (-1))
+    return false;
+  const second = findTagOpening({
+    text,
+    tagOpen,
+    from: first + 1,
+    ignoreAsciiCase
+  });
+  return second === (-1);
 }
 
 //endregion Tag bodies
