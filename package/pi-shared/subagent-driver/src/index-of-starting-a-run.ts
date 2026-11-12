@@ -119,6 +119,7 @@ export {
   unitCommandOf,
 } from './unit-command-of-a-run.ts';
 export {
+  BASE_OF_A_RUN_NAMING_NONE,
   type GitRunner,
   GitCommandFailedError,
   type WorktreeOutcome,

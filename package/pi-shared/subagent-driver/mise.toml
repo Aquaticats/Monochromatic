@@ -62,7 +62,7 @@ runPiCommand('start-pi-run-when-a-pool-has-room')
 """
 
 [tasks."start-pi-run-in-a-worktree"]
-description = "Make a run's worktree from the checkout's main, link its dependencies, start the driver as a capped unit, and remove the worktree once the run has finished with it"
+description = "Make a run's worktree with its branch started at the commit or branch the run names, link its dependencies, start the driver as a capped unit, and remove the worktree once the run has finished with it"
 usage = 'arg "[args]" var=#true help="--name, --branch, --prompt, --cpu, --memory, --tasks and --wall are required; the rest have defaults"'
 shell = "node --input-type=module-typescript -e"
 run = """

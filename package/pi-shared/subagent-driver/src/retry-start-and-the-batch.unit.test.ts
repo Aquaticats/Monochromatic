@@ -440,6 +440,34 @@ await describe({
             },),).toContain('--session-of=a-3',);
           },
         },),
+        it({
+          name: 'hands the start the commit or branch an entry names as its base, and says nothing about a base an entry names none of',
+          fn: async () => {
+            /**
+             The commit a fix for a reviewed branch starts at.
+             */
+            const base = 'fix/the-branch-that-was-reviewed';
+            expect(retryWordsOf({
+              entry: {
+                name: 'a',
+                branch: 'feat/a',
+                base,
+              },
+              runsFolder: '/runs',
+              deadlineSeconds: 60,
+            },),).toContain(`--base=${base}`,);
+            expect(retryWordsOf({
+              entry: {
+                name: 'a',
+                branch: 'feat/a',
+              },
+              runsFolder: '/runs',
+              deadlineSeconds: 60,
+            },).filter(function namesTheBase(word,) {
+              return word.startsWith('--base=',);
+            },),).toEqual([],);
+          },
+        },),
       ],
     },),
     describe({
