@@ -202,6 +202,15 @@ and the brief's 984/522 was taken at 08:55.
   The service,
   the survey,
   `doctor` and the sweep now share one answer for both cases.
+- A repository the filesystem refuses to answer about keeps its plans:
+  a directory this process may not search or list is not a directory that is gone,
+  and only `NotFound` says nothing is there
+  (`src/native/landing/unreachable_git_dir_proven_gone.rs`,
+  `look`).
+- The mount table is read for every question,
+  so a drive mounted while a service runs is seen by that service's next check
+  (`src/native/landing/unreachable_git_dir_proven_gone.rs`,
+  `the_mounts`).
 - The serving loop asks whether its worktree is gone **before** the busy arm,
   so a service with a pending push is asked like any other
   (`src/native/service/service_server.rs:401`).
@@ -258,6 +267,27 @@ and the state each one fails in before the change it judges:
   beside the `within 20` budget call,
   which is the assertion's own words:
   "nothing was started in a manager that serves another runtime directory".
+- `the_mount_table_is_read_again_after_a_drive_is_mounted`
+  (`src/native/landing/unreachable_git_dir_proven_gone_tests.rs`)
+  fails with the table kept for the life of the process put back:
+  the mounted root of the drive reads as a mount point waiting for its drive,
+  and the proof answers that the repository may return.
+  The mount runs under `unshare` in a private mount namespace,
+  and the control skips where the host lets no unprivileged process mount.
+- `a_plan_of_a_repository_behind_a_directory_that_cannot_be_searched_stays`
+  (`src/native/service/service_plans_of_a_gone_repository_tests.rs`)
+  fails while an access error is read as absence:
+  the cleanup reports the live repository's branch as ended,
+  and its retry plan is gone.
+  Its two proof controls,
+  `a_path_behind_a_directory_that_cannot_be_searched_may_return` and
+  `a_path_behind_a_directory_whose_entries_cannot_be_listed_may_return`,
+  fail the same way at the proof.
+- `a_valid_plan_that_cannot_be_read_stays_when_the_gone_plans_end`
+  (`src/native/service/service_plans_of_a_gone_repository_tests.rs`)
+  holds the cleanup's promise for a plan whose file cannot be read;
+  it passes here, because `load` keeps such a file since the change that
+  made an unreadable plan wait for the start that can read it.
 - `a_service_a_control_starts_is_never_handed_the_manager_of_its_parent`
   (`src/native/binary/binary_service_tests.rs`)
   fails with the support's two removals taken out:

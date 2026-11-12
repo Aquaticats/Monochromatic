@@ -107,7 +107,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
         // The worktree the plans of this directory name, which is how a Git directory that moved is told from a repository
         //  that was deleted.
         let worktree: Option<PathBuf> = worktree_named_by(retrying, git_dir);
-        return match crate::unreachable_git_dir_proven_gone::prove(git_dir, worktree.as_deref(), &crate::unreachable_git_dir_proven_gone::TheMountTable::default()) {
+        return match crate::unreachable_git_dir_proven_gone::prove(git_dir, worktree.as_deref(), &crate::unreachable_git_dir_proven_gone::the_mounts()) {
             crate::unreachable_git_dir_proven_gone::Proof::MayReturn(_) => keep_plans_while_unreachable(git_dir, retrying, &unreachable),
             crate::unreachable_git_dir_proven_gone::Proof::Gone(gone) => end_the_plans_of_a_gone_repository_awaiting(git_dir, retrying, &unreachable, &gone).await,
         };

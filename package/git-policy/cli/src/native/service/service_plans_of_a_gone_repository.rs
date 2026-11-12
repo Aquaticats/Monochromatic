@@ -77,7 +77,7 @@ fn repository_is_gone(plan: &StoredPlan) -> bool {
     if std::fs::symlink_metadata(plan.git_dir.as_path()).is_ok() {
         return false;
     }
-    return matches!(prove(plan.git_dir.as_path(), Some(plan.item.repository.as_path()), the_mounts()), Proof::Gone(_));
+    return matches!(prove(plan.git_dir.as_path(), Some(plan.item.repository.as_path()), &the_mounts()), Proof::Gone(_));
 }
 
 /// Controls of the plans of a gone repository stay out of the release executable.

@@ -162,7 +162,7 @@ pub fn worktree_is_gone(git_dir: &Path) -> bool {
     //  drive that is not mounted. The proof the retry plans use is what tells the two apart, and it reads no worktree of its
     //  own: a worktree that is still there is one whose Git directory moved, which the caller of the proof names where it knows it.
     return matches!(
-        crate::unreachable_git_dir_proven_gone::prove(git_dir, None, crate::unreachable_git_dir_proven_gone::the_mounts()),
+        crate::unreachable_git_dir_proven_gone::prove(git_dir, None, &crate::unreachable_git_dir_proven_gone::the_mounts()),
         crate::unreachable_git_dir_proven_gone::Proof::Gone(_)
     );
 }
