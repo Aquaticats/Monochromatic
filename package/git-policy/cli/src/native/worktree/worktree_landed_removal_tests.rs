@@ -1108,6 +1108,12 @@ struct AddingInsideTheProof {
     worktree: PathBuf,
     /// Where the nested worktree is added.
     inside: PathBuf,
+    /// Whether the proof this removal asks for ran at all,
+    /// which is what tells a removal that looked again from one that never got that far.
+    proof_ran: std::cell::Cell<bool>,
+    /// The reason the real proof refused, when it did,
+    /// which is what tells a removal that fell back to Git from one that destroyed the tree itself.
+    proof_refusal: std::cell::RefCell<Option<String>>,
 }
 
 impl RemoveOperations for AddingInsideTheProof {
@@ -1120,9 +1126,13 @@ impl RemoveOperations for AddingInsideTheProof {
     }
 
     fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, _common_dir: &Path) -> Result<(), String> {
+        self.proof_ran.set(true);
         // The proof is made against the repository the worktree's own pointers name, as the real one is.
         let own_common_dir: &Path = admin.parent().and_then(Path::parent).ok_or_else(|| return String::from("no common directory"))?;
-        check_clean(request.context, request.plan.target.as_path(), admin, own_common_dir).map_err(|refusal| return refusal.reason)?;
+        if let Err(refusal) = check_clean(request.context, request.plan.target.as_path(), admin, own_common_dir) {
+            self.proof_refusal.borrow_mut().replace(refusal.reason.clone());
+            return Err(refusal.reason);
+        }
         git(
             self.worktree.as_path(),
             &["worktree", "add", "--quiet", "-b", "sub", self.inside.to_str().expect("a UTF-8 fixture path")],
@@ -1162,12 +1172,34 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
         .expect("the registration of the worktree this program made")
         .clone();
     let inside: PathBuf = landed.worktree.join(".claude/worktrees/b");
-    let stand: AddingInsideTheProof = AddingInsideTheProof { worktree: landed.worktree.clone(), inside: inside.clone() };
+    // An entry as new as the index proves nothing by its stat fields, and the proof a destroy makes would refuse this
+    // worktree before a command could add anything inside it: the files are aged and the index records those older times
+    // (`test_support::age`).
+    for tracked in ["README.md", ".gitignore"] {
+        age(landed.worktree.join(tracked).as_path());
+    }
+    git(landed.worktree.as_path(), &["update-index", "--really-refresh"]);
+    let stand: AddingInsideTheProof = AddingInsideTheProof {
+        worktree: landed.worktree.clone(),
+        inside: inside.clone(),
+        proof_ran: std::cell::Cell::new(false),
+        proof_refusal: std::cell::RefCell::new(None),
+    };
     let context: crate::transaction_git::GitContext = git_context();
     let table: PathBuf = an_empty_process_table(&landed);
     let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path());
     let examined: Examined = examine_and_remove(&place, &outer, registered.as_slice(), &stand);
-    assert!(matches!(examined, Examined::Kept(_)), "a worktree that holds another worktree stays, whatever list was read before it arrived");
+    let came_to: String = match &examined {
+        Examined::Removed => String::from("removed"),
+        Examined::Kept(why) => format!("kept: {why}"),
+        Examined::Unproven => String::from("unproven"),
+    };
+    assert!(
+        matches!(examined, Examined::Kept(_)),
+        "a worktree that holds another worktree stays, whatever list was read before it arrived (it came to {came_to}, the proof ran: {}, and its refusal: {:?})",
+        stand.proof_ran.get(),
+        stand.proof_refusal.borrow()
+    );
     assert!(landed.worktree.exists(), "the worktree the person has is where it was");
     assert_eq!(
         std::fs::read(inside.join("README.md")).expect("the changed file is still there"),

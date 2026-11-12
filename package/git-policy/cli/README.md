@@ -1048,8 +1048,11 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    with the notice saying so;
 - the worktree does not hold another worktree this repository registers,
    whose files and whose own record a removal would take with it,
-   and the registrations are read again as the removal runs,
+   and the registrations are read again inside the removal,
+   in the moment the destroy follows,
    so a worktree a command adds inside it while the sweep works keeps it too;
+   what no look can keep is an add that lands between that last look and the destroy,
+   which is the window Git's own removal takes for every write and lock in the tree it deletes;
 - the worktree is not the one the merge runs in,
    and it is not locked;
 - no merge,

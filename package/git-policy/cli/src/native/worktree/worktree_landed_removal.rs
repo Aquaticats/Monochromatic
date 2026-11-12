@@ -79,17 +79,20 @@
 //!  so a worktree holding a modified or untracked file is refused by Git exactly as it is for a person,
 //!  and what the person reads here is Git's sentence.
 //!  Everything else is named with its reason and left alone.
-//!  What the removal deletes besides the files Git keeps is read again immediately before it runs:
+//!  What the removal deletes beside the files Git keeps is read again inside the removal,
+//!  after its proof of cleanliness and immediately before the destroy:
 //!  a worktree a command added inside the candidate while the sweep ran is in the registrations only after that command
 //!  finishes,
 //!  so the list the sweep read at its start proves nothing about it,
 //!  and the removal took the nested worktree's changed files and its own record with the parent
 //!  (a cross-vendor review of the landed sweep,
 //!  round 208);
-//!  and a push failure recorded in the candidate's own Git directory after the one removal snapshot the sweep takes went
+//!  a push failure recorded in the candidate's own Git directory after the one removal snapshot the sweep takes went
 //!  with that directory,
-//!  so the snapshot is retaken for the worktree being removed just as the removal runs,
-//!  and a worktree whose records could not all be copied stays and says where they are.
+//!  so the snapshot is retaken there too,
+//!  and a worktree whose records could not all be copied stays and says where they are;
+//!  what no look can keep is an add or a record that arrives between that last look and the destroy,
+//!  which is the window `worktree_remove.rs` takes for every write and lock in the tree it deletes.
 //!  A commit a reference lock holds in a landed worktree lives in that worktree's own Git directory
 //!  and on its per-worktree reference,
 //! and both go with the removal,
@@ -696,13 +699,10 @@ enum Examined {
 ///  so a worktree someone is still using is never the one that goes.
 ///  The list of registrations the sweep read at its start answers early,
 ///  and it is not what the removal rests on:
-///  what a removal deletes besides the files Git keeps is read again here,
-///  immediately before it runs,
-///  because a worktree a command adds inside this one while the sweep runs,
-///  and a push failure recorded in this one's own Git directory,
-///  appear only after that first reading
-///  (`nested_worktree_reason`,
-///  `nothing_new_would_go_with_it`).
+///  what a removal deletes beside the files Git keeps is asked here first,
+///  so a candidate that would lose one costs no proof of cleanliness,
+///  and the removal asks it again in the window it destroys in
+///  (`nothing_new_would_go_with_it`).
 ///  The `operations` are the kernel and Git a control replaces,
 ///  exactly as `worktree_remove.rs` lets a control replace them for the person's own removal.
 ///
