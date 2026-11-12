@@ -135,6 +135,81 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The eighth cull pass, an unreadable record that stops every linked worktree, and six more reviews (2026-11-12T01:04:35-05:00)
+
+#### Cull
+
+Thirty-five runs were active at 01:01:52 and none is superseded by a later decision or by landed work; nothing was stopped.
+Free space is 179 GiB.
+The contingency brief for a continued pass 16 (round 269) stays unstarted while pass 16 itself is alive.
+
+Two runs were slowed by their own commands, and both got a note at 01:00.
+
+- `review-findings-restore-timeout-keeps-retry-plans-round-210-2` had a `find` over `/var/mnt/encrypted/cargo-build` running for twenty-eight minutes,
+  against the rule every brief carries.
+  The coordinating session ended that one process (2914523, checked as `/usr/bin/find` inside the run's own unit); the run went on.
+- `relink-of-a-new-worktree-does-not-fail-on-pnpm-and-is-not-given-up-1` had made fourteen turns in seventy minutes,
+  because each command read the whole journal of every commit-service unit.
+
+`package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md` now forbids the walk in a rule of its own
+and bounds journal reads (`e04c4bbb78`).
+
+#### Commits under alpha.12 in this repository
+
+From the wrapper's own timing log, by hour (UTC), read at 01:01:
+
+- 03Z: sixteen records, median 14,878 ms.
+- 04Z: fifty-seven records, median 10,692 ms, largest 157,901 ms.
+- 05Z: sixty records, median 5,827 ms, ninetieth percentile 41,977 ms, largest 475,647 ms.
+
+Eight commits did not land. Seven are recorded as stopped with the kind `unidentified` after 15 to 67 seconds, on six different branches,
+and one as stopped in the `git commit` step after 37 seconds on `main` (the failure of 22:52).
+Who or what stopped the seven is not known; the third digest covers the agent that measured where a commit's time goes.
+Twelve more relink records were given up in the 05Z hour, and twenty-six records wait in `pending`.
+
+#### An unreadable worktree-copy record stops every command in every linked worktree
+
+The first review of "an add's own records flush nothing" ended with one untested claim.
+A Sonnet subagent answered it by reading (`~/temp/agent/empty-record-reading/answer.md`, every file and line):
+
+- A journal, a stage claim or an unfilled record that is found empty or cut short
+  makes any command in a linked worktree print one line and exit 2 before Git starts, and the next command does the same.
+  The journal's message names no remedy.
+- Plain commands in the main checkout never read these records.
+- The records are written to a temporary name and renamed, so a killed process leaves no such file.
+  Only a power loss or a kernel crash can, and only since the flushes were removed.
+  Whether btrfs really leaves an empty file there is not established.
+
+Decided while the owner is away, open to veto: the change stays in pass 16 and in 0.6.1-alpha.13.
+Reason: it is what brings `git worktree add` toward sixty seconds,
+the exposure is a record written in the seconds before a crash,
+and the owner's standing rule is that an alpha is released with its open findings.
+The fix agent started at 01:04 (round 276):
+`worktree-copy-record-that-cannot-be-read-never-stops-another-command`, base `a73dde1097`.
+
+If, after a restart of this machine, every Git command in a linked worktree exits 2 and names a file under
+`.git/monochromatic-git-policy-cli-worktree-copy/v1/`:
+move that one file out of the folder (keep it) and run the command again.
+For a journal this leaves that add's stage folder beside the worktree it was filling.
+
+#### Reviews started on qwen4
+
+Round 274: `qwen-review-wg-lifecycle-branch-made-fit-to-merge`, the wg agent's own commits (`c19e23cb81..cd83212379`).
+Its brief forbids every command that changes this machine's network.
+
+Round 275, briefs written with the package's `write-a-brief-for-a-review`
+(through `~/temp/agent/scratch-scripts/write-review-briefs-and-a-batch-list-for-branches.ts`):
+
+- `worktree-add-clean-check-index-install-and-pruning-made-cheaper` (`fcbe2311f4`);
+- `review-findings-gate-and-install-scripts-round-210-findings` (`210efeaba2`);
+- `review-findings-vendored-clone-exemption-keeps-the-save-first-guard` (`b4e75f9a5c`);
+- `commit-service-hands-a-commit-its-shadow` (`3a4949f5ed`);
+- `review-findings-package-repair-owns-every-child-it-started` (`9478219b1d`);
+- `review-findings-clean-saves-every-nested-repository` (`d4e06c4804`).
+
+That makes eight qwen4 runs at once, under the nine at which the plan answered 429.
+The three work runs that ended between 00:48 and 01:00 (the first three of that list) have no digest yet.
+
 ### Rounds 272 and 273 started, the second Sonnet audit routed, and what stays out of a release (2026-11-12T00:57:30-05:00)
 
 Free space is 177 GiB.
