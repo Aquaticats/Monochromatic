@@ -259,3 +259,10 @@ What the person read is now `silent_notice` in
 the service has said nothing, says that the same commit is sent again, and says that the command goes on by
 itself, so nothing is asked of the reader. The older words claimed the service had stopped answering, which the
 records above show it had not, and named no duration.
+
+## The change in the field, later the same day
+
+`0.6.1-alpha.11` carries the change above and was installed at about 20:01 local. From then to 21:41 the
+repository's timing log holds 91 commits of that release: 18 of them waited five seconds or more for their
+answer (the longest 27,145 ms of `answerWaitMs`), and none of the 91 printed the notice. So what a slow answer
+costs is still there to fix, and the false claim that the service had stopped did not come back.
