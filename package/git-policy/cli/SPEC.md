@@ -16361,8 +16361,10 @@ named,
 and the command runs as typed
 (`policy/policy_linked_worktree_saved_overwrite.rs`);
 a refusal would only send the person to move the file by hand,
-and a clean worktree that merely holds untracked files elsewhere is neither stopped nor slowed,
-because only the paths the command writes are asked about.
+and a clean worktree that merely holds untracked files elsewhere is neither stopped nor slowed:
+the listing is one pass over the worktree,
+and an entry off the written paths is dropped in the wrapper's own process
+before anything is copied or named.
 The one refusal this reading has is a copy that cannot be made,
 and it names what stopped it.
 A `clean` counts untracked files as well,
@@ -16578,20 +16580,44 @@ Every directory on the way to each of those paths is asked about as well,
 because a tree creates the directories it needs,
 and a worktree that holds a file where one of them must go loses that file
 (Git removes it to make the directory).
-Only the outermost of those paths is asked about,
-because a pathspec that names a path inside a nested repository makes Git answer nothing at all
-for every path in the same query,
-and a path below another one is inside that one's answer anyway.
-The question is two listings over those paths alone,
+The question is two listings of the whole worktree,
 `git ls-files --others --exclude-standard --directory` and
 `git ls-files --others --ignored --exclude-standard --directory`,
-so no query walks a worktree nobody asked about,
-and `--directory` names a directory the worktree holds whole as one entry (`nested/`),
-which is the entry a save must keep whole.
-Every path is named with `:(top,literal)` magic,
-anchored at the top of the worktree and read as itself,
-and the query turns off a caller's `--literal-pathspecs`,
-which would otherwise make the magic a path.
+each asked once per command,
+with each answer intersected against the written paths in the wrapper's own process
+(`repo_read/repository_facts_paths_in_the_way.rs`).
+`--directory` names a directory the worktree holds whole as one entry (`nested/`),
+which is the entry a save must keep whole,
+and bounds a listing to one entry per such directory instead of one per file inside it.
+Asking Git about the written paths alone was measured and lost.
+In a worktree holding 23,683 tracked files,
+native Git took 62 ms for `reset --hard HEAD` and 31 ms for `checkout --force HEAD`;
+the guard of release 0.6.1-alpha.13,
+which asked about the written paths one argument list at a time,
+took 359 ms and 333 ms;
+and the guard's two listings asked once each,
+with a second arm of the same binary as the control for run-to-run spread,
+took 142 ms and 109 ms,
+against 142 ms and 111 ms for the control.
+Every arm ran nine times, interleaved round by round,
+with a load average of 31 to 40 on eight CPUs
+(`native:build:release`,
+`pi-discard-guard-cont/cost.ts`).
+An entry stands where the form writes when it is a written path,
+below one,
+or above one;
+the entry above is a directory the form needs a file inside of,
+and the trailing separator Git prints on such an entry names the directory rather than one
+more byte of its name,
+so the comparison treats it that way.
+An entry no other entry holds is saved,
+so a directory kept whole is never also named below itself.
+Both listings answer from the top of the worktree with `--full-name` and `-z`,
+so a command started below the top compares the same bytes Git printed;
+the readings that name paths instead write each with `:(top,literal)` magic
+and turn off a caller's `--literal-pathspecs`,
+which would otherwise make the magic a path
+(`repo_read/repository_facts_ignored_files.rs`).
 A revision Git cannot resolve writes no path,
 which is what `git checkout -f <a path>` needs:
 Git writes that path from the index and no tree at all.
@@ -16622,7 +16648,8 @@ A listing Git cannot read is that refusal too,
 never a clean answer:
 what the command would overwrite was never seen.
 A status Git cannot read is a `fact-unavailable` finding,
-never a clean worktree.Repositories under an allowlisted tool cache are exempt.
+never a clean worktree.
+Repositories under an allowlisted tool cache are exempt.
 The list is chosen by the invocation's own environment:
 uv's cache (`UV_CACHE_DIR`,
 else `XDG_CACHE_HOME/uv`,
@@ -16807,8 +16834,10 @@ and a record that cannot be read,
 or that holds no commit id,
 is a rejection and never a quiet fall back to `HEAD`,
 because the ignored-file refusal it earns must not read as clean.
-An ignored file at one of those paths keeps the rejection and is named,
-as for a forced `checkout` and a hard `reset`.
+An ignored file at one of those paths keeps the rejection and is named;
+the forced `checkout` and the hard `reset` that this reading was modelled on now save such a file
+and run instead (see "A forced `checkout -f`" above),
+and moving the abort forms the same way belongs to the run that owns them.
 
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
