@@ -40,14 +40,14 @@ description = "Record a changed dependency list of the native wrapper in its loc
 run = "cargo update --offline --workspace"
 
 [tasks."native:release"]
-description = "Start the wrapper release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish, and skips the host's btrfs controls). A real release waits for the btrfs controls on this host first (`native:release:host-controls`) and dispatches nothing when one fails, when one printed \"BTRFS CONTROL NOT RUN\", or when the run lacks a control the gate requires. The crate-release workflow bumps the crate and the fuzz crate's exact pin, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
+description = "Start the wrapper release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish, and skips the host's btrfs controls). A release of any version but an alpha waits for the btrfs controls on this host first (`native:release:host-controls`) and dispatches nothing when one fails, when one printed \"BTRFS CONTROL NOT RUN\", or when the run lacks a control the gate requires; an alpha is dispatched without them. The crate-release workflow bumps the crate and the fuzz crate's exact pin, checks the crate unless the version is an alpha, dry-runs the publish when it goes to crates.io, pushes the bump to main and starts cargo-publish; nothing compiles here"
 # The registry entry of this crate names the gate (releasable-crates.json "dispatchGate"), so the dispatch command runs it
 # after every refusal that costs nothing and before it starts the workflow; see doc/troubleshooting/nextest-hides-a-passing-tests-output.md
 # for the one BTRFS CONTROL NOT RUN line a btrfs host prints, which the gate lets through.
 run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate monochromatic-git-policy-cli"
 
 [tasks."native:release:host-controls"]
-description = "Run the btrfs controls a real wrapper release waits for, then say whether the release may start: exit zero only when every required control passed on a btrfs fixture root, and otherwise print what refused and what a person does next; `-- <filter>...` narrows the run while iterating, which a release never does and which therefore always refuses"
+description = "Run the btrfs controls a release that is not an alpha waits for, then say whether the release may start: exit zero only when every required control passed on a btrfs fixture root, and otherwise print what refused and what a person does next; `-- <filter>...` narrows the run while iterating, which a release never does and which therefore always refuses"
 # The one definition of the run and its judgement: `native:release` reaches it through the crate's registry entry, and a
 # person can repeat exactly what the release waits for.
 run = "node bin/native-release-host-controls.ts"
