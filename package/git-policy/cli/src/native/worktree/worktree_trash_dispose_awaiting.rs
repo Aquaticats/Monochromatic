@@ -59,6 +59,6 @@ pub async fn empty_trash_awaiting(item: &WorkItem) -> Verdict {
     };
     return match delete_trash_awaiting(item.repository.as_path(), item.git_dir.as_path(), &manifest).await {
         Ok(()) => Verdict::Done,
-        Err(left) => Verdict::Failed(left.reason),
+        Err(left) => left.verdict(),
     };
 }

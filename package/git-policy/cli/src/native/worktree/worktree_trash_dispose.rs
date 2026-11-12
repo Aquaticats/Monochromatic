@@ -35,12 +35,12 @@
 
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
-use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
+use crate::fs_beneath::{device_of, handle_path, identity_at, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
 use crate::idle_io_priority::with_idle_io_priority;
 use crate::service_work::Verdict;
 use crate::work_item::WorkItem;
 use crate::worktree_trash::TRASH_PARENT;
-use crate::worktree_trash_manifest::TrashManifest;
+use crate::worktree_trash_manifest::{TrashManifest, entry_name};
 use crate::parallel_budget::HostResources;
 use crate::worktree_trash_entries::{EntryRemoval, remove_entries, remove_entries_awaiting};
 use crate::worktree_path_failure_message::path_failure;
@@ -67,7 +67,8 @@ const POINTER_LIMIT: u64 = 64 * 1024;
 
 /// What:
 ///  A trash the emptying left where it is,
-/// with the reason it gives for every step it would not take.
+/// with the reason it gives for every step it would not take,
+/// and whether one more try could finish it.
 /// Why:
 ///   A directory under the recorded name that the snapshot did not make,
 /// an entry that is no longer the object
@@ -75,35 +76,139 @@ const POINTER_LIMIT: u64 = 64 * 1024;
 /// and a file somebody put in the trash all stay,
 /// so the reason names what is there and the
 ///  service reports what it did not delete.
-/// A step that could not finish leaves what it did not examine where it is,
-///  and the reason says so.
+/// Those are the trash's own proofs,
+/// and no later try changes what they proved,
+/// while a step that could not remove what it did prove
+///  may finish when it runs again (a volume busy for a moment,
+/// a directory another command was still writing into):
+/// `may_pass` is what the service reads to tell the two apart,
+/// so a passing failure keeps its claim and is tried again within `MAX_TRIES`
+///  instead of stranding a cleanup for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TrashLeft = { reason: string };
+/// type TrashLeft = { reason: string; mayPass: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TrashLeft {
     /// Why the trash stays,
     /// naming what is in it.
     pub reason: String,
+    /// Whether one more try could empty it.
+    pub may_pass: bool,
 }
 
 impl TrashLeft {
     /// What:
-    ///  A refusal with the reason it gives.
+    ///  A refusal of the trash's own proofs,
+    /// which no later try changes.
     /// Why:
-    ///   Every reason the emptying answers with is the same shape,
-    /// so the service's line and the records cannot disagree
-    ///  about one.
+    ///   The person is the one who can move a file the snapshot did not put there,
+    /// or settle an entry somebody replaced,
+    /// so the record stops here and names what it found.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const kept = (reason) => ({ reason });
+    /// const finalRefusal = (reason) => ({ reason, mayPass: false });
     /// ```
-    fn kept(reason: String) -> TrashLeft {
-        return TrashLeft { reason };
+    fn final_refusal(reason: String) -> TrashLeft {
+        return TrashLeft { reason, may_pass: false };
     }
+
+    /// What:
+    ///  A refusal of a step inside the trash,
+    /// which one more try may finish.
+    /// Why:
+    ///   What a step could not do is not proof that nothing can:
+    /// a busy volume, an entry another command holds for a
+    ///  moment or one it removed as this removal listed it all leave what the service may finish when it runs again,
+    ///  and the claim's lease and `MAX_TRIES` bound the tries.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const mayPass = (reason) => ({ reason, mayPass: true });
+    /// ```
+    fn may_pass(reason: String) -> TrashLeft {
+        return TrashLeft { reason, may_pass: true };
+    }
+
+    /// What:
+    ///  What the service does about this refusal:
+    /// keep the record claimable when one more try could empty it,
+    /// and settle it as failed when it cannot.
+    /// Why:
+    ///   A failed record is never claimed again,
+    /// so a cleanup given up on is named on every later command in the worktree for ever;
+    /// a retried one keeps its claim,
+    /// and the lease running out queues it again with one more try,
+    /// up to `MAX_TRIES` (`work_item_recovery.rs`),
+    /// which is where the tries a passing failure gets stop.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const verdict = (left) => left.mayPass ? retry(left.reason) : failed(left.reason);
+    /// ```
+    pub fn verdict(self) -> Verdict {
+        return match self.may_pass {
+            true => Verdict::Retry(self.reason),
+            false => Verdict::Failed(self.reason),
+        };
+    }
+
+    /// What:
+    ///  A refusal of a step an operating-system failure stopped,
+    ///  retried only when that failure can pass on its own.
+    /// Why:
+    ///   A volume busy for a moment,
+    /// an interrupted call and an I/O error end by themselves,
+    /// while a mode or an owner the person set stays until the person changes it,
+    /// and a record that waits for that would be a retry that can never succeed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const stepRefused = (reason, error) => ({ reason, mayPass: mayPassOnItsOwn(error) });
+    /// ```
+    fn step_refused(reason: String, error: &std::io::Error) -> TrashLeft {
+        return TrashLeft { reason, may_pass: may_pass_on_its_own(error) };
+    }
+
+    /// What:
+    ///  A refusal of the entries of the trash,
+    ///  which one more try may empty only when every entry still at its name is the recorded object.
+    /// Why:
+    ///   The reasons of the entries name what stayed, not why,
+    /// so the emptying asks the trash itself:
+    /// an entry that is still the object the leave-out moved may be removable when it runs again,
+    /// while an entry that is not is proof that the trash is not the snapshot's own,
+    /// and no later try changes what that proved.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const entriesRefused = (reason, recorded) => ({ reason, mayPass: recorded });
+    /// ```
+    fn entries_refused(reason: String, recorded: bool) -> TrashLeft {
+        return TrashLeft { reason, may_pass: recorded };
+    }
+}
+
+/// What:
+///  Whether an operating-system failure ends by itself.
+/// Why:
+///   The emptying's steps report what the system said,
+/// and what it said decides whether one more try is a promise or a waste:
+/// a busy volume,
+/// an operation that would block,
+/// an interrupted call,
+/// a full disk and an I/O error pass,
+/// while a permission,
+/// an owner and a name that is not a directory are the state of the filesystem until a person changes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mayPassOnItsOwn = (error) => [EBUSY, EAGAIN, EINTR, EIO, ENOSPC, ENOMEM, EMFILE, ENFILE, ESTALE, ETIMEDOUT].includes(error.errno);
+/// ```
+fn may_pass_on_its_own(error: &std::io::Error) -> bool {
+    return matches!(error.raw_os_error(), Some(libc::EBUSY | libc::EAGAIN | libc::EINTR | libc::EIO | libc::ENOSPC | libc::ENOMEM | libc::EMFILE | libc::ENFILE | libc::ESTALE | libc::ETIMEDOUT));
 }
 
 /// What:
@@ -441,11 +546,13 @@ fn remove_the_manifest(trash: &File, inside: &Path, expected: crate::fs_beneath:
         expected,
     ) {
         Ok(crate::fs_beneath::Owned::Removed | crate::fs_beneath::Owned::Absent) => Ok(()),
-        Ok(crate::fs_beneath::Owned::Kept(reason)) => Err(TrashLeft::kept(format!(
+        Ok(crate::fs_beneath::Owned::Kept(reason)) => Err(TrashLeft::final_refusal(format!(
             "the manifest inside {} is not shown to be the file that was read as it ({reason}), so the trash directory is left alone",
             inside.display()
         ))),
-        Err(error) => Err(TrashLeft::kept(format!("the manifest inside {} cannot be removed ({error}), so the trash directory is left alone", inside.display()))),
+        // The object was the manifest's own and the step that removed it did not finish, so nothing was proved against the trash
+        //  and a step's failure may pass.
+        Err(error) => Err(TrashLeft::step_refused(format!("the manifest inside {} cannot be removed ({error}), so the trash directory is left alone", inside.display()), &error)),
     };
 }
 
@@ -465,7 +572,11 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     let HeldTrash { holders, trash, inside, shown, names } = held;
     let own: Option<crate::worktree_trash_own_manifest::OwnManifest> = crate::worktree_trash_own_manifest::its_own(&trash, trash_name_of(inside.as_path()).as_str());
     let mut strangers: Vec<String> = Vec::new();
-    for entry in path_failure(std::fs::read_dir(handle_path(&trash)), inside.as_path(), "cannot be listed").map_err(TrashLeft::kept)?.flatten() {
+    let listing = match std::fs::read_dir(handle_path(&trash)) {
+        Ok(listing) => listing,
+        Err(error) => return Err(TrashLeft::step_refused(format!("{} cannot be listed ({error})", inside.display()), &error)),
+    };
+    for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         // The manifest the wrapper wrote inside its own trash goes with it, and only while the file at that name is the object the
         //  bytes were read through; a file of that name that is not that manifest keeps the whole directory, as every other thing
@@ -476,7 +587,7 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
         strangers.push(name);
     }
     if !strangers.is_empty() {
-        return Err(TrashLeft::kept(format!("{} also holds {}, which the snapshot did not put there, so the trash directory is left alone", inside.display(), strangers.join(", "))));
+        return Err(TrashLeft::final_refusal(format!("{} also holds {}, which the snapshot did not put there, so the trash directory is left alone", inside.display(), strangers.join(", "))));
     }
     if let Some(leaving) = own.as_ref() {
         remove_the_manifest(&trash, inside.as_path(), leaving.file)?;
@@ -485,7 +596,9 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
     let Some(parent) = holders.last() else { return Ok(()) };
     // Everything the trash held is gone, so only its parent's permissions kept it: a removal that names it deletes
     //  exactly what the snapshot made.
-    path_failure(with_idle_io_priority((parent.as_ref(), inside.as_path()), remove_the_trash_parent), inside.as_path(), "cannot be removed").map_err(TrashLeft::kept)?;
+    if let Err(error) = with_idle_io_priority((parent.as_ref(), inside.as_path()), remove_the_trash_parent) {
+        return Err(TrashLeft::step_refused(format!("{} cannot be removed ({error})", inside.display()), &error));
+    }
     // The parent goes when nothing else is in it; a refusal only means another trash directory is still there.
     if let [.., above, _] = holders.as_slice()
         && let Some(last) = names.last()
@@ -495,6 +608,35 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
         debug(TAG, format!("{} cannot be removed ({error}); it stays", shown.display()).as_str());
     }
     return Ok(());
+}
+
+/// What:
+///  Whether every entry the manifest records that is still at its name is the recorded object.
+/// Why:
+///   The reasons of the entries name what stayed,
+/// not why it stayed,
+/// so a failure there is read from the trash itself:
+/// an entry that is still the object the leave-out moved may be removable when the emptying runs again,
+/// while an entry that is not is proof the trash is no longer the snapshot's own.
+/// An entry that is already gone counts for nothing,
+/// and one that cannot be examined counts as the recorded object,
+/// so the answer is "may pass" only where nothing proves otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recorded = (trash, manifest) => manifest.entries.every((id, i) => identityAt(trash, entryName(i)) === id);
+/// ```
+fn entries_are_the_recorded_objects(trash: &File, manifest: &TrashManifest) -> bool {
+    for (index, recorded) in manifest.entries.iter().enumerate() {
+        match identity_at(trash, std::ffi::OsStr::new(entry_name(index).as_str())) {
+            Ok(found) if found != *recorded => return false,
+            // An entry that is gone is a removal this try already made, and one that cannot be examined may be readable next
+            //  time, so neither proves the trash is not the snapshot's own.
+            Ok(_found) => {}
+            Err(_unreadable) => {}
+        }
+    }
+    return true;
 }
 
 /// What:
@@ -527,12 +669,10 @@ fn settle_trash_removal(held: HeldTrash) -> Result<(), TrashLeft> {
 /// ```
 pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), TrashLeft> {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
-    let Some(held) = prepare_trash_removal(opened).map_err(TrashLeft::kept)? else { return Ok(()) };
+    let Some(held) = prepare_trash_removal(opened).map_err(TrashLeft::final_refusal)? else { return Ok(()) };
     let left: Vec<String> = remove_entries(&entry_removal_of(TheRemovalOfTrashEntries { inside: held.inside.clone(), trash: Arc::clone(&held.trash), manifest: manifest.clone() }));
     if !left.is_empty() {
-        // An entry that stayed is either not the recorded object or one whose removal failed, and the line cannot tell
-        //  them apart, so what the trash holds is not shown to be the snapshot's own.
-        return Err(TrashLeft::kept(left.join("; ")));
+        return Err(TrashLeft::entries_refused(left.join("; "), entries_are_the_recorded_objects(&held.trash, manifest)));
     }
     return settle_trash_removal(held);
 }
@@ -560,21 +700,19 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
     let opened_trash: Option<HeldTrash> = match run_a_job_or_in_turn(opened, prepare_trash_removal).await {
         Ok(Ok(held)) => held,
         // A directory that is not the recorded one is left alone with its reason, and nothing was removed.
-        Ok(Err(reason)) => return Err(TrashLeft::kept(reason)),
-        // Nothing was opened and nothing was removed, and the reason the system gave is why.
-        Err(refused) => return Err(TrashLeft::kept(format!("the directories of the trash {} could not be examined ({refused})", manifest.name))),
+        Ok(Err(reason)) => return Err(TrashLeft::final_refusal(reason)),
+        // Nothing was opened and nothing was removed, and the pool refused a thread for the look; a later try may get one.
+        Err(refused) => return Err(TrashLeft::may_pass(format!("the directories of the trash {} could not be examined ({refused})", manifest.name))),
     };
     let Some(held) = opened_trash else { return Ok(()) };
     let left: Vec<String> = remove_entries_awaiting(&entry_removal_of(TheRemovalOfTrashEntries { inside: held.inside.clone(), trash: Arc::clone(&held.trash), manifest: manifest.clone() })).await;
     if !left.is_empty() {
-        // An entry that stayed is either not the recorded object or one whose removal failed, and the line cannot tell
-        //  them apart, so what the trash holds is not shown to be the snapshot's own.
-        return Err(TrashLeft::kept(left.join("; ")));
+        return Err(TrashLeft::entries_refused(left.join("; "), entries_are_the_recorded_objects(&held.trash, manifest)));
     }
     return match run_a_job_or_in_turn(held, settle_trash_removal).await {
         Ok(outcome) => outcome,
-        // The entries are gone and the directory above them stays, which the words say.
-        Err(refused) => Err(TrashLeft::kept(format!("the trash directory {} stays ({refused})", manifest.name))),
+        // The entries are gone and the directory above them stays, which the words say; the pool's refusal may pass.
+        Err(refused) => Err(TrashLeft::may_pass(format!("the trash directory {} stays ({refused})", manifest.name))),
     };
 }
 
@@ -610,7 +748,7 @@ pub fn empty_trash(item: &WorkItem) -> Verdict {
     };
     return match delete_trash(item.repository.as_path(), item.git_dir.as_path(), &manifest) {
         Ok(()) => Verdict::Done,
-        Err(left) => Verdict::Failed(left.reason),
+        Err(left) => left.verdict(),
     };
 }
 

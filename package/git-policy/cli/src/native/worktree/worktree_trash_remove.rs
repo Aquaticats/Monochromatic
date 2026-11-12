@@ -154,13 +154,20 @@ fn is_gone(error: &std::io::Error) -> bool {
 
 /// The names in an open directory,
 /// each with whether it is a directory (a link is not one).
+///  An entry that is gone when its type is asked for is left out:
+/// another command removed it after this listing began,
+/// and it holds nothing to remove.
 fn list_entries(dir: &File, shown: Describe<'_>) -> Result<Vec<(OsString, bool)>, String> {
     let listing = failed_at(std::fs::read_dir(handle_path(dir)), &shown, "cannot be listed")?;
     let mut entries: Vec<(OsString, bool)> = Vec::new();
     for listed in listing {
         let entry: std::fs::DirEntry = failed_at(listed, &shown, "cannot be listed")?;
         let name: OsString = entry.file_name();
-        let is_directory: bool = failed_at(entry.file_type(), &shown.with_entry(name.as_os_str()), "cannot be examined")?.is_dir();
+        let is_directory: bool = match entry.file_type() {
+            Ok(kind) => kind.is_dir(),
+            Err(error) if is_gone(&error) => continue,
+            Err(error) => return Err(format!("{} cannot be examined ({error})", shown.with_entry(name.as_os_str()).path().display())),
+        };
         entries.push((name, is_directory));
     }
     return Ok(entries);
@@ -181,10 +188,20 @@ fn make_writable(dir: &File, shown: Describe<'_>) {
     }
 }
 
-/// Open the directory `name` below `parent` and describe it as a frame;
-/// the reason is the error.
-fn enter(parent: &File, name: &OsStr, device: u64, shown: Describe<'_>) -> Result<Frame, String> {
-    let dir: File = failed_at(open_directory_at(parent, name), &shown, "is not a plain directory that can be entered, so it is left alone")?;
+/// What:
+///  Open the directory `name` below `parent` and describe it as a frame;
+/// nothing when the name holds no directory any more,
+/// and the reason is any other error.
+/// Why:
+///   A directory of a listing may be removed by another command before the loop reaches it,
+/// and a directory that is already gone is what the removal wanted of it,
+/// so it is no failure and nothing of it is left to remove.
+fn enter(parent: &File, name: &OsStr, device: u64, shown: Describe<'_>) -> Result<Option<Frame>, String> {
+    let dir: File = match open_directory_at(parent, name) {
+        Ok(opened) => opened,
+        Err(error) if is_gone(&error) => return Ok(None),
+        Err(error) => return Err(format!("{} is not a plain directory that can be entered, so it is left alone ({error})", shown.path().display())),
+    };
     let facts: std::fs::Metadata = failed_at(dir.metadata(), &shown, "cannot be examined")?;
     // A stand-in of a nested subvolume is the one directory here with a device of its own that is no boundary: btrfs
     //  builds it for a subvolume a snapshot left out, it holds nothing, and it belongs to the tree being removed.
@@ -193,7 +210,7 @@ fn enter(parent: &File, name: &OsStr, device: u64, shown: Describe<'_>) -> Resul
     }
     make_writable(&dir, shown);
     let entries: Vec<(OsString, bool)> = list_entries(&dir, shown)?;
-    return Ok(Frame { dir, name: name.to_os_string(), entries });
+    return Ok(Some(Frame { dir, name: name.to_os_string(), entries }));
 }
 
 /// What:
@@ -233,7 +250,11 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
         Err(error) if is_gone(&error) => return Ok(Removal::Absent),
         Err(error) => return Err(format!("{} cannot be examined ({error})", top.display())),
     }
-    let first: Frame = enter(parent, name, device, Describe::new(top.as_path(), &[]))?;
+    let first: Frame = match enter(parent, name, device, Describe::new(top.as_path(), &[]))? {
+        Some(frame) => frame,
+        // The top directory is gone, which is what a removal of the name is for.
+        None => return Ok(Removal::Absent),
+    };
     if let Some(wanted) = expected {
         let opened: ObjectId = failed_at(identity_of(&first.dir), &Describe::new(top.as_path(), &[]), "cannot be examined")?;
         if opened != wanted {
@@ -253,7 +274,9 @@ pub fn remove_tree_beneath(label: &Path, parent: &File, name: &OsStr, expected: 
         let Some(frame) = stack.last_mut() else { break };
         match frame.entries.pop() {
             Some((entry, true)) => {
-                let next: Frame = enter(&frame.dir, entry.as_os_str(), device, Describe::new(top.as_path(), shown.as_slice()).with_entry(entry.as_os_str()))?;
+                let Some(next) = enter(&frame.dir, entry.as_os_str(), device, Describe::new(top.as_path(), shown.as_slice()).with_entry(entry.as_os_str()))? else {
+                    continue;
+                };
                 shown.push(entry);
                 stack.push(next);
                 #[cfg(test)]

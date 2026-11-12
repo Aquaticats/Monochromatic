@@ -93,14 +93,24 @@ struct Frame {
     pending: Vec<(OsString, bool)>,
 }
 
-/// The entries of an open directory,
+/// What:
+///  The entries of an open directory,
 /// each with whether it is a directory;
 /// only the directories when `directories_only`.
+/// Why:
+///   An entry may be gone when its type is asked for,
+/// because another command removed it after the listing began;
+/// one that is gone holds nothing to visit and nothing to remove,
+/// so it is left out rather than failing the walk.
 fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsString, bool)>> {
     let mut entries: Vec<(OsString, bool)> = Vec::new();
     for found in std::fs::read_dir(handle_path(directory))? {
         let item: std::fs::DirEntry = found?;
-        let is_directory: bool = item.file_type()?.is_dir();
+        let is_directory: bool = match item.file_type() {
+            Ok(kind) => kind.is_dir(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
         if is_directory || !directories_only {
             entries.push((item.file_name(), is_directory));
         }
@@ -324,6 +334,11 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> Result<(), WalkRefusal> {
                 && let (Some(name), Some(parent)) = (done.name.as_ref(), stack.last())
                 && let Err(error) = remove_at(&parent.directory, name, true)
             {
+                // A directory of the listing that another command removed is already emptied, which is what the removal
+                //  wanted of it.
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    continue;
+                }
                 let listed: PathBuf = shown_path(shown, &stack, name);
                 // A directory that was listed and emptied is not the directory the kernel was asked to remove when it is not
                 //  empty there, so the look below says what stands there now and leaves it as it is.
@@ -335,7 +350,9 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> Result<(), WalkRefusal> {
             continue;
         };
         if !is_directory {
-            if let Err(error) = remove_at(&frame.directory, &name, false) {
+            if let Err(error) = remove_at(&frame.directory, &name, false)
+                && error.kind() != std::io::ErrorKind::NotFound
+            {
                 return Err(WalkRefusal::Failed(std::io::Error::new(error.kind(), format!("{} cannot be removed ({error})", shown_path(shown, &stack, &name).display()))));
             }
             continue;
@@ -343,6 +360,9 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> Result<(), WalkRefusal> {
         let opened: std::io::Result<File> = open_directory_widening(&frame.directory, &name);
         let child: File = match opened {
             Ok(child) => child,
+            // A directory of the listing that another command removed is already emptied, and there is nothing below it to
+            //  visit or to refuse.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) if error.raw_os_error() == Some(libc::EXDEV) => {
                 return Err(WalkRefusal::Boundary(Boundary { path: shown_path(shown, &stack, &name), what: A_MOUNT_POINT }));
             }

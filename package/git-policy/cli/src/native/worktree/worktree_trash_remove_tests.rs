@@ -49,6 +49,37 @@ fn a_name_with_nothing_at_it_is_absent() {
     remove(root.as_path());
 }
 
+/// What:
+///  A subdirectory that another command removes after its parent was listed counts as removed,
+///  and the tree is removed whole.
+/// Why:
+///   A directory is listed once and each listed entry is popped once,
+/// and an entry of the listing may be gone when the loop reaches it:
+/// a concurrent `git clean -X` under an ignored trash does exactly that,
+/// as does the person emptying the trash by hand.
+/// The file branch and the final `rmdir` already answer a vanished entry as removed,
+/// and the contract of this removal says so for every entry,
+/// while the directory branch turned it into a failure the service settles for good.
+#[test]
+fn a_subdirectory_that_vanishes_after_its_parent_was_listed_counts_as_removed() {
+    let root: PathBuf = fixture("trash-remove-vanished");
+    put(root.as_path(), "top/outer/kept/file", b"kept");
+    put(root.as_path(), "top/outer/vanishing/deep/file", b"deep");
+    let vanishing: PathBuf = root.join("top/outer/vanishing");
+    crate::subvolume_remove_listing_test_support::act_after_each_listing(move |listed: &Path| {
+        if listed.file_name() != Some(std::ffi::OsStr::new("outer")) {
+            return;
+        }
+        std::fs::remove_dir_all(vanishing.as_path()).expect("another command removes a directory of the listing");
+    });
+    let held: std::fs::File = open_root(root.as_path()).expect("root");
+    let removal: Result<Removal, String> = remove_tree_beneath(root.as_path(), &held, std::ffi::OsStr::new("top"), None);
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    assert_eq!(removal, Ok(Removal::Removed), "a directory that is already gone is removed");
+    assert!(!root.join("top").exists(), "and the rest of the tree goes with it");
+    remove(root.as_path());
+}
+
 /// A link at the name is refused and its target is untouched,
 /// whether or not an identity is expected.
 #[test]

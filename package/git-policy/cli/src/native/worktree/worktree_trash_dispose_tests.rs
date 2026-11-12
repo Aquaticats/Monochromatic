@@ -1,7 +1,7 @@
 //! Controls of the emptying that are decided below the handler:
 //! which object the manifest's name must still hold when it is unlinked.
 
-use super::remove_the_manifest;
+use super::{may_pass_on_its_own, remove_the_manifest};
 use crate::fs_beneath::{identity_at, open_directory_at, open_root, plain_components};
 use crate::test_support::{fixture, remove};
 use crate::worktree_trash::TRASH_PARENT;
@@ -64,6 +64,23 @@ fn a_manifest_replaced_before_the_removal_is_kept_and_reported() {
     assert!(outcome.is_err(), "a file that was never read is not removed, and the call answered {outcome:?}");
     assert!(inside.join(MANIFEST_FILE_NAME).is_file(), "the replacement stays");
     remove(root.as_path());
+}
+
+/// What:
+///  A failure that ends by itself is worth another try,
+///  and one that states the filesystem's state is not.
+/// Why:
+///   A record that waits for a permission or an owner to change by itself is a retry that can never succeed,
+/// while a busy volume,
+/// an interrupted call and an I/O error are the conditions the emptying's retry exists for.
+#[test]
+fn only_a_failure_that_ends_by_itself_is_worth_another_try() {
+    for kind in [libc::EBUSY, libc::EAGAIN, libc::EINTR, libc::EIO, libc::ENOSPC, libc::EMFILE, libc::ESTALE, libc::ETIMEDOUT] {
+        assert!(may_pass_on_its_own(&std::io::Error::from_raw_os_error(kind)), "{kind} ends by itself");
+    }
+    for kind in [libc::EACCES, libc::EPERM, libc::ENOENT, libc::ENOTDIR, libc::ELOOP, libc::EXDEV] {
+        assert!(!may_pass_on_its_own(&std::io::Error::from_raw_os_error(kind)), "{kind} is the state of the filesystem until a person changes it");
+    }
 }
 
 /// What:

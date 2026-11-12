@@ -1636,7 +1636,9 @@ and a file moved onto that name is left alone and named in the failure;
 and each
  entry removed is the recorded object (a replacement,
 a link or anything unrecorded is left alone and named in the
-failure).
+failure),
+while an entry of a directory that another command removed after the removal listed it counts as removed,
+because the removal deletes only what it listed and what it listed is already gone.
 A worktree that is no longer there is done rather than failed:
 a removal of it took the trash with it.
 Nothing is found by scanning the trash parent for names,
@@ -1669,23 +1671,29 @@ and a value that travelled would overwrite the receiving thread's own priority w
 thread stayed at the idle class.
 
 A trash that cannot be emptied is reported by the service as a line that names the trash and the reason,
-and a refusal settles its record as failed,
-which is where the promise of a later attempt stops;
-a failure the emptying's own words call retryable
-(a busy volume,
-an I/O error)
-instead keeps its claim,
+and what the record does next follows what refused:
+a refusal of the trash's own proofs
+(the recorded directory or an entry is not the object the leave-out moved,
+a file the snapshot did not put there,
+the manifest that is not the file that was read)
+settles its record as failed,
+which is where the promise of a later attempt stops,
+while a step that failed is tried again:
+a volume busy for a moment,
+an I/O error,
+an entry that came back after its listing,
+and a permission or an owner the person may change all keep the claim,
 and the claim's lease running out queues the record again with one more try,
 up to `MAX_TRIES`
 (`src/native/landing/work_item_recovery.rs`),
-so a later round tries it again instead of dropping the work.
+so a later round tries it again instead of stranding a cleanup that one more try could finish.
 Every command later run in that worktree,
 unless its output is read by a program,
 therefore names every directory
 in the worktree's trash parent that no pending or claimed record accounts for,
 on standard error,
 with its path:
-a trash whose emptying failed has a failed record that is never tried again,
+a trash whose emptying failed and was given up on has a failed record that is never tried again,
 a record still pending after one claim lease is one no service ever looked at,
 and a directory nothing recorded cannot be proven to be one the leave-out moved;
 nothing there is deleted,

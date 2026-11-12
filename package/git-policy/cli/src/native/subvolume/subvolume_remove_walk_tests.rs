@@ -98,6 +98,68 @@ fn btrfs_a_subvolume_made_after_a_directory_was_listed_stops_the_emptying_there_
     remove(root.as_path());
 }
 
+/// What:
+///  A file another command removes after its parent was listed counts as emptied,
+///  and the walk's own removal goes on.
+/// Why:
+///   The emptying reads a directory's entries once,
+/// and an entry may be gone when the loop reaches it;
+/// the removal deletes only what it listed,
+/// so a file of the listing that is already gone is what the removal wanted,
+/// and it may not become the reason a cleanup stops.
+#[test]
+fn a_listed_file_that_vanishes_counts_as_emptied() {
+    let parent: PathBuf = fixture("walk-vanished-file");
+    let tree: PathBuf = parent.join("tree");
+    std::fs::create_dir_all(tree.join("outer/kept")).expect("directories");
+    std::fs::write(tree.join("outer/kept/file"), b"x").expect("file");
+    std::fs::write(tree.join("outer/vanishing-file"), b"x").expect("file");
+    let vanishing_file: PathBuf = tree.join("outer/vanishing-file");
+    crate::subvolume_remove_listing_test_support::act_after_each_listing(move |listed: &Path| {
+        if listed.file_name() != Some(std::ffi::OsStr::new("outer")) {
+            return;
+        }
+        std::fs::remove_file(vanishing_file.as_path()).expect("another command removes a file of the listing");
+    });
+    let held: File = open_root(tree.as_path()).expect("open the top");
+    let emptied: std::io::Result<()> = empty_directory(&held, tree.as_path());
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    emptied.expect("an entry that is already gone is emptied");
+    assert_eq!(std::fs::read_dir(tree.as_path()).expect("listing").count(), 0, "and the rest of the tree goes with it");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A directory another command removes after its parent was listed counts as emptied,
+///  and the walk's own removal goes on.
+/// Why:
+///   The emptying reads a directory's entries once,
+/// and an entry may be gone when the loop reaches it;
+/// a directory of the listing that is already gone is what the removal wanted,
+/// and the walk may not stop there and leave the rest of the tree. 
+#[test]
+fn a_listed_directory_that_vanishes_counts_as_emptied() {
+    let parent: PathBuf = fixture("walk-vanished-directory");
+    let tree: PathBuf = parent.join("tree");
+    std::fs::create_dir_all(tree.join("outer/kept")).expect("directories");
+    std::fs::write(tree.join("outer/kept/file"), b"x").expect("file");
+    std::fs::create_dir_all(tree.join("outer/vanishing/deep")).expect("directories");
+    std::fs::write(tree.join("outer/vanishing/deep/file"), b"x").expect("file");
+    let vanishing: PathBuf = tree.join("outer/vanishing");
+    crate::subvolume_remove_listing_test_support::act_after_each_listing(move |listed: &Path| {
+        if listed.file_name() != Some(std::ffi::OsStr::new("outer")) {
+            return;
+        }
+        std::fs::remove_dir_all(vanishing.as_path()).expect("another command removes a directory of the listing");
+    });
+    let held: File = open_root(tree.as_path()).expect("open the top");
+    let emptied: std::io::Result<()> = empty_directory(&held, tree.as_path());
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    emptied.expect("a directory that is already gone is emptied");
+    assert_eq!(std::fs::read_dir(tree.as_path()).expect("listing").count(), 0, "and the rest of the tree goes with it");
+    remove(parent.as_path());
+}
+
 /// The empty directory a snapshot holds for a nested subvolume is part of the snapshot:
 /// it is removed,
 /// and the nested

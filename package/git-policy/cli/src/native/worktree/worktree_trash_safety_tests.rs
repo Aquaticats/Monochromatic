@@ -1034,6 +1034,48 @@ fn a_trash_entry_that_was_replaced_is_left_alone_with_its_reason() {
     remove(root.as_path());
 }
 
+/// What:
+///  A trash whose entry could not be removed is offered to the service as one more try may finish,
+///  and the verdict is not the one a proof refusal gets.
+/// Why:
+///  A directory the emptying listed and then could not remove because something was written into it is a condition that can
+///  pass, and a record settled as failed is never claimed again:
+/// one passing failure would strand a half-emptied trash on the disk for ever,
+/// named on every later command in that worktree.
+/// The tries are the recovery's own,
+/// up to `MAX_TRIES` (`work_item_recovery.rs`),
+/// so a refusal that cannot pass still stops.
+#[test]
+fn a_trash_whose_entry_could_not_be_removed_is_retried_not_given_up_on() {
+    let name: String = "4".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-entry-retried", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let entry: PathBuf = trash.join(entry_name(0).as_str());
+    // A directory inside the entry is what the removal enters, and entering it is the moment a control can act after that
+    //  directory was listed.
+    std::fs::create_dir_all(entry.join("inner")).expect("a directory inside the entry");
+    std::fs::write(entry.join("inner/file"), b"left out\n").expect("a file inside it");
+    // The removal of the entries runs on the caller's thread while the caller is itself a task of the runtime, which is how
+    //  this control can act inside the removal instead of racing it.
+    let inside: PathBuf = entry.clone();
+    let verdict: Verdict = crate::lazy_runtime::run_on_runtime(async move {
+        let appending: PathBuf = inside.join("appeared");
+        crate::subvolume_remove_listing_test_support::act_after_each_listing(move |listed: &Path| {
+            if listed.file_name() != Some(std::ffi::OsStr::new("inner")) {
+                return;
+            }
+            std::fs::write(appending.as_path(), b"written while the emptying ran").expect("an entry written into after the entry was listed");
+        });
+        let answered: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
+        crate::subvolume_remove_listing_test_support::stop_acting();
+        return answered;
+    })
+    .expect("the runtime");
+    assert!(matches!(&verdict, Verdict::Retry(reason) if reason.contains(entry_name(0).as_str())), "an entry that stayed may be removable next time: {verdict:?}");
+    assert!(entry.join("appeared").is_file(), "and what appeared in it is untouched");
+    remove(root.as_path());
+}
+
 /// Finding 15:
 /// the handler reports a trash it cannot remove as a failure,
 /// never as done.
