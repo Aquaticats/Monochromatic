@@ -342,7 +342,9 @@ enum Restored {
 ///  when it holds anything else a person wrote it after the reading,
 ///  so the exchange is undone and their file is back where they wrote it while the checked-out bytes are kept where the notice says.
 ///  A filesystem that cannot exchange two names reads the lock once more and renames over it at once,
-///  and the one window that leaves is named where it is (`replace_after_a_second_look`).
+///  and the one window that leaves is named where it is (`replace_after_a_second_look`);
+///  a displaced directory on another filesystem than the worktree cannot exchange at all,
+///  and there the checked-out bytes are written as they were before this step existed.
 ///  A lock the checkout does not have is taken away by a move and put back if it was written since,
 ///  and one the clean removed is written with `create_new`,
 ///  so no step here replaces bytes nobody kept.
@@ -383,12 +385,44 @@ fn exchange_the_file_read(path: &Path, checkout: &[u8], read: &[u8], directory: 
     };
     if let Err(error) = crate::rename_that_never_replaces::exchange(staged.as_path(), path) {
         let _dropped = std::fs::remove_file(staged.as_path());
+        // A displaced directory on another filesystem than the worktree cannot exchange a file with the lock (`EXDEV`),
+        //  which is what a linked worktree whose Git directory the main checkout holds does:
+        // no step taken from here can reach across, so this is the plain write such a setup allows,
+        //  and its one window is the one no step from outside the writer closes there.
+        if is_cross_device(&error) {
+            return match std::fs::write(path, checkout) {
+                Ok(()) => Restored::TheCheckoutIsBack,
+                Err(refusal) => Restored::LeftAsFound(format!("{} could not be written ({refusal})", path.display())),
+            };
+        }
         if !crate::rename_that_never_replaces::rename_unsupported(&error) {
             return Restored::LeftAsFound(format!("{} could not be replaced ({error})", path.display()));
         }
         return replace_after_a_second_look(path, checkout, read, directory);
     }
     return judge_the_displaced(path, staged.as_path(), read);
+}
+
+/// Whether a refused exchange says the two names are on different filesystems.
+/// Why:
+///   `EXDEV` is the answer a linked worktree whose Git directory the main checkout holds gives,
+/// and it is the one refusal the caller answers differently (`rename_that_never_replaces.rs`,
+/// `rename_unsupported`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// error.code === 'EXDEV'
+/// ```
+fn is_cross_device(error: &std::io::Error) -> bool {
+    #[cfg(unix)]
+    {
+        return error.raw_os_error() == Some(libc::EXDEV);
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = error;
+        return false;
+    }
 }
 
 /// What:

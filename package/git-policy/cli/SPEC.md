@@ -4030,6 +4030,10 @@ of which the two that rewrite link layouts in place are the service's work whene
   and one the clean removed is written with `create_new`,
   so no step of the restore replaces a file nobody kept.
   The write the add's own clean makes is judged the same way.
+  A displaced directory on another filesystem than the worktree
+  (a linked worktree whose Git directory the main checkout holds) cannot exchange a file with the lock,
+  so there the checked-out bytes are written over it as before,
+  and the one window that leaves is the one no step from outside the writer closes.
   A lock that is not the resolution's and not the checked-out one is left exactly as it is found,
   and the job's diagnostic log says which file it was.
   A clean that stops anyway names the lock,
