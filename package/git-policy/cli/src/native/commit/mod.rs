@@ -66,6 +66,14 @@ pub mod commit_worktree_records;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
+/// How much of a commit's time its timing record names,
+/// and how much no phase covers.
+pub mod commit_accounting;
+
+/// What reaching the commit service cost,
+/// as the timing record states it.
+pub mod commit_reach_trace;
+
 /// Why one commit did not land,
 /// as the timing record states it.
 pub mod commit_stop_reason;
