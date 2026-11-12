@@ -2133,3 +2133,195 @@ fn a_landing_that_fails_before_its_intent_keeps_the_commit_and_removes_its_scrat
     assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the commit the batch built is kept");
     remove(world.root.as_path());
 }
+
+/// What:
+///  A Git that writes `competing` to the reference `scratch` just before it writes a kept reference,
+///  as another command writing that name between this command's read and its removal would.
+/// Why:
+///   The landing reads the reference it removes and then removes it by name;
+///  a write that lands in between is the race,
+///  and a stand-in Git is how a control makes it happen at that instant every run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// raceGit({ before: 'refs/cli-git/kept/', write: [scratch, competing] })
+/// ```
+fn git_that_races_for_the_scratch_reference(world: &World, scratch: &str, competing: &str) -> PathBuf {
+    let program: PathBuf = world.root.join("racing-git");
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *\" refs/cli-git/kept/\"*) '{real}' -c core.logAllRefUpdates=false update-ref --no-deref '{scratch}' '{competing}';;\nesac\nexec '{real}' \"$@\"\n",
+        real = crate::test_support::REAL_GIT
+    );
+    std::fs::write(&program, script).expect("script");
+    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// The commit a batch's import built,
+/// as an object nothing but the batch's own reference names.
+fn a_commit_off_the_branch(world: &World, subject: &str) -> String {
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    return git_text(world.repo.as_path(), &["commit-tree", tree.as_str(), "-p", head.as_str(), "-m", subject]);
+}
+
+/// The lines a landing announced,
+/// joined as the person reads them.
+fn announced(said: &std::sync::Mutex<Vec<Announce>>) -> String {
+    return said.lock().expect("lock").iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect::<Vec<String>>().join("");
+}
+
+/// What:
+///  A landing that ends at a step's ceiling and cannot write the kept reference leaves the commit it built on the reference the batch
+///  held it on,
+///  and tells the person the commit's name and where it is.
+/// Why:
+///   Between the import and the branch write the batch's own reference is the only name the built commit has,
+///  and a commit no reference names is one `git gc --prune=now` takes;
+///  a kept name another batch's commit holds, or a lock on it,
+///  must therefore leave that reference where it is
+///  (the owner's rule "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// take('refs/cli-git/kept/1', other); keepWhatAnEndedStepBuilt(...); assert.equal(revParse('refs/worktree/cli-git-service/1'), built); prune(); assert.equal(catFile(built), 'commit')
+/// ```
+#[test]
+fn a_ceiling_landing_whose_keep_is_refused_leaves_the_commit_on_the_reference_that_holds_it() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let world: World = world("service-land-ceiling-keep-refused");
+        let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+        let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+        let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(1);
+        let built: String = a_commit_off_the_branch(&world, "the commit the batch built");
+        git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), built.as_str()]);
+        // Another batch's commit already holds the name this batch would be kept under.
+        git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", head.as_str()]);
+        crate::landing_state_carried_by_its_task::on_the_landing_state(String::from("rev-parse was ended at its step's ceiling"), crate::service_land_side_reference_write::keep_the_ceiling_step);
+        let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(&world.context, &|note: Announce| { said.lock().expect("lock").push(note); }, std::slice::from_ref(&request), 1);
+        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]), built, "the reference that held the commit stays, because no other reference names it");
+        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), head, "another batch's kept commit is not replaced");
+        let line: String = announced(&said);
+        assert!(line.contains(built.as_str()) && line.contains(scratch.as_str()), "the person is told the commit's name and where it is kept: {line}");
+        git(world.repo.as_path(), &["prune", "--expire=now"]);
+        assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", built.as_str()]), "commit", "the commit is still in the object store after a prune");
+        remove(world.root.as_path());
+    });
+}
+
+/// What:
+///  A landing that ends at a step's ceiling removes the reference that held its commit only while that reference still names it,
+///  so a commit another command wrote there is not left named by nothing.
+/// Why:
+///   A command that reads a reference and then removes it by name alone removes whatever another command wrote in between,
+///  and that commit may have no other name
+///  (the owner's rule "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// raceGit({ before: 'refs/cli-git/kept/', write: [scratch, competing] }); keepWhatAnEndedStepBuilt(...); assert.equal(revParse(scratch), competing); prune(); assert.equal(catFile(competing), 'commit')
+/// ```
+#[test]
+fn a_ceiling_landing_does_not_remove_a_scratch_reference_another_command_wrote() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let world: World = world("service-land-ceiling-scratch-written");
+        let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+        let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(1);
+        let built: String = a_commit_off_the_branch(&world, "the commit the batch built");
+        let competing: String = a_commit_off_the_branch(&world, "another command's commit");
+        git(world.repo.as_path(), &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", scratch.as_str(), built.as_str()]);
+        let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: world.context.lock_ceiling };
+        context.git.real_git = git_that_races_for_the_scratch_reference(&world, scratch.as_str(), competing.as_str());
+        crate::landing_state_carried_by_its_task::on_the_landing_state(String::from("rev-parse was ended at its step's ceiling"), crate::service_land_side_reference_write::keep_the_ceiling_step);
+        let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(&context, &|note: Announce| { said.lock().expect("lock").push(note); }, std::slice::from_ref(&request), 1);
+        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]), competing, "the reference another command wrote is not removed");
+        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), built, "the batch's own commit is kept at the name the batch keeps it under");
+        git(world.repo.as_path(), &["prune", "--expire=now"]);
+        assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", competing.as_str()]), "commit", "the other command's commit is still in the object store after a prune");
+        remove(world.root.as_path());
+    });
+}
+
+/// What:
+///  A batch whose index lock is refused for a storage reason keeps the commit it built,
+///  and lets go of the reference that held it only once the kept reference names it.
+/// Why:
+///   The refusal is not always another program's lock:
+///  a repository that turned read-only,
+///  a permission this process does not have,
+///  a full disk or a stale lock that cannot be removed
+///  refuse it too,
+///  and the batch is answered as not made in every one of them,
+///  so its commit is on no branch and no restart lands it
+///  (the owner's rule "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// land({ indexLock: 'PermissionDenied' }); assert.equal(revParse('refs/cli-git/kept/1'), built); prune(); assert.equal(catFile('refs/cli-git/kept/1'), 'commit')
+/// ```
+#[test]
+fn an_index_lock_refused_for_a_storage_reason_keeps_the_built_commit() {
+    let world: World = world("service-land-index-lock-storage-refused");
+    let mut mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    // The index lives outside the Git directory, in a folder this account may not write, so the lock cannot be placed for a
+    //  reason that is not another program's lock, while the Git directory itself stays writable.
+    let private: PathBuf = world.root.join("private");
+    std::fs::create_dir(&private).expect("the index's directory");
+    std::fs::set_permissions(private.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("the index's directory cannot be written");
+    mine.index = private.join("index");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+    let answered = land_batch_announcing(&world.context, 1, std::slice::from_ref(&mine), &|note: Announce| { said.lock().expect("lock").push(note); });
+    std::fs::set_permissions(private.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the index's directory is writable again");
+    assert_eq!(answered, Err(FailureCode::PermissionDenied), "the refusal is not another program's lock");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]), "refs/cli-git/kept/1", "the built commit is kept where the person can find it");
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the kept reference holds the commit the batch built");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the reference the batch held the commit on goes once the kept reference names it");
+    git(world.repo.as_path(), &["prune", "--expire=now"]);
+    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", "refs/cli-git/kept/1"]), "commit", "the kept commit survives a prune");
+    let line: String = announced(&said);
+    assert!(line.contains("refs/cli-git/kept/1"), "the person is told where the commit is kept: {line}");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A batch whose index lock is refused for a storage reason and whose keep cannot be written leaves the commit on the reference that
+///  holds it,
+///  and tells the person the commit's name and that reference.
+/// Why:
+///   The storage reason that refused the lock usually refuses the kept write too,
+///  and a reference removed while it is the only name of the built commit loses that commit to `git gc --prune=now`
+///  (the owner's rule "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// take('refs/cli-git/kept/1', other); land({ indexLock: 'PermissionDenied' }); assert.equal(revParse('refs/worktree/cli-git-service/1'), built); prune(); assert.equal(catFile(built), 'commit')
+/// ```
+#[test]
+fn an_index_lock_refused_for_a_storage_reason_whose_keep_is_refused_leaves_the_commit_named() {
+    let world: World = world("service-land-index-lock-storage-and-keep-refused");
+    let mut mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let private: PathBuf = world.root.join("private");
+    std::fs::create_dir(&private).expect("the index's directory");
+    std::fs::set_permissions(private.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("the index's directory cannot be written");
+    mine.index = private.join("index");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", head.as_str()]);
+    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+    let answered = land_batch_announcing(&world.context, 1, std::slice::from_ref(&mine), &|note: Announce| { said.lock().expect("lock").push(note); });
+    std::fs::set_permissions(private.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the index's directory is writable again");
+    assert_eq!(answered, Err(FailureCode::PermissionDenied), "the refusal is not another program's lock");
+    let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(1);
+    let held: String = git_text(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]);
+    assert!(!held.is_empty(), "the reference that held the commit stays, because no other reference names it");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), head, "another batch's kept commit is not replaced");
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", scratch.as_str()]), "message of mine", "the reference that stays holds the commit the batch built");
+    let line: String = announced(&said);
+    assert!(line.contains(held.as_str()) && line.contains(scratch.as_str()), "the person is told the commit's name and where it is kept: {line}");
+    git(world.repo.as_path(), &["prune", "--expire=now"]);
+    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", held.as_str()]), "commit", "the commit is still in the object store after a prune");
+    remove(world.root.as_path());
+}
