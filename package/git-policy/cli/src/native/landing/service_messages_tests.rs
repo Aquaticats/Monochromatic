@@ -60,6 +60,7 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
         ClientFailure::ContentPruned,
+        ClientFailure::ManagerDidNotAnswer { waited: Duration::from_secs(20) },
         ClientFailure::Interrupted { signal: libc::SIGINT, sender: Some(4242), blocker: Some(String::from("a landing behind another program's index lock")) },
         ClientFailure::Interrupted { signal: libc::SIGTERM, sender: None, blocker: None },
         ClientFailure::InterruptedNotKnown { signal: libc::SIGINT, sender: None, blocker: None },
@@ -109,6 +110,7 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::NothingAnswered { .. } => 32,
         ClientFailure::Interrupted { .. } => 30,
         ClientFailure::InterruptedNotKnown { .. } => 31,
+        ClientFailure::ManagerDidNotAnswer { .. } => 33,
     };
 }
 
@@ -154,7 +156,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::NothingAnswered { address: String::new(), waited: Duration::ZERO }) + 1;
+    let expected: usize = variant_index(&ClientFailure::ManagerDidNotAnswer { waited: Duration::ZERO }) + 1;
     assert_eq!(covered.len(), expected);
 }
 

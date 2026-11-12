@@ -226,6 +226,7 @@ fn every_failure_a_command_decides_names_itself() {
         ClientFailure::UnitInTheWay(String::from("a unit")),
         ClientFailure::WorkNotHandedOver(String::from("a reason")),
         ClientFailure::ContentPruned,
+        ClientFailure::ManagerDidNotAnswer { waited: Duration::from_secs(20) },
     ];
     let mut seen: Vec<&'static str> = Vec::new();
     for failure in &failures {

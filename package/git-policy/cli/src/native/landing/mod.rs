@@ -72,6 +72,14 @@ pub mod service_messages_of_a_failure;
 /// because the address cannot exist or the manager made the service listen elsewhere.
 pub mod service_messages_of_a_start_that_cannot_come;
 
+/// The words for a manager that answered nothing in the time one exchange is given,
+/// which says nothing about whether it is there.
+pub mod service_messages_of_a_manager_that_did_not_answer;
+
+/// The sentence a platform without a user service manager leaves the person,
+/// used by every failure that needed one.
+pub mod service_messages_of_a_platform;
+
 /// The words for a commit the person interrupted,
 /// which the service either gave up or left unsettled.
 pub mod service_messages_of_an_interrupted_commit;

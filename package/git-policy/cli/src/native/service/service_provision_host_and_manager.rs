@@ -191,14 +191,20 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 /// the manager's own words,
 /// or a plain statement;
 /// its error name is internal vocabulary.
-pub(crate) fn refusal(error: CallError) -> ClientFailure {
+/// `waited` is the time that call was given,
+/// which a call that ran out of it names.
+pub(crate) fn refusal(error: CallError, waited: std::time::Duration) -> ClientFailure {
     return match error {
         // A bus with no user manager on it cannot start anything, and the remedy is the one for an account without user
         //  services; its own words name a bus name, which says nothing to the person.
         CallError::Manager { name, .. } if manager_is_absent(name.as_str()) => ClientFailure::NoActivation(platform_without_manager()),
         CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
         CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
-        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) | CallError::TimedOut => {
+        // What: An exchange that ran out names its own time, and never the platform's lack of a manager.
+        // Why:  The bus may be there and busy, which is what three of the seven stopped records of 2026-11-12 met; the
+        //       remedy for an account without user services sends the person after the wrong thing.
+        CallError::TimedOut => ClientFailure::ManagerDidNotAnswer { waited },
+        CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => {
             ClientFailure::NoActivation(platform_without_manager())
         }
     };

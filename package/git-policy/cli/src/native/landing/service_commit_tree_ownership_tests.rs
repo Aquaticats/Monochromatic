@@ -52,6 +52,7 @@ fn an_unanswered_submission_keeps_the_tree_and_a_definite_refusal_does_not() {
         ClientFailure::Refused,
         ClientFailure::DidNotStart,
         ClientFailure::NoActivation(crate::service_provision::platform_without_manager()),
+        ClientFailure::ManagerDidNotAnswer { waited: std::time::Duration::from_secs(20) },
     ] {
         assert!(the_service_never_took(&Err(refused.clone())), "the service never took the request: {refused:?}");
     }

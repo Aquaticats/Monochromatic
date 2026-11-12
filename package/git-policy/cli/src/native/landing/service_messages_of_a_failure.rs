@@ -42,6 +42,7 @@ pub fn failure_code(failure: &ClientFailure) -> &'static str {
         ClientFailure::DidNotStart => "did-not-start",
         ClientFailure::NothingAnswered { .. } => "nothing-answered",
         ClientFailure::NoActivation(_) => "no-activation",
+        ClientFailure::ManagerDidNotAnswer { .. } => "manager-did-not-answer",
         ClientFailure::OtherAccount => "other-account",
         ClientFailure::MayNotHaveLanded => "may-not-have-landed",
         ClientFailure::NoCommonVersion => "no-common-version",

@@ -268,7 +268,7 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         for path in &written {
             let _removed = std::fs::remove_file(path);
         }
-        return Err(refusal(error));
+        return Err(refusal(error, EXCHANGE_WAIT));
     }
     // What: A service the manager made listen somewhere this command does not look ends the provision here.
     // Why:  The unit's address is built from the manager's own runtime directory, so a command given another one waits out
@@ -415,7 +415,9 @@ pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     }
     let mut bus: Bus = match Bus::connect(host.bus.as_path(), EXCHANGE_WAIT) {
         Ok(connected) => connected,
-        Err(_refused) => return Err(ClientFailure::NoActivation(platform_without_manager())),
+        // A bus that never answered the connection, or that answered with something else, is the same failure a refused
+        //  call is: the connection is given one exchange's time, so a connection that ran out of it names that time.
+        Err(refused) => return Err(refusal(refused, EXCHANGE_WAIT)),
     };
     return provision_with(host, &mut bus);
 }
