@@ -4275,7 +4275,16 @@ so a write never replaces another writer's value.
 The write names the reference's full name,
 because `git update-ref origin/main <commit>` is accepted and changes nothing
 (measured with Git 2.56.0 on 2026-11-11),
-and a name that is not under `refs/` is never written.
+and only a remote-tracking reference under `refs/remotes/` is ever written.
+That name is derived from the branch's upstream and not taken from Git's answer,
+because `rev-parse` reads the short name `origin/main` from `refs/heads` and `refs/tags`
+as readily as from `refs/remotes`,
+so a repository that holds a local branch named `origin/main` would have that branch moved.
+The value written is the commit the push delivered and never a name,
+because `update-ref` resolves a name when it writes,
+so a branch that moved after the push would be published without ever reaching the remote.
+A reference that already names the delivered commit or a commit above it is left alone:
+another push or a fetch that advanced it between the push and the repair keeps its commit.
 A lock that refuses the write through every retry is not cleared,
 since nothing may clear another Git's lock without a proof that its holder is gone (see "Reference locks left by a Git that was killed");
 the push then says that it delivered the commit and that the reference names an older commit until a push or a fetch writes it,
@@ -10936,6 +10945,13 @@ blocks,
 so a blocked gate keeps the commit local,
 and a promotion creates every state directory a claim passes through (see "What a landed batch leaves
 behind").
+A hold is never written over a record the queue already has:
+`done`,
+`failed`,
+`pending` and a claim are the queue's own proof that the push ran, was given up on, or was approved,
+and a second record beside one of them is a line naming a published commit and a push nothing releases.
+A hold that lands between that look and its own write gives its record up when the queue took the item meanwhile,
+and it removes only the name its own exclusive write made.
 A blocked record is not deleted:
 it is moved into the queue's `blocked` state with the branch and the gate's words,
 and it is what makes the next push of that branch stop before that commit (see "A blocked commit is never
