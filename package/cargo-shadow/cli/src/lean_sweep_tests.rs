@@ -11,6 +11,7 @@ use std::{fs, fs::File, os::unix::fs::PermissionsExt, os::unix::fs::symlink, pat
 use rustix::fs::{FlockOperation, flock};
 
 use crate::lean_identity::Deadline;
+use crate::lean_removal::{Item, claim_into_trash, item_of};
 use crate::lean_sweep_plan::OlderCompilerSweep;
 use crate::lean_test_support::{DAY, HOUR, NOW, add_incremental, add_new_unit, add_old_unit, copy_a_program, make_profile, real_environment};
 use crate::lean_unit_removal::{ProfileOutcome, apply_removals};
@@ -242,23 +243,45 @@ fn each_removal_logs_the_lock_and_process_proof() {
     assert!(line.contains("/proc scan:"), "{line}");
 }
 
+/// A tree claimed into a profile directory's trash the way a stopped pass leaves one,
+/// and where it now is.
+fn claimed_leftover(root: &Path, profile: &Path, name: &str) -> PathBuf {
+    let tree: PathBuf = root.join(name);
+    fs::create_dir_all(tree.join("unit")).expect("a unit of the tree");
+    fs::write(tree.join("unit").join("file"), b"claimed earlier").expect("file");
+    let item: Item = item_of(&tree).expect("identity");
+    return claim_into_trash(&item, &profile.join(".cargo-shadow-trash"), 1).expect("claim");
+}
+
 #[test]
 fn what_an_earlier_stopped_run_left_in_the_trash_is_deleted_by_the_next_sweep() {
     let root = scratch();
     let (profile, _stale, _current) = stale_and_current(root.path());
-    let leftover: PathBuf = profile.join(".cargo-shadow-trash").join("123-456-1-unit");
-    fs::create_dir_all(&leftover).expect("a claimed unit that was never deleted");
-    fs::write(leftover.join("file"), b"claimed earlier").expect("file");
+    let leftover: PathBuf = claimed_leftover(root.path(), &profile, "unit-claimed-earlier");
     sweep(&profile);
     assert!(!leftover.exists());
+}
+
+/// A profile directory with nothing left to sweep still finishes what a stopped pass claimed there:
+/// the trash of a profile the sweep has no reason to judge must not keep a dead entry forever.
+#[test]
+fn a_stopped_passs_claim_is_finished_in_a_profile_with_nothing_else_to_remove() {
+    let root = scratch();
+    let profile: PathBuf = make_profile(root.path(), "debug");
+    add_old_unit(&profile, "beta", "00000000000000bb", NEW_COMPILER, NOW - HOUR);
+    let leftover: PathBuf = claimed_leftover(root.path(), &profile, "unit-claimed-earlier");
+    let outcome: ProfileOutcome = sweep(&profile);
+    assert!(outcome.refusals.is_empty(), "{outcome:?}");
+    assert!(!leftover.exists(), "the next pass finishes the claim it did not make: {outcome:?}");
+    assert!(!profile.join(".cargo-shadow-trash").exists(), "the emptied trash goes too");
 }
 
 #[test]
 fn a_leftover_with_a_directory_this_user_may_not_write_is_removed_by_the_next_sweep() {
     let root = scratch();
     let (profile, _stale, _current) = stale_and_current(root.path());
-    let leftover: PathBuf = profile.join(".cargo-shadow-trash").join("123-456-1-unit");
-    let closed: PathBuf = leftover.join("build").join("closed");
+    let claimed: PathBuf = claimed_leftover(root.path(), &profile, "unit-claimed-earlier");
+    let closed: PathBuf = claimed.join("build").join("closed");
     fs::create_dir_all(closed.join("inner")).expect("a claimed unit that was never deleted");
     fs::write(closed.join("inner").join("file"), b"claimed earlier").expect("file");
     fs::write(closed.join("file"), b"claimed earlier").expect("file");
@@ -267,10 +290,10 @@ fn a_leftover_with_a_directory_this_user_may_not_write_is_removed_by_the_next_sw
     let mut log: Vec<String> = Vec::new();
     let outcome: ProfileOutcome = apply_removals(&profile, &OlderCompilerSweep { grace_seconds: GRACE }, &real_environment(), NOW, false, &Deadline::after(std::time::Duration::from_secs(60)), &mut log);
     assert!(outcome.refusals.is_empty(), "{outcome:?}");
-    assert!(!leftover.exists(), "the sweep finished what the stopped run could not");
+    assert!(!claimed.exists(), "the sweep finished what the stopped run could not");
     let line: &String = log
         .iter()
         .find(|line| { return line.starts_with("finished an earlier run's deletion in ") && line.contains("mode changed on 2 directories"); })
         .unwrap_or_else(|| panic!("no line names the changed modes: {log:#?}"));
-    assert!(line.contains(&leftover.display().to_string()), "{line}");
+    assert!(line.contains(&claimed.display().to_string()), "{line}");
 }

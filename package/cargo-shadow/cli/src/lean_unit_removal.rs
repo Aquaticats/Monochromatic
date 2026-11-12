@@ -4,6 +4,7 @@
 //! Why:
 //! The protocol is the plan's shared one (`doc/planning/lean-build-dirs.md`,
 //! section "Options"):
+//! finish what an earlier pass claimed into this profile directory's trash,
 //! classify,
 //! take the profile's build locks without waiting,
 //! classify again under them,
@@ -259,6 +260,18 @@ pub fn apply_removals(
             return outcome;
         }
     };
+    // Finished before the decision, not after it:
+    // the trash belongs to an earlier pass,
+    // and a profile directory this pass has nothing to remove from must still not keep a dead entry forever.
+    let trash: PathBuf = profile.join(TRASH_DIRECTORY_NAME);
+    if !dry_run {
+        let sweep = empty_trash(&trash, deadline);
+        if !sweep.modes_added.is_empty() {
+            emit(log, format!("finished an earlier run's deletion in {} ({} disk bytes){};", trash.display(), sweep.bytes, modes_named(&sweep.modes_added)));
+        }
+        outcome.refusals.extend(sweep.failures);
+        let _ = std::fs::remove_dir(&trash);
+    }
     if first.units.is_empty() && first.incremental.is_empty() {
         return outcome;
     }
@@ -283,12 +296,6 @@ pub fn apply_removals(
             return outcome;
         }
     };
-    let trash: PathBuf = profile.join(TRASH_DIRECTORY_NAME);
-    let sweep = empty_trash(&trash, deadline);
-    if !sweep.modes_added.is_empty() {
-        emit(log, format!("finished an earlier run's deletion in {} ({} disk bytes){};", trash.display(), sweep.bytes, modes_named(&sweep.modes_added)));
-    }
-    outcome.refusals.extend(sweep.failures);
     let claimed: Vec<Claimed> = claim_all(&guarded, &second, &trash, &mut outcome, log);
     drop(guarded);
     for entry in claimed {

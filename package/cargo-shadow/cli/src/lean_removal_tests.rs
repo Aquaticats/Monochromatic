@@ -9,7 +9,7 @@ use std::{fs, os::unix::fs::{MetadataExt, PermissionsExt}, path::{Path, PathBuf}
 use rustix::process::geteuid;
 
 use crate::lean_identity::Deadline;
-use crate::lean_removal::{Deleted, Item, Refusal, claim_into_trash, delete_claimed, delete_claimed_as, item_of, modes_named, widened_mode};
+use crate::lean_removal::{Deleted, Item, Refusal, TrashSweep, claim_into_trash, delete_claimed, delete_claimed_as, empty_trash, item_of, modes_named, widened_mode};
 
 /// The modes a claimed tree of this issue holds:
 /// searchable but not writable,
@@ -261,13 +261,78 @@ fn a_deletion_the_deadline_stops_leaves_the_rest_for_the_next_pass_to_finish() {
 fn a_trash_sweep_reports_the_bound_it_stopped_at_and_deletes_nothing_without_finishing() {
     let root = scratch();
     let trash: PathBuf = root.path().join("trash");
-    fs::create_dir_all(trash.join("1-2-0-one")).expect("a claimed entry");
-    fs::write(trash.join("1-2-0-one").join("file"), vec![4_u8; 4096]).expect("file");
-    let cut: crate::lean_removal::TrashSweep = crate::lean_removal::empty_trash(&trash, &Deadline::after(std::time::Duration::ZERO));
+    let claimed: PathBuf = judged_tree_in_the_trash(root.path(), &trash, "one");
+    let cut: TrashSweep = empty_trash(&trash, &Deadline::after(std::time::Duration::ZERO));
     assert!(cut.cut, "{cut:?}");
-    assert!(trash.join("1-2-0-one").exists(), "the claimed entry stays for the next pass");
-    let finished: crate::lean_removal::TrashSweep = crate::lean_removal::empty_trash(&trash, &Deadline::after(std::time::Duration::from_secs(60)));
+    assert!(claimed.exists(), "the claimed entry stays for the next pass");
+    let finished: TrashSweep = empty_trash(&trash, &Deadline::after(std::time::Duration::from_secs(60)));
     assert!(!finished.cut, "{finished:?}");
+    assert!(finished.failures.is_empty(), "{finished:?}");
     assert!(finished.bytes >= 4096, "{finished:?}");
-    assert!(!trash.join("1-2-0-one").exists());
+    assert!(!claimed.exists());
+}
+
+/// A tree claimed into a trash directory the way the tools claim one,
+/// holding a file of one file-system block.
+fn judged_tree_in_the_trash(root: &Path, trash: &Path, name: &str) -> PathBuf {
+    let path: PathBuf = root.join(name);
+    fs::create_dir_all(&path).expect("directory");
+    fs::write(path.join("file"), vec![4_u8; 4096]).expect("file");
+    let item: Item = item_of(&path).expect("identity");
+    return claim_into_trash(&item, trash, 1).expect("claim");
+}
+
+/// The state a refusal leaves behind is never swept away by the next pass:
+/// a claimed entry that another owner swapped for a directory of their own is left in the trash by the check before the unlink,
+/// and the sweep that finishes stopped claims must not delete what that check refused.
+#[test]
+fn a_trash_entry_the_identity_check_refused_is_left_by_the_next_passs_sweep() {
+    let root = scratch();
+    let trash: PathBuf = root.path().join("trash");
+    let path: PathBuf = root.path().join("tree");
+    fs::create_dir_all(&path).expect("directory");
+    fs::write(path.join("judged-file"), b"a build artifact that was judged").expect("judged file");
+    let item: Item = item_of(&path).expect("identity");
+    let claimed: PathBuf = claim_into_trash(&item, &trash, 1).expect("claim");
+    fs::remove_dir_all(&claimed).expect("another owner removes the claimed entry");
+    fs::create_dir_all(&claimed).expect("and a different entry takes the name");
+    fs::write(claimed.join("precious"), b"user data that was never judged").expect("data");
+    let refused = delete_claimed(&claimed, item.identity, &Deadline::after(std::time::Duration::from_secs(60)));
+    assert!(matches!(refused, Err(Refusal::Changed { .. })), "{refused:?}");
+    let sweep: TrashSweep = empty_trash(&trash, &Deadline::after(std::time::Duration::from_secs(60)));
+    assert!(claimed.join("precious").exists(), "what the check refused is not deleted later without being checked again: {sweep:?}");
+    assert!(sweep.bytes == 0, "nothing was freed: {sweep:?}");
+    let named: bool = sweep.failures.iter().any(|reason| { return reason.contains(&claimed.display().to_string()) && reason.contains("is not the entry that was judged"); });
+    assert!(named, "the sweep names the entry it left: {sweep:?}");
+}
+
+/// An entry in a trash directory whose name records no identity was never claimed by these tools,
+/// so the sweep leaves it however old it is and says so.
+#[test]
+fn a_trash_entry_whose_name_records_no_judgement_is_left() {
+    let root = scratch();
+    let trash: PathBuf = root.path().join("trash");
+    let stranger: PathBuf = trash.join("somebodys-directory");
+    fs::create_dir_all(&stranger).expect("a directory this tool did not claim");
+    fs::write(stranger.join("precious"), b"user data that was never judged").expect("data");
+    let sweep: TrashSweep = empty_trash(&trash, &Deadline::after(std::time::Duration::from_secs(60)));
+    assert!(stranger.join("precious").exists(), "{sweep:?}");
+    let named: bool = sweep.failures.iter().any(|reason| { return reason.contains(&stranger.display().to_string()); });
+    assert!(named, "the sweep names the entry it left: {sweep:?}");
+}
+
+/// A claim's name is read back as the identity it was judged at,
+/// and a name from anything else is not a claim.
+#[test]
+fn a_claims_name_carries_the_identity_it_was_judged_at() {
+    let root = scratch();
+    let trash: PathBuf = root.path().join("trash");
+    let path: PathBuf = root.path().join("tree");
+    fs::create_dir_all(&path).expect("directory");
+    let item: Item = item_of(&path).expect("identity");
+    let claimed: PathBuf = claim_into_trash(&item, &trash, 7).expect("claim");
+    assert_eq!(crate::lean_removal::judged_identity_of_trash_name(&claimed), Some(item.identity));
+    for not_a_claim in ["1-2-3-tree", "somebodys-directory", "1-2-3-zz-1-tree", "1-2-3-4-5-"] {
+        assert_eq!(crate::lean_removal::judged_identity_of_trash_name(&trash.join(not_a_claim)), None, "{not_a_claim}");
+    }
 }

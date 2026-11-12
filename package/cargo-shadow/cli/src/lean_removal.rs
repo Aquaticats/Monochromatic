@@ -12,6 +12,11 @@
 //! being removed,
 //! and a mismatch leaves what was moved in the trash for a person to look at:
 //! "never discard user data".
+//! A trash name records the identity the entry was judged at,
+//! so the sweep that finishes a stopped pass's claims repeats that check instead of trusting the directory:
+//! an entry whose name records no judgement,
+//! or whose identity is no longer the one its name records,
+//! is left where it is and named.
 //!
 //! A claimed entry may hold a directory its owner cannot write (`0500`,
 //! `0555`,
@@ -44,8 +49,16 @@ use rustix::fs::{CWD, RenameFlags, renameat_with};
 
 /// Device and inode.
 use crate::lean_identity::{Deadline, Identity, identity_of};
-/// The final component of a path as text.
-use crate::lean_text::name_of;
+/// The final component of a path as text,
+/// and whether a field of it is a hexadecimal number.
+use crate::lean_text::{all_hex, name_of};
+
+/// How many hyphen-separated fields a trash name carries before the entry's own name:
+/// the process id,
+/// the clock,
+/// the claim's serial,
+/// the device and the inode.
+const TRASH_NAME_FIELDS: usize = 5;
 
 /// The name of the trash directory each tool keeps beside what it removes from.
 pub const TRASH_DIRECTORY_NAME: &str = ".cargo-shadow-trash";
@@ -170,23 +183,68 @@ pub fn item_of(path: &Path) -> io::Result<Item> {
 }
 
 /// What:
-/// `fn trash_name(trash: &Path, item: &Path, serial: u64) -> PathBuf` is a name in the trash no other claim can share.
+/// `fn trash_name(trash: &Path, item: &Item, serial: u64) -> PathBuf` is a name in the trash no other claim can share,
+/// and which records what the claim judged.
 /// Why:
+/// A claim's own name is the only thing a later sweep can check its judgement against:
+/// the rename that moves the entry into the trash is the write,
+/// so the identity travels with the entry in one atomic step and there is no record to leave behind.
 /// The process id,
 /// the clock and a serial make each claim unique,
 /// so the rename never has to replace.
+/// The device and inode are hexadecimal,
+/// so a long name grows by the fewest characters.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const trashName = (trash: string, item: string, serial: number) => join(trash, `${process.pid}-${Date.now()}-${serial}-${basename(item)}`);
+/// const trashName = (trash: string, item: Item, serial: number) => join(trash, `${process.pid}-${Date.now()}-${serial}-${item.identity.device.toString(16)}-${item.identity.inode.toString(16)}-${basename(item.path)}`);
 /// ```
-fn trash_name(trash: &Path, item: &Path, serial: u64) -> PathBuf {
+fn trash_name(trash: &Path, item: &Item, serial: u64) -> PathBuf {
     let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(elapsed) => elapsed.as_nanos(),
         Err(_) => 0,
     };
-    let base: String = name_of(item);
-    return trash.join(format!("{}-{nanos}-{serial}-{base}", std::process::id()));
+    let base: String = name_of(&item.path);
+    return trash.join(format!(
+        "{}-{nanos}-{serial}-{:x}-{:x}-{base}",
+        std::process::id(),
+        item.identity.device,
+        item.identity.inode
+    ));
+}
+
+/// What:
+/// `pub fn judged_identity_of_trash_name(path: &Path) -> Option<Identity>` is the identity a claim's name records,
+/// and nothing when the name is not one of this tool's claims.
+/// Why:
+/// The sweep of a trash directory deletes only what a claim moved there,
+/// so it reads the judgement out of the name rather than judging the entry again:
+/// an entry whose name records no device and inode was never claimed by this tool,
+/// and only the identity the claim was judged at may be deleted.
+/// A name from an older version of this tool has one field fewer and is not read as a claim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function judgedIdentityOfTrashName(path: string): Identity | undefined  // splits the basename into six fields and parses the device and inode as hexadecimal
+/// ```
+pub fn judged_identity_of_trash_name(path: &Path) -> Option<Identity> {
+    let name: String = name_of(path);
+    let mut fields = name.splitn(TRASH_NAME_FIELDS + 1, '-');
+    let mut numbers: [&str; TRASH_NAME_FIELDS] = [""; TRASH_NAME_FIELDS];
+    for slot in numbers.iter_mut() {
+        let field: &str = fields.next()?;
+        if field.is_empty() || !all_hex(field) {
+            return None;
+        }
+        *slot = field;
+    }
+    let base: &str = fields.next()?;
+    if base.is_empty() {
+        return None;
+    }
+    let device: u64 = u64::from_str_radix(numbers[3], 16).ok()?;
+    let inode: u64 = u64::from_str_radix(numbers[4], 16).ok()?;
+    return Some(Identity { device, inode });
 }
 
 /// What:
@@ -213,7 +271,7 @@ pub fn claim_into_trash(item: &Item, trash: &Path, serial: u64) -> Result<PathBu
     if let Err(error) = fs::create_dir_all(trash) {
         return Err(Refusal::Io { path: trash.to_path_buf(), error });
     }
-    let target: PathBuf = trash_name(trash, &item.path, serial);
+    let target: PathBuf = trash_name(trash, item, serial);
     match renameat_with(CWD, &item.path, CWD, &target, RenameFlags::NOREPLACE) {
         Ok(()) => {}
         Err(code) if code == rustix::io::Errno::NOENT => return Err(Refusal::Gone(item.path.clone())),
@@ -485,11 +543,15 @@ impl TrashSweep {
 /// finish deleting (it was stopped between the move and the delete),
 /// and reports what it freed and what it could not finish.
 /// Why:
-/// Everything in a trash directory was judged removable and claimed by a rename;
-/// the trash is the tools' own,
-/// so finishing the deletion discards nothing that was not already judged.
-/// Each entry is deleted under the same identity check as any claimed entry,
-/// and by the same walk,
+/// A claim's name records the identity it was judged at,
+/// so an entry in the trash is deletable only when its name records that judgement and the entry still has that identity.
+/// The sweep is not a licence to delete what is merely here:
+/// a pass that found a path swapped for another entry leaves the entry it moved in the trash for a person,
+/// and this sweep must not be the second attempt that deletes it without a judgement.
+/// An entry whose name records no judgement,
+/// or whose identity is no longer the one its name records,
+/// is left where it is and reported.
+/// Each entry is otherwise deleted by the same walk as any claimed entry,
 /// so what a stopped run could not get through is finished here.
 ///
 /// In TS you'd write (pseudocode):
@@ -499,23 +561,28 @@ impl TrashSweep {
 pub fn empty_trash(trash: &Path, deadline: &Deadline) -> TrashSweep {
     let mut sweep: TrashSweep = TrashSweep::default();
     let Ok(entries) = fs::read_dir(trash) else { return sweep };
+    let mut paths: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
+        paths.push(entry.path());
+    }
+    paths.sort();
+    for path in paths {
         if deadline.passed() {
             sweep.cut = true;
             break;
         }
-        let judged: Identity = match identity_of(&entry.path()) {
-            Ok(found) => found,
-            Err(error) => {
-                sweep.failures.push(format!("{}: {error}", entry.path().display()));
-                continue;
-            }
+        let Some(judged) = judged_identity_of_trash_name(&path) else {
+            sweep.failures.push(format!(
+                "{} is in the trash and its name records no identity that was judged, so this sweep left it for a person to look at",
+                path.display()
+            ));
+            continue;
         };
-        match delete_claimed(&entry.path(), judged, deadline) {
+        match delete_claimed(&path, judged, deadline) {
             Ok(deleted) => sweep.add(deleted),
             Err(Refusal::Gone(_)) => {}
             Err(Refusal::PartlyRemoved { deleted, .. }) => {
-                let reason: String = Refusal::PartlyRemoved { path: entry.path(), deleted: deleted.clone() }.to_string();
+                let reason: String = Refusal::PartlyRemoved { path, deleted: deleted.clone() }.to_string();
                 sweep.add(deleted);
                 sweep.failures.push(reason);
             }
