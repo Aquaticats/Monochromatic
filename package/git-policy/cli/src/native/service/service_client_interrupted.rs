@@ -293,16 +293,19 @@ impl Drop for StopWatch {
 
 /// What:
 ///  Notes a stop without a process to receive a signal,
-///  so a control can drive the wait without the signal.
+///  so a control can drive the wait without the signal,
+///  and states the sender the kernel would have named.
 /// Why:
-///  A control of the client that is interrupted would otherwise have to send itself a signal it must not die of.
+///  A control of the client that is interrupted would otherwise have to send itself a signal it must not die of,
+///  and a control of what the record says about who sent it must be able to state that process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// stopRequestedForTest(2)
+/// stopRequestedForTest(2, sender)
 /// ```
 #[cfg(test)]
-pub(crate) fn stop_requested_for_test(signal: i32) {
+pub(crate) fn stop_requested_for_test(signal: i32, sender: Option<i32>) {
+    STOP_SENDER.store(sender.unwrap_or(0), Ordering::SeqCst);
     STOP_REQUESTED.store(signal, Ordering::SeqCst);
 }
 

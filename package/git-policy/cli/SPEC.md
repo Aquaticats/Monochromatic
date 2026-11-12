@@ -6480,7 +6480,7 @@ on the commit path:
   and it is written before the command ends by the signal:
   the raise used to happen inside the report,
   so an interrupted commit left no record at all,
-  and no record of 1,792 has ever said `client-signal`.
+  and no record of the 1,792 that stood at 2026-11-12T07:15Z said `client-signal`.
   The sender is what tells a keyboard's interrupt from the stop a caller sends at its own bound,
   which is the same `SIGTERM`.
   A second signal ends the command at once,
@@ -15340,7 +15340,7 @@ so the record says how far the wrapper looked;
 `unidentified` is the signal the owner's rules call a defect that should log more,
 and it is no longer where a route that stops a commit in words of its own lands:
 every such route names itself,
-which is what the seven stopped records of 2026-11-12 could not do while the person had already been told the cause;
+which is what seven stopped records of 2026-11-12 could not do while the person had already been told the cause;
 a stop by a signal is written before the command ends by that signal,
 so an interrupted commit leaves a record like any other;
 `stop` is null for a command that ended without landing and without failing,

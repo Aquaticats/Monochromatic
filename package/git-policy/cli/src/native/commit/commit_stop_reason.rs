@@ -58,8 +58,15 @@ pub const KIND_GIT_STEP: &str = "git-step";
 /// Real Git declined the command and exited with its own status.
 pub const KIND_NATIVE_EXIT: &str = "native-exit";
 
-/// The person stopped the command with a signal while it waited for the commit service,
-/// so the commit was not made.
+/// What:
+///  A signal stopped the command while it waited for the commit service,
+///  so the commit was not made.
+/// Why:
+///  The record states the signal and,
+///  where the kernel names the process that sent it,
+///  that process:
+///  a keyboard's interrupt and the stop a caller sends at its own bound are the same `SIGTERM`,
+///  and only the sender tells them apart.
 pub const KIND_CLIENT_SIGNAL: &str = "client-signal";
 
 /// What:

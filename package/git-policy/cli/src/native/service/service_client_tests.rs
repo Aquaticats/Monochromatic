@@ -293,7 +293,7 @@ fn a_commit_the_person_interrupts_is_withdrawn_and_never_lands() {
     let (seen, serving) = a_service_that_withdraws(name.as_str(), "the commit waits for another program's index lock", ServiceMessage::Withdrawn { id: String::from("interrupted") });
     let interrupting = std::thread::spawn(move || {
         seen.recv_timeout(Duration::from_secs(30)).expect("the request reaches the service");
-        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT);
+        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT, Some(std::process::id() as i32));
     });
     let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("interrupted"), &mut std::io::sink()).expect_err("the service gave the request up");
     interrupting.join().expect("the interrupt is sent");
@@ -328,7 +328,7 @@ fn a_commit_that_landed_before_the_signal_came_stays_landed() {
     );
     let interrupting = std::thread::spawn(move || {
         seen.recv_timeout(Duration::from_secs(30)).expect("the request reaches the service");
-        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT);
+        crate::service_client_interrupted::stop_requested_for_test(libc::SIGINT, None);
     });
     let submitted: Submitted = submit(&reach_settings(name.as_str()), &a_request("interrupted-after-landing"), &mut std::io::sink()).expect("the commit landed");
     interrupting.join().expect("the interrupt is sent");

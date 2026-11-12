@@ -104,6 +104,27 @@ fn a_stop_wakes_the_read_the_wait_is_inside() {
 }
 
 /// What:
+///  A stop a process sent keeps the sender the kernel named,
+///  and one the terminal raised keeps none.
+/// Why:
+///  The record's `sender` is the only fact that separates a keyboard's interrupt from the stop a caller sends at its own
+///  bound, so a control states both and reads them back:
+///  a number the wrapper guessed would make the two look alike.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stopRequestedForTest(SIGTERM, 4242); expect(stopSender()).toBe(4242); stopRequestedForTest(SIGINT, undefined); expect(stopSender()).toBeUndefined();
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_stop_that_names_its_sender_is_kept() {
+    stop_requested_for_test(libc::SIGTERM, Some(4_242));
+    assert_eq!(stop_sender(), Some(4_242), "the process that sent the stop is kept");
+    stop_requested_for_test(libc::SIGINT, None);
+    assert_eq!(stop_sender(), None, "a keyboard's interrupt names no process");
+}
+
+/// What:
 ///  The second signal ends the process at once,
 ///  and the death is the one the shell expects from a Ctrl-C,
 ///  so a command that is stuck withdrawing can always be ended.
@@ -121,7 +142,7 @@ fn a_stop_wakes_the_read_the_wait_is_inside() {
 fn a_second_signal_ends_the_process_by_it() {
     if std::env::var_os(SECOND_SIGNAL_CHILD).is_some() {
         let _watch: StopWatch = watch_for_a_stop();
-        stop_requested_for_test(libc::SIGINT);
+        stop_requested_for_test(libc::SIGINT, None);
         // SAFETY: `raise` sends one signal to this thread, which is the one whose watch sees a second signal and ends the
         //  process by it.
         let _sent: libc::c_int = unsafe { libc::raise(libc::SIGINT) };
