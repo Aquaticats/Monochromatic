@@ -20,6 +20,7 @@ import {
   defaultGateCaps,
 } from './native-gate-caps.ts';
 import { NativeGateError } from './native-gate-error.ts';
+import { millisecondsPerSecond } from './native-release-host-control-requirements.ts';
 
 /**
  Option that names the unit's CPU quota.
@@ -390,6 +391,65 @@ export function numberOption({
     text: given,
     name,
   });
+}
+
+/**
+ Longest delay Node's timers honour, in milliseconds: a larger `timeout` is set to one millisecond.
+
+ Node warns (`TimeoutOverflowWarning`) and cuts such a value to 1 ms, measured on this host on 2026-11-11 with
+ `execFile('sleep', ['2'], { timeout: 2_147_483_648 })`, which was stopped after 4 ms. A deadline is passed to
+ `execFile` as its `timeout`, so a value above this one would stop the first step at once instead of bounding it.
+ */
+const largestTimerMilliseconds = 2_147_483_647;
+
+/**
+ Reads a deadline option, in seconds, as the milliseconds a step is stopped after.
+
+ A deadline of zero is refused rather than passed on: `execFile` reads `timeout: 0` as no timeout at all, so a step
+ given one could wait forever, which is exactly what the option exists to prevent. A deadline past
+ {@link largestTimerMilliseconds} is refused too, because Node cuts it to a millisecond and would kill the step at once.
+
+ @param options - the parsed command line
+
+ @param name - the flag to read
+
+ @param fallbackSeconds - the deadline the command uses when the command line names none
+
+ @returns the deadline in milliseconds, always at least one second
+
+ @throws NativeGateError when the value is no whole number from one, or is longer than a timer honours
+
+ @example
+ ```ts
+ deadlineMillisecondsOption({ options, name: '--deadline-seconds', fallbackSeconds: 1_800 });
+ ```
+ */
+export function deadlineMillisecondsOption({
+  options,
+  name,
+  fallbackSeconds,
+}: {
+  readonly options: GateOptions;
+  readonly name: string;
+  readonly fallbackSeconds: number;
+}): number {
+  /**
+   The deadline the command line gave, in seconds.
+   */
+  const seconds = numberOption({
+    options,
+    name,
+    fallback: fallbackSeconds,
+  });
+  if (seconds === 0)
+    throw new NativeGateError(`${name} 0 leaves a command with no deadline at all, so a step that never answers would hold the run forever; the shortest deadline is 1 second.`);
+  /**
+   The deadline in the unit the runtime's timers read.
+   */
+  const milliseconds = seconds * millisecondsPerSecond;
+  if (milliseconds > largestTimerMilliseconds)
+    throw new NativeGateError(`${name} ${String(seconds)} is longer than ${String(Math.floor(largestTimerMilliseconds / millisecondsPerSecond))} seconds, the longest delay this runtime honours; a longer one is cut to a millisecond, which would stop the first step at once.`);
+  return milliseconds;
 }
 
 /**

@@ -430,6 +430,46 @@ await describe({
       },
     }),
     it({
+      name: 'refuses a deadline that would not bound a check, before any scope starts',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        /**
+         The refusal a zero deadline gets.
+         */
+        const zero = await tsChecks({
+          worktree: scratch.path,
+          args: [
+            '--deadline-seconds',
+            '0',
+            '//package/a:b',
+          ],
+          environment: await withStandInMise({ standIn, }),
+        });
+        expect(zero.status,).toBe(1,);
+        expect(zero.stderr,).toContain('--deadline-seconds 0',);
+        expect(zero.stderr,).toContain('leaves a command with no deadline at all',);
+        /**
+         The refusal a deadline longer than Node's timers honour gets.
+         */
+        const oversized = await tsChecks({
+          worktree: scratch.path,
+          args: [
+            '--deadline-seconds',
+            '2147484',
+            '//package/a:b',
+          ],
+          environment: await withStandInMise({ standIn, }),
+        });
+        expect(oversized.status,).toBe(1,);
+        expect(oversized.stderr,).toContain('2147483 seconds',);
+        expect(await recordedCalls({
+          directory: standIn.directory,
+          fileName: 'systemd-run.jsonl',
+        }),).toHaveLength(0,);
+      },
+    }),
+    it({
       name: 'prints the commit the checkout points at, so a log says what was checked',
       fn: async () => {
         await using standIn = await createScopeStandIn();

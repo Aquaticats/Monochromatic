@@ -17,6 +17,7 @@ import {
 
 import {
   cpuQuotaOption,
+  deadlineMillisecondsOption,
   gateOptions,
   ioWeightOption,
   memoryMaxOption,
@@ -45,7 +46,6 @@ import {
 } from './native-gate-paths.ts';
 import { runGateCommand } from './native-gate-run.ts';
 import { localStamp } from './native-gate-unit-name.ts';
-import { millisecondsPerSecond } from './native-release-host-control-requirements.ts';
 
 /**
  The checks this package runs when the caller names none: its own unit tests and its own type checks, which are the two
@@ -438,11 +438,11 @@ async function main(): Promise<number> {
   /**
    How long one check may run.
    */
-  const deadlineMilliseconds = numberOption({
+  const deadlineMilliseconds = deadlineMillisecondsOption({
     options,
     name: deadlineOption,
-    fallback: defaultCheckDeadlineSeconds,
-  }) * millisecondsPerSecond;
+    fallbackSeconds: defaultCheckDeadlineSeconds,
+  });
   /**
    The caps every check's scope carries.
    */

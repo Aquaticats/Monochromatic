@@ -17,8 +17,8 @@
 import { join } from 'node:path';
 
 import {
+  deadlineMillisecondsOption,
   gateOptions,
-  numberOption,
 } from './native-gate-arguments.ts';
 import { NativeGateError } from './native-gate-error.ts';
 import {
@@ -51,7 +51,6 @@ import {
   wrapperToolName,
   wrapperVersionLine,
 } from './native-install-steps.ts';
-import { millisecondsPerSecond } from './native-release-host-control-requirements.ts';
 
 /**
  Seconds one toolchain step is given when the caller names none.
@@ -326,11 +325,11 @@ async function main(): Promise<number> {
   /**
    How long one toolchain step may run.
    */
-  const deadlineMilliseconds = numberOption({
+  const deadlineMilliseconds = deadlineMillisecondsOption({
     options,
     name: deadlineOption,
-    fallback: defaultToolchainStepDeadlineSeconds,
-  }) * millisecondsPerSecond;
+    fallbackSeconds: defaultToolchainStepDeadlineSeconds,
+  });
   /**
    The steps of the install, whose commit is only run when the lock moved.
    */
