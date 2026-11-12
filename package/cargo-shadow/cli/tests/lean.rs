@@ -32,7 +32,8 @@ struct World {
     log: PathBuf,
     /// An empty Cargo home.
     cargo_home: PathBuf,
-    /// The build base a fixture world gives the run, when it has one.
+    /// The build base a fixture world gives the run,
+    /// when it has one.
     base: PathBuf,
 }
 
@@ -231,7 +232,8 @@ fn the_old_timer_install_name_says_what_it_does_now_and_installs_the_continuous_
 }
 
 /// A build base of this test's own:
-/// a tree whose ledger names a workspace that is gone, and a tree whose workspace is still there.
+/// a tree whose ledger names a workspace that is gone,
+/// and a tree whose workspace is still there.
 fn make_base_world() -> World {
     let mut world: World = make_world();
     let base: PathBuf = world.cargo_home.parent().expect("parent").join("build-base");
@@ -257,7 +259,8 @@ fn make_base_world() -> World {
     return world;
 }
 
-/// The real binary judges a fixture build base and says what it read, what it kept and what it would remove,
+/// The real binary judges a fixture build base and says what it read,
+/// what it kept and what it would remove,
 /// and a dry run removes nothing.
 /// Why:
 /// The pass used to read the recorded workspace of every tree before it answered anything,

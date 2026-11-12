@@ -988,6 +988,13 @@ pub mod lean_build_trees;
 /// Mechanism C:
 /// the collection of verified-idle trees.
 pub mod lean_idle_trees;
+/// Mechanism C's removal of one tree,
+/// under the proof that nothing uses it.
+pub mod lean_tree_removal;
+/// Mechanism C's two reads before it judges:
+/// every tree's ledger,
+/// and the age that orders them.
+pub mod lean_tree_survey;
 
 /// The tests of the idle-tree collection.
 #[cfg(test)]

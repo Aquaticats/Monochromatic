@@ -21,7 +21,8 @@
 //!
 //! A pass over thirty thousand trees is longer than the bound it runs under,
 //! so the order and the cost are part of the mechanism:
-//! the ledger of every tree is read first (one small read each, and the whole guard list comes from it),
+//! the ledger of every tree is read first (one small read each,
+//! and the whole guard list comes from it),
 //! the trees whose ledger already shows they qualify are judged before the rest,
 //! a tree whose workspace is still there is kept without walking it for its last write,
 //! and every loop checks the clock between two items,
@@ -39,18 +40,18 @@ use crate::lean_run_report::{emit, gib, log_line};
 use std::{collections::HashSet, path::{Path, PathBuf}, time::Instant};
 
 /// The tree readers.
-use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, recent_write_hint, workspace_of};
-/// The ledger that names the workspace a tree was built for.
-use crate::lean_keyed_folder::read_ledger;
-/// The proof and the removal.
-use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
+use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, workspace_of};
+/// The proof of "in use" the pass takes before it judges.
+use crate::lean_guard::GuardEnvironment;
 /// Imports `missing` from `crate::lean_identity`:
 /// an entry is gone only when its absence is confirmed.
 use crate::lean_identity::{Deadline, missing};
-/// Imports the names this file uses from `crate::lean_proc_scan`.
-use crate::lean_proc_scan::scan_processes;
 /// Imports the names this file uses from `crate::lean_removal`.
-use crate::lean_removal::{Refusal, TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of, modes_named};
+use crate::lean_removal::{TRASH_DIRECTORY_NAME, empty_trash, modes_named};
+/// The survey that reads the base and the order it gives.
+use crate::lean_tree_survey::{Survey, judging_order, survey};
+/// The removal of one qualified tree.
+use crate::lean_tree_removal::collect_one;
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::tree_bytes;
 
@@ -139,34 +140,6 @@ pub struct TreeOutcome {
     pub verdict: TreeVerdict,
 }
 
-/// What the ledger of every tree says,
-/// read once before anything is judged.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Survey {
-    /// One class per tree of the list,
-    /// in the order it was given:
-    /// true when the ledger alone shows the tree may qualify (a retired toolchain, or a workspace confirmed absent).
-    pub candidates: Vec<bool>,
-    /// Every ledgered workspace of the base,
-    /// as pairs of the tree and the workspace it names.
-    /// This is the guard list:
-    /// a tree that holds one of these workspaces is never removed.
-    pub roots: Vec<(PathBuf, PathBuf)>,
-    /// One hint per tree,
-    /// in the order it was given:
-    /// the newest time among its root,
-    /// its profile directories and their working directories,
-    /// or nothing when the deadline stopped the survey before it read that tree's.
-    /// It orders the candidates;
-    /// it never decides anything.
-    pub hints: Vec<Option<i64>>,
-    /// How many trees the survey read.
-    pub read: usize,
-    /// Whether the deadline stopped the survey before the last tree,
-    /// in which case the guard list is incomplete and nothing may be removed.
-    pub cut: bool,
-}
-
 /// What one pass over a list of trees did.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct TreeCollection {
@@ -245,82 +218,6 @@ fn qualifies(now: i64, activity: i64, needed: i64, why: &str) -> Result<String, 
 }
 
 /// What:
-/// `pub fn survey(trees: &[Tree], retired: &HashSet<String>, deadline: &Deadline) -> Survey` reads the ledger of every tree once,
-/// and the newest time among each tree's directories.
-/// Why:
-/// Three things need it before a single tree is judged:
-/// the guard against removing a tree that holds another tree's workspace must cover the whole base,
-/// including the trees this pass does not reach;
-/// the order the pass judges in puts the trees whose last write is oldest first,
-/// so the space a pass frees comes before the pass has read every tree;
-/// and the hint ends the question "is this tree old enough" for most trees without the walk that answers it exactly.
-/// The hint is the newest time of a tree's own directories,
-/// which a write anywhere in the tree does not necessarily change,
-/// so it is a lower bound of the newest write:
-/// a hint younger than the idle period proves the tree is not old enough,
-/// and a hint older than it proves nothing, so the walk decides.
-/// Only the ledger and those few times are read for every tree,
-/// never the dependency information.
-/// Reading stops at the deadline:
-/// a guard list that is short of one tree may not be used to remove anything.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function survey(trees: Tree[], retired: Set<string>, deadline: Deadline): Survey
-/// ```
-pub fn survey(trees: &[Tree], retired: &HashSet<String>, deadline: &Deadline) -> Survey {
-    let mut found: Survey = Survey { candidates: vec![false; trees.len()], hints: vec![None; trees.len()], ..Survey::default() };
-    for (index, tree) in trees.iter().enumerate() {
-        if deadline.passed() {
-            found.cut = true;
-            break;
-        }
-        let toolchain_retired: bool = match &tree.kind {
-            TreeKind::Keyed(name) => retired.contains(name),
-            TreeKind::Legacy => false,
-        };
-        found.hints[index] = recent_write_hint(&tree.path, deadline);
-        let Some(root) = read_ledger(&tree.path) else {
-            found.candidates[index] = toolchain_retired;
-            found.read += 1;
-            continue;
-        };
-        found.candidates[index] = toolchain_retired || missing(&root);
-        found.roots.push((tree.path.clone(), root));
-        found.read += 1;
-    }
-    return found;
-}
-
-/// What:
-/// `fn judging_order(trees: &[Tree], survey: &Survey) -> Vec<usize>` is the indexes of the trees in the order the pass judges them:
-/// the oldest last write first,
-/// and path order within one time.
-/// Why:
-/// A pass that is cut by its deadline judges only the front of this order,
-/// so the order decides when the space comes out of the pass:
-/// measured 2026-11-12 on this host,
-/// a pass in path order judged 10,805 trees in 1,095 s and freed nothing,
-/// because every tree it reached was younger than its idle period,
-/// and the trees that would have gone were further down the same path order.
-/// A tree whose hint the deadline stopped is judged after the ones with a time,
-/// because the pass has no answer about it and the ones with an answer are the ones it can free now.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const judgingOrder = (trees: Tree[], survey: Survey): number[] => trees.map((_, index) => index).sort((a, b) => (survey.hints[a] ?? Infinity) - (survey.hints[b] ?? Infinity) || (trees[a].path < trees[b].path ? -1 : trees[a].path > trees[b].path ? 1 : 0));
-/// ```
-fn judging_order(trees: &[Tree], survey: &Survey) -> Vec<usize> {
-    let mut order: Vec<usize> = (0..trees.len()).collect();
-    order.sort_by(|left, right| {
-        let left_hint: i64 = survey.hints[*left].unwrap_or(i64::MAX);
-        let right_hint: i64 = survey.hints[*right].unwrap_or(i64::MAX);
-        return left_hint.cmp(&right_hint).then_with(|| { return trees[*left].path.cmp(&trees[*right].path); });
-    });
-    return order;
-}
-
-/// What:
 /// `fn records_a_workspace_inside(workspace: &Workspace, trees: &[Tree], own: &Path) -> Option<PathBuf>` is the tree
 /// of the base,
 /// other than the one given,
@@ -367,102 +264,6 @@ fn holds_other_workspace(tree: &Path, roots: &[(PathBuf, PathBuf)]) -> Option<Pa
         }
     }
     return None;
-}
-
-/// What:
-/// `fn collect_one(tree, reason, trash, environment, now, needed, deadline, log) -> TreeVerdict`
-/// removes one qualified tree under the protocol.
-/// Why:
-/// Unlinking what a directory holds needs write and search on it,
-/// so a directory this user owns and may not write is made writable first and the removal's proof line says so;
-/// a directory of another user stays as it is and is named.
-/// A tree that could not be emptied whole is reported as partly removed,
-/// never as skipped,
-/// because part of it is gone,
-/// and a deletion the deadline stopped is reported as left in the trash,
-/// because that is what a person has to know to trust the numbers.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function collectOne(tree: Tree, reason: string, trash: string, env: GuardEnvironment, now: number, needed: number, deadline: Deadline, log: string[]): TreeVerdict
-/// ```
-fn collect_one(tree: &Tree, reason: &str, trash: &Path, environment: &GuardEnvironment, now: i64, needed: i64, deadline: &Deadline, log: &mut Vec<String>) -> TreeVerdict {
-    let Some(profiles) = crate::lean_build_trees::profile_dirs_of(&tree.path, deadline) else {
-        return TreeVerdict::Skip(String::from("the deadline passed while looking for its profile directories"));
-    };
-    let mut held: Vec<Guarded> = Vec::new();
-    for profile in profiles {
-        match guard_profile(&profile, environment, deadline) {
-            Guard::Ready(ready) => held.push(ready),
-            Guard::Skip(why) => return TreeVerdict::Skip(format!("{}: {why}", profile.display())),
-        }
-    }
-    match last_activity(&tree.path, deadline) {
-        Some(activity) if now - activity > needed => {}
-        Some(_) => return TreeVerdict::Skip(String::from("a write happened while the locks were being taken")),
-        None => return TreeVerdict::Skip(String::from("the deadline passed while reading the tree")),
-    }
-    let Some(scan) = scan_processes(&environment.proc_root, &[tree.path.as_path()], &[], environment.own_pid, deadline) else {
-        return TreeVerdict::Skip(String::from("the deadline passed while scanning the processes, so nothing was removed"));
-    };
-    if let Some(used) = scan.blocks(&tree.path) {
-        return TreeVerdict::Skip(format!("pid {} uses {} as {}", used.pid, used.path.display(), used.how));
-    }
-    let mut proofs: Vec<String> = Vec::new();
-    for guarded in &held {
-        proofs.push(guarded.proof.clone());
-    }
-    proofs.push(scan.describe());
-    let item = match item_of(&tree.path) {
-        Ok(found) => found,
-        Err(error) => return TreeVerdict::Skip(error.to_string()),
-    };
-    let claimed: PathBuf = match claim_into_trash(&item, trash, 0) {
-        Ok(target) => target,
-        Err(refusal) => return TreeVerdict::Skip(refusal.to_string()),
-    };
-    drop(held);
-    return match delete_claimed(&claimed, item.identity, deadline) {
-        Ok(deleted) => {
-            emit(log, format!(
-                "removed tree {} (device {} inode {}): {reason}; proof: {}{}",
-                tree.path.display(),
-                item.identity.device,
-                item.identity.inode,
-                proofs.join(" | "),
-                modes_named(&deleted.modes_added)
-            ));
-            TreeVerdict::Removed { reason: reason.to_string(), bytes: deleted.bytes }
-        }
-        Err(Refusal::Gone(_)) => TreeVerdict::Skip(String::from("another owner removed the claimed entry")),
-        Err(Refusal::PartlyRemoved { deleted, .. }) if deleted.cut => {
-            emit(log, format!(
-                "left tree {} in {} (device {} inode {}): {reason}; {} disk bytes are gone and the deadline stopped the rest, which the next pass finishes; proof: {}",
-                tree.path.display(),
-                claimed.display(),
-                item.identity.device,
-                item.identity.inode,
-                deleted.bytes,
-                proofs.join(" | ")
-            ));
-            TreeVerdict::Left { reason: reason.to_string(), bytes: deleted.bytes }
-        }
-        Err(Refusal::PartlyRemoved { deleted, .. }) => {
-            emit(log, format!(
-                "partly removed tree {} (device {} inode {}): {reason}; {} disk bytes are gone and {} part(s) stay{}; each stayed because: {}; proof: {}",
-                tree.path.display(),
-                item.identity.device,
-                item.identity.inode,
-                deleted.bytes,
-                deleted.remaining.len(),
-                modes_named(&deleted.modes_added),
-                deleted.remaining.join("; "),
-                proofs.join(" | ")
-            ));
-            TreeVerdict::PartlyRemoved { reason: reason.to_string(), bytes: deleted.bytes, remaining: deleted.remaining.join("; ") }
-        }
-        Err(refusal) => TreeVerdict::Skip(refusal.to_string()),
-    };
 }
 
 /// What a pass is doing,
@@ -551,7 +352,12 @@ pub fn collect_idle_trees(
     let surveying: Instant = Instant::now();
     let surveyed: Survey = survey(trees, retired, deadline);
     collection.lines.push(format!("  read the ledger of {} of {} trees in {} s", surveyed.read, trees.len(), surveying.elapsed().as_secs()));
-    let candidates: usize = surveyed.candidates.iter().filter(|one| { return **one; }).count();
+    let mut candidates: usize = 0;
+    for candidate in &surveyed.candidates {
+        if *candidate {
+            candidates += 1;
+        }
+    }
     collection.candidates = candidates;
     if surveyed.cut {
         collection.lines.push(format!("  the deadline passed while reading the ledger of {} of {} trees, so this pass judged nothing: a removal needs the whole base's records as its guard", surveyed.read, trees.len()));
@@ -565,7 +371,11 @@ pub fn collect_idle_trees(
     let order: Vec<usize> = judging_order(trees, &surveyed);
     let mut to_judge: Vec<usize> = Vec::with_capacity(order.len());
     for index in order {
-        if after.is_none_or(|recorded| return trees[index].path.as_path() > recorded) {
+        let in_window: bool = match after {
+            Some(recorded) => trees[index].path.as_path() > recorded,
+            None => true,
+        };
+        if in_window {
             to_judge.push(index);
         }
     }

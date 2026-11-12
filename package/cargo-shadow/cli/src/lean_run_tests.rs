@@ -189,7 +189,8 @@ fn a_resumed_trees_pass_keeps_a_tree_that_holds_a_workspace_recorded_before_its_
 /// Why:
 /// "free space falling and the cleanup freed nothing" is the question the journal has to answer without a person
 /// reading the proof lines of every kept tree:
-/// the two reasons a pass keeps a whole base are that something still uses the trees, or that they are too young.
+/// the two reasons a pass keeps a whole base are that something still uses the trees,
+/// or that they are too young.
 #[test]
 fn a_pass_that_frees_nothing_says_whether_the_trees_are_in_use_or_too_young() {
     let root = scratch();

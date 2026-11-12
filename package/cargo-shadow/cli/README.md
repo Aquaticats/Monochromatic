@@ -1327,7 +1327,8 @@ and each of the two long passes continues where it stopped:
   4,000 trees with a ledger on every one took 62 ms
   against 33 ms for the same base with no ledger (best of seven alternating runs),
   which is 29 ms for 4,000 reads.
-- Every loop of the pass obeys the run's deadline, and a cut is a safe point.
+- Every loop of the pass obeys the run's deadline,
+  and a cut is a safe point.
   The listing of the base,
   the survey that reads every tree's ledger and the newest time among its directories,
   the walk for a tree's own last write,
@@ -1370,7 +1371,8 @@ and each of the two long passes continues where it stopped:
   The summary line says how far it got,
   what it removed,
   what it left for the next pass and why,
-  and, when it freed nothing,
+  and,
+  when it freed nothing,
   whether the trees are still in use or not yet old enough.
 
 The bound is set from what each mechanism costs,
@@ -1382,7 +1384,9 @@ measured 2026-11-10 on this machine and re-measured 2026-11-12:
   493 of those 819 qualified,
   and each of the 493 costs the process scan and a walk of the tree.
   The trees it keeps cost a ledger read and a `stat` of the workspace,
-  or, for a legacy tree, a read of one dependency file,
+  or,
+  for a legacy tree,
+  a read of one dependency file,
   and a `stat` of a few directories.
   Before that day it cost 0.71 s per tree and a fixed read of the whole base:
   the run that ended 2026-11-10T07:37:24-05:00 judged 14,850 of 33,804 trees in 10,475 s,

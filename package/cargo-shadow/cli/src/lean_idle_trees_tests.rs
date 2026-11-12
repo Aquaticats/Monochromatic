@@ -427,7 +427,9 @@ fn a_retired_tree_whose_workspace_is_outside_the_base_still_goes() {
 /// and it is the part that used to run with no clock check at all:
 /// the pass read the recorded workspace of every tree of the base before it judged the first one,
 /// so a bound it was given did not end it
-/// (measured 2026-11-11: `--deadline-minutes 15` was still inside that read 985 s in, in disk wait).
+/// (measured 2026-11-11:
+/// `--deadline-minutes 15` was still inside that read 985 s in,
+/// in disk wait).
 #[test]
 fn a_pass_reads_the_ledger_of_every_tree_once_before_it_judges_anything_and_reports_the_cost() {
     let root = scratch();
@@ -466,7 +468,8 @@ fn a_bound_that_has_already_passed_stops_the_survey_and_judges_nothing() {
     assert!(first.exists() && second.exists(), "a pass the deadline cut removes nothing");
 }
 
-/// The order is the trees' age, not what identifies them:
+/// The order is the trees' age,
+/// not what identifies them:
 /// a tree nothing identifies and that has been idle two months is judged before a tree whose ledger already says its
 /// workspace is gone and that was written to a week ago.
 /// Why:
@@ -516,13 +519,15 @@ fn a_tree_whose_workspace_is_still_there_is_kept_because_something_uses_it() {
     assert!(tree.exists());
 }
 
-/// Among the trees whose ledger already shows they qualify, the one whose last write is oldest is judged first.
+/// Among the trees whose ledger already shows they qualify,
+/// the one whose last write is oldest is judged first.
 /// Why:
 /// A pass that is cut by its deadline judges only the front of its order,
 /// and the trees that qualify are the ones that free space:
 /// measured 2026-11-12 on this host,
 /// a pass that ordered its candidates by path judged 10,805 trees in 1,095 s,
-/// and every one of them was younger than its idle period, so it freed nothing.
+/// and every one of them was younger than its idle period,
+/// so it freed nothing.
 #[test]
 fn the_candidate_whose_last_write_is_oldest_is_judged_first() {
     let root = scratch();
@@ -541,7 +546,8 @@ fn the_candidate_whose_last_write_is_oldest_is_judged_first() {
 /// Why:
 /// The walk over every unit is what a pass over this host spends its time on,
 /// and the newest time among a tree's own directories is a lower bound of the newest write:
-/// when that time is young the tree cannot be old enough, so the walk cannot change the answer.
+/// when that time is young the tree cannot be old enough,
+/// so the walk cannot change the answer.
 /// The trade-off is the other direction and it is the safe one:
 /// a directory touched since the last write keeps the tree one more pass,
 /// which keeps a tree that a full read might have removed.
