@@ -4,6 +4,8 @@
 
 /// Syscall failures.
 use std::io;
+/// One place that names the `io::ErrorKind` a failure carries.
+use crate::io_error_kind::{invalid_data, not_found};
 /// Raw Unix path bytes for the home directory.
 use std::os::unix::ffi::OsStringExt;
 /// Home directory path.
@@ -43,7 +45,7 @@ pub fn lookup_user(uid: u32) -> io::Result<UserAccount> {
             return Err(io::Error::from_raw_os_error(status));
         }
         if found.is_null() {
-            return Err(io::Error::new(io::ErrorKind::NotFound, format!("uid {uid} has no account")));
+            return Err(not_found(format!("uid {uid} has no account")));
         }
         return account_from_entry(&entry, uid);
     }
@@ -54,7 +56,7 @@ pub fn lookup_user(uid: u32) -> io::Result<UserAccount> {
 pub fn account_from_entry(entry: &libc::passwd, uid: u32) -> io::Result<UserAccount> {
     // An entry without a home directory field would make the string read below undefined.
     if entry.pw_dir.is_null() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("the account of uid {uid} has no home directory field")));
+        return Err(invalid_data(format!("the account of uid {uid} has no home directory field")));
     }
     // SAFETY: pw_dir was checked above,
     // and the caller passes an entry whose strings are NUL-terminated and still alive.

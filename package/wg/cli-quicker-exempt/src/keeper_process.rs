@@ -4,6 +4,8 @@
 use crate::keeper_state::KeeperProcess;
 /// Standard process-file and syscall failures.
 use std::io;
+/// One place that names the `io::ErrorKind` a failure carries.
+use crate::io_error_kind::{invalid_data};
 /// Unix path bytes for exact `/proc` command-line comparison.
 use std::os::unix::ffi::OsStrExt;
 /// Cgroup identity passed to holder child.
@@ -22,14 +24,14 @@ const KILL_WAIT: Duration = Duration::from_secs(5);
 pub fn process_start_time(pid: i32) -> io::Result<u64> {
     let text = std::fs::read_to_string(format!("/proc/{pid}/stat"))?;
     let Some(command_end) = text.rfind(')') else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat lacks command terminator"));
+        return Err(invalid_data("process stat lacks command terminator"));
     };
     let Some(tail) = text.get(command_end + 1..) else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat tail is absent"));
+        return Err(invalid_data("process stat tail is absent"));
     };
     let fields: Vec<&str> = tail.split_whitespace().collect();
     let Some(start_time) = fields.get(19) else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat lacks start time"));
+        return Err(invalid_data("process stat lacks start time"));
     };
     return start_time.parse().map_err(io::Error::other);
 }

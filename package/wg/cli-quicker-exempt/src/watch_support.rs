@@ -6,6 +6,8 @@
 use crate::bpf::{attach_marker_unpinned, MarkerLinks};
 /// Polling and syscall failures.
 use std::io;
+/// One place that names the `io::ErrorKind` a failure carries.
+use crate::io_error_kind::{invalid_input};
 /// Raw and owned descriptor support.
 use std::os::fd::{AsRawFd, OwnedFd};
 /// Raw Unix path bytes for inotify watch registration.
@@ -28,7 +30,7 @@ pub struct ActiveAttachment {
 
 /// Reports the `app.slice` path error for an embedded NUL byte.
 fn app_slice_contains_nul(_error: std::ffi::NulError) -> io::Error {
-    return io::Error::new(io::ErrorKind::InvalidInput, "app.slice path contains NUL");
+    return invalid_input("app.slice path contains NUL");
 }
 
 /// Reports whether an attachment's cgroup directory still exists.

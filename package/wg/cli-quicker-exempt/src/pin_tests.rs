@@ -37,6 +37,8 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 /// Child process launcher for cross-process persistence checks.
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+/// One place that names the `io::ErrorKind` a failure carries.
+use crate::io_error_kind::{invalid_input};
 
 /// Environment flag selecting socket-check child behavior.
 const CHILD_FLAG: &str = "WG_QUICKER_EXEMPT_SOCKET_CHILD";
@@ -303,7 +305,7 @@ fn ipv6_mark(socket_type: libc::c_int) -> io::Result<u32> {
 /// Runs all four hook operations in subprocess moved into fixture cgroup before exec.
 fn assert_marks_from_child(cgroup: &Path, expected_mark: u32) -> io::Result<()> {
     let cgroup_procs = std::ffi::CString::new(cgroup.join("cgroup.procs").as_os_str().as_encoded_bytes()).map_err(|_| {
-        return io::Error::new(io::ErrorKind::InvalidInput, "cgroup.procs path contains NUL");
+        return invalid_input("cgroup.procs path contains NUL");
     })?;
     let mut command = Command::new(std::env::current_exe()?);
     command

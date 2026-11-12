@@ -14,6 +14,8 @@ compile_error!("wg-quicker-exempt currently supports little-endian Linux targets
 
 /// Standard I/O error type used for syscall failures.
 use std::io;
+/// One place that names the `io::ErrorKind` a failure carries.
+use crate::io_error_kind::{invalid_input};
 /// Owned descriptor that closes automatically when its value leaves scope.
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 /// Stable Linux command constants,
@@ -226,7 +228,7 @@ fn load_prog(map_fd: &OwnedFd, attach_type: u32) -> io::Result<OwnedFd> {
 
 /// Reports the link pin path error for an embedded NUL byte.
 fn pin_path_contains_nul(_error: std::ffi::NulError) -> io::Error {
-    return io::Error::new(io::ErrorKind::InvalidInput, "pin path contains NUL");
+    return invalid_input("pin path contains NUL");
 }
 
 /// Pins a bpf object fd to a path in the bpf filesystem so it survives process exit.

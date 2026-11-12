@@ -19,6 +19,8 @@ use crate::report_cause::quote_name;
 use std::collections::BTreeMap;
 /// Syscall and parse failures.
 use std::io;
+/// One place that names the `io::ErrorKind` a failure carries.
+use crate::io_error_kind::{invalid_data};
 /// Cgroup directories.
 use std::path::Path;
 
@@ -230,12 +232,12 @@ pub fn parse_io_max(text: &str) -> io::Result<BTreeMap<String, DeviceLimits>> {
             continue;
         };
         if !is_device_number(device) {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, format!("not an io.max device: {device:?}")));
+            return Err(invalid_data(format!("not an io.max device: {device:?}")));
         }
         let mut limits = DeviceLimits::default();
         for word in words {
             let Some((key, value)) = word.split_once('=') else {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, format!("not an io.max setting: {word:?}")));
+                return Err(invalid_data(format!("not an io.max setting: {word:?}")));
             };
             let parsed = parse_limit(value)?;
             match key {
@@ -280,10 +282,10 @@ pub fn parse_io_weight(text: &str) -> io::Result<Option<u64>> {
         return match rest.trim().parse::<u64>() {
             Ok(weight) if weight == DEFAULT_IO_WEIGHT => Ok(None),
             Ok(weight) => Ok(Some(weight)),
-            Err(_error) => Err(io::Error::new(io::ErrorKind::InvalidData, format!("not an io.weight default: {:?}", rest.trim()))),
+            Err(_error) => Err(invalid_data(format!("not an io.weight default: {:?}", rest.trim()))),
         };
     }
-    return Err(io::Error::new(io::ErrorKind::InvalidData, "an io.weight without a default line"));
+    return Err(invalid_data("an io.weight without a default line"));
 }
 
 /// Parses a cgroup limit file:
@@ -295,7 +297,7 @@ pub fn parse_limit(text: &str) -> io::Result<Option<u64>> {
     }
     return match trimmed.parse::<u64>() {
         Ok(number) => Ok(Some(number)),
-        Err(_error) => Err(io::Error::new(io::ErrorKind::InvalidData, format!("not a cgroup limit: {trimmed:?}"))),
+        Err(_error) => Err(invalid_data(format!("not a cgroup limit: {trimmed:?}"))),
     };
 }
 
@@ -305,16 +307,16 @@ pub fn parse_limit(text: &str) -> io::Result<Option<u64>> {
 pub fn parse_cpu_max(text: &str) -> io::Result<Option<u64>> {
     let mut words = text.split_whitespace();
     let (Some(quota), Some(period)) = (words.next(), words.next()) else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("not a cpu.max line: {:?}", text.trim())));
+        return Err(invalid_data(format!("not a cpu.max line: {:?}", text.trim())));
     };
     let Some(quota_value) = parse_limit(quota)? else {
         return Ok(None);
     };
     let Ok(period_value) = period.parse::<u64>() else {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("not a cpu.max period: {period:?}")));
+        return Err(invalid_data(format!("not a cpu.max period: {period:?}")));
     };
     if period_value == 0 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "a cpu.max period of zero"));
+        return Err(invalid_data("a cpu.max period of zero"));
     }
     return Ok(Some(quota_value.saturating_mul(1_000_000) / period_value));
 }

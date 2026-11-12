@@ -4,6 +4,8 @@
 use crate::pin::cgroup_key;
 /// Standard filesystem and parse failures.
 use std::io;
+/// One place that names the `io::ErrorKind` a failure carries.
+use crate::io_error_kind::{invalid_data};
 /// Unix creation modes for private state files.
 use std::os::unix::fs::OpenOptionsExt;
 /// Runtime state paths.
@@ -100,7 +102,7 @@ fn parse_state(text: &str) -> io::Result<KeeperState> {
     let mut candidate: Option<Option<KeeperProcess>> = None;
     for line in text.lines() {
         let Some((key, value)) = line.split_once('=') else {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "keeper state line lacks equals"));
+            return Err(invalid_data("keeper state line lacks equals"));
         };
         if key == "version" && version.is_none() {
             version = Some(value);

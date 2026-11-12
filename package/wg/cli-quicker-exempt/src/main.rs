@@ -76,6 +76,8 @@ mod application_watch_state;
 mod runtime_report;
 /// The cause of a failure line.
 mod report_cause;
+/// Names the `io::ErrorKind` a failure carries.
+mod io_error_kind;
 /// The desktop notification channel of the failure reporter.
 mod desktop_notification;
 /// Relays the loud lines of a start to the terminal of `up`.
@@ -173,6 +175,8 @@ mod bpf_tests;
 #[cfg(test)]
 mod pin_tests;
 
+/// One place that names the `io::ErrorKind` a failure carries.
+use crate::io_error_kind::{invalid_input};
 /// Standard I/O error type used across command boundaries.
 use std::io;
 /// Filesystem path view for cgroup arguments.
@@ -185,14 +189,11 @@ fn parse_mark(value: &str) -> io::Result<u32> {
     let mark: u32 = match value.parse() {
         Ok(parsed) => parsed,
         Err(error) => {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("invalid mark {value}: {error}")));
+            return Err(invalid_input(format!("invalid mark {value}: {error}")));
         }
     };
     if mark == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "mark must be positive",
-        ));
+        return Err(invalid_input("mark must be positive"));
     }
     return Ok(mark);
 }
@@ -201,7 +202,7 @@ fn parse_mark(value: &str) -> io::Result<u32> {
 fn parse_uid(value: &str) -> io::Result<u32> {
     return match value.parse() {
         Ok(uid) => Ok(uid),
-        Err(error) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("invalid UID {value}: {error}"))),
+        Err(error) => Err(invalid_input(format!("invalid UID {value}: {error}"))),
     };
 }
 
