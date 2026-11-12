@@ -150,7 +150,7 @@ async fn hidden_work_awaiting(context: &GitContext, root: &Path, touched: &[Vec<
         let location: PathBuf = worktree_path(root, entry.path.as_slice());
         // Nothing at the path is no edit of the person's: a marked entry with no file is a sparse checkout's own state, and a
         //  missing worktree file is one Git's update writes back.
-        let Some((bytes, mode)) = bytes_at(location.as_path())? else {
+        let Some((bytes, mode, _permissions)) = bytes_at(location.as_path())? else {
             continue;
         };
         if mode == entry.mode.as_str()
