@@ -31,6 +31,30 @@
 use crate::plain_file::read_plain_file;
 use std::path::{Path, PathBuf};
 
+/// What:
+///  The one move a merge makes in the branch it ran in,
+///  which is no witness that the commit it moved onto came from another branch.
+/// Why:
+///  A fast-forward leaves the branch the merge ran in on the tip the landed branch has,
+///  and Git records that move in its reflog exactly as it records one the person made:
+///  a merge's own move is therefore skipped by the pair of commits it wrote,
+///  while any other move of the same branch, made before or after it, still counts.
+///  Measured with Git 2.56 on fixtures on 2026-11-11:
+///  a fast-forward, a `--no-ff` merge and an octopus merge each write one line in the branch they ran in,
+///  whose old value is the head before the merge and whose new value is the head after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mergeMove = { from: 'a1b2c3d...', to: 'dfc6c4e...' };
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MergeMove<'a> {
+    /// The commit the branch held before the merge.
+    pub(crate) from: &'a str,
+    /// The commit it holds now.
+    pub(crate) to: &'a str,
+}
+
 /// How many bytes of one branch's reflog this reads.
 /// Why:
 ///   A reflog grows with every move of its branch,
@@ -156,19 +180,27 @@ fn moved_between(line: &[u8]) -> Option<(&[u8], &[u8])> {
 ///  whatever width that repository's null object name has (`is_no_commit`).
 ///  A repository that keeps no reflog for the branch answers nothing,
 ///  and the caller then treats the branch as it did before this question existed.
+///  The merge's own move is removed from the answer
+///  because a fast-forward writes one line in the branch it ran in,
+///  which would otherwise read as a witness against the branch it landed
+///  (`MergeMove`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// branchMovedOnto(commonDir, 'refs/heads/main', 'dfc6c4e...') // true when main's own reflog moved there
+/// branchMovedOnto(commonDir, 'refs/heads/main', 'dfc6c4e...', undefined) // true when main's own reflog moved there
 /// ```
-pub(crate) fn branch_moved_onto(common_dir: &Path, reference: &str, commit: &str) -> bool {
+pub(crate) fn branch_moved_onto(common_dir: &Path, reference: &str, commit: &str, merge_move: Option<MergeMove<'_>>) -> bool {
     let Some(text) = read_reflog(common_dir, reference) else { return false };
     let wanted: &[u8] = commit.as_bytes();
     for line in text.split(is_line_end) {
         let Some((old, next)) = moved_between(line) else { continue };
-        if next == wanted && old != next && !is_no_commit(old) {
-            return true;
+        if next != wanted || old == next || is_no_commit(old) {
+            continue;
         }
+        if merge_move.is_some_and(|skipped| return old == skipped.from.as_bytes() && next == skipped.to.as_bytes()) {
+            continue;
+        }
+        return true;
     }
     return false;
 }

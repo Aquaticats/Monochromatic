@@ -46,20 +46,23 @@
 //!  a repository that keeps no reflog for it proves nothing,
 //!  and the branch stays a candidate as it did before
 //!  (`worktree_branch_reflog.rs`).
-//!  A branch that has moved holds no commit of its own either when another branch this merge did not land on had already
-//!  moved onto the same commit:
-//!  its own reflog records that move from another commit,
+//!  A branch that has moved holds no commit of its own either when another branch's own reflog names the commit it holds:
+//!  its own reflog records a move there from another commit,
 //!  while a branch created at a commit records no commit as the value before it and proves nothing.
 //!  A person who runs `git reset --hard main` in a task worktree moves its branch onto main's commit and makes nothing,
 //!  and the tip differs from the commit the branch was made at,
 //!  so movement alone read it as the branch's own work and the merge that brought main in took the worktree
 //!  (a cross-vendor review of the landed sweep,
 //!  round 208).
-//!  A branch moved onto a commit this one made is the mirror of that,
-//!  and keeps the worktree:
-//!  Git records no owner of a commit,
-//!  and a branch moved onto a commit another branch holds below its own tip is no state this rule can see at all,
-//!  so a worktree it cannot prove it may remove stays.
+//!  The branch whose reflog is asked need not still sit on that commit:
+//!  one that committed again names the same commit in an older line,
+//!  and a rule that demanded the tip equal the candidate's found no witness and took the worktree anyway.
+//!  The one move this merge wrote in the branch it ran in is no witness,
+//!  because a fast-forward records exactly that line and it would otherwise read as another branch's work.
+//!  A branch moved onto a commit this one made is the mirror of that and keeps the worktree,
+//!  since Git records no owner of a commit,
+//!  and a landed worktree whose tip another branch's history passed through stays the same way:
+//!  a worktree this rule cannot prove it may remove stays.
 //!  Ignored directories are the build state this sweep exists to give back and go with the worktree.
 //!  The process the sweep runs in counts as one working in a worktree:
 //!  `-C` names the repository a command works on,
@@ -103,7 +106,7 @@
 use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
-use crate::worktree_branch_reflog::{branch_made_at, branch_moved_onto};
+use crate::worktree_branch_reflog::{MergeMove, branch_made_at, branch_moved_onto};
 use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
@@ -299,7 +302,48 @@ fn holds_its_own_commits(common_dir: &Path, reference: &str, tip: &str) -> bool 
     return branch_made_at(common_dir, reference) != Some(tip.to_owned());
 }
 
-/// Whether a branch this merge did not land on moved onto `tip`,
+/// What:
+///  The merge that just ran,
+///  as much of it as says which reflog line the merge itself wrote.
+/// Why:
+///  The witness rule reads the reflog of every landed branch,
+///  and a fast-forward writes one line in the branch the merge ran in that names the landed tip.
+///  Skipping that one line needs the branch,
+///  the commit it held before the merge and the one it holds now,
+///  so a control names them together rather than as three loose strings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thisMerge = { branch: 'main', before: 'a1b2c3d...', now: 'dfc6c4e...' };
+/// ```
+#[derive(Clone, Copy)]
+struct ThisMerge<'a> {
+    /// The branch the merge ran in,
+    /// in Git's short spelling,
+    /// or the words for a `HEAD` that names no branch.
+    branch: &'a str,
+    /// The commit that branch held before the merge.
+    before: &'a str,
+    /// The commit it holds now.
+    now: &'a str,
+}
+
+/// Whether `reference` is the branch `short` names,
+/// which a caller gives in Git's own short spelling.
+/// Why:
+///   A landing names a reference in full,
+///  and the branch a merge ran in is named the way Git prints it,
+///  so the two are compared through the one prefix Git puts in front of a branch name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesABranch('refs/heads/main', 'main') // true
+/// ```
+fn names_a_branch(reference: &str, short: &str) -> bool {
+    return reference.strip_prefix("refs/heads/") == Some(short);
+}
+
+/// Whether another branch's own reflog names `tip`,
 /// which is a commit the branch named by `reference` did not make.
 /// Why:
 ///  A person who runs `git reset --hard main` in a task worktree moves its branch onto main's commit and makes nothing.
@@ -307,22 +351,33 @@ fn holds_its_own_commits(common_dir: &Path, reference: &str, tip: &str) -> bool 
 ///  so the rule above read the move as work of the branch's own and the merge that brought main in removed the worktree
 ///  (a cross-vendor review of the landed sweep,
 ///  round 208).
-///  A branch at the head this merge landed on is not counted:
-///  a fast-forward merge leaves the landed branch on the tip the landed worktree's branch has,
-///  and that is where the work of that branch is.
-///  A branch moved onto a commit another branch holds below its own tip is the state this rule cannot see,
-///  because Git records no owner of a commit.
+///  The branch whose reflog is asked need not still sit on that commit:
+///  one that committed again after the reset names the same commit in an older line,
+///  and a rule that demanded the tip equal the candidate's found no witness at all,
+///  which took the worktree as surely as the equal-tip state did.
+///  The one line this merge wrote in the branch it ran in is no witness:
+///  a fast-forward leaves that branch on the landed tip,
+///  so its own move there would otherwise read as another branch's work.
+///  What stays unseen is the mirror state:
+///  a branch moved onto a commit this candidate made keeps the worktree too,
+///  because Git records no owner of a commit,
+///  and so does a landed worktree whose tip another branch's history passed through.
+///  Both are worktrees this rule cannot prove it may remove, and they stay.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// anotherBranchTookTheTip(landed, commonDir, 'refs/heads/task-z', 'dfc6c4e...', 'a1b2c3d...') // true when a branch moved onto another branch's commit
+/// anotherBranchTookTheTip(landed, commonDir, 'refs/heads/task-z', 'dfc6c4e...', { branch: 'main', before, now })
 /// ```
-fn another_branch_took_the_tip(landed: &[Landing], common_dir: &Path, reference: &str, tip: &str, landed_head: &str) -> bool {
+fn another_branch_took_the_tip(landed: &[Landing], common_dir: &Path, reference: &str, tip: &str, this_merge: ThisMerge<'_>) -> bool {
     for other in landed {
-        if other.reference == reference || other.tip != tip || other.tip == landed_head {
+        if other.reference == reference {
             continue;
         }
-        if branch_moved_onto(common_dir, other.reference.as_str(), tip) {
+        let merge_move: Option<MergeMove<'_>> = match names_a_branch(other.reference.as_str(), this_merge.branch) {
+            true => Some(MergeMove { from: this_merge.before, to: this_merge.now }),
+            false => None,
+        };
+        if branch_moved_onto(common_dir, other.reference.as_str(), tip, merge_move) {
             return true;
         }
     }
@@ -368,7 +423,13 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         if !holds_its_own_commits(place.common_dir, one.reference.as_str(), one.tip.as_str()) {
             continue;
         }
-        if another_branch_took_the_tip(landed.as_slice(), place.common_dir, one.reference.as_str(), one.tip.as_str(), now) {
+        if another_branch_took_the_tip(
+            landed.as_slice(),
+            place.common_dir,
+            one.reference.as_str(),
+            one.tip.as_str(),
+            ThisMerge { branch: landed_branch, before, now },
+        ) {
             continue;
         }
         candidates.insert(one.reference.clone());
