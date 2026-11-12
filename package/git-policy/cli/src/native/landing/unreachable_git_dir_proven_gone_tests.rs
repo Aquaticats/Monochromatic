@@ -337,7 +337,8 @@ const MOUNT_SIDE: &str = "UNREACHABLE_GIT_DIR_TEST_MOUNT_SIDE";
 /// so the empty root of a mounted filesystem read as a mount point waiting for its drive,
 /// the plan never ended,
 /// and the service of a deleted repository never asked for its socket to be stopped.
-/// The sequence needs a mount, so the inner half runs under `unshare` in a private mount namespace,
+/// The sequence needs a mount,
+/// so the inner half runs under `unshare` in a private mount namespace,
 /// and the control skips where the host lets no unprivileged process mount.
 #[cfg(target_os = "linux")]
 #[test]
@@ -403,7 +404,8 @@ struct MountedTmpfs {
 
 #[cfg(target_os = "linux")]
 impl MountedTmpfs {
-    /// Mount a tmpfs on `path`, which this process may only do as root in a mount namespace of its own.
+    /// Mount a tmpfs on `path`,
+    /// which this process may only do as root in a mount namespace of its own.
     fn at(path: &Path) -> Self {
         let mounted: std::process::Output = std::process::Command::new("mount").args(["-t", "tmpfs", "tmpfs"]).arg(path).output().expect("the mount command runs");
         assert!(

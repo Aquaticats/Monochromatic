@@ -137,7 +137,8 @@ fn a_plan_of_a_repository_behind_a_directory_that_cannot_be_searched_stays() {
 /// which may be neither done nor cancelled,
 /// and the journal keeps it for the start that can read it.
 /// A review of this cleanup read the deletion of such a file into it;
-/// the read keeps it since `load` was changed to, and this control holds the promise at the cleanup.
+/// the read keeps it since `load` was changed to,
+/// and this control holds the promise at the cleanup.
 #[test]
 fn a_valid_plan_that_cannot_be_read_stays_when_the_gone_plans_end() {
     use std::os::unix::fs::PermissionsExt;

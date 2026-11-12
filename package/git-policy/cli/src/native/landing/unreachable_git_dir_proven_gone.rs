@@ -317,7 +317,8 @@ impl Mounts for NothingIsMounted {
 /// type Look = { there: { directory: boolean } } | { absent: true } | { unknown: true };
 /// ```
 enum Look {
-    /// The path is there, and whether it is a directory.
+    /// The path is there,
+    /// and whether it is a directory.
     There {
         /// Whether the filesystem said the path is a directory.
         directory: bool,
