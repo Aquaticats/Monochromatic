@@ -16,7 +16,7 @@
 //! and every read of native Git keeps the stream in a file rather than a pipe.
 
 use super::service_landing_support::text_of_within;
-use super::support::{Fixture, NATIVE_GIT_BOUND_SECONDS, REAL_GIT, direct, executable, fixture, git, native_git_within, repository};
+use super::support::{Fixture, NATIVE_GIT_BOUND_SECONDS, REAL_GIT, direct, executable, fixture, git, native_git_within, remove, repository};
 use std::ffi::OsStr;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
@@ -119,6 +119,7 @@ fn every_native_git_command_a_fixture_starts_carries_its_own_bound() {
         expected.as_slice(),
         "a native Git command of a fixture starts under the harness's bound, and this one is {line:?}: a Git that never answers would hold its control until the runner ends the run"
     );
+    remove(&fixture);
 }
 
 /// What:
@@ -161,6 +162,8 @@ fn a_native_git_command_that_never_answers_ends_at_its_bound_and_names_it() {
     assert!(message.contains("status"), "the failure names the command it waited for: {message}");
     assert!(message.contains(root.display().to_string().as_str()), "the failure names the directory: {message}");
     assert!(message.contains(format!("{READ_BOUND_SECONDS} s bound").as_str()), "the failure names the bound: {message}");
+    // The read owned the fixture in its own thread, so this control cleans up by the root it kept.
+    let _removed = std::fs::remove_dir_all(&root);
 }
 
 /// What:
@@ -211,4 +214,6 @@ fn a_native_git_read_ended_at_its_bound_does_not_wait_for_a_hook_s_descendant() 
     assert!(message.contains("status"), "the failure names the command it waited for: {message}");
     assert!(message.contains(root.display().to_string().as_str()), "the failure names the directory: {message}");
     assert!(message.contains(format!("{READ_BOUND_SECONDS} s bound").as_str()), "the failure names the bound: {message}");
+    // The read owned the fixture in its own thread, so this control cleans up by the root it kept.
+    let _removed = std::fs::remove_dir_all(&root);
 }
