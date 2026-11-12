@@ -44,8 +44,11 @@ import { bringUp } from 'TUNNEL_UP_MODULE';
 
 const record = process.argv[1];
 const note = (name) => appendFileSync(record, name + '\\n');
-/* A long command in the step, so the interrupt arrives while the step runs. */
-const blocked = { wait: () => run({ command: 'sh', args: ['-c', 'sleep 30'] }) };
+/* A long command in the step, so the interrupt arrives while the step runs.
+   It names itself in the record first, so the interrupt is sent only once it runs:
+   a signal that arrives before the command starts reaches none of it,
+   and the step then waits the command out instead of being interrupted. */
+const blocked = { wait: () => run({ command: 'sh', args: ['-c', 'printf "command-running\\n" >> "$0"; sleep 30', record] }) };
 using interruption = watchForInterruption();
 try {
   await bringUp({
@@ -61,7 +64,12 @@ try {
       startExemptions: async () => { note('startExemptions'); },
       runPostUp: async () => { note('runPostUp'); },
     },
-    rollback: async () => { note('rollback'); },
+    rollback: async () => {
+      /* A real rollback runs commands, so it cannot finish in the same tick the step failed in;
+         yielding here also gives the signal handler its turn before the up says why it stopped. */
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      note('rollback');
+    },
     interruption,
   });
 }
@@ -81,7 +89,7 @@ catch (error) {
 
  @example
  ```ts
- await waitFor({ record, text: 'setupRoutes' });
+ await waitFor({ record, text: 'command-running' });
  ```
  */
 async function waitFor(
@@ -211,7 +219,7 @@ await describe({
             await rm(directory, { recursive: true, force: true, },);
           },
         };
-        await waitFor({ record, text: 'setupRoutes', },);
+        await waitFor({ record, text: 'command-running', },);
         // The whole group, as a terminal's interrupt reaches the foreground job and its children.
         if (child.pid !== undefined)
           process.kill(-child.pid, 'SIGINT',);
