@@ -678,7 +678,8 @@ pub(crate) fn amended_fields(invocation: &CommitInvocation<'_>, sent: &CommitReq
 /// kept in a file of its own to stay under the file-size limit.
 #[path = "service_amend_replayed_awaiting.rs"]
 mod awaited;
-pub(crate) use self::awaited::rebuilt_onto_awaiting;
+#[cfg_attr(not(test), expect(unused_imports, reason = "no production caller yet: the commit path calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
+pub(crate) use self::awaited::{amended_fields_awaiting, rebuilt_onto_awaiting};
 
 /// Controls for the commit an amend makes stay out of the release executable.
 #[cfg(test)]

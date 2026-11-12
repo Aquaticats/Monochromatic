@@ -169,11 +169,11 @@ fn the_commit_is_written_inside_a_task_where_the_synchronous_one_is_refused() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// assert(source.includes('the_amends_tree_awaiting') && source.includes('run_git_checked_awaiting'))
+/// assert(source.includes('amended_fields_awaiting') && source.includes('run_git_checked_awaiting'))
 /// ```
 #[test]
 fn the_awaited_faces_of_a_prepared_commit_ask_what_the_synchronous_ones_ask() {
-    let source: &str = include_str!("service_amend_replayed.rs");
+    let source: &str = include_str!("service_amend_replayed_awaiting.rs");
     assert!(source.contains("amended_fields_awaiting"), "the face that reads back the commit Git built is there for the commit path to call");
     assert!(source.contains("run_git_checked_awaiting(invocation.context"), "and it awaits the read on the runtime");
 }
