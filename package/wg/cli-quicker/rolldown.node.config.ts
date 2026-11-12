@@ -24,6 +24,7 @@ const config: NodeFlavorConfigs = perEntryNodeConfig({
     './src/bypass-host-refresh.ts',
     './src/bypass-watch-failure.ts',
     './src/run-subcommand.ts',
+    './src/start-notice-terminal.ts',
     './src/escape-text.ts',
     './src/notification-user.ts',
     './src/failure-repeat-limit.ts',

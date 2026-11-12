@@ -1417,6 +1417,15 @@ The notice is built by `startNotices`,
 a pure function of the config facts,
 so a test checks every combination of mark,
 `Table = off` and DNS servers and fails if any start would print nothing.
+It reaches the terminal through the program's own standard error and not through the logger,
+because the logger's console sink drops `warn` records when `MONOCHROMATIC_WARN=false`
+and every console record when `MONOCHROMATIC_LOG_CONSOLE=off`,
+and those switches belong to whoever set them for a machine-wide hook,
+not to the decision that a start is always warned about.
+Both switches still decide what the program's own records do:
+with either one set,
+everything else the program logs stays off the terminal while the notice is printed,
+and nothing but the notice goes to standard output.
 With `Table = off` wg-quicker installs no routing rule and no bypass table,
 so the start prints the `POLICY NOT IN FORCE` report instead of the notice,
 saying that where traffic goes is decided by the user's own routing.
