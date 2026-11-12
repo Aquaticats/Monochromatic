@@ -123,10 +123,9 @@ use crate::service_commit_args_editor_opening::opens_editor;
 /// which says where the options end and which tokens are a value,
 /// and Git's own tables,
 /// which say what a spelling names.
-use crate::commit_args::{boundary_index, value_positions};
+use crate::commit_args::{boundary_index, short_letter_takes_a_value, value_positions};
 use crate::command_commit_table::COMMIT_TABLE;
 use crate::command_options_long_resolution::long_option_state;
-use crate::commit_args_reading::{OPTIONAL_VALUE_LETTERS, SHORT_VALUE_OPTIONS};
 /// The notice's sink.
 use std::io::Write;
 /// The writer thread's own time,
@@ -390,7 +389,7 @@ fn names_a_signing_letter(argument: &str) -> bool {
         if letter == SIGNING_LETTER {
             return true;
         }
-        if OPTIONAL_VALUE_LETTERS.contains(&letter) || SHORT_VALUE_OPTIONS.contains(&format!("-{letter}").as_str()) {
+        if short_letter_takes_a_value(letter) {
             return false;
         }
     }

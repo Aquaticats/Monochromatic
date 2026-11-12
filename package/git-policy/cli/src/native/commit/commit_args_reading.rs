@@ -251,6 +251,25 @@ pub fn normalise_commit_args(args: &[String]) -> Vec<String> {
 }
 
 /// What:
+///  Whether a letter of a short `git commit` cluster takes a value.
+/// Why:
+///   `-m<text>`,
+/// `-F<file>`,
+/// `-S<keyid>` and `-u<mode>` carry their value in the same token,
+///  so a transform that reads the letters after one reads the person's value and never a flag.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// shortLetterTakesAValue('m') // true
+/// ```
+pub fn short_letter_takes_a_value(letter: char) -> bool {
+    if OPTIONAL_VALUE_LETTERS.contains(&letter) {
+        return true;
+    }
+    return SHORT_VALUE_OPTIONS.contains(&format!("-{letter}").as_str());
+}
+
+/// What:
 ///  Whether a letter of a short-option cluster takes an optional value.
 ///  `&char` borrows the letter,
 /// as `position` hands it over.

@@ -34,9 +34,9 @@ use crate::transaction_journal::TransactionMode;
 /// ```ts
 /// import { COMMIT_TABLE } from './command_commit_table.ts';
 /// import { longOptionNames } from './command_options_long_resolution.ts';
-/// import { separatorIndex, takesNextToken } from './commit_args_reading.ts';
+/// import { boundaryIndex, takesNextToken } from './commit_args_reading.ts';
 /// ```
-use super::commit_args_reading::{OPTIONAL_VALUE_LETTERS, SHORT_VALUE_OPTIONS, is_optional_value_letter};
+use super::commit_args_reading::is_optional_value_letter;
 use crate::command_commit_table::COMMIT_TABLE;
 use crate::command_options_long_resolution::long_option_names;
 
@@ -45,7 +45,7 @@ use crate::command_options_long_resolution::long_option_names;
 ///  so callers keep reaching it through this module.
 /// Why:
 ///   Moving it to its own file must not move a name any caller knows.
-pub use super::commit_args_reading::{boundary_index, ends_the_options, normalise_commit_args, takes_next_token, value_positions};
+pub use super::commit_args_reading::{boundary_index, ends_the_options, normalise_commit_args, short_letter_takes_a_value, takes_next_token, value_positions};
 
 /// The `git commit` option that stages every tracked change.
 /// The private index already holds that staging,
@@ -427,7 +427,7 @@ fn cluster_without_letters(token: &str, removed: &[char]) -> Option<String> {
         let letter: char = letters[index];
         // A letter that takes a value ends the flags: what follows it is the person's value and stays whole,
         // so a key or a message that spells a removed letter never disappears.
-        if letter_takes_a_value(letter) {
+        if short_letter_takes_a_value(letter) {
             break;
         }
         if removed.contains(&letter) {
@@ -444,19 +444,6 @@ fn cluster_without_letters(token: &str, removed: &[char]) -> Option<String> {
         cluster.push(*letter);
     }
     return Some(cluster);
-}
-
-/// What:
-///  Whether a letter of a short-option cluster takes a value.
-/// Why:
-///   `-m<text>`,
-///  `-F<file>` and `-S<keyid>` carry their value in the same token,
-///  so a selection letter after one is that value and not a flag.
-fn letter_takes_a_value(letter: char) -> bool {
-    if OPTIONAL_VALUE_LETTERS.contains(&letter) {
-        return true;
-    }
-    return SHORT_VALUE_OPTIONS.contains(&format!("-{letter}").as_str());
 }
 
 /// What:

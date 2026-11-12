@@ -42,12 +42,42 @@ fn the_message_of_a_service_built_amend_ends_with_one_line_break() {
     assert_eq!(fields.subject(), "subject");
 }
 
+/// The signing option of a command line,
+/// as the text `git commit-tree` is given.
+fn named_signing_option(words: &[&str]) -> Option<String> {
+    let arguments: Vec<std::ffi::OsString> = words.iter().map(std::ffi::OsString::from).collect();
+    return signing_option(arguments.as_slice()).map(String::from);
+}
+
+/// What:
+///  The signing option of a command line in the spelling `git commit-tree` takes,
+///  including a key named with the long option or inside a short cluster.
+/// Why:
+///  A commit made again is signed with the key the person chose (rule: what the wrapper passes to
+///  Git means what the person typed), and `--gpg-sign=KEY` names one as `-SKEY` does;
+///  the long option alone names the default key,
+///  which `commit-tree` takes as `-S`.
+///  A value that spells the option and a path after the options end are neither.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(namedSigningOption(['--gpg-sign=KEY'])).toBe(Some('-SKEY'));
+/// ```
 #[test]
 fn the_signing_option_of_a_command_line_is_the_key_it_names() {
-    let named: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from("--message=x"), std::ffi::OsString::from("-SABCDEF")];
-    assert_eq!(signing_option(named.as_slice()), Some("-SABCDEF"));
-    let plain: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from("--message=x")];
-    assert_eq!(signing_option(plain.as_slice()), None);
-    let long: Vec<std::ffi::OsString> = vec![std::ffi::OsString::from("--gpg-sign")];
-    assert_eq!(signing_option(long.as_slice()), None, "a long option is not the short spelling `commit-tree` takes");
+    assert_eq!(named_signing_option(&["--message=x", "-SABCDEF"]), Some(String::from("-SABCDEF")));
+    assert_eq!(named_signing_option(&["--message=x"]), None);
+    // The long option names the default key, and a key with `=`.
+    assert_eq!(named_signing_option(&["--gpg-sign"]), Some(String::from("-S")));
+    assert_eq!(named_signing_option(&["--gpg-sign=ABCDEF"]), Some(String::from("-SABCDEF")));
+    // Every unambiguous prefix of it counts, as it does for Git.
+    assert_eq!(named_signing_option(&["--gpg-s=ABCDEF"]), Some(String::from("-SABCDEF")));
+    // A short cluster carries the letter, and what follows it is the key.
+    assert_eq!(named_signing_option(&["-qSABCDEF"]), Some(String::from("-SABCDEF")));
+    // A value that spells the option, and a path after the options end, are neither.
+    assert_eq!(named_signing_option(&["-m", "-SABCDEF"]), None);
+    assert_eq!(named_signing_option(&["-m", "x", "--", "-SABCDEF"]), None);
+    assert_eq!(named_signing_option(&["-m", "x", "--end-of-options", "-SABCDEF"]), None);
+    // The last request wins, as it does in Git.
+    assert_eq!(named_signing_option(&["-SABCDEF", "--no-gpg-sign"]), None);
 }
