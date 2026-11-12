@@ -424,3 +424,51 @@ fn an_abbreviated_only_leaves_where_git_reads_it() {
         args(&["--pat", "-m", "msg"])
     );
 }
+
+/// What:
+///  The interactive and patch controls are read from Git's own table too,
+///  so every unambiguous abbreviation of them leaves with the selection that already ran,
+///  and an ambiguous spelling stays for Git to refuse.
+/// Why:
+///  The private selection ran `git add -i` or `git add -p` for `-i`,
+/// `-p`,
+/// `--include`,
+/// `--interactive` and `--patch`;
+///  an abbreviation that stayed in the scratch line would ask the person a second time,
+/// and Git answers `--pat` with "ambiguous option" because three of its long options start with it.
+///  The 0.6.1-alpha.12 audit found the exact spellings removed and the abbreviations kept,
+/// and these are the spellings beside that one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(namesSelectionControl('--inter')).toBe(true); expect(namesSelectionControl('--pat')).toBe(false);
+/// ```
+#[test]
+fn an_abbreviated_interactive_or_patch_control_leaves_where_git_reads_it() {
+    // `--interactive`: no other long option of `git commit` starts with `inter`.
+    for spelling in ["--inter", "--intera", "--interactive"] {
+        assert!(names_selection_control(spelling), "{spelling}");
+        assert_eq!(
+            private_selection_commit_args(&args(&[spelling, "a.txt", "-m", "msg"]), &args(&["a.txt"])),
+            args(&["-m", "msg"]),
+            "{spelling}"
+        );
+    }
+    // `--patch`: `--patc` and `--pat` are counted short forms, and `--pat` alone is ambiguous.
+    for spelling in ["--patc", "--patch"] {
+        assert!(names_selection_control(spelling), "{spelling}");
+        assert_eq!(
+            private_selection_commit_args(&args(&[spelling, "a.txt", "-m", "msg"]), &args(&["a.txt"])),
+            args(&["-m", "msg"]),
+            "{spelling}"
+        );
+    }
+    for ambiguous in ["--pat", "--pa", "--p"] {
+        assert!(!names_selection_control(ambiguous), "{ambiguous}");
+        assert_eq!(
+            private_selection_commit_args(&args(&[ambiguous, "a.txt", "-m", "msg"]), &args(&["a.txt"])),
+            args(&[ambiguous, "-m", "msg"]),
+            "{ambiguous}"
+        );
+    }
+}
