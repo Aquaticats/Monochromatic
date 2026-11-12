@@ -135,6 +135,95 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A wrapper killed for memory in a 512 MB scope: the holder scan's read of a descriptor record, issue 6287 (2026-11-12T09:50:16-05:00)
+
+#### What the owner said
+
+- About 09:41, quoting a desktop notification:
+  "The background service review208-rec5.scope has been terminated by the Linux kernel
+  because the system is low on memory. Consider closing unused applications or browser tabs."
+  "Is this yours? And also make sure this doesn't happen again."
+- About 09:43:
+  "I don't want you to stop the notification. I want you to fix the root cause."
+
+The notification stays as it is.
+Nothing may hide it, filter it or change the unit's out-of-memory policy to avoid it.
+
+#### What happened
+
+- The scope was started at 09:38:17 by the qwen4 reviewer of the merge-asides fix (a run of this session),
+  with `MemoryMax=512M`,
+  to run `status --porcelain` in a fixture with a wrapper built from the branch under review.
+- The kernel killed the wrapper at 09:40:23.
+  Its report: `constraint=CONSTRAINT_MEMCG`,
+  usage and limit both 524288 kB,
+  `anon 0`,
+  `file 0`,
+  `kernel 536809472`,
+  `vmalloc 535171072`;
+  the stack is `vfs_read`, `seq_read`, `seq_read_iter`, `__kvmalloc_node_noprof`.
+  The machine had 35 GiB available:
+  the kill was the scope's own cap,
+  and the notification's wording about the system is Plasma's for any unit that ends that way.
+- A trace of the same command in a scope capped at 4G
+  (`~/temp/agent/probe-recover-hang/strace.txt`):
+  3,844 opens of `/proc/<pid>/fdinfo/<n>`,
+  the last one `/proc/178989/fdinfo/3`,
+  followed by a `read` that did not return in twelve seconds.
+  That descriptor is `anon_inode:inotify`,
+  held by `fsnotifier`,
+  the file watcher of a JetBrains IDE;
+  `fs.inotify.max_user_watches` is 10000000.
+
+#### Root cause
+
+- The wrapper's scan for the process that holds a file reads the whole of `/proc/<pid>/fdinfo/<n>`
+  for every descriptor of every process of the account:
+  `package/git-policy/cli/src/native/process/process_use.rs`,
+  `descriptor_is_file_with` and `mounted_descriptor_is_file`,
+  and the same record in `open_file_of_a_descriptor.rs`.
+- For an inotify descriptor the kernel builds one record with a line per watch,
+  whole,
+  in one buffer charged to the reader,
+  before the reader gets a byte.
+  A bound on the read does not help;
+  the kind of a descriptor has to be known before its record is opened.
+- The defect is on `main` and in the installed 0.6.1-alpha.13.
+  The branch under review did not introduce it.
+  Uncapped,
+  the same read makes any command that scans for holders take minutes while such a watcher runs.
+
+#### What was done
+
+- Issue 6287 filed with the evidence and the required outcome.
+- Round 284,
+  started 09:46:37:
+  `descriptor-scan-never-reads-a-record-whose-size-another-process-decides`,
+  on `main`,
+  with a test whose control shows today's code growing with the watch count,
+  and a search of the wrapper and its commit service for every other unbounded read under `/proc` and `/sys`.
+  Working at 09:49 (twenty-two turns).
+- A note to the twelve running agents of this session at 09:46:57,
+  each delivery shown by its feed:
+  a scope or container that runs a wrapper gets at least 4G until the fix is installed;
+  a wrapper that hangs during a holder scan is this defect;
+  nobody reads `/proc/<pid>/fdinfo/<n>` of a process they did not start.
+- The same workaround,
+  labelled as one with its removal condition,
+  in `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`.
+
+#### Next
+
+- When round 284 ends:
+  read its report,
+  have qwen4 review it,
+  merge with `Closes #6287`,
+  and release it in the first alpha it can go in,
+  ahead of the queue if pass 17 has already merged.
+- After the install:
+  run the reviewer's command in a 512 MB scope as the check at the user boundary,
+  then remove the workaround from the rules doc.
+
 ### The first hourly pass after the restart: pass 17 started, what the reload's own commit printed (2026-11-12T09:05:26-05:00)
 
 #### State
