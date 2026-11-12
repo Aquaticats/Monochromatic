@@ -135,6 +135,60 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### After the restart: 0.6.1-alpha.13 published, the agent for issue 6286 started, the fleet held until the install (2026-11-12T08:39:44-05:00)
+
+The machine was restarted at 04:03:18.
+The owner, at about 08:25: "I've restarted and GPT has finished its investigation."
+The other session's records are `doc/handover/plasma-session-reload-investigation.md`,
+`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` and `doc/planning/git-wrapper-reload-remedy.md`.
+Its proposal names three directions and chooses none; it records that the owner was not sure and handed the work on.
+
+#### 0.6.1-alpha.13
+
+- Trial merge of `integrate/git-policy-cli-pass-16-for-alpha-13` into `main` with `git merge-tree`: clean.
+- Merged as `157d07cd3b` at 08:26:33 and pushed.
+- The first dispatch at 08:27:32 was refused by the release task: "The release <note> must be at most 200 characters, got 275."
+  Dispatched again at 08:29 with a shorter note; workflow run 43227729787.
+- `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.13` at 08:39:44.
+- Installed at 08:40:02 (log `~/temp/agent/gate/install-0.6.1-alpha.13.log`): "the sample commit took 1441 ms";
+  the globally shadowed wrapper moved to 0.6.1-alpha.13 with `mpm-shadow update -g`.
+- The install's own commit asked the user manager for a reload, as a changed template makes the present code do:
+  "Reload requested from client PID 176325 ('monochromatic-g') (unit gpc-install-0-6-1-alpha-13.service)" at 08:40:00,
+  "Reloading finished in 487 ms."
+  The manager held 319 units then. That is why the install ran before any other agent was started.
+
+#### Issue 6286
+
+`wrapper-never-asks-the-user-manager-for-a-manager-wide-reload` has been running since 08:28 (round 278, base `main` at `157d07cd3b`).
+Its brief states the issue's required outcome as the target and gives four directions as suggestions:
+the proposal's three (a stable program link in the template, one unit file per worktree, changing only the waits)
+and one more, a transient unit with no unit file at all, which needs no reload to exist or to change.
+It has to measure the alternation between two programs and where a slow reload spends its time,
+and to prove its result in a container with an unrelated `Type=dbus` service bound to a target.
+It never touches this machine's own manager.
+Which direction is built is decided by that evidence, open to the owner's veto; the proposal's layout question stays the owner's if the evidence does not settle it.
+
+#### Started after the install, at 08:41
+
+- Round 279, eleven continuation briefs (`<run name>-continued-prompt.md`, written by
+  `~/temp/agent/scratch-scripts/write-continuation-briefs-for-stopped-runs.ts`): the ten runs that were stopped or ended early for the restart,
+  and the killed tokio run, which goes on from its half-finished merge and its rescue commit.
+- Round 280, the four qwen4 reviews that were killed (the vendored-clone exemption, the shadow hand-out, the package-repair fix, the clean fix).
+
+#### Being read
+
+Three Sonnet digests of the thirty-three runs that ended between 01:05 and 03:26
+(`~/temp/agent/digest-2026-11-12T0830-a/`, `-b/` and `-c/`, brief `~/temp/agent/digest-brief-2026-11-12T0830.md`).
+Reviews and the next integration pass follow from them.
+
+#### The hourly job
+
+The owner, at about 08:35: "Re-arm the hourly fill and cull. This time don't set an expiry date."
+Cron `c0352b43`, every hour at :41, first fire 09:04, with no end date in its prompt.
+It is session-only, and the harness deletes a recurring job after seven days, so it is re-created about 2026-11-19 if the session still runs.
+Each fire culls or reframes superseded work, reads what ended, routes findings, and starts the next tracked work to keep the pools filled;
+it starts nothing while free space is under 80 GiB.
+
 ### The desktop session was lost at 01:24:54; state before the owner's restart of the machine (2026-11-12T03:32:55-05:00)
 
 #### What happened
