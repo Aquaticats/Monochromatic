@@ -500,5 +500,261 @@ fn the_line_about_a_settled_hold_names_its_repository_and_says_the_commit_is_kep
     assert!(said.contains("is still held"), "the commit waits for the lock: {said}");
     assert!(said.contains("is kept"), "the line says the commit is kept: {said}");
     assert!(!said.contains("refus"), "a commit that is kept is not one that was refused: {said}");
+}
+
+/// The shortest a wait can be and still leave a task beside it time to run on this host.
+const SHORT_CEILING: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// How often a control looks at the flag a task beside the work sets.
+const THE_TICK: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// The most a control waits for that task,
+/// far beyond what a free worker needs,
+/// so only a held worker reaches it.
+const THE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// How long a control waits after it saw the task beside the read run,
+/// so the read's ceiling has surely passed
+/// before the pipe that stalls it is let go:
+/// the ceiling itself,
+/// which is the only bound the read has.
+const PAST_THE_CEILING: std::time::Duration = SHORT_CEILING;
+
+/// What:
+///  Both faces ask whether the batch's commit is below the branch the same thing,
+/// over a branch the batch is on,
+/// a branch it is not on,
+/// and a commit whose name Git cannot answer for.
+/// Why:
+///   The settlement decides from this answer whether a batch landed,
+/// and a face that answered another thing would move a
+///  branch the batch is already on,
+/// or leave a batch that landed unsettled for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert.equal(landedBelow(held, intent, head), await landedBelowAwaiting(held, intent, head));
+/// ```
+#[test]
+fn the_awaited_landing_question_answers_what_the_synchronous_one_answers() {
+    let (root, repo, context) = repository("held-settle-awaiting-landed-below");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    let intent: crate::service_journal::Intent = crate::service_journal::parse_intent(
+        std::fs::read_to_string(batch_path(held.journal.as_path(), 1, OPEN_EXTENSION).as_path()).expect("the record the landing wrote").as_str(),
+    )
+    .expect("the record reads");
+    let base: String = head_of(repo.as_path());
+    let synchronous_off: bool = super::landed_below(&context, &held, &intent, base.as_str());
+    let awaited_off: bool = crate::lazy_runtime::run_on_runtime(super::landed_below_awaiting(&context, &held, &intent, base.as_str())).expect("the runtime");
+    assert!(!synchronous_off, "the batch's commit is not below the branch it was taken off");
+    assert_eq!(synchronous_off, awaited_off, "the awaited face answers the same about a branch the batch is not on");
+    git(repo.as_path(), &["update-ref", "--no-deref", "refs/heads/main", held.new.as_str(), base.as_str()]);
+    let synchronous_on: bool = super::landed_below(&context, &held, &intent, held.new.as_str());
+    let awaited_on: bool = crate::lazy_runtime::run_on_runtime(super::landed_below_awaiting(&context, &held, &intent, held.new.as_str())).expect("the runtime");
+    assert!(synchronous_on, "the batch's commit is the branch");
+    assert_eq!(synchronous_on, awaited_on, "the awaited face answers the same about a branch the batch is on");
+    let unknown: String = String::from("0000000000000000000000000000000000000000");
+    let synchronous_unknown: bool = super::landed_below(&context, &held, &intent, unknown.as_str());
+    let awaited_unknown: bool = crate::lazy_runtime::run_on_runtime(super::landed_below_awaiting(&context, &held, &intent, unknown.as_str())).expect("the runtime");
+    assert!(!synchronous_unknown, "a branch Git cannot answer for is no landing");
+    assert_eq!(synchronous_unknown, awaited_unknown, "the awaited face answers the same about a branch Git cannot answer for");
+    remove(root.as_path());
+}
+
+/// What:
+///  Both faces move the branch from the value it was read at,
+/// and both refuse to move it from another value.
+/// Why:
+///   The compare-and-swap is the one step that decides whether this settlement or another moved the branch,
+/// and a face
+///  that wrote another expectation would move a branch twice or report a refusal that never happened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert.equal(moveBranch(held, intent, new, head), await moveBranchAwaiting(held, intent, new, head));
+/// ```
+#[test]
+fn the_awaited_branch_write_answers_what_the_synchronous_one_answers() {
+    let (root, repo, context) = repository("held-settle-awaiting-branch-write");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    let intent: crate::service_journal::Intent = crate::service_journal::parse_intent(
+        std::fs::read_to_string(batch_path(held.journal.as_path(), 1, OPEN_EXTENSION).as_path()).expect("the record the landing wrote").as_str(),
+    )
+    .expect("the record reads");
+    let base: String = head_of(repo.as_path());
+    let stale: String = String::from("0000000000000000000000000000000000000000");
+    let refused: Result<bool, String> = crate::held_commit_settle_move::move_branch(&context, &held, &intent, held.new.as_str(), stale.as_str());
+    assert!(refused.is_err(), "a branch whose value is not the one read is not moved: {refused:?}");
+    assert_eq!(head_of(repo.as_path()), base, "the branch stayed where it was");
+    let refused_awaiting: Result<bool, String> =
+        crate::lazy_runtime::run_on_runtime(crate::held_commit_settle_move::move_branch_awaiting(&context, &held, &intent, held.new.as_str(), stale.as_str())).expect("the runtime");
+    assert_eq!(refused.is_err(), refused_awaiting.is_err(), "the two faces refuse a stale expectation the same way");
+    assert_eq!(refused.err(), refused_awaiting.err(), "and they refuse it with the same words");
+    let moved: Result<bool, String> = crate::held_commit_settle_move::move_branch(&context, &held, &intent, held.new.as_str(), base.as_str());
+    assert_eq!(moved, Ok(true), "the branch moved from the value it was read at");
+    assert_eq!(head_of(repo.as_path()), held.new, "the branch names the commit the batch made");
+    remove(root.as_path());
+    // The awaited face moves the branch of its own repository, which the synchronous write above did not touch.
+    let (later_root, later_repo, later_context) = repository("held-settle-awaiting-branch-write-awaited");
+    let later_held: Held = held_batch(later_root.as_path(), later_repo.as_path(), &later_context);
+    let later_intent: crate::service_journal::Intent = crate::service_journal::parse_intent(
+        std::fs::read_to_string(batch_path(later_held.journal.as_path(), 1, OPEN_EXTENSION).as_path()).expect("the record the landing wrote").as_str(),
+    )
+    .expect("the record reads");
+    let later_base: String = head_of(later_repo.as_path());
+    let later_moved: Result<bool, String> =
+        crate::lazy_runtime::run_on_runtime(crate::held_commit_settle_move::move_branch_awaiting(&later_context, &later_held, &later_intent, later_held.new.as_str(), later_base.as_str())).expect("the runtime");
+    assert_eq!(later_moved, Ok(true), "the awaited face moves the branch from the value it was read at");
+    assert_eq!(head_of(later_repo.as_path()), later_held.new, "its branch names the commit the batch made");
+    remove(later_root.as_path());
+}
+
+/// The name one answer about a batch's intent goes by,
+/// so a control says which answer it met instead of the one it wanted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const describes = (look) => look.kind;
+/// ```
+fn describes(look: &super::IntentLook) -> &'static str {
+    return match look {
+        super::IntentLook::Found(_) => "found",
+        super::IntentLook::Absent => "absent",
+        super::IntentLook::Damaged(_) => "damaged",
+        super::IntentLook::NoAnswer => "no answer",
+    };
+}
+
+/// What:
+///  Stand a pipe with no writer at `path`,
+/// so a read of it waits in the kernel until a writer opens it.
+/// Why:
+///  This is the one way to make a read of a file hold its thread with no end,
+/// which is what a mount that stopped answering does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// execFileSync('mkfifo', [path]);
+/// ```
+fn stall_a_file(path: &Path) {
+    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without a zero byte");
+    // SAFETY: `mkfifo` reads the path it is given and writes only the file it makes; the mode is the one a control's own
+    //  fixture takes.
+    let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "the pipe must stand where the record belongs: {}", std::io::Error::last_os_error());
+}
+
+/// What:
+///  Open the pipe at `path` for writing and close it again,
+/// which ends the read a control left behind.
+/// Why:
+///  The read of the pool is abandoned,
+/// never cancelled,
+/// so the thread that holds it ends only when a writer appears.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (;;) { try { close(openSync(path, 'w')); return } catch { await sleep(10) } }
+/// ```
+fn release_the_pipe(path: &Path) {
+    use std::io::Write as _;
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < THE_PATIENCE {
+        match std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(path) {
+            Ok(mut writer) => {
+                let _written = writer.write_all(b"");
+                return;
+            }
+            Err(_not_yet) => std::thread::sleep(std::time::Duration::from_millis(10)),
+        }
+    }
+}
+
+/// What:
+///  A batch record the settlement reads that gives no answer holds no worker,
+/// and is told apart from a batch with no
+///  record.
+/// Why:
+///   The read lists a directory and reads one file,
+/// which waits in the kernel on a disk or a mount that stopped
+///  answering;
+/// a task that did it itself would hold the one worker the runtime has,
+/// and the answer must not be
+///  "the batch wrote no intent",
+/// which is the answer that settles a batch from the branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(intentRecord); assert(await runsBeside(() => intentWithin(100, ...)) === 'no answer')
+/// ```
+#[test]
+fn a_record_that_gives_no_answer_holds_no_worker_and_is_not_an_absent_one() {
+    let (root, repo, context) = repository("held-settle-awaiting-stalls");
+    let held: Held = held_batch(root.as_path(), repo.as_path(), &context);
+    let open: PathBuf = batch_path(held.journal.as_path(), 1, OPEN_EXTENSION);
+    std::fs::remove_file(open.as_path()).expect("the record the pipe stands in place of");
+    stall_a_file(open.as_path());
+    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().expect("a runtime of one worker");
+    let ticked: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let tick: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&ticked);
+    let _ticking = runtime.spawn(async move {
+        tokio::time::sleep(THE_TICK).await;
+        tick.store(true, std::sync::atomic::Ordering::SeqCst);
+    });
+    let read_began: std::time::Instant = std::time::Instant::now();
+    let reading = {
+        let journal: PathBuf = held.journal.clone();
+        runtime.spawn(async move { return super::intent_within(SHORT_CEILING, journal.as_path(), 1).await; })
+    };
+    let began: std::time::Instant = std::time::Instant::now();
+    while !ticked.load(std::sync::atomic::Ordering::SeqCst) && began.elapsed() < THE_PATIENCE {
+        std::thread::sleep(THE_TICK);
+    }
+    let ran_beside: bool = ticked.load(std::sync::atomic::Ordering::SeqCst);
+    // The wait is past the ceiling before the pipe is let go, so the ceiling is what ends it and not a writer that arrived
+    //  first, and the read the pool abandoned is ended by the writer so no thread of the process stays in it.
+    std::thread::sleep(PAST_THE_CEILING);
+    release_the_pipe(open.as_path());
+    let answered: super::IntentLook = runtime.block_on(async { return reading.await.expect("the read task ends"); });
+    // The read's own time is what the ceiling bounds: the rest of this control's reads take as long as the host makes them.
+    assert!(read_began.elapsed() < THE_PATIENCE, "the read ended at its ceiling and never waited on the file without end: {} ms", read_began.elapsed().as_millis());
+    assert!(ran_beside, "the task beside a record that gives no answer still runs, so no worker is held by that read");
+    assert!(matches!(answered, super::IntentLook::NoAnswer), "a look that gave nothing in time is not the answer that no record is there");
+    let finished: Option<crate::service_journal::Intent> = runtime.block_on(async { return super::finished_awaiting(held.journal.as_path(), 1).await; });
+    assert!(finished.is_none(), "a batch that wrote no finished record answers nothing");
+    // A record this build cannot read is told apart from one that is not there, and the look the settlement will ask is the one
+    //  with the shipped ceiling.
+    // The pipe goes before the record is written: a write to a pipe nothing reads waits for ever.
+    std::fs::remove_file(open.as_path()).expect("the pipe the stalled read was let go on");
+    std::fs::write(open.as_path(), b"seq=1\nrepos").expect("a record this build cannot read");
+    let damaged: super::IntentLook = runtime.block_on(async { return super::intent_awaiting(held.journal.as_path(), 1).await; });
+    match damaged {
+        super::IntentLook::Damaged(why) => assert!(why.contains("cannot be read"), "the answer names what it could not read: {why}"),
+        other => panic!("a record this build cannot read is answered as damaged, and never as one that is not there: {}", describes(&other)),
+    }
+    let intent: crate::service_journal::Intent = crate::service_journal::Intent {
+        seq: 1,
+        repository: repo.clone(),
+        common_dir: repo.join(".git"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
+        old: held.old.clone(),
+        new: held.new.clone(),
+        ids: Vec::new(),
+        commits: vec![held.new.clone()],
+        holders: Vec::new(),
+        paths: Vec::new(),
+        derived: false,
+        cleanup: None,
+        index: repo.join(".git").join("index"),
+        git_dir: repo.join(".git"),
+    };
+    write_intent(held.journal.as_path(), &intent).expect("the record is written again");
+    let found: super::IntentLook = runtime.block_on(async { return super::intent_awaiting(held.journal.as_path(), 1).await; });
+    match found {
+        super::IntentLook::Found(read) => assert_eq!(read.seq, 1, "the look answers the batch it was asked about"),
+        other => panic!("a readable record is answered as one the batch holds: {}", describes(&other)),
+    }
+    let _context = context;
     remove(root.as_path());
 }

@@ -81,9 +81,8 @@ mod index_reset;
 pub use self::index_reset::{IndexPaths, reset_entries, reset_entries_awaiting};
 pub(crate) use self::index_reset::{classify, derived_names};
 use self::index_reset::reset_once;
-/// The awaited derived names, read by the control that compares both faces of the reset.
-#[cfg(test)]
-use self::index_reset::derived_names_awaiting;
+/// The awaited derived names, which the repair of what a landed batch owes asks Git for.
+pub(crate) use self::index_reset::derived_names_awaiting;
 
 /// What:
 ///  Updates the index entries of the commit's paths to the commit `new`,
