@@ -86,11 +86,27 @@ Each rule is the project's own requirement.
     | jq --raw-output '."rust-suites"[]."binary-path"'
   ```
 
-  Walking `/var/mnt/encrypted/cargo-build` takes most of an hour each time and slows every other agent,
-  and `cargo metadata` names a folder the build does not use.
-  Never run `du` or `find` over that folder;
+  `cargo metadata` names a folder the build does not use;
   to learn where a build put its output,
   ask cargo with `--message-format=json`.
+- Never walk `/var/mnt/encrypted/cargo-build`,
+  the build directory every agent shares:
+  no `find`,
+  `du`,
+  `ls --recursive`,
+  `rg` or `fd` over it,
+  for any purpose.
+  A walk takes most of an hour and slows every other agent while it runs
+  (one `find` for a dependency's source ran twenty-eight minutes on 2026-11-12 before it was ended).
+  A dependency's source is under `~/.cargo/registry/src/`,
+  and `cargo metadata --format-version=1 --locked --offline` gives each one's `manifest_path`.
+- Bound every read of the journal:
+  `journalctl` gets `--since` and `--lines`,
+  and one unit instead of a pattern where the unit is known.
+  The journal of the commit-service units is very large:
+  on 2026-11-12 one unbounded read of `monochromatic-git-policy-cli@*` took over eight minutes,
+  and a run that kept asking it made fourteen turns in seventy minutes.
+  Save what a read gave to a scratch file and work from the file.
 - Do not edit `doc/decision/`,
   or anything `file-enforcer` generates.
 - Nothing may wait forever,
