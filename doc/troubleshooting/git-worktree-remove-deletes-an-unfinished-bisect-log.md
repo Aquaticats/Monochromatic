@@ -30,11 +30,23 @@ $ test -e <common>/worktrees/feature/BISECT_LOG ; echo $?
 `--force` is not needed and changes nothing:
 the unforced form above is the one that deleted the log.
 
+The log is not the first file a bisect leaves.
+`git bisect start` writes `BISECT_START`, then `BISECT_NAMES`,
+and only then opens `BISECT_LOG`
+(measured 2026-11-11 with Git `2.56.0` on a fixture under `strace`:
+the process was killed at its first `openat` of the log,
+and the worktree's own Git directory then held `BISECT_START` and `BISECT_NAMES` and no log,
+with `HEAD` on `refs/heads/feature` and an empty `git status --porcelain`).
+A bisect interrupted that way is the same state to every check that reads a worktree:
+clean,
+on its branch,
+and holding no log.
+
 ## What the measure shows, and the boundary of the claim
 
 Measured 2026-11-11 with Git `2.56.0` on a fixture repository under
 `/var/mnt/encrypted/temp` whose worktree was not a btrfs subvolume.
-Only this was measured:
+Only this was measured about `git worktree remove`:
 
 - `git worktree remove` without `--force` removed a worktree whose only unusual state was `BISECT_LOG`;
 - it printed no diagnostic and exited `0`,
@@ -51,7 +63,8 @@ so the clean-looking state and the unfinished operation are the same state.
 
 The wrapper's own clean check does treat a bisect as an unfinished operation
 (`package/git-policy/cli/src/native/worktree/worktree_clean.rs`,
-the `IN_PROGRESS` list),
+the `IN_PROGRESS` list,
+which names `BISECT_START` and `BISECT_LOG`),
 but that check only decides whether the wrapper destroys the subvolume itself:
 a worktree it cannot prove clean is handed to Git,
 and Git removes it as measured above.
@@ -62,15 +75,19 @@ and the log went with the worktree.
 
 The landed sweep,
 the one removal nobody asked for,
-keeps a worktree whose own Git directory holds any mark of an unfinished operation,
-and `BISECT_LOG` is in that set
+keeps a worktree whose own Git directory holds any file whose name starts with `BISECT_`,
+beside the marks of the other unfinished operations
 (`package/git-policy/cli/src/native/worktree/worktree_landed_removal.rs`,
-`FURTHER_UNFINISHED_MARKERS`).
-The line the person reads says which mark stands there:
+`BISECT_MARK_PREFIX`).
+Every file a bisect keeps in that directory is named under that prefix,
+and `git bisect reset` removes every one of them
+(measured on a fixture: none left),
+so a kill between any two writes of a bisect keeps the worktree it happened in.
+The line the person reads names the file that stands there:
 
 ```text
 monochromatic-git-policy-cli: left the worktree <feature> in place, though its branch refs/heads/feature is now on main:
-a bisect is unfinished there, and its BISECT_LOG is still in the worktree.
+a bisect is unfinished there, and its BISECT_NAMES is still in the worktree.
 Remove it with `git worktree remove <feature>` when nothing there is yours.
 ```
 
@@ -101,6 +118,16 @@ which a bisect leaves alone.
 `git bisect start` alone leaves `HEAD` on the branch.
 Only a `git bisect good|bad` moves it,
 so a check that looks for a detached `HEAD` sees an ordinary checkout.
+
+### Reading `BISECT_LOG` alone as the mark of an unfinished bisect
+
+The log is the last file written,
+so a bisect killed before that open leaves `BISECT_START` and `BISECT_NAMES` and no log.
+A guard that asks only for the log sees a clean checkout on its branch and takes the worktree,
+and the person loses which branch the bisect came from and which commits it covered.
+The wrapper's landed sweep did exactly that until 2026-11-11:
+a fixture with those two files and no log lost the worktree and both files to a wrapped `git merge`
+whose branch landed.
 
 ### Reading `BISECT_LOG` as the person's own note
 
