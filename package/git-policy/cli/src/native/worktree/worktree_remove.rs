@@ -479,8 +479,12 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     record_destroyed(request.common_dir, registration.id.as_os_str());
     if let Err(outcome) = finish(&held, &registration, request) {
         // The registration stayed, so what the next command finishes is this program's own half-done work; nothing about the
-        // commits kept above changes that, and the record of the destroy is what names it.
-        return outcome;
+        // commits kept above changes that, and the record of the destroy is what names it. The person still has to find
+        // those commits once the worktree's files are gone, so the report carries the lines that say where they are.
+        return match outcome {
+            RemoveOutcome::Incomplete(report) if !kept.said.is_empty() => RemoveOutcome::Incomplete(format!("{}\n{report}", kept.said.join("\n"))),
+            other => other,
+        };
     }
     // A removal that finished has nothing left for a later command.
     forget_destroy(request.common_dir, registration.id.as_os_str());

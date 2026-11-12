@@ -18,6 +18,9 @@ use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 
+/// The batch number of the held commit the control of the incomplete removal keeps.
+const HELD_SEQ: u64 = 7;
+
 /// A hook that runs once,
 /// at a chosen step of the removal.
 type Hook = RefCell<Option<Box<dyn FnOnce()>>>;
@@ -389,7 +392,8 @@ fn a_removal_whose_snapshots_ahead_cannot_be_cleared_refuses_before_the_subvolum
 
 /// A registration that cannot be removed after the destroy is reported as an incomplete removal that names the leftover
 ///  and the way to finish,
-/// never as a success.
+/// never as a success,
+/// and the report carries the line that says where a commit a reference lock held was kept.
 #[test]
 fn a_registration_that_cannot_be_removed_after_the_destroy_is_an_incomplete_removal() {
     let root: PathBuf = fixture("remove-guard-incomplete");
@@ -397,6 +401,29 @@ fn a_registration_that_cannot_be_removed_after_the_destroy_is_an_incomplete_remo
     let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
     let stand: Stand = Stand::new(vec![worktree.clone()]);
     let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    // A commit a reference lock held in this worktree, which the destroy would leave named by nothing if the removal did
+    // not keep it first.
+    let held_commit: String = crate::test_support::git_text(worktree.as_path(), &["commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "the held edit"]);
+    let per_worktree: String = format!("refs/worktree/cli-git-service/{HELD_SEQ}");
+    git(worktree.as_path(), &["update-ref", "--no-deref", per_worktree.as_str(), held_commit.as_str()]);
+    git(repo.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
+    let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let record: crate::held_commit_record::Held = crate::held_commit_record::Held {
+        seq: HELD_SEQ,
+        journal: admin.join("journal"),
+        repository: worktree.clone(),
+        common_dir: common_dir.clone(),
+        git_dir: admin.clone(),
+        reference: crate::ref_name::RefName::from_text("refs/heads/topic"),
+        old: crate::test_support::git_text(worktree.as_path(), &["rev-parse", "HEAD"]),
+        new: held_commit.clone(),
+        commits: vec![held_commit.clone()],
+        index: admin.join("index"),
+        reflog: b"commit: the held edit".to_vec(),
+        locks: vec![common_dir.join("refs/heads/topic.lock")],
+        created: String::from("2026-01-01T00:00:00+00:00"),
+    };
+    crate::held_commit_record::write(admin.as_path(), &record).expect("the record of the hold");
     let worktrees: PathBuf = repo.join(".git/worktrees");
     std::fs::set_permissions(worktrees.as_path(), std::fs::Permissions::from_mode(0o555)).expect("read-only registrations");
     let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
@@ -406,6 +433,9 @@ fn a_registration_that_cannot_be_removed_after_the_destroy_is_an_incomplete_remo
     assert!(report.contains(admin.to_str().expect("UTF-8")), "the report names the leftover: {report}");
     assert!(report.contains(worktree.to_str().expect("UTF-8")), "and the removed worktree: {report}");
     assert!(report.contains(format!("git -C {} worktree prune", repo.display()).as_str()), "and the command that finishes: {report}");
+    let kept_name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(HELD_SEQ);
+    assert!(report.contains(kept_name.as_str()), "and where the commit a reference lock held was kept: {report}");
+    assert_eq!(crate::test_support::git_text(repo.as_path(), &["rev-parse", kept_name.as_str()]).trim(), held_commit, "the commit is kept where the report says");
     remove(root.as_path());
 }
 
