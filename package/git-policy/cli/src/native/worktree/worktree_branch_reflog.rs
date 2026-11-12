@@ -17,7 +17,8 @@
 //!  Every read of a reflog is `plain_file.rs`'s:
 //!  the name sits beside a checkout any process may write,
 //!  so it may hold a named pipe,
-//!  and an open that waited for a writer there would hold the person's `git merge`, which reads it,
+//!  and an open that waited for a writer there would hold the person's `git merge`,
+//!  which reads it,
 //!  with nothing said and no end
 //!  (a cross-vendor review of the landed sweep,
 //!  round 208).
@@ -38,9 +39,12 @@ use std::path::{Path, PathBuf};
 ///  A fast-forward leaves the branch the merge ran in on the tip the landed branch has,
 ///  and Git records that move in its reflog exactly as it records one the person made:
 ///  a merge's own move is therefore skipped by the pair of commits it wrote,
-///  while any other move of the same branch, made before or after it, still counts.
+///  while any other move of the same branch,
+///  made before or after it,
+///  still counts.
 ///  Measured with Git 2.56 on fixtures on 2026-11-11:
-///  a fast-forward, a `--no-ff` merge and an octopus merge each write one line in the branch they ran in,
+///  a fast-forward,
+///  a `--no-ff` merge and an octopus merge each write one line in the branch they ran in,
 ///  whose old value is the head before the merge and whose new value is the head after it.
 ///
 /// In TS you'd write (pseudocode):

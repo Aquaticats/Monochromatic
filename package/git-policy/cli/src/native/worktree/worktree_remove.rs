@@ -172,44 +172,11 @@ pub struct RemoveRequest<'a> {
     pub last_look: Option<&'a dyn LastLook>,
 }
 
-/// What:
-///  A question a removal's caller asks again as the removal runs,
-///  immediately before anything is destroyed.
-/// Why:
-///   A removal deletes what its caller proved it may delete,
-///  and that proof takes time:
-///  it starts Git and walks the tree.
-///  What the caller read before it may have changed by now,
-///  and a worktree added inside the one being removed,
-///  or a record written into its Git directory,
-///  would go with it.
-///  This is the last moment the caller can look,
-///  so nothing but the destroy follows its answer.
-///  The question is a trait rather than a closure,
-///  because a closure a caller captures its own state in is what this codebase keeps out of its calls.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// interface LastLook { ask(): void } // throws the reason nothing is removed
-/// ```
-pub trait LastLook {
-    /// The question,
-    /// which answers the reason nothing is removed.
-    fn ask(&self) -> Result<(), String>;
-}
-
-impl std::fmt::Debug for RemoveRequest<'_> {
-    /// A request prints the directory it works on and whether its caller asks a question again;
-    /// a question itself is not text.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter
-            .debug_struct("RemoveRequest")
-            .field("plan", &self.plan)
-            .field("common_dir", &self.common_dir)
-            .field("last_look", &self.last_look.is_some())
-            .finish();
-    }
-}
+/// The question a removal's caller asks again as the removal runs,
+/// and the printing of a request that carries one.
+#[path = "worktree_remove_last_look.rs"]
+mod last_look;
+pub use last_look::LastLook;
 
 /// What:
 ///  The directories one removal holds open from before the proof of cleanliness to the destroy,
@@ -599,12 +566,8 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     }
     // The caller's own last look, after the proof of cleanliness and after every check above it: a worktree a command
     // added inside this one, or a record written into its Git directory, can arrive while that proof runs, and a caller
-    // that read them before it proved this one clean has read them too early. Nothing is changed when it refuses, and the
-    // refusal is the reason the caller asked for.
-    if let Some(look) = request.last_look
-        && let Err(reason) = look.ask()
-    {
-        debug(TAG, format!("{} is no longer one this removal may destroy ({reason}); nothing is removed", target.display()).as_str());
+    // that read them before it proved this one clean has read them too early. Nothing is changed when it refuses.
+    if let Err(reason) = last_look::before_the_destroy(request, target) {
         return RemoveOutcome::Refused(reason);
     }
     // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the

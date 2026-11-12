@@ -305,7 +305,8 @@ fn a_task_worktree_beside_the_one_a_merge_runs_in(name: &str) -> TaskBesideAMerg
 }
 
 /// What:
-///  A commit of one file made in `directory`, aged so the cleanliness proof can vouch for it.
+///  A commit of one file made in `directory`,
+///  aged so the cleanliness proof can vouch for it.
 /// Why:
 ///  Every fixture commit is made the way a person makes one,
 ///  and a file as new as the index proves nothing by its stat fields (`test_support::age`).
@@ -323,7 +324,8 @@ fn commit_in(directory: &Path, name: &str, bytes: &str) {
 }
 
 /// What:
-///  One merge that has just run, as its sweep reads it.
+///  One merge that has just run,
+///  as its sweep reads it.
 /// Why:
 ///  The sweep compares the head the branch held before the merge with the one it holds now,
 ///  and it asks the registrations the repository had before the merge started,
@@ -893,7 +895,8 @@ fn a_landed_worktree_holding_a_commit_keeps_it_on_a_side_reference() {
 
 /// What:
 ///  A landed worktree whose held record this build cannot read keeps the commit that record named,
-///  from the worktree's own reference, and only then is removed.
+///  from the worktree's own reference,
+///  and only then is removed.
 /// Why:
 ///  `keep_held_commits` read every record it could parse and dropped the ones it could not,
 ///  so a batch whose record another release wrote,
@@ -1148,7 +1151,8 @@ struct AddingInsideTheProof {
     /// Whether the proof this removal asks for ran at all,
     /// which is what tells a removal that looked again from one that never got that far.
     proof_ran: std::cell::Cell<bool>,
-    /// The reason the real proof refused, when it did,
+    /// The reason the real proof refused,
+    /// when it did,
     /// which is what tells a removal that fell back to Git from one that destroyed the tree itself.
     proof_refusal: std::cell::RefCell<Option<String>>,
 }
@@ -1411,8 +1415,9 @@ fn a_worktree_whose_branch_was_reset_onto_a_commit_that_moved_on_is_not_removed(
 ///  and the merge took its worktree
 ///  (a cross-vendor review of the landed sweep,
 ///  round 208).
-///  The landed worktree stays with it, because the task's own reflog moved onto its tip and Git records no owner of a
-///  commit: that is the cost of keeping every worktree the rule cannot prove it may remove.
+///  The landed worktree stays with it,
+///  because the task's own reflog moved onto its tip and Git records no owner of a commit:
+///  that is the cost of keeping every worktree the rule cannot prove it may remove.
 #[test]
 fn a_worktree_whose_branch_was_reset_onto_a_fast_forwarded_tip_is_not_removed() {
     let fixture: TaskBesideAMerge = a_task_worktree_beside_the_one_a_merge_runs_in("landed-reset-onto-a-fast-forwarded-tip");

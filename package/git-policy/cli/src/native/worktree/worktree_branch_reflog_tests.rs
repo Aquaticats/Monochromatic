@@ -212,7 +212,8 @@ fn a_reflog_that_is_a_named_pipe_answers_at_once() {
 /// Why:
 ///  A link planted at a reflog's name can point at a device that never ends (`/dev/zero`),
 ///  and a read that followed it would never finish while holding the person's merge:
-///  the reader takes a plain file at the name itself, as every other read of a file beside a checkout does
+///  the reader takes a plain file at the name itself,
+///  as every other read of a file beside a checkout does
 ///  (`plain_file.rs`).
 #[test]
 fn a_reflog_reached_through_a_link_answers_nothing() {
