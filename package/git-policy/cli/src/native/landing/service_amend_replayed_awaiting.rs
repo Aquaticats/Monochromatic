@@ -1,5 +1,6 @@
 //! What:
-//!  The commit an amend makes, as faces a task of the runtime may await:
+//!  The commit an amend makes,
+//! as faces a task of the runtime may await:
 //!  the message write as a job of the blocking pool,
 //!  and every Git child awaited on the runtime.
 //! Why:

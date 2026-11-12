@@ -45,7 +45,8 @@ pub use crate::held_commit_settle_outcomes::Settled;
 /// The exit status `git merge-base --is-ancestor` gives when the first commit is not below the second.
 const NOT_AN_ANCESTOR: i32 = 1;
 
-/// The settlement's own reads, awaited by a caller that is a task of the runtime,
+/// The settlement's own reads,
+/// awaited by a caller that is a task of the runtime,
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "held_commit_settle_awaiting.rs"]
 pub(crate) mod awaiting;

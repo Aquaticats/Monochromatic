@@ -620,7 +620,8 @@ pub fn already_committed_result(branch: &str) -> TransactionResult {
     };
 }
 
-/// The replay's reads, awaited by a caller that is a task of the runtime,
+/// The replay's reads,
+/// awaited by a caller that is a task of the runtime,
 /// kept in a file of their own to stay under the file-size limit.
 #[path = "service_replay_awaiting.rs"]
 mod awaited;
