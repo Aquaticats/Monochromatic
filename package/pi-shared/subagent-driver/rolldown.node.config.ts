@@ -23,6 +23,7 @@ const config: NodeFlavorConfig = nodeConfig({
     'print-the-final-report-of-the-newest-run-of-each-agent':
       './src/print-the-final-report-of-the-newest-run-of-each-agent.ts',
     'list-launchers-whose-unit-has-ended': './src/list-launchers-whose-unit-has-ended.ts',
+    'remove-finished-worktrees': './src/remove-finished-worktrees.ts',
   },
 },);
 

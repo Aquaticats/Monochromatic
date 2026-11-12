@@ -218,6 +218,25 @@ export {
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
 
 /**
+ Which run worktrees are finished, and whether one may be removed: `remove-finished-worktrees.ts`.
+ */
+export {
+  type Worktree,
+  type WorktreeDecision,
+  briefQueuedAfter,
+  decideWorktree,
+  folderSomeProcessWorksIn,
+  isInside,
+  ownFoldersOf,
+  pausedNamesIn,
+  readFileOrNothing,
+  runNameOfWorktree,
+  runWorktreesIn,
+  worktreesIn,
+  writtenAt,
+} from './finished-worktrees.ts';
+
+/**
  The launchers that outlived their units: which processes are launchers, which of them have outlived a unit that ended, and the
  order they are ended in. The command is `list-launchers-whose-unit-has-ended.ts`.
  */

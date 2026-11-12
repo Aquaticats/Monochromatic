@@ -248,6 +248,47 @@ Entries start twenty seconds apart,
 and the command prints one line per entry once every run it started has ended,
 keeping the end of both streams so a failure says why.
 
+## Removing finished worktrees
+
+### `remove-finished-worktrees`
+
+`--checkout-folder`,
+the checkout whose worktrees the launcher makes (this folder by default);
+`--runs-folder`;
+`--review-folder`;
+`--paused-file`,
+a list of names paused earlier, one per line after its first word;
+`--process-folder`;
+`--apply`,
+which does the removals rather than listing them;
+and `--clean-folder` with `--clean-word`,
+a command run in that folder inside each worktree before it is removed.
+
+The owner: "You're the coordinator and you're supposed to remove finished worktrees automatically."
+A worktree added on btrfs is a snapshot, so finished worktrees left in place filled the disk.
+
+A run's worktree is removed only when all of these hold,
+and each line says which one did not:
+
+- its unit has ended;
+- the run finished its work,
+  which is its summary saying `idle`,
+  or, for a review, its `review.md` existing;
+- it is not on the pause list,
+  or its latest run finished its turn since;
+- no brief for its name was written after its latest run ended,
+  which is a resume or a re-merge waiting for a slot;
+- nothing of the run works in it:
+  not in the worktree, not in any of its run folders, and not in its review folder;
+- `git status` holds nothing uncommitted.
+
+A worktree some process still works in is the check that matters most:
+before 2026-11-11 this step ran `cargo clean` in,
+and removed,
+the worktree of a run that had ended idle while a build or a reproduction that run started was still working there,
+so the wake had nothing to return to.
+Nothing is ever removed by force, and every branch is kept.
+
 ## Reading what is going on
 
 Three commands read a machine rather than start anything,

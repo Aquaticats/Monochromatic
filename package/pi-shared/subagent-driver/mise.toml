@@ -140,3 +140,13 @@ run = """
 {{vars.run_pi_command}}
 runPiCommand('list-launchers-whose-unit-has-ended')
 """
+
+[tasks."remove-finished-worktrees"]
+description = "Remove the worktree of every finished Pi run, saying why each other one is left alone; without --apply it only lists them"
+usage = 'arg "[args]" var=#true help="[--checkout-folder=<folder>] [--runs-folder=<folder>] [--review-folder=<folder>] [--paused-file=<file>] [--process-folder=<folder>] [--apply] [--clean-folder=<path>] [--clean-word=<word>]..."'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+{{vars.run_pi_command}}
+runPiCommand('remove-finished-worktrees')
+"""

@@ -26,7 +26,8 @@
     "list-processes-whose-command-line-holds-text": "dist/final/node/list-processes-whose-command-line-holds-text.mjs",
     "list-running-units-whose-worktree-is-gone": "dist/final/node/list-running-units-whose-worktree-is-gone.mjs",
     "print-the-final-report-of-the-newest-run-of-each-agent": "dist/final/node/print-the-final-report-of-the-newest-run-of-each-agent.mjs",
-    "list-launchers-whose-unit-has-ended": "dist/final/node/list-launchers-whose-unit-has-ended.mjs"
+    "list-launchers-whose-unit-has-ended": "dist/final/node/list-launchers-whose-unit-has-ended.mjs",
+    "remove-finished-worktrees": "dist/final/node/remove-finished-worktrees.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
