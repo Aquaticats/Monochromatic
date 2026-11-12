@@ -495,3 +495,76 @@ fn a_fallback_that_runs_in_turn_holds_a_place_of_the_bound() {
         "the fallback ran its blocking work with the process's place free, so a second job took that place and both ran at once"
     );
 }
+
+/// The places this control gives the process,
+/// so the reserve leaves one of them to the work a person waits for.
+const TWO_PLACES: usize = 2;
+
+/// The work a person waits for,
+/// as one job of the blocking pool:
+/// a push's own read of its child is one.
+fn fn_seven() -> u8 {
+    return 7;
+}
+
+/// What:
+///  How long the control lets a slow job that must not start keep trying,
+///  so a run that hands it the reserved place fails rather than hangs.
+const SLOW_JOB_PATIENCE: Duration = Duration::from_secs(2);
+
+/// What:
+///  The place the gate keeps back stays free while slow work holds the rest,
+///  so a push's own step runs beside a queue of slow jobs instead of behind it.
+/// Why:
+///  On 2026-11-11 at 10:38 the installed `0.6.1-alpha.10` had two reviews and four trashes claimed and running while a
+/// fresh commit's push sat pending from 10:29,
+/// and `main` was pushed by hand.
+/// The pushes were never claimed by the slow work;
+/// their steps waited for a place of the process's one bound on blocking jobs,
+/// which the slow work held.
+/// Measured for the record with the service's four places and four worktrees' trashes of 500 entries each,
+/// the push's wait fell from a queue of slow work's whole length to the push's own cost
+/// (`landing/service_work_items_side_by_side_tests.rs`).
+/// The control states the two things a reserve must do:
+/// the work a person waits for runs while slow work holds every other place,
+/// and slow work never takes the reserved one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdSlow(); expect(await plainJob()).toBe(7); expect(secondSlowStarted).toBe(false)
+/// ```
+#[test]
+fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_jobs() {
+    hold_blocking_jobs_to(TWO_PLACES);
+    let (inside, has_inside) = std::sync::mpsc::channel::<()>();
+    let (release, waiting) = std::sync::mpsc::channel::<()>();
+    let slow = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _held: Result<(), BlockingJobError> = run_a_slow_job_within_the_budget(move || {
+            let _told = inside.send(());
+            let _ = waiting.recv();
+        })
+        .await;
+    });
+    assert!(slow.is_some(), "the runtime has a worker, so a slow job can take its place");
+    assert!(has_inside.recv_timeout(PATIENCE).is_ok(), "the slow job never took its place");
+    // The work a person waits for: one blocking job, which a push's own read of its child is.
+    let began: std::time::Instant = std::time::Instant::now();
+    let answered: Result<u8, BlockingJobError> = run_on_runtime(async { return run_blocking_job_within_the_budget(fn_seven).await; }).expect("the runtime");
+    let waited: Duration = began.elapsed();
+    assert_eq!(answered, Ok(7), "the work a person waits for ran");
+    assert!(waited < PATIENCE, "the work a person waits for ran beside the slow job, in {waited:?}");
+    // A second slow job must wait for the place the gate keeps, so slow work never takes the reserve.
+    let started: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let told: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&started);
+    let second = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _held: Result<(), BlockingJobError> = run_a_slow_job_within_the_budget(move || {
+            told.store(true, Ordering::SeqCst);
+        })
+        .await;
+    });
+    assert!(second.is_some(), "the runtime has a worker, so a second slow job can ask");
+    std::thread::sleep(SLOW_JOB_PATIENCE);
+    let took_the_reserve: bool = started.load(Ordering::SeqCst);
+    let _let_go = release.send(());
+    assert!(!took_the_reserve, "a second slow job took the place the gate keeps for the work a person waits for");
+}

@@ -256,6 +256,117 @@ where
     };
 }
 
+/// The places slow work may take of the process's bound,
+/// made by the first slow job that needs one.
+static SLOW_PLACES: OnceLock<Arc<Semaphore>> = OnceLock::new();
+
+/// How many of the process's places stay free of slow work:
+/// 1.
+/// Why:
+///  A job queues in the process's bound in the order it asked,
+/// so a queue of slow jobs stands between the work a person waits for and the place it needs:
+/// measured `2026-11-11T23:05:00-05:00` on this host,
+/// with the service's own four places,
+/// a push written behind four worktrees' trashes of 500 entries each started 4.3 s after it was asked for and took
+/// another 4.3 s,
+/// while the same push with no slow work beside it lands in about 0.1 s
+/// (`landing/service_work_items_side_by_side_tests.rs`,
+/// the measurement for the record).
+/// The pushes of a repository are never claimed by the slow lane,
+/// so what held them was the pool and not the work:
+/// one place kept free of slow work is what makes the lane's own promise true
+/// (`landing/service_work_slow_lane.rs`).
+/// One is the owner's rule about waits,
+/// "nothing should ever wait forever or indefinitely",
+/// read as the smallest number that finishes the round's own steps while slow work runs;
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SLOW_WORK_RESERVE = 1;
+/// ```
+pub(crate) const SLOW_WORK_RESERVE: usize = 1;
+
+/// What:
+///  The places slow work may take at once:
+/// the process's places less `SLOW_WORK_RESERVE`,
+/// and at least one.
+/// Why:
+///   Slow work is the work nobody waits for,
+/// so it takes what the work a person waits for does not need.
+/// A process held to one place offers slow work that one place,
+/// because a lane of no places would never finish.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slowPlaces = () => slowPlacesOf(budget()); // a semaphore of allowed - 1
+/// ```
+fn slow_places() -> &'static Arc<Semaphore> {
+    return SLOW_PLACES.get_or_init(the_places_slow_work_may_take);
+}
+
+/// The places slow work may take,
+/// made by the first slow job that asks for one.
+fn the_places_slow_work_may_take() -> Arc<Semaphore> {
+    return Arc::new(Semaphore::new(budget().allowed.saturating_sub(SLOW_WORK_RESERVE).max(1)));
+}
+
+/// What:
+///  Runs `job` on the blocking pool while one of the places for slow work is held,
+/// so the places the work a person waits for needs stay free of it.
+/// Why:
+///   A step nobody waits for may take minutes,
+/// and every place it holds is a place a push or a landing waits for:
+/// this is where the lane's work asks,
+/// and the reserve is what keeps its queue out of the round's way.
+/// The place for slow work is this frame's and is given back when this call returns;
+/// a job the pool queued and this frame stopped waiting for therefore runs with no place for slow work,
+/// which is one slow job more than the lane offers and never more blocking work than the process allows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slow = await slowPlaces.acquire(); try { return await runBlockingJobWithinTheBudget(job); } finally { slow.release(); }
+/// ```
+pub async fn run_a_slow_job_within_the_budget<T, J>(job: J) -> Result<T, BlockingJobError>
+where
+    T: Send + 'static,
+    J: FnOnce() -> T + Send + 'static,
+{
+    let slow: tokio::sync::OwnedSemaphorePermit = match Arc::clone(slow_places()).acquire_owned().await {
+        Ok(taken) => taken,
+        // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
+        Err(_closed) => return Err(BlockingJobError::Cancelled),
+    };
+    let answer: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(job).await;
+    drop(slow);
+    return answer;
+}
+
+/// What:
+///  Run `work(state)` as a job of the blocking pool with a place for slow work held,
+/// or run it in turn here where the system refused a thread.
+/// Why:
+///   The slow kinds' steps are the same two cases `run_a_job_or_in_turn` covers,
+/// and the reserve is what the places of both take.
+/// The work in turn is this frame's,
+/// so the place for slow work stays held for as long as it runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return await runASlowJobWithinTheBudget(() => work(state)); } catch (refused) { if (!refused.noThreadToStart) raise(refused); return work(state); }
+/// ```
+pub async fn run_a_slow_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+    let slow: tokio::sync::OwnedSemaphorePermit = match Arc::clone(slow_places()).acquire_owned().await {
+        Ok(taken) => taken,
+        Err(_closed) => return Err(BlockingJobError::Cancelled),
+    };
+    // The place for slow work is held on this frame, so the work done in turn below it is covered too.
+    let answer: Result<T, BlockingJobError> = run_a_job_or_in_turn(state, work).await;
+    drop(slow);
+    return answer;
+}
+
 /// What:
 ///  Run `work(state)` as a job of the blocking pool,
 /// or run it in turn here where the system refused a thread,
