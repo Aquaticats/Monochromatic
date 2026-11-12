@@ -204,6 +204,25 @@ fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
 }
 
 /// What:
+///  The write that says what a repair tool waits for is bounded,
+///  and the repair's run takes that bound.
+/// Why:
+///   That line is written by the loop that reads the quiet window and the ceiling,
+/// and a stream whose reader stopped draining
+///  waits in the kernel:
+/// an unbounded write there held the loop,
+/// so neither bound fired and the tool the repair owns was never
+///  stopped.
+/// The bound is the commit warning's,
+/// because it is the same kind of line at the same measured pace.
+#[test]
+fn the_notice_of_a_repair_tool_gives_up_its_stream_at_the_warnings_bound() {
+    assert_eq!(REPAIR_NOTICE_WRITE_CEILING, WARNING_WRITE_CEILING, "one measured pace of a line to a stream serves both");
+    let command: &str = include_str!("../repair/package_repair_command.rs");
+    assert!(command.contains("write_within(REPAIR_NOTICE_WRITE_CEILING, StandardErrorDescriptor"), "the repair's notice is written within this bound, through the descriptor that holds no lock");
+}
+
+/// What:
 ///  The wait for a snapshot made ahead is the owner's 60 s bound for an add,
 /// and the snapshot rung names it.
 /// Why:

@@ -820,3 +820,101 @@ fn a_child_handed_over_after_the_bound_is_stopped_collected_and_never_promised_u
     assert!(!marker.exists(), "the tool wrote after the start was answered, so the child was left running");
     remove(&root);
 }
+
+/// What:
+///  The longest this control lets the tool run:
+///  past the notice bound,
+///  so the notice is written while the tool still runs,
+///  and short enough to wait out.
+const NOTICE_CONTROL_CEILING: Duration = Duration::from_secs(3);
+
+/// How long the control waits for a run that must end at its ceiling:
+/// the notice bound,
+/// the ceiling,
+/// and room for a loaded host.
+const NOTICE_CONTROL_BOUND: Duration = Duration::from_secs(30);
+
+/// Descriptor 2 as it was before a control put a pipe on it,
+/// and the putting back that happens whether or not the control's own assertions are reached.
+/// Why:
+///  A control that leaves a full pipe on descriptor 2 makes its own failure message wait in the kernel,
+/// so the descriptor goes back before any assertion runs,
+/// and a panic on the way still puts it back.
+struct StandardErrorPutBack {
+    saved: libc::c_int,
+}
+
+impl StandardErrorPutBack {
+    /// Put descriptor 2 back now,
+    /// so a failing control's message reaches the stream the test run reads.
+    fn put_back(self) {
+        drop(self);
+    }
+}
+
+impl Drop for StandardErrorPutBack {
+    fn drop(&mut self) {
+        if self.saved >= 0 {
+            // SAFETY: `self.saved` is the duplicate of descriptor 2 this control made, and nothing else closes it.
+            unsafe {
+                libc::dup2(self.saved, 2);
+                libc::close(self.saved);
+                self.saved = -1;
+            }
+        }
+    }
+}
+
+/// What:
+///  A standard error whose reader stopped draining does not hold the loop that ends the tool.
+/// Why:
+///  The line that says what a repair tool waits for is written by the loop that reads the quiet window and
+/// `REPAIR_TOOL_CEILING`,
+/// and `std::io::stderr()` is a blocking write:
+/// a reader that stopped draining held the loop inside the kernel,
+/// so neither bound ever fired and the tool the repair owns was never stopped.
+/// The line is advisory beside the tool's own result,
+/// so its write is abandoned at a bound of its own
+/// (`wait_ceilings.rs`,
+/// `REPAIR_NOTICE_WRITE_CEILING`).
+/// Descriptor 2 is a full pipe for this control,
+/// which nextest runs in a process of its own (`landing/work_item_tests.rs`,
+/// `a_failing_standard_error_does_not_stop_the_queue`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pipe = fullPipeOnDescriptor2(); const run = within(30_000, runTool(slow, command, { window: 60_000, ceiling: 3_000 }));
+/// restoreDescriptor2(pipe); expect(run.end).toEqual({ kind: 'ceiling', afterMs: 3_000 });
+/// ```
+#[test]
+fn a_standard_error_whose_reader_stopped_draining_does_not_hold_the_tool_past_its_ceiling() {
+    let root: PathBuf = fixture("runs-a-full-standard-error");
+    let program: PathBuf = root.join("tool");
+    executable(program.as_path(), format!("#!/bin/sh\nsleep {SLOW_SECONDS}\n").as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    // A pipe nothing drains, filled to its own capacity: the next write waits in the kernel.
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0, "a pipe for standard error");
+    let (unread, writer): (libc::c_int, libc::c_int) = (ends[0], ends[1]);
+    let capacity: usize = usize::try_from(unsafe { libc::fcntl(writer, libc::F_GETPIPE_SZ) }).expect("the pipe's own capacity");
+    let filler: Vec<u8> = vec![b'x'; capacity];
+    let filled: isize = unsafe { libc::write(writer, filler.as_ptr().cast(), capacity) };
+    assert_eq!(filled, isize::try_from(capacity).expect("the pipe's capacity as an isize"), "the pipe is full");
+    let saved: libc::c_int = unsafe { libc::dup(2) };
+    assert!(saved >= 0, "descriptor 2 is open");
+    let put_back: StandardErrorPutBack = StandardErrorPutBack { saved };
+    assert!(unsafe { libc::dup2(writer, 2) } >= 0, "descriptor 2 is the pipe");
+    unsafe { libc::close(writer) };
+    let _unread: std::fs::File = unsafe { <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(unread) };
+    let (sender, answers): (std::sync::mpsc::Sender<ToolRun>, std::sync::mpsc::Receiver<ToolRun>) = std::sync::mpsc::channel::<ToolRun>();
+    std::thread::spawn(move || {
+        let _sent = sender.send(run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: NOTICE_CONTROL_CEILING }));
+    });
+    let answered: Result<ToolRun, std::sync::mpsc::RecvTimeoutError> = answers.recv_timeout(NOTICE_CONTROL_BOUND);
+    put_back.put_back();
+    let run: ToolRun = answered.expect("the write of the notice held the loop, so the run never reached its ceiling");
+    assert_eq!(run.end, ToolEnd::CeilingReached(NOTICE_CONTROL_CEILING), "the ceiling still ends the tool");
+    let said: Vec<String> = notices_said().into_iter().filter(|line| return line.contains(root.display().to_string().as_str())).collect();
+    assert_eq!(said.len(), 1, "the notice of the wait was made, and one only: {said:?}");
+    remove(&root);
+}

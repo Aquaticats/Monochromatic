@@ -4153,6 +4153,15 @@ and both bounds that end it
 That line is a notice and not a bound:
 nothing ends at it,
 and the quiet window and the ceiling above it are what end a tool.
+Its own write is bounded:
+a standard error whose reader has stopped draining waits in the kernel,
+and a write that waited there would hold the thread that reads the quiet window and the ceiling,
+so neither would ever end the tool.
+The line is given up at `REPAIR_NOTICE_WRITE_CEILING`
+(the 250 ms the commit's optional warning takes,
+`src/native/service/wait_ceilings.rs`),
+which is logged,
+and the bounds that end the tool go on being read.
 It exists because an add whose `pnpm` never ended printed its last line at two seconds
 and nothing for the next 613 s,
 which a person cannot tell from a hang

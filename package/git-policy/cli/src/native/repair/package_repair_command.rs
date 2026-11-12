@@ -48,9 +48,17 @@ use crate::package_repair_start::{ToolStart, start_within, stop_group};
 /// kept for the timing records.
 use crate::output_capture::Capture;
 use crate::quiet_ledger;
-use crate::wait_ceilings::REPAIR_TOOL_NOTICE_AFTER;
+/// The process's own standard error,
+/// written without Rust's shared standard-error lock,
+/// so a write the run abandons owns nothing another writer waits for.
+use crate::standard_error_descriptor::StandardErrorDescriptor;
+/// The bound of the notice's write,
+/// and the bound after which a tool is announced.
+use crate::wait_ceilings::{REPAIR_NOTICE_WRITE_CEILING, REPAIR_TOOL_NOTICE_AFTER};
+/// The write that gives up at a ceiling,
+/// because a stream whose reader stopped draining waits in the kernel until it resumes.
+use crate::work_awaited_within_a_ceiling::write_within;
 use std::ffi::{OsStr, OsString};
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -503,6 +511,15 @@ pub async fn run_tool_reaping_started_within<Reap: AsyncFn(Child, &Capture) -> b
 /// the tool,
 /// its
 ///  arguments and the worktree it runs in are what tells them apart.
+///  This write runs on the thread that drives the loop,
+/// so a reader that stopped draining would hold the loop inside the kernel and neither bound would ever fire:
+/// the tool the repair owns would never be stopped,
+/// its process group would keep running,
+/// and an add ended with a signal would leave it behind.
+/// The line is advisory beside the tool's own result,
+/// so it is given up at `REPAIR_NOTICE_WRITE_CEILING`
+/// (`wait_ceilings.rs`),
+/// and the loop goes on reading the bounds that end the tool.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -513,7 +530,8 @@ fn say_what_it_waits_for(program: &Path, command: &ToolCommand, limits: ToolLimi
     #[cfg(test)]
     NOTICES_SAID.lock().expect("notices").push(words.clone());
     // Terminal output: this line is the person's, not a log record, and there is nowhere to report a closed standard error.
-    let _written = writeln!(std::io::stderr(), "{words}");
+    //  The descriptor is written directly, so a write this run abandons holds no lock the run's next line would wait for.
+    let _written: Option<std::io::Result<()>> = write_within(REPAIR_NOTICE_WRITE_CEILING, StandardErrorDescriptor, format!("{words}\n"));
 }
 
 /// What:
