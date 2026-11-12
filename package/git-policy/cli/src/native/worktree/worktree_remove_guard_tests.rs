@@ -998,3 +998,34 @@ fn an_administrative_directory_replaced_during_the_destroy_is_kept_and_reported(
     assert!(repo.join(".git/worktrees/wt.moved/gitdir").is_file(), "the registration that was moved away is not emptied under its new name");
     remove(root.as_path());
 }
+
+/// What:
+///  The record of a removal is marked as the files leaving the path before the kernel destroy is called,
+///  so a command killed inside that call leaves a state the next command finishes.
+/// Why:
+///   Nothing writes the mark after the call if the process dies in it,
+/// and an unmarked record with nothing at
+///  the worktree's path was reported once and left the registration for the person to prune (a review finding,
+/// F4).
+/// The mark is safe to write first:
+/// a worktree path that is still there when the next command reads the
+///  record is dropped with nothing changed.
+#[test]
+fn a_removal_marks_its_record_before_it_calls_the_destroy() {
+    let root: PathBuf = fixture("remove-guard-marked-before-the-destroy");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let record: PathBuf = common_dir.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER).join("wt");
+    let marked: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
+    let stand: Stand = Stand::new(vec![worktree.clone()]);
+    let seen: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::clone(&marked);
+    let read_at: PathBuf = record.clone();
+    // The destroy of this stand-in runs the hook once, at the one moment the kernel call holds the removal.
+    *stand.during_destroy.borrow_mut() = Some(Box::new(move || {
+        seen.set(std::fs::read_to_string(read_at.as_path()).is_ok_and(|text| { return text.starts_with("destroyed=1\n") }));
+    }));
+    let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(worktree.as_path(), "../wt"));
+    assert!(marked.get(), "the record says the files leave the path before the call starts, but it did not: {outcome:?}");
+    remove(root.as_path());
+}

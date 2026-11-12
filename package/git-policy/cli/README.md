@@ -926,14 +926,17 @@ Read-only commands,
      and returns;
      that service deletes the
    subvolume in its own time,
-   normally within a second,
+   in the next round the service runs for that repository,
      so a busy volume's btrfs transaction or cleaner does not hold your
-   command.
+   command,
+     and a volume no add is copying to is not the next round's wait either.
      The path you named is gone the moment the command returns;
      the files are gone when the service has run.
      A
-   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory means the
-   service did not delete it yet:
+   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory,
+   or in the repository's
+   `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
+   means the service did not delete it yet:
      the next command of that repository wakes the service that reads the record,
      which is every
    commit and every add,

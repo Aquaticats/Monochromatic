@@ -138,6 +138,10 @@ pub mod worktree_removal_clears_the_ahead_pool;
 /// which the kernel can never destroy in one step.
 pub mod worktree_removal_refuses_a_nested_volume;
 
+/// The subvolumes this program left inside a worktree for its commit service to delete,
+/// moved out of that tree before its removal hands anything to the kernel or to Git.
+pub mod worktree_removal_takes_its_pending_deletions;
+
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
 pub mod worktree_path_failure_message;

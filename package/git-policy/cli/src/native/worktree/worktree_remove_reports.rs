@@ -249,6 +249,34 @@ pub(crate) fn unwalkable_registration_report(target: &Path, admin: &Path, reason
 }
 
 /// What:
+///  The report of a removal refused because a subvolume this program left for its commit service to delete cannot be
+///  moved out of the worktree.
+/// Why:
+///   The leftover is this program's own and holds nothing a person still owns:
+/// the removal that renamed it
+///  proved the worktree clean and unlocked,
+/// and the record of its delete outlives that command.
+/// So the person is told what stands in the way of taking it,
+/// and that nothing of the worktree was removed,
+///  rather than being sent to delete it by hand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pendingDeletionReport(target: string, reason: string): string;
+/// ```
+pub(crate) fn pending_deletion_report(target: &Path, reason: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the worktree {target} holds a subvolume this program already renamed for its \
+         commit service to delete, and it cannot be moved out of the tree: {reason}.\n\
+         Nothing was removed, and nothing of {target} changed. The subvolume holds no work of yours: the removal that \
+         renamed it proved the worktree it came from clean and unlocked, and its delete is recorded. Fix what the reason \
+         names and run this removal again.",
+        target = target.display(),
+        reason = reason
+    );
+}
+
+/// What:
 ///  The report of a removal refused because the snapshots the wrapper made ahead of an add cannot be taken.
 /// Why:
 ///   A worktree that was the source of one `git worktree add` keeps those snapshots in its administrative

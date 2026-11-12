@@ -32,10 +32,11 @@
 
 use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{ObjectId, handle_path, identity_of, open_directory_at, open_root, remove_at};
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::create_private_directory_all;
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::subvolume_file_write_steps::write_beside_then_rename;
 use crate::worktree_removal_clears_the_ahead_pool::clear_the_pools_ahead_of_a_worktree;
+use crate::path_bytes_in_records::{hex_of_path, path_of_hex};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
 use crate::plain_file::read_plain_file;
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, snapshot_one};
@@ -53,9 +54,10 @@ const TAG: &str = "worktreeRemovalInterruptedDestroy";
 pub const RECORD_FOLDER: &str = "monochromatic-git-policy-cli/recorded-destroys";
 
 /// The most bytes of a record that is read:
-/// three short lines,
-/// and a worktree path far under any limit.
-const RECORD_LIMIT: u64 = 4096;
+/// four short lines,
+/// the hexadecimal form of the place a renamed subvolume stands (twice the length of a path),
+///  and the worktree's path.
+const RECORD_LIMIT: u64 = 16384;
 
 /// The prefix of the record's first line:
 /// the process that wrote it,
@@ -64,6 +66,10 @@ const OWNER_PREFIX: &str = "owner=";
 
 /// The prefix of the record's identity line.
 const IDENTITY_PREFIX: &str = "identity=";
+
+/// The prefix of the record's line that names where this removal's subvolume stands once it is renamed,
+/// in the hexadecimal form a path of any bytes takes in a line of a record.
+const LEAVING_PREFIX: &str = "leavingHex=";
 
 /// The first line of a record whose kernel call returned,
 /// which is the only proof that the files of the worktree are gone.
@@ -140,9 +146,12 @@ pub fn record_destroy_with_owner(common_dir: &Path, id: &OsStr, admin: &ObjectId
     let mut bytes: Vec<u8> = written_owner.into_bytes();
     bytes.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", admin.encode()).as_bytes());
     bytes.extend_from_slice(target.as_os_str().as_bytes());
-    return match write_private_file_unsynced(path.as_path(), bytes.as_slice()) {
+    // The record is written whole and replaces whatever stands at its name. A worktree name is used again and again, so a
+    // record of an earlier removal of the same registration can be there, marked as destroyed; keeping it would tell the
+    // next command that this worktree's files are gone before this removal has destroyed anything, and a sweep could drop
+    // the record of a removal that is still running (reported twice on 2026-11-11, 22:30:57 and 22:37:25 -05:00).
+    return match write_beside_then_rename(path.as_path(), bytes.as_slice()) {
         Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(format!("{} cannot be written ({error})", path.display())),
     };
 }
@@ -168,6 +177,12 @@ pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
     let path: PathBuf = record_path(common_dir, id);
     let bytes: Vec<u8> = match read_plain_file(path.as_path(), RECORD_LIMIT) {
         Ok(read) => read,
+        // A record that is gone needs no mark: another command dropped it, and this removal is about to finish the
+        // registration itself, so nothing is left for a later command to finish.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            debug(TAG, format!("the record {} is gone, so there is nothing to mark and nothing a later command must finish", path.display()).as_str());
+            return;
+        }
         Err(error) => {
             warn(TAG, format!("{} cannot be read, so the finished destroy of {id:?} is not recorded ({error})", path.display()).as_str());
             return;
@@ -186,10 +201,78 @@ pub fn record_destroyed(common_dir: &Path, id: &OsStr) {
     if let Some(owner) = read.owner.as_ref() {
         marked.extend_from_slice(format!("{OWNER_PREFIX}{owner}\n").as_bytes());
     }
+    if let Some(leaving) = read.leaving.as_ref() {
+        marked.extend_from_slice(format!("{LEAVING_PREFIX}{}\n", hex_of_path(leaving.as_path())).as_bytes());
+    }
     marked.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", read.admin.encode()).as_bytes());
     marked.extend_from_slice(read.target.as_os_str().as_bytes());
     if let Err(error) = write_beside_then_rename(path.as_path(), marked.as_slice()) {
-        warn(TAG, format!("{} cannot be marked ({error}), so a later command cannot finish the removal of {id:?}", path.display()).as_str());
+        // The folder goes with the last record another command dropped, which is nothing this removal needs: the
+        // registration it is emptying is finished by this command, and only a kill before it ends would need the record.
+        if error.kind() == std::io::ErrorKind::NotFound {
+            debug(TAG, format!("the record {} is gone, so there is nothing to mark and nothing a later command must finish", path.display()).as_str());
+            return;
+        }
+        warn(TAG, format!("{} cannot be marked ({error}), so a command killed before this removal ends would leave its registration to `git worktree prune`", path.display()).as_str());
+    }
+}
+
+/// What:
+///  Record where the subvolume of the removal whose registration is `id` stands once it is renamed,
+///  before the rename is made.
+/// Why:
+///   A removal hands its subvolume to the service by renaming it out of the worktree,
+/// and the record's proof
+///  that the files left the worktree's path was written only after that rename:
+/// a command killed in between
+///  left a record that said only that a destroy was intended,
+/// with nothing at the worktree's path,
+/// and the
+///  next command could neither finish the registration nor prove the files had gone,
+/// so it reported the state
+///  once and left a registration the person had to prune (a review finding,
+/// F4).
+/// With the place written before
+///  the rename,
+/// the same kill leaves a record whose target is gone and whose leaving place is named,
+/// and the
+///  next command finishes the registration the delete of that place belongs to.
+/// A record that cannot be read or written
+///  costs that finish and nothing else,
+/// and the rename goes on as before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recordLeaving(commonDir, id, join(parentPath, deletingName(id)));
+/// ```
+pub fn record_leaving(common_dir: &Path, id: &OsStr, leaving: &Path) {
+    let path: PathBuf = record_path(common_dir, id);
+    let bytes: Vec<u8> = match read_plain_file(path.as_path(), RECORD_LIMIT) {
+        Ok(read) => read,
+        Err(error) => {
+            debug(TAG, format!("{} cannot be read, so the place the subvolume of {id:?} stands is not recorded ({error})", path.display()).as_str());
+            return;
+        }
+    };
+    let read: DestroyRecord = match read_record(bytes.as_slice()) {
+        Ok(found) => found,
+        Err(reason) => {
+            debug(TAG, format!("{} cannot be read, so the place the subvolume of {id:?} stands is not recorded ({reason})", path.display()).as_str());
+            return;
+        }
+    };
+    let mut named: Vec<u8> = Vec::new();
+    if read.destroyed {
+        named.extend_from_slice(DESTROYED_MARK);
+    }
+    if let Some(owner) = read.owner.as_ref() {
+        named.extend_from_slice(format!("{OWNER_PREFIX}{owner}\n").as_bytes());
+    }
+    named.extend_from_slice(format!("{LEAVING_PREFIX}{}\n", hex_of_path(leaving)).as_bytes());
+    named.extend_from_slice(format!("{IDENTITY_PREFIX}{}\n", read.admin.encode()).as_bytes());
+    named.extend_from_slice(read.target.as_os_str().as_bytes());
+    if let Err(error) = write_beside_then_rename(path.as_path(), named.as_slice()) {
+        debug(TAG, format!("{} cannot be written with the place the subvolume of {id:?} stands ({error})", path.display()).as_str());
     }
 }
 
@@ -236,6 +319,11 @@ struct DestroyRecord {
     owner: Option<String>,
     /// The identity of the registration when the destroy was proven.
     admin: ObjectId,
+    /// Where this removal renamed the subvolume,
+    /// when it handed it to the service:
+    /// the place the worktree's files stand,
+    /// written before the rename.
+    leaving: Option<PathBuf>,
     /// The worktree directory the destroy was aimed at.
     target: PathBuf,
     /// Whether the kernel call returned,
@@ -262,6 +350,7 @@ fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
     // and says so.
     let mut rest: &[u8] = bytes;
     let mut owner: Option<String> = None;
+    let mut leaving: Option<PathBuf> = None;
     let mut destroyed: bool = false;
     loop {
         let Some(split_at) = rest.iter().position(is_newline) else { break };
@@ -272,9 +361,14 @@ fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
             continue;
         }
         let Ok(text) = std::str::from_utf8(line) else { break };
-        match text.strip_prefix(OWNER_PREFIX) {
-            Some(owner_text) => {
-                owner = Some(owner_text.to_string());
+        if let Some(owner_text) = text.strip_prefix(OWNER_PREFIX) {
+            owner = Some(owner_text.to_string());
+            rest = after.strip_prefix(b"\n").unwrap_or(after);
+            continue;
+        }
+        match text.strip_prefix(LEAVING_PREFIX) {
+            Some(spelled) => {
+                leaving = path_of_hex(spelled);
                 rest = after.strip_prefix(b"\n").unwrap_or(after);
             }
             None => break,
@@ -294,7 +388,7 @@ fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
     };
     // Everything after the identity's newline is the target, byte for byte.
     let target: &[u8] = after_identity.strip_prefix(b"\n").unwrap_or(after_identity);
-    return Ok(DestroyRecord { owner, admin, target: PathBuf::from(OsStr::from_bytes(target)), destroyed });
+    return Ok(DestroyRecord { owner, admin, leaving, target: PathBuf::from(OsStr::from_bytes(target)), destroyed });
 }
 
 /// What:
@@ -386,7 +480,8 @@ fn named_checkout(admin: &Path, target: &Path) -> Option<String> {
 }
 
 /// What:
-///  Remove the registration `id` through descriptors below the held `worktrees` directory,
+///  Remove the registration `id` of the repository whose common directory is `common_dir`,
+/// through descriptors below the held `worktrees` directory,
 ///  only while it is the object the record names and while nothing below it is a nested subvolume or a mount point.
 /// Why:
 ///   The registration is emptied and then removed by name from the held directory,
@@ -398,7 +493,7 @@ fn named_checkout(admin: &Path, target: &Path) -> Option<String> {
 /// ```ts
 /// await removeRecordedRegistration(worktrees, id, admin, recorded);
 /// ```
-fn remove_recorded_registration(worktrees: &File, id: &OsStr, admin: &Path, recorded: &ObjectId) -> Result<(), String> {
+fn remove_recorded_registration(common_dir: &Path, worktrees: &File, id: &OsStr, admin: &Path, recorded: &ObjectId) -> Result<(), String> {
     let held: File = match open_directory_at(worktrees, id) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -411,7 +506,7 @@ fn remove_recorded_registration(worktrees: &File, id: &OsStr, admin: &Path, reco
     // The snapshots ahead of an add are this program's own and stand in the registration, and the walk below refuses every
     // nested subvolume, so they go first: a removal this program began on an earlier build left them here, and nothing a
     // person put in the registration is touched by this clear.
-    if let Err(reason) = clear_the_pools_ahead_of_a_worktree(handle_path(&held).as_path()) {
+    if let Err(reason) = clear_the_pools_ahead_of_a_worktree(common_dir, handle_path(&held).as_path()) {
         return Err(format!("its snapshots ahead of an add cannot be removed ({reason}): {}", admin.display()));
     }
     step_reason(verify_below(&held, admin), admin, "it holds something this command does not delete")?;
@@ -513,7 +608,13 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
         forget_destroy(common_dir, id);
         return;
     }
-    if !read.destroyed {
+    // A removal that handed its subvolume to the service writes the place it renamed that subvolume to before the rename,
+    // so a path with nothing at it and a place named is a removal killed between the rename and its mark: the delete of
+    // that place was recorded before the rename, and only the registration is left to finish (a review finding, F4).
+    if !read.destroyed && read.leaving.is_some() {
+        debug(TAG, format!("the record {} names where its files stand and was not marked, so its registration is finished as a marked record's is", record.display()).as_str());
+    }
+    if !read.destroyed && read.leaving.is_none() {
         // Nothing is at the recorded name, and the record says only that a destroy was intended: the worktree may have been
         // moved, and its registration is the only thing that can still name its index and logs. The person is told once.
         problems.push(format!(
@@ -541,7 +642,7 @@ fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<S
             return;
         }
     };
-    match remove_recorded_registration(&worktrees, id, admin.as_path(), &read.admin) {
+    match remove_recorded_registration(common_dir, &worktrees, id, admin.as_path(), &read.admin) {
         Ok(()) => {}
         Err(reason) => {
             problems.push(format!("The interrupted removal of {} cannot be finished: {reason}. Run `git worktree prune` for the repository.", read.target.display()));

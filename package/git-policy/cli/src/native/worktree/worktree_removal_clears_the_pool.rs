@@ -163,6 +163,12 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
 ///  Both pools of this repository are taken out of their names this way before anything of them is removed,
 /// so the
 ///  rename and the words for it live here once.
+///  A pool is a directory this program made.
+/// A link or a file at its name is somebody else's:
+/// taking it would
+///  move the link,
+/// and every path read through the new name would lead into its target,
+///  so what stands at the name is read before it is moved and only a directory is taken.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -173,6 +179,16 @@ pub(crate) fn take_the_pool_out_of_its_name(pool: &Path, prefix: &str) -> Result
     // The name is the folder's and the tree's: a tree with no name of its own was never a pool.
     if pool.file_name().is_none() {
         return Err(format!("{} names no pool", pool.display()));
+    }
+    // `symlink_metadata` answers for the entry itself, so a link is not a directory here and is never moved.
+    match std::fs::symlink_metadata(pool) {
+        Ok(found) if found.is_dir() => {}
+        Ok(_not_a_directory) => {
+            debug(TAG, format!("{} is no directory this program made, so nothing takes it", pool.display()).as_str());
+            return Ok(None);
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("the pool {} cannot be looked at ({error})", pool.display())),
     }
     let taken: PathBuf = folder.join(format!("{prefix}{}", crate::random_id::random_uuid().unwrap_or_default()));
     return match std::fs::rename(pool, taken.as_path()) {

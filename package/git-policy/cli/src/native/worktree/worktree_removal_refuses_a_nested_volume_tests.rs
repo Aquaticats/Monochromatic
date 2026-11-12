@@ -58,6 +58,44 @@ fn a_nested_linked_worktree_is_named_with_its_branch_and_the_command_that_remove
 }
 
 /// What:
+///  A linked worktree on a detached `HEAD` is named as the worktree it is,
+///  with the command that removes it while keeping its commits,
+///  so the report never sends the person to delete its files.
+/// Why:
+///   A detached `HEAD` is a state the repository registers like any other,
+/// and a report that asked only
+///  the sweep's candidates saw no branch and called the worktree an unnamed volume:
+/// it then gave
+///  `btrfs subvolume delete` for a worktree holding uncommitted work,
+///  which deletes that work with it (a review finding,
+/// F2).
+#[test]
+fn a_nested_worktree_on_a_detached_head_is_named_with_the_command_that_removes_it() {
+    let root: PathBuf = fixture("nested-volume-detached");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("tracked.txt"), b"tracked\n").expect("tracked");
+    git(repo.as_path(), &["add", "--", "tracked.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
+    let outer: PathBuf = root.join("wt");
+    let inner: PathBuf = outer.join(".claude/worktrees/inner");
+    std::fs::create_dir_all(inner.as_path()).expect("the folder a worktree inside a worktree stands in");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", inner.to_str().expect("a UTF-8 fixture path")]);
+    std::fs::write(inner.join("notes.txt"), b"what I was in the middle of\n").expect("a file the person wrote");
+    let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let registered: PathBuf = std::fs::canonicalize(inner.as_path()).expect("canonical");
+    let report: String = refusal_for_nested_volume(
+        outer.as_path(),
+        common_dir.as_path(),
+        &Boundary { path: registered.clone(), what: A_NESTED_SUBVOLUME },
+    );
+    assert!(report.contains(registered.to_str().expect("UTF-8")), "the report names the worktree inside: {report}");
+    assert!(report.contains("detached HEAD"), "and says what its HEAD names instead of a branch: {report}");
+    assert!(report.contains(&format!("git worktree remove {inner}", inner = registered.display())), "and the command that removes it: {report}");
+    assert!(report.contains("Nothing was removed"), "and says nothing changed: {report}");
+    assert!(!report.contains("btrfs subvolume delete"), "and never sends the person to delete a registered worktree's files: {report}");
+}
+
+/// What:
 ///  A subvolume that is no worktree of this repository is named with the command that deletes it,
 ///  and nothing was removed.
 /// Why:

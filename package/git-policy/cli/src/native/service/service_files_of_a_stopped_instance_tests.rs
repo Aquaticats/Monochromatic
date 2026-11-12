@@ -306,3 +306,42 @@ fn a_missing_journal_and_an_unknown_state_directory_remove_nothing() {
     assert!(journal.exists(), "an unknown state directory keeps the journal");
     remove(root.as_path());
 }
+
+/// What:
+///  A batch's copy of the conclusion state it removed goes with the journal of a stopped instance,
+///  and the journal is not named to the person for it.
+/// Why:
+///   The copy is made from the worktree's own scratch state before the branch moves (`conclusion_state_copy.rs`),
+/// and
+///  the service removes it with the batch;
+/// a landing whose cleanup did not run left it behind,
+/// and a stopped instance
+///  belongs to a worktree whose files are gone,
+/// so the copy is a copy of nothing a person still has.
+/// A folder
+///  this release did not know kept the journal and told the person to look at it and remove it by hand
+/// (a reported
+///  case,
+/// 2026-11-11T22:37:25-05:00).
+#[test]
+fn the_copy_of_a_batchs_conclusion_state_goes_with_the_journal_of_a_stopped_instance() {
+    let machine: Machine = machine("files-conclusion-copy");
+    let gone: PathBuf = machine.linked("gone", false);
+    let instance: String = instance_of(gone.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), gone.as_path()).expect("note");
+    machine.socket_of(instance.as_str());
+    let journal: PathBuf = machine.aged_settled_journal_of(instance.as_str());
+    let copy: PathBuf = journal.join(format!("1.{CONCLUSION_COPY_EXTENSION}"));
+    std::fs::create_dir_all(copy.join("conclusion").as_path()).expect("the copy of the conclusion state");
+    std::fs::write(copy.join("conclusion/MERGE_HEAD"), b"a commit\n").expect("a copy of the state file");
+    std::fs::create_dir_all(copy.join("shadow").as_path()).expect("the copy of the shadow's state");
+    std::fs::write(copy.join("shadow/MERGE_MSG"), b"a message\n").expect("a copy of the shadow's state file");
+    // The copy was made by a landing that has long ended, so the journal is as old as the records beside it.
+    crate::service_units_fixture_test_support::age_a_journal(journal.as_path());
+    let mut recorder: Recorder = Recorder::default();
+    let outcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
+    assert_eq!(outcome.stopped, vec![instance.clone()]);
+    assert!(outcome.journals_kept.is_empty(), "the copy is the service's own, so nothing keeps the journal: {:?}", outcome.journals_kept);
+    assert!(!journal.exists(), "the journal goes with the copy of the conclusion state it made");
+    remove(machine.root.as_path());
+}

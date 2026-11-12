@@ -36,6 +36,31 @@ pub(crate) struct Registration {
     pub(crate) branch: String,
 }
 
+/// One registration of the repository,
+/// with the branch its `HEAD` names when it names one.
+/// Why:
+///   A registration is the only list entry a repository owns,
+/// and a detached `HEAD` is a state a worktree can have:
+/// the sweep has no candidate there,
+/// because nothing can land on a branch it does not have,
+/// while a report about the worktree still has to name it as the worktree it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RegisteredWorktree = { admin: string; worktree: string; branch?: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RegisteredWorktree {
+    /// The administrative directory.
+    pub(crate) admin: PathBuf,
+    /// The worktree root the registration names.
+    pub(crate) worktree: PathBuf,
+    /// The branch its `HEAD` names,
+    /// as a full ref name,
+    /// or nothing for a detached `HEAD`.
+    pub(crate) branch: Option<String>,
+}
+
 /// What:
 ///  Every linked worktree the repository registers,
 ///  with the branch each one has checked out.
@@ -53,22 +78,74 @@ pub(crate) struct Registration {
 /// const registered = registrationsOf(commonDir); // throws the reason
 /// ```
 pub(crate) fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, String> {
+    let mut found: Vec<Registration> = Vec::new();
+    for one in registered_worktrees(common_dir)? {
+        let Some(branch) = one.branch else { continue };
+        found.push(Registration { admin: one.admin, worktree: one.worktree, branch });
+    }
+    return Ok(found);
+}
+
+/// What:
+///  The registration that names exactly `worktree` as its worktree,
+///  whatever its `HEAD` names.
+/// Why:
+///   A report about a worktree that stands below another one names it and the command that removes it,
+/// and a
+///  detached `HEAD` is a worktree the repository registers like any other:
+/// asking only the candidates
+///  of a landed sweep made it an unnamed volume,
+/// and the report then sent the person to delete its
+///  files with the btrfs tool (a review finding,
+/// F2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const worktree = registrationNaming(commonDir, path); // RegisteredWorktree | undefined
+/// ```
+///
+/// # Errors
+///
+/// The words for a `worktrees` folder that cannot be listed.
+pub(crate) fn registration_naming(common_dir: &Path, worktree: &Path) -> Result<Option<RegisteredWorktree>, String> {
+    for one in registered_worktrees(common_dir)? {
+        if one.worktree == worktree {
+            return Ok(Some(one));
+        }
+    }
+    return Ok(None);
+}
+
+/// What:
+///  Every registration of the repository,
+///  in one listing of its `worktrees` folder,
+///  with the branch each one's `HEAD` names when it names one.
+/// Why:
+///   The sweep and the report ask the same files the same question,
+/// and only what they keep differs:
+/// one
+///  needs a branch,
+/// the other needs the registration.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const registered = registeredWorktrees(commonDir); // throws the reason
+/// ```
+fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, String> {
     let folder: PathBuf = common_dir.join("worktrees");
     let listing = match std::fs::read_dir(folder.as_path()) {
         Ok(listing) => listing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", folder.display())),
     };
-    let mut found: Vec<Registration> = Vec::new();
+    let mut found: Vec<RegisteredWorktree> = Vec::new();
     for entry in listing.flatten() {
         let admin: PathBuf = entry.path();
         let Some(worktree) = registered_worktree(admin.as_path()) else {
             continue;
         };
-        let Some(branch) = head_branch(admin.as_path()) else {
-            continue;
-        };
-        found.push(Registration { admin, worktree, branch });
+        let branch: Option<String> = head_branch(admin.as_path());
+        found.push(RegisteredWorktree { admin, worktree, branch });
     }
     return Ok(found);
 }

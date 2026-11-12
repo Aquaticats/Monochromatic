@@ -68,7 +68,7 @@ fn the_hand_over_renames_the_subvolume_and_records_where_it_stands() {
         woken.borrow_mut().push(at.to_path_buf());
         return Err(String::from("no service answers here"));
     };
-    hand_over_with(&git_context(), common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 7, made.as_path(), &told).expect("handed over");
+    hand_over_with(&git_context(), common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 7, made.as_path(), std::ffi::OsStr::new("wt"), &told).expect("handed over");
     assert!(!made.exists(), "the path the person named is gone");
     let deleting: PathBuf = parent_path.join(deleting_name(7));
     assert!(deleting.is_dir(), "the subvolume stands under the name built from its id");
@@ -101,7 +101,7 @@ fn the_service_deletes_the_subvolume_a_record_names_and_a_gone_path_is_done() {
     let parent_path: PathBuf = made.parent().expect("parent").to_path_buf();
     let name: OsString = made.file_name().expect("name").to_os_string();
     let parent: File = open_root(parent_path.as_path()).expect("parent handle");
-    hand_over_with(&git_context(), common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 11, made.as_path(), &|_: &GitContext, _: &Path| { return Ok(()); }).expect("handed over");
+    hand_over_with(&git_context(), common.as_path(), &parent, parent_path.as_path(), name.as_os_str(), 11, made.as_path(), std::ffi::OsStr::new("wt"), &|_: &GitContext, _: &Path| { return Ok(()); }).expect("handed over");
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), 11);
     assert_eq!(delete_subvolume_of(&item), Verdict::Done, "the service's own call deletes it");
     assert!(!parent_path.join(deleting_name(11)).exists(), "the directory is gone");
@@ -173,7 +173,7 @@ impl RemoveOperations for HandingOverStand {
         return std::fs::remove_dir_all(held.parent_path.join(held.name.as_os_str())).map_err(|error| { return error.to_string(); });
     }
 
-    fn hand_over(&self, _context: &GitContext, _common_dir: &Path, _held: &Held, _target: &Path) -> Result<(), String> {
+    fn hand_over(&self, _context: &GitContext, _common_dir: &Path, _held: &Held, _target: &Path, _registration: &std::ffi::OsStr) -> Result<(), String> {
         self.handed.set(true);
         return Ok(());
     }

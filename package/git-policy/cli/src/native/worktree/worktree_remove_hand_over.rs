@@ -33,6 +33,7 @@ use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{identity_at, open_root, rename_at};
 use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
 use crate::iso_time::now_iso;
+use crate::private_storage::create_private_directory_all;
 use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
 use crate::service_messages::render;
 use crate::service_protocol::HEARTBEAT_SILENCE;
@@ -43,6 +44,7 @@ use crate::service_work::work_directory;
 use crate::transaction_git::GitContext;
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::worktree_removal_interrupted_destroy::record_leaving;
 use crate::service_work::Verdict;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -204,8 +206,8 @@ fn wake_the_service(context: &GitContext, common_dir: &Path) -> Result<(), Strin
 /// ```ts
 /// await handOverRemoval({ context, commonDir, parent, parentPath, name, id });
 /// ```
-pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path) -> Result<(), String> {
-    return hand_over_with(context, common_dir, parent, parent_path, name, id, target, &wake_the_service);
+pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, registration: &OsStr) -> Result<(), String> {
+    return hand_over_with(context, common_dir, parent, parent_path, name, id, target, registration, &wake_the_service);
 }
 
 /// What:
@@ -213,6 +215,9 @@ pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File,
 /// so a control reaches no service and no session bus.
 /// Why:
 ///   The record is written and the directory renamed before the service is told,
+/// and the removal's own record names the place the
+///  directory takes before it takes it,
+/// so a kill in the moments between leaves a state the next command finishes,
 /// so a control can assert both without a
 ///  service,
 /// and a wake that fails is never the removal's failure:
@@ -223,9 +228,13 @@ pub fn hand_over_removal(context: &GitContext, common_dir: &Path, parent: &File,
 /// ```ts
 /// handOverWith({ context, commonDir, parent, parentPath, name, id, target, told });
 /// ```
-pub fn hand_over_with(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, told: &dyn Fn(&GitContext, &Path) -> Result<(), String>) -> Result<(), String> {
+pub fn hand_over_with(context: &GitContext, common_dir: &Path, parent: &File, parent_path: &Path, name: &OsStr, id: u64, target: &Path, registration: &OsStr, told: &dyn Fn(&GitContext, &Path) -> Result<(), String>) -> Result<(), String> {
     let item: WorkItem = record_the_removal(common_dir, parent_path, id)?;
     let deleting: OsString = deleting_name(id);
+    // Where the files will stand is written before the rename, so a command killed between the two leaves a record whose
+    // worktree path is gone and whose place is named, which is a state the next command finishes the registration by
+    // (a review finding, F4).
+    record_leaving(common_dir, registration, parent_path.join(deleting.as_os_str()).as_path());
     if let Err(error) = rename_at(parent, name, parent, deleting.as_os_str(), false) {
         // Nothing was renamed, so the record names a path that does not exist and the service will find nothing to delete.
         return Err(format!("the subvolume of {} cannot be renamed out of the way ({error})", target.display()));
@@ -344,6 +353,67 @@ pub fn delete_subvolume_of(item: &WorkItem) -> Verdict {
         )),
         Err(error) => Verdict::Retry(format!("the subvolume of {} cannot be destroyed ({error})", path.display())),
     };
+}
+
+/// What:
+///  Leave one subvolume this program made for the commit service to delete,
+///  by writing the record that names the place it will stand,
+///  moving it out of the tree that is being removed,
+///  and answering that place.
+/// Why:
+///   The removal's own subvolume is not the only one it leaves:
+/// a pool of snapshots ahead of an add and a
+///  pending deletion this program wrote earlier are subvolumes inside the tree as well,
+/// and the kernel refuses
+///  to destroy a tree that holds one.
+/// Moving one out is one `rename(2)` on the filesystem it stands on,
+///  so nothing waits for the kernel's write lock the way a destroy does
+/// (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`),
+/// and the record written before the move names
+///  what the service deletes later
+/// (a review finding,
+/// F5).
+///  The folder it is moved into is on the same filesystem by construction:
+/// a pool sits in the repository's Git
+///  directory,
+/// and a pending deletion sits in the tree its own removal renamed it out of.
+/// A record that
+///  cannot be written leaves the subvolume where it is and answers the reason,
+/// so the caller refuses while
+///  nothing has moved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = await leaveASubvolumeForTheService({ commonDir, from, into }); // its new path
+/// ```
+pub(crate) fn leave_a_subvolume_for_the_service(common_dir: &Path, from: &Path, into: &Path) -> Result<PathBuf, String> {
+    // The entry was read with `symlink_metadata` by the caller, and the paths a removal builds start at a held directory
+    // (`/proc/self/fd/<n>`), which `open_root` refuses as reached through a link. A link that takes the entry's place after
+    // that read is no harm here: the rename moves the link and never its target, and the service deletes a path only while
+    // a directory stands there.
+    let held: File = match File::open(from) {
+        Ok(held) => held,
+        Err(error) => return Err(format!("the subvolume {} cannot be opened ({error})", from.display())),
+    };
+    let id: u64 = match subvolume_id(&held, from) {
+        Ok(found) => found,
+        Err(error) => return Err(format!("the subvolume {} cannot be identified ({error})", from.display())),
+    };
+    if let Err(error) = create_private_directory_all(into) {
+        return Err(format!("the folder {} cannot be made ({error})", into.display()));
+    }
+    // The record goes before the move, so a command killed between the two leaves a record whose path is not there yet
+    // (which deletes nothing) and never a directory nothing names.
+    let item: WorkItem = removal_item(common_dir, into, id);
+    if let Err(reason) = enqueue(work_directory(common_dir).as_path(), &item) {
+        return Err(format!("the delete of {} cannot be recorded: {reason}", from.display()));
+    }
+    let left: PathBuf = PathBuf::from(item.parent.as_str());
+    if let Err(error) = std::fs::rename(from, left.as_path()) {
+        return Err(format!("the subvolume {} cannot be moved to {} ({error})", from.display(), left.display()));
+    }
+    debug(TAG, format!("the subvolume {} waits for the service's delete at {}", from.display(), left.display()).as_str());
+    return Ok(left);
 }
 
 /// Whether an errno from the destroy by id means this kernel lacks the call,

@@ -29,12 +29,12 @@
 
 use crate::conclusion_cleanup::{CONCLUSION_COPY_DIRECTORY, CONCLUSION_STATE_FILES};
 use crate::private_storage::{create_private_directory_all, remove_tree};
-use crate::service_journal::batch_path;
+use crate::service_journal::{CONCLUSION_COPY_EXTENSION, batch_path};
 use crate::service_protocol::Cleanup;
 use std::path::{Path, PathBuf};
 
 /// The extension of the folder that holds one batch's copy.
-pub const COPY_EXTENSION: &str = "cleanup";
+pub const COPY_EXTENSION: &str = CONCLUSION_COPY_EXTENSION;
 
 /// The folder of the shadow's state files inside a copy.
 const SHADOW_FOLDER: &str = "shadow";

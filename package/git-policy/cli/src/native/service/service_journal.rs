@@ -252,6 +252,11 @@ pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
 /// The extension of the record of the live index file a batch started from.
 pub const START_EXTENSION: &str = "start";
 
+/// The extension of the folder that holds one batch's copy of the conclusion state it removes
+/// (`conclusion_state_copy.rs`),
+/// which is a copy of what the landing compares and never the state itself.
+pub const CONCLUSION_COPY_EXTENSION: &str = "cleanup";
+
 /// What:
 ///  Records the witness of the live index file as the landing found it under the index lock.
 /// Why:
