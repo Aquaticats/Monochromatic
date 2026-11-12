@@ -461,6 +461,46 @@ fn a_registration_that_cannot_be_read_now_is_tried_again() {
 }
 
 /// What:
+///  A tool of an add that held no search path is started with none at all,
+///  whatever path the process that runs it was started with.
+/// Why:
+///   The record says the add's environment held no `PATH`,
+/// so the worktree's own link is the program the add resolved,
+/// and a service is a resident process of another session whose own path holds other programs.
+/// Omitting the variable from the command leaves the tool inheriting the service's path,
+/// and the tool and everything it starts then resolve programs the add never named.
+/// The second half of this control is the positive one:
+/// an add that did hold a path must be seen by the tool with it,
+/// so a tool that never records a path at all cannot pass this.
+#[test]
+fn an_unset_add_search_path_is_removed_from_the_tools_environment() {
+    let scene: Scene = scene("relink-job-unset-path-environment");
+    let own_link: PathBuf = scene.worktree.join(".cache/toolchain-bin/mpm-shadow");
+    std::fs::create_dir_all(own_link.parent().expect("the link's directory")).expect("the worktree's toolchain link directory");
+    let launcher: PathBuf = scene.worktree.join(".cache/toolchain-launchers/mpm.launch");
+    let own: PathBuf = scene.worktree.join("toolchain.lock.json");
+    // What the tool saw of the add's environment, which is what its own children would resolve programs on.
+    let script: String = format!(
+        "#!/bin/sh\nif [ -n \"${{PATH+x}}\" ]; then printf 'PATH=%s\\n' \"$PATH\" >> '{paths}'; else printf 'no PATH\\n' >> '{paths}'; fi\nprintf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{launcher}'\nexit 0\n",
+        paths = search_paths(&scene).display(),
+        own = own.display(),
+        launcher = launcher.display(),
+    );
+    executable(own_link.as_path(), script.as_bytes());
+    let with_no_path: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), search_path: SearchPathOfTheAdd::Unset, tools: vec![RelinkTool::Toolchain] };
+    let item: WorkItem = item_of(scene.common.as_path(), scene.worktree.as_path(), &with_no_path).expect("the record");
+    assert_eq!(relink(&scene, &item), Verdict::Done);
+    assert_eq!(paths(&scene).trim_end(), "no PATH", "the add held no search path, so the tool must inherit none");
+    // The same probe with an add that did hold a path, so a tool that records nothing cannot pass this control.
+    std::fs::remove_file(search_paths(&scene).as_path()).expect("the first run's record is removed");
+    let with_the_path: RelinkEntry = RelinkEntry { root: scene.worktree.clone(), search_path: SearchPathOfTheAdd::Set(scene.bin.clone().into_os_string()), tools: vec![RelinkTool::Toolchain] };
+    let item: WorkItem = item_of(scene.common.as_path(), scene.worktree.as_path(), &with_the_path).expect("the record");
+    assert_eq!(relink(&scene, &item), Verdict::Done);
+    assert_eq!(paths(&scene).trim_end(), format!("PATH={}", scene.bin.display()), "an add that held a search path must be seen by the tool with it");
+    remove(scene.root.as_path());
+}
+
+/// What:
 ///  The words a refusal is settled with name the worktree the record carries,
 ///  not a descriptor the run reads it through.
 /// Why:

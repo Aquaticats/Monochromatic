@@ -58,14 +58,14 @@ use std::time::{Duration, Instant};
 ///  One program start:
 /// its arguments,
 /// the directory it runs in,
-/// and the variables added to its environment.
+/// and the variables its environment is built from.
 /// Why:
 ///   The program path is found separately,
 /// so a test can name a fixture and a person's search path is read once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ToolCommand = { arguments: string[]; directory: string; set: [string, string][] };
+/// type ToolCommand = { arguments: string[]; directory: string; environment: ToolEnvironment };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ToolCommand {
@@ -73,8 +73,32 @@ pub struct ToolCommand {
     pub arguments: Vec<OsString>,
     /// The working directory.
     pub directory: PathBuf,
+    /// What the tool is started with and without.
+    pub environment: ToolEnvironment,
+}
+
+/// What:
+///  The variables a tool's own environment is built from:
+/// those added to the one it inherits,
+/// and those it must not inherit.
+/// Why:
+///   A repair starts what the add resolved the program on,
+/// and a program that starts others is started by them.
+/// An inherited variable that the add did not hold would hand the tool's children another session's answer,
+/// so an absent variable is a removal and never an omission:
+/// leaving it out of the command lets the process's own value stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ToolEnvironment = { set: [string, string][]; remove: string[] };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ToolEnvironment {
     /// Variables added to the inherited environment.
     pub set: Vec<(OsString, OsString)>,
+    /// Variables removed from the inherited environment,
+    /// because the add held nothing for them and nothing else may stand in for it.
+    pub remove: Vec<OsString>,
 }
 
 /// What:
