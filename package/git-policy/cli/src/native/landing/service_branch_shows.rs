@@ -15,8 +15,8 @@
 //!  (`what_the_branch_shows_awaiting`,
 //! `the_silent_service_after_a_prepare_awaiting`),
 //! which awaits every Git child on the runtime.
-//! A branch is named by the bytes Git printed for it, so the question is built from those bytes
-//! (`ref_name.rs`).
+//! A branch is named by the bytes Git printed for it,
+//! so the question is built from those bytes (`ref_name.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
