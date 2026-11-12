@@ -135,6 +135,122 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### 0.6.1-alpha.12 installed, a removal jam met on the way, and the audits of the released code started (2026-11-11T22:43:30-05:00)
+
+#### The release
+
+`PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.12` at 2026-11-11T22:35:08-05:00,
+nine and a half minutes after the dispatch at 22:25:33
+(`crate-release.yml` run 43148147189, `cargo-publish.yml` run 43148284554, no dispatch gate, crates.io skipped as for every alpha).
+`native:install -- 0.6.1-alpha.12` ended at 22:36:06
+(log `${HOME}/temp/agent/gate/install-0.6.1-alpha.12.log`):
+"the sample commit took 4331 ms",
+where the first commit after the alpha.11 install took 17.6 s.
+The lock commit is `65875ab466`,
+and `mpm-shadow update -g cargo:monochromatic-git-policy-cli`, run by its full path, moved the global lock.
+The first three commits under alpha.12 landed in 11.5 s to 13.6 s
+while two batches were adding worktrees and the gate ran;
+the hourly pass reads the numbers again
+(`node ${HOME}/temp/agent/scratch-scripts/commit-timing-by-release.ts <git dir> 0.6.1-alpha.12`).
+The gate on `d90730337c` is still running.
+
+#### A removal that failed on the wrapper's own pending deletion (0.6.1-alpha.11)
+
+Removing the worktree of the merged review-commands branch needed its nested review worktree removed first.
+
+1. `git worktree remove` of the inner worktree, 22:30:48 to 22:30:57, exit status 0.
+   It printed a warning that `recorded-destroys/<name>` "cannot be marked (No such file or directory (os error 2)),
+   so a later command cannot finish the removal",
+   then "removed the btrfs subvolume of the worktree in one step, and the commit service deletes the files after this command
+   returns (normally within a second)".
+2. `git worktree remove` of the outer worktree, 22:31:17 to 22:31:25, exit status 1:
+   it "holds .../cli-git-deleting-000000000001f5f7, which is a nested subvolume or another filesystem",
+   "Nothing was removed",
+   and the person is told to move it or run `btrfs subvolume delete` on it.
+
+That subvolume was the inner worktree, renamed in place by step 1 and waiting for the service.
+It was still there at 22:32:27 and gone at 22:36:05;
+the alpha.12 install fell between, so which release's service deleted it is not known.
+So a subvolume the wrapper made stood inside a worktree root
+(the nested-subvolume branch's report says none does),
+a removal failed on it,
+and a person was handed the wrapper's own leftover.
+
+The outer removal was run again under alpha.12, 22:36:23 to 22:37:25: exit status 0 after 62 seconds, with two warnings.
+The same "cannot be marked" one,
+which therefore is the ordinary case and not an interrupted removal;
+and "the journal of the removed worktree ... is kept at
+`~/.local/state/monochromatic-git-policy-cli/service/28b4623a3857d8f577fd44aa9d5d5618`,
+because it holds 1794446238894677.cleanup, a folder this release does not know;
+look at it and remove it yourself if nothing in it is wanted".
+That folder is left as it is.
+All of it went to the round 257 agent `review-findings-removal-with-a-nested-subvolume-round-231`
+in two notes (22:33 and 22:41),
+with the requirement that a pending deletion or a folder the wrapper made is the wrapper's to finish.
+
+#### The cleanup service
+
+`PUBLISHED monochromatic-cargo-shadow-v0.1.5-alpha.10` (run 43148586247).
+`toolchain:update -- cargo:monochromatic-cargo-shadow` moved one lock row,
+`toolchain:install` installed it,
+and `.cache/toolchain-bin/cargo-shadow --version` answers `cargo-shadow 0.1.5-alpha.10`.
+One `lean run --dry-run --deadline-minutes 15` is running, to show what a pass would remove while agents build
+(`${HOME}/temp/agent/cargo-shadow-lean-dry-run-0.1.5-alpha.10.log`);
+`lean service-install` follows when that listing spares what is in use.
+
+#### Agents started after the install
+
+- Round 261 (22:36), six agents:
+  `worktree-add-does-not-wait-for-its-package-repair`
+  and `worktree-add-clean-check-index-install-and-pruning-made-cheaper`,
+  both from the tip of `perf/git-policy-cli-worktree-add-within-60-s-on-the-pass-12-tip`,
+  for the two parts of an add that still pass the 60 seconds
+  (one real add spent 221 s of 226 s in the package repair);
+  and one fix agent each for four review findings nobody owned:
+  a queued commit's captured tree swept after a race,
+  two exit-status-1 cases of the install script,
+  a world-writable file in the merge asides,
+  and five ways a push notice is lost.
+- Round 262 (22:38:54), ten Kimi K3.1 Pro audits of `418ef369a6`:
+  the eight areas audited on alpha.10,
+  plus the commands that discard work and the changeover between releases with what it leaves behind.
+  Reports go to `${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-12-<area>/report.md`.
+- Three Claude Sonnet audits of the same commit beside them (rule `LHZ`), as native subagents:
+  the life of a worktree;
+  merge, discarding commands, LFS and package repair;
+  commit, landing, service, push and changeover.
+  Reports go to `${HOME}/temp/agent/sonnet-audits/alpha-12-<name>/report.md`.
+- Every audit reads `${HOME}/temp/agent/pi-runs/shared-rules-for-long-audits-of-a-release.md`,
+  which states the requirements as the project's own,
+  and `alpha-12-what-the-integration-chose.md` beside it,
+  the list of sides the pass 15 agent had to pick.
+
+#### The package's review commands in their first real use
+
+`start-reviews-of-finished-branches` started its five reviews from a unit and they take turns.
+`write-a-fix-brief-for-each-review` wrote three briefs that had to be corrected by hand before use:
+
+- it names the fix after the review,
+  so a review called `qwen-review-<change>` gives a fix whose run folder, worktree and unit are the review's own;
+- it takes one `--base` for every review,
+  and two of the three reviewed branches were not in `main`;
+- its brief says "A review of `main` reported defects" and "the commit a review just read" whatever the review read.
+
+Those three,
+`-- --help` ending in a syntax error,
+and the three scripts still unported are the next work on the package after the driver-tests agent ends.
+
+#### Runs that ended between 21:55 and 22:29
+
+Thirteen, of which five were already handled.
+A digest of the other eight is being written (`${HOME}/temp/agent/digest-2026-11-11T2245/digest.md`):
+four finished fix branches and the commit-options branch,
+the second-pass qwen4 review of the landed-sweep change,
+a Kimi review that reports one wait without a bound in the awaited route fallback,
+and a Kimi review whose last turn was aborted.
+The five finished branches get qwen4 reviews when the five running ones have ended,
+because the qwen plan refused requests at about nine reviews at once.
+
 ### 0.6.1-alpha.12 dispatched from pass 15, two branches landed on `main`, and decisions taken while the owner is away (2026-11-11T22:29:30-05:00)
 
 #### 0.6.1-alpha.12
