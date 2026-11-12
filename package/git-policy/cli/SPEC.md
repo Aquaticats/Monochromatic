@@ -12867,6 +12867,18 @@ and how long anyone waits:
   was handed back to its client,
   or was withdrawn,
   so what is left of its tree is collected by the age rule below.
+  A release is one send's end, never the identity's:
+  the landing answers a request inside the call that lands its group,
+  and the release of that group comes after the answer,
+  after the journal's entries for it are written and removed,
+  so a client told to prepare again queues the same identity with the next attempt's tree in that window,
+  and a client whose answer was lost sends the same identity again with the tree it already had
+  (`submit_loop`,
+  `src/native/service/service_client.rs`).
+  The record therefore counts the sends it has noted of one identity
+  and spares the tree the newest of them named until the last of them is released
+  (`src/native/service/service_scratch_trees_of_queued_requests.rs`):
+  a release that forgot the identity took the hold off the tree the next attempt was still to read.
   The record lives in one service,
   so it covers the requests that service holds;
   the loss the subsection "A command stopped for longer than the tree's age" describes

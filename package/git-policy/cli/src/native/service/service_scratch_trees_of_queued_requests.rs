@@ -22,10 +22,21 @@
 //!  the landing answered it,
 //!  the service handed it back to its client,
 //!  or its client withdrew it.
+//!  One identity is not one send:
+//!  the landing answers a request before the group it is in is over
+//!  (`land_group`,
+//!  `remove_the_trees`,
+//!  `service_server.rs`),
+//!  so a client told to prepare again sends the same identity with the next attempt's tree
+//!  while the release of the attempt it left is still to come,
+//!  and a client whose answer was lost sends the same identity with the tree it already had.
+//!  Each send is therefore counted,
+//!  and the tree a release leaves held is the one the newest send noted,
+//!  until the last of those sends is released.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const held = new Map<string, string>(); // request identity -> the name of the tree it named
+//! const held = new Map<string, { tree: string; sends: number }>(); // request identity -> its tree and its noted sends
 //! note(id, tree); release(id); isHeld(tree);
 //! ```
 
@@ -36,14 +47,32 @@ use std::path::Path;
 /// What keeps the record of one process's requests to itself.
 use std::sync::Mutex;
 
+/// What:
+///  One identity this service has not finished with.
+/// Why:
+///  The record needs the name of the tree the identity's newest send named,
+///  and how many of its sends are still noted:
+///  a release is one send's end,
+///  so the last release is the one that gives the tree back to the age rule.
+struct HeldSends {
+    /// The request identity, as the client sends it.
+    id: String,
+    /// The name of the tree the newest send of this identity named,
+    /// which is the name a collection sees the tree by.
+    tree: OsString,
+    /// How many sends of this identity the service has noted and not finished with.
+    sends: usize,
+}
+
 /// Lock kept:
 ///  the trees of this service's queued and in-flight requests,
-///  each as the identity of the request that named it and the name of that tree:
-/// the sections are one removal and one addition of an entry,
+///  each as the identity of the request that named it, the name of the tree its newest send named,
+///  and how many of its sends are still noted:
+/// the sections are one removal and one addition of an entry, or one count,
 /// and nothing is read from or written to the device under the lock,
 /// so a connection that queues a request and a landing that answers one never wait on storage,
 /// and a collection reads the record while both keep serving.
-static HELD: Mutex<Vec<(String, OsString)>> = Mutex::new(Vec::new());
+static HELD: Mutex<Vec<HeldSends>> = Mutex::new(Vec::new());
 
 /// What:
 ///  Records the tree the request `id` named,
@@ -59,6 +88,8 @@ static HELD: Mutex<Vec<(String, OsString)>> = Mutex::new(Vec::new());
 ///  (`submit_loop`,
 /// `service_client.rs`),
 ///  so its note replaces itself and the tree its queued landing reads stays held.
+///  A note is one send of the identity, so a send the service has noted counts until its own release arrives,
+///  and the tree stays spared while any of those sends is still noted.
 ///  A path with no file name in it names no tree of a scratch place and is not recorded.
 ///
 /// In TS you'd write (pseudocode):
@@ -69,17 +100,29 @@ pub fn note(id: &str, tree: &Path) {
     let Some(name) = tree.file_name() else { return };
     let mut held = HELD.lock().expect("the trees the queued requests hold");
     if let Some(earlier) = position_of(held.as_slice(), id) {
-        // The attempt this request left is its own to release, so only the tree it names now is kept.
-        let _replaced = held.remove(earlier);
+        // The attempt this request left is its own to release, so only the tree it names now is spared; the send of that
+        //  attempt stays counted until its release arrives, because this one alone is not the end of the identity.
+        let mut entry: HeldSends = held.remove(earlier);
+        entry.tree = name.to_os_string();
+        entry.sends += 1;
+        held.push(entry);
+        return;
     }
-    held.push((String::from(id), name.to_os_string()));
+    held.push(HeldSends { id: String::from(id), tree: name.to_os_string(), sends: 1 });
 }
 
 /// What:
-///  Forgets every tree the request `id` named.
+///  Gives up one send of the request `id`,
+///  and forgets the identity's tree once that is the last send the service holds.
 /// Why:
-///   A request the service is done with is one no landing reads,
-///  so whatever is left of its tree is what the age rule collects,
+///   Every send the service noted is released once: the landing answered it,
+///  the service handed it back to its client,
+///  or its client withdrew it.
+///  A release is one send's end, never the identity's:
+///  the landing answers a request before the group it is in is over,
+///  so the same request can be noted again with the next attempt's tree before this release arrives,
+///  and forgetting the identity here took the hold off the tree that attempt is still to read.
+///  Whatever is left of the tree once the last send is released is what the age rule collects,
 ///  as it collects the tree of a command that was killed before it submitted one.
 ///
 /// In TS you'd write (pseudocode):
@@ -88,9 +131,12 @@ pub fn note(id: &str, tree: &Path) {
 /// ```
 pub fn release(id: &str) {
     let mut held = HELD.lock().expect("the trees the queued requests hold");
-    if let Some(entry) = position_of(held.as_slice(), id) {
-        let _released = held.remove(entry);
+    let Some(entry) = position_of(held.as_slice(), id) else { return };
+    if held[entry].sends > 1 {
+        held[entry].sends -= 1;
+        return;
     }
+    let _released = held.remove(entry);
 }
 
 /// What:
@@ -110,8 +156,8 @@ pub fn release(id: &str) {
 pub fn is_held(path: &Path) -> bool {
     let Some(name) = path.file_name() else { return false };
     let held = HELD.lock().expect("the trees the queued requests hold");
-    for (_, named) in held.iter() {
-        if named.as_os_str() == name {
+    for entry in held.iter() {
+        if entry.tree.as_os_str() == name {
             return true;
         }
     }
@@ -128,10 +174,10 @@ pub fn is_held(path: &Path) -> bool {
 /// ```ts
 /// positionOf(held, id); // the index of the request's entry, or nothing
 /// ```
-fn position_of(held: &[(String, OsString)], id: &str) -> Option<usize> {
+fn position_of(held: &[HeldSends], id: &str) -> Option<usize> {
     let mut place: usize = 0;
     while place < held.len() {
-        if held[place].0.as_str() == id {
+        if held[place].id.as_str() == id {
             return Some(place);
         }
         place += 1;

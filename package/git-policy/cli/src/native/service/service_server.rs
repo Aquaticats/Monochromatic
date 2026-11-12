@@ -579,9 +579,14 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 ///  (2026-11-09,
 ///  `service_prepare.rs`,
 ///  `retry_of`).
-///  The service is done with every request of the group here,
-///  so no tree it named is held against the collection any more (`service_scratch_trees_of_queued_requests.rs`):
+///  The service is done with what it queued of every request of the group here,
+///  so no tree a send of this group named is held against the collection any more
+///  (`service_scratch_trees_of_queued_requests.rs`):
 /// a tree the client did not take back goes to the age rule once its removal is over.
+///  A release gives up one send of the request, never the identity:
+///  `land_group` answered this group inside its own call,
+///  so the same request can already be queued again with the next attempt's tree,
+///  and that send keeps its tree held beyond this release.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
