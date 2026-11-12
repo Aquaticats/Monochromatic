@@ -98,9 +98,11 @@ typed on 2026-11-12 at about 10:33 and recorded in
 with the answers of 2026-11-12T10:35:07-05:00 below it):
 
 > I do want to say "never discard user data" means to block potentially destructive commands with a
-> --no-enforce-* opt-out, not that we save everything myself.
+> --no-enforce-* opt-out,
+> not that we save everything myself.
 
-So, for one command a person typed:
+So,
+for one command a person typed:
 
 - A command that could destroy a person's data is refused,
   and the refusal names what it would destroy.
@@ -109,7 +111,8 @@ So, for one command a person typed:
   and the command then runs exactly as real Git runs it.
 - The wrapper keeps no copy of the data,
   does not move it aside and does not carry it:
-  a copy is a thing the person makes, and the refusal says so where a copy would help.
+  a copy is a thing the person makes,
+  and the refusal says so where a copy would help.
 
 The rule reaches behaviour that is already released.
 Where an earlier release saved a copy and let the command run,
@@ -118,14 +121,17 @@ the command is refused with the opt-out instead
 "Redirect everything";
 the cost named in that answer is that commands which work today start being refused).
 
-The guards a person meets, and the opt-out of each:
+The guards a person meets,
+and the opt-out of each:
 
 - `linked-worktree-only`:
   `--no-enforce-worktree`,
   written directly after the subcommand.
   It guards the discarding forms of "Discarding commands",
   the conflicted-file refusals of
-  "Conflicted files during a merge, rebase, cherry-pick or revert",
+  "Conflicted files during a merge,
+  rebase,
+  cherry-pick or revert",
   and the shared remote settings of "The remote settings every worktree shares".
 - `branch-worktree-only`:
   `--no-enforce-worktree-branch`.
@@ -159,7 +165,8 @@ and no command of this release changes them:
   (the same answers,
   "Commit and say so").
 - A commit against a commit service that does not answer fails,
-  after a wait, with a clear message
+  after a wait,
+  with a clear message
   (the owner's answer of 2026-11-12T10:32:10-05:00,
   "Fail with a clear message").
 
@@ -16689,7 +16696,8 @@ never "nothing waits".
 
 Each abort form is live while the state its own command reads is there,
 and not while another operation's state is
-(measured with Git 2.56.0, one command against every stopped state):
+(measured with Git 2.56.0,
+one command against every stopped state):
 `git merge --abort` needs `MERGE_HEAD`,
 and abandons only the merge step of a `git rebase --rebase-merges` that stopped at one;
 `git rebase --abort` needs `rebase-merge` or `rebase-apply/rebasing`,
@@ -16778,7 +16786,8 @@ as for a forced `checkout` and a hard `reset`.
 The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
 `git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state, a hand resolution kept in all of them),
+(measured in every stopped state,
+a hand resolution kept in all of them),
 and the hatch runs the abort anyway.
 The check runs after the allowlisted tool cache has answered `exempt`,
 so a repository no guard reads gets no copy either.
@@ -16974,7 +16983,8 @@ and the refusal names every file it would replace,
 says that no copy is kept,
 offers the way to settle the conflict that loses nothing
 (edit the file and commit the result,
-with `git show :1:<path>`, `:2:<path>` and `:3:<path>` for the base and the two sides),
+with `git show :1:<path>`,
+`:2:<path>` and `:3:<path>` for the base and the two sides),
 and names `--no-enforce-worktree`,
 which runs the command exactly as real Git runs it and copies nothing.
 The wording is `conflicted_files_message` (`rule_linked_worktree_messages.rs`).

@@ -8,7 +8,8 @@ The owner restated on 2026-11-12 what "never discard user data" means
 and the answers of 2026-11-12T10:35:07-05:00 below it):
 
 > I do want to say "never discard user data" means to block potentially destructive commands with a
-> --no-enforce-* opt-out, not that we save everything myself.
+> --no-enforce-* opt-out,
+> not that we save everything myself.
 
 This page lists every place the wrapper,
 for a command a person typed,
@@ -33,7 +34,8 @@ The plan for the merge is under its own section.
 
 ## How each fact below is labelled
 
-- **run**: shown by running the wrapper on a disposable repository,
+- **run**:
+  shown by running the wrapper on a disposable repository,
   with real Git's answer in the same state beside it.
   Every fixture had its own `HOME`,
   its own `XDG_RUNTIME_DIR` (mode `0700`)
@@ -42,7 +44,8 @@ The plan for the merge is under its own section.
   the runs of the installed release are in that folder's `out/*.md`.
   The installed release moved from `0.6.1-alpha.13` to `0.6.1-alpha.15` during the work;
   each quoted run names the release it used.
-- **code**: read from the code named beside it.
+- **code**:
+  read from the code named beside it.
 
 ## What is out of scope
 
@@ -53,7 +56,20 @@ The owner's brief excludes:
   its own records and scratch references);
 - a copy whose only purpose is to make a write atomic
   (`direct_fix_install_writes.rs`,
-  the `scratch` folder of a commit).
+  the `scratch` folder of a commit);
+- the wrapper's own work items and journals
+  (`<git-dir>/monochromatic-git-policy-cli/work/{pending,claimed,done,failed}`,
+  `monochromatic-git-policy-cli-merges/`,
+  `monochromatic-git-policy-cli-kept-copies/`),
+  which record what the wrapper is doing and hold no content of the person's;
+- the audit log
+  (`monochromatic-git-policy-cli-audit.jsonl`),
+  which holds the form,
+  the arguments and the places of copies,
+  never the bytes.
+  It is named here because the alpha.14 audit's list includes it;
+  it is a record a person reads to attribute a loss,
+  not a save that lets a command run.
 - the three behaviours an answer of the same day keeps as they are,
   listed at the end of this page.
 
@@ -61,7 +77,9 @@ The owner's brief excludes:
 
 ## 1. `git clean` over a nested Git repository
 
-**Status: listed, another agent's.**
+**Status:
+listed,
+another agent's.**
 
 The typed command and the state:
 `git clean -ffdX` in a linked worktree that holds an ignored directory which is its own Git repository.
@@ -70,7 +88,8 @@ with its own history and its uncommitted files,
 and the outer worktree sees only one ignored directory,
 so nothing in `git status` says what is about to go.
 
-What the installed release does (**run**, `0.6.1-alpha.15`):
+What the installed release does (**run**,
+`0.6.1-alpha.15`):
 
 ```text
 $ git clean -ffdX                      # built wrapper
@@ -102,7 +121,8 @@ The saving code is `policy_linked_worktree_nested_repositories.rs`,
 
 What stops working:
 nothing in this repository's scripts or `mise.toml` tasks runs `clean -ffdX`
-(search over `*.toml`, `*.ts` and `*.jsonc` for `clean -f` patterns and for `--ours`/`--theirs` finds no use of either);
+(search over `*.toml`,
+`*.ts` and `*.jsonc` for `clean -f` patterns and for `--ours`/`--theirs` finds no use of either);
 agents here clean with `mise run` tasks or by name.
 
 Size of the change:
@@ -117,7 +137,9 @@ Another agent holds this case:
 
 ## 2. A `checkout` or `restore` that takes a side of a conflicted file
 
-**Status: converted in this branch, commit `a9beb329b3`.**
+**Status:
+converted in this branch,
+commit `a9beb329b3`.**
 
 The typed command and the state:
 a merge (or a rebase of either backend,
@@ -133,7 +155,8 @@ as a person resolving it does.
 `git restore --source=<rev> -- a.rs`
 replace that file.
 
-What the installed release does (**run**, `0.6.1-alpha.15`):
+What the installed release does (**run**,
+`0.6.1-alpha.15`):
 
 ```text
 $ git checkout --theirs -- a.rs        # built wrapper
@@ -150,11 +173,13 @@ exit: 0
 the wrapper's copy held the resolution,
 real Git kept nothing.
 The wrapper ran the command in the **main** worktree,
-where the same policy rejects every other discarding form (**run**: the same line without a conflict,
+where the same policy rejects every other discarding form (**run**:
+the same line without a conflict,
 and `git restore --staged --theirs -- a.rs`,
 are rejected with `linked-worktree-only`).
 
-The refusal that replaces it (**run**, branch build):
+The refusal that replaces it (**run**,
+branch build):
 
 ```text
 monochromatic-git-policy-cli: git checkout with paths, --force, --patch, --ours or --theirs is rejected in the main git
@@ -174,7 +199,9 @@ the operation that waits,
 that the version on disk exists nowhere else,
 and the opt-out.
 With `--no-enforce-worktree` the command runs as real Git runs it
-(**run**: exit `0`, `a.rs` holds what real Git left in an identical fixture,
+(**run**:
+exit `0`,
+`a.rs` holds what real Git left in an identical fixture,
 no copy under the Git directory,
 one audit line with `"outcome":"hatch"`).
 A path is named only when the line's own token reads as one plain file below the working directory,
@@ -197,8 +224,13 @@ and for whom:
   or edit the file and commit it.
   That is the owner's answer of 2026-11-12T10:35:07-05:00 applied to this case.
 - Nothing in this repository's scripts,
-  `mise.toml` tasks or agent documents (`AGENTS.md`, `.agents/`, `doc/agent/`) runs these forms
-  (**run**: a search over `*.toml`, `*.ts`, `*.jsonc` and those documents for `--ours`/`--theirs` and
+  `mise.toml` tasks or agent documents (`AGENTS.md`,
+  `.agents/`,
+  `doc/agent/`) runs these forms
+  (**run**:
+  a search over `*.toml`,
+  `*.ts`,
+  `*.jsonc` and those documents for `--ours`/`--theirs` and
   `restore --source` finds no use).
   Three records measured the old behaviour and now describe one that is gone;
   they are listed under "Documents that still describe the old reading".
@@ -214,14 +246,17 @@ and no other case builds on the copy.
 
 ## 3. The abort forms of `merge`, `rebase`, `cherry-pick`, `revert` and `am`
 
-**Status: listed, another agent's.**
+**Status:
+listed,
+another agent's.**
 
 The typed command and the state:
 a linked worktree stopped in a merge with `a.rs` conflicted,
 and the person's own resolution of `a.rs` written by hand.
 `git merge --abort` restores the state before the merge and keeps nothing.
 
-What the installed release does (**run**, `0.6.1-alpha.15`):
+What the installed release does (**run**,
+`0.6.1-alpha.15`):
 
 ```text
 $ git merge --abort                    # built wrapper
@@ -240,7 +275,8 @@ the wrapper's copy held the resolution,
 real Git kept nothing.
 
 In the **main** worktree the same command is rejected and nothing is saved
-(**run**: `linked-worktree-only`,
+(**run**:
+`linked-worktree-only`,
 "it restores the state before the merge and discards the edits made since").
 
 What the refusal would be:
@@ -254,13 +290,16 @@ What stops working:
 an agent or a person who aborts a merge after resolving part of it now has to save the resolution first,
 or pass the opt-out and lose it.
 Nothing in this repository's scripts or `mise.toml` tasks runs an abort form
-(**run**: a search over `*.toml` and `*.ts` for
+(**run**:
+a search over `*.toml` and `*.ts` for
 `(merge|rebase|cherry-pick|revert|am) --abort` finds none).
 
 Size of the change:
 medium.
-The verdict, its facts and its messages are one guard on six command forms;
-the copy machinery (`conflict_sides.rs`, `conflict_side_source.rs`) is shared with case 1,
+The verdict,
+its facts and its messages are one guard on six command forms;
+the copy machinery (`conflict_sides.rs`,
+`conflict_side_source.rs`) is shared with case 1,
 so it stays until that one goes too.
 
 Another agent holds this case:
@@ -271,7 +310,9 @@ This branch does not touch it.
 
 ## 4. A merge or a pull that carries a person's uncommitted edits
 
-**Status: listed with a plan, not changed.**
+**Status:
+listed with a plan,
+not changed.**
 
 ### The typed command and the state
 
@@ -285,7 +326,9 @@ and refuses one whose untracked file stands where the merge writes.
 
 ### What the installed release does
 
-**run**, `0.6.1-alpha.15`, a diverged merge with an unsaved edit to `a.rs`:
+**run**,
+`0.6.1-alpha.15`,
+a diverged merge with an unsaved edit to `a.rs`:
 
 ```text
 $ git merge --no-edit topic            # built wrapper
@@ -312,6 +355,22 @@ A run killed at a 300 s bound left the person's bytes on
 `refs/cli-git/carried/<n>` and a copy beside the path (**run**),
 which is the carry's own recovery.
 
+The carry's parts (**code**):
+
+- `refs/cli-git/carried/<milliseconds>-<pid>-<n>` holds the captured objects,
+  and the merge's record under
+  `<git-dir>/monochromatic-git-policy-cli-merges/<uuid>.json` names the ref and what it holds.
+- a file the merge took aside and could not put back stays beside its path as
+  `.cli-git-recovery-<key>-<pid>-<n>-<moment>`,
+  recorded in `<git-dir>/monochromatic-git-policy-cli-kept-copies/`,
+  and every later command decides it again.
+- a merge that meets a live foreign `index.lock` is saved on `refs/cli-git/kept/<milliseconds>`,
+  writes a second record beside the first,
+  and exits 0;
+  the next command finishes the checkout.
+  Nothing of the merge is in the checkout while it waits,
+  and the wrapper takes no lock the person's editor holds.
+
 Where the fast-forward path is concerned the wrapper forwards to Git,
 and Git's own refusal is the answer (**run**:
 `git merge` of a fast-forward with an unsaved edit to a written path exits `2` with Git's words under the wrapper too;
@@ -329,10 +388,12 @@ Under the opt-out the command then gets **Git's own** answer:
 a refusal naming the same paths for a tracked or staged change and for an untracked file in the way,
 and,
 for a path the index marks `assume-unchanged` or `skip-worktree`,
-a refusal that **destroys the person's file** (**run**: real Git alone,
+a refusal that **destroys the person's file** (**run**:
+real Git alone,
 with `a.rs` marked `assume-unchanged` and edited,
 printed "Your local changes to the following files would be overwritten by merge" and left `a.rs` holding the
-index's content, `base\n`,
+index's content,
+`base\n`,
 not the person's `my edit hidden by the mark\n`).
 
 ### Where the wrapper's behaviour would equal Git's, and where a guard is still needed
@@ -345,7 +406,8 @@ so no wrapper code is needed:
 - a staged edit to such a path:
   Git refuses the same way;
 - an untracked file at a path the merge adds:
-  Git refuses and names the file (**run**, via the pull probe below);
+  Git refuses and names the file (**run**,
+  via the pull probe below);
 - an edit at a path the merge does **not** write:
   Git runs the merge and keeps the edit,
   which is the state the wrapper's carry also leaves.
@@ -451,6 +513,37 @@ Order:
 7. Rewrite `README.md`'s "Carrying the person's own work" and `SPEC.md`'s merge sections,
    which state the owner's 2026-11-02 answer "Carry edits forward" as current.
 
+### Decisions of 2026-11-12 that bear on this plan
+
+- A file mode a person set is written back through a merge as real Git writes it,
+  in both cases
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "A file mode a person set,
+  through a merge",
+  the owner's "As real Git,
+  both cases").
+  So the mode is no longer a case a guard is needed for:
+  after the carry becomes a refusal,
+  a mode the merge writes is Git's own business,
+  and the one case the installed release keeps more than Git
+  (`aff52c9e64`) goes with the carry.
+- The reference of a commit the commit service still holds stays,
+  and `refs/cli-git/kept/` is pruned by the wrapper by size and age
+  (the same page,
+  the answers of 2026-11-12T11:58:45-05:00);
+  another agent builds that pruning.
+  This is why the saved-for-a-later-finish refs are not part of this inventory's refusals:
+  they are the wrapper's own record of a merge it owes the person,
+  and they now have a bound.
+- A typed push whose remote branch holds commits the local one lacks is answered by a merge the wrapper makes and
+  publishes
+  (the same page,
+  "A typed push of a branch that was not checked out published a merge labelled with the checked-out branch").
+  That merge is made above the local tip and touches no worktree file,
+  so it carries nothing of a person's uncommitted work and needs no refusal of its own;
+  it is part of the merge's family and must be told about the carry when that changes,
+  because it runs the same isolation.
+
 ### What breaks for whom
 
 Every agent of this repository merges through the wrapper daily,
@@ -473,20 +566,72 @@ which a conversion has to amend through the owner rather than here
 
 - "Carry edits forward (Recommended)" of 2026-11-02,
   which this page's plan contradicts;
-- "Auto merging should never fail." and
+- "Auto merging should never fail."
+  and
   "Manual merge should never fail too.",
   which the carry was built to serve
   (`doc/decision/` holds the merge's records;
   this branch does not edit them).
 
+## 4a. `git worktree add` whose package repair displaced `Cargo.lock`
+
+**Status:
+listed,
+not converted;
+another branch owns the add and the removal.**
+
+The typed command and the state:
+`git worktree add`,
+whose package repair runs `cargo clean` in the new worktree.
+A clean rewrites `Cargo.lock` when the committed lock no longer matches its manifest,
+and the new worktree must stay as it was checked out.
+
+What the installed release does (**code**:
+`repair/package_repair_cargo_lock.rs`;
+not run here):
+the bytes standing after the clean are kept whole under the repository's Git directory
+(`monochromatic-git-policy-cli-displaced-locks/`),
+then the checked-out lock is put back.
+The add runs the clean and the put-back on a worktree nobody has yet,
+so that path is the `restore_lock` face;
+the filling that runs after the add returned accepts the checked-out bytes back only over bytes its own resolution
+wrote (`restore_only_the_cleans_own`),
+and keeps whatever else it found.
+
+Why it is a save-and-go-on:
+the wrapper's own repair runs a command that changed the person's file,
+and it puts the person's version back while keeping what the clean wrote.
+Nothing is destroyed,
+and the person is not asked.
+
+What the refusal would be:
+this is not a command of the person's being refused;
+the wrapper chooses to run `cargo clean` in a worktree it just made.
+A refusal would mean not running the clean at all,
+which the package-repair decision does not allow.
+It belongs to the add's owner,
+which the alpha.14 audit also found unpruned and reported as its ninth finding,
+and which another branch owns.
+
+What stops working:
+nothing today;
+the kept locks are never pruned,
+so they grow.
+
+Size of the change:
+out of this inventory's converting scope.
+
 ## 5. `git pull` when an untracked file stands where the fetch adds a path
 
-**Status: listed, not converted (it never lets a command run).**
+**Status:
+listed,
+not converted (it never lets a command run).**
 
 The typed command and the state:
 `git pull` whose merge would write a path an untracked file occupies.
 
-What the installed release does (**run**, `0.6.1-alpha.15`):
+What the installed release does (**run**,
+`0.6.1-alpha.15`):
 in a plain fixture the pull is forwarded to Git,
 and Git's own refusal names `new.txt`;
 nothing is copied.
@@ -509,12 +654,16 @@ it is not a candidate for a refusal.
 
 ## 6. A repository exempted by a tool-cache variable
 
-**Status: listed, not converted (it is the opposite of a save); another agent's.**
+**Status:
+listed,
+not converted (it is the opposite of a save);
+another agent's.**
 
 The typed command and the state:
 `git reset --hard` in a repository below a directory `OUT_DIR` names.
 
-What the installed release does (**run**, `0.6.1-alpha.15`):
+What the installed release does (**run**,
+`0.6.1-alpha.15`):
 
 ```text
 $ git reset --hard                     # built wrapper, OUT_DIR set
@@ -535,7 +684,9 @@ held by
 
 ## 7. `git worktree remove` and `git worktree prune`: the snapshot and the held commit
 
-**Status: listed, excluded by the brief (the wrapper's own records and scratch references).**
+**Status:
+listed,
+excluded by the brief (the wrapper's own records and scratch references).**
 
 Two things are copied before Git runs the removal (**code**):
 
@@ -560,7 +711,10 @@ about 10:33).
 
 ## 8. `git worktree add`: the leave-out trash
 
-**Status: listed, excluded: the source keeps every byte.**
+**Status:
+listed,
+excluded:
+the source keeps every byte.**
 
 A snapshot of the main checkout carries nested worktrees,
 other checkouts,
@@ -570,7 +724,9 @@ the commit service,
 which empties it (**code**:
 `worktree/worktree_trash.rs`,
 `worktree_trash_dispose.rs`;
-**run**, not reproduced: the source's entries stay where they are,
+**run**,
+not reproduced:
+the source's entries stay where they are,
 and the new worktree is the only thing that loses them).
 No command of the person's is enabled by this,
 and the source loses nothing,
@@ -584,7 +740,8 @@ and no branch of this task changes it:
 - `git clean -fX` and `git clean -fx` of ignored files delete,
   exit `0` and leave one audit line;
   nothing is copied
-  ("Keep allow and log", 2026-11-12T10:27:45-05:00).
+  ("Keep allow and log",
+  2026-11-12T10:27:45-05:00).
   **run** (`0.6.1-alpha.15`):
   in a linked worktree,
   `git clean -fX` printed `Removing ignored.txt`,
@@ -603,19 +760,29 @@ moves aside,
 copies or carries something of a person's for a command the person typed.
 The commands the brief names were each read:
 
-- `checkout` and `restore`: case 2, and the refusal of an ignored file a forced form would replace
-  (`ignored_file_message`), which refuses instead of saving;
-- `switch`: only rejections,
+- `checkout` and `restore`:
+  case 2,
+  and the refusal of an ignored file a forced form would replace
+  (`ignored_file_message`),
+  which refuses instead of saving;
+- `switch`:
+  only rejections,
   and it has no form that takes a side of a conflict;
-- `reset`: rejections,
+- `reset`:
+  rejections,
   and the exempt repository (case 6);
-- `stash`: rejections,
+- `stash`:
+  rejections,
   `git stash branch` moving an entry into its own branch,
-  and Git's own stash, which is the person's command and not the wrapper's copy;
-- `rebase`: the abort forms (case 3) only;
+  and Git's own stash,
+  which is the person's command and not the wrapper's copy;
+- `rebase`:
+  the abort forms (case 3) only;
   a rebase carries nothing of its own and passes `--autostash` to Git as Git wrote it;
-- `worktree remove` and `worktree prune`: case 7;
-- `worktree add`: case 8,
+- `worktree remove` and `worktree prune`:
+  case 7;
+- `worktree add`:
+  case 8,
   plus the ignored-state copy into the new worktree,
   which is a copy the new worktree receives and nothing of the source loses;
 - `git monochromatic-git-policy-cli migrate-to-subvolume` and
@@ -624,19 +791,150 @@ The commands the brief names were each read:
   and both already refuse until `--discard-left-out` or `--discard-unreadable` is given.
   No command runs over a loss.
 
+## The alpha.14 audit's list, compared with this one
+
+An independent audit of `0.6.1-alpha.14`
+(`~/temp/agent/sonnet-audits/alpha-14-merge-discarding-commands-lfs-and-package-repair/report.md`)
+made its own list under the same heading.
+Item by item,
+with what each list has that the other does not.
+
+- **The carry of uncommitted edits through a merge or a `pull --no-rebase`**:
+  both lists.
+  Its detail is better than this page's was:
+  the record lives under `<git-dir>/monochromatic-git-policy-cli-merges/<uuid>.json`,
+  the refs are `refs/cli-git/carried/<ms>-<pid>-<n>`,
+  and binary files,
+  links,
+  deleted files and changed modes keep the person's side whole.
+  This page now says the same,
+  and adds that the carry's paths are also merged by the word-level second pass.
+- **A file the merge set aside and could not put back**:
+  both lists.
+  The audit names the file (`.cli-git-recovery-<key>-<pid>-<n>-<moment>`);
+  this page had it only as part of the carry's family.
+  Both are kept now.
+- **A merge that meets a live foreign `index.lock`**:
+  the audit has it as its own item;
+  this page had it only under the plan's "what stays".
+  It is now its own item,
+  with its ref and its second record.
+- **The copies of a `checkout` or `restore` of conflicted paths**:
+  both lists;
+  this branch converted it.
+- **The copies of an abort form**:
+  both lists;
+  another branch converts it.
+- **The `pull-kept/<n>` copies of a fast-forward pull**:
+  both lists.
+  The audit read it from `SPEC.md` and could not reach it;
+  this page reads the constant (`pull-untracked-paths-in-the-way-kept-copies.rs`,
+  `KEPT_FOLDER_NAME = "pull-kept"`,
+  below the data folder of the worktree's Git directory),
+  and neither of us reached it by running a pull.
+- **`clean -ff` of a nested repository**:
+  both lists.
+  The audit adds the interactive clean,
+  which is not moved aside:
+  the wrapper runs it with `--no-force -f` (inserted tokens,
+  `rule_clean_interactive_nested_repositories.rs`)
+  so Git's own one-force protection keeps every nested repository in the menu.
+  That is a rewrite that prevents a loss,
+  not a save,
+  and this page now says so under the clean's case.
+- **`Cargo.lock` displaced by a `worktree add`'s package repair**:
+  the audit has it as its own item,
+  with finding 9 (the copies are never pruned);
+  this page did not have it at all.
+  It is now case 4a.
+- **The ignored-state copy into a new worktree,
+  and the `relink`/`prewarm` work records**:
+  the audit has both;
+  this page has the copy (case 8) and excludes the work records as the wrapper's own.
+- **Every guard decision's audit line**:
+  the audit has it;
+  this page excludes it,
+  with the reason (a record of a decision,
+  not a copy of the person's bytes).
+
+What this page has that the audit's list does not:
+
+- the exempt repository as a case,
+  which saves nothing and is a hole rather than a save
+  (case 6);
+- `git worktree remove` and `git worktree prune`'s snapshot of the wrapper's own records and its held commit
+  (case 7),
+  which its audit's area did not cover;
+- the three behaviours an answer of 2026-11-12 keeps (case 9);
+- the asides the merge takes to make room for its writes,
+  and the kept copies with their decision file,
+  as mechanisms of their own;
+- for each case,
+  who relies on today's behaviour and how large the change is,
+  which is what the owner asked this page for.
+
+Two disagreements about what the code does were checked,
+and both lists are right:
+
+- the `pull-kept` folder is under the worktree's Git directory
+  (`data_folder_for_reading(git_dir)/pull-kept/<n>`),
+  which is the audit's `monochromatic-git-policy-cli/pull-kept/<n>`;
+- the interactive clean gets `--no-force -f` as two inserted tokens,
+  which is the audit's "appended".
+
+### The audit's finding 3, checked on this branch
+
+The audit reported that a merge saved behind a live foreign `index.lock` leaves its two records and its two refs
+for ever,
+and that every later command repeats two notices.
+
+This branch does not touch the merge,
+so it neither removes nor introduces that state;
+the carry is unchanged here.
+Run against **this branch's build**,
+the audit's own reproduction
+(`merge_lock_save.ts`,
+copied and pointed at this worktree's executable,
+inside the private process namespace its README asks for)
+does not leave the state:
+after the finishing command,
+`for-each-ref refs/cli-git` prints nothing,
+the two records are gone
+(the recovery reported `Completed` for the record with the side ref and `AlreadyLanded` for the other),
+and the third and fifth commands print no merge line at all.
+The one residue it shows is that the **finishing** command prints the carry line twice and
+"finished an interrupted merge" twice,
+once per record,
+because both records are settled in that one command
+(`recovery_interrupted_merges_awaiting` settles each record in turn).
+Nothing of that is left for a person to remove,
+and no later command repeats it.
+So the for-ever state must come from a change in `0.6.1-alpha.14` that this branch does not have;
+it is not reproducible on this base,
+and there is nothing here to fix.
+Whoever merges the carry into a tree that carries that change must run the audit's reproduction there,
+and the merge plan's step 1 (a refusal naming the paths) removes both records' reason to exist anyway.
+
+Two findings of the same audit that touch this page's cases were routed elsewhere and are not repeated here:
+the opt-out does not lift the wrapper's own `--no-overwrite-ignore` on `checkout`/`switch` (finding 2),
+and a refusal of `merge --abort` advises a command the same guard refuses (finding 5).
+
 ## Documents that still describe the old reading
 
 - `README.md`,
-  "Discarding commands": the abort paragraph still says the wrapper saves the person's own work before an abort,
+  "Discarding commands":
+  the abort paragraph still says the wrapper saves the person's own work before an abort,
   which is case 3 and is not this branch's;
   and the paragraph about the folder of saved copies describes a folder the abort and nested-repository cases still use.
 - `SPEC.md`,
-  "The abort forms while their operation waits": the same,
+  "The abort forms while their operation waits":
+  the same,
   with `saved-abort` records.
 - `SPEC.md`,
   "Merges and commits never fail" and the merge sections around it,
   and `README.md`,
-  "Carrying the person's own work": the merge's carry (case 4).
+  "Carrying the person's own work":
+  the merge's carry (case 4).
 - `doc/planning/cli-git-shipped-limits-audit.md`,
   "Defaults for saved conflict copies":
   its only-copy finding is about the conflict-side save this branch removed
@@ -679,7 +977,10 @@ whose parent is the commit that added this page.
 3. The deleted saving code and its controls,
    each named in the commit:
    `conflict_side_notice.rs` (both notices),
-   `conflict_side_decision.rs` (`decide_sides`, `SideDecision`, `magic_name`, `magic_on_conflicted`;
+   `conflict_side_decision.rs` (`decide_sides`,
+   `SideDecision`,
+   `magic_name`,
+   `magic_on_conflicted`;
    `literal_path` moved into `conflict_side_guard.rs`),
    `magic_note` and `mode_note` in `conflict_side_modes.rs`,
    the copy calls and their failure paths in `conflict_side_guard.rs`,
@@ -693,13 +994,18 @@ whose parent is the commit that added this page.
    and the mode and magic notes.
    `AuditOutcome::SavedConflict`'s word stays,
    because `discard_audit_pins.rs` reads the lines an earlier release wrote.
-4. The documents: `SPEC.md`'s
-   "Conflicted files during a merge, rebase, cherry-pick or revert" rewritten as a refusal,
+4. The documents:
+   `SPEC.md`'s
+   "Conflicted files during a merge,
+   rebase,
+   cherry-pick or revert" rewritten as a refusal,
    its copy mechanics moved to "The folder of saved copies",
    the rule written as "What never discarding a person's data means",
    and `README.md`'s discarding section rewritten for the same case.
 
-**run**, the branch build, the same fixture as the installed run above:
+**run**,
+the branch build,
+the same fixture as the installed run above:
 
 ```text
 $ git checkout --theirs -- a.rs        # branch build

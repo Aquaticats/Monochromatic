@@ -2558,7 +2558,8 @@ The refusal names every such file,
  says that no copy is kept,
  and names `--no-enforce-worktree`,
  which replaces the file exactly as real Git does and copies nothing.
-It is one line; here it is wrapped to be read:
+It is one line;
+here it is wrapped to be read:
 
 ```text
 monochromatic-git-policy-cli: git checkout with paths, --force, --patch, --ours or --theirs is
@@ -2601,7 +2602,8 @@ noglob and literal forms)
  A `GIT_` variable the in-process reader does not tolerate (such as `GIT_CONFIG_GLOBAL`) keeps the refusal
  and names no file,
  because which file the line would replace cannot then be read.
-This replaced the wrapper's earlier behaviour, which copied each conflicted file beside the audit log and
+This replaced the wrapper's earlier behaviour,
+which copied each conflicted file beside the audit log and
 then let the command run
  (`SPEC.md`,
  "What never discarding a person's data means").
@@ -2720,7 +2722,8 @@ the working directory and the arguments,
 `argumentsHex`),
  so a name that is not UTF-8 still names the command that was run
  (a decision that saved a copy also lists where each copy went).
- A `saved-conflict` line is one an earlier release wrote, and no command writes it now.
+ A `saved-conflict` line is one an earlier release wrote,
+and no command writes it now.
 When uncommitted work disappears,
 `git rev-parse --git-common-dir` locates the file;
  a line that says `allowed` or `hatch` near the time of the loss names the command that was let through.
