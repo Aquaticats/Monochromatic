@@ -135,6 +135,110 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The owner's answers of 2026-11-12T10:27:45-05:00, through the question tool: four of the parked questions
+
+Each question as asked is in the session's transcript;
+the item numbers are those of `~/temp/agent/owner-questions-2026-11-12T1000/open-questions.md`.
+
+- Item 1.1,
+  the hand-over of a landed worktree's removal to the commit service,
+  which can delete what is written into the landed worktree in a short window:
+  "Keep until alpha.14 (Recommended)".
+  Nothing changes;
+  the fix goes out with alpha.14,
+  and no agent is restarted at a landed path without a check for a pending removal.
+- Item 1.3,
+  `git clean -fX` and `-fx` deleting the only copy of an ignored file:
+  "Keep allow and log".
+  The answer of 2026-11-10 stands against the audits:
+  these two forms delete,
+  exit 0 and are logged,
+  and no copy is saved.
+  The option "Save a copy first" was the recommended one and was not picked.
+  Sent as a note to the agents working on clean and on the discard guard,
+  so that none adds a copy for these forms.
+- Item 1.5,
+  a batch that fails when the commit service cannot prove the write of its scratch reference:
+  "Commit and say so (Recommended)".
+  The commit is made as real Git would make it,
+  with a line that says the extra protection was not in place for it.
+  The reading the recommendation rested on
+  (the window is the one real Git has on every commit)
+  was not checked against the code when the question was put;
+  the agent that builds it checks it first and reports if it does not hold.
+- Item 1.6,
+  the discard guard:
+  "Ship as built (Recommended)".
+  The branch leaves the list of what is held out of releases
+  once its review and its last hole (`git read-tree -m -u`) are done,
+  with autocorrection switched off for mistyped commands and the `--f` forms refused,
+  as the owner was shown.
+  Where the branch would save a copy for `clean -fX` or `-fx` of ignored files,
+  item 1.3's answer wins.
+
+Thirty-four items of that list are still to ask.
+
+#### What was done on the answers by 10:31
+
+- Item 1.5:
+  round 295,
+  started 10:29,
+  `commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`,
+  on the landing branch `d62b91889f`.
+  It first merges the held-commit branch `e11086623c`,
+  which conflicts with `main` in five landing files and was left out of two passes for that,
+  then establishes the exposure against real Git's,
+  then makes the decision true.
+- Item 1.3:
+  a note at 10:29:05 to the two agents of round 290 that work on clean.
+  The discard guard's follow-up gets the same line in its brief.
+- Item 1.6:
+  nothing to start yet;
+  the branch's review is queued behind the gate of four.
+
+#### The digest of the landing and LFS runs, routed (2026-11-12T10:31:00-05:00)
+
+`~/temp/agent/digest-2026-11-12T1012-landing-and-lfs/digest.md`,
+read against `main` at `5abd8a3e8e`.
+
+- The landing branch (`d62b91889f`):
+  ready for an integration pass,
+  merges cleanly.
+  Shown red on the installed release and green on its build,
+  through the wrapper,
+  for two of its findings.
+  It names three things for the owner:
+  an exception to `doc/decision/cli-git-concurrent-commits.md:296`;
+  the window between an object's creation and its reference,
+  where a kill leaves the object unnamed
+  ("a change to how batches are built, which this task did not decide");
+  and the marks-file rule for a refused import reference.
+- The LFS push branch (`9e23c2623e`):
+  ready after its review has read `a723733c55`,
+  which adds `<git dir>/monochromatic-git-policy-cli/push-programs.json`,
+  a kept copy of values from the pushing shell's environment.
+  That file can hold a secret.
+  A note at 10:31 gives the review (running) what to establish:
+  which variables,
+  the file's permissions and lifetime,
+  and whether a value read back can make the service run a program nobody named.
+  The branch stays out of every pass until that is read.
+  Nothing global was changed by either LFS run.
+  The report says nothing about deploying or migrating.
+- Seen in the landing run at 08:43:14:
+  Git reported a conflict in `service_land_objects_of_batch.rs`,
+  the wrapper's word-level second merge pass resolved it and committed it with nobody asked,
+  and the agent repaired the meaning 44 minutes later (`4e397f2a99`).
+  That pass is an owner decision in force;
+  this is the first recorded case of it producing a wrong merge,
+  and it goes to the owner as a question of its own.
+- More sightings of issue 6287,
+  sent to its agent at 10:31:
+  a stuck test thread waiting in the kernel's `inotify_show_fdinfo`,
+  with two other sessions' processes in the same wait eight seconds later;
+  nine lock-holder controls that failed or timed out after 87 to 300 seconds each;
+  a test that stalled three times.
+
 ### The hourly pass before 10:00: eleven runs ended, four reviews and one continuation started (2026-11-12T09:59:00-05:00)
 
 #### State
