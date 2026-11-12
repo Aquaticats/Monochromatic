@@ -12,6 +12,7 @@ import {
   defaultCheckScopeCaps,
   endCappedScope,
   runInCappedScope,
+  runTokenOfScopes,
   scopeArguments,
   scopeCapsProblems,
 } from './native-capped-scope-command.ts';
@@ -76,12 +77,35 @@ await describe({
   name: 'the capped scope runner, which starts one bounded command per check',
   children: [
     it({
-      name: 'names a scope after what it covers and the moment it started',
+      name: 'names a scope after what it covers, the moment it started, and the run it belongs to',
       fn: async () => {
         expect(checkScopeName({
           label: 'git-policy-cli-test-unit',
           stamp: '20261111T133700-0500',
-        }),).toBe('gpc-check-git-policy-cli-test-unit-20261111T133700-0500',);
+          runToken: 'a1b2c3d4',
+        }),).toBe('gpc-check-git-policy-cli-test-unit-20261111T133700-0500-a1b2c3d4',);
+        // Two runs of one check started in the same second must not ask the manager for one name.
+        expect(checkScopeName({
+          label: 'git-policy-cli-test-unit',
+          stamp: '20261111T133700-0500',
+          runToken: 'e5f60718',
+        }),).not.toBe(checkScopeName({
+          label: 'git-policy-cli-test-unit',
+          stamp: '20261111T133700-0500',
+          runToken: 'a1b2c3d4',
+        }),);
+      },
+    }),
+    it({
+      name: 'draws a run identity that is a UUID without hyphens, so two runs of one check keep their names apart',
+      fn: async () => {
+        /**
+         One run's token.
+         */
+        const token = runTokenOfScopes();
+        expect(token,).toHaveLength(32,);
+        expect(token.includes('-',),).toBe(false,);
+        expect(token,).not.toBe(runTokenOfScopes(),);
       },
     }),
     it({

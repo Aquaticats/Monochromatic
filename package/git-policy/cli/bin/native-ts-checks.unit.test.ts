@@ -4,6 +4,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import {
   describe,
@@ -43,6 +44,14 @@ const checksPath = join(
  Milliseconds one run of the command under test is given, which is far more than its fixtures need.
  */
 const testDeadlineMilliseconds = 120_000;
+
+/**
+ Milliseconds from the start of a second at which two runs are started, so both stamp their scopes with that second.
+
+ A scope name carries a second-precise stamp, so two runs started in one second are the case where a run's own identity
+ has to keep their names apart.
+ */
+const startOfSecondOffsetMilliseconds = 1_100;
 
 /**
  Milliseconds the stand-in `mise` keeps running when a test asks it to hang, so its own end cannot be what ended the wait.
@@ -406,6 +415,52 @@ await describe({
         });
         expect(stops,).toHaveLength(1,);
         expect(stops[0]?.join(' '),).toContain('--kill-whom=all gpc-check-package-hangs-',);
+      },
+    }),
+    it({
+      name: 'names each run\'s scopes for that run, so two runs of one check in one second both run',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        /**
+         The environment with the stand-in `mise` first on `PATH`.
+         */
+        const environment = await withStandInMise({ standIn, });
+        // Both runs start inside one second, which is the case the second-precise stamp alone cannot tell apart.
+        await delay(startOfSecondOffsetMilliseconds - (Date.now() % 1_000));
+        /**
+         What two simultaneous runs of one check ended with.
+         */
+        const runs = await Promise.all([
+          tsChecks({
+            worktree: scratch.path,
+            args: ['//package/a:b',],
+            environment,
+          }),
+          tsChecks({
+            worktree: scratch.path,
+            args: ['//package/a:b',],
+            environment,
+          }),
+        ]);
+        for (const printed of runs) {
+          expect(printed.status,).toBe(0,);
+          expect(printed.stdout,).toContain('//package/a:b: exit 0',);
+        }
+        /**
+         The scope names the two runs asked the manager for.
+         */
+        const units = (await recordedCalls({
+          directory: standIn.directory,
+          fileName: 'systemd-run.jsonl',
+        })).map(function unitOf(call) {
+          return call.find(function isUnit(argument) {
+            return argument.startsWith('--unit=',);
+          });
+        });
+        expect(units,).toHaveLength(2,);
+        // A shared name is refused by the manager while the first run's scope is active, so the names must differ.
+        expect(new Set(units).size,).toBe(2,);
       },
     }),
     it({

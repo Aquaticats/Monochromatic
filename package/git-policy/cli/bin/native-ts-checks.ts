@@ -32,6 +32,7 @@ import {
   checkedScopeCaps,
   defaultCheckScopeCaps,
   runInCappedScope,
+  runTokenOfScopes,
   type ScopeOutcome,
 } from './native-capped-scope-command.ts';
 import { NativeGateError } from './native-gate-error.ts';
@@ -462,6 +463,11 @@ async function main(): Promise<number> {
    */
   const moment = new Date();
   /**
+   The identity this run puts in every scope name, so another run of the same checks in the same second asks the manager
+   for names of its own instead of names this run holds.
+   */
+  const runToken = runTokenOfScopes();
+  /**
    Every check's task, scope and outcome, in the order the caller named them.
    */
   const checks = await Promise.all(named.map(async function checkOf(one): Promise<CheckRun> {
@@ -471,6 +477,7 @@ async function main(): Promise<number> {
     const scope = checkScopeName({
       label: one.label,
       stamp: localStamp({ moment, }),
+      runToken,
     });
     return {
       task: one.task,

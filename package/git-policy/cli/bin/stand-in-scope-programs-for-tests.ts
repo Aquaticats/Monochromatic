@@ -49,8 +49,11 @@ export const scopeStandInFailureVariable = 'CHECK_STAND_IN_SCOPE_FAIL';
 export const scopeStandInStopFailureVariable = 'CHECK_STAND_IN_STOP_FAIL';
 
 /**
- The stand-in `systemd-run`: records its arguments, then runs the command after `--` with the caller's streams and answers
- with its status.
+ The stand-in `systemd-run`: records its arguments, refuses a unit name another live scope holds, then runs the command
+ after `--` with the caller's streams and answers with its status.
+
+ Refusing an active unit name is what the real manager does, and it is the whole reason two runs must never ask for the
+ same name: `systemd-run --unit=X --scope` while `X.scope` is active answers `Unit X.scope already exists`.
  */
 const standInSystemdRunProgram = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -63,13 +66,34 @@ if (process.env.${scopeStandInFailureVariable} === '1') {
   process.stderr.write('Failed to start transient scope unit: the stand-in was asked to refuse this start\\n');
   process.exit(1);
 }
+const unitArgument = args.find(function unitOf(argument) { return argument.startsWith('--unit='); });
+if (unitArgument === undefined) {
+  process.stderr.write('the stand-in systemd-run was given no unit name\\n');
+  process.exit(2);
+}
+const unit = unitArgument.slice('--unit='.length);
+const active = path.join(directory, 'active-units');
+fs.mkdirSync(active, { recursive: true });
+const lease = path.join(active, unit);
+let leaseDescriptor;
+try {
+  leaseDescriptor = fs.openSync(lease, 'wx');
+}
+catch {
+  process.stderr.write('Failed to start transient scope unit: Unit ' + unit + '.scope already exists.\\n');
+  process.exit(1);
+}
 const separator = args.indexOf('--');
 if (separator === -1) {
+  fs.closeSync(leaseDescriptor);
+  fs.rmSync(lease, { force: true });
   process.stderr.write('the stand-in systemd-run was given no command after --\\n');
   process.exit(2);
 }
 const [program, ...rest] = args.slice(separator + 1);
 const done = spawnSync(program, rest, { stdio: 'inherit' });
+fs.closeSync(leaseDescriptor);
+fs.rmSync(lease, { force: true });
 process.exit(done.status === null ? 1 : done.status);
 `;
 
