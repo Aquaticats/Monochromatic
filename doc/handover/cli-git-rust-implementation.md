@@ -297,6 +297,34 @@ move its durable facts to their canonical doc and delete it from this page.
   A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
   (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
 
+#### The hourly pass after 13:00 (prompt delivered at about 13:31; read at 13:30 to 13:35)
+
+- Culled: none. No running task is superseded by the decisions of 12:26:24 and 13:04:14;
+  the three removal runs and the guard runs have them by note.
+- Ended since 12:08 (`~/temp/agent/gate/runs-ended-since-1208-read-at-1332.log`, read after it had finished printing):
+  `clean-counts-no-force-as-git-does-and-saves-a-repository-made-while-it-saves-1` (12:15:53),
+  `cargo-shadow-lean-keeps-what-its-check-refused-and-never-waits-on-a-fifo-1` (12:22:30, exit status not printed),
+  the review of the removal fixes (12:30:40, "no concrete defect found"),
+  `kimi-audit-alpha-14-release-changeover-and-leftovers-1` (13:19:18),
+  `kimi-audit-alpha-14-commit-path-1` (13:28:02).
+  A Sonnet subagent reads them a second time into `~/temp/agent/digest-2026-11-12T1335-mixed/digest.md`;
+  none is routed before that.
+- Started: nothing new, and this is why. Starts fail under the machine's load:
+  - Round 310's second launcher (13:21:34): for one entry Pi's own check was killed after 120 s
+    and then "Failed to start transient service unit: Connection timed out";
+    for the two others again `PiUnitsUnreadableError: systemctl could not list the Pi units`.
+    Its launcher was still active at 13:35, so its retries go on.
+  - Round 311's `git worktree add` had run for more than thirty minutes at 13:35 and its run was not up.
+  - A single request to the user manager answered in 5 ms at 13:30:11, and the journal since 13:10 shows no reload,
+    so the manager is not hung; requests time out in bursts.
+- Tried and deferred, to be started when a start goes through
+  (the first two when round 310 or 311 shows a run coming up; pool room is there: `neuralwatt-flex 9/20`):
+  one continuation that brings the landed-removal second pass (`3118b41ce3`) and the held-commit keeper (`c79d17060e`) together on `main`
+  (a `max-lines` lint error, 7 failed and 20 timed-out `landing::` tests, four files in conflict between the two);
+  a fix in `package/pi-shared/subagent-driver` so that one failed `systemctl` listing or one timed-out `systemd-run` is tried again and does not end a batch;
+  continuations of the fast-forward carry (`6e1f7ba095`), the exempt repository (`7646eced75`, 471 behind `main`) and the tokio step (`3a1de3fd9e`).
+- For the owner, next: the wg deploy and about fourteen more items of the consolidated list.
+
 #### Launchers at 13:21
 
 - Round 310's first launcher ended at about 12:52 with all three entries failed:
