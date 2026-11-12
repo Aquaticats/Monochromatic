@@ -16081,16 +16081,22 @@ each of them lies inside whichever phase it fell in,
 and inside `otherMs` when no phase covers it),
 and `prepareParts`
 (the preparation's stretches by name,
-`{"layout":{"ms":12,"calls":1},...}`,
-each figure the time the stretch spent without a Git child,
+`{"layout":{"ms":12,"calls":1,"childrenMs":480},...}`,
+`ms` the time the stretch spent without a Git child,
 because the steps are recorded apart,
+`childrenMs` the time the Git steps that began inside it took,
+clipped to its end,
+so a stretch a child dominated states that child's time under the stretch's own name rather than nothing,
 a name marked again by a retry added together with `calls` saying how many stretches the sum is made of,
 at most 64 entries with the rest counted in `preparePartsDropped`),
 `buildParts`
 (the build phase's stretches by name,
 in the same shape as `prepareParts` and with the same rule,
 its own list and its own bound stated in `buildPartsDropped`:
-a build's name is never read as a preparation's),
+a build's name is never read as a preparation's,
+and a stretch whose own Git child took all of it,
+such as `shadow refs` around the ref snapshot's `git for-each-ref`,
+states that child's time in `childrenMs`),
 `buildPartsDropped`
 `indexBuilds`
 (one entry per build of the private commit index,
@@ -16150,7 +16156,9 @@ The record carries two accounts of the preparation,
 and they answer different questions:
 `prepareSpans` names the work a site in the wrapper measured around itself,
 `prepareParts` and `buildParts` name the stretches no Git child covered,
-and a Git child that a span started is inside that span and outside every part.
+and a Git child that a span started is inside that span and outside every part;
+the time of the Git children that began inside a stretch is stated beside it in `childrenMs`,
+so a stretch a child dominated is read as that child's time and not as an empty stretch.
 The build phase's names are `branch`,
 `message`,
 `amend tree`,

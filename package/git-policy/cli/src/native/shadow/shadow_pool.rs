@@ -308,7 +308,7 @@ fn remove_claim(path: &Path) {
 /// noteRefusal(name, reason); // build part + debug line, no warning
 /// ```
 fn note_refusal(name: &str, reason: &str) {
-    note_build_part(REFUSED_PART, Duration::ZERO);
+    note_build_part(REFUSED_PART, Duration::ZERO, Duration::ZERO);
     crate::diagnostic_log::debug("shadowPool", format!("refused the pooled shadow {name}: {reason}").as_str());
 }
 
