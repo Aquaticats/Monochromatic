@@ -1,0 +1,442 @@
+{
+ "rounds": 12,
+ "failed": 508,
+ "claimed": 16,
+ "pending": 1,
+ "commits": [
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 0,
+   "ms": 287,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 0,
+   "ms": 652,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 0,
+   "ms": 459,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 1,
+   "ms": 3227,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 1,
+   "ms": 539,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 1,
+   "ms": 397,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 2,
+   "ms": 1897,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 2,
+   "ms": 273,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 2,
+   "ms": 359,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 3,
+   "ms": 948,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 3,
+   "ms": 786,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 3,
+   "ms": 443,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 4,
+   "ms": 731,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 4,
+   "ms": 224,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 4,
+   "ms": 223,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 5,
+   "ms": 809,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 5,
+   "ms": 189,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 5,
+   "ms": 245,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 6,
+   "ms": 2493,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 6,
+   "ms": 955,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 6,
+   "ms": 2827,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 7,
+   "ms": 318,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 7,
+   "ms": 218,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 7,
+   "ms": 251,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 8,
+   "ms": 2313,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 8,
+   "ms": 871,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 8,
+   "ms": 266,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 9,
+   "ms": 2948,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 9,
+   "ms": 227,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 9,
+   "ms": 236,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 10,
+   "ms": 2180,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 10,
+   "ms": 754,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 10,
+   "ms": 209,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 11,
+   "ms": 418,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 11,
+   "ms": 256,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 11,
+   "ms": 227,
+   "code": 0
+  }
+ ],
+ "cheap": [
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 0,
+   "ms": 9,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 0,
+   "ms": 7,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 0,
+   "ms": 9,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 1,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 1,
+   "ms": 5,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 1,
+   "ms": 5,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 2,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 2,
+   "ms": 10,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 2,
+   "ms": 7,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 3,
+   "ms": 8,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 3,
+   "ms": 8,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 3,
+   "ms": 7,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 4,
+   "ms": 10,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 4,
+   "ms": 7,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 4,
+   "ms": 7,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 5,
+   "ms": 4,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 5,
+   "ms": 4,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 5,
+   "ms": 4,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 6,
+   "ms": 5,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 6,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 6,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 7,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 7,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 7,
+   "ms": 5,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 8,
+   "ms": 5,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 8,
+   "ms": 5,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 8,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 9,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 9,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 9,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 10,
+   "ms": 9,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 10,
+   "ms": 9,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 10,
+   "ms": 6,
+   "code": 0
+  },
+  {
+   "arm": "this branch",
+   "round": 11,
+   "ms": 5,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.10",
+   "round": 11,
+   "ms": 5,
+   "code": 0
+  },
+  {
+   "arm": "0.6.1-alpha.11",
+   "round": 11,
+   "ms": 4,
+   "code": 0
+  }
+ ]
+}
