@@ -135,6 +135,72 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A launcher's line misread, the review of the ceiling fix, and build trees of ended agents cleaned (2026-11-12T00:22:00-05:00)
+
+#### A slip caught in two minutes
+
+At 00:15:53 the launcher of pass 16 printed
+"integration-pass-16-for-alpha-13: status 1 Running as unit: pi-integration-pass-16-for-alpha-13.service".
+The coordinator read that as the run having ended,
+wrote a continuation brief and started a second launcher for the same name at 00:17:48.
+The run had not ended:
+its unit has been active since 23:06:07 and was at its eighty-ninth turn.
+Only the launcher had ended, with the unit still running.
+The second launcher was stopped at 00:18 before it started anything
+(one run folder exists, one unit).
+What to keep from it:
+a launcher's last line is not the run's state;
+`systemctl --user is-active pi-<name>.service` and the feed are.
+Why that launcher ended while its unit ran is a defect of the scratch starter, which the package's starter replaces.
+The continuation brief (`integration-pass-16-for-alpha-13-continued-prompt.md`) and `agents-batch-round-269.json` are kept
+for the case that the run really is cut off.
+A bounded wait is now on the run's own driver process.
+
+Pass 16 had merged eleven of its twenty-three branches by 00:10.
+One of its merge commits took six minutes and ten seconds under the installed release.
+
+#### The review of the ceiling fix
+
+The qwen4 review of `fix/git-policy-cli-commit-does-not-fail-when-its-scratch-commit-stalls` (`0076cb74ed`) is final
+(`${HOME}/temp/agent/reviews/commit-does-not-fail-when-its-scratch-commit-stalls/review.md`).
+Two findings it rates high, shown with extractions of the decision logic compiled alone, not with the built crate:
+
+- the wait that owns the child reads a failed look at the process ("is it held by the kernel?") as "not held" and kills at the usual ceiling,
+  where the notice thread reads the same failure as "unknown, look again";
+- the two enforcers of the one ceiling decide separately,
+  so one can kill at 60 s while the other has announced a wait to 300 s,
+  and the words printed afterwards then claim a wait that did not happen.
+
+So the fix in pass 16 is an improvement, not a cure:
+the ceiling's floor goes from about 16 s to 60 s and a step both enforcers see held is waited for,
+but a busy machine can still fail a commit through either case.
+It stays in pass 16.
+Round 270 (00:19:10), `review-findings-scratch-commit-ceiling-one-decision-for-both-enforcers`, from the fix's tip,
+makes the stand-aside one shared decision and a failed look "unknown",
+and is asked to show one real stalled commit through a built wrapper if that can be done safely.
+
+#### Disk
+
+156 GiB free at 00:19, about 40 GiB an hour over the last seventeen minutes.
+At 00:21 the coordinator started the existing scratch script `clean-build-trees-of-paused-agents.ts`, unedited,
+over the name of every `pi-*` worktree (104 names),
+in unit `coordinator-clean-build-trees-of-ended-agents-0021`
+(log `${HOME}/temp/agent/clean-build-trees-of-ended-agents-2026-11-12T0021.log`).
+It runs `cargo clean` only where the agent's unit is inactive and prints the free space after each;
+one agent's tree measured 8.4 GiB when the script was written.
+Build trees are caches;
+an agent that is restarted rebuilds.
+
+#### More runs ended
+
+Between 23:52 and 00:15:
+the driver-tests agent (the package launcher, task 308),
+the removal-while-linking agent, a tokio landing agent, the clean-inside-an-alias agent,
+Kimi's audit of the discarding commands,
+and two qwen4 reviews (the ceiling fix, and the held-commit branch with four findings in an interim file).
+A digest of them is being written to `${HOME}/temp/agent/digest-2026-11-12T0020/digest.md`;
+for the driver-tests agent it lists each note it was sent and whether its report answers it.
+
 ### The first Sonnet audit of alpha.12: the hand-over loses data five ways through the built wrapper (2026-11-12T00:08:00-05:00)
 
 The Sonnet audit of the life of a worktree ended after 84 minutes.
