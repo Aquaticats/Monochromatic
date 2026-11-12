@@ -103,6 +103,12 @@ fn serve_on_a_thread_stuck_after(context: LandContext, name: &str, stuck_after: 
 /// Start the service of `context` with the settings of the run,
 /// which a control shortens so it ends in seconds.
 fn serve_on_a_thread_with_settings(context: LandContext, name: &str, settings: ServeSettings) -> Serving {
+    // The process's own runtime is built, and given a worker, before the service asks for one. A build the host
+    //  was slow to make arrives after the service's own patience (`LATE_BUILD_PATIENCE`, five seconds) and ends the
+    //  service at its acceptor, which is how this module's control of the write notice failed once in a broad run on
+    //  a loaded host: its subject is the notice, not the build of a runtime, so the build is waited for here
+    //  (`foundation/lazy_runtime.rs`).
+    assert!(crate::lazy_runtime::await_a_worker_within(PATIENCE), "the process's runtime has a worker before the service needs one");
     let directory: PathBuf = short_directory(name);
     let socket: PathBuf = directory.join("s");
     let listener: UnixListener = UnixListener::bind(&socket).expect("bind");
