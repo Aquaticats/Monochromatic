@@ -91,15 +91,28 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 /// so the entries Git's own `init` adds there are not considered.
 ///  An entry a commit reads that the repository has gained since the fill is refused,
 /// because the member would give the commit the view of the moment it was made;
-///  an entry it has lost is not,
-/// since a link to a name that is no longer there resolves to nothing,
-/// which is the view a creation of this moment gives.
+///  an entry it has lost is refused as well when the member still links it,
+///  because a creation of this moment links no name the repository does not hold,
+/// and makes the store a filter writes into,
+///  while a filter or a hook that writes into the directory a link names fails on one that resolves to nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await refusalOfMember(template, member); // 'its config is not the one this invocation would write' | undefined
 /// ```
 pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Option<String>> {
+    // The member itself first, and asked of the name and never of what a link there names:
+    // listing it below follows a link, so a link at a member's name would be judged, and then written into, as the tree
+    // it points at rather than as the tree a creation made.
+    // The name carries no separator, which `join("")` would add and which makes `lstat` resolve the link.
+    let own_directory: bool = match std::fs::symlink_metadata(member) {
+        Ok(metadata) => metadata.is_dir(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error),
+    };
+    if !own_directory {
+        return Ok(Some(String::from("it is not the directory a creation makes")));
+    }
     if read_bytes(member.join("config").as_path())? != template.config_bytes() {
         return Ok(Some(String::from("its config is not the one this invocation would write")));
     }
@@ -109,7 +122,7 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
     if read_bytes(member.join("HEAD").as_path())? != PLACEHOLDER_HEAD.as_bytes() {
         return Ok(Some(String::from("its HEAD is not the one a creation leaves before a commit names its branch")));
     }
-    // The member itself is not asked about: listing it below is the answer to that question.
+    // The skeleton's directories are asked about by name, and the member itself is the question above.
     for relative in SKELETON_DIRECTORIES {
         if relative.is_empty() {
             continue;
@@ -136,6 +149,11 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         let spelled: String = name.to_string_lossy().into_owned();
         let own: bool = OWN_ENTRIES.contains(&spelled.as_str()) || (copies_worktree_config && spelled == WORKTREE_CONFIG);
         if own {
+            // A creation writes these entries itself, so a link at one of them is a leftover of a use,
+            // and a write through it reaches the file it names: `HEAD` is written with `fs::write`.
+            if *is_link {
+                return Ok(Some(format!("it holds {spelled} as a link, which this invocation's creation does not make")));
+            }
             continue;
         }
         if !is_shared_shadow_entry(spelled.as_str()) {
@@ -146,6 +164,16 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         // The type of a shared entry is settled here, which leaves the loop below the presence and the target of one.
         if !is_link {
             return Ok(Some(format!("the shared entry {spelled} is not a link in the member")));
+        }
+        // A link whose target has gone is not the link a creation of this moment makes, and the commit
+        //  must not be handed a directory it cannot write into: a filter or a hook that writes there fails.
+        let link: PathBuf = member.join(name.as_os_str());
+        match std::fs::metadata(link.as_path()) {
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Some(format!("the shared entry {spelled} points at an entry the repository no longer holds")));
+            }
+            Err(error) => return Err(error),
         }
     }
     // Every entry the creation shares is here, and links to the same real entry.

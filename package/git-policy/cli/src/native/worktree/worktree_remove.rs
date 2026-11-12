@@ -52,14 +52,14 @@ use crate::fs_beneath::{handle_path, identity_at, remove_at};
 use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
 use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
-use crate::subvolume_remove_walk::{empty_directory, find_boundary_below, verify_below};
+use crate::subvolume_remove_walk::{empty_directory, find_boundary_below, find_boundary_below_except, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
-use crate::worktree_removal_clears_the_ahead_pool::clear_the_snapshots_ahead;
+use crate::worktree_removal_clears_the_ahead_pool::{clear_the_pools_ahead_of_a_worktree, data_folders};
 use crate::worktree_removal_refuses_a_nested_volume::refusal_for_nested_volume;
-use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, snapshots_ahead_report, stage_state};
+use crate::worktree_remove_reports::{incomplete_report, leftover_stage_report, registration_volume_report, snapshots_ahead_report, stage_state, unwalkable_registration_report};
 pub use crate::worktree_removal_holds_the_worktree::Held;
 use crate::worktree_removal_holds_the_worktree::{confirm, hold, lock_state};
 use crate::worktree_remove_registry::{Registration, registration_of};
@@ -296,7 +296,7 @@ fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>)
     // The snapshots ahead of an add are this program's own and sit in the registration, so they go before the walk that
     // refuses every nested subvolume. A pool a fill made in the moments since the removal cleared it is the one case this
     // second clear answers, and a member that cannot go is the reason the registration stays.
-    if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held.admin).as_path()) {
+    if let Err(reason) = clear_the_pools_ahead_of_a_worktree(handle_path(&held.admin).as_path()) {
         return incomplete(registration, request, format!("its content cannot be removed ({reason})"));
     }
     let emptied = match verify_below(&admin, registration.admin.as_path()) {
@@ -413,10 +413,32 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     }
     // The snapshots ahead of an add are this program's own and stand in the registration the removal empties after the
     // destroy, so they go first: a pool that cannot be taken stops the removal while nothing has happened.
-    if let Err(reason) = clear_the_snapshots_ahead(handle_path(&held.admin).as_path()) {
+    if let Err(reason) = clear_the_pools_ahead_of_a_worktree(handle_path(&held.admin).as_path()) {
         let report: String = snapshots_ahead_report(target, registration.admin.as_path(), reason.as_str());
         warn(TAG, report.as_str());
         return RemoveOutcome::Refused(report);
+    }
+    // The registration is emptied after the destroy, and that emptying refuses a nested subvolume, so a volume this
+    // program does not own inside it would leave the files gone and the registration stuck, with a notice on every later
+    // command. It is proved now, while the worktree and every file of it are still there, so the person reads what stands in
+    // the way instead of a removal that cannot finish.
+    // This program's own folders there are left out of the proof: the clear above emptied their pools, a fill that made a
+    // pool of its own in the moments since is this program's as well, and it is taken before the destroy rather than
+    // refused.
+    let own: [PathBuf; 2] = data_folders(registration.admin.as_path());
+    let except: [&Path; 2] = [own[0].as_path(), own[1].as_path()];
+    match find_boundary_below_except(&held.admin, registration.admin.as_path(), &except) {
+        Ok(None) => {}
+        Ok(Some(found)) => {
+            let report: String = registration_volume_report(target, registration.admin.as_path(), &found);
+            warn(TAG, report.as_str());
+            return RemoveOutcome::Refused(report);
+        }
+        Err(error) => {
+            let report: String = unwalkable_registration_report(target, registration.admin.as_path(), error.to_string().as_str());
+            warn(TAG, report.as_str());
+            return RemoveOutcome::Refused(report);
+        }
     }
     // The walk and the clear above took time, and the destroy names the held subvolume, so the names and the lock are looked
     // at once more: what the first look proved is what this destroy answers for, and a lock or a swap since it is Git's.

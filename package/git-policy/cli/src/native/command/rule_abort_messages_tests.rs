@@ -10,7 +10,7 @@
 //! expect(savedBeforeAbortNotice('merge', copies)).toContain('git merge --abort');
 //! ```
 
-use super::{abort_command_text, copy_failed_text, saved_before_abort_notice};
+use super::{abort_command_text, copy_failed_text, saved_before_abort_notice, staged_content_text};
 use crate::conflict_sides::SavedCopy;
 use crate::rule_abort_operation::AbortOperation;
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
@@ -42,7 +42,7 @@ fn the_notice_names_the_directory_each_copy_and_the_command() {
         saved("a.txt", "/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-10T10-00-00/a.txt"),
         saved("b/c.txt", "/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-10T10-00-00/b/c.txt"),
     ];
-    let notice: String = saved_before_abort_notice(AbortOperation::Merge, copies.as_slice());
+    let notice: String = saved_before_abort_notice(AbortOperation::Merge, AbortOperation::Merge, copies.as_slice());
     assert!(notice.contains("copies are under /repo/.git/monochromatic-git-policy-cli/discarded/2026-11-10T10-00-00"), "{notice}");
     assert!(notice.contains("a.txt => "), "{notice}");
     assert!(notice.contains("b/c.txt => "), "{notice}");
@@ -56,7 +56,7 @@ fn the_notice_names_the_directory_each_copy_and_the_command() {
 #[test]
 fn a_deleted_path_says_there_was_nothing_to_copy() {
     let copies: Vec<SavedCopy> = vec![SavedCopy { path: String::from("gone.txt"), saved_to: None }];
-    let notice: String = saved_before_abort_notice(AbortOperation::Rebase, copies.as_slice());
+    let notice: String = saved_before_abort_notice(AbortOperation::Rebase, AbortOperation::Rebase, copies.as_slice());
     assert!(notice.contains("gone.txt was deleted in the worktree, so there was nothing to copy"), "{notice}");
     assert!(notice.contains("git rebase --abort runs now"), "{notice}");
     assert!(!notice.contains("copies are under"), "{notice}");
@@ -69,7 +69,7 @@ fn the_notice_counts_the_paths_beyond_the_shared_number() {
     for number in 0..=SHARED_PATHS_NAMED {
         copies.push(saved(format!("f{number}.txt").as_str(), format!("/repo/discarded/2026-11-10T10-00-00/f{number}.txt").as_str()));
     }
-    let notice: String = saved_before_abort_notice(AbortOperation::Am, copies.as_slice());
+    let notice: String = saved_before_abort_notice(AbortOperation::Am, AbortOperation::Am, copies.as_slice());
     assert!(notice.contains("and 1 more in the same directory"), "{notice}");
     assert!(!notice.contains(&format!("f{SHARED_PATHS_NAMED}.txt")), "{notice}");
 }
@@ -77,10 +77,43 @@ fn the_notice_counts_the_paths_beyond_the_shared_number() {
 /// A copy that could not be written refuses the command and names what failed.
 #[test]
 fn the_refused_save_names_the_command_the_operation_and_the_reason() {
-    let text: String = copy_failed_text(AbortOperation::Pick, "a.txt", "no space left on device");
+    let text: String = copy_failed_text(AbortOperation::Pick, AbortOperation::Pick, "a.txt", "no space left on device");
     assert!(text.contains("a.txt"), "{text}");
     assert!(text.contains("no space left on device"), "{text}");
     assert!(text.contains("git cherry-pick --abort or git revert --abort"), "{text}");
     assert!(text.contains("--no-enforce-worktree"), "{text}");
     assert!(text.contains("nothing was changed"), "{text}");
+}
+
+/// Content that stands only in the index is named with every way to keep it.
+#[test]
+fn the_staged_content_refusal_names_the_paths_the_ways_out_and_the_hatch() {
+    let text: String = staged_content_text(
+        AbortOperation::Merge,
+        AbortOperation::Merge,
+        [b"new.txt".to_vec(), b"dir/notes.txt".to_vec()].as_slice(),
+    );
+    assert!(text.contains("git merge --abort"), "{text}");
+    assert!(text.contains("new.txt, dir/notes.txt"), "{text}");
+    assert!(text.contains("the index does"), "{text}");
+    assert!(text.contains("the merge in progress is the only thing keeping that content"), "{text}");
+    assert!(text.contains("git restore --worktree -- <path>"), "{text}");
+    assert!(text.contains("git show :<path> > <file>"), "{text}");
+    assert!(text.contains("--no-enforce-worktree"), "{text}");
+    assert!(text.contains("nothing was saved or changed"), "{text}");
+}
+
+/// An `am` abort that ends a rebase names the rebase in the notice,
+///  while the command stays the one the person typed.
+#[test]
+fn an_am_abort_that_ends_a_rebase_names_the_rebase() {
+    let copies: Vec<SavedCopy> = vec![saved("a.txt", "/repo/.git/discarded/2026-11-10T10-00-00/a.txt")];
+    let notice: String = saved_before_abort_notice(AbortOperation::Am, AbortOperation::Rebase, copies.as_slice());
+    assert!(notice.contains("besides the rebase in progress"), "{notice}");
+    assert!(notice.contains("git am --abort runs now"), "{notice}");
+    assert!(notice.contains("before the rebase"), "{notice}");
+    assert!(!notice.contains("the am in progress"), "{notice}");
+    let text: String = copy_failed_text(AbortOperation::Am, AbortOperation::Rebase, "a.txt", "no space left on device");
+    assert!(text.contains("the rebase in progress holds changes"), "{text}");
+    assert!(!text.contains("the am in progress"), "{text}");
 }

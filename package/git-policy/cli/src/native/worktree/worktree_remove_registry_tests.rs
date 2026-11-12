@@ -214,3 +214,54 @@ fn a_pointer_that_is_a_named_pipe_is_refused_without_waiting() {
     worker.join().expect("join the read");
     assert!(found.is_err(), "a pointer that is no regular file answered as a registration: {found:?}");
 }
+
+/// What:
+///  A named pipe in a registration this removal does not delete is not waited for either.
+/// Why:
+///   The removal proves the target's registration,
+///  and then reads every registration of the repository to ask whether Git could pick another one for the typed name.
+///  A `gitdir` of one of those that is no regular file would hold that read inside `open(2)`
+///  for a writer that may never come,
+///  and no bound covers it:
+///  the removal never reaches a verdict and never falls back to Git
+///  (`SPEC.md`,
+///  "Every wait has a bound").
+///  A record that cannot be read is skipped, as one Git would skip,
+///  so the target's registration is still the answer.
+#[test]
+fn another_registrations_named_pipe_does_not_block_the_removal() {
+    use std::io::Write as _;
+    let root: PathBuf = fixture("registry-other-pipe");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "other", "../other"]);
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
+    let topic: PathBuf = std::fs::canonicalize(root.join("topic")).expect("canonical");
+    let other_back_link: PathBuf = common.join("worktrees/other/gitdir");
+    let old_back_link: Vec<u8> = std::fs::read(other_back_link.as_path()).expect("the old back-link");
+    std::fs::remove_file(other_back_link.as_path()).expect("the regular back-link is removed");
+    make_a_named_pipe(other_back_link.as_path());
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<Registration, String>>();
+    let asked_common: PathBuf = common.clone();
+    let asked_topic: PathBuf = topic.clone();
+    let worker: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let _ = sender.send(registration_of(asked_common.as_path(), asked_topic.as_path(), OsStr::new("topic")));
+    });
+    let bound: std::time::Duration = std::time::Duration::from_secs(5);
+    let answered: Result<Result<Registration, String>, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(bound);
+    if answered.is_err() {
+        // Release the reader so this control reports what it found instead of leaving a thread waiting for ever.
+        let mut writer: std::fs::File = std::fs::OpenOptions::new().write(true).open(other_back_link.as_path()).expect("release the reader");
+        writer.write_all(old_back_link.as_slice()).expect("write the back-link");
+        drop(writer);
+    }
+    let answered_before_release: bool = answered.is_ok();
+    let found: Result<Registration, String> = match answered {
+        Ok(answer) => answer,
+        Err(_) => receiver.recv_timeout(bound).expect("the released reader lets the read finish"),
+    };
+    worker.join().expect("join the read");
+    assert!(answered_before_release, "the removal waited for another registration's named pipe");
+    assert_eq!(found.expect("the target's own registration is still the answer").id, OsString::from("topic"));
+    remove(root.as_path());
+}
