@@ -699,6 +699,7 @@ pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
     if let Err(error) = std::fs::create_dir_all(info.as_path()) {
         return Err(format!("{} could not be made ({error})", info.display()));
     }
+    let named_before: usize = already.len();
     let mut text: String = already;
     if !text.is_empty() && !text.ends_with('\n') {
         text.push('\n');
@@ -707,10 +708,16 @@ pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
         text.push_str(pattern);
         text.push('\n');
     }
-    // The file is the person's own and Git made it when the repository was; this appends to it and never replaces it.
-    return match std::fs::write(exclude.as_path(), text.as_bytes()) {
+    // The file is the person's own and Git made it when the repository was, so this appends to it and never rewrites it:
+    // a kill in the middle leaves their lines whole and at most adds this job's patterns twice.
+    let opened = std::fs::OpenOptions::new().create(true).append(true).open(exclude.as_path());
+    let mut file = match opened {
+        Ok(file) => file,
+        Err(error) => return Err(format!("{} could not be opened ({error})", exclude.display())),
+    };
+    return match std::io::Write::write_all(&mut file, text[named_before..].as_bytes()) {
         Ok(()) => Ok(()),
-        Err(error) => Err(format!("{} could not be written ({error})", exclude.display())),
+        Err(error) => Err(format!("{} could not be appended to ({error})", exclude.display())),
     };
 }
 

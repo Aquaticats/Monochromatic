@@ -269,6 +269,31 @@ fn a_worktree_with_no_build_state_has_nothing_to_move_aside() {
 ///  nothing of the workspace was filled
 ///  (the binary suite's `package_repair::real_cargo_rebuilds_own_crates_with_an_external_build_directory`,
 /// 2026-11-11).
+/// What:
+///  The repository's exclude file keeps its own lines when a staging name is named in it,
+/// and naming them twice adds nothing.
+/// Why:
+///   The file is the person's, so a write that replaced it would discard what they excluded by hand,
+/// and two adds racing to name the same patterns must not lose each other's line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(exclude, 'hand-written/\n'); excludeTheStagingNames(gitDir); excludeTheStagingNames(gitDir); expect(readFileSync(exclude)).toContain('hand-written/')
+/// ```
+#[test]
+fn the_exclude_file_keeps_its_own_lines_and_names_the_staging_once() {
+    let root: PathBuf = fixture("prewarm-exclude");
+    let git_dir: PathBuf = root.join("git-directory");
+    std::fs::create_dir_all(git_dir.join("info")).expect("the Git directory's info folder");
+    std::fs::write(git_dir.join("info/exclude"), b"# a person's own line\nhand-written/\n").expect("the person's exclude file");
+    super::exclude_the_staging_names(git_dir.as_path()).expect("the patterns are named");
+    super::exclude_the_staging_names(git_dir.as_path()).expect("naming them again is nothing");
+    let named: String = std::fs::read_to_string(git_dir.join("info/exclude")).expect("the exclude file");
+    assert!(named.contains("hand-written/"), "the person's own line stays: {named}");
+    assert_eq!(named.matches(super::EXCLUDED_STAGING_PATTERNS[0]).count(), 1, "the pattern is named once: {named}");
+    remove(root.as_path());
+}
+
 #[test]
 fn a_build_directory_beside_a_folder_that_is_not_there_yet_is_still_filled() {
     let root: PathBuf = fixture("prewarm-missing-folder");
