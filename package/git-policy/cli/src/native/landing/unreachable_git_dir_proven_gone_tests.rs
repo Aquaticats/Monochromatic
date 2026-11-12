@@ -371,7 +371,7 @@ fn the_mount_table_is_read_again_after_a_drive_is_mounted() {
     let git_dir: PathBuf = repository.join(".git");
     // The drive is not mounted and its mount point holds nothing, so a repository may still arrive with it.
     assert_eq!(
-        prove(git_dir.as_path(), None, the_mounts()),
+        prove(git_dir.as_path(), None, &the_mounts()),
         Proof::MayReturn(super::MayReturn { nearest: drive.clone() }),
         "an empty directory that no filesystem is mounted on may still receive the repository"
     );
@@ -380,7 +380,7 @@ fn the_mount_table_is_read_again_after_a_drive_is_mounted() {
     std::fs::create_dir_all(git_dir.as_path()).expect("a repository on the mounted drive");
     std::fs::remove_dir_all(repository.as_path()).expect("the repository is deleted");
     assert_eq!(
-        prove(git_dir.as_path(), None, the_mounts()),
+        prove(git_dir.as_path(), None, &the_mounts()),
         Proof::Gone(Gone { nearest: drive.clone(), because: GoneBecause::MountedFilesystemRoot }),
         "the table is read again, so the mounted root that is answering proves the repository gone"
     );

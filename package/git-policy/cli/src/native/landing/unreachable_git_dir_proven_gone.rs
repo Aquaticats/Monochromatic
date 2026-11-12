@@ -177,9 +177,8 @@ pub trait Mounts {
 }
 
 /// What:
-///  The mount table of the running system,
-/// read once,
-/// and asked of the resolved path.
+///  One look at the mount table of the running system,
+/// asked of the resolved path.
 /// Why:
 ///   The kernel's own table is the only statement of what is mounted,
 /// and a path that is a mount point there is a
@@ -189,25 +188,42 @@ pub trait Mounts {
 /// which keeps an empty directory's plan and
 ///  ends an ordinary one's:
 /// the reading that loses nothing.
+///  One table is one look at the system:
+/// it is read when it is made,
+/// and a caller asks again by making another,
+/// because a drive can be mounted between two questions.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isMountPoint(path) // the table's mount points, resolved
+/// new TheMountTable().isMountPoint(path) // the table's mount points as they are now
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TheMountTable {
     /// The table,
-    /// read on first use.
+    /// read when this table is made.
     #[cfg(target_os = "linux")]
-    table: std::sync::OnceLock<Vec<MountFacts>>,
+    table: Vec<MountFacts>,
+}
+
+impl Default for TheMountTable {
+    /// Read the mount table of the running system.
+    fn default() -> Self {
+        #[cfg(target_os = "linux")]
+        {
+            return Self { table: the_mount_table() };
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            return Self {};
+        }
+    }
 }
 
 impl Mounts for TheMountTable {
     fn is_mount_point(&self, path: &Path) -> bool {
         #[cfg(target_os = "linux")]
         {
-            let table: &Vec<MountFacts> = self.table.get_or_init(the_mount_table);
-            return match mount_holding(table.as_slice(), path) {
+            return match mount_holding(self.table.as_slice(), path) {
                 Some(mount) => mount.mount_point == path,
                 None => false,
             };
@@ -222,20 +238,23 @@ impl Mounts for TheMountTable {
 
 /// What:
 ///  The mount table of the running system,
-///  read once for the whole process.
+///  read for this question.
 /// Why:
 ///   A serving service asks whether its worktree is still there every minute
 /// (`service_server::OWN_WORKTREE_CHECK`),
-/// and the table is a file of the kernel that does not change between two such asks;
-/// a table read per question would cost a file read a minute for every service.
+/// and a drive may be mounted,
+/// or the only repository on it deleted,
+/// between one of those questions and the next.
+/// A table kept from the first question would answer the second about a system that is no longer there,
+/// and would keep a service of a deleted repository serving for ever;
+/// a read of the kernel's own file is a few kilobytes once a minute for every service.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await theMounts().isMountPoint('/`) // the one table of the process
+/// theMounts().isMountPoint('/') // the table as it is now
 /// ```
-pub fn the_mounts() -> &'static TheMountTable {
-    static MOUNTS: std::sync::OnceLock<TheMountTable> = std::sync::OnceLock::new();
-    return MOUNTS.get_or_init(TheMountTable::default);
+pub fn the_mounts() -> TheMountTable {
+    return TheMountTable::default();
 }
 
 /// The mount table this process reads,
