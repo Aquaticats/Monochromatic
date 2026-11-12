@@ -173,12 +173,13 @@ pub fn refusal(template: &ShadowTemplate, member: &Path) -> std::io::Result<Opti
         return Ok(Some(String::from("its copy of the worktree's configuration is not the one a creation would copy")));
     }
     // Nothing of an earlier commit's work survives in a member.
-    if !is_empty(member.join("objects").join("pack").as_path())? {
+    // The creation leaves `objects/pack`, `refs/heads` and `refs/tags` to Git (`shadow_skeleton.rs`), so a tree that
+    //  holds one of them is a tree a commit has used, and one question about each absent directory answers what three
+    //  listings answered before: a directory that is there at all is a refusal.
+    if holds_anything(member.join("objects").join("pack").as_path())? {
         return Ok(Some(String::from("it holds a pack, which no creation leaves")));
     }
-    if !is_empty(member.join("refs").join("heads").as_path())?
-        || !is_empty(member.join("refs").join("tags").as_path())?
-    {
+    if holds_anything(member.join("refs").join("heads").as_path())? || holds_anything(member.join("refs").join("tags").as_path())? {
         return Ok(Some(String::from("it holds a ref, which no creation leaves")));
     }
     return Ok(None);
@@ -299,19 +300,23 @@ fn read_bytes(path: &Path) -> std::io::Result<Vec<u8>> {
 }
 
 /// What:
-///  Whether a directory holds no entry.
+///  Whether anything is at a name the creation never makes.
 /// Why:
-///  A pack and a ref are what a used shadow holds;
-/// a directory of them is what a member never has.
+///  A pack and a ref are what a used shadow holds,
+///  and a creation of this moment makes neither the directory of one nor a pack file:
+///  the answer is one question and not a listing,
+///  because only the absence of the name is the shape a creation leaves.
+///  An entry a name cannot be asked about is an error the caller reports,
+///  and a name that is not there is a member of the shape the creation makes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await isEmpty(path)
+/// const holdsAnything = (path) => exists(path); // the entry itself, before anything is listed
 /// ```
-fn is_empty(path: &Path) -> std::io::Result<bool> {
-    return match std::fs::read_dir(path) {
-        Ok(mut entries) => Ok(entries.next().is_none()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(true),
+fn holds_anything(path: &Path) -> std::io::Result<bool> {
+    return match std::fs::symlink_metadata(path) {
+        Ok(_present) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error),
     };
 }

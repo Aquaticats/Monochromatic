@@ -259,31 +259,6 @@ pub struct SharedEntry {
 }
 
 /// What:
-///  One entry of a real directory as a shadow shares it,
-///  or nothing when it is not there.
-/// Why:
-///   An absent entry is a shared entry no creation links,
-/// and any other failure to read it is an error the creation reports:
-/// a permission the person has since changed must not quietly remove an entry a commit reads.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await sharedEntryAt(directory, name) // { name, source, directory } | undefined
-/// ```
-fn shared_entry_at(directory: &Path, name: &str) -> std::io::Result<Option<SharedEntry>> {
-    let source: PathBuf = directory.join(name);
-    return match std::fs::symlink_metadata(source.as_path()) {
-        Ok(metadata) => Ok(Some(SharedEntry {
-            name: std::ffi::OsString::from(name),
-            source,
-            directory: metadata.is_dir(),
-        })),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error),
-    };
-}
-
-/// What:
 ///  The entries a shadow of this worktree shares,
 ///  and whether this worktree also keeps its own `info`.
 /// Why:
@@ -309,15 +284,49 @@ pub fn shared_entries_of(
     git_dir: &Path,
 ) -> std::io::Result<(Vec<SharedEntry>, bool)> {
     let own_info: bool = keeps_its_own_info(common_dir, git_dir)?;
+    // One listing of the common directory answers for every shared name at once, where a question per name cost up to
+    //  nine of them on the creation's path and again on a claim's (`shared_entries_at`).
+    // The names are then taken in the order the list has them, so the links a creation makes and the answers a claim
+    //  compares are in one order whatever order the directory lists them in.
+    let listed: Vec<(std::ffi::OsString, PathBuf, bool)> = listing_of_a_common_directory(common_dir)?;
     let mut entries: Vec<SharedEntry> = Vec::with_capacity(SHARED_ENTRY_NAMES.len());
     for name in SHARED_ENTRY_NAMES {
         if own_info && name == "info" {
             continue;
         }
-        let Some(entry) = shared_entry_at(common_dir, name)? else { continue };
-        entries.push(entry);
+        for (listed_name, source, directory) in &listed {
+            if listed_name != std::ffi::OsStr::new(name) {
+                continue;
+            }
+            entries.push(SharedEntry { name: listed_name.clone(), source: source.clone(), directory: *directory });
+            break;
+        }
     }
     return Ok((entries, own_info));
+}
+
+/// What:
+///  The entries of a common directory,
+///  each with its name,
+///  its path and whether it is a directory.
+/// Why:
+///   One `read_dir` answers every name a shadow shares,
+///  where a question per name cost up to one call each on a volume whose metadata calls wait.
+///  A directory that cannot be read is an error the creation reports and a claim refuses on:
+///  a permission the person has since changed must not quietly remove an entry a commit reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listingOfACommonDirectory = async (dir) => (await readdir(dir, { withFileTypes: true })).map((e) => [e.name, join(dir, e.name), e.isDirectory()]);
+/// ```
+fn listing_of_a_common_directory(common_dir: &Path) -> std::io::Result<Vec<(std::ffi::OsString, PathBuf, bool)>> {
+    let entries = std::fs::read_dir(common_dir)?;
+    let mut listed: Vec<(std::ffi::OsString, PathBuf, bool)> = Vec::new();
+    for entry in entries.flatten() {
+        let directory: bool = entry.file_type().is_ok_and(is_a_directory);
+        listed.push((entry.file_name(), entry.path(), directory));
+    }
+    return Ok(listed);
 }
 
 /// What:

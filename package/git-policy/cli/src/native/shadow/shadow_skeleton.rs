@@ -29,8 +29,19 @@ use std::path::Path;
 /// relative to the repository,
 /// parents before children.
 ///  The empty name is the repository directory itself.
-pub const SKELETON_DIRECTORIES: [&str; 7] =
-    ["", "objects", "objects/info", "objects/pack", "refs", "refs/heads", "refs/tags"];
+///  `objects/pack`, `refs/heads` and `refs/tags` are left to Git:
+///  a files-backend shadow writes no pack and needs no tag store,
+///  Git makes a loose object's own directory under `objects` and the loose ref it writes under `refs`,
+///  and the claim answers "no pack and no ref" by one question about each absent directory
+///  (`shadow_pool_member.rs`),
+///  so three directories a creation made for nothing are gone from it and from every member of the pool.
+///  Measured, in a repository on this volume:
+///  a claim asked 47 questions against the creation's tree and asks 23
+///  (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
+///  "E. The claim keeps every check, with a smaller skeleton and one listing of the common directory"),
+///  and a probe of Git and the wrapper's own ref store in a shadow without the three found both working:
+///  `git commit --allow-empty` landed and `for-each-ref`, `log`, `rev-parse HEAD` and `status` answered.
+pub const SKELETON_DIRECTORIES: [&str; 4] = ["", "objects", "objects/info", "refs"];
 
 /// The `HEAD` a new repository starts with:
 ///  a branch that does not exist yet.

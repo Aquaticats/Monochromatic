@@ -571,7 +571,15 @@ pub fn take_or_create_shadow(
     //       this invocation refuses is handed back and the commit takes the pool's member or makes its own: nothing about
     //       the question can fail a commit.
     clock.next("shadow hand-out");
-    if let Some(drawn) = crate::service_client_shadow_hand_out::ask_for_a_drawn_shadow(service, &template, transaction_directory) {
+    // A reftable repository's shadow is Git's own tables and a worktree that keeps its own `info` builds its own,
+    //  so the service draws for neither and the commit does not ask.
+    let drawable: bool = template.ref_format != crate::transaction_journal::RefFormat::Reftable
+        && !crate::shadow_links::keeps_its_own_info(template.common_dir.as_path(), template.git_dir.as_path()).unwrap_or(false);
+    let asked: Option<PathBuf> = match drawable {
+        true => crate::service_client_shadow_hand_out::ask_for_a_drawn_shadow(service, &template, transaction_directory),
+        false => None,
+    };
+    if let Some(drawn) = asked {
         match refusal(&template, drawn.as_path()) {
             Ok(None) => {
                 let handed = crate::shadow_drawn::HandedShadow::hold(drawn.clone());

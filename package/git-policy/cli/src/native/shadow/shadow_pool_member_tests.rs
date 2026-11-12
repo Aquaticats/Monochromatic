@@ -137,12 +137,16 @@ fn a_pack_or_a_ref_is_refused() {
     let repo: PathBuf = repository_of(root.as_path());
     let template: ShadowTemplate = template_of(repo.as_path());
     let packed: PathBuf = creation(root.as_path(), &template, "created-pack");
+    // A pack is what a used shadow holds, and the creation leaves its folder to Git, so a use makes it.
+    std::fs::create_dir(packed.join("objects").join("pack").as_path()).expect("the pack folder a use made");
     std::fs::write(packed.join("objects").join("pack").join("pack-x.pack").as_path(), b"x").expect("pack");
     assert_eq!(
         refusal(&template, packed.as_path()).expect("checked"),
         Some(String::from("it holds a pack, which no creation leaves"))
     );
     let referenced: PathBuf = creation(root.as_path(), &template, "created-ref");
+    // A ref is what a used shadow's commit writes, and the creation leaves its folder to Git.
+    std::fs::create_dir_all(referenced.join("refs").join("heads").as_path()).expect("the ref folder a use made");
     std::fs::write(
         referenced.join("refs").join("heads").join("main").as_path(),
         b"0123456789012345678901234567890123456789\n",
@@ -151,6 +155,53 @@ fn a_pack_or_a_ref_is_refused() {
     assert_eq!(
         refusal(&template, referenced.as_path()).expect("checked"),
         Some(String::from("it holds a ref, which no creation leaves"))
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A rotation of the wrapper's own timing log between the fill and the claim refuses nothing,
+///  and the member is still the tree a creation would make.
+/// Why:
+///   The wrapper rotates every log it appends to into generations beside it
+///  (`log_generations_kept_to_a_bound.rs`),
+///  so a member filled before a rotation holds no link at the generation's name.
+///  A claim that judged a member against every top-level entry of the common directory
+///  refused every such member and made a commit that met one build its own shadow,
+///  which is the defect of 2026-11-11
+///  (`[warn] [shadowPool] refused the pooled shadow member-...: the shared entry
+///  monochromatic-git-policy-cli-commit-timing.jsonl.7 is not in the member`).
+///  What a commit reads is the named set of shared entries,
+///  and the wrapper's own records are not among them: a shadow that linked one would let a commit write into it.
+#[test]
+fn a_rotation_of_the_wrappers_own_timing_log_between_the_fill_and_the_claim_refuses_nothing() {
+    let root: PathBuf = fixture("shadow-pool-member-log-rotation");
+    let repo: PathBuf = repository_of(root.as_path());
+    let template: ShadowTemplate = template_of(repo.as_path());
+    // The log itself, which a commit of this repository has already written: a member of this moment links it, and
+    //  the rotation of the same log is what a later command writes beside it.
+    let log: String = String::from(crate::commit_timing::TIMING_FILE);
+    std::fs::write(template.common_dir.join(log.as_str()), b"{\"round\":1}\n").expect("the wrapper's own timing log");
+    let member: PathBuf = creation(root.as_path(), &template, "created");
+    assert_eq!(refusal(&template, member.as_path()).expect("checked"), None, "the creation is a member before the rotation");
+    // The generations a rotation of the wrapper's own timing log leaves in the common directory.
+    for generation in [".1", ".7"] {
+        let name: String = format!("{log}{generation}");
+        std::fs::write(template.common_dir.join(name.as_str()), b"{\"round\":1}\n").expect("a generation of the timing log");
+    }
+    assert_eq!(
+        refusal(&template, member.as_path()).expect("checked"),
+        None,
+        "the wrapper's own log is no entry a commit reads, so its rotation refuses nothing"
+    );
+    // The positive control: an entry a commit does read that appeared after the fill is still refused. `lfs` is a
+    //  folder git-lfs makes when it first writes, and no creation of this fixture has one.
+    let lfs: PathBuf = template.common_dir.join("lfs");
+    std::fs::create_dir_all(lfs.as_path()).expect("the shared lfs directory");
+    assert_eq!(
+        refusal(&template, member.as_path()).expect("checked"),
+        Some(String::from("the shared entry lfs is not in the member")),
+        "an entry a commit reads that the repository gained is still a refusal"
     );
     remove(root.as_path());
 }
