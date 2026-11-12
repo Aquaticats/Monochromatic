@@ -187,6 +187,29 @@ fn error_text(error: std::io::Error) -> String {
 }
 
 /// What:
+///  The one moment in which the build of a runtime hands it over and the caller of that build stops waiting for it.
+/// Why:
+///   `std::sync::mpsc` cannot say whether a value sent a moment before the caller gives up has been read:
+/// a send that lands between the caller's last read and its closing of the channel succeeds into a channel that is then dropped,
+///  and the runtime goes with it.
+/// A runtime lost that way left the process for ever believing a build was still coming,
+///  so every later task spent the whole patience on it and the service ended with status 4 (the review of
+/// 2026-11-12T09:34-05:00, its second finding).
+/// Held by both, the send happens either before the caller's read,
+/// which then takes the runtime,
+/// or after the channel is closed,
+/// which makes the build keep it;
+/// the lock covers that pair of statements and nothing else,
+/// and one runtime is built in a process's life,
+/// so nothing else waits on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handOff = new Mutex(); // held around the build's send, and around the caller's last read and close
+/// ```
+static THE_HANDOFF_OF_A_LATE_RUNTIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// What:
 ///  Builds the runtime `plan` names.
 /// The multi-thread runtime is built by `multi_thread` on a helper thread that the caller waits
 ///  for until `deadline`;
@@ -216,12 +239,8 @@ where
 /// What:
 ///  `build_with_deadline` with the stand-in given as `fallback`.
 /// Why:
-///   The window in which a late build can be lost is the caller's own stand-in:
-/// a runtime sent after the deadline but before
-///  the channel is closed is neither received nor kept.
-/// A control can only order a build into that window if the caller can be held inside
-///  the stand-in,
-/// which is what this parameter is for;
+///   A control orders a build that finishes after the deadline by holding the caller in the caller's own stand-in,
+/// and only this parameter lets it hold the caller there;
 /// the process builds its own runtime through `build_with_deadline`,
 ///  whose stand-in is the current-thread runtime.
 ///
@@ -246,6 +265,9 @@ where
             Ok(built) => built,
             Err(_payload) => Err(std::io::Error::other("the build of the multi-thread runtime panicked")),
         };
+        // The caller reads the channel once more and closes it under this same moment, so a runtime sent just before it gives up is
+        //  taken there rather than dropped with the channel.
+        let _handing_over: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Err(unsent) = sender.send(result)
             && let Ok(late) = unsent.0
         {
@@ -265,6 +287,9 @@ where
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 // A build that finished between the deadline and here is already in the channel, and one that finishes
                 //  after the channel is closed is kept by its own helper: measure the two, so neither is dropped.
+                // The read and the close are one moment with the build's send, so a runtime sent as the caller gives up is
+                //  taken here rather than dropped with the channel.
+                let _handing_over: std::sync::MutexGuard<'_, ()> = THE_HANDOFF_OF_A_LATE_RUNTIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                 let _kept: bool = keep_a_late_build(receiver.try_recv());
                 drop(receiver);
                 BuiltFlavor::CurrentThreadAfterDeadline
