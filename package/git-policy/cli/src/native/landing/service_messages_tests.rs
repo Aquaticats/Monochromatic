@@ -28,6 +28,8 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: Some(String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12")) },
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: None },
         ClientFailure::ServiceSilent,
+        ClientFailure::ServiceNotReading { took_nothing: true },
+        ClientFailure::ServiceNotReading { took_nothing: false },
         ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::Made },
         ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::NotMade },
         ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::Unread },
@@ -109,6 +111,7 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::NothingAnswered { .. } => 32,
         ClientFailure::Interrupted { .. } => 30,
         ClientFailure::InterruptedNotKnown { .. } => 31,
+        ClientFailure::ServiceNotReading { .. } => 33,
     };
 }
 
@@ -154,7 +157,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::NothingAnswered { address: String::new(), waited: Duration::ZERO }) + 1;
+    let expected: usize = variant_index(&ClientFailure::ServiceNotReading { took_nothing: false }) + 1;
     assert_eq!(covered.len(), expected);
 }
 
@@ -287,10 +290,24 @@ fn messages_quote_their_constants_and_facts() {
     let unsaved: String = render(&ClientFailure::BranchSwitched { branch: String::from("topic"), now: String::from("side"), file: None });
     assert!(!unsaved.contains("saved in"), "{unsaved}");
     assert!(render(&ClientFailure::RepositoryFull(String::from("/work/repo"))).contains("/work/repo"));
-    let silent: String = render(&ClientFailure::ServiceSilent);
-    for command in CHECK_COMMANDS.into_iter().chain([LOG_COMMAND, RESTART_COMMAND]) {
-        assert!(silent.contains(command), "{silent}");
+    // What a service that stopped leaves a person to do: read the state of this worktree's service, restart the one unit it
+    //  names, and read whether the commit was made. A restart of every service of the account is what these words must never
+    //  ask for, and what the wildcard `RESTART_COMMAND` of the other failures still does.
+    for failure in [
+        ClientFailure::ServiceSilent,
+        ClientFailure::ServiceNotReading { took_nothing: true },
+        ClientFailure::ServiceNotReading { took_nothing: false },
+        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
+    ] {
+        let words: String = render(&failure);
+        for command in [STATUS_COMMAND, RESTART_ONE_UNIT_COMMAND] {
+            assert!(words.contains(command), "{failure:?} names {command}: {words}");
+        }
+        assert!(words.contains(CHECK_COMMANDS[0]), "{failure:?} names what shows whether the commit was made: {words}");
+        assert!(!words.contains(RESTART_COMMAND), "{failure:?} must not restart every service of the account: {words}");
+        assert!(!words.contains(LOG_COMMAND), "{failure:?} must not read the journal of every service: {words}");
     }
+    let silent: String = render(&ClientFailure::ServiceSilent);
     assert!(!silent.contains("raise") && !silent.contains("setting"), "the text must not name a setting that does not exist: {silent}");
     assert!(render(&ClientFailure::IndexInUse(String::from("the editor"))).contains("the editor"));
 }

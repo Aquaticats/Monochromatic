@@ -76,6 +76,11 @@ pub mod service_messages_of_an_interrupted_commit;
 /// and that the service is restarted or the commit built again.
 pub mod service_messages_of_a_wait_for_the_service;
 
+/// The words for a commit whose service said nothing,
+/// stopped reading its request,
+/// or stopped answering it.
+pub mod service_messages_of_a_service_that_stopped;
+
 /// The one branch write of a settlement,
 /// and what the batch owes around it.
 pub mod held_commit_settle_move;
