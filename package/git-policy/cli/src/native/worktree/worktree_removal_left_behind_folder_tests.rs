@@ -228,7 +228,8 @@ fn a_removal_git_refused_leaves_the_folder_where_it_belongs() {
 #[test]
 fn a_folder_of_entries_the_record_never_saw_is_kept_and_named() {
     let scene: Scene = scene("left-behind-replaced");
-    record_before_git(scene.common.as_path(), OsStr::new(scene.id.as_str()), scene.worktree.as_path()).expect("the folder is recorded");
+    // The record of a removal whose process ended, which is the state a next command acts on.
+    record_before_git_with_owner(scene.common.as_path(), OsStr::new(scene.id.as_str()), scene.worktree.as_path(), Some("1:ended")).expect("the folder is recorded");
     scene.unregister();
     std::fs::remove_dir_all(scene.worktree.as_path()).expect("the folder the record names goes");
     std::fs::create_dir_all(scene.worktree.as_path()).expect("another directory takes the name");
