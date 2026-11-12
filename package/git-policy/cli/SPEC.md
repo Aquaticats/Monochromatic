@@ -3036,16 +3036,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  and every commit a reference lock holds reaches `refs/cli-git/kept/<batch>` of the common Git directory before
  the worktree's own Git directory goes,
  because a batch can meet a reference lock in the whole window and not only before the hand-over.
- The registration the record names must still be the one standing beside that path:
- the record is keyed by the path and by the identity of that registration
- (its device,
- its inode and the time the inode was made,
- never a modification or a change time this program's own writes move),
- and the service recomputes that name before it removes anything.
- A worktree a person removed and added again at the same path is therefore a different worktree:
- the record of the earlier one removes nothing there,
- and it settles as one whose worktree is gone,
- which is what its state has always meant.
+ The registration the record names must still be the one standing beside that path,
+ which is what the next paragraph says the record carries.
  A worktree the service keeps is named in a record under the common Git directory,
  `monochromatic-git-policy-cli/kept-worktree-notices`,
  which the next wrapper command in any worktree of that repository shows once,
@@ -3056,16 +3048,28 @@ A worktree whose branch a merge landed is removed by those same routes,
  exactly as a failed push's record does.
  A command whose output a program reads shows none of them and takes none.
  A record identifies one worktree and not a path.
- The hand-over writes, beside the registration, the device and the inode of the registration and of the worktree root,
- and the service compares them with the two directories standing there before it removes anything;
- a worktree a person removed and added again at the same path is two other directories,
- and the earlier record then removes nothing and settles as one whose worktree is gone,
+ The hand-over writes, beside the registration,
+ in the file `monochromatic-git-policy-cli-removal-identity`,
+ the device and the inode of the registration and of the worktree root,
+ and the service compares them with the two directories standing there before it removes anything.
+ The device and the inode are the kernel's answer to which directory this is,
+ and they are what this program's own writes never move,
+ while the change time and the modification time move on every record a push or a held commit writes inside a
+ registration.
+ A worktree a person removed and added again at the same path is two other directories,
+ so the earlier record removes nothing there,
+ and it settles as one whose worktree is gone,
+ which is what its state has always meant,
  with a line in the service's journal.
  A record whose hand-over wrote no such identity,
  which is every record an earlier release queued,
- is compared with the name it was keyed by:
+ is compared with the name it was keyed by,
+ which is the name the release before this one computed from the path and the registration's device, inode and
+ change time:
  a match proves the registration is untouched since the hand-over,
  and a mismatch leaves the worktree and names it.
+ The record's own name keeps that earlier spelling for the same reason,
+ because a record queued while that release ran must still be the record this one finds under its id.
  The worktree the ignored files were compared with is written beside the registration as well
  (the file `monochromatic-git-policy-cli-removal-compared-with`):
  no command of the merge is there any more to name it,
