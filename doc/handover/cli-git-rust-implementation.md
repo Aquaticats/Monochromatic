@@ -391,12 +391,14 @@ and beside each repository a twin made and driven by `/usr/bin/git`
 for the answer real Git gives.
 Script and logs:
 `~/temp/agent/git-policy-cli-repro/reproduce.ts`,
-`before.log` (this branch's reading) and `after.log` (with the fixes).
+`before.log` (this branch's reading),
+`after.log` (with the fixes) and
+`after-final.log` (the same lines re-run on the binary built from the branch tip).
 The owner's standing words behind it are "Commits should never fail."
 and "never discard user data".
 Measured:
 the before log's 12 command lines differed from real Git in three of them,
-and the after log's 14 all matched.
+and no line of either after log differed at all.
 
 #### A path after `--end-of-options` that spells a value option was dropped from the commit (F1, reproduced)
 
