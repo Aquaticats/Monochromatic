@@ -697,7 +697,7 @@ fn why_this_is_another_worktree(item: &WorkItem, target: &Path, registration: &P
         return None;
     }
     return Some(format!(
-        "nothing proves which worktree the record of {} was written for, because the merge that handed it over recorded no identity for it, so it was left exactly as it is",
+        "nothing proves the worktree standing at {} is the one this record was written for: the registration standing there carries no identity, and the name the record was keyed by does not match it, so it was left exactly as it is",
         target.display()
     ));
 }
@@ -759,13 +759,9 @@ pub fn requeue_removals_an_earlier_release_refused(common_dir: &Path) -> Vec<Str
         if identity_recorded(registration.admin.as_path()).is_some() {
             continue;
         }
-        // The record is marked before it is queued again, so a removal that is refused a second time is not queued for
-        // ever: the mark is what says this record has already had the one attempt it was owed.
+        // The record is queued with one attempt behind it, so a removal Git refuses again is not queued by every later
+        // command: the attempt count travels with the record into whatever state it settles in.
         let again: WorkItem = WorkItem { tries: 1, ..item.clone() };
-        let marked: Result<(), std::io::Error> = write_private_file_unsynced(failed.as_path(), again.encode().as_bytes());
-        if marked.is_err() {
-            continue;
-        }
         let pending: PathBuf = state_directory(work.as_path(), PENDING);
         if crate::private_storage::create_private_directory_all(pending.as_path()).is_err() {
             continue;

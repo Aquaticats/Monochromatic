@@ -3087,8 +3087,15 @@ A queue outlives the program that writes to it,
  answers a failure,
  and nothing reads `failed` again,
  so the landed worktree stayed for ever and nothing said so.
- The second attempt is marked in the record itself, through the attempt count it already carries,
+ The second attempt is marked in the record itself,
+ through the attempt count it already carries,
  so a removal Git refuses again is not queued by every later command.
+ A record an earlier release wrote carries neither the identity of its worktree nor the worktree its ignored files were
+ compared with,
+ so this release cannot prove those files again:
+ the service keeps that worktree and names it in the kept-worktree record,
+ which the person's next command shows,
+ rather than removing it on a proof it cannot repeat.
 Nothing about a worktree added inside a landed one is promised after that last reading:
  a worktree registered,
  a lock taken,

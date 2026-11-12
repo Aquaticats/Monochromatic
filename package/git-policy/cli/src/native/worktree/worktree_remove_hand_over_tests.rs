@@ -608,7 +608,7 @@ fn the_service_removes_the_worktree_a_record_names_and_a_gone_one_is_done() {
     let pool: PathBuf = pool_root_for(linked.common.as_path(), &linked.common.join("worktrees/topic"));
     std::fs::create_dir_all(pool.join("member").join("objects")).expect("a pool as a fill leaves it");
     let registration: PathBuf = linked.common.join("worktrees").join("topic");
-    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), None, &|_: &GitContext, _: &Path| { return Ok(()); })
+    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), Some(linked.repo_root().as_path()), &|_: &GitContext, _: &Path| { return Ok(()); })
         .expect("handed over");
     assert_eq!(delete_subvolume_of(&item), Verdict::Done, "Git removes the worktree the record names");
     assert!(!linked.worktree.exists(), "the worktree directory is gone");
@@ -631,7 +631,7 @@ fn the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_
     let notes: PathBuf = linked.worktree.join("notes.txt");
     std::fs::write(notes.as_path(), b"what I was in the middle of\n").expect("a file the person wrote");
     let registration: PathBuf = linked.common.join("worktrees").join("topic");
-    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), None, &|_: &GitContext, _: &Path| { return Ok(()); })
+    let item: WorkItem = hand_over_worktree_removal(&git_context(), linked.common.as_path(), linked.worktree.as_path(), registration.as_path(), Some(linked.repo_root().as_path()), &|_: &GitContext, _: &Path| { return Ok(()); })
         .expect("handed over");
     let verdict: Verdict = delete_subvolume_of(&item);
     match &verdict {
@@ -750,7 +750,7 @@ fn the_service_keeps_a_commit_held_after_the_hand_over_on_a_side_reference() {
     crate::test_support::age(tracked.as_path());
     crate::test_support::git(linked.worktree.as_path(), &["add", "--", "tracked.txt"]);
     crate::test_support::git(linked.worktree.as_path(), &["commit", "--quiet", "--message=the branch's own work"]);
-    let item: WorkItem = handed_over(&linked, None);
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     // The hold is recorded after the hand-over, as a commit whose branch move met a reference lock leaves it.
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
     let tree: String = crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD^{tree}"]);
@@ -820,7 +820,7 @@ fn the_service_keeps_a_commit_held_after_the_hand_over_on_a_side_reference() {
 #[test]
 fn the_service_carries_a_push_failure_recorded_after_the_hand_over_to_the_person() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-push-record");
-    let item: WorkItem = handed_over(&linked, None);
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
     let commit: String = crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD"]);
     crate::push_failure_notice::record_push_failure(
@@ -869,7 +869,7 @@ fn a_record_of_a_removal_whose_worktree_is_gone_removes_nothing_at_the_path_it_n
     std::fs::write(written.as_path(), b"the new worktree's own ignored state\n").expect("an ignored file of the new worktree");
     let verdict: Verdict = delete_subvolume_of(&item);
     assert!(
-        matches!(&verdict, Verdict::Skipped(words) if words.contains("another one stands at")),
+        matches!(&verdict, Verdict::Skipped(words) if words.contains("nothing proves the worktree standing at") && words.contains(linked.worktree.display().to_string().as_str())),
         "the record's worktree is gone, and the one standing there now is nothing to it: {verdict:?}"
     );
     assert!(linked.worktree.is_dir(), "the new worktree stays");
@@ -917,9 +917,14 @@ fn a_removal_an_earlier_service_refused_is_queued_once_more() {
     let again: WorkItem = WorkItem::decode(std::fs::read_to_string(queued.as_path()).expect("the queued record").as_str()).expect("a record this release reads");
     assert_eq!(again.tries, 1, "the record says it has had the one attempt it was owed");
     assert!(requeue_removals_an_earlier_release_refused(linked.common.as_path()).is_empty(), "a removal is queued once more once");
-    // What the service that reads it now does with it: removes it, as this release's reader can.
-    assert_eq!(delete_subvolume_of(&again), Verdict::Done, "this release's service removes the worktree");
-    assert!(!linked.worktree.exists(), "the worktree the merge landed is gone");
+    // What this release's service makes of it: the record of that release carries no identity and no worktree its ignored
+    // files were compared with, so nothing proves them again, and the worktree is kept and named rather than removed in
+    // silence.
+    assert!(matches!(delete_subvolume_of(&again), Verdict::Failed(_)), "a record an earlier release wrote is not re-proven, so it is kept");
+    assert!(linked.worktree.is_dir(), "the worktree the merge landed stays");
+    let texts: Vec<String> = kept_notice_texts(linked.common.as_path());
+    assert_eq!(texts.len(), 1, "and the person reads why: {texts:?}");
+    assert!(texts[0].contains(linked.worktree.display().to_string().as_str()), "the notice names the worktree: {texts:?}");
     remove(linked.root.as_path());
 }
 
@@ -968,6 +973,11 @@ fn a_record_of_a_later_release_is_left_queued_for_it() {
     );
     let by_kind: PathBuf = work.join("pending").join(format!("review-{tracked}"));
     std::fs::create_dir_all(by_kind.parent().expect("the pending directory")).expect("the pending directory");
+    // A claim is published into `claimed`, which a queue that has run has made. A queue whose producer never ran has none,
+    // and an entry it holds is no different: this control makes the directories every state directory of a queue has.
+    std::fs::create_dir_all(work.join("claimed")).expect("the claimed directory");
+    std::fs::create_dir_all(work.join("failed")).expect("the failed directory");
+    std::fs::create_dir_all(work.join("recovering")).expect("the recovering directory");
     std::fs::write(by_kind.as_path(), unknown_kind.as_bytes()).expect("a record of a kind this build does not know");
     assert!(crate::work_item::claim_next(work.as_path(), &crate::claim_time::ClaimTime::read()).expect("a claim finds nothing to take").is_none(), "a kind this build does not know is no work of its own");
     assert!(by_kind.is_file(), "the record is left for the release that wrote it");
@@ -999,7 +1009,7 @@ fn a_record_of_a_later_release_is_left_queued_for_it() {
 #[test]
 fn a_removal_a_kill_cut_short_is_finished_by_the_next_attempt() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-killed");
-    let item: WorkItem = handed_over(&linked, None);
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
     // The state a service killed inside `git worktree remove` leaves: the record of a begun removal, and the tracked
     // files Git had already deleted.
@@ -1021,7 +1031,7 @@ fn a_removal_a_kill_cut_short_is_finished_by_the_next_attempt() {
 #[test]
 fn a_half_deleted_worktree_holding_a_persons_file_is_kept_and_said() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-removal-killed-with-a-file");
-    let item: WorkItem = handed_over(&linked, None);
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
     let admin: PathBuf = linked.common.join("worktrees").join("topic");
     test_support::record_begun(linked.common.as_path(), item.id().as_str(), test_support::identity_standing_there(linked.worktree.as_path(), admin.as_path()).as_str());
     std::fs::remove_file(linked.worktree.join("tracked.txt").as_path()).expect("a tracked file Git's own removal deleted before the kill");

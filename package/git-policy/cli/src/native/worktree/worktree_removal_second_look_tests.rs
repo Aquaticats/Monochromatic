@@ -57,7 +57,7 @@ fn a_repository_with_a_worktree(name: &str, rules: &str) -> Fixture {
     age(ignored.as_path());
     git(main.as_path(), &["add", "--", "README.md", ".gitignore"]);
     git(main.as_path(), &["commit", "--quiet", "--message=a tracked file"]);
-    let worktree: PathBuf = root.join("worktree");
+    let worktree: PathBuf = root.join("topic");
     git(main.as_path(), &["worktree", "add", "--quiet", "-b", "feature", worktree.to_str().expect("a UTF-8 fixture path")]);
     let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("the common Git directory");
     return Fixture { root, main, common, worktree: std::fs::canonicalize(worktree.as_path()).expect("the worktree's real path") };
