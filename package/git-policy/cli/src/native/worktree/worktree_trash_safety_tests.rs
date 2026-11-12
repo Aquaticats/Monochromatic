@@ -550,6 +550,35 @@ fn a_trash_whose_record_already_waits_is_not_reported_as_recorded_now() {
 }
 
 /// What:
+///  A trash whose record is still pending after one claim lease tells the repository's service,
+///  because a record alone is not a run.
+/// Why:
+///   The add writes the record and wakes the service,
+/// but a wake that failed,
+/// or a command killed between the two,
+/// leaves a record no service ever read;
+/// a round claims only what it is woken for,
+/// so a scan that printed "already in the queue" and told nobody left the trash pending for ever,
+/// while the line it printed said the service empties it.
+#[test]
+fn a_record_no_service_ever_read_is_told_to_the_service() {
+    let name: String = "7".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-stale-wake", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let item: WorkItem = item_of(worktree.as_path(), git_dir.as_path(), &manifest);
+    let work: PathBuf = work_directory(git_dir.as_path());
+    enqueue(work.as_path(), &item).expect("record");
+    let pending: PathBuf = state_directory(work.as_path(), crate::work_item::PENDING).join(item.id());
+    age_by(&pending, std::time::Duration::from_secs(600));
+    let woken = Woken::default();
+    let mut say: Vec<u8> = Vec::new();
+    name_unaccounted_trash(git_dir.as_path(), worktree.as_path(), &mut say, &woken);
+    assert_eq!(woken.named(), vec![git_dir.clone()], "the service is told about the record that waits: {}", String::from_utf8_lossy(say.as_slice()));
+    assert!(pending.is_file(), "and the record it claims stands");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A named pipe among the trash records does not hold the command that reads them,
 ///  and the trash they account for is left alone.
 /// Why:

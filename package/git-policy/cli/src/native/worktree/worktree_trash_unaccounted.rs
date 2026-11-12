@@ -52,17 +52,20 @@ use std::path::{Path, PathBuf};
 /// This scan deletes nothing:
 /// a directory nothing recorded cannot be proven to be one the leave-out moved.
 ///
-/// The record it writes is one no service looks at by itself,
+/// The record it writes or finds is one no service looks at by itself,
 /// so the repository's service is woken for it exactly as a
 ///  hand-over wakes one:
 /// the service waits for wakes and due retries and never for a record to appear,
 /// so a record nobody is
 ///  told about waits until some unrelated wake,
 /// which need never come.
+/// A record the queue already holds and no service ever read is that same record:
+/// its wake never arrived,
+/// so this scan gives it the one it is missing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// nameUnaccountedTrash(commonDir, worktree, notices, wake); // and wake(commonDir) when a record was written
+/// nameUnaccountedTrash(commonDir, worktree, notices, wake); // and wake(commonDir) when a record waits for the service
 /// ```
 pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn Write, wake: &dyn WakeTheService) {
     // A worktree whose trash parent is gone has nothing to name, and that is the ordinary case.
@@ -141,7 +144,7 @@ fn waited_longer_than_a_claim(record: &Path) -> bool {
 ///  so the commit service empties it,
 ///  name every trash-shaped directory that cannot say it or whose record is settled,
 /// which is left where it is,
-///  and answer whether a record now waits for the service to be told.
+///  and answer whether the service must be told about a record that waits.
 /// Why:
 ///   A command killed between publishing the snapshot and writing its record leaves a trash nothing names,
 /// and the
@@ -159,8 +162,7 @@ fn waited_longer_than_a_claim(record: &Path) -> bool {
 /// and the line says
 ///  which of the three the queue answered:
 /// a record this command wrote is reported as recorded now,
-/// one that waits without a
-///  service having read it as already in the queue,
+/// one no service ever looked at as already in the queue and told to the service now,
 /// and a record the service settled as failed as a trash nothing will
 ///  empty,
 /// so no command promises an emptying no service will claim.
@@ -187,19 +189,24 @@ fn settle_unrecorded_trash(git_dir: &Path, worktree: &Path, accounted: &[String]
         let said: String = match crate::worktree_trash_hand_over::record_the_trash(&pending) {
             Ok(Recorded::Written) => {
                 // A record nobody is told about waits for a wake that need never come, so the writing of one is what the
-                //  repository's service is told; a record that was already there tells it nothing new.
+                //  repository's service is told.
                 waiting = true;
                 format!(
                     "monochromatic-git-policy-cli: {} holds directories a snapshot left out that no record named, and the trash says what it is, so it is recorded now and the commit service empties it, one trash at a time for this repository.",
                     entry.path().display()
                 )
             }
-            // The queue's id is the trash's name, so a record it already holds is this trash's record: one that waits is
-            //  emptied by the service, and one it gave up on never is; only the second is news, and the words say which.
-            Ok(Recorded::There) => format!(
-                "monochromatic-git-policy-cli: {} holds directories a snapshot left out, and the trash says what it is, and a record of it is already in the queue, so the commit service empties it when it next runs for this repository, one trash at a time.",
-                entry.path().display()
-            ),
+            // The queue's id is the trash's name, so a record it already holds is this trash's record: a record a service
+            //  still works on is accounted for above, and one it gave up on takes the `GivenUp` arm, so what is left here is
+            //  a record no service ever read. That record is only work a woken service looks at, so this is where its wake
+            //  comes from: the add wrote it and its own wake never arrived, or a killed command left it behind.
+            Ok(Recorded::There) => {
+                waiting = true;
+                format!(
+                    "monochromatic-git-policy-cli: {} holds directories a snapshot left out, and the trash says what it is, and a record of it is already in the queue but no service ever looked at it, so the commit service is told now and empties it, one trash at a time for this repository.",
+                    entry.path().display()
+                )
+            }
             Ok(Recorded::GivenUp) => left_words(entry.path().as_path(), "the commit service gave up on the record of this trash and never claims it again"),
             Err(reason) => left_words(entry.path().as_path(), format!("the record of the trash cannot be written: {reason}").as_str()),
         };

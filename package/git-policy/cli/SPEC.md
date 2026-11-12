@@ -1693,15 +1693,17 @@ A trash that says what it is,
 because the snapshot wrote its manifest inside it before the swap published it,
 is offered to the queue again when no record the service still works on accounts for it,
 and only a record that command wrote is reported as recorded now:
-a record the queue already holds under the trash's name is reported as already there,
+a record the queue already holds under the trash's name is reported as already in the queue,
 because the id of a trash's record is the trash's name,
 and one the service settled as failed is named as a trash nothing will empty,
 with the same instruction to look at it,
 so no command promises an emptying no service will claim.
-A record that command writes is work only a woken service looks at,
-so the scan tells the repository's service once,
-only when it wrote one,
-exactly as a hand-over does.
+A record is work only a woken service looks at,
+so the scan tells the repository's service once for each trash it records:
+for the record it wrote,
+and for one the queue already held which no service ever looked at,
+whose own wake never arrived,
+exactly as a hand-over tells it.
 A work item of kind `trash` that an earlier release wrote is emptied by the same handler
 (`empty_trash`),
 with the same checks and the same identities,
