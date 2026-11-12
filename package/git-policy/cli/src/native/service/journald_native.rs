@@ -403,6 +403,15 @@ pub struct Sink {
     pending: Mutex<Vec<u8>>,
     /// How many entries were dropped since one last said so.
     lost: AtomicU64,
+    /// Whether a line that the journal took is also written to the plain standard error.
+    /// What:
+    ///  A service the wrapper starts has its output in its own file, and the journal is a copy
+    ///  a person reads with `journalctl`.
+    /// Why:
+    ///  The unit that used to put the service's standard error on the journal is gone,
+    ///  so the journal would otherwise lose every line of every service.
+    ///  The copy costs one non-blocking write beside the datagram and never a wait.
+    also_plain: bool,
 }
 
 impl Sink {
@@ -428,7 +437,7 @@ impl Sink {
             None => false,
         };
         let native: Option<UnixDatagram> = if stream { Self::open() } else { None };
-        return Self { native, address: socket.address(), stream, pending: Mutex::new(Vec::new()), lost: AtomicU64::new(0) };
+        return Self { native, address: socket.address(), stream, pending: Mutex::new(Vec::new()), lost: AtomicU64::new(0), also_plain: false };
     }
 
     /// An unconnected datagram socket that never blocks,
@@ -451,7 +460,16 @@ impl Sink {
             Ok(text) => Target::parse(text.as_str()),
             Err(_unset) => Target::journal(),
         };
-        return Self::choose(variable.as_deref(), stderr_identity(), &socket);
+        let mut sink: Self = Self::choose(variable.as_deref(), stderr_identity(), &socket);
+        // What: A service the wrapper starts writes its output to its own file, so its standard error is not the journal's
+        //       stream; the journal is still wanted beside that file, and the socket says whether one is there.
+        // Why:  A person reads every instance's lines with one command, as before, and the file keeps the same lines for
+        //       the case where the journal is gone.
+        if !sink.stream && socket.exists() {
+            sink.native = Self::open();
+            sink.also_plain = sink.native.is_some();
+        }
+        return sink;
     }
 
     /// Whether standard error is the journal's stream,
@@ -509,6 +527,10 @@ impl Sink {
             }
             if socket.send_to_addr(datagram(priority, message, all.as_slice()).as_slice(), address).is_ok() {
                 self.forgive(lost);
+                if self.also_plain {
+                    // The file keeps the line too; a file that takes none is counted and never waited for.
+                    let _also = self.fall_back(priority, line, stderr);
+                }
                 return Delivery::Native;
             }
         }

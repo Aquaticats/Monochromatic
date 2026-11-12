@@ -561,3 +561,47 @@ fn the_send_without_waiting_takes_a_page_and_refuses_a_full_pipe_and_a_full_sock
     }
     assert_eq!(send_without_waiting(writer_end.as_raw_fd(), line.as_slice()), Err(libc::EAGAIN));
 }
+
+/// What:
+///  A line the journal takes is also written to the plain file when the sink says so,
+///  which is the state of a service the wrapper starts.
+/// Why:
+///   Such a service's standard error is its own log file and not the journal's stream,
+/// so without this the journal would hold no line of any service.
+#[test]
+fn a_line_the_journal_takes_is_also_written_to_a_plain_file() {
+    let (receiving, target) = receiver("also-plain");
+    let mut sink: Sink = Sink::choose(None, None, &target);
+    sink.native = Sink::open();
+    sink.also_plain = true;
+    let mut file: Vec<u8> = Vec::new();
+    let delivery = sink.deliver(Priority::Info, "started", &[], "service started\n", &mut file);
+    assert_eq!(delivery, Delivery::Native);
+    let mut buffer: [u8; 4096] = [0; 4096];
+    let read: usize = receiving.recv(&mut buffer).expect("the journal took the entry");
+    let found: BTreeMap<String, String> = parsed(&buffer[..read]);
+    assert_eq!(found["MESSAGE"], "started");
+    assert_eq!(std::str::from_utf8(file.as_slice()).expect("the file holds text"), "service started\n", "the file keeps the same line");
+}
+
+/// A file that cannot take the line costs the journal nothing:
+/// the entry has already been sent.
+#[test]
+fn a_plain_file_that_takes_nothing_still_lets_the_journal_have_the_entry() {
+    struct Full;
+    impl std::io::Write for Full {
+        fn write(&mut self, _bytes: &[u8]) -> std::io::Result<usize> {
+            return Err(std::io::Error::from(std::io::ErrorKind::StorageFull));
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            return Ok(());
+        }
+    }
+    let (receiving, target) = receiver("also-plain-full");
+    let mut sink: Sink = Sink::choose(None, None, &target);
+    sink.native = Sink::open();
+    sink.also_plain = true;
+    assert_eq!(sink.deliver(Priority::Info, "started", &[], "service started\n", &mut Full), Delivery::Native);
+    let mut buffer: [u8; 4096] = [0; 4096];
+    assert!(receiving.recv(&mut buffer).is_ok(), "the entry went to the journal");
+}

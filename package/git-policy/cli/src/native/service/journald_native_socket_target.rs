@@ -43,6 +43,24 @@ impl Target {
         };
     }
 
+    /// What:
+    ///  Whether something is there to receive an entry at this address.
+    /// Why:
+    ///   A service the wrapper starts has its output in its own file, not on the journal's stream,
+    /// so the journal is asked for by this look at its socket rather than by the environment.
+    /// An abstract name has no file to look at, and a test that names one knows it bound it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// target.exists() // Path -> existsSync(path), Abstract -> true
+    /// ```
+    pub fn exists(&self) -> bool {
+        return match self {
+            Self::Path(path) => std::path::Path::new(path).exists(),
+            Self::Abstract(_name) => true,
+        };
+    }
+
     /// The socket address,
     /// or nothing when the name does not fit one.
     pub fn address(&self) -> Option<SocketAddr> {

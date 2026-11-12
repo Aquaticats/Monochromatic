@@ -23,8 +23,8 @@ Every earlier name keeps working in this release:
 - The command word.
   `git cli-git <command>` is answered like `git monochromatic-git-policy-cli <command>`,
    with one line on standard error before the output that names the new spelling.
-  A unit file that an older program wrote starts the commit service with the earlier word,
-  and the service answers it.
+  A service started from an older release announces that release,
+  and the wrapper asks it to retire and starts this release's own.
 - The settings file.
   `monochromatic-git-policy-cli.config.jsonc` is read when it exists.
   A repository that has only `cli-git.config.jsonc` is read from it,
@@ -134,9 +134,11 @@ Read-only commands,
    and an assume-unchanged or skip-worktree entry sends the build to the preparation base instead
    (`SPEC.md`,
   "Explicit-path commit").
-  The service is started by the operating system on the first commit (socket activation);
-   the wrapper never starts it,
-   and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
+  The wrapper starts the commit service itself on the first commit
+   (`src/native/service/service_server_start_by_the_wrapper.rs`);
+   no service manager takes part,
+   and a commit on a machine with no service manager, no session bus and no unit lands.
+   A service that cannot be made to exist fails the commit within a bound and names the file its output went to.
   When another commit lands first,
    the wrapper prepares its own commit again on top of the new state.
   The commit that concludes a merge,
@@ -1428,8 +1430,7 @@ If every `git` after the wrapper on `PATH` leads back to monochromatic-git-polic
 or the real Git's
 directory is missing),
 it falls back to the real Git that its commit service was set up with,
-when the unit file of
-the service (`monochromatic-git-policy-cli@.service` below `$XDG_RUNTIME_DIR/systemd/user`) names one in its `--git` option and that file
+when the note beside the sockets (`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/real-git`) names one and that file
 is an executable that does not lead back to monochromatic-git-policy-cli.
 It then runs your command through that Git and writes one line on standard error that says so and which directory to
 add to `PATH` to silence it.
@@ -1590,12 +1591,12 @@ so units of a worktree that was removed would run on.
 When the wrapper serves `git worktree remove <path>` (the subvolume destroy,
 or Git's own removal run as a child),
 it reads the worktree's registration first,
-and once the removal ended well and the registration is gone it stops that worktree's socket unit and then its service
-unit through the user manager,
+and once the removal ended well and the registration is gone it asks that worktree's service to retire over its own
+address and then removes the files it left once its note proves its process gone,
 never by killing a process by name.
-A removal Git refused leaves the units alone,
-a worktree that never committed costs the removal no question to the manager,
-and a manager that cannot be reached is logged and never fails the removal.
+A removal Git refused leaves the files alone,
+a worktree that never committed costs the removal nothing,
+and a service that does not answer is logged and never fails the removal.
 Two forms are not seen afterwards because the process becomes Git
 (`git worktree prune`,
 and a `git worktree remove --force` the wrapper does not serve because the worktree is no subvolume
@@ -1610,10 +1611,9 @@ and the next wrapped command in the repository removes it (see "State on disk").
 `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those:
 it takes no options and looks at every unit instance of the user,
 not at one repository.
-Each commit service setup writes the worktree's Git directory into the folder it writes its unit files to
-(`$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/<hash>.git-dir`),
-which the manager reads as no unit,
-and which goes away with the units at logout or shutdown;
+Each commit service setup writes the worktree's Git directory beside the sockets
+(`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/<hash>.git-dir`),
+which goes away with the sockets at logout or shutdown;
 for a unit set up before that,
 the `gitdir=` line of a record in the service's journal names the worktree.
 Either text counts only when it hashes to the instance.
@@ -3695,8 +3695,8 @@ none is waited out or retried on the moved head yet:
   a container or a script with one of its own):
   run the commit from your login session,
   or set `XDG_RUNTIME_DIR` to the manager's.
-  An account without user services is still told `loginctl enable-linger`,
-  which is also what a session bus with no user manager behind it says.
+  An account without user services needs nothing turned on:
+  the wrapper starts the service itself.
   The commit service remains the only writer of a commit,
   so a command that cannot reach it changes nothing and stops.
 - The service does not answer within `ANSWER_CEILING` (20 minutes,
@@ -6596,7 +6596,10 @@ each with its sidecar test file.
   server,
   client,
   journal,
-  provisioning and the unit files in `service/service_units/`.
+  the start the wrapper makes itself (`service_server_start_by_the_wrapper.rs`,
+  `service_server_start_spawns_a_detached_process.rs`),
+  the note that names the running process,
+  and the log file beside the address.
 - `push/`,
   `lfs/`,
   `merge/`,
@@ -6805,10 +6808,9 @@ and the client that saw the stop is told only that the service stopped before it
 above the service's last-resort alarm,
 so the host's default stop timeout never decides
 (`DefaultTimeoutStopSec=` in a user's manager configuration can set it shorter than the bounds).
-A service whose unit was written before this setting has the old kill mode until the next commit's provisioning rewrites the
-template and asks the manager to reload its unit files;
-a reload makes the manager read the new settings for the stops that follow,
-and a service that runs meanwhile is not restarted.
+A service that was started before this release has the old kill mode until it exits;
+nothing rewrites a unit file any more,
+and the next start is this release's own.
 Commits queue in arrival order,
 a batch of whatever is queued lands with one
 durable write,
@@ -6826,57 +6828,41 @@ then:
 It is started by the first command that needs it,
 and exits after three idle hours,
 like Bazel's server.
-The units are runtime units with no `[Install]` section (no `WantedBy=`,
-`RequiredBy=` or `Also=`),
-so `systemctl --user enable`
-has nothing to link;
-provisioning links nothing,
-writes only below `$XDG_RUNTIME_DIR/systemd/user` (the one other thing it does
-there is remove files an earlier release put in `~/.config/systemd/user`),
-and asks the manager only to reload,
-reset a failed
-unit,
-start,
-stop and report a state.
-Guard tests keep it so:
-`src/native/source_guard/no_start_at_login_tests.rs` and
-`src/native/service/service_provision_never_starts_at_login_tests.rs`.
+Nothing of the wrapper writes a unit file,
+links one, or asks a service manager for anything,
+so nothing can start it at login:
+`src/native/source_guard/no_start_at_login_tests.rs` keeps it so.
 
-- The first commit that needs the service sets up its socket activation itself,
-  and every later one checks it is still
-  right:
-  it compares the two installed units with what this release would write and,
-  only when they differ (an upgrade or
-  a downgrade moved the executable the units name),
-  rewrites them,
-  reloads the manager,
-  clears failed state and starts the socket.
-  When they match it opens no connection to the bus.
-  Setting up writes two unit files into
-  `$XDG_RUNTIME_DIR/systemd/user` (nothing is left in the home directory;
-  the next first use after a login does it again)
-  and asks the user's service manager,
-  through the session bus,
-  to start the socket.
-  The manager starts the service when
-  the first connection arrives.
-  Units that an earlier release wrote into `~/.config/systemd/user` are recognized by their
-  content and removed;
-  a file of the same name that something else wrote is never touched,
-  and the commit stops and names it.
-- The single service of the releases before one service per worktree is stopped before the first instance starts,
-  wherever
-  its unit files are (including `~/.config/systemd/user`);
-  the commit waits for it to be inactive,
-  and fails naming it when
-  it will not stop.
+- The first commit that needs the service starts it itself,
+  and every later one finds it at the same address:
+  the wrapper takes one exclusive starter marker for the worktree,
+  starts its own executable in its service mode with the address,
+  the journal folder,
+  the real Git and the instance,
+  and waits for the greeting.
+  A marker whose owner is gone is taken over,
+  so a command killed between the marker and the greeting costs the next one a retry and never a stuck start.
+  The server leaves the command's session and process group,
+  writes its output to one file per worktree,
+  and removes its address and its note when it ends.
+  No unit file is written,
+  no instance is asked for,
+  and no reload is asked for.
+- The single service of the releases before one service per worktree is asked to retire over its own address once it
+  answers with its release;
+  the commit waits for it to leave for `START_WAIT`,
+  and fails naming it when it will not stop.
   Limit:
-  going back to one of those releases starts its single service beside the per-worktree instances
-  until their idle hours pass;
-  stop `monochromatic-git-policy-cli@*.service` and `monochromatic-git-policy-cli@*.socket` with `systemctl --user stop` before committing
-  with the older release (`doc/planning/cli-git-resident-service.md`,
-  "Limit:
-  a downgrade").
+  going back to one of those releases may leave its units running beside the per-worktree servers until their idle hours
+  pass;
+  nothing of this release stops them,
+  and nothing reads their files.
+- What an earlier release left in `$XDG_RUNTIME_DIR/systemd/user` or `~/.config/systemd/user` is harmless:
+  nothing reads it,
+  and the first command rewrites the record of the real Git beside the sockets.
+  A unit file the wrapper no longer uses is left where it lies,
+  and a running instance of an older release is asked to retire like any other service of another release,
+  never by asking a manager for a reload.
 - A failed backup push of a linked worktree,
   and a push the service had not run yet,
   survive `git worktree remove` and
@@ -6901,10 +6887,9 @@ Guard tests keep it so:
   the next commit starts it
   again.
   A service started from another release of the wrapper is asked to finish its batch and exit,
-  and the next commit
-  reaches the current one;
+  and the next commit starts the current one at the address it left;
   if it does not exit,
-  the commit says so and names `systemctl --user restart cli-git.service`.
+  the commit says so and can be run again.
 - `git monochromatic-git-policy-cli service status` says whether the service answers;
   it is a diagnostic only.
 - When the service cannot be set up (no session bus,
@@ -7294,12 +7279,14 @@ a line a settlement writes from the locks alone says only that the move of the b
 because it read nothing else
 (see "A commit held behind a reference lock").
 
-`systemctl --user list-units --all 'monochromatic-git-policy-cli@*.service'` lists the instances that exist.
-Read the unit around the commit's `startMillis`:
+`ls \"$XDG_RUNTIME_DIR/monochromatic-git-policy-cli\"` lists the addresses, notes and logs of the services that exist.
+Read the journal around the commit's `startMillis`, and the log file beside the address:
 
 ```sh
-# sh: the service's lines for one worktree on 2026-11-01 between 22:52 and 22:54
-journalctl --user --unit="monochromatic-git-policy-cli@<instance>.service" --since="2026-11-01 22:52:00" --until="2026-11-01 22:54:00"
+# sh: one worktree's service lines on 2026-11-01 between 22:52 and 22:54
+journalctl --user --identifier=monochromatic-git-policy-cli-service --since \"2026-11-01 22:52:00\" --until=\"2026-11-01 22:54:00\" CLI_GIT_INSTANCE=<instance>
+# sh: the same lines in the file the wrapper started the service with
+less \"$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/<instance>.log\"
 ```
 
 Or find the service's entry for one commit by the `requestId` of its timing line:
@@ -7308,11 +7295,13 @@ Or find the service's entry for one commit by the `requestId` of its timing line
 # sh: the service's entry for one request, with its fields
 journalctl --user --output=json-pretty CLI_GIT_REQUEST_ID=30cbb78e-677f-41ff-b059-87d9f49d3409
 # sh: only what failed or did not go as intended
-journalctl --user --unit="monochromatic-git-policy-cli@<instance>.service" --priority=warning
+journalctl --user --identifier=monochromatic-git-policy-cli-service --priority=warning CLI_GIT_INSTANCE=<instance>
 ```
 
-The service sends each line to the journal's native socket when its standard error is the journal
-(the service manager's `JOURNAL_STREAM` names the very stream the process has as standard error).
+The service sends each line to the journal's native socket whenever that socket exists,
+and writes the same line to the file the wrapper started it with;
+a line the journal takes is never written to the file twice,
+and a journal that is full or restarting costs no line of the file.
 The journal then dates the line by the moment it was sent,
 not by the moment it got round to reading it,
 which on a loaded machine could be seconds later and out of order with the manager's own lines.

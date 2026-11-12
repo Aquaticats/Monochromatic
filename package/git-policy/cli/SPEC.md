@@ -6327,15 +6327,17 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   the client's wait for the answer to its withdrawal (five times the longest observed
   landing).
 - `START_CEILING` 60 seconds:
-  a start the service manager reports as under way (58 times the slowest observed start,
+  a command's whole wait for its worktree's service,
+  starts included,
+  after which it names the state it found (58 times the slowest observed start,
   1.04 s).
 - `SERVICE_GREETING_SILENCE` 3 seconds:
-  how long a commit lets a unit the service manager reports `active` stay silent before it asks the manager to
-  restart it.
+  how long a commit lets a service that greeted once stay silent before it treats the service as stopped and starts
+  a fresh one.
   A service greets a connection before it restores anything
   (`service_server_greets_before_the_journal_is_restored_tests.rs`),
-  so a running unit that greets nothing is one whose program stopped inside its own process,
-  and a start of a unit the manager believes runs brings nothing back.
+  so a service that greeted and then says nothing is one whose program stopped inside its own process,
+  and nothing but a new process brings it back.
   Nearly three times the slowest of the 52 measured cold starts (1.04 s),
   and under the owner's 5,000 ms bound on what a commit may add to native Git.
 - `HAND_OVER_GREETING_WAIT` 2 seconds:
@@ -6919,90 +6921,46 @@ on the commit path:
   the reading `src/native/landing/landing_location.rs` and `health/doctor.rs` both make.
   The in-process reader answers first,
   so a command in a plain checkout starts no query for it.
-- A service that is still starting at `START_CEILING` ends the command with "The commit service did not start" and the
-  journal
-  command.
-  A unit the manager reports `inactive` is asked to start at the first such answer,
-  again after each further `START_WAIT`,
-  because a stopped unit keeps its socket file and provisioning counts that as in place;
-  asking only
-  after `START_WAIT` made that commit ten seconds slower than native Git.
-  A unit the manager reports `failed` is asked to have
-  that state forgotten,
-  for both of the worktree's units,
-  and then to start,
-  once;
-  a second `failed` answer still ends the wait,
-  so a unit that cannot start fails the commit in seconds.
-  A unit the manager reports `active` whose service has greeted nothing for `SERVICE_GREETING_SILENCE` is asked to
-  restart,
-  once,
-  and the wait goes on:
-  a service greets a connection before it restores anything,
-  so a running unit that greets nothing is one whose program stopped inside its own process
-  (a frozen control group,
-  a debugger,
-  a suspended machine,
-  a wait in the kernel that nothing ends),
-  and no start of a unit the manager believes runs brings it back.
-  The service survives being ended by design
-  (its journal,
-  its held commits and its work records are durable),
-  so the commit gets its answer instead of failing
-  (`src/native/service/systemd_dbus.rs`,
-  `RestartUnit`).
-- A wait for the service that lasts longer than `START_NOTICE_GRACE` says once on standard error what it waits for,
-  on whom,
-  and what ends it:
-  the address the service is asked at,
-  and the state the service manager reports about the worktree's unit
-  (`starting_notice` in `src/native/landing/service_messages_of_a_wait_for_the_service.rs`,
-  which the failure file reads).
-  A wait that says nothing is a wait a person cannot tell from a hang,
-  and the state the manager reports is what tells a service that is starting from one that stopped inside its own
-  process.
-  Where no manager can be asked,
-  one connection attempt waits no longer than that same grace,
-  and never past what is left of the start wait
-  (`greeting_patience_without_a_manager` in `src/native/service/service_client_reach_service.rs`):
-  an attempt that lasted the whole start wait spent the entire wait inside one read of the socket,
-  so the line could only be said at the bound that ended it,
-  which is the ten seconds of silence the audit measured.
-- Where no manager can be asked and something took the connection but nothing answered,
-  the wait ends at `START_WAIT` with a message that says what the wait proved:
-  the address,
-  how long it waited,
-  and that a service stopped inside its own process looks like that
-  (`ClientFailure::NothingAnswered`).
-  "The commit service did not start" is said only where nothing listened at all,
+- A service that cannot be made to exist ends the command within a bound and names what it found.
+  The wrapper starts the service itself
+  (`service_server_start_by_the_wrapper.rs`),
+  so there is no unit whose state a manager could report and nothing to reset, restart or reload.
+  Three states end that wait:
+  one start this command made that sent no greeting within `START_WAIT` (ten seconds),
+  which fails the commit with the file the service's output went to,
+  and never waits again in the same command;
+  nothing at all at the address by `START_CEILING`, which is "The commit service did not start";
+  and something that took the connection but answered nothing by `START_CEILING`, which is
+  `ClientFailure::NothingAnswered` with the address and the time waited,
   because the two states have different next steps.
-  What provisioning already knows before that wait ends it at once instead,
+  A service that greeted and then went silent for `SERVICE_GREETING_SILENCE` is the service that stopped:
+  the command starts a fresh one and sends its request again,
+  which the journal's record of the request makes safe to repeat.
+- A wait for the service that lasts longer than `START_NOTICE_GRACE` says once on standard error what it waits for,
+  at which address,
+  and that this command starts it when it is not running
+  (`starting_notice` in `src/native/landing/service_messages_of_a_wait_for_the_service.rs`).
+  A wait that says nothing is a wait a person cannot tell from a hang,
+  and one connection attempt waits no longer than that same grace,
+  and never past what is left of the start wait
+  (`greeting_patience` in `src/native/service/service_client_reach_service.rs`):
+  an attempt that lasted the whole start wait spent the entire wait inside one read of the address,
+  so the start could only happen at the bound that ended it.
+- What a command already knows before that wait ends it at once instead,
   and the message names the cause and every way to change it
-  (`src/native/service/service_provision_refusals_before_the_wait.rs`):
+  (`refuse_a_path_no_socket_address_can_carry` in `src/native/service/service_instance.rs`
+  and `service_commit_starts_the_server.rs`):
   an address longer than one socket address can hold
   (the runtime directory,
   the folder of the sockets,
   the instance and `.sock` take at most 107 bytes,
   so the runtime directory may take 40),
-  which is counted on the spelling the commit's own connect uses and is asked before the fast path reads a thing,
-  and a service the manager made listen at another address than the one this command waits at,
-  which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
-  because the unit names its address with `%t` and `%t` is the manager's runtime directory.
-  A socket unit the manager already holds at another address is asked about before this command starts anything,
-  so a runtime directory of its own leaves no unit listening for a worktree it never looks at.
-  Two spellings of one folder are one address there:
-  a link,
-  a `..` part,
-  and a link already on the way,
-  which this account has in `/var/run` reaching `/run`,
-  all reach the one socket,
-  so the file system decides that question and never the two texts.
-  The manager's answer about the address it made is the fact that decides the second;
-  an answer that cannot be read proves nothing and leaves the wait as it was,
-  so a manager of another release never fails a commit that would have landed.
-  A session bus that carries no user service manager answers with the remedy for an account without user services,
-  not with the bus's own words,
-  and a runtime directory that cannot be written loses the operating system's error number and gains that remedy.
+  which is counted on the spelling the commit's own connect uses and is asked before anything is created;
+  and a runtime directory this account cannot write,
+  which is where the address, the output and the notes live.
+  There is no longer a state a service manager could create and a command could not reach:
+  the manager takes no part in an address,
+  a start or a wait.
   None of this is a second way to commit:
   the service is the only writer,
   so a command that cannot reach it changes nothing and stops.
@@ -7400,64 +7358,30 @@ and
   a service in the middle of a write is never stopped by the wrapper,
   and the command that waited ends
   with "The commit service that is running was started from another release of this git wrapper and did not stop when ..." and can be run again.
-  The single service of the releases before one service per
-  worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it,
-  because the manager's
-  stop ends the whole unit and with it a Git step that cannot run twice;
-  one that is still there fails the commit with the stop
-  named for the person to run when no commit is running.
+  A service of an earlier release that is still there when the deadline passes leaves the command with
+  `ClientFailure::OtherRelease` and can be run again.
   The owner chose this on 2026-11-04 ("A:
   fail,
   retry (Recommended)").
   A git that is older than the service that answers it,
   which is what a rollback to an earlier release leaves running,
   cannot ask it to retire at all,
-  and that message names both ways out:
+  and that message names the way out:
   update this git,
-  or install the release it belongs to and stop the newer service with `STOP_COMMAND`
-  (`systemctl --user stop 'monochromatic-git-policy-cli@*.service'`),
-  because a restart starts the program the manager's unit still names.
+  or let the service end by itself (it exits after three hours without work) and run the command again,
+  because the next command starts the release it belongs to.
+- Nothing asks a service manager for a reload or for anything else,
+  so a kill between two of the steps that used to surround one is repaired by the next command
+  without any record of what a manager was told:
+  the address a start binds,
+  the note a service writes when it listens,
+  and the greeting's release are the whole of what a command compares.
+  A unit file left where an earlier release wrote it is harmless:
+  nothing reads it,
+  and the first command rewrites the record of the real Git beside the sockets.
   Test:
-  `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`,
-  and `an_older_git_is_told_how_to_get_a_service_it_can_work_with`.
-- Provisioning asks the manager for the reload its own writes need,
-  and a kill between writing a template and that reload is repaired
-  by the next commit:
-  the record of the unit texts the manager was told about
-  (`service_provision_loaded_unit_texts.rs`,
-  in the notes folder of the runtime unit directory)
-  is written only after the manager accepted the reload,
-  so a commit that finds the files matching and the record older
-  provisions again and asks for the reload,
-  and the commits after it find the record and take the fast path.
-  Without it the killed upgrade's files look like an installation the manager runs,
-  every later commit reaches the service of the release that was replaced,
-  and ends with "The commit service that is running was started from another release of this git wrapper ...",
-  however often it is run.
-  Test:
-  `an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit`.
-  The record alone cannot tell a state the manager disagrees with:
-  an interrupted downgrade writes and reloads the
-    older release and is killed before it records that,
-  and an interrupted upgrade then writes the newer files without a reload,
-  which leaves the files and the record agreeing while the manager runs the release they replaced.
-  The client knows:
-  another release answering at all is proof that the unit the manager loaded and the files on disk
-  disagree,
-  so `reach_current` drops the record
-  (`units_record_dir` in the client's settings) the moment it first sees that answer,
-  not at the retirement deadline:
-  a service that takes the retire and leaves can be followed by a manager trying a cached executable
-  an upgrade removed,
-  which ends the wait with `DidNotStart` and never reaches the deadline
-  (finding 3 of the round-3 review).
-  The next commit then writes the units and asks for the reload.
-  The message says so,
-  and names the restart for a service that still will not stop.
-  Tests:
-  `a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units`,
-  and
-  `a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_the_record`.
+  `a_service_of_another_release_is_replaced_by_a_commit`,
+  and `the_next_command_finds_the_service_the_first_one_started`.
 
 
 #### Commands that add commits
@@ -9533,19 +9457,19 @@ and
 The deliberation is in `doc/planning/cli-git-no-self-invocation.md`,
 section "Falling back to the Git the commit service was set up with".
 
-- The record is the `--git` option on the `ExecStart` line of the unit `monochromatic-git-policy-cli@.service` that the wrapper writes below
-  `$XDG_RUNTIME_DIR/systemd/user` (`service_provision.rs`) when it sets up the commit service.
+- The record is the note `real-git` in the socket folder below an absolute
+  `$XDG_RUNTIME_DIR` (`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/real-git`),
+  which the wrapper writes when it starts a server and which holds the one absolute path the service runs
+  (`real_git_record.rs`).
   It is read only when
   `PATH` offers no real Git,
   only from an absolute `XDG_RUNTIME_DIR`,
   as text up to 64 KiB,
-  with no process started
-  (`real_git_record.rs`).
+  with no process started.
   No other file is read and no location is guessed:
-  with no unit,
-  no `--git` word,
-  a relative
-  path,
+  with no note,
+  a relative path,
+  a line that is not text,
   or an unset runtime directory,
   there is no record and the stop stays.
 - The recorded path passes the checks of a `PATH` candidate (`classify_candidate`):
@@ -9558,8 +9482,7 @@ section "Falling back to the Git the commit service was set up with".
   script that starts the TypeScript wrapper.
   Another release of the wrapper passes the check and is stopped on arrival
   by the marker.
-  A refusal keeps the stop and adds one line naming the record,
-  the unit and the verdict.
+  A refusal keeps the stop and adds one line naming the record and the verdict.
 - The notice is one line on standard error,
   ahead of anything else the invocation writes,
   once per planned invocation
@@ -10859,16 +10782,17 @@ The behavior is on in every repository the wrapper runs in;
 no configuration key or environment variable opts out of it.
 
 Every non-dry-run commit command line is landed by the resident commit service of the worktree:
-one instance of the systemd template units `monochromatic-git-policy-cli@.socket` and `monochromatic-git-policy-cli@.service` per worktree,
-started by the operating system on the first connection (socket activation).
-The wrapper never starts the service itself,
-and it has no other way to land a commit.
-The service unit sets no resource limits of its own
-(no `MemoryMax`,
-`CPUQuota`,
-`TasksMax` or `IOWeight`),
-so the service and the Git processes it starts get systemd's defaults,
-the same resources plain Git gets.
+one server per worktree,
+at `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/<instance>.sock`,
+started by the wrapper itself on the first command that needs it
+(`service_server_start_by_the_wrapper.rs`).
+No service manager takes part:
+the server leaves the command's session and process group,
+writes the note that names its process,
+appends its output to one capped file per worktree,
+and ends by itself after three hours without work.
+The wrapper sets no resource limits of its own either,
+so the service and the Git processes it starts get the same resources plain Git gets.
 The limits it once carried had no measurement behind them,
 and the 1 GiB memory cap made the service's Git read the same pack and index pages from disk again
 (on the main checkout 274,736 cap hits and 16,125,924 major page faults by 2026-11-03T08:40:51-05:00).
@@ -11665,20 +11589,23 @@ Three things enforce that:
     and the work thread (push and upkeep) never touches an index.
     The calls are sequential on that one thread.
 2.  Across processes of one worktree,
-    the worktree has one systemd unit,
-    `monochromatic-git-policy-cli@<instance>.service`,
-    whose socket does not accept per connection.
-    The manager runs at most one main process of that unit and starts it again only after the earlier one is gone.
+    the worktree has one server,
+    and its address is the ownership:
+    only one bind of a path succeeds,
+    and a second server that finds the path taken exits.
+    A command that finds no server starts one under `<instance>.starting`,
+    an exclusive file whose owner is named by process birth identity,
+    so two commands starting at once end with one server and a killed starter's file is taken over.
     An upgrade sends the old release a retire,
-    which it handles between batches,
-    and the next connection starts the new release under the same unit name only after the old one exited.
+    which it handles between batches and before it exits,
+    and the next connection starts the new release at the freed address.
     The result is a kill and a restart (a dead holder,
     which the marker handles) and never a live overlap.
-3.  The single service of the releases before one service per worktree is asked to retire,
-    stopped,
-    and waited for until inactive,
-    before the first instance starts (`retire_earlier_service`,
-    `service_provision.rs`).
+3.  Nothing is done before the first instance starts about the single service of the releases before one service per
+    worktree:
+    it answers with its own release,
+    is asked to retire over the same address,
+    and its units are left where they lie because nothing reads them.
 
 The commit route of the wrapper that took a marked lock of its own (transactions) was deleted with task 4d part 2,
 and no other code writes the marker.

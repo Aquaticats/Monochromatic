@@ -39,28 +39,6 @@
 
 use std::path::{Path, PathBuf};
 
-/// The members of the user manager (and of the bus daemon) the wrapper may call:
-/// say hello,
-/// reload,
-/// reset a failed unit,
-/// start,
-/// restart a unit the manager already holds,
-///  stop,
-/// and read a unit's state.
-/// Nothing that enables,
-/// links,
-/// presets,
-/// masks or changes the default target is on it.
-/// A restart neither writes a `[Install]` line nor links a unit into a `*.wants` folder:
-/// it is the manager's own stop and start of a unit this wrapper asked for,
-/// so a command that needs the answer of a service whose program stopped inside its own process gets one
-/// (`systemd_dbus.rs`,
-/// `restart_unit`;
-/// `SPEC.md`,
-/// the wait for the commit service),
-/// and it starts nothing at startup or at login.
-const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "StartUnit", "RestartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
-
 /// Texts that no release code line may carry:
 /// the manager's calls that make a unit start at startup or login,
 /// and the program
@@ -78,11 +56,6 @@ const FORBIDDEN_IN_CODE: &[&str] = &[
     "[Install]",
 ];
 
-/// The justified exceptions:
-/// a file,
-/// and the text it may carry.
-/// The removal of the link an earlier release made.
-const ALLOWED_CODE: &[(&str, &str)] = &[("service/service_provision_earlier_service_retirement.rs", "sockets.target.wants")];
 
 /// The lines of a unit's text that would make it start at startup or at login (`systemd.unit(5)`,
 /// "[Install] Section Options"):
@@ -154,19 +127,6 @@ fn code_lines(text: &str) -> Vec<(usize, &str)> {
         .collect();
 }
 
-/// The unit files the wrapper writes carry no line that makes a unit start at startup or at login:
-/// the source of the templates.
-#[test]
-fn the_unit_templates_have_no_install_section() {
-    let root: PathBuf = native_root().join("service").join("service_units");
-    let templates: Vec<String> = files_below(root.as_path(), &["socket", "service"]);
-    assert!(templates.len() >= 2, "the socket and the service template are found: {templates:?}");
-    for name in templates {
-        let text: String = std::fs::read_to_string(root.join(name.as_str())).expect("a template");
-        assert_eq!(lines_that_start_at_login(text.as_str()), Vec::<String>::new(), "{name}");
-    }
-}
-
 /// The detector finds each forbidden line in a unit text,
 /// so the guards above and in the provisioning controls cannot pass for
 ///  want of looking.
@@ -179,16 +139,18 @@ fn the_detector_finds_every_install_line_and_skips_comments() {
     assert!(lines_that_start_at_login("[Unit]\n# WantedBy=default.target is not written\n; [Install]\n[Socket]\nListenStream=%t/x.sock\n").is_empty());
 }
 
-/// No release code line enables,
-/// links,
-/// presets,
-/// masks or defaults anything with the manager,
-/// starts `systemctl`,
-/// or writes an
-///  install line;
-/// the one text from the list that stays is the removal of the link an earlier release made.
+/// What:
+///  No release code writes a unit file,
+///  links one,
+///  starts `systemctl`,
+///  or writes an install line.
+/// Why:
+///   Nothing of the wrapper starts at startup or at login,
+/// and this release writes no unit at all:
+/// the wrapper starts its own server
+/// (`doc/planning/cli-git-commit-service-without-a-service-manager.md`).
 #[test]
-fn no_release_code_makes_a_unit_start_at_startup_or_login() {
+fn no_release_code_writes_a_unit_or_starts_a_service_manager() {
     let root: PathBuf = native_root();
     let mut found: Vec<String> = Vec::new();
     for relative in files_below(root.as_path(), &["rs"]) {
@@ -202,23 +164,23 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
                     found.push(format!("{relative}:{number}: {forbidden}"));
                 }
             }
-            let wants: bool = line.contains(".wants") || line.contains(".requires");
-            let excused: bool = ALLOWED_CODE.iter().any(|(file, allowed_text)| { return *file == relative && line.contains(allowed_text); });
-            if wants && !excused {
-                found.push(format!("{relative}:{number}: a wants or requires folder"));
+            if line.contains(".wants") || line.contains(".requires") || line.contains("systemd/user") {
+                found.push(format!("{relative}:{number}: a unit path"));
             }
         }
     }
     assert_eq!(found, Vec::<String>::new());
-    let provision: String = std::fs::read_to_string(root.join("service").join("service_provision_earlier_service_retirement.rs")).expect("retirement of the earlier service");
-    assert!(provision.contains("sockets.target.wants"), "the exception is still needed; remove it from the list when the code goes");
+    assert!(!root.join("service").join("service_units").exists(), "the unit templates are gone with the units");
 }
 
-/// The wrapper's client of the manager calls only the members on the list:
-/// every `member: "..."` of a target in the release
-///  sources is on it.
+/// What:
+///  No release code names a member of the user manager's interface at all.
+/// Why:
+///  This release asks a service manager for nothing:
+/// the wrapper starts, finds, replaces and stops its own server,
+/// so a call that came back would be a design regression and not a documented exception.
 #[test]
-fn the_manager_is_called_only_with_the_members_on_the_list() {
+fn no_release_code_names_a_manager_member() {
     let root: PathBuf = native_root();
     let mut called: Vec<String> = Vec::new();
     for relative in files_below(root.as_path(), &["rs"]) {
@@ -226,14 +188,11 @@ fn the_manager_is_called_only_with_the_members_on_the_list() {
             continue;
         }
         let text: String = std::fs::read_to_string(root.join(relative.as_str())).expect("a source file");
-        for (_, line) in code_lines(text.as_str()) {
-            let Some(at) = line.find("member: \"") else { continue };
-            let rest: &str = &line[at + "member: \"".len()..];
-            let name: &str = rest.split('"').next().unwrap_or("");
-            called.push(name.to_string());
+        for (number, line) in code_lines(text.as_str()) {
+            if line.contains("org.freedesktop.systemd1") || line.contains("StartUnit") || line.contains("ResetFailedUnit") || line.contains("ActiveState") {
+                called.push(format!("{relative}:{number}"));
+            }
         }
     }
-    assert!(called.len() >= ALLOWED_MEMBERS.len() - 1, "the client's targets are found: {called:?}");
-    let outside: Vec<&String> = called.iter().filter(|name| { return !ALLOWED_MEMBERS.contains(&name.as_str()); }).collect();
-    assert!(outside.is_empty(), "members outside the list: {outside:?}");
+    assert!(called.is_empty(), "no release code names a manager member: {called:?}");
 }
