@@ -67,12 +67,12 @@ verified with `systemctl --user show plasma-kwin_wayland.service`.
 
 The exact systemd `v262.1` source was cloned from `systemd/systemd` with `gh repo clone`.
 The tag resolved to commit `73612ea502d53baf9b0df4336cfc296a7ee0d524`.
-`src/core/unit.c:3574` defines `signal_name_owner_changed_install_handler`.
+`src/core/unit.c:3576` defines `signal_name_owner_changed_install_handler`.
 After emitting the diagnostic observed on the host,
 the error branch discards the pending name lookup and reports a missing owner as a definitive signal:
 
 ```c
-// systemd v262.1, src/core/unit.c:3592.
+// systemd v262.1, src/core/unit.c:3593.
 u->match_bus_slot = sd_bus_slot_unref(u->match_bus_slot);
 u->get_name_owner_slot = sd_bus_slot_unref(u->get_name_owner_slot);
 
@@ -257,6 +257,67 @@ which was resumed in the harness's cleanup.
   The survival assertion failed with `ERR_ASSERTION`,
   actual `inactive`,
   expected `active`.
+
+The verified driver is retained here so the probe does not depend on scratch storage.
+It requires the disposable container named `plasma-reload-timeout-20261112`,
+with the fixture service already started and its bus policy installed.
+Run the control without arguments;
+restart the fixture service before running the failing case with `--reload-during-pause`.
+
+```ts
+// ${HOME}/temp/agent/plasma-reload-probe-2026-11-12/reproduce-timeout.ts
+import { execFileSync } from 'node:child_process';
+import { setTimeout } from 'node:timers/promises';
+import { strict as assert } from 'node:assert';
+
+const container = 'plasma-reload-timeout-20261112';
+const commandCeilingMilliseconds = 60000;
+const reloadDuringPause = process.argv.includes('--reload-during-pause');
+
+function inside(args: string[]): string {
+  return execFileSync('podman', ['exec', container, ...args], {
+    encoding: 'utf8',
+    timeout: commandCeilingMilliseconds,
+  }).trim();
+}
+
+function states(): string {
+  return inside(['systemctl', 'show', 'desktop-probe.service', 'desktop-probe.target',
+    '--property=Id,ActiveState,MainPID,Result']);
+}
+
+const baseline = states();
+console.log('Baseline after ordinary reload:\n' + baseline);
+assert.equal(inside(['systemctl', 'show', 'desktop-probe.service', '--property=ActiveState', '--value']), 'active');
+const brokerPid = Number(inside(['systemctl', 'show', 'dbus.service', '--property=MainPID', '--value']));
+assert(Number.isSafeInteger(brokerPid) && brokerPid > 1, 'Expected a container-local broker PID');
+const configuredTimeout = inside(['systemctl', 'show', 'desktop-probe.service', '--property=TimeoutStartUSec', '--value']);
+assert.match(configuredTimeout, /^\d+s$/);
+const configuredTimeoutMilliseconds = Number(configuredTimeout.slice(0, -1)) * 1000;
+
+let actualState;
+try {
+  inside(['/usr/bin/kill', '--signal', 'STOP', String(brokerPid)]);
+  if (reloadDuringPause) inside(['systemctl', 'daemon-reload']);
+  await setTimeout(configuredTimeoutMilliseconds * 2);
+  console.log('After broker response deadline during reload:\n' + states());
+  console.log(inside(['journalctl', '--unit=desktop-probe.service', '--unit=desktop-probe.target',
+    '--no-pager', '--output=short-iso']));
+  actualState = inside(['systemctl', 'show', 'desktop-probe.service', '--property=ActiveState', '--value']);
+} finally {
+  inside(['/usr/bin/kill', '--signal', 'CONT', String(brokerPid)]);
+}
+assert.equal(actualState, 'active',
+  'An unrelated service should survive a reload whose bus subscription could not be confirmed');
+```
+
+The actual invocations were:
+
+```sh
+# Host driver; every service operation is confined to the named disposable container.
+node "${HOME}/temp/agent/plasma-reload-probe-2026-11-12/reproduce-timeout.ts"
+node "${HOME}/temp/agent/plasma-reload-probe-2026-11-12/reproduce-timeout.ts" --reload-during-pause
+```
 
 The failing run emitted:
 
