@@ -297,6 +297,64 @@ move its durable facts to their canonical doc and delete it from this page.
   A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
   (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
 
+#### The five-second rule is changed; the hourly pass after 14:00 (2026-11-12T14:03:46-05:00)
+
+##### The five-second rule is changed
+
+- The owner, typed at about 14:04: "Change the 5s rule to max(5s, double what native git takes)".
+- Asked which bound that is, with an example of real Git taking 30 s. The owner: "Extra over real Git".
+- So the rule "commits vs native git should not take 5s longer." now reads:
+  what the wrapper adds on top of real Git's own time for the same commit is at most the larger of five seconds and twice real Git's time.
+  With `n` real Git's time: wrapper time minus `n` is at most max(5 s, 2 × `n`).
+- Every measurement therefore carries real Git's time for the same commit under the same conditions beside the wrapper's.
+  Today's commits of 56 s to 199 s are over the rule unless real Git would itself have taken 17 s to 65 s; that has not been measured.
+- Sent at 14:06:35 to `commit-does-not-list-every-reference-on-the-path-it-waits-on-1`,
+  `commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer-1` and `integration-pass-18-for-alpha-16-1`
+  (`~/temp/agent/notes-to-send/2026-11-12T1406-the-five-second-rule-is-changed.md`);
+  written into the brief of the many-changed-files run before it started.
+
+##### The hourly pass after 14:00
+
+- `/proc/pressure/io` at 14:03:46: full avg10=28.81, avg60=42.40, avg300=53.09. It is easing.
+- Culled: none.
+- The launchers of rounds 310, 311 and 312 had all ended with every entry failed
+  ("Failed to start transient service unit: Connection timed out", and
+  "the branch ... this start made is still there, because git refused to delete it").
+  All three were started again: 311 at 14:06:43, 310 at 14:06:45, 312 in the same minute.
+  Their worktrees exist from the failed attempts, so the add is not repeated.
+- Ended since 13:28: five more Kimi audits of 0.6.1-alpha.14
+  (worktree add 13:48:54, package repair 13:50:53, discarding commands 13:56:11, worktree remove and landed sweep 13:56:30,
+  commit service and landing 14:00:21, whose last message reads like a step in the middle of work).
+  Two more, push and merge, have no live unit and are not in the listing of ended runs.
+  A Sonnet subagent reads all seven into `~/temp/agent/digest-2026-11-12T1406-kimi-audits/digest.md`.
+  Only the LFS audit is still running.
+- The second reading of the five runs that ended between 12:08 and 13:28 is in
+  `~/temp/agent/digest-2026-11-12T1335-mixed/digest.md`. None of the five shows a lost commit or a lost edit to a tracked file.
+  - Correction of this session's note of 11:44 to the cleaner's agent: "silent until its end" was half wrong.
+    The journal shows lines of that pass at 08:58:27, 08:58:56, 09:01:45 and 09:44:52; the report came at the end.
+  - The cleaner's branch `fix/cargo-shadow-lean-keeps-what-its-check-refused-and-never-waits-on-a-fifo` (`335462b6fd`)
+    fixes its five defects and the doubled lines and merges cleanly, but shortens no pass and changes no memory use.
+    Not fit to release alone: the version is still `0.1.5-alpha.10`, `monochromatic-lint` was never run,
+    a shim test is red and unexplained, its seven commits have no review, and claims the installed cleaner left half deleted are never freed.
+    Its run ended because the driver sent `SIGKILL` 148 s after it had settled; the final report was complete.
+    One of its commit messages (`c82ecf5fbb`) has a hole: backticks in the message ran `lean run` in the agent's shell.
+  - The review of the removal fixes (`f941f71d77`, in pass 18) read its whole diff and ran three probes and 237 btrfs tests through a wrapper built from the reviewed tree,
+    so it is not started again; the merged tip is what a read-checked review reads next,
+    since the decisions of 12:11:18 and 13:04:14 change what its refusal probes assert.
+  - The `clean` run's branch (`4b3a9a2925`) follows the decisions of 10:33 and 10:35; it is 472 behind `main` with no conflict,
+    and its tests were not rerun after its last edits.
+    It leaves a window of 10 to 37 ms in `git clean -ffd` in which a nested repository made after the wrapper's check is deleted;
+    by the decision of 13:04:14 a nested repository is not protected, so this is recorded and not a defect.
+  - Kimi, release changeover: a client of 0.6.1-alpha.13 in flight sent `retire` to a healthy 0.6.1-alpha.14 service 100 times in 10 s,
+    and its commit exited 1 after 10.05 s with the edit still staged. New.
+  - Kimi, commit path: the service's standard error on a full FIFO held a landing 7.35 s over real Git. New, and close to today's slow commits.
+    That auditor ran `ps` with `args` three times against its rules and started a `claude --print` reviewer of its own.
+  - Both findings went at about 14:10 to the commit-path run and the two service runs
+    (`~/temp/agent/notes-to-send/2026-11-12T1410-two-findings-of-kimi-audits-a-log-write-that-blocks-a-landing-and-a-retire-storm.md`).
+- Still deferred: the continuation of the landed-removal second pass with the held-commit keeper,
+  and those of the fast-forward carry, the exempt repository and the tokio step, until one of the three restarted rounds shows a run up.
+- New, tracked here: the cleaner's passes of hours are not shortened by its branch; that needs a task of its own.
+
 #### Where the time of the slow commits went: the wrapper's own file work, not a queue and not child `git` (read 2026-11-12T13:57:54-05:00)
 
 - The read-only diagnosis of the six slowest commits (56 s to 199 s, 12:35 to 13:23) is saved as
