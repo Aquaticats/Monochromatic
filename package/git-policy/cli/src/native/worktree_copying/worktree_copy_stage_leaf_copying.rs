@@ -20,6 +20,7 @@ use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of}
 use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, stamp_of};
 use crate::worktree_copy_error::failure_with_cause;
 use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_symlink_target::target_for_the_new_place;
 use crate::worktree_copy_vanished_entry::lstat_or_absent;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -467,7 +468,10 @@ pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopy
         },
         EntryKind::Symlink => match std::fs::read_link(source_path.as_path()) {
             Ok(target) => {
-                symlink_at(target.as_path(), stage_path)?;
+                // The text is written for the place the link will occupy, never for the stage: a relative text counts levels
+                //  from the directory the link sits in, and the stage stands elsewhere.
+                let written: PathBuf = target_for_the_new_place(target.as_path(), source_path.as_path(), source_root);
+                symlink_at(written.as_path(), stage_path)?;
                 Ok(CopiedLeaf::Staged(None))
             }
             Err(_no_longer_the_listed_entry) if !still_holds_the_listed_kind(&source_path, EntryKind::Symlink) => Ok(CopiedLeaf::Gone),

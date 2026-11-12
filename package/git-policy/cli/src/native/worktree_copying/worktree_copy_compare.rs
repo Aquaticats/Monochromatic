@@ -20,6 +20,7 @@ use crate::worktree_copy_manifest::{
 };
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
+use crate::worktree_copy_symlink_target::names_the_same_place;
 use crate::json_record::quote;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
@@ -148,8 +149,9 @@ fn regular_file_bytes_equal(
 /// What:
 ///  The symbolic-link target text of one no-follow entry.
 /// Why:
-///   The target is compared as exact text,
-/// never resolved.
+///   The target is read as the link holds it,
+/// never resolved,
+/// so a link whose target does not exist can still be compared.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -222,7 +224,16 @@ pub fn entry_matches_stamped(
             if !actual.file_type().is_symlink() {
                 return Ok(false);
             }
-            return Ok(link_target(expected_path.as_path())? == link_target(actual_path.as_path())?);
+            // The two links stand in two trees at two depths, so their texts are compared by the place each names, never as
+            //  text: a copy of a link that leaves its tree had to be written as an absolute path.
+            return Ok(names_the_same_place(
+                &link_target(expected_path.as_path())?,
+                expected_path.as_path(),
+                expected_root,
+                &link_target(actual_path.as_path())?,
+                actual_path.as_path(),
+                actual_root,
+            ));
         }
     }
 }

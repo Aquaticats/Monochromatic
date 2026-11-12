@@ -30,6 +30,7 @@ import {
   BATCH_UNIT_MEMORY,
   BATCH_UNIT_SECONDS,
   BATCH_UNIT_TASK_COUNT,
+  checkoutFolderOf,
   batchOutputFileOf,
   batchUnitCommandOf,
   batchUnitNameOf,
@@ -225,6 +226,7 @@ await describe({
               home: '/home/a',
               node: '/bin/node',
               batchEntry: '/pkg/src/start-pi-runs-from-a-batch-list.ts',
+              checkoutFolder: '/repo',
             },);
             expect(command.command,).toBe('systemd-run',);
             expect(command.words,).toEqual([
@@ -240,7 +242,7 @@ await describe({
               '--property=StandardError=append:/runs/agents-batch-round-231.out',
               '--setenv=PATH=/bin',
               '--setenv=HOME=/home/a',
-              '--working-directory=/runs',
+              '--working-directory=/repo',
               '/bin/node',
               '/pkg/src/start-pi-runs-from-a-batch-list.ts',
               '--batch-file=/runs/agents-batch-round-231.json',
@@ -309,7 +311,9 @@ await describe({
             const asked = await readFile(log, 'utf8',);
             expect(asked,).toContain('--unit=launch-list',);
             expect(asked,).toContain(`--batch-file=${join(folder.path, 'list.json',)}`,);
-            expect(asked,).toContain(`--working-directory=${folder.path}`,);
+            // The unit works in the checkout the command was run in, never in the folder the list lives in: a launcher started
+            // outside the checkout cannot read where a run's worktree belongs.
+            expect(asked,).toContain(`--working-directory=${await checkoutFolderOf({ from: process.cwd(), },)}`,);
           },
         },),
         it({

@@ -102,9 +102,11 @@ pub struct ScratchStepFacts {
     ///  A step the kernel holds is slow and not stuck,
     ///  so its ceiling stands aside once and the step runs under `stall_ceiling` instead.
     pub held_after_ceiling: Option<Duration>,
-    /// The bound the step ran under once its ceiling stood aside for a disk wait:
+    /// The bound the step ran under once its ceiling stood aside,
+    /// either for a disk wait or for a step nothing could be learned about:
     /// `wait_ceilings::SCRATCH_COMMIT_STEP_STALL_CEILING`,
     /// and nothing when the ceiling never stood aside.
+    /// A stand-aside with no `held_after_ceiling` beside it is one no look found a held process for.
     pub stall_ceiling: Option<Duration>,
     /// How long the notice's own join took after the step ended:
     /// its lines are written from its thread,

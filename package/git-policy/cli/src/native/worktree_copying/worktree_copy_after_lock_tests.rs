@@ -56,6 +56,7 @@ fn creating_invocation() -> Invocation {
         context: git_context(),
         add_plan: None,
         repair: crate::package_repair::RepairSwitch::default(),
+        quiet: false,
     };
 }
 

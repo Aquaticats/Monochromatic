@@ -135,6 +135,1408 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Pass 17 merged into `main` for 0.6.1-alpha.14 (2026-11-12T10:52:40-05:00)
+
+- Integration pass 17 ended at 10:51:25 with its report
+  (`/var/home/user/temp/agent/integration-pass-17/report.md`).
+  All sixteen branches are in;
+  none was left out.
+  Tip `90e0bc7177`,
+  on the remote.
+  Build and Clippy without a finding;
+  the 136 tests the sixteen branches add pass;
+  the two controls that failed the gate of alpha.12 pass.
+- The four reproductions of the hand-over's losses,
+  run against the pass's own build:
+  a replacement worktree at the same path survives with its ignored file;
+  a nested worktree added after the hand-over survives with its untracked file;
+  a worktree a live process works in is kept and named;
+  a commit held after the hand-over survives the removal under a kept reference.
+- One defect found by merging and repaired in the pass (`ebbdff9f87`):
+  a round of the service whose first storage step got no place claimed nothing and answered nothing.
+- Merged into `main` with `--no-ff` as `1f14f2d41c`;
+  the trial merge at 10:52:13 was clean;
+  the remote's `main` is at that commit.
+- Left by the report for the owner:
+  a capture reference may now be dropped while a record still names it,
+  when the record being finished is the one that names it
+  (the report reads `main`'s guard that way and says so beside the code);
+  and two merge controls take two to five minutes with no bound of their own.
+- Not in this release:
+  the fixes for issues 6286 and 6287 (their agents are running),
+  the fix for a held commit destroyed by the in-process removal (round 290),
+  and everything the owner decided today about refusing with an opt-out.
+  The late-runtime branch's window with exit status 4 is in it,
+  as recorded at 10:10:08.
+- No commit goes to `main` between the release's dispatch and its publication.
+
+#### 0.6.1-alpha.14 published and installed (2026-11-12T11:03:05-05:00)
+
+- Dispatched 10:53:42 with no gate (an alpha),
+  workflow run 43252725638;
+  published 11:02:03 with both Linux archives,
+  eight minutes and twenty-one seconds after the dispatch.
+  The release's own commit on `main` is `b1cdc4a842`;
+  the local `main` was fast-forwarded to it at 11:02:48.
+- Installed 11:02:54.
+  The install's own sample commit (the toolchain lock) took 2,581 ms and landed.
+  `git --version` names `monochromatic-git-policy-cli 0.6.1-alpha.14`.
+  The global tool entry moved from alpha.13 to alpha.14.
+- One reload of the user manager at the install,
+  11:02:50,
+  487 ms;
+  none other since 08:48:12.
+- Agents that were running keep the service of the release that started theirs until it is replaced;
+  nothing was restarted.
+- Issue 6286's sequence ran again on the first commit after the install,
+  in the main checkout:
+  the commit of this section (`d09eba599f`, 11:03:22) printed
+  "the commit service of this worktree has answered nothing for 3 seconds, so it is stopped inside its own process; it is asked to restart",
+  and the manager recorded two more reloads,
+  11:03:18 (344 ms) and 11:03:22 (272 ms).
+  The commit landed and was pushed.
+  Sent to the agent for issue 6286 as a reproduction from real use:
+  a newer release installed while an instance of the older one serves the worktree,
+  then a commit there.
+  This session's inference,
+  not yet counted:
+  the same happens once in every worktree whose service predates the install,
+  which is about twenty-five agents' worktrees.
+  The reload records after 11:03:30 are counted at the next pass.
+- What the installed release still has,
+  for anyone who meets it:
+  the holder scan's read of a descriptor record (issue 6287;
+  scopes that run a wrapper keep a cap of at least 4G),
+  the manager-wide reload from the commit path (issue 6286),
+  and the false "interrupted removal" line in unrelated commands.
+- Next for this release:
+  audits by Sonnet and Kimi side by side,
+  briefed with what is already known and in work,
+  and with the rule on destructive commands as the owner restated it today.
+
+#### The hourly pass at 11:10: commits under alpha.14 are slow in their build step, the fix for issue 6286 is finished and conflicts with `main`, the package's launcher is merged (2026-11-12T11:13:43-05:00)
+
+State at 11:10:45:
+145 GiB free;
+twenty-five runs of this session alive,
+three of another's;
+nothing culled or reframed in this pass.
+
+Commits under 0.6.1-alpha.14 in this repository,
+eleven records between 11:02:52 and 11:11:21,
+all landed:
+median 3,553 ms,
+ninetieth percentile 12,312 ms,
+largest 28,201 ms.
+Under alpha.13 the median was 825 ms.
+By step:
+
+- One commit (the first after the install,
+  main checkout,
+  11:03:34) waited 10,717 ms for its service to start:
+  the restart of issue 6286's sequence.
+- Four commits spent their time in the step that builds the commit (`buildMs`):
+  26,568 of 28,201 ms (main checkout, 11:10:59),
+  15,012 of 18,154 ms (an agent's worktree, 11:11:21),
+  5,094 of 6,002 ms (main checkout, 11:04:42),
+  3,870 of 6,125 ms (an agent's worktree, 11:10:58).
+  One more spent 6,829 of 7,165 ms in `prepareMs` (11:10:29).
+- The two largest fall in the minutes in which thirteen audits were started,
+  each adding a worktree and copying about a hundred thousand ignored entries.
+  That is an observation of times,
+  not a measured cause;
+  and slower under the machine's pressure is the wrapper's defect to measure against real Git under the same pressure,
+  not an excuse.
+  The agent of round 288 looked at exactly this step for the 14.6 s commit of 09:13;
+  its digest is being written,
+  and what to start follows from it.
+- The inference of 11:03:22,
+  that every worktree whose service predates the install would restart its service and reload the manager,
+  did not hold:
+  four agents' worktrees committed between 11:03:39 and 11:08:17 with no start wait,
+  and the manager recorded no reload after 11:03:22.
+
+Ended since 10:51:30,
+each by its own stop with a report:
+
+- The agent for issue 6286 (`a7e3fcfe58`,
+  11:03:11).
+  Its report,
+  read whole by this session
+  (`~/temp/agent/final-reports-2026-11-12T1112/reload-agent.md`):
+  the client has no `Reload` call at all and a guard fails if one comes back;
+  the unit text names a link,
+  so an upgrade,
+  a downgrade and two releases in turn change no text;
+  a unit the manager holds at an older text is dropped,
+  not reloaded;
+  the three-second greeting rule is gone.
+  Proved in a container with an unrelated bus service bound to a target:
+  seven to nine reloads over the steps on the code of that morning,
+  the unrelated service ended at a reload and stayed ended;
+  none on the fix,
+  the service kept its name.
+  Reload time measured at about 0.26 ms per loaded unit plus 50 ms,
+  with a generator's whole running time inside the reload;
+  the incident's 139,770 ms is not explained by unit count.
+  Its own gaps:
+  tests were changed after the code,
+  and the container proof is unreliable on a loaded machine at high unit counts.
+  It also wrote eleven points for the agent that removes the manager as a dependency.
+- It does not merge into `main`:
+  six files conflict,
+  because pass 17 brought in a neighbouring fix
+  (`01d6e891ed`,
+  "a release change moves a program link and asks the manager nothing",
+  and `5464c7ed70`),
+  so `main` has a program link of its own and still has the reload.
+  Round 301,
+  started 11:13:
+  `reload-fix-brought-onto-main-where-a-program-link-already-is`,
+  on the fix's branch:
+  merge `main`,
+  keep one mechanism,
+  prove it in the container for a machine seeded by alpha.13's template and by alpha.14's.
+  Round 302:
+  a qwen4 review of the fix as its author left it.
+  The release that carries it follows that agent's branch.
+- The package launcher's continuation (`db2935e02f`,
+  11:09:31).
+  Its report,
+  read whole
+  (`~/temp/agent/final-reports-2026-11-12T1112/subagent-driver.md`):
+  a real run was started through the package's own batch command and ended cleanly;
+  a start that waits for a slot now prints a `WAITING:` line as it happens;
+  the qwen4 pool is gated at the pool table's 18;
+  a run that ends its turn with work of its own running is kept and woken,
+  with the test that was owed
+  (and a defect in the first run's version of it,
+  which would have cut every wake off one poll later,
+  fixed);
+  the fix-brief command refuses to write over a file,
+  takes each fix run's name from the caller and refuses a doubled branch segment;
+  three scratch helpers are ported
+  (`list-running-pi-runs-with-their-turns`,
+  `list-runs-that-ended-since`,
+  `wait-for-a-unit-to-become-active`).
+  Not ported:
+  three of the six functions its brief named,
+  and the note and rescue helpers.
+  Its trial merge into `main` was clean
+  (only `package/pi-shared/subagent-driver` and five files of the settled-notification plugin),
+  and it is being merged at 11:13.
+  From the next batch on,
+  batches start through
+  `mise run //package/pi-shared/subagent-driver:start-a-batch-in-its-own-unit -- --batch-file=<absolute path>`,
+  run from the checkout;
+  the scratch launcher is no longer used for new batches.
+  The reviews already queued behind the scratch gate stay where they are.
+- Two fixes and two reviews
+  (package repair's stalled reader,
+  the service's late runtime at `df38f33b4f`,
+  the reviews of the LFS push and of the landing branch):
+  a Sonnet digest is being written in `~/temp/agent/digest-2026-11-12T1112-fixes-and-reviews/`,
+  the LFS branch's file of environment values first.
+
+Runs with a quiet feed at 11:10:45,
+not stopped,
+to be looked at if still quiet at the next pass:
+the fast-forward carry (939 s),
+the tokio landing (938 s),
+the landed-removal second pass (598 s),
+the scratch-reference commit (531 s),
+the clean agent (437 s).
+
+#### The audits of 0.6.1-alpha.14 started, and free space (2026-11-12T11:09:51-05:00)
+
+- Ten Kimi audits,
+  round 300,
+  started 11:08:50 at the release's commit `b1cdc4a842`,
+  one per area as for alpha.12
+  (commit path;
+  commit service and landing;
+  discarding commands;
+  LFS;
+  merge and pull;
+  package repair on add and commit;
+  push and automatic push;
+  release changeover and leftovers;
+  worktree add;
+  worktree remove and the landed sweep).
+  Three Sonnet audits beside them,
+  as subagents of this session,
+  each in a worktree of its own that it removes at its end.
+- What their briefs carry that alpha.12's did not
+  (`~/temp/agent/pi-runs/shared-rules-for-long-audits-of-0.6.1-alpha.14.md`):
+  the rule on destructive commands as the owner restated it
+  (a missing saved copy is not a finding;
+  a command that destroys without refusing is);
+  a list of what is already decided or in work,
+  to be reported in one line each
+  (`alpha-14-what-is-already-known-and-in-work.md`,
+  eight decisions and nineteen defects);
+  the 4G floor;
+  and pass 17's own account of where it chose a side.
+  The audit of discarding commands was pointed at what that list is silent on:
+  whether each opt-out gives what real Git gives,
+  whether each refusal names the right thing,
+  and every place where the release saves and goes on.
+- Their starts are not yet shown by feed;
+  checked at the next pass.
+- Free space:
+  147 GiB at 11:08:50,
+  down from 209 GiB at 09:56.
+  Thirteen audits will build.
+  The floor stays 80 GiB.
+  A listing of the agent worktrees whose work is entirely on `main` and that are safe to remove is running
+  (`~/temp/agent/pi-runs/remove-landed-agent-worktrees.ts`,
+  unedited,
+  without `--remove`);
+  the removal follows from its saved list.
+
+#### Four more reviews digested and routed, rounds 298 and 299 (2026-11-12T11:06:10-05:00)
+
+`~/temp/agent/digest-2026-11-12T1054-reviews/digest.md`,
+read against `main` at `dc3ae6c1bb`.
+No review recommends saving a copy,
+so none is against the rule as restated today.
+
+- Push notices (`9da2d237ed`):
+  nothing to fix.
+  For the next integration pass,
+  where it meets `main` in nine files.
+- cargo-shadow lean (`743059e153`):
+  nothing to fix before merging;
+  five findings,
+  all in `main` too
+  (an entry the identity check refused is deleted by the next pass's emptying of the trash;
+  a FIFO at a fingerprint or lock path blocks a pass without end;
+  the container removal loop does not look at the deadline).
+  Round 299:
+  `cargo-shadow-lean-keeps-what-its-check-refused-and-never-waits-on-a-fifo`.
+- The copy record that cannot be read (`aba9bce1d4`):
+  fix first.
+  A stage's claim is moved aside and written again with nothing between the two steps,
+  and a reap in that gap deletes the stage and a person's file in it
+  (new with the branch;
+  shown in a library harness,
+  not through the wrapper).
+  The review did not read `6de98e7fbb` to any purpose and ran none of the controls it changed.
+  Both went to round 294's agent for the snapshot proof as a note at 11:07,
+  since the finding is that proof being skipped.
+- Worktree add without waiting (`9e1b450341`):
+  fix first.
+  A marker an add carries makes a later add skip the Cargo repair and say nothing
+  (new with the branch).
+  Round 299:
+  `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried`,
+  which also measures the add that still takes over sixty seconds when no service answers,
+  for a decision not yet taken.
+- Round 298,
+  started 10:55:03:
+  qwen4 reviews of `fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it` (`af735d6330`)
+  and `perf/git-policy-cli-commit-that-concludes-a-merge-is-built-within-five-seconds-of-real-git` (`9bc31c8912`),
+  queued behind the gate of four.
+  A digest of both runs is being written in `~/temp/agent/digest-2026-11-12T1054-commit-path/`.
+
+For the pass after pass 17,
+as it stands:
+push notices,
+cargo-shadow lean,
+the landing branch (`d62b91889f`,
+review running),
+the removal fixes (`f941f71d77`,
+review queued,
+one conflict to resolve);
+then,
+after their fixes,
+the copy record and worktree add without waiting.
+
+### The owner: "Remove systemd as a hard dependency. Bazel doesn't need it." (2026-11-12, about 10:40; round 297 started 10:41:51)
+
+Two messages of the owner,
+typed while the answers of 10:35:07 were being acted on.
+
+The first:
+"Is systemd the problem?"
+
+What this session answered from the record
+(`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`,
+`doc/planning/git-wrapper-reload-remedy.md`):
+
+- For the memory kill of this morning,
+  no:
+  the kernel enforced a cap an agent set,
+  and the cause is the wrapper's read of a descriptor record (issue 6287).
+- For the loss of the desktop session,
+  two things together.
+  The wrapper's part:
+  it asks the user manager for a reload of every unit from inside commits,
+  161 of the 208 reloads in the retained journal
+  (median 1,635 ms,
+  forty over three seconds,
+  twelve over ten,
+  the last one 139,770 ms).
+  systemd's part,
+  read from its source at `v262.1` and reproduced in a container by the other session's investigation:
+  a manager that is re-reading its units can pass a unit's start deadline before it reads a reply the bus already sent,
+  takes the expiry for a lost bus name,
+  and stops a running `Type=dbus` unit;
+  KWin is one,
+  and the Plasma target is bound to it.
+  Upstream `main` and `v262.2` have the same code;
+  nothing was filed.
+- Underneath both:
+  every commit depends on a manager that the desktop depends on too.
+
+The second,
+the decision:
+"Remove systemd as a hard dependency. Bazel doesn't need it."
+
+What follows from it:
+
+- The commit service is started,
+  found,
+  replaced and stopped by the wrapper itself,
+  as Bazel's client does with its server.
+  The wrapper is whole on a machine with no systemd,
+  and on one that has it,
+  no commit depends on it.
+- Round 297,
+  started 10:41:51,
+  wall twelve hours:
+  `commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager`,
+  on `main`.
+  Its order:
+  an inventory of what the wrapper takes from systemd today;
+  Bazel's answers,
+  fetched and cited;
+  the design
+  (`doc/planning/cli-git-commit-service-without-a-service-manager.md`),
+  each part committed as it is written;
+  then the build,
+  the old way taken out,
+  and a proof in a container that has no systemd and no bus.
+- What the brief names as lost without a manager,
+  for the design to answer:
+  the service lives in the cgroup of whatever started it
+  (here,
+  an agent's shell cgroup with a memory cap,
+  which is ended whole under memory pressure),
+  nobody restarts it but the next command,
+  and its logs need a bounded home.
+- Left for the owner,
+  put forward by that agent with both sides and no code:
+  whether a manager may still be used when one is there
+  (a transient unit,
+  which needs no unit file and so no reload,
+  would give the service a cgroup of its own).
+  "Not a hard dependency" allows it;
+  whether it is wanted is the owner's.
+- That question was answered by the owner at about 10:45,
+  before it was asked:
+  "Progressively enhance. You can also test on Alpine."
+  So:
+  the base is the wrapper whole with no manager;
+  where a manager is present the wrapper may use it to do better,
+  never as a condition;
+  the base's behaviour is what happens whenever the manager is absent,
+  slow,
+  refusing or in error;
+  no enhancement writes a unit file or asks for a reload.
+  The proof that the base needs no systemd runs in an Alpine container
+  (no systemd,
+  another service manager,
+  musl),
+  and anything that does not build or behave on musl is a finding of its own.
+  Sent to round 297's agent as a note at 10:46;
+  its run was shown working by its feed at 10:45:24.
+  The repository's rule for container images
+  (`doc/decision/container-base-distro.md`)
+  is not changed by this;
+  Alpine is for this proof.
+- The agent for issue 6286 finishes its narrower change (no manager-wide reload) for the next release.
+  A note of 10:41:51 tells it,
+  and the agent for a service that does not answer,
+  to build nothing new that only a manager can give.
+- Option choices of `doc/planning/git-wrapper-reload-remedy.md` (item 2.1 of the list for the owner) are overtaken:
+  the unit layout it compares goes away.
+  The question that remains from it is only what the next release carries meanwhile,
+  and that is the 6286 agent's change.
+- Rules that name a service manager stay as they are until the code is in:
+  agents still never start one on this machine,
+  and tests that need one,
+  or need its absence,
+  run in a container.
+
+### The owner on what "never discard user data" means, and on deleting after a merge (2026-11-12, about 10:33, typed while the answers of 10:32:10 were being recorded)
+
+The owner's message, whole:
+
+"I do want to say "never discard user data" means to block potentially destructive commands with a --no-enforce-* opt-out, not that we save everything myself.
+And wthe merge + delete one - the delete should still be able to delete async because the wrapper has the data of what is there and what is not there and what is pushed and what is local."
+
+What it settles:
+
+- The rule's meaning:
+  a command that could destroy a person's data is refused,
+  and the person runs it anyway with the guard's `--no-enforce-*` option.
+  It does not mean that the wrapper saves a copy of everything and lets the command run.
+  This session had read it the other way since 2026-11-11
+  (the recorded reason "a refusal only moves the same loss to `rm -rf`" was used to turn refusals into saved copies),
+  and briefed agents that way:
+  the discard guard,
+  abort and skip,
+  the exempt repository,
+  the fast-forward carry.
+- The removal of a landed branch's worktree stays asynchronous.
+  Its safety comes from what the wrapper already knows:
+  what was there,
+  what was not,
+  what is pushed and what exists only locally.
+  The fix makes the deferred deletion check against that knowledge;
+  it does not move the deletion back into the merge.
+
+What it leaves to ask,
+because two answers given five minutes earlier chose the saving behaviour as it was put to the owner
+("Ship as built" for the discard guard at 10:27:45,
+"Save and go on" for abort and skip at 10:32:10):
+whether those two become refusals with an option,
+and how far the meaning reaches into work in flight.
+Asked through the question tool in the same turn.
+
+#### The owner's answers of 2026-11-12T10:35:07-05:00 to those three questions
+
+- The discard guard,
+  when a command would overwrite or delete a file that exists nowhere else:
+  "Refuse with opt-out (Recommended)".
+  This replaces "Ship as built" of 10:27:45.
+  The command is refused and names the file;
+  `--no-enforce-<rule>` runs it as real Git would,
+  with no copy.
+  The finished branch (`2f6ac5f6f0`) is reworked before it ships.
+- Abort and skip,
+  when they would discard work that exists nowhere else:
+  "Refuse with opt-out (Recommended)".
+  This replaces "Save and go on" of 10:32:10.
+- How far the meaning reaches:
+  "Redirect everything".
+  The option as it was put:
+  the agents in flight are told to protect by refusing with a `--no-enforce-*` opt-out,
+  to add no new saved copies and to keep existing refusals;
+  "and agents are also started to turn shipped save-and-continue behaviour into refusals with an opt-out".
+  The shipped behaviour named in the question:
+  `clean` saving a nested repository it would delete,
+  and a merge carrying a person's uncommitted edits.
+  The cost named in the question:
+  commands that work today start being refused,
+  and it is a large change to make without looking at each case.
+
+What stays as answered and is not touched by this:
+`git clean -fX` and `-fx` of ignored files delete,
+exit 0 and are logged ("Keep allow and log", 10:27:45);
+a batch whose scratch reference cannot be proven is committed and says so (10:27:45);
+a commit against a service that does not answer fails with a clear message (10:32:10);
+a merge step hung in an LFS download is ended before the branch write (10:32:10).
+
+The existing opt-outs the wrapper documents
+(`package/git-policy/cli/README.md`):
+`--no-enforce-worktree`,
+`--no-enforce-worktree-branch`,
+`--no-enforce-security`,
+`--no-enforce-final-newline`,
+`--no-enforce-bulk-add`,
+and the generic `--no-enforce-<policy-id>` (`SPEC.md`,
+"Generic `--no-enforce-<policy-id>` escapes").
+
+#### What this session got wrong, and what it changes
+
+- Since 2026-11-11 this session briefed agents to turn refusals into a saved copy and a command that runs,
+  citing a sentence of the record ("a refusal only moves the same loss to `rm -rf`") as if it were the owner's rule.
+  The rule is the owner's sentence in this section.
+  Every brief and note from now on states it in these words:
+  a command that could destroy a person's data is refused and names what it would destroy,
+  and the guard's `--no-enforce-*` option runs it as real Git would;
+  the wrapper keeps no copy.
+- Proposed for `package/git-policy/cli/SPEC.md`,
+  where a reader of the package meets it
+  (a rule about one package goes in that package's documents):
+  a section "What never discarding a person's data means" with the owner's sentence,
+  the list of guards and their opt-outs,
+  and the three recorded exceptions listed here.
+  It is written by the agent that inventories the shipped behaviour (round 296).
+
+#### What was culled, reframed and started on these answers (2026-11-12T10:39:12-05:00)
+
+Culled:
+
+- `mode-a-person-set-survives-a-merge-that-changes-the-file-1` (round 291),
+  stopped at 10:36:28 with its launcher,
+  twenty-four minutes after it started.
+  Its task extended the merge's carry,
+  which is now to become a refusal.
+  Its branch holds nothing to keep.
+- The branch `fix/git-policy-cli-commit-is-made-when-the-service-stops-reading-or-answering` (`3b33af6478`) is superseded as a whole.
+  It is kept until round 296's agent has taken what it learned about where the request write blocks.
+
+Reframed by a note sent by 10:36:28,
+each delivery to be checked by its feed at the next pass:
+
+- `exempt-repository-saves-untracked-files-and-nested-repositories-before-it-discards-1`:
+  refuse with the opt-out,
+  take out what saves,
+  and decide whether the exemption should lift this guard at all.
+- `clean-counts-no-force-as-git-does-and-saves-a-repository-made-while-it-saves-1`:
+  a clean that would delete a nested repository is refused with the opt-out;
+  nothing is moved aside;
+  two of its three findings have nothing left to fix.
+- `fast-forward-merge-and-pull-carry-what-a-diverged-merge-carries-2`:
+  add no carry,
+  keep the two refusals,
+  make the fast-forward path refuse where the diverged path refuses,
+  and report now.
+- `landed-removal-second-pass-a-test-for-every-fix-and-the-changeover-scripts-1`
+  and `held-commit-is-kept-again-before-a-landed-worktree-is-destroyed-in-process-1`:
+  the removal stays deferred and is made safe by checking against what the wrapper knows;
+  no fix makes a merge wait for it.
+
+Started,
+round 296,
+at 10:39:12:
+
+- `guards-refuse-with-an-opt-out-where-the-wrapper-saved-and-went-on`,
+  on `main`:
+  first an inventory of every place where the wrapper saves and goes on for a typed command
+  (`doc/planning/cli-git-save-and-go-on-behaviours-and-their-refusals.md`),
+  then the plain cases converted,
+  one commit each.
+  It stops before the merge's carry and writes a plan for it,
+  because every agent here merges through it daily;
+  the owner sees that plan before the carry changes.
+  It also writes the rule into `SPEC.md`.
+- `discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file`,
+  on the discard-guard branch `2f6ac5f6f0`:
+  the six blind spots stay closed,
+  the saving is replaced by refusing,
+  the `read-tree -m -u` hole is closed,
+  the `--f` forms are judged as the options they abbreviate.
+- `abort-and-skip-are-refused-with-an-opt-out-where-they-would-discard-work`,
+  on the second-pass branch `7cd39662bf`:
+  the same,
+  and the read that hangs on a FIFO.
+- `lfs-url-is-shown-and-only-a-recognised-secret-in-it-is-masked`,
+  on `cda54f2d9e`:
+  item 1.9 as the owner decided it,
+  with the list of what is recognised written down and what is not said plainly.
+- `commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer`,
+  on `main`:
+  item 1.10 as the owner decided it;
+  every step toward the service bounded,
+  a working service never taken for a stopped one,
+  and a service that wakes after the failure makes no commit.
+
+The digest of the removal fixes and the second merge
+(`~/temp/agent/digest-2026-11-12T1018-removal-and-second-merge/digest.md`):
+
+- The removal fixes brought onto `main` (`f941f71d77`):
+  three losses shown through the built wrapper before and after
+  (a link at a pool name made `git worktree remove` delete a file outside the registration,
+  a pool member destroyed inside the person's command,
+  a detached nested worktree sent to `btrfs subvolume delete`).
+  Ready after:
+  one conflict against pass 17's branch in `worktree_remove_hand_over.rs`,
+  a re-run of Clippy and the removal tests on the merged tree,
+  and its review (queued).
+- The second merge (`5c579487c5`):
+  not ready.
+  Its controls are red at the tip
+  (blamed on issue 6287 without proof),
+  two end-to-end cases were left hanging or wrong and not run again,
+  and two of its messages point a person at removing a file.
+  The LFS download that never answers is shown ended at about 155 s with nothing left running,
+  which is the behaviour the owner confirmed at 10:32:10.
+  It needs a continuation after issue 6287's fix is in its base.
+
+### The owner's answers of 2026-11-12T10:32:10-05:00, through the question tool: four decisions taken under delegation, two confirmed and two overturned
+
+The item numbers are those of `~/temp/agent/owner-questions-2026-11-12T1000/open-questions.md`.
+Each had been decided by this session while the owner was away, with the veto open.
+
+- Item 1.7,
+  abort and skip:
+  "Save and go on (Recommended)".
+  Confirmed:
+  `--skip` saves the hand resolution it discards and goes on,
+  content that stands only in the index is saved and the abort goes on,
+  a refusal stays only for content that cannot be read or written,
+  and the saved paths are compared again a bounded number of rounds before Git starts.
+  The branches leave the hold-out list when the third pass is done
+  (the read that hangs on a FIFO).
+- Item 1.8,
+  a merge step hung in an LFS download:
+  "End it before the write (Recommended)".
+  Confirmed:
+  ended where the branch has not been written yet,
+  otherwise owned until it ends;
+  "Never cut a branch write" holds for the write itself.
+- Item 1.9,
+  what a push prints of an LFS URL:
+  "Mask recognised secrets only".
+  Overturned.
+  This session's decision had been to hide user information,
+  path,
+  query and fragment.
+  The owner's:
+  a URL is shown,
+  and only what is recognised as a secret in it is masked.
+  The cost was stated in the question:
+  a secret of a shape the mask does not know is printed.
+  The branch `fix/git-policy-cli-review-findings-lfs-output-masks-every-secret` (`cda54f2d9e`) has to be changed before it can go anywhere.
+- Item 1.10,
+  a commit when the commit service has stopped reading or answering:
+  "Fail with a clear message".
+  Overturned.
+  This session's decision had been a second way of making the commit that needs no service.
+  The owner's:
+  one way of making a commit;
+  when the service does not answer,
+  the commit fails after a wait and says so clearly.
+  The branch `fix/git-policy-cli-commit-is-made-when-the-service-stops-reading-or-answering` (`3b33af6478`) is superseded as a whole;
+  what an audit found still stands and still has to be fixed:
+  one case fails only after 10.1 s,
+  the other blocks in the request write with no bound.
+
+Thirty items of that list are still to ask.
+
+### The owner's answers of 2026-11-12T10:27:45-05:00, through the question tool: four of the parked questions
+
+Each question as asked is in the session's transcript;
+the item numbers are those of `~/temp/agent/owner-questions-2026-11-12T1000/open-questions.md`.
+
+- Item 1.1,
+  the hand-over of a landed worktree's removal to the commit service,
+  which can delete what is written into the landed worktree in a short window:
+  "Keep until alpha.14 (Recommended)".
+  Nothing changes;
+  the fix goes out with alpha.14,
+  and no agent is restarted at a landed path without a check for a pending removal.
+- Item 1.3,
+  `git clean -fX` and `-fx` deleting the only copy of an ignored file:
+  "Keep allow and log".
+  The answer of 2026-11-10 stands against the audits:
+  these two forms delete,
+  exit 0 and are logged,
+  and no copy is saved.
+  The option "Save a copy first" was the recommended one and was not picked.
+  Sent as a note to the agents working on clean and on the discard guard,
+  so that none adds a copy for these forms.
+- Item 1.5,
+  a batch that fails when the commit service cannot prove the write of its scratch reference:
+  "Commit and say so (Recommended)".
+  The commit is made as real Git would make it,
+  with a line that says the extra protection was not in place for it.
+  The reading the recommendation rested on
+  (the window is the one real Git has on every commit)
+  was not checked against the code when the question was put;
+  the agent that builds it checks it first and reports if it does not hold.
+- Item 1.6,
+  the discard guard:
+  "Ship as built (Recommended)".
+  The branch leaves the list of what is held out of releases
+  once its review and its last hole (`git read-tree -m -u`) are done,
+  with autocorrection switched off for mistyped commands and the `--f` forms refused,
+  as the owner was shown.
+  Where the branch would save a copy for `clean -fX` or `-fx` of ignored files,
+  item 1.3's answer wins.
+
+Thirty-four items of that list are still to ask.
+
+#### What was done on the answers by 10:31
+
+- Item 1.5:
+  round 295,
+  started 10:29,
+  `commit-is-made-when-its-scratch-reference-cannot-be-proven-and-says-so`,
+  on the landing branch `d62b91889f`.
+  It first merges the held-commit branch `e11086623c`,
+  which conflicts with `main` in five landing files and was left out of two passes for that,
+  then establishes the exposure against real Git's,
+  then makes the decision true.
+- Item 1.3:
+  a note at 10:29:05 to the two agents of round 290 that work on clean.
+  The discard guard's follow-up gets the same line in its brief.
+- Item 1.6:
+  nothing to start yet;
+  the branch's review is queued behind the gate of four.
+
+#### The digest of the landing and LFS runs, routed (2026-11-12T10:31:00-05:00)
+
+`~/temp/agent/digest-2026-11-12T1012-landing-and-lfs/digest.md`,
+read against `main` at `5abd8a3e8e`.
+
+- The landing branch (`d62b91889f`):
+  ready for an integration pass,
+  merges cleanly.
+  Shown red on the installed release and green on its build,
+  through the wrapper,
+  for two of its findings.
+  It names three things for the owner:
+  an exception to `doc/decision/cli-git-concurrent-commits.md:296`;
+  the window between an object's creation and its reference,
+  where a kill leaves the object unnamed
+  ("a change to how batches are built, which this task did not decide");
+  and the marks-file rule for a refused import reference.
+- The LFS push branch (`9e23c2623e`):
+  ready after its review has read `a723733c55`,
+  which adds `<git dir>/monochromatic-git-policy-cli/push-programs.json`,
+  a kept copy of values from the pushing shell's environment.
+  That file can hold a secret.
+  A note at 10:31 gives the review (running) what to establish:
+  which variables,
+  the file's permissions and lifetime,
+  and whether a value read back can make the service run a program nobody named.
+  The branch stays out of every pass until that is read.
+  Nothing global was changed by either LFS run.
+  The report says nothing about deploying or migrating.
+- Seen in the landing run at 08:43:14:
+  Git reported a conflict in `service_land_objects_of_batch.rs`,
+  the wrapper's word-level second merge pass resolved it and committed it with nobody asked,
+  and the agent repaired the meaning 44 minutes later (`4e397f2a99`).
+  That pass is an owner decision in force;
+  this is the first recorded case of it producing a wrong merge,
+  and it goes to the owner as a question of its own.
+- More sightings of issue 6287,
+  sent to its agent at 10:31:
+  a stuck test thread waiting in the kernel's `inotify_show_fdinfo`,
+  with two other sessions' processes in the same wait eight seconds later;
+  nine lock-holder controls that failed or timed out after 87 to 300 seconds each;
+  a test that stalled three times.
+
+### The hourly pass before 10:00: eleven runs ended, four reviews and one continuation started (2026-11-12T09:59:00-05:00)
+
+#### State
+
+- Free space 209 GiB.
+- Under 0.6.1-alpha.13 in this repository:
+  seventy commit records,
+  sixty-eight landed,
+  median 825 ms,
+  ninetieth percentile 3,439 ms,
+  largest 14,579 ms.
+  The two that did not land are real Git's own refusals (`native-exit`, status 1) in worktrees that are mid-merge.
+- The largest,
+  at 09:13:13 on pass 17's integration branch:
+  `buildMs` 13,999 of the 14,579 ms,
+  every other step under 400 ms.
+  Whether real Git takes as long for the same commit is not measured;
+  it is over the five-second bound until a native control says otherwise,
+  and it goes to the next agent that works on the build step.
+- The user manager's reloads since the install,
+  corrected:
+  nine,
+  between 08:40:01 and 08:48:12,
+  eight of them between 154 and 487 ms and one of 2,762 ms at 08:45:30;
+  none in the seventy minutes after,
+  in which fifty-seven commits were made.
+  The section of 09:05:26 counted two.
+
+#### What ended, and nothing culled
+
+- Eleven runs ended since 09:03,
+  each by its own stop with a report,
+  none closed by the driver:
+  seven qwen4 reviews
+  (vendored-clone exemption, package repair owns its children, clean saves nested repositories,
+  commit service hands a commit its shadow, landed sweep and a reset worktree,
+  a late runtime does not fail a commit, landed removal proves again before it destroys)
+  and four continued fix runs
+  (push notices of round 231, cargo-shadow lean's deadline, the worktree-copy record that cannot be read,
+  worktree add without waiting for package repair).
+- Two Sonnet digests are being written:
+  `~/temp/agent/digest-2026-11-12T0956-work/` and `~/temp/agent/digest-2026-11-12T0956-reviews/`.
+  The review digest says for each finding whether its branch is in pass 17,
+  so that it can be weighed before that pass is merged.
+- Nothing in flight is superseded;
+  nothing was stopped.
+
+#### Started
+
+- Round 285,
+  qwen4 reviews of three of the ended fix branches at their tips:
+  push notices (`9da2d237ed`),
+  the worktree-copy record (`aba9bce1d4`),
+  worktree add without waiting (`9e1b450341`).
+- Round 286,
+  a qwen4 review of the cargo-shadow lean branch (`743059e153`).
+- Round 287,
+  the continuation of
+  `subagent-driver-a-real-batch-start-works-and-the-remaining-commands-are-usable`
+  from `58586fa985`:
+  its first run was itself closed as `idle` after 394 turns,
+  its keep-and-wake for a run that ends a turn with work of its own running was tested with a stub only,
+  and the scratch scripts are not all ported.
+- The next audits read 0.6.1-alpha.14,
+  not alpha.13:
+  pass 17 carries sixteen branches that answer the audits of alpha.12,
+  and an audit before it lands would report them again.
+
+#### After the cron's fire, state at 10:03:37 and what followed until 10:06:03
+
+- Nineteen `pi-*` runs alive,
+  one of them another session's.
+  Rounds 286, 287 and 288 are shown working by their feeds.
+  Round 288,
+  started 10:02:
+  `commit-that-concludes-a-merge-is-built-within-five-seconds-of-real-git`,
+  for the commit of 14,579 ms
+  (a native control,
+  spans inside the build step,
+  a fix if the wrapper is over the bound).
+- `commit-that-does-not-land-says-what-stopped-it-2` had a quiet feed for 1,000 seconds.
+  It is inside one command,
+  the package's host tests under a bound of 3,000 seconds,
+  started 09:23:31.
+  Not stopped.
+- One more run ended,
+  by its own stop with a report,
+  at 09:57:06:
+  `discarding-commands-guard-every-file-they-overwrite-or-delete-2`,
+  tip `2f6ac5f6f0`.
+  Its branch stays held out of releases.
+  Started for it:
+  round 289,
+  a qwen4 review,
+  and a Sonnet digest in `~/temp/agent/digest-2026-11-12T1005-discard-guard/`
+  that also lists what a person at the keyboard sees differently,
+  for the owner's read.
+- Nothing culled or reframed.
+- A gap,
+  found because two reviews did not start:
+  the scratch gate that the batch starts still go through
+  (`~/temp/agent/pi-runs/start-pi-run-if-a-slot-is-free.ts`)
+  gives the qwen4 pool a limit of 4,
+  while the package's `src/pool-limits.ts` has the owner's 18.
+  So the reviews of round 285's third branch (worktree add without waiting)
+  and of round 289 wait in a retry loop behind four running reviews,
+  with a deadline of 7,200 seconds,
+  and print nothing while they wait.
+  The scratch scripts are not edited (the owner's rule);
+  the remedy is the package's own batch start,
+  which round 287's agent is making usable.
+  A note of 10:06:03 gives that agent the evidence and asks for:
+  a review batch gated by the package's limits,
+  a wait that says what it waits for,
+  and the exact command to switch to.
+  Until then at most four reviews run at once.
+- If a waiting review passes its deadline,
+  start it again;
+  `runs-that-ended-since.ts` does not show a run that never started,
+  so check `agents-batch-round-285.out` and `agents-batch-round-289.out` for "no slot freed before the deadline".
+
+#### The digest of the seven reviews, routed, and round 290 (2026-11-12T10:10:08-05:00)
+
+The digest:
+`~/temp/agent/digest-2026-11-12T0956-reviews/digest.md`,
+read against `main` at `cab3be6473` and pass 17's tip `ebbdff9f87`.
+All seven reviews are final.
+
+- Loses data,
+  and is in `main` and the installed release:
+  a commit held in a worktree after the landed sweep's single call to the keeper is destroyed with the worktree.
+  Two reviews reached it by two paths
+  (the landed-sweep branch `93ada9d6db` through the built wrapper with a planted held record,
+  the landed-removal branch `32323116f1` through the library's in-process destroy).
+  Both branches are in pass 17 and leave the gap;
+  neither introduces it.
+  The trigger needs a branch lock held at that moment (the digest's assessment: rare).
+- A regression that a branch in pass 17 introduces:
+  the late-runtime branch `f75d80f0fc` lets the service exit with status 4 in a window of a few instructions,
+  shown by a harness of the logic,
+  not by the built service.
+  Against `main`,
+  which waits five seconds for a late build,
+  the digest reads the branch as an improvement overall.
+  The branch stays in pass 17:
+  reviews do not hold an alpha (the owner's standing rule),
+  and its fix follows.
+- Not in pass 17:
+  untracked files overwritten unsaved by `reset --hard` and five more commands in an exempt repository
+  (and,
+  seen once,
+  in an ordinary linked worktree on that branch's build,
+  with `main` not run);
+  `clean -ffd` deleting a nested repository unsaved there;
+  a nested repository made during a clean's save window deleted unsaved;
+  `--no-force` counted wrongly by clean;
+  a write to standard error without a bound on the package-repair path,
+  also in `main`.
+- The review of the commit service handing a commit its shadow (`3a4949f5ed`) found no defect.
+  Its new test panics under a long `HOME`;
+  that goes with the branch into the pass after pass 17 as a thing to fix first.
+- Plain `git` calls through the installed wrapper took 38 to 46 seconds in four review sessions,
+  on commits unrelated to the reviewed changes.
+  No control separates that from issue 6287;
+  it is evidence for it,
+  not a new finding.
+
+Round 290,
+five fix agents,
+each on the branch its review read,
+started 10:10:
+
+- `service-checks-its-runtime-again-before-it-gives-up-on-a-late-one`
+- `held-commit-is-kept-again-before-a-landed-worktree-is-destroyed-in-process`
+  (both reviews of the gap,
+  one fix)
+- `exempt-repository-saves-untracked-files-and-nested-repositories-before-it-discards`
+  (first to run the commands against `main`,
+  and to read the discard-guard branch before fixing anything twice)
+- `clean-counts-no-force-as-git-does-and-saves-a-repository-made-while-it-saves`
+- `package-repair-never-waits-on-a-reader-of-its-messages-that-has-stalled`
+
+A slip of this session while writing those briefs,
+repaired:
+the package's `write-a-fix-brief-for-each-review` writes to `<review name>-prompt.md`,
+and five review names equal the names of the earlier runs,
+so five earlier briefs were written over.
+They were restored from the first message of each earlier run's session,
+and the new briefs were renamed for what each fix does
+(`~/temp/agent/scratch-scripts/rename-round-290-fix-briefs-and-restore-the-briefs-they-overwrote.ts`).
+Nothing had been started from the wrong files.
+The command's part
+(it replaces a file that exists without a word,
+names the fix run as the review,
+and doubles a prefix)
+went to round 287's agent as a second note at 10:10:08.
+
+#### Three more runs ended by 10:08:45, and rounds 291 and 292 (2026-11-12T10:12:09-05:00)
+
+- The qwen4 review of the merge-asides fix (`aff52c9e64`,
+  a branch in pass 17) is final,
+  read by this session whole:
+  `~/temp/agent/reviews/review-findings-merge-asides-round-208-findings/review.md`.
+  - One finding,
+    reproduced through the built wrapper:
+    a mode a person set (`chmod 0600`) on a file whose content a merge changes comes back `0644`.
+    The commit keeps such a mode when the merge deletes the path.
+    Real Git alone also gives `0644` (the review ran it),
+    so the wrapper loses nothing that real Git keeps;
+    the branch keeps more than Git in one case and not in the neighbouring one.
+    The branch stays in pass 17.
+  - Clean:
+    the deleted-path case,
+    the classification of a process that cannot be dumped,
+    index modes,
+    the lease proof for inherited writers.
+  - Evidence for issue 6287:
+    the reviewer saw the wrapper in uninterruptible sleep on `/proc/<pid>/fdinfo/<n>` for about 126 seconds,
+    twice (about 09:33 and 09:50),
+    and could not verify the restore path end to end because of it.
+  - Round 291,
+    started 10:12:
+    `mode-a-person-set-survives-a-merge-that-changes-the-file`,
+    on that branch:
+    keep the mode in both cases
+    (decided by this session under "never discard user data" and the commit's own stated intent,
+    open to veto,
+    since it is more than real Git does),
+    every other way a merge writes a file whose mode was changed,
+    and the two gaps in the new proof that the review noted without reporting.
+- `landing-keeps-the-built-commit-when-a-keep-or-a-lock-is-refused-2` (`d62b91889f`)
+  and `lfs-push-uploads-every-object-the-remote-lacks-2` (`9e23c2623e`) ended by their own stop with reports.
+  Round 292:
+  a qwen4 review of each,
+  queued behind the gate of four.
+  A Sonnet digest of both is being written in `~/temp/agent/digest-2026-11-12T1012-landing-and-lfs/`;
+  for the LFS run it also says whether anything outside the worktree was changed and what deployment still needs.
+- The review of worktree add without waiting (round 285) started at about 10:08,
+  when the merge-asides review freed a slot.
+- Round 290's five fix agents:
+  two shown working by their feeds at 10:10:51,
+  the rest starting twenty seconds apart.
+
+#### The digests of four fix branches and of the discard guard, routed; rounds 293 and 294 (2026-11-12T10:20:00-05:00)
+
+Digests:
+`~/temp/agent/digest-2026-11-12T0956-work/digest.md` (read against `main` at `0895ca95ed`)
+and `~/temp/agent/digest-2026-11-12T1005-discard-guard/digest.md`.
+
+For the pass after pass 17,
+each merging cleanly into `main` and with every other:
+
+- push notices (`9da2d237ed`):
+  ready.
+  Left open on purpose:
+  an accepted push's server lines reach nobody when the service dies between the push's exit and its record
+  (text lost,
+  never a commit).
+  Closing it means keeping the masked output on disk as it is produced:
+  a choice for the owner.
+- cargo-shadow lean (`743059e153`):
+  ready.
+  Its own verdict:
+  not the whole answer to the disk pressure.
+- worktree add without waiting for package repair (`9e1b450341`):
+  ready.
+  Still over the owner's 60 seconds:
+  the relink when no service answers,
+  72.85 s with a `pnpm` of 62 s.
+  Options and a ranking are in `doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`.
+- the copy record that cannot be read (`aba9bce1d4`):
+  ready once its review (running) has read `6de98e7fbb`,
+  which inverts one of `main`'s controls and changes the fixture of two others.
+  It also repairs three controls that are probably red on `main` (not run on `main` by anyone).
+
+Found on `main`'s code by that last run,
+a loss:
+a person's btrfs snapshot,
+made between a source's last write and the file system's last commit,
+can be proved to be the wrapper's own stage and removed.
+One probe and one failure in 476 of `main`'s own test for it.
+Round 294 has an agent for it
+(`snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`):
+the proof fails closed,
+by an identity the add gives its stage and not by comparing transaction numbers,
+with no flush on an add's path.
+That direction is this session's,
+from "never discard user data",
+open to veto.
+The second agent of round 294
+(`add-says-when-its-copy-is-short-and-settles-below-a-read-only-directory`)
+takes the two findings of the 01:10 audit that the copy-record agent left untouched.
+
+The discard guard (`2f6ac5f6f0`,
+held out of releases):
+six findings fixed,
+merges cleanly,
+its Rust tests never shown failing first,
+one hole left (`git read-tree -m -u` still overwrites an ignored file).
+What a person sees differently is in the digest and goes to the owner as a question:
+copies saved where commands were refused or files were lost;
+new refusals for a file marked `assume-unchanged`,
+for `rm --f`,
+`mv --f` and `checkout-index --f`;
+autocorrection switched off for every mistyped command.
+Its follow-up waits for its review (queued).
+
+Three more runs ended by 10:15:07 with reports:
+the removal fixes brought onto `main` (`f941f71d77`),
+the second merge (`5c579487c5`,
+held out),
+and another session's measurement run.
+Round 293:
+a qwen4 review of each of the first two,
+queued.
+A digest of both is being written in `~/temp/agent/digest-2026-11-12T1018-removal-and-second-merge/`.
+
+Worktrees:
+
+- The worktree of a run that ends is removed by itself within a minute
+  (seen for three runs this hour;
+  each branch was on the remote at the same commit first).
+- While such a removal is still finishing,
+  an unrelated wrapper command,
+  a read-only one included,
+  prints "The interrupted removal of ... cannot be finished ... Run `git worktree prune`",
+  because a path that is already gone counts as a failure.
+  Nothing is lost and nothing needs doing.
+  Sent at 10:17:30 to the agent of the landed-removal second pass,
+  with the three sightings.
+- 129 worktrees are registered,
+  66 of them on a branch that is in `main`
+  (a fresh run's branch counts as that too),
+  about half of them review worktrees of rounds 133 and 162.
+  One old clean review worktree was removed by hand through the wrapper as a trial:
+  11.4 s.
+  The rest wait for a sweep that checks each one;
+  no cleanup unit is running since the restart.
+- Two lines "Waiting for the commit service of this worktree... nothing has answered" at 08:43:12 and 08:47:57
+  sit three and six seconds before two of the reload records.
+  Sent to the agent for issue 6286 at 10:17:30.
+
+The list of what waits for the owner is consolidated in
+`~/temp/agent/owner-questions-2026-11-12T1000/open-questions.md`:
+thirty-eight open items in four groups,
+twelve settled.
+They go to the owner through the question tool,
+four at a time,
+the ones that can lose data first.
+
+### A wrapper killed for memory in a 512 MB scope: the holder scan's read of a descriptor record, issue 6287 (2026-11-12T09:50:16-05:00)
+
+#### What the owner said
+
+- About 09:41, quoting a desktop notification:
+  "The background service review208-rec5.scope has been terminated by the Linux kernel
+  because the system is low on memory. Consider closing unused applications or browser tabs."
+  "Is this yours? And also make sure this doesn't happen again."
+- About 09:43:
+  "I don't want you to stop the notification. I want you to fix the root cause."
+
+The notification stays as it is.
+Nothing may hide it, filter it or change the unit's out-of-memory policy to avoid it.
+
+#### What happened
+
+- The scope was started at 09:38:17 by the qwen4 reviewer of the merge-asides fix (a run of this session),
+  with `MemoryMax=512M`,
+  to run `status --porcelain` in a fixture with a wrapper built from the branch under review.
+- The kernel killed the wrapper at 09:40:23.
+  Its report: `constraint=CONSTRAINT_MEMCG`,
+  usage and limit both 524288 kB,
+  `anon 0`,
+  `file 0`,
+  `kernel 536809472`,
+  `vmalloc 535171072`;
+  the stack is `vfs_read`, `seq_read`, `seq_read_iter`, `__kvmalloc_node_noprof`.
+  The machine had 35 GiB available:
+  the kill was the scope's own cap,
+  and the notification's wording about the system is Plasma's for any unit that ends that way.
+- A trace of the same command in a scope capped at 4G
+  (`~/temp/agent/probe-recover-hang/strace.txt`):
+  3,844 opens of `/proc/<pid>/fdinfo/<n>`,
+  the last one `/proc/178989/fdinfo/3`,
+  followed by a `read` that did not return in twelve seconds.
+  That descriptor is `anon_inode:inotify`,
+  held by `fsnotifier`,
+  the file watcher of a JetBrains IDE;
+  `fs.inotify.max_user_watches` is 10000000.
+
+#### Root cause
+
+- The wrapper's scan for the process that holds a file reads the whole of `/proc/<pid>/fdinfo/<n>`
+  for every descriptor of every process of the account:
+  `package/git-policy/cli/src/native/process/process_use.rs`,
+  `descriptor_is_file_with` and `mounted_descriptor_is_file`,
+  and the same record in `open_file_of_a_descriptor.rs`.
+- For an inotify descriptor the kernel builds one record with a line per watch,
+  whole,
+  in one buffer charged to the reader,
+  before the reader gets a byte.
+  A bound on the read does not help;
+  the kind of a descriptor has to be known before its record is opened.
+- The defect is on `main` and in the installed 0.6.1-alpha.13.
+  The branch under review did not introduce it.
+  Uncapped,
+  the same read makes any command that scans for holders take minutes while such a watcher runs.
+
+#### What was done
+
+- Issue 6287 filed with the evidence and the required outcome.
+- Round 284,
+  started 09:46:37:
+  `descriptor-scan-never-reads-a-record-whose-size-another-process-decides`,
+  on `main`,
+  with a test whose control shows today's code growing with the watch count,
+  and a search of the wrapper and its commit service for every other unbounded read under `/proc` and `/sys`.
+  Working at 09:49 (twenty-two turns).
+- A note to the twelve running agents of this session at 09:46:57,
+  each delivery shown by its feed:
+  a scope or container that runs a wrapper gets at least 4G until the fix is installed;
+  a wrapper that hangs during a holder scan is this defect;
+  nobody reads `/proc/<pid>/fdinfo/<n>` of a process they did not start.
+- The same workaround,
+  labelled as one with its removal condition,
+  in `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`.
+- A second note to round 284's agent alone,
+  after 09:55:
+  the issue number,
+  the reading of `fs/seq_file.c`,
+  and that a control measures growth by `memory.peak` under a generous cap and never ends in a kill for memory.
+  Its brief already gave it the 4G floor and an 8G cap for the measurement on this machine.
+
+#### What bounds the read, and what is covered until the fix is installed
+
+- The kernel's `fs/seq_file.c` at tag `v7.3`
+  (copy at `~/temp/agent/kernel-seq-file/seq_file.v7.3.c`;
+  the machine runs 7.3.3 of a patched build,
+  so this is the upstream reading):
+  `seq_buf_alloc` allocates with `kvmalloc(size, GFP_KERNEL_ACCOUNT)` and refuses a size above `MAX_RW_COUNT`;
+  `seq_read_iter`,
+  when a record does not fit,
+  frees the buffer,
+  doubles the size and builds the record again.
+  So the size a reader asks for bounds nothing,
+  one reader holds one buffer at a time,
+  the largest buffer is 1 GiB,
+  and past it the read fails with `ENOMEM`.
+- That fits the measurement:
+  this session's own probe scope,
+  capped at 4G,
+  peaked at 580087808 bytes within twelve seconds
+  (`MemoryPeak` of `coordinator-probe-recover-hang.scope`),
+  a 512 MiB buffer and little else,
+  and the read had not returned.
+  Whether the record fits in 512 MiB or needs the 1 GiB buffer is not measured;
+  round 284's brief has that measurement under an 8G cap.
+- So the 4G of the workaround covers three such reads at once in one scope.
+  It is a bound from source,
+  not from a run to completion.
+- Every user service and scope with a memory cap,
+  read at 09:53 (`systemctl --user show '*.service' '*.scope'`):
+  the only cap under 4G is `claude-cpu-watch.service` at 256 MB,
+  whose source runs no Git and reads no descriptor record.
+  The commit-service units have no cap;
+  the `pi-*` units have 6 GiB or more,
+  the other session's `pi-optique-measure-old-commit-parser-1` among them.
+- Not covered until the fix is installed:
+  a scope an agent of another session caps under 4G and runs a wrapper in,
+  and the time the scan takes with no cap at all.
+- At 09:54:51 `fsnotifier` (PID 178989) still held the descriptor,
+  its link text `anon_inode:inotify`,
+  read with `readlink`.
+
+#### Next
+
+- When round 284 ends:
+  read its report,
+  merge with `Closes #6287`,
+  and release it in the first alpha it can go in,
+  ahead of the queue if pass 17 has already merged.
+  A qwen4 review starts alongside and does not hold the release.
+- The check at the user boundary after the install,
+  with its control first:
+  confirm by `readlink` that the watcher still holds its inotify descriptor;
+  run the holder scan with 0.6.1-alpha.13 under a large cap and read the peak;
+  then run the same command with the new release in a 512 MB scope.
+  A pass with the IDE closed proves nothing.
+- Then remove the workaround from the rules doc.
+
+### The first hourly pass after the restart: pass 17 started, what the reload's own commit printed (2026-11-12T09:05:26-05:00)
+
+#### State
+
+- Free space 244 GiB. Sixteen runs alive at 09:03, every feed moving; none superseded, nothing stopped.
+- Under 0.6.1-alpha.13: thirteen commits in this repository, twelve landed, median 1,338 ms, largest 4,481 ms.
+  The one that did not land is real Git's own refusal (`native-exit`, status 1, 140 ms) in the tokio agent's worktree, which is mid-merge.
+- The user manager's reloads since the install: two, both at 08:48, 452 ms and 225 ms,
+  requested from the units of the push-notices agent and the fast-forward agent. The manager holds 370 units.
+
+#### What two of the three digests found
+
+`~/temp/agent/digest-2026-11-12T0830-a/digest.md` and `-b/digest.md`: twenty work runs, all finished, all tips on the remote, none in `main`.
+The third digest (nine work runs and four reviews) is still being written.
+
+- The commit whose wrapper asked for the reload of 01:22:34 was read in its own session.
+  It started at 01:21:10 and returned at 01:24:54. It printed
+  "the commit service of this worktree has answered nothing for 3 seconds, so it is stopped inside its own process; it is asked to restart"
+  and then "The commit service did not start, so this commit was not made".
+  So the three-second greeting rule is the first link of the chain that ended the session, and the commit failed as well.
+  Four other agents' ordinary commands were held about three minutes in the same window.
+  This went to the issue 6286 agent by note at 08:44, with the morning's 487 ms reload at 319 units.
+- After the session was lost, the commit service could not find `git-lfs` in two worktrees, because the user manager's `PATH` lacked its folder;
+  their pushes were refused. Sent to `lfs-push-uploads-every-object-the-remote-lacks-2` by note at 09:05.
+- Eight worktree deletions waited thirty-one to sixty-five minutes behind one wave of trashes in the single slow lane (read in one run's report);
+  no branch fixes it yet. It belongs with the waves agent's branch at its next pass.
+- The landed-removal fix (`32323116f1`): the four audit scripts were run against its own build and the fixtures show the files kept.
+  Open on it: it is 188 commits behind `main`, one defect its own probe found was fixed without a test,
+  and it never ran the changeover audit's two scripts.
+
+#### Started
+
+- Round 281, `integration-pass-17-for-alpha-14` (base `main`): sixteen finished branches, the landed-removal fix first,
+  then the landed sweep, the merge asides and the named pipe, the three service-queue fixes, the waves, the late runtime, the gate failures,
+  the add that says why it waits, the ceiling's one decision, the five-second findings, the first commit after an install,
+  the pooled shadow against `.git/lfs`, and the commit-time measurement's three small fixes.
+  Its brief names the held-back branches and has it check that none comes in through another.
+  After the merges it runs the four data-loss reproductions against its own build.
+- Round 282, four qwen4 reviews: the landed-removal fix, the landed-sweep fix, the merge asides, the late runtime.
+  That makes eight qwen4 runs at once.
+
+#### The third digest, arrived at 09:06, and what was started from it at 09:07
+
+Round 283, two fix agents:
+
+- `landed-removal-second-pass-a-test-for-every-fix-and-the-changeover-scripts` (base `32323116f1`):
+  a test for the fix that has none, the four data-loss reproductions as tests that stay, the second and third audits' scripts run,
+  the two releases' removal records across a change of release, and the deletions that waited up to sixty-five minutes behind a wave of trashes.
+  It merges `main` and the landed-sweep branch first. Pass 17 takes the first pass as it stands meanwhile.
+- `removal-pool-symlink-and-nested-subvolume-fixes-brought-onto-main` (base `main`):
+  the nested-subvolume review findings were fixed on a branch cut two releases ago; this agent reproduces each on `main` and ports what still happens,
+  the symlink at a pool name first.
+
+The review's results on unreadable records went to `worktree-copy-record-that-cannot-be-read-never-stops-another-command-2` by note.
+
+`~/temp/agent/digest-2026-11-12T0830-c/digest.md`. Still open from it:
+
+- The second run of the worktree-add review confirms the reading about unreadable records for the journal, the stage claim and the unfilled record,
+  cut by cut. One point contradicts it: a commit served by the commit service in a linked worktree exited 0 with an empty journal and an empty claim.
+  Its probes ran against this machine's own runtime directory, so the service was the installed one, not the reviewed build.
+  The fix agent (`worktree-copy-record-that-cannot-be-read-never-stops-another-command-2`) is running; this goes to it.
+- Candidates for the pass after 17, by the digest's assessment:
+  the tracking-repair second pass (ready, one shared file; its `%(upstream)` fix is in the merge commit `f8ab4d48cf`, not where its report says),
+  the tokio next step, the delivered matching push and the vendored-clone exemption (each after a merge of `main` and a rerun of its modules).
+- Not ready: the gate-and-install review findings (its review found three defects in code that branch added);
+  the trash hand-over (a heavy hand merge, fourteen shared files);
+  removal while linking (its own verdict: do not merge as it stands);
+  the nested-subvolume review findings (cut from an alpha.10-era tree, 692 commits behind);
+  the cheaper add (take only its reaping fix `39578c37ec`; it measured the cost steps and did not make them cheaper).
+- Data loss still on `main`, shown through the built wrapper: a hard reset and a forced clean run with no save-first guard below `CARGO_TARGET_DIR`
+  (fixed on the vendored-clone branch); a symlink at a pool name is followed and a person's file deleted (fixed on the nested-subvolume branch).
+- The wg review is final: a hook that puts itself in the background stalls `up` or `down` for the whole ten-minute hook deadline;
+  a concurrent `up` can destroy another tunnel and two tunnels can share one policy table (both shown with shims that widen the race).
+  These go with the wg branch that is held for the owner.
+- Wrapper misbehaviour in agents' own worktrees under alpha.12: commits of 295, 201 and 158 seconds; a commit that printed its name and was then not made;
+  a wrapped `git worktree remove` that `SIGKILL` could not end because it sat in a disk wait.
+
+Left out of pass 17, with the reason: the three held-back branches (abort second pass, the LFS mask, the commit made without a service);
+`commit-records-the-bytes-git-records-and-refuses-what-git-refuses`, whose base is the commit-options branch that pass 16 could not merge;
+and the subagent-driver branch, which is another package and is not finished.
+
+### After the restart: 0.6.1-alpha.13 published, the agent for issue 6286 started, the fleet held until the install (2026-11-12T08:39:44-05:00)
+
+The machine was restarted at 04:03:18.
+The owner, at about 08:25: "I've restarted and GPT has finished its investigation."
+The other session's records are `doc/handover/plasma-session-reload-investigation.md`,
+`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` and `doc/planning/git-wrapper-reload-remedy.md`.
+Its proposal names three directions and chooses none; it records that the owner was not sure and handed the work on.
+
+#### 0.6.1-alpha.13
+
+- Trial merge of `integrate/git-policy-cli-pass-16-for-alpha-13` into `main` with `git merge-tree`: clean.
+- Merged as `157d07cd3b` at 08:26:33 and pushed.
+- The first dispatch at 08:27:32 was refused by the release task: "The release <note> must be at most 200 characters, got 275."
+  Dispatched again at 08:29 with a shorter note; workflow run 43227729787.
+- `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.13` at 08:39:44.
+- Installed at 08:40:02 (log `~/temp/agent/gate/install-0.6.1-alpha.13.log`): "the sample commit took 1441 ms";
+  the globally shadowed wrapper moved to 0.6.1-alpha.13 with `mpm-shadow update -g`.
+- The install's own commit asked the user manager for a reload, as a changed template makes the present code do:
+  "Reload requested from client PID 176325 ('monochromatic-g') (unit gpc-install-0-6-1-alpha-13.service)" at 08:40:00,
+  "Reloading finished in 487 ms."
+  The manager held 319 units then. That is why the install ran before any other agent was started.
+
+#### Issue 6286
+
+`wrapper-never-asks-the-user-manager-for-a-manager-wide-reload` has been running since 08:28 (round 278, base `main` at `157d07cd3b`).
+Its brief states the issue's required outcome as the target and gives four directions as suggestions:
+the proposal's three (a stable program link in the template, one unit file per worktree, changing only the waits)
+and one more, a transient unit with no unit file at all, which needs no reload to exist or to change.
+It has to measure the alternation between two programs and where a slow reload spends its time,
+and to prove its result in a container with an unrelated `Type=dbus` service bound to a target.
+It never touches this machine's own manager.
+Which direction is built is decided by that evidence, open to the owner's veto; the proposal's layout question stays the owner's if the evidence does not settle it.
+
+#### Started after the install, at 08:41
+
+- Round 279, eleven continuation briefs (`<run name>-continued-prompt.md`, written by
+  `~/temp/agent/scratch-scripts/write-continuation-briefs-for-stopped-runs.ts`): the ten runs that were stopped or ended early for the restart,
+  and the killed tokio run, which goes on from its half-finished merge and its rescue commit.
+- Round 280, the four qwen4 reviews that were killed (the vendored-clone exemption, the shadow hand-out, the package-repair fix, the clean fix).
+
+#### Being read
+
+Three Sonnet digests of the thirty-three runs that ended between 01:05 and 03:26
+(`~/temp/agent/digest-2026-11-12T0830-a/`, `-b/` and `-c/`, brief `~/temp/agent/digest-brief-2026-11-12T0830.md`).
+Reviews and the next integration pass follow from them.
+
+#### The hourly job
+
+The owner, at about 08:35: "Re-arm the hourly fill and cull. This time don't set an expiry date."
+Cron `c0352b43`, every hour at :41, first fire 09:04, with no end date in its prompt.
+It is session-only, and the harness deletes a recurring job after seven days, so it is re-created about 2026-11-19 if the session still runs.
+Each fire culls or reframes superseded work, reads what ended, routes findings, and starts the next tracked work to keep the pools filled;
+it starts nothing while free space is under 80 GiB.
+
 ### The desktop session was lost at 01:24:54; state before the owner's restart of the machine (2026-11-12T03:32:55-05:00)
 
 #### What happened

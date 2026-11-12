@@ -26,7 +26,10 @@ import {
   LAUNCHER_ENTRY_NAMES,
   REPLACED_LAUNCHER_ENTRY_NAMES,
 } from './going-runs.ts';
-import { parsePoolGateOptions, } from './parse-pool-gate-options.ts';
+import {
+  POOL_GATE_USAGE,
+  parsePoolGateOptions,
+} from './parse-pool-gate-options.ts';
 import {
   limitsIn,
   POOL_LIMITS_VARIABLE,
@@ -40,6 +43,18 @@ import {
 } from './run-command.ts';
 import { sessionFileOfRun, } from './session-file-of-a-run.ts';
 import { siblingCommandEntry, } from './sibling-command-entry.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: POOL_GATE_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  The folder the process table is read from, which is where a Linux machine keeps it. A test points this at a folder of its own,

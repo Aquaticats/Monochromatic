@@ -29,6 +29,13 @@
 //! The claims are the drain's own:
 //! the lane claims `SLOW_KINDS` and the round claims `PUSH_KINDS`,
 //! so the two never take each other's records and no lock is needed.
+//! A claim the lane keeps (a retryable answer,
+//! or a settling step that could not run) is looked at again by the lane at the
+//! moment its lease runs out,
+//! so the retry the answer promised needs no other request and no periodic poll.
+//!  A look that panicked is kept as a look that left its work for a later one,
+//! so one repository's defect ends that look and not the lane,
+//!  and the count that keeps the service up is given back even then.
 //! What a person waits for is kept free of the lane's queue as well:
 //! every storage step of these kinds asks through the gate that leaves one blocking place to the round
 //! (`run_a_slow_job_within_the_budget` in `blocking_jobs_within_the_budget.rs`).
@@ -38,7 +45,9 @@
 //! const lane = SlowLane.start(handlers, busy); lane.ask(wake); // for await (const wake of inbox) await drainSlow(wake.gitDir)
 //! ```
 
-use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
+use crate::a_panic_that_ends_one_item::keep_a_panic_awaiting;
+use crate::claim_time::ClaimTime;
+use crate::housekeeping_of_one_round::{HOUSEKEEPING_OF_ONE_ROUND, LOOK_AGAIN_AFTER_DEFERRING};
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
 use crate::service_work::{CLAIM_LEASE, GitHandlers};
@@ -49,6 +58,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
+use std::future::Future;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 /// What:
@@ -88,24 +98,27 @@ impl SlowLane {
     /// const lane = SlowLane.start(handlers, busy); // tokio.spawn(run(lane, handlers.copy(), busy))
     /// ```
     pub fn start(handlers: &GitHandlers, busy: Arc<AtomicUsize>) -> SlowLane {
-        return SlowLane::start_with_slice(handlers, busy, HOUSEKEEPING_OF_ONE_ROUND);
+        return SlowLane::start_with_slice_and_lease(handlers, busy, HOUSEKEEPING_OF_ONE_ROUND, CLAIM_LEASE);
     }
 
     /// What:
-    ///  Start the lane with the housekeeping one look at a repository may start given,
-    /// which the shipped service takes from `HOUSEKEEPING_OF_ONE_ROUND`.
+    ///  Start the lane with the housekeeping one look at a repository may start
+    /// and the lease of the claims it takes given,
+    /// which the shipped service takes from `HOUSEKEEPING_OF_ONE_ROUND` and `CLAIM_LEASE`.
     /// Why:
     ///   A control states a slice it can spend in a moment,
-    /// so the bound that separates one look from the next is a state the control reaches instead of a duration it waits out.
+    /// so the bound that separates one look from the next is a state the control reaches instead of a duration it waits out;
+    /// and it states a short lease,
+    /// so a claim running out is a wait a control takes in a moment rather than the shipped 120 seconds.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const lane = SlowLane.startWithSlice(handlers, busy, slice);
+    /// const lane = SlowLane.startWithSliceAndLease(handlers, busy, slice, lease);
     /// ```
-    fn start_with_slice(handlers: &GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration) -> SlowLane {
+    fn start_with_slice_and_lease(handlers: &GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration, lease: Duration) -> SlowLane {
         let (inbox, taken): (UnboundedSender<Wake>, UnboundedReceiver<Wake>) = unbounded_channel::<Wake>();
         let owned: GitHandlers = handlers.for_round(std::collections::HashMap::<PathBuf, ReviewKey>::new());
-        let _running: tokio::task::JoinHandle<()> = tokio::spawn(run_awaiting(taken, owned, busy, housekeeping));
+        let _running: tokio::task::JoinHandle<()> = tokio::spawn(run_awaiting(taken, owned, busy, housekeeping, lease));
         return SlowLane { inbox };
     }
 
@@ -115,6 +128,64 @@ impl SlowLane {
     pub fn ask(&self, wake: Wake) {
         let _asked: Result<(), tokio::sync::mpsc::error::SendError<Wake>> = self.inbox.send(wake);
     }
+}
+
+/// What:
+///  The lane counted busy while this value lives,
+///  and its count given back when it ends,
+///  a panic included.
+/// Why:
+///   The lane is what keeps the service from exiting while a claim of it is held,
+/// so a count raised by a task that panicked would keep the service alive for ever
+/// and leave the slow work it was going to do undone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// using busy = TheLaneIsBusy.raising(busy);
+/// ```
+struct TheLaneIsBusy {
+    /// The count the lane keeps, which this value raised by one.
+    busy: Arc<AtomicUsize>,
+}
+
+impl TheLaneIsBusy {
+    /// Count the lane busy from here until this value ends.
+    fn raising(busy: &Arc<AtomicUsize>) -> TheLaneIsBusy {
+        busy.fetch_add(1, Ordering::SeqCst);
+        return TheLaneIsBusy { busy: Arc::clone(busy) };
+    }
+}
+
+impl Drop for TheLaneIsBusy {
+    fn drop(&mut self) {
+        self.busy.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// What:
+///  One look at one directory,
+///  with a panic kept as a look that left its work for a later one.
+/// Why:
+///   A look runs the drain, and a defect in it must not end the lane:
+/// the records it held keep their lease and this asks to be looked at again after the pause a look that
+///  left housekeeping behind asks for,
+/// so the lane serves this repository again and every repository behind it goes on being served.
+/// The panic itself is printed by the process's panic hook where it happened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = await aLookThatMayPanic(drainSlow(gitDir, handlers, housekeeping));
+/// ```
+async fn a_look_that_may_panic<W: Future<Output = Option<Duration>> + Send>(look: W) -> Option<Duration> {
+    return match keep_a_panic_awaiting(look).await {
+        Ok(left) => left,
+        Err(said) => {
+            crate::service_warn!(
+                "a look at one repository's slow work stopped unexpectedly, so the records it held keep their lease and it is looked at again after the pause: {said}"
+            );
+            Some(LOOK_AGAIN_AFTER_DEFERRING)
+        }
+    };
 }
 
 /// What:
@@ -135,15 +206,19 @@ impl SlowLane {
 /// so one repository's backlog is taken in slices:
 /// the repositories queued with it are looked at first,
 /// and it is looked at again after the pause the drain asked for.
+///  A look that keeps a claim asks to be looked at again when that claim runs out,
+/// so the lane itself is what tries the item again:
+/// nothing else would wake the service for a claim only this lane holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for await (const wake of inbox) { busy.add(1); let left = [wake, ...drain(inbox)]; while (left.length) { left = await lookOnce(housekeeping, left) } busy.sub(1) }
 /// ```
-async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration) {
+async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration, lease: Duration) {
     loop {
         let Some(first) = inbox.recv().await else { return };
-        busy.fetch_add(1, Ordering::SeqCst);
+        // The count is this frame's until the looks it covers end, and a look that panicked gives it back too.
+        let _busy: TheLaneIsBusy = TheLaneIsBusy::raising(&busy);
         let mut wakes: Vec<Wake> = vec![first];
         while let Ok(queued) = inbox.try_recv() {
             wakes.push(queued);
@@ -161,7 +236,7 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                 if let Some(key) = review_key.clone() {
                     keys.insert(git_dir.clone(), key);
                 }
-                if let Some(wait) = drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping).await {
+                if let Some(wait) = a_look_that_may_panic(drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping, lease)).await {
                     soonest = Some(match soonest {
                         Some(already) => already.min(wait),
                         None => wait,
@@ -178,7 +253,6 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                 wakes.push(queued);
             }
         }
-        busy.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -186,25 +260,33 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 ///  Run every slow kind that waits for this repository,
 /// for the directory itself and for the common directory of a bare repository,
 /// as the round runs the pushes,
-/// and answer how soon it asks to be looked at again.
+/// and answer how soon it asks to be looked at again:
+/// the pause a look that left housekeeping asked for,
+/// or the end of the earliest claim it keeps.
 /// Why:
 ///   The records of a bare repository's worktrees sit in its common directory's work directory,
 /// and the round reaches that directory too (`drain_common_records_planned_awaiting`),
 /// so the lane must reach it or those records are never run.
 /// A directory whose look left housekeeping for a later one names the pause it wants (`housekeeping_of_one_round.rs`),
+/// as a claim it keeps names the moment its lease runs out,
 /// and the earlier of the two looks is what the lane waits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await drainSlow(gitDir); if (bareCommon(gitDir)) await drainSlow(common)
 /// ```
-pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
-    let own: Option<Duration> = drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping).await;
+pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized>(
+    git_dir: &Path,
+    handlers: &H,
+    housekeeping: Duration,
+    lease: Duration,
+) -> Option<Duration> {
+    let own: Option<Duration> = drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping, lease).await;
     let Some(common) = common_directory_of(git_dir) else { return own };
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
         return own;
     }
-    let shared: Option<Duration> = drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping).await;
+    let shared: Option<Duration> = drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping, lease).await;
     return match (own, shared) {
         (Some(one), Some(other)) => Some(one.min(other)),
         (one, other) => one.or(other),
@@ -222,15 +304,16 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
 /// Every slow kind settles itself and none of them reads the plan
 ///  (`service_work_drain_pending_claims.rs`).
 ///  A look starts housekeeping for no longer than the slice it was given,
-/// and says when to look again when it left some of it for a later one.
+/// and says when to look again when it left some of it for a later one,
+/// or when the earliest claim it keeps runs out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS, housekeeping)
 /// ```
-async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
+async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration, lease: Duration) -> Option<Duration> {
     let mut nothing_to_plan: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
-    return drain_pending_awaiting(git_dir, handlers, CLAIM_LEASE, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
+    return drain_pending_awaiting(git_dir, handlers, &ClaimTime::read(), lease, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
 }
 
 /// Controls for the lane stay out of the release executable.

@@ -36,6 +36,7 @@ import {
   entriesOrNothingIn,
   isThere,
 } from './newest-finished-run-of-a-name.ts';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import { optionIn, } from './option-in.ts';
 import { fieldsOf, } from './read-pi-fields.ts';
 import {
@@ -43,6 +44,7 @@ import {
   runCommandShowingItsOutput,
   runCommandWithChildProcess,
 } from './run-command.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 import { unitStateOf, } from './wait-for-a-unit-to-end.ts';
 import { processesAtTheirFolders, } from './wake-a-run-whose-work-outlives-its-turn.ts';
 
@@ -115,9 +117,26 @@ const DEFAULT_REVIEW_FOLDER_IN_HOME: readonly string[] = [
 ];
 
 /**
+ The command's command line, which `--help` prints and an option the command cannot use is named against.
+ */
+const USAGE =
+  'remove-finished-worktrees [--checkout-folder=<folder>] [--runs-folder=<folder>] [--review-folder=<folder>] '
+    + '[--paused-file=<file>] [--process-folder=<folder>] [--apply] [--clean-folder=<path>] [--clean-word=<word>]...';
+
+/**
  The words the command was given.
  */
 const words = argv.slice(2,);
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words,
+  usage: USAGE,
+},)) {
+  process.exit(0,);
+}
 
 /**
  The option that names the checkout, as it was written.
@@ -155,7 +174,12 @@ const processGiven = optionIn({
  What this run of the command was asked for.
  */
 const options = {
-  checkoutFolder: (checkoutGiven === '') ? cwd() : checkoutGiven,
+  checkoutFolder: (checkoutGiven === '')
+    // A task of this package runs in the package folder, so the folder the command was started in is not the checkout: the
+    // checkout is the folder above it that holds `.git`, and a default of the package folder reads every unit as a run whose
+    // worktree is gone, which is what this command reported on 2026-11-11.
+    ? await checkoutFolderOf({ from: cwd(), },)
+    : checkoutGiven,
   runsFolder: (runsGiven === '')
     ? join(
       homedir(),

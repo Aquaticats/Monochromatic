@@ -545,26 +545,23 @@ where
     };
 }
 
-/// How long a caller that cannot do its work without a worker waits for a build that outlasted `BUILD_DEADLINE`:
-/// five times that deadline,
-/// the margin every ceiling of `wait_ceilings.rs` uses.
+/// What:
+///  Whether a build that outlasted `BUILD_DEADLINE` is still on its way,
+///  which is the one state a caller can usefully wait in.
 /// Why:
-///   The commit service's acceptor is such a caller:
-/// its build is held to one second,
-///  a build that misses that deadline is kept for the work it was built for (`LATE_RUNTIME`),
-/// and the service used to end
-///  at the deadline itself,
-/// which failed a commit for a build that arrived a moment later
-/// (the gate of 2026-11-11T10:29-05:00,
-/// `fault_trace::a_service_killed_at_each_ftruncate_leaves_a_recoverable_repository`:
-///  the service logged `ready` and then `cannot start the acceptor of connections`
-///  1.76 s later,
-/// so its one-second deadline had passed and the build had not arrived in the 0.7 s the rest of the start took).
-/// A service may wait this long and no longer:
-/// a build the system refused or that hung inside its own unwind never arrives,
-///  and the client's own start wait is `START_CEILING` (60 s),
-/// ten times this patience.
-pub const LATE_BUILD_PATIENCE: Duration = Duration::from_millis(BUILD_DEADLINE.as_millis() as u64 * 5);
+///   A caller that must have a worker can only wait for a build that is still running:
+/// a runtime the system refused,
+/// a build that failed,
+/// and a plan of the current-thread runtime have nothing coming,
+/// and waiting there spends the person's command on a state no wait can change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const coming = builtFlavor()?.kind === 'late' && lateRuntime === undefined;
+/// ```
+pub fn a_build_is_still_on_its_way() -> bool {
+    return built_flavor() == Some(BuiltFlavor::CurrentThreadAfterDeadline) && LATE_RUNTIME.get().is_none();
+}
 
 /// How often `await_a_worker_within` asks whether the late build arrived:
 /// short enough that a worker that arrives is used at once,
@@ -600,24 +597,27 @@ pub fn await_a_worker_within(within: Duration) -> bool {
 
 /// What:
 ///  `spawn_on_runtime`,
-/// after waiting up to `within` for a late build,
+/// after waiting up to `within` for a build that outlasted its deadline and is still coming,
 /// so a caller that cannot do its work without a worker does not give up at `BUILD_DEADLINE` itself.
 /// Why:
 ///   A build that outlasted its deadline is kept for the work it was built for,
 /// and that work includes the tasks a service cannot serve without;
 /// ending the service at the deadline
 ///  failed the commits of a person whose machine was slow to give the process its threads.
+/// A runtime nothing will bring is never waited for:
+/// `a_build_is_still_on_its_way` is the question,
+/// and the caller is told at once that nothing watches.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const task = spawnOnRuntimeWithin(5_000, work); // undefined when no worker arrived in time
+/// const task = spawnOnRuntimeWithin(60_000, work); // undefined when no worker arrived in time
 /// ```
 pub fn spawn_on_runtime_within<F>(within: Duration, future: F) -> Option<tokio::task::JoinHandle<F::Output>>
 where
     F: std::future::Future + Send + 'static,
     F::Output: Send + 'static,
 {
-    if !tasks_can_run() && !await_a_worker_within(within) {
+    if !tasks_can_run() && !(a_build_is_still_on_its_way() && await_a_worker_within(within)) {
         return None;
     }
     return spawn_on_runtime(future);
