@@ -305,15 +305,20 @@ pub fn run_native_commit_within(
         signs: crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args),
     });
     crate::scratch_commit_step::note_scratch_step(facts);
-    if let Some(the_stop) = the_stop {
-        let bound_that_ended_it: std::time::Duration = the_stop.bound_that_ended_it.the_bound();
+    if let Some(stop_of_the_step) = the_stop {
+        let bound_that_ended_it: std::time::Duration = stop_of_the_step.bound_that_ended_it.the_bound();
         crate::diagnostic_log::warn(
             "runNativeCommit",
-            format!("the scratch git commit was stopped after {} ms at the bound of {} ms", the_stop.waited.as_millis(), bound_that_ended_it.as_millis()).as_str(),
+            format!(
+                "the scratch git commit was stopped after {} ms at the bound of {} ms",
+                stop_of_the_step.waited.as_millis(),
+                bound_that_ended_it.as_millis()
+            )
+            .as_str(),
         );
         // A step the ceiling ended never exited by itself, so the note carries its name and no status.
         crate::git_step_failure::note_failed_step(step.as_str(), None);
-        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(the_stop))));
+        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(stop_of_the_step))));
     }
     let (outcome, _no_ceiling): (crate::forwarding::ChildOutcome, Option<crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop>) = match finished {
         Ok(ended) => ended,
