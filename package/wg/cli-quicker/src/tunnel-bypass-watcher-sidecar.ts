@@ -81,12 +81,12 @@ type WatcherRecordText =
      */
     readonly text: string;
   }
-  | {
+    | {
     /**
      No record file stands at the path.
      */
-    readonly kind: 'absent';
-  };
+      readonly kind: 'absent';
+    };
 
 /**
  Resolves watcher identity sidecar for state path.
