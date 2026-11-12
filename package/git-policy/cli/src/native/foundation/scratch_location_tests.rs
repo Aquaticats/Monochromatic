@@ -701,7 +701,8 @@ fn a_commits_scratch_tree_is_made_where_the_sweep_covers_it() {
 
 /// What:
 ///  The privacy proofs one preparation makes:
-///  the directory it did not make, and never the tree it just made.
+///  the directory it did not make,
+///  and never the tree it just made.
 /// Why:
 ///   Each proof is one metadata round trip to the device that a commit waits for before it can answer,
 ///  and a directory `mkdir` just made is this account's with mode `0700` less the umask,
