@@ -69,18 +69,28 @@ const READ_IN_MEMORY_FILE_SYSTEMS: [&str; 7] = ["btrfs", "ext4", "xfs", "f2fs", 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// parseFdinfo(await readFile(`${process}/fdinfo/${fd}`, 'utf8')).mnt_id ?? undefined
+/// const record = descriptorRecord({ process, fd, targeted: 'real-file' });
+/// record.text === undefined ? undefined : mountIdIn(record.text);
 /// ```
 #[cfg(target_os = "linux")]
 fn mount_id_of(process: &Path, fd: &OsStr) -> std::io::Result<Option<u64>> {
-    let record: PathBuf = process.join("fdinfo").join(fd);
-    let text: String = std::fs::read_to_string(record)?;
-    for line in text.lines() {
-        if let Some(value) = line.strip_prefix("mnt_id:") {
-            return Ok(value.trim().parse::<u64>().ok());
-        }
-    }
-    return Ok(None);
+    return match crate::descriptor_record::descriptor_record(process, fd, crate::descriptor_record::Targeted::RealFile) {
+        crate::descriptor_record::Record::Text(text) => Ok(crate::descriptor_record::mount_id_in(text.as_str())),
+        // Only a descriptor of a file of a file system reaches this read, so its text is a path and it can be the file; a
+        //  descriptor that is not one is not identified here either.
+        crate::descriptor_record::Record::NotTheTarget => Ok(None),
+        // The process or the descriptor ended while this read looked at it, which a caller has always read as a race.
+        crate::descriptor_record::Record::Gone => Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
+        crate::descriptor_record::Record::BeyondBound => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "its record is longer than the {} bytes this scan takes, so the mount it reached is not read",
+                crate::descriptor_record::RECORD_BYTES_AT_MOST
+            ),
+        )),
+        crate::descriptor_record::Record::Unreadable { kind, reason } => Err(std::io::Error::new(kind, reason)),
+        crate::descriptor_record::Record::KindUnknown { kind, reason } => Err(std::io::Error::new(kind, reason)),
+    };
 }
 
 /// What:

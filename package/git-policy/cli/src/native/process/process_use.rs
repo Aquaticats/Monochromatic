@@ -17,9 +17,25 @@
 
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
+/// `Instant` is a moment on the monotonic clock, which a scan's bound names.
+use std::time::Instant;
 
 /// The root of the process table on Linux.
 pub const PROC_ROOT: &str = "/proc";
+
+/// How long one scan of this host's processes may take.
+///
+/// Measured on 2026-11-07 on this host at load average 37 to 52:
+/// one walk of every process's open descriptors (list each `/proc/<pid>/fd` and `stat` each link) over 1,000 processes
+/// and 54,500 descriptors took 313, 360 and 398 ms,
+/// and the commit service's scan carries the same bound for the same measurement (`SERVICE_SCAN_BUDGET`).
+/// A scan that reaches it returns what it found and says that it did not finish,
+/// which every caller reads as a table it may not act on:
+/// two seconds is the smallest whole number of seconds that is at least five times the longest walk.
+/// Why a whole table and not one descriptor:
+///  a read of a descriptor's record cannot be interrupted once it has begun,
+///  so what bounds a single read is the gate before it (`descriptor_record.rs`) and what bounds the scan is this.
+pub const PROCESS_SCAN_CEILING: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// What:
 ///  What a scan looks for.
@@ -108,6 +124,20 @@ fn exited(error: &std::io::Error) -> bool {
 }
 
 /// What:
+///  Whether a moment is behind now.
+/// Why:
+///   A scan checks the moment it was given before each process and each descriptor,
+///  and a moment that has come ends the walk.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Instant.now() >= moment
+/// ```
+fn past(moment: Instant) -> bool {
+    return Instant::now() >= moment;
+}
+
+/// What:
 ///  The account this process runs as.
 /// Why:
 ///   Unreadable processes of other accounts are not evidence against a private file.
@@ -182,7 +212,7 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { ino } = parseFdinfo(await readFile(`${process}/fdinfo/${fd}`, 'utf8'));
+/// const { ino } = descriptorRecord({ process, fd, targeted: 'real-file' });
 /// const opened = ino === inode ? openedFileOf({ process, fd }) : undefined;
 /// opened?.device === device && opened?.inode === inode;
 /// ```
@@ -235,16 +265,25 @@ pub fn descriptor_is_file_with(
     inode: u64,
     opened: fn(&Path, &std::ffi::OsStr) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>,
 ) -> Result<bool, Unread> {
-    let text: String = match std::fs::read_to_string(process.join("fdinfo").join(fd)) {
-        Ok(text) => text,
-        Err(error) => return Err(Unread::Process(format!("{error}"))),
-    };
-    let mut held: Option<u64> = None;
-    for line in text.lines() {
-        if let Some(value) = line.strip_prefix("ino:") {
-            held = value.trim().parse::<u64>().ok();
+    let text: String = match crate::descriptor_record::descriptor_record(process, fd, crate::descriptor_record::Targeted::RealFile) {
+        // A pipe, a socket or a kernel anonymous inode cannot be a file of a file system, its record is never opened, and
+        //  a descriptor that closed while the scan walked the directory is open in nothing.
+        crate::descriptor_record::Record::NotTheTarget | crate::descriptor_record::Record::Gone => return Ok(false),
+        crate::descriptor_record::Record::Text(text) => text,
+        // A record past the bound is one this scan did not read: the descriptor may hold the file, so nothing is concluded.
+        crate::descriptor_record::Record::BeyondBound => {
+            return Err(Unread::File(format!(
+                "its record is longer than the {} bytes this scan takes, so the descriptor may hold the file",
+                crate::descriptor_record::RECORD_BYTES_AT_MOST
+            )));
         }
-    }
+        crate::descriptor_record::Record::Unreadable { reason, .. } => return Err(Unread::Process(reason)),
+        // The kind of a descriptor whose link text cannot be read is unknown, so it may be the file.
+        crate::descriptor_record::Record::KindUnknown { reason, .. } => {
+            return Err(Unread::File(format!("the text of its link cannot be read ({reason}), so the descriptor may hold the file")));
+        }
+    };
+    let held: Option<u64> = crate::descriptor_record::inode_in(text.as_str());
     if held != Some(inode) {
         return Ok(false);
     }
@@ -287,22 +326,27 @@ pub fn mount_of(path: &Path) -> u64 {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { mnt_id, ino } = parseFdinfo(await readFile(`${process}/fdinfo/${fd}`, 'utf8')); ino === inode && mnt_id === mount;
+/// const { mnt_id, ino } = descriptorRecord({ process, fd, targeted: 'anonymous-file' }); ino === inode && mnt_id === mount;
 /// ```
 pub fn mounted_descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, mount: u64, inode: u64) -> Result<bool, Unread> {
-    let text: String = match std::fs::read_to_string(process.join("fdinfo").join(fd)) {
-        Ok(text) => text,
-        Err(error) => return Err(Unread::Process(format!("{error}"))),
-    };
-    let mut reached: Option<u64> = None;
-    let mut held: Option<u64> = None;
-    for line in text.lines() {
-        if let Some(value) = line.strip_prefix("mnt_id:") {
-            reached = value.trim().parse::<u64>().ok();
-        } else if let Some(value) = line.strip_prefix("ino:") {
-            held = value.trim().parse::<u64>().ok();
+    let text: String = match crate::descriptor_record::descriptor_record(process, fd, crate::descriptor_record::Targeted::AnonymousFile) {
+        // A kernel anonymous inode is not a pipe or another named anonymous file, its record is never opened, and a
+        //  descriptor that closed while the scan walked the directory is open in nothing.
+        crate::descriptor_record::Record::NotTheTarget | crate::descriptor_record::Record::Gone => return Ok(false),
+        crate::descriptor_record::Record::Text(text) => text,
+        crate::descriptor_record::Record::BeyondBound => {
+            return Err(Unread::File(format!(
+                "its record is longer than the {} bytes this scan takes, so the descriptor may hold the file",
+                crate::descriptor_record::RECORD_BYTES_AT_MOST
+            )));
         }
-    }
+        crate::descriptor_record::Record::Unreadable { reason, .. } => return Err(Unread::Process(reason)),
+        crate::descriptor_record::Record::KindUnknown { reason, .. } => {
+            return Err(Unread::File(format!("the text of its link cannot be read ({reason}), so the descriptor may hold the file")));
+        }
+    };
+    let reached: Option<u64> = crate::descriptor_record::mount_id_in(text.as_str());
+    let held: Option<u64> = crate::descriptor_record::inode_in(text.as_str());
     return Ok(held == Some(inode) && reached == Some(mount) && mount != 0);
 }
 
@@ -372,42 +416,74 @@ fn working_directory_is_inside(link: &Path, directory: &Path) -> std::io::Result
 /// What:
 ///  Whether one process uses the target,
 ///  why its descriptor directory could not be read,
-///  and which of its descriptors were named by a record and could not be identified.
+///  which of its descriptors were named by a record and could not be identified,
+///  and whether the moment the scan ends came before it finished.
 /// Why:
 ///   The first reason of each kind is kept:
 ///  a refused directory is a process the scan could not look at,
 ///  and a refused descriptor is a file the kernel would not hand over,
 ///  which a caller treats as one that may be held.
+///  A process the scan stopped in is a process whose descriptors past the stop were not looked at,
+///  so the scan as a whole proved nothing and says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function scanProcess({ procRoot, pid, target }): Promise<{ uses: boolean; unreadable?: string; unresolved?: string }>;
+/// type Findings = { uses: boolean; unreadable?: string; unresolved?: string; stopped: boolean };
 /// ```
-fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, Option<String>, Option<String>) {
+struct Findings {
+    /// A descriptor or a working directory of the process is the target.
+    uses: bool,
+    /// Why something of the process could not be read.
+    unreadable: Option<String>,
+    /// Why a descriptor that may be the target could not be identified.
+    unresolved: Option<String>,
+    /// The scan's deadline came before this process was looked at whole.
+    stopped: bool,
+}
+
+/// What:
+///  Every process other than `self_pid` that uses the target,
+/// through a proc root.
+/// Why:
+///   Recovery runs this only after a record is missing or a lock is unproven,
+///  so the scan costs nothing on a commit that finds its state whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function processesUsing({ procRoot, target, selfPid }): Promise<UseScan>;
+/// ```
+fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>, deadline: Option<Instant>) -> Findings {
     let process: PathBuf = proc_root.join(pid);
-    let mut uses: bool = false;
-    let mut unreadable: Option<String> = None;
-    let mut unresolved: Option<String> = None;
+    let mut found: Findings = Findings { uses: false, unreadable: None, unresolved: None, stopped: false };
     let mut described: PathBuf = process.join("fdinfo");
     if let Prepared::Inside(directory) = prepared {
         match working_directory_is_inside(process.join("cwd").as_path(), directory) {
-            Ok(found) => uses = found,
+            Ok(inside) => found.uses = inside,
             Err(error) if exited(&error) => {}
-            Err(error) => unreadable = Some(format!("PID {pid} cwd: {error}")),
+            Err(error) => found.unreadable = Some(format!("PID {pid} cwd: {error}")),
         }
         described = process.join("fd");
     }
     let listing: std::fs::ReadDir = match std::fs::read_dir(described.as_path()) {
-        Ok(found) => found,
-        Err(error) if exited(&error) => return (uses, unreadable, unresolved),
-        Err(error) => return (uses, unreadable.or(Some(format!("PID {pid} fd: {error}"))), unresolved),
+        Ok(listed) => listed,
+        Err(error) if exited(&error) => return found,
+        Err(error) => {
+            found.unreadable = Some(format!("PID {pid} fd: {error}"));
+            return found;
+        }
     };
     for item in listing.flatten() {
+        // A record read cannot be interrupted once it has begun, so the deadline is taken before each descriptor: everything
+        //  the scan does between two of them is bounded by it.
+        if deadline.is_some_and(past) {
+            found.stopped = true;
+            return found;
+        }
         let answer: Result<bool, Unread> = match prepared {
             // A working directory that cannot be resolved is a path this scan could not look at, which a caller reads as an
             // unreadable process rather than as a file it could not identify.
             Prepared::Inside(directory) => match working_directory_is_inside(item.path().as_path(), directory) {
-                Ok(found) => Ok(found),
+                Ok(inside) => Ok(inside),
                 Err(error) if exited(&error) => Ok(false),
                 Err(error) => Err(Unread::Process(format!("{error}"))),
             },
@@ -421,21 +497,21 @@ fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, 
             }
         };
         match answer {
-            Ok(true) => uses = true,
+            Ok(true) => found.uses = true,
             Ok(false) => {}
             Err(Unread::Process(reason)) => {
-                if unreadable.is_none() {
-                    unreadable = Some(reason);
+                if found.unreadable.is_none() {
+                    found.unreadable = Some(reason);
                 }
             }
             Err(Unread::File(reason)) => {
-                if unresolved.is_none() {
-                    unresolved = Some(reason);
+                if found.unresolved.is_none() {
+                    found.unresolved = Some(reason);
                 }
             }
         }
     }
-    return (uses, unreadable, unresolved);
+    return found;
 }
 
 /// What:
@@ -459,16 +535,19 @@ fn named_unread(pid: &str, fd: &std::ffi::OsStr, outcome: Result<bool, Unread>) 
 
 /// What:
 ///  Every process other than `self_pid` that uses the target,
-/// through a proc root.
+/// through a proc root,
+/// until the moment `deadline` names.
 /// Why:
-///   Recovery runs this only after a record is missing or a lock is unproven,
-///  so the scan costs nothing on a commit that finds its state whole.
+///   A record read cannot be interrupted once it has begun,
+///  and a host holds as many descriptors as its programs decide to:
+///  so the walk of the table is what carries a bound,
+///  and a walk that reached it says so instead of reporting a table it did not finish.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function processesUsing({ procRoot, target, selfPid }): Promise<UseScan>;
+/// async function processesUsingUntil({ procRoot, target, selfPid, deadline }): Promise<UseScan>;
 /// ```
-pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pid: u32) -> UseScan {
+pub fn processes_using_until(proc_root: &Path, target: &UseTarget<'_>, self_pid: u32, deadline: Option<Instant>) -> UseScan {
     let mut scan: UseScan = UseScan::default();
     // A file is named by the device number and the inode it has, so no mount table is read and no descriptor is
     //  resolved except the ones whose record already names the file's inode number.
@@ -478,13 +557,14 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
         UseTarget::Mounted { mount, inode } => Prepared::Mounted { mount: *mount, inode: *inode },
     };
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
-        Ok(found) => found,
+        Ok(listed) => listed,
         Err(error) => {
             scan.unavailable = Some(format!("{}: {error}", proc_root.display()));
             return scan;
         }
     };
     let own: String = self_pid.to_string();
+    let mut reached: usize = 0;
     for item in listing.flatten() {
         let name: String = item.file_name().to_string_lossy().into_owned();
         let Ok(number) = name.parse::<i64>() else {
@@ -493,8 +573,13 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
         if name == own {
             continue;
         }
-        let (uses, unreadable, unresolved) = scan_process(proc_root, name.as_str(), &prepared);
-        if uses {
+        if deadline.is_some_and(past) {
+            scan.unavailable = Some(stopped_at_the_bound(reached));
+            return scan;
+        }
+        reached += 1;
+        let found: Findings = scan_process(proc_root, name.as_str(), &prepared, deadline);
+        if found.uses {
             // A `comm` file that cannot be read leaves the command unknown, as the `.ok()` before did.
             let command: Option<String> = match std::fs::read_to_string(item.path().join("comm")) {
                 Ok(text) => Some(String::from(text.trim())),
@@ -502,18 +587,56 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
             };
             scan.users.push(ProcessUser { pid: number, command });
         }
-        if let Some(reason) = unresolved
+        if let Some(reason) = found.unresolved
             && belongs_to_this_account(item.path().as_path())
         {
             scan.unresolved.push(reason);
         }
-        if let Some(reason) = unreadable
+        if let Some(reason) = found.unreadable
             && belongs_to_this_account(item.path().as_path())
         {
             scan.unreadable.push(reason);
         }
+        if found.stopped {
+            scan.unavailable = Some(stopped_at_the_bound(reached));
+            return scan;
+        }
     }
     return scan;
+}
+
+/// What:
+///  Why a scan of the process table ended at its moment rather than at the end of the table.
+/// Why:
+///   The processes past the stop were not looked at,
+///  so the scan proves nothing about a file they may hold,
+///  and a caller that would remove or move something waits for the processed table instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the scan of the process table stopped at its time bound after ${reached} processes, so the processes it did not reach may hold the target`;
+/// ```
+fn stopped_at_the_bound(reached: usize) -> String {
+    return format!(
+        "the scan of the process table stopped at its time bound after {reached} processes, so a process it did not reach may hold the target"
+    );
+}
+
+/// What:
+///  Every process other than `self_pid` that uses the target,
+/// through a proc root,
+/// within `PROCESS_SCAN_CEILING`.
+/// Why:
+///   The production scan:
+///  every command that gives up on a record or a lock reads the table this way,
+///  and none of them may outlast its bound because a program of the account holds many descriptors.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function processesUsingThrough({ procRoot, target, selfPid }): Promise<UseScan>;
+/// ```
+pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pid: u32) -> UseScan {
+    return processes_using_until(proc_root, target, self_pid, Some(Instant::now() + PROCESS_SCAN_CEILING));
 }
 
 /// What:
