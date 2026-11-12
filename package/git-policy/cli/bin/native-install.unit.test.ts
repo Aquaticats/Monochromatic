@@ -405,8 +405,11 @@ await describe({
         expect(printed.status,).toBe(0,);
         expect(printed.stderr,).not.toContain('did not succeed',);
         expect(printed.stdout,).toContain(`installed ${releaseVersion}; ${lockFileName} already named it, so nothing was committed`,);
-        // The refusal-free path says whose commit it found, so a log reads why this install sampled no commit itself.
-        expect(printed.stdout,).toContain(`another install committed ${lockFileName}`,);
+        // The failing step's own words are printed, so a log reads what Git answered instead of a bare exit 0.
+        expect(printed.stdout,).toContain('== the commit step did not succeed: ');
+        expect(printed.stdout,).toContain('nothing to commit',);
+        // And that the release is recorded all the same, so the install is not reported as a failure.
+        expect(printed.stdout,).toContain(`HEAD holds ${lockFileName}, so the release is recorded`,);
         expect(await commitSubjects({ repository: fixture.repository, }),).toEqual([
           `chore(toolchain): monochromatic-git-policy-cli ${releaseVersion}`,
           'first',

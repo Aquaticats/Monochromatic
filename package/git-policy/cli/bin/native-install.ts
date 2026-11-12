@@ -237,7 +237,10 @@ async function commitLock({
       text: lock,
     }))
       throw error;
-    printLine(`== another install committed ${lockFileName} while this one asked ${gitProgram} to, so this commit recorded nothing and no sample was taken`);
+    // The step's own words, because a person reading the run needs what Git said: a commit that found the release
+    // recorded already answers "nothing to commit, working tree clean".
+    printLine(`== the commit step did not succeed: ${error.message}`);
+    printLine(`== HEAD holds ${lockFileName}, so the release is recorded and this run took no sample of its own`);
     return false;
   }
 }

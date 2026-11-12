@@ -5712,7 +5712,9 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   because there is then no sample commit.
   A commit that loses the race to another install of the same release after that decision answers the same way:
   when the commit step itself fails and `HEAD` already holds exactly the lockfile this install resolved,
-  the install says which commit it found and records nothing,
+  the install prints what the step said and that the release is already recorded,
+  takes no sample,
+  and exits 0,
   so a release another install recorded is not a failed install.
   A checkout with no commit yet is one Git refuses `HEAD` as a revision in,
   so the lockfile there is compared with the index,
