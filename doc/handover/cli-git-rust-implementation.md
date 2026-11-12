@@ -297,6 +297,33 @@ move its durable facts to their canonical doc and delete it from this page.
   A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
   (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
 
+#### Integration pass 18 ended on a model error with its merges committed and no report; continued in round 314 (2026-11-12T15:59:51-05:00)
+
+- `integration-pass-18-for-alpha-16-1` ended at 15:59:42 with `endReason` "model-error" at 222 turns,
+  in the middle of a sentence ("Now the judge, the core of the change:"). It wrote no report.
+- Read with real Git at about 16:00:
+  the branch `integrate/git-policy-cli-pass-18-for-alpha-16` is at `5cad071d28`
+  ("Merge branch 'main' into ...", 14:53:06), on top of `bbb12e1be1`
+  ("fix(git-policy-cli): the merged controls build the shadow call and the request the hand-out added", 14:47:26);
+  its notes folder holds merge messages up to the ninth merge.
+  Which checks ran after the last merge, and how they ended, is not established.
+- Its worktree holds uncommitted edits to eight files
+  (`README.md`, `SPEC.md`, four files of `bin/native-perf*`, a unit test, `mise.toml`):
+  the run had begun changing the package's performance judge to the commit rule as changed at 14:03:46.
+  This session caused that: the note of 14:06 about the changed rule was also sent to the integration run,
+  which took it as work. A note that changes a requirement goes to runs whose task it is, not to an integration.
+- The user service manager: at 15:45:52 `systemctl --user` answered "Transport endpoint is not connected" twice.
+  Checked at 15:47:47: the manager's process (pid 5196, up since 04:04) and its sockets were there and the agents' processes ran.
+  One refused connection under load, not a lost session.
+- Round 314, started through the package launcher at about 16:02:
+  the continuation of pass 18 in the same worktree
+  (`~/temp/agent/pi-runs/integration-pass-18-for-alpha-16-continued-prompt.md`).
+  It establishes the state from the earlier run's session,
+  moves the eight edits to a branch of their own (`perf/git-policy-cli-performance-judge-measures-the-changed-commit-rule`, unfinished),
+  finishes the checks, answers where the package repair runs after the seventh branch and whether it can delay a landing,
+  and writes the report.
+- `/proc/pressure/io` at 15:59:42: full avg10=22.07, avg60=26.34, avg300=27.84.
+
 #### The hourly pass after 15:00: the disk pressure is back and the restarted runs did not survive it (2026-11-12T15:44:38-05:00)
 
 - `/proc/pressure/io` at 15:03:42: full avg10=51.03, avg60=65.18, avg300=69.24, higher than at 13:25.
