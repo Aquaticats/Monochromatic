@@ -1,8 +1,8 @@
 # The commit service without a service manager
 
-Status, 2026-11-12: parts 1 and 2 done (the inventory, and how Bazel does
-without a service manager).
-Parts 3, 4, 5, 6, 7 and 8 are added below as each is finished;
+Status, 2026-11-12: parts 1 to 4 done (the inventory, how Bazel does without a
+service manager, the design, and the manager as an enhancement).
+Parts 5 to 8 are added below as each is finished;
 this line is rewritten each time.
 
 The task: the wrapper's commit service stops being a unit of the user's
@@ -798,3 +798,365 @@ call are bounded by the client's own startup timeout, and nothing a build does
 depends on it.
 
 What the wrapper adopts from this, and where it does not fit, is part 3.
+
+## Part 3: the design
+
+The wrapper starts its own commit service and needs no service manager for
+anything a commit depends on. Where a manager exists it is used as an
+enhancement (part 4), on a path no commit waits on.
+Each answer below says whether it is Bazel's, adopted, and where Bazel's does
+not fit, why.
+
+### Finding the server (adopted from Bazel, with the socket path as the file)
+
+Bazel's client reads `<output base>/server/server_info.rawproto` and trusts it
+only after the pid, its start time and the cookies agree.
+The wrapper's server is reachable at a path that says whose it is, so the path
+replaces the port file, and the greeting replaces the cookies:
+a connection that does not answer with `Welcome { version, release }` in this
+protocol is not this service, whatever file is at that path.
+Adopted from Bazel: the pid note carries the process's start time as well as its
+pid, and is trusted only when both still match the running process, so a reused
+pid is never mistaken for the server.
+
+The files of one instance, all in `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/`:
+
+- `<instance>.sock`, the listening socket, mode 0600 in a directory mode 0700.
+  The socket is the ownership: whoever binds it owns that worktree's service,
+  and a second server that binds fails with `Address already in use` and exits.
+- `<instance>.pid`, the text `<pid> <starttime>`, written by the service after
+  it binds and removed by it as it ends.
+- `<instance>.git-dir`, the note that says which worktree the instance is for,
+  moved here from `$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/`.
+- `<instance>.git`, the real Git the service runs, which replaces the record the
+  unit file held (`real_git_record.rs`, entry 30 of part 1).
+- `<instance>.start.lock`, the start lock (below), empty.
+- `<instance>.log`, the service's output (below).
+
+The greeting is the cookie; a socket file that a killed service left behind is
+either replaced by the next bind (it refuses a connection) or, if something
+answers on it with another protocol, that answer is not this service and the
+client reports it instead of trusting it.
+
+### Starting one (adopted from Bazel)
+
+The client, when nothing answers:
+
+1. takes the start lock (below);
+2. connects once more, because the holder may have started the service;
+3. starts the server and waits, bounded, for the greeting.
+
+The start is Bazel's `daemonize`, in this program instead of in a helper:
+
+- the wrapper forks an intermediate process, which forks the server and exits;
+  the wrapper waits for the intermediate, so no zombie is left in the wrapper
+  and no `waitpid(-1)` can steal another child's status;
+- the server's `setsid()` makes it the leader of a new session and process
+  group, so it outlives the command, the terminal and the shell that started it,
+  and it can be killed as a group;
+- `SIGHUP` is ignored, standard input is `/dev/null`, and standard output and
+  standard error are the instance's log file, opened for append;
+- it is started as the wrapper's own executable in its service mode:
+  `monochromatic-git-policy-cli service run --path <socket> --journal <dir>
+  --git <real git> --instance <instance>`, plus `--release` never (the server
+  announces its own build's release) and `--idle-seconds` never (the default is
+  the design's).
+  The journal directory is `journal_of(<state dir>/monochromatic-git-policy-cli,
+  <instance>)`, the same path the unit's `StateDirectory=` gave, so an upgrade
+  keeps every record it had.
+- the child's environment is prepared by the wrapper, not inherited by accident:
+  `service_child_overlay` as today, because the service must not inherit a
+  terminal's `GIT_*` or a debugger's variables.
+
+Bazel's socketpair for "the server died during startup" is not adopted: the
+wrapper reads the log file's size and the pid note on failure and names the log,
+and a server that dies before binding leaves no socket to greet, which the same
+bounded wait sees. A pipe would be a second mechanism for the same fact.
+
+Bazel's `server/cmdline` record for "the options changed" is not adopted either:
+the wrapper's startup options cannot differ between two runs of one release, and
+a changed release is caught by the greeting's release.
+
+### Two clients starting at once (Bazel's lock, narrowed)
+
+Bazel holds an exclusive lock on the output base for its whole command.
+That does not fit: a wrapper commit is queued in the service and never holds a
+repository lock, so a lock over the command would make one worktree's commits
+wait on each other for no reason.
+
+Adopted from Bazel: `flock` on a lock file, retried, with the holder's identity
+written into the file for the person.
+Narrowed: the lock is `<instance>.start.lock` and it covers exactly one thing,
+starting this worktree's server, from "nothing answered" to "the greeting
+came", and nothing else.
+Its reason, beside it in the code: two clients that both find no service would
+both start one, and the loser would exit with `Address already in use`, which is
+harmless but writes two log files, two starts' worth of memory and one confusing
+failure; the lock makes the second client wait for the first's service instead.
+The kernel releases the lock when its holder dies at any instruction, so a kill
+between the lock and the greeting costs the waiter one retry, never a stuck
+lock.
+The socket bind stays the real ownership: a lock that leaked would cost a
+duplicated start, never two servers.
+
+A client that cannot take the lock waits for the greeting at 25 ms intervals,
+which is the pause the client already uses (`CONNECT_PAUSE`).
+
+### Replacing a server of another release (Bazel's answer, through the protocol)
+
+Bazel records the server's command line and the installation symlink, and kills
+the server when either differs.
+Adopted: the greeting carries the release and the protocol version, and the
+client acts on it exactly as it does today: a server of another release is asked
+to retire in the version it announced, it finishes its batch, removes its socket
+and exits, and the next connection of the client starts this release's server
+(the client's loop already retries within `start_wait`). The record of the
+release is the server's own greeting, so nothing has to be written or compared.
+
+For the state a manager used to repair (`RestartUnit` of a unit it calls
+`active` whose program stopped inside its own process), the replacement is the
+pid note: the client verifies the pid and start time, sends `SIGTERM` to the
+process group, waits a bounded time for it to be gone, and starts a server
+itself. That happens at most once per command, and only when a service accepted
+the connection and then greeted nothing for `SERVICE_GREETING_SILENCE` (3 s,
+unchanged).
+
+### When a server exits by itself (adopted from Bazel)
+
+The idle exit stays three hours, which is Bazel's `--max_idle_secs` default and
+the number this repository already measured against its own timing log
+(`IDLE_EXIT` in `service_server.rs`).
+Bazel's low-memory exit, which is opt-in there (`--shutdown_on_low_sys_mem`),
+becomes the default here, because the service no longer has a cgroup of its own:
+after five minutes with no work, a service whose host has less than 5 percent
+and less than 1 GiB of free memory exits, so that the kernel's memory-pressure
+kill (which would take the whole cgroup, starter and all) is not what ends it.
+The check is Bazel's, including the numbers (see part 2), read through `sysinfo`
+as the budget code already does, and it is a decision the tests can drive with an
+injected reading.
+
+### Where the server's output goes (Bazel's truncation, plus a cap)
+
+Bazel writes `<output base>/server/jvm.out`, truncated at each start unless a
+file is named. Adopted: the instance's log file is truncated at each start when
+it is larger than 4 MiB, so a start never inherits an unrelated history and the
+file cannot grow without bound across starts.
+Added, because Bazel has no bound within one server's life: the service drops
+its plain-standard-error lines once the file reaches the cap, counting what it
+dropped and writing one line about it, with one `fstat` per line and no lock.
+Where journald's native socket exists, the service sends its entries there as
+well, which is the log's rotation and retention and is read with
+`journalctl --identifier=monochromatic-git-policy-cli`; that send never waits
+(`journald_native.rs`, entry 37), and its failure changes nothing.
+
+### What is lost without a service manager, and the answer to each loss
+
+**The service lives in the cgroup of whatever started it.**
+On this machine every agent's shell commands share one cgroup with a memory cap,
+and a manager that kills on memory pressure ends that cgroup whole, the agent
+included (`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
+So the service can be killed at any moment with its starter, and its memory and
+its children's are charged to its starter.
+Answer: first, a kill at any instruction loses nothing and leaves nothing that
+stops the next command, which the service's durable records already give (its
+journal, its claims and its intents, restored at the next start), and the
+client that was waiting starts the service again itself; second, the service is
+small and bounded (4 workers, the measured reserve), and it exits when the host
+is short of memory rather than being killed with its starter; third, where a
+manager exists the enhancement gives it a cgroup of its own (part 4).
+
+**Nobody restarts it but the next command.**
+A service that dies while a commit waits is not restarted by anybody else. The
+waiting client notices (its greeting silence bound), restarts the server itself
+and re-sends its request, which the journal's record of the request makes safe
+to repeat; a commit whose request was in a batch that already landed finds its
+commit in the journal instead of landing twice (the behaviour that exists
+today). A command that needs nothing (a hand-over) waits `HAND_OVER_GREETING_WAIT`
+(2 s) and leaves its record for the next command.
+There is no restart counter and no rate limit any more, because those existed to
+keep the manager from restarting a broken program forever.
+
+**Logs need a home with a bound on their size.**
+The instance's log file, capped as above, truncated at each start, and beside it
+the journal where journald exists. A person reads one file per worktree, named
+in every failure message.
+
+**Order at login, and anything that starts at boot, is lost.**
+Nothing is lost that the wrapper wants: the owner's rule is that nothing of the
+wrapper starts at login, and today's units are written into the runtime
+directory, which is emptied at logout, so nothing of the wrapper ever started at
+login either.
+
+**Removal of what a removed worktree leaves.**
+Kept: the service that finds its own worktree gone stops itself at the first
+connection (`stop_own_socket_when_the_worktree_is_gone`, entry 32).
+Replaced: the sweep stops asking the manager. It removes the instance's socket
+file when nothing listens on it, removes the pid note when its process is gone,
+and removes the journal only when the pid note proves the service is gone (the
+pid and start time no longer match a live process), which replaces
+`service_is_gone_after_a_stop`'s question to the manager.
+
+### How the requirements are held
+
+**A commit never fails where real Git would succeed.**
+There is no state in which "no service can be started" any more: the wrapper
+starts the service itself, so the failure that used to say "this account has no
+user service manager" is gone. The one failure left is a service that does not
+greet within `START_WAIT`, and its message names the log file, the socket path
+and the command that removes what is left.
+Nothing that used to work through a manager is left unbuilt: a machine with a
+manager runs the same base.
+
+**Nothing waits without a bound.**
+The start lock is waited for inside the start's bound; the greeting is waited
+for `START_WAIT` (10 s, unchanged, 9.6 times the slowest measured cold start of
+1,041 ms) with a notice at 1 s; the process group of a wedged service is given a
+bounded time to end before the start; the client's own answer, withdrawal and
+waiting-notice bounds are unchanged. The log cap bounds no wait.
+
+**No command waits on another agent's command.**
+The lock covers one worktree's start and is released at the greeting, so a
+commit in one worktree never waits on a commit in another, and a commit never
+waits behind another commit of its own worktree except through the service's
+queue, which is the design.
+
+**A process can be killed at any instruction.**
+The socket file of a killed service is stale and replaced by the next bind; the
+pid note of a killed service fails its start-time check and is removed; the
+start lock dies with its holder; the journal's records are restored at the next
+start; a request whose answer was lost is found in the journal.
+
+**A commit takes no more than five seconds longer than real Git's.**
+The fast path adds one `connect`, one line read and one `close`, measured in
+part 7. The first commit of a worktree pays one start, which the manager path
+also paid.
+
+**Coordination is free of locks first.**
+The socket bind is the only ownership. The start lock is the one lock, it
+covers the smallest unit that can be covered (one start of one worktree's
+server), and its reason is written beside it.
+
+**The code cleans up after itself.**
+The service removes its socket and pid note as it ends; the sweep removes what a
+killed one left and the journal of a worktree that is gone; the log is capped;
+the start lock is empty and released by the kernel.
+
+## Part 4: whether a service manager may still be used when one is there
+
+Decided on 2026-11-12 and recorded in
+`doc/handover/cli-git-rust-implementation.md` under "Current state":
+"Progressively enhance. You can also test on Alpine."
+
+What that settles: the base is the wrapper and its service working whole with no
+service manager, and everything a commit depends on is in that base. Where a
+manager is present the wrapper may use it to do better, as an enhancement on top
+of the base and never as a condition of it. An enhancement must leave the base's
+behaviour intact whenever the manager is absent, slow, refuses or answers with an
+error, with no failure and no message a person has to act on; finding out whether
+a manager is there costs nothing a commit waits for and is bounded; no enhancement
+writes a unit file or asks for a reload; and taking the enhancement away changes
+nothing a person or a test can observe except the thing the enhancement gives.
+
+### The enhancement: a transient scope for the server
+
+Bazel's answer, adopted whole: the server is started as a transient scope of the
+user manager, so it gets a cgroup of its own and is neither killed with nor
+charged to the shell that started it.
+
+What it costs, from systemd's own source and documentation
+(`systemd/systemd` at commit `92e51dd8a52c19ab56388d02fceeb8c7ae851beb`,
+fetched 2026-11-12):
+
+- **One D-Bus method call per start, and no unit file and no reload.**
+  `systemd-run --scope` creates the scope with `StartTransientUnit`
+  (`src/run/run.c` lines 1997, 2620 and 2813) and then runs the command as its
+  own child, synchronously, in the caller's environment
+  (`man/systemd-run.xml` lines 76 to 81). A transient unit is not a file under
+  the unit search path, so nothing has to be reloaded, which is the one property
+  that matters here: the 2026-11-12 incident was a reload.
+- **A call to a manager that is re-reading its units waits as long as the reload,
+  or fails at the client's timeout.** `Reload()`'s reply is deliberately not sent
+  until the reload is finished ("we just remember that we need to and then send it
+  after the reload is finished. That way the caller knows when the reload
+  finished", `src/core/dbus-manager.c` lines 1726 to 1734), and the reload runs
+  in the manager's own main loop (`m->objective = MANAGER_RELOAD`, line 1734;
+  `manager_reload` in `src/core/manager.c` line 3961). A call that arrives while
+  that loop is busy is dispatched afterwards, and the client's default method
+  timeout is 25 seconds
+  (`BUS_DEFAULT_TIMEOUT`, `src/libsystemd/sd-bus/bus-internal.h` line 327), so
+  the caller either waits up to 25 s or waits as long as the reload, whichever is
+  shorter. Measured here on 2026-11-12: one reload took 139,770 ms.
+  So the enhancement may never be on a path a commit waits on, and its own bound
+  must be far below 25 s.
+- **The scope's lifetime is the command's.** `systemd-run --scope` returns only
+  when the command finishes (same man page lines 78 to 81), so the starter
+  process is the scope's client for the server's whole life. It must survive the
+  wrapper's exit, which `setsid` already gives it.
+- **The probe is Bazel's answer to "is there a manager".** Bazel runs
+  `systemd-run --user --scope -- /bin/true` and only uses `systemd-run` when that
+  exits zero (`src/main/tools/daemonize.cc` lines 281 to 303).
+
+The design's shape, then:
+
+1. When the base would start a server, and only then, the starter probes with
+   `systemd-run --user --scope -- /bin/true` under a bound of 2 seconds. A
+   missing program, a non-zero exit, a timeout or a signal all mean "no
+   enhancement": the server is started plainly, exactly as the base does.
+2. On a successful probe the server is started through
+   `systemd-run --user --scope -- <own executable> service run ...`, under the
+   same bound. If the greeting does not come within the base's start wait plus
+   one second, the starter kills the whole group of what it started and starts
+   the server plainly, once, so a manager that became busy between the probe and
+   the call costs one second and never a commit.
+3. Nothing else changes on any path. No unit file, no reload, no `systemctl`, no
+   `ResetFailedUnit`, no `RestartUnit`, no `ActiveState` question. The scope is
+   named by `systemd-run`'s own default unless a name is needed for a person to
+   find it; if a name is given it is derived from the instance, and it is not a
+   name anything waits on.
+
+### What else a manager gives, and whether it is worth taking
+
+- **A cgroup of its own.** Taken, as above. It is the one thing the base cannot
+  give at all (part 3, "What is lost").
+- **Restart of a server that died.** Not taken. The next command restarts it,
+  and a waiting client restarts it itself within its bound, so a restart by the
+  manager would only race the client that is already doing it. Bazel's client
+  does not ask the manager to restart its server either.
+- **Logs in the journal.** Taken without the manager's units: the service sends
+  its entries to journald's native socket whenever that socket exists, and to
+  its own bounded file always. The journal's own rotation and retention then
+  apply beside the cap.
+- **A stop that kills what is left after a timeout.** Not taken. The service's
+  own `SIGTERM` handling and its stop bound (`stop_of_the_service_noticed_by_its_children.rs`)
+  already end it within a known time, and with a scope the whole group can be
+  signalled by the pid note.
+- **Start at boot or at login.** Not taken: the owner's rule is that nothing of
+  the wrapper starts at login.
+
+### Both sides, and the recommendation
+
+For taking the enhancement:
+
+- it gives the service a cgroup of its own, which is exactly the loss that
+  matters most on this machine (a memory cap shared with an agent's shell, and a
+  kill that ends the whole cgroup);
+- it costs one probe and one D-Bus call per server start, both off the fast path,
+  both bounded by the starter, and both with a plain fallback;
+- it writes no unit file and asks for no reload, so the incident's mechanism is
+  not reintroduced;
+- Bazel does the same, with the same fallback.
+
+Against taking it:
+
+- it is a second way to start the server, and a second way is a second thing to
+  test, to document and to break;
+- a scope started by a busy manager can delay a first commit by the bound before
+  the fallback, and a commit's first start is the one a person waits for;
+- the base's answer (the low-memory exit, the small bounded service, and a
+  durable journal) already keeps the loss small.
+
+Recommendation: take it, with the probe and the fallback as described, because
+the cgroup is the one thing the base cannot give and the cost is bounded and off
+the path a commit waits on. It should be switchable off without changing
+anything a person can observe besides the cgroup, which is what its two tests
+assert.
