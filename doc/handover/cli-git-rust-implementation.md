@@ -216,6 +216,28 @@ What follows from it:
   would give the service a cgroup of its own).
   "Not a hard dependency" allows it;
   whether it is wanted is the owner's.
+- That question was answered by the owner at about 10:45,
+  before it was asked:
+  "Progressively enhance. You can also test on Alpine."
+  So:
+  the base is the wrapper whole with no manager;
+  where a manager is present the wrapper may use it to do better,
+  never as a condition;
+  the base's behaviour is what happens whenever the manager is absent,
+  slow,
+  refusing or in error;
+  no enhancement writes a unit file or asks for a reload.
+  The proof that the base needs no systemd runs in an Alpine container
+  (no systemd,
+  another service manager,
+  musl),
+  and anything that does not build or behave on musl is a finding of its own.
+  Sent to round 297's agent as a note at 10:46;
+  its run was shown working by its feed at 10:45:24.
+  The repository's rule for container images
+  (`doc/decision/container-base-distro.md`)
+  is not changed by this;
+  Alpine is for this proof.
 - The agent for issue 6286 finishes its narrower change (no manager-wide reload) for the next release.
   A note of 10:41:51 tells it,
   and the agent for a service that does not answer,
