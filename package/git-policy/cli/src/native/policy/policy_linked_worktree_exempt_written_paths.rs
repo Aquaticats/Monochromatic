@@ -174,9 +174,7 @@ pub(super) fn words_at(parsed: &ParsedOptions, region: &[OsString]) -> Vec<OsStr
 /// ```
 pub(super) fn first_word(parsed: &ParsedOptions, region: &[OsString]) -> Option<OsString> {
     let positions: Vec<usize> = positional_tokens(parsed, region.len());
-    let Some(index) = positions.first() else {
-        return None;
-    };
+    let index: &usize = positions.first()?;
     return Some(region[*index].clone());
 }
 

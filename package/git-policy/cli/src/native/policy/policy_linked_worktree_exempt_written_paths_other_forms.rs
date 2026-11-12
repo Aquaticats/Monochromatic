@@ -515,9 +515,7 @@ fn position_of(bytes: &[u8], wanted: u8) -> Option<usize> {
 /// function longValue(token: Buffer, name: string, minimum: number): string | undefined;
 /// ```
 fn long_value(written: &[u8], name: &str, minimum: usize) -> Option<OsString> {
-    let Some(equals) = position_of(written, b'=') else {
-        return None;
-    };
+    let equals: usize = position_of(written, b'=')?;
     if !spells_long(&written[..equals], name, minimum) {
         return None;
     }
