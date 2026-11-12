@@ -88,7 +88,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 /// What came of the wait.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IndexWait {
     /// Nobody held the lock when the command asked.
     NotHeld,
@@ -112,6 +112,14 @@ pub enum IndexWait {
     GaveUp(
         /// How long the wait lasted.
         Duration,
+    ),
+    /// Another program's command holds the lock,
+    /// and the merge does not wait for it:
+    /// the holder is named so the merge that saves itself can say who it left the checkout to.
+    HeldByAnotherCommand(
+        /// The holder,
+        /// as the person reads it.
+        String,
     ),
 }
 
@@ -244,6 +252,52 @@ pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
     return match look_at(real_index, &gather_here) {
         Proof::Dead(pid) => IndexLook::LeftByAGoneProcess(pid),
         Proof::Alive(..) | Proof::Nothing(_) => IndexLook::Held,
+    };
+}
+
+/// What:
+///  The index lock,
+/// looked at once by a merge that is about to change the checkout,
+///  naming the dead owner whose lock it may clear and the live one it will not wait for.
+/// Why:
+///   The merge has an answer that needs no wait:
+/// its commit is already made,
+/// so a lock another program
+///  holds is met by saving that merge on a side ref for the next command to finish (`SPEC.md`,
+/// "Merges and commits never fail"),
+///  while waiting on another agent's command is what the owner forbids
+/// (`SPEC.md`,
+/// "Dozens of agents at once is normal
+///  operation").
+///  A lock that stays held for the whole ceiling cost that wait and then reached the same save,
+/// so the
+///  sixty seconds bought nothing a person asked for
+/// (a cross-vendor audit of alpha.12,
+/// "A merge waits for another
+///  agent's live index holder").
+///  The holder is classified exactly as the wait classifies it,
+/// so a lock a gone process left is
+///  cleared on the same proof by both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const look = lookAtTheIndexBeforeAMerge(gitDir.resolve('index'), stderr); // 'not-held' | { ownerGone } | { heldBy: 'PID 42' }
+/// ```
+pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
+    let lock: std::path::PathBuf = lock_path_of(real_index);
+    if std::fs::symlink_metadata(&lock).is_err() {
+        return IndexWait::NotHeld;
+    }
+    return match look_at(real_index, &gather_here) {
+        Proof::Dead(pid) => {
+            let _noted = write_then_flush(
+                out,
+                dead_owner_diagnostic(lock.as_path(), pid, MERGE_CONSEQUENCE, CLEARS_A_DEAD_OWNERS_LOCK).as_bytes(),
+            );
+            IndexWait::OwnerGone(Duration::ZERO)
+        }
+        Proof::Alive(evidence, ..) | Proof::Nothing(Some(evidence)) => IndexWait::HeldByAnotherCommand(blocker_words(&evidence)),
+        Proof::Nothing(None) => IndexWait::HeldByAnotherCommand(String::from("a program whose owner could not be read")),
     };
 }
 

@@ -46,6 +46,11 @@ use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::Path;
 
+/// What stands at one worktree path,
+/// as a merge reads it,
+/// in the file that reads it.
+pub(crate) use crate::merge_isolation_worktree_entry::{WorktreeEntry, not_one_edit_a_merge_can_carry, worktree_entry_at};
+
 /// The tag of this module in the diagnostic log.
 const TAG: &str = "mergeCarry";
 
@@ -84,7 +89,7 @@ fn is_a_tab(byte: &u8) -> bool {
 /// Why:
 ///   Two reads of one path answer with the same sentence,
 ///  and the path is the one the person names.
-fn could_not_be_read(location: &Path, error: std::io::Error) -> String {
+pub(crate) fn could_not_be_read(location: &Path, error: std::io::Error) -> String {
     return format!("{} could not be read: {error}", location.display());
 }
 
@@ -166,7 +171,7 @@ async fn run_bytes_awaiting(context: &GitContext, root: &Path, arguments: &[OsSt
 /// ```ts
 /// function modeOf(metadata): '120000' | '100755' | '100644';
 /// ```
-fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
+pub(crate) fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -184,131 +189,6 @@ fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
         let _ = metadata;
         return PLAIN_FILE_MODE;
     }
-}
-
-/// What stands at one worktree path,
-/// as a merge reads it.
-/// Why:
-///   Two readers need different answers about a name that holds no bytes:
-/// the capture cannot carry a directory,
-///  a named pipe,
-/// a socket or a device and refuses one,
-/// while the read of the marks that hide a path from status must
-///  leave such an entry to the gates that stop a merge for it,
-/// and neither may wait on a pipe to learn its type.
-///  So one read answers what stands there,
-/// and each caller decides what that means for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WorktreeEntry = { kind: 'holds'; bytes: Uint8Array; mode: string } | { kind: 'absent' } | { kind: 'no-bytes'; kind: NoBytes };
-/// ```
-pub(crate) enum WorktreeEntry {
-    /// A plain file's content,
-    /// or a link's target text,
-    /// and the mode Git records for it.
-    Holds {
-        /// The bytes,
-        /// exact and never through a filter.
-        bytes: Vec<u8>,
-        /// The Git mode of the entry the bytes came from.
-        mode: &'static str,
-    },
-    /// Nothing stands at the path.
-    Absent,
-    /// A name that holds no bytes a merge can carry.
-    NoBytes(NoBytes),
-}
-
-/// What:
-///  The kinds of worktree entry that hold no bytes a merge can carry.
-/// Why:
-///   The merges of this package answer a directory and a named pipe with two different gates,
-/// so the read
-///  names which of the two it met,
-/// and neither is left for the other to guess.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type NoBytes = 'directory' | 'special';
-/// ```
-pub(crate) enum NoBytes {
-    /// A directory,
-    /// which the merge stops for when it holds anything the merge does not delete.
-    Directory,
-    /// A named pipe,
-    /// a socket or a device.
-    Special,
-}
-
-/// What:
-///  The words for a capture that met an entry it cannot hold.
-/// Why:
-///   The person reads which path it is and what stands there,
-/// and a capture is never the place to guess
-///  which files of a directory are theirs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const notOneEdit = (location, kind) => `${location} is ...`;
-/// ```
-fn not_one_edit_a_merge_can_carry(location: &Path, kind: &NoBytes) -> String {
-    return match kind {
-        NoBytes::Directory => format!("{} is a directory, which is not one edit a merge can carry", location.display()),
-        NoBytes::Special => {
-            format!("{} is not a plain file (a named pipe, a socket or a device), which is not one edit a merge can carry", location.display())
-        }
-    };
-}
-
-/// What:
-///  What the worktree holds at one path,
-/// told from the entry's type before anything is opened.
-/// Why:
-///   Opening a named pipe for reading waits for a writer that may never come,
-/// so the type decides first,
-///  and the bytes of a plain file are read from a handle that can only be a plain file
-/// (`crate::plain_file`,
-///  owner's rule "nothing should ever wait forever or indefinitely").
-///  A name swapped for a pipe between the type check and the open is refused by the handle.
-///  A read that fails is not an answer about the entry,
-/// so it stays an error the caller words.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function worktreeEntryAt(location: string): { kind: 'holds'; bytes; mode } | { kind: 'absent' } | { kind: 'no-bytes'; kind };
-/// ```
-pub(crate) fn worktree_entry_at(location: &Path) -> Result<WorktreeEntry, String> {
-    let metadata: std::fs::Metadata = match std::fs::symlink_metadata(location) {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(WorktreeEntry::Absent),
-        Err(error) => return Err(could_not_be_read(location, error)),
-    };
-    if metadata.is_dir() {
-        return Ok(WorktreeEntry::NoBytes(NoBytes::Directory));
-    }
-    let mode: &'static str = mode_of(&metadata);
-    if metadata.file_type().is_symlink() {
-        let target: std::path::PathBuf = match std::fs::read_link(location) {
-            Ok(found) => found,
-            Err(error) => return Err(could_not_be_read(location, error)),
-        };
-        return Ok(WorktreeEntry::Holds { bytes: target.as_os_str().as_encoded_bytes().to_vec(), mode });
-    }
-    // The type is settled before the open and again on the handle the open returns, so a name swapped for a pipe or a device
-    //  between the two is refused instead of waited on.
-    if !metadata.file_type().is_file() {
-        return Ok(WorktreeEntry::NoBytes(NoBytes::Special));
-    }
-    let mut plain: std::fs::File = match crate::plain_file::open_plain_file(location) {
-        Ok(found) => found,
-        Err(error) => return Err(could_not_be_read(location, error)),
-    };
-    let mut bytes: Vec<u8> = Vec::new();
-    if let Err(error) = std::io::Read::read_to_end(&mut plain, &mut bytes) {
-        return Err(could_not_be_read(location, error));
-    }
-    return Ok(WorktreeEntry::Holds { bytes, mode });
 }
 
 /// What:
@@ -613,41 +493,49 @@ pub async fn keep_capture_awaiting(context: &GitContext, root: &Path, capture: &
 
 /// What:
 ///  Drop the ref that kept a capture,
-/// once nothing needs its objects.
+/// once nothing needs its objects,
+/// and say whether the name is gone.
 /// Why:
 ///   A ref left behind keeps the person's bytes reachable for ever,
 /// and a name pointing at nothing anybody uses is
 ///  what a person has to clean up by hand.
-/// A deletion that fails is logged and not retried:
-/// the commit stays,
-/// and the name
-///  is what a person can delete.
+///  The answer is what lets the caller keep the merge's record when the name stayed:
+/// the record is the only thing
+///  that names the ref,
+/// so a later command's recovery retries the deletion instead of the name being
+///  orphaned (a cross-vendor audit of alpha.12,
+/// "Capture-ref cleanup is never retried after a transient failure").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function dropCaptureRef({ context, root, capture }): Promise<void>;
+/// async function dropCaptureRef({ context, root, capture }): Promise<boolean>;
 /// ```
-pub fn drop_capture_ref(context: &GitContext, root: &Path, capture: &Capture) {
-    match run_on_runtime(drop_capture_ref_awaiting(context, root, capture)) {
-        Ok(()) => {}
+pub fn drop_capture_ref(context: &GitContext, root: &Path, capture: &Capture) -> bool {
+    return match run_on_runtime(drop_capture_ref_awaiting(context, root, capture)) {
+        Ok(dropped) => dropped,
         // A deletion that could not be started leaves the ref where it is, which is what the awaited face reports too.
-        Err(refusal) => debug(TAG, format!("the capture's ref was left where it is: {refusal}").as_str()),
-    }
+        Err(refusal) => {
+            debug(TAG, format!("the capture's ref was left where it is: {refusal}").as_str());
+            false
+        }
+    };
 }
 
 /// What:
 ///  The same deletion of a capture's ref,
-/// awaited by a caller that is itself a task of the runtime.
+/// awaited by a caller that is itself a task of the runtime,
+///  answering whether the name is gone.
 /// Why:
-///   A deletion that fails is logged and not retried,
-/// and the log line is the answer either face gives.
+///   A deletion that fails is logged and answered,
+/// and the caller keeps the record that names the ref so the
+///  next command retries.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function dropCaptureRef({ context, root, capture }): Promise<void>;
+/// async function dropCaptureRef({ context, root, capture }): Promise<boolean>;
 /// ```
-pub async fn drop_capture_ref_awaiting(context: &GitContext, root: &Path, capture: &Capture) {
-    let Some(reference) = capture.reference.as_deref() else { return };
+pub async fn drop_capture_ref_awaiting(context: &GitContext, root: &Path, capture: &Capture) -> bool {
+    let Some(reference) = capture.reference.as_deref() else { return true };
     let arguments: Vec<OsString> = vec![
         OsString::from("update-ref"),
         OsString::from("--no-deref"),
@@ -655,11 +543,17 @@ pub async fn drop_capture_ref_awaiting(context: &GitContext, root: &Path, captur
         OsString::from(reference),
         OsString::from(capture.commit.as_str()),
     ];
-    match run_bytes_awaiting(context, root, arguments.as_slice(), None).await {
-        Ok(output) if output.succeeded() => {}
-        Ok(output) => return debug(TAG, format!("the capture's ref {reference} was left where it is: {}", output.error_text()).as_str()),
-        Err(error) => return debug(TAG, format!("the capture's ref {reference} was left where it is: {error}").as_str()),
-    }
+    return match run_bytes_awaiting(context, root, arguments.as_slice(), None).await {
+        Ok(output) if output.succeeded() => true,
+        Ok(output) => {
+            debug(TAG, format!("the capture's ref {reference} was left where it is: {}", output.error_text()).as_str());
+            false
+        }
+        Err(error) => {
+            debug(TAG, format!("the capture's ref {reference} was left where it is: {error}").as_str());
+            false
+        }
+    };
 }
 
 /// Reading what the person's work is,

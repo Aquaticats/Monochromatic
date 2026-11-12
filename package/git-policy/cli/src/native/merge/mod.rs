@@ -171,6 +171,8 @@ pub mod merge_isolation_carry_parts;
 
 /// Reading the person's work and keeping it outside the checkout.
 pub mod merge_isolation_carry;
+/// What stands at one worktree path, as a merge reads it.
+pub mod merge_isolation_worktree_entry;
 
 /// Writing it back:
 /// the clear before the merge,

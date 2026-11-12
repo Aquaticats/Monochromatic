@@ -26,6 +26,7 @@ use crate::merge_isolation_journal::MergeIntent;
 use crate::merge_isolation_recovery_cleanup::partly_installed;
 use crate::merge_isolation_recovery_steps::{MergeRefusal, RecoveryPlace, merge_changes_awaiting};
 use crate::recovery_error::RecoveryError;
+use std::io::Write;
 use std::path::Path;
 
 /// What:
@@ -185,17 +186,82 @@ pub(crate) fn the_work_could_not_be_carried(failure: &CarryFailure) -> String {
     );
 }
 
-/// Drop the ref that kept a capture,
-/// once its bytes are back in the checkout.
+/// What:
+///  Drop the ref that kept a capture,
+/// once its bytes are back in the checkout,
+///  and say whether the name is gone.
+/// Why:
+///   The record is the only thing that names the ref,
+/// so a caller that removed the record first left a name
+///  nothing ever retried when the deletion met another command's lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dropCapture({ place, root, intent }): void;
+/// function dropCapture({ place, root, intent }): boolean;
 /// ```
-pub(crate) async fn drop_capture_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
-    if let Some(capture) = intent.carried.as_ref() {
-        drop_capture_ref_awaiting(&place.git, root, capture).await;
+pub(crate) async fn drop_capture_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> bool {
+    let Some(capture) = intent.carried.as_ref() else {
+        return true;
+    };
+    return drop_capture_ref_awaiting(&place.git, root, capture).await;
+}
+
+/// What:
+///  What becomes of the side ref a record names when the record goes.
+/// Why:
+///   A merge that landed has no use for the ref any more,
+/// while one a command reported as saved keeps its commit
+///  there and names it to the person,
+/// so each caller says which it means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SideRef = 'drop' | 'keep';
+/// ```
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum SideRef {
+    /// The side ref goes with the record:
+    /// the merge's commit is in the branch.
+    Drop,
+    /// The side ref stays:
+    /// it is the only name that still keeps the merge's commit reachable.
+    Keep,
+}
+
+/// What:
+///  Take away what a record keeps,
+/// and only then the record itself,
+///  answering whether it could be removed.
+/// Why:
+///   The record is the only name that still needs the capture's ref and a side ref,
+/// so a command that removed
+///  it first and then failed to delete a ref left a name nothing ever retried
+/// (a cross-vendor audit of
+///  alpha.12,
+/// "Capture-ref cleanup is never retried after a transient failure").
+///  Keeping the record when a ref stayed leaves the
+///  retry to the next command,
+/// whose recovery finishes the same merge and tries the refs again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function dropTheRecordsRefsThenTheRecord({ place, root, record, intent, sideRef }): Promise<boolean>;
+/// ```
+pub(crate) async fn drop_the_records_refs_then_the_record(
+    place: &RecoveryPlace,
+    root: &Path,
+    record: &Path,
+    intent: &MergeIntent,
+    side_ref: SideRef,
+) -> Result<bool, RecoveryError> {
+    if !drop_capture_awaiting(place, root, intent).await {
+        return Ok(false);
     }
+    if side_ref == SideRef::Drop && !crate::merge_isolation_recovery_cleanup::drop_side_ref_awaiting(place, root, intent).await {
+        return Ok(false);
+    }
+    crate::merge_isolation_recovery_steps::remove_record(record)?;
+    return Ok(true);
 }
 
 /// The one change of a list that names this path,
@@ -231,4 +297,58 @@ fn the_change_of<'a>(changes: &'a [Change], path: &[u8]) -> Option<&'a Change> {
 /// ```
 fn the_changes_could_not_be_read(error: String) -> MergeRefusal {
     return partly_installed(RecoveryError(error));
+}
+
+/// What:
+///  Take away what a record keeps and then the record,
+///  keeping it and saying so when a ref could not go,
+///  and refusing with what the caller knows of the install when the record itself cannot be removed.
+/// Why:
+///   Every caller of the cleanup needs the same three answers and the same line,
+/// and a refusal that names whether the
+///  merge began is what they already report.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function dropTheRecordsRefsThenTheRecordOrSay({ place, root, record, intent, sideRef, began, out }): Promise<void>; // throws MergeRefusal
+/// ```
+pub(crate) async fn drop_the_records_refs_then_the_record_or_say<W: Write + ?Sized>(
+    place: &RecoveryPlace,
+    root: &Path,
+    record: &Path,
+    intent: &MergeIntent,
+    side_ref: SideRef,
+    began: bool,
+    out: &mut W,
+) -> Result<(), MergeRefusal> {
+    let cleared: bool = match drop_the_records_refs_then_the_record(place, root, record, intent, side_ref).await {
+        Ok(cleared) => cleared,
+        Err(error) => return Err(MergeRefusal { error, began }),
+    };
+    if !cleared {
+        let _noted = out.write_all(a_record_kept_until_its_refs_are_gone(record).as_bytes());
+    }
+    return Ok(());
+}
+
+/// What:
+///  The line a command prints when a merge's record stayed because a ref it names could not be deleted.
+/// Why:
+///   The person learns that the merge itself is settled and that the wrapper still owes a cleanup,
+/// so a name left in
+///  their repository is expected rather than mysterious,
+/// and the next command's recovery is what finishes it
+/// (`a cross-vendor audit of alpha.12`,
+/// "Capture-ref cleanup is never retried after a transient failure").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = (record) => `... the record ${record} was kept and the next git command here tries again ...`;
+/// ```
+pub(crate) fn a_record_kept_until_its_refs_are_gone(record: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: a merge in this worktree is settled, and a ref its record keeps could not be removed yet, so \
+         the record {} was kept and the next git command here tries again; nothing of yours was removed.\n",
+        record.display()
+    );
 }

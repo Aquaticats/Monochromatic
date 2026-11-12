@@ -11,8 +11,7 @@ use crate::merge_isolation_recovery_index_lock::may_install;
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
 use crate::merge_isolation_recovery_steps::{install_entries, put_back_stranded_takes_awaiting, standing};
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
-use std::io::Write;
+use crate::test_support::{REAL_GIT, executable, fixture, git, git_context, git_text, remove, repository};
 use std::path::{Path, PathBuf};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
 
@@ -2098,8 +2097,7 @@ fn a_taken_file_whose_appended_bytes_a_filter_drops_is_kept_and_named() {
     std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
     let taken = file_identity(aside.as_path()).expect("the identity the take checked");
     // A writer that kept its descriptor appends a line the clean filter drops.
-    use std::io::Write;
-    let mut file: std::fs::File = std::fs::File::options().append(true).open(aside.as_path()).expect("the writer's descriptor");
+        let mut file: std::fs::File = std::fs::File::options().append(true).open(aside.as_path()).expect("the writer's descriptor");
     file.write_all(b"NOTE: locally saved data\n").expect("the appended line");
     drop(file);
     let entries: Vec<TakenOnDisk> = vec![TakenOnDisk {
@@ -2159,8 +2157,7 @@ fn a_write_that_arrives_after_the_holder_scan_is_seen_by_the_last_look() {
     crate::service_fault::hooks::set(
         "aside-scanned",
         std::rc::Rc::new(move || {
-            use std::io::Write;
-            let mut file: std::fs::File = std::fs::File::options().append(true).open(written.as_path()).expect("the writer's descriptor");
+                        let mut file: std::fs::File = std::fs::File::options().append(true).open(written.as_path()).expect("the writer's descriptor");
             file.write_all(b"NOTE: locally saved data\n").expect("the appended line");
         }),
     );
@@ -3807,24 +3804,19 @@ fn a_pipe_beside_a_path_does_not_hold_the_command() {
     crate::merge_isolation_kept_copies::keep_the_copy(world.git_dir.as_path(), location.as_path(), aside.as_path());
     let git_dir: PathBuf = world.git_dir.clone();
     let recovery_place: RecoveryPlace = place(&world);
-    let (answered, answers): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
-    let probe: std::thread::JoinHandle<Vec<u8>> = std::thread::spawn(move || {
+    let deadline: std::time::Duration = std::time::Duration::from_secs(20);
+    // A reading of the pipe waits for a writer that never comes, so the probe thread is not joined: one that cannot answer
+    //  within the deadline is left to its wait and the control fails with what it has, because joining it here would hold this
+    //  test on the very wait it forbids (`parallel_test_support::finished_within_at`).
+    let answered: Option<Vec<u8>> = crate::parallel_test_support::finished_within_at(deadline, move || {
         let mut said: Vec<u8> = Vec::new();
         let _outcomes = recover_interrupted_merges(&recovery_place, git_dir.as_path(), &mut said).expect("recovery");
-        let _sent = answered.send(());
         return said;
     });
-    let deadline: std::time::Duration = std::time::Duration::from_secs(20);
-    let finished: Result<(), std::sync::mpsc::RecvTimeoutError> = answers.recv_timeout(deadline);
-    if finished.is_err() {
-        // A reading of the pipe waits for a writer, so one is given to it here: the thread ends and the control fails.
-        let mut writer: std::fs::File = std::fs::OpenOptions::new().write(true).open(location.as_path()).expect("a writer opens the pipe");
-        writer.write_all(b"same bytes\n").expect("the writer writes");
-        drop(writer);
-    }
-    let said: Vec<u8> = probe.join().expect("the probe thread ends");
+    let Some(said) = answered else {
+        panic!("a command did not answer within {deadline:?} for a pipe beside a copy");
+    };
     let text: String = String::from_utf8(said).expect("the notices are UTF-8");
-    assert!(finished.is_ok(), "a command did not answer within {deadline:?} for a pipe beside a copy: {text}");
     assert!(aside.exists(), "the copy stays: a pipe holds no bytes to compare: {text}");
     remove(world.parent.as_path());
 }
@@ -4059,5 +4051,79 @@ fn a_saved_merge_whose_paths_hold_edits_newer_than_its_capture_settles_and_names
     );
     assert!(text.contains(side_ref), "the line names the ref that keeps the merge: {text}");
     assert!(text.contains(&format!("git merge {}", world.new_oid)), "the line says how to make the merge: {text}");
+    remove(world.parent.as_path());
+}
+
+/// A stand-in for real Git that refuses the first deletion of a capture ref,
+/// as another command's lock on that ref makes Git refuse it,
+/// and answers everything else itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shim = (parent) => executable('locked-capture-deletion-git', `#!/bin/sh ... : > .git/$4.lock; realGit "$@"; rm -f .git/$4.lock ...`);
+/// ```
+fn git_that_locks_the_first_capture_deletion(parent: &Path) -> PathBuf {
+    let shim: PathBuf = parent.join("locked-capture-deletion-git");
+    let marker: PathBuf = parent.join("the-deletion-was-locked");
+    let log: PathBuf = parent.join("shim-invocations.txt");
+    let script: String = format!(
+        "#!/bin/sh\necho \"$*\" >> '{log}'\ndeletes=no\nref=\nlast=\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ]; then deletes=yes; fi\n  if [ \"$last\" = -d ]; then ref=\"$argument\"; fi\n  last=\"$argument\"\ndone\nif [ \"$deletes\" = yes ] && [ -n \"$ref\" ]; then\n  case \"$ref\" in\n    refs/cli-git/carried/*)\n      if [ ! -e '{marker}' ]; then\n        : > '{marker}'\n        lock=\"$({real} rev-parse --absolute-git-dir)/$ref.lock\"\n        : > \"$lock\"\n        {real} \"$@\"\n        status=$?\n        rm -f \"$lock\"\n        exit $status\n      fi\n      ;;\n  esac\nfi\nexec {real} \"$@\"\n",
+        marker = marker.display(),
+        log = log.display(),
+        real = REAL_GIT
+    );
+    executable(shim.as_path(), script.as_bytes());
+    return shim;
+}
+
+/// What:
+///  A capture ref whose deletion another command's lock blocked is deleted by the next call,
+///  because the merge's record,
+///  which is the only thing that still names it,
+///  stayed.
+/// Why:
+///  Removing the record before the ref left a name nothing retried and a capture nothing needed,
+/// and a
+///  person had to clean it up by hand (a cross-vendor audit of alpha.12,
+/// "Capture-ref cleanup is never retried after a
+///  transient failure").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = await dropTheRecordsRefsThenTheRecord(placeWithShim, ...); expect(first).toBe(false); expect(refExists(ref)).toBe(true); const second = await dropTheRecordsRefsThenTheRecord(place, ...); expect(second).toBe(true); expect(refExists(ref)).toBe(false);
+/// ```
+#[test]
+fn a_capture_ref_a_lock_blocked_is_deleted_by_the_next_call() {
+    let world: World = world("merge-recovery-capture-ref-locked");
+    let id: &str = "2b2b2b2b-0000-4000-8000-00000000002b";
+    let capture: crate::merge_isolation_carry_parts::Capture = half_carried(&world, id);
+    let reference: String = capture.reference.clone().expect("the capture's ref");
+    let record: PathBuf = intent_path(world.git_dir.as_path(), id);
+    let bytes: Vec<u8> = std::fs::read(record.as_path()).expect("the record");
+    let intent: MergeIntent = parse_merge_intent(bytes.as_slice()).expect("a record");
+    let shim: PathBuf = git_that_locks_the_first_capture_deletion(world.parent.as_path());
+    let mut locked: RecoveryPlace = place(&world);
+    locked.git.real_git = shim;
+    let run_cleanup = |place: RecoveryPlace, kept_record: PathBuf, kept_intent: MergeIntent| {
+        return crate::lazy_runtime::run_on_runtime(async move {
+            return crate::merge_isolation_recovery_carry::drop_the_records_refs_then_the_record(
+                &place,
+                place.cwd.as_path(),
+                kept_record.as_path(),
+                &kept_intent,
+                crate::merge_isolation_recovery_carry::SideRef::Drop,
+            )
+            .await
+            .expect("the cleanup");
+        });
+    };
+    let cleared: bool = run_cleanup(locked, record.clone(), intent.clone()).expect("the runtime ran the cleanup");
+    assert!(!cleared, "the record stays while the ref it names could not go");
+    assert!(record.exists(), "the record is kept");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]).trim(), reference);
+    let retried: bool = run_cleanup(place(&world), record.clone(), intent.clone()).expect("the runtime ran the retry");
+    assert!(retried, "the next call removes both once the lock is gone");
+    assert!(!record.exists(), "the record goes with the ref");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]).trim(), "", "no name is left");
     remove(world.parent.as_path());
 }

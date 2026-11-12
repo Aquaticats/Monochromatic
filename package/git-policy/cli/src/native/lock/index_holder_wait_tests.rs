@@ -321,3 +321,61 @@ mod lock_remover {
         }
     }
 }
+
+/// What:
+///  A merge's one look at the index names the program that holds it and gives up at once,
+///  and names a dead owner whose lock the merge may clear.
+/// Why:
+///   A merge has an answer that needs no wait,
+/// so sixty seconds of waiting on another agent's command bought
+///  nothing (a cross-vendor audit of alpha.12,
+/// "A merge waits for another agent's live index holder").
+///  The clock is read
+///  around the look,
+/// so a look that waited would be the control's failure rather than a slow host's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writePidFile({ pid: process.pid }); const began = performance.now(); expect(lookAtTheIndexBeforeAMerge(index, sink).kind).toBe('held-by-another-command'); expect(performance.now() - began).toBeLessThan(2000);
+/// ```
+#[test]
+fn a_merge_looks_once_at_the_index_and_never_waits_for_a_holder() {
+    let root: std::path::PathBuf = fixture("holder-look-merge");
+    let index: std::path::PathBuf = root.join("index");
+    let lock: std::path::PathBuf = root.join("index.lock");
+    let sink: SharedSink = SharedSink::default();
+    assert_eq!(look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone()), IndexWait::NotHeld, "a free index ends the look");
+    assert_eq!(sink.text(), "", "a free index prints nothing");
+    std::fs::write(&lock, b"").expect("the other program's lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
+    let began: std::time::Instant = std::time::Instant::now();
+    let looked: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone());
+    assert!(began.elapsed() < Duration::from_secs(2), "the look does not wait: {:?}", began.elapsed());
+    match looked {
+        IndexWait::HeldByAnotherCommand(holder) => {
+            assert!(holder.contains(format!("PID {}", std::process::id()).as_str()), "the holder is named: {holder}");
+        }
+        other => panic!("a holder ends the look at once: {other:?}"),
+    }
+    assert!(lock.exists(), "the look removes no lock");
+    remove(root.as_path());
+}
+
+/// A lock a gone process left is named by the same look,
+/// so the merge clears it on the proof a commit acts on.
+#[test]
+fn a_merge_looks_once_at_the_index_and_names_a_dead_owner() {
+    let root: std::path::PathBuf = fixture("holder-look-merge-dead");
+    let index: std::path::PathBuf = root.join("index");
+    let lock: std::path::PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("the lock a killed Git left");
+    let gone: i64 = i64::from(gone_process_id());
+    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {gone}\n")).expect("the PID file");
+    let sink: SharedSink = SharedSink::default();
+    let looked: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone());
+    assert!(matches!(looked, IndexWait::OwnerGone(_)), "{looked:?}");
+    let text: String = sink.text();
+    assert!(text.contains(format!("PID number {gone}").as_str()), "the dead owner is named: {text}");
+    assert!(lock.exists(), "the look removes no lock");
+    remove(root.as_path());
+}

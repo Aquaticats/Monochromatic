@@ -82,7 +82,7 @@ pub fn may_write<W: Write + ?Sized>(git_dir: &Path, installed_before: bool, out:
 pub fn may_install(git_dir: &Path, waited: IndexWait) -> bool {
     return match waited {
         IndexWait::NotHeld | IndexWait::Released(_) => true,
-        IndexWait::GaveUp(_) => false,
+        IndexWait::GaveUp(_) | IndexWait::HeldByAnotherCommand(_) => false,
         IndexWait::OwnerGone(_) => clear_the_lock_a_gone_owner_left(git_dir),
     };
 }

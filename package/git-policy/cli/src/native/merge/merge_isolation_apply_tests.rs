@@ -23,8 +23,12 @@ use crate::test_support::{fixture, git, git_context, git_text, remove, repositor
 /// ```
 #[test]
 fn the_line_of_a_saved_merge_names_the_side_ref_and_what_finishes_the_checkout() {
-    let said: String =
-        a_deferred_save_finding("feature", Path::new("/r/.git/index.lock"), "refs/cli-git/kept/1794200000000", Some(Duration::from_secs(60)));
+    let said: String = a_deferred_save_finding(
+        "feature",
+        Path::new("/r/.git/index.lock"),
+        "refs/cli-git/kept/1794200000000",
+        WhyTheMergeIsSaved::TheWaitEnded(std::time::Duration::from_secs(60)),
+    );
     assert!(said.starts_with("monochromatic-git-policy-cli: git merge feature: "), "{said}");
     assert!(said.contains("/r/.git/index.lock"), "the lock is named: {said}");
     assert!(said.contains("did not let go within 60 seconds"), "the wait is named: {said}");
@@ -34,7 +38,12 @@ fn the_line_of_a_saved_merge_names_the_side_ref_and_what_finishes_the_checkout()
     assert!(said.contains("edits you make meanwhile to files the merge does not change are kept"), "{said}");
     assert!(said.contains("If no program is using this repository"), "the way out of a lock nothing releases: {said}");
     // A lock this command may not clear at all waited no ceiling, so no seconds are claimed.
-    let untouched: String = a_deferred_save_finding("feature", Path::new("/r/.git/index.lock"), "refs/cli-git/kept/1", None);
+    let untouched: String = a_deferred_save_finding(
+        "feature",
+        Path::new("/r/.git/index.lock"),
+        "refs/cli-git/kept/1",
+        WhyTheMergeIsSaved::NotTheCommandsToClear,
+    );
     assert!(untouched.contains("is not one this command may clear"), "{untouched}");
     assert!(!untouched.contains("seconds"), "no wait is claimed: {untouched}");
 }

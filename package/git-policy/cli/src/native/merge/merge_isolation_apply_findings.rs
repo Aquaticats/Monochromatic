@@ -33,10 +33,14 @@ use std::time::Duration;
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ...`
 /// ```
-pub(crate) fn a_deferred_save_finding(reference: &str, lock: &Path, side_ref: &str, held_for: Option<Duration>) -> String {
-    let blocked: String = match held_for {
-        Some(waited) => format!("did not let go within {} seconds", waited.as_secs()),
-        None => String::from("is not one this command may clear"),
+pub(crate) fn a_deferred_save_finding(reference: &str, lock: &Path, side_ref: &str, why: WhyTheMergeIsSaved) -> String {
+    let blocked: String = match why {
+        WhyTheMergeIsSaved::TheWaitEnded(waited) => format!("did not let go within {} seconds", waited.as_secs()),
+        WhyTheMergeIsSaved::NotTheCommandsToClear => String::from("is not one this command may clear"),
+        // The merge is not made to wait for another program's command, which is the owner's rule, so the line must not read as
+        //  one that waited.
+        WhyTheMergeIsSaved::AnotherProgramHoldsIt(holder) => format!("is held by {holder} and this merge does not wait for it"),
+        WhyTheMergeIsSaved::AnotherProgramTookIt => String::from("was taken by another program in the instant before this merge wrote"),
     };
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}) and {blocked}, so the \
@@ -46,6 +50,33 @@ pub(crate) fn a_deferred_save_finding(reference: &str, lock: &Path, side_ref: &s
          removing it lets a command run.\n",
         lock = lock.display()
     );
+}
+
+/// What:
+///  Why a merge saved itself instead of applying,
+/// as the line that says so words it.
+/// Why:
+///   A merge that gave up waiting and one that never waited read differently to a person,
+/// and only the first may say it
+///  waited.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WhyTheMergeIsSaved = { kind: 'the-wait-ended'; waited: Duration } | { kind: 'not-the-commands-to-clear' } | { kind: 'another-program-holds-it'; holder: string } | { kind: 'another-program-took-it' };
+/// ```
+#[derive(Clone, Debug)]
+pub(crate) enum WhyTheMergeIsSaved {
+    /// The wait reached its ceiling with the lock still held.
+    TheWaitEnded(Duration),
+    /// The lock stayed where it was through this command's removal,
+    /// which only a lock this command may not clear does.
+    NotTheCommandsToClear,
+    /// Another program's command holds the lock,
+    /// and the merge did not wait for it.
+    AnotherProgramHoldsIt(String),
+    /// Another program took the lock after this merge looked,
+    /// so nothing of the clear was written.
+    AnotherProgramTookIt,
 }
 
 /// What:
@@ -117,4 +148,28 @@ pub(crate) fn failure_text(failure: &CarryFailure) -> String {
             String::from_utf8_lossy(path.as_slice())
         ),
     };
+}
+
+/// What:
+///  The line a merge prints when it is finished and a ref its record keeps could not be removed.
+/// Why:
+///   The merge is made and the person's work is in the checkout,
+/// so the command exits `0`;
+/// the record stays because it is the only
+///  thing that still names that ref,
+/// and the next command's recovery removes both,
+/// which is what the line promises
+/// (`a cross-vendor audit of alpha.12`,
+/// "Capture-ref cleanup is never retried after a transient failure").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = (record) => `... the record ${record} was kept and the next git command here tries again ...`;
+/// ```
+pub(crate) fn a_refused_cleanup(record: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the merge is made, and a ref its record keeps could not be removed yet, so the record {} was \
+         kept and the next git command in this worktree tries again. Nothing of yours was removed or left in an object nothing names.\n",
+        record.display()
+    );
 }

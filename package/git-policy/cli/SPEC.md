@@ -4626,7 +4626,14 @@ the merge tree comes from `git merge-tree --write-tree`,
 the commit from `git commit-tree`,
 the checkout moves with
 `git merge --ff-only`,
-and the whole is preceded by a bounded wait for `index.lock`.
+and the whole is preceded by one look at `index.lock` that never waits for another program's command:
+a lock a process that no longer runs left is cleared on the commit service's proof of disuse,
+and a lock another program's command holds ends the apply there,
+so the merge commit is kept on `refs/cli-git/kept/<n>` beside a record and the next command in the worktree finishes the checkout
+(the owner's answer for a live foreign `index.lock`;
+a cross-vendor audit of alpha.12,
+"A merge waits for another agent's live index holder",
+found the minute of waiting this replaces).
 
 A merge whose paths hold the person's own work carries it forward
 (owner's answer "Carry edits forward (Recommended)",
@@ -4646,6 +4653,16 @@ and "never discard user data"):
   written with an all-zero old value;
   the merge's record names the commit and every path with its two layers.
   The objects are written and the ref exists before the first byte of the checkout changes.
+  The ref is removed only once its bytes are back in the checkout,
+  and the merge's record,
+  which is the only thing that still names it,
+  goes after it:
+  a deletion that met another command's lock on that ref keeps the record,
+  and the next command's recovery removes both,
+  so no capture ref is ever left for a person to clean up by hand
+  (a cross-vendor audit of alpha.12,
+  "Capture-ref cleanup is never retried after a transient failure",
+  found the record removed first).
   That set includes the paths whose index entry carries the `assume-unchanged` or `skip-worktree` mark:
   Git's own status,
   `git diff-files`,

@@ -16,7 +16,6 @@
 
 use crate::diagnostic_log::debug;
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
-use crate::merge_isolation_recovery_steps::remove_record;
 use crate::merge_isolation_recovery_steps::{MergeRefusal, RecoveryPlace};
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
@@ -56,58 +55,76 @@ pub fn untouched(error: RecoveryError) -> MergeRefusal {
 
 /// What:
 ///  Drop a record and,
-/// when it named one,
-/// the side ref that keeps its merge commit from being collected.
+/// when it named them,
+/// the refs that keep its capture's bytes and its merge commit from being collected,
+///  and say whether the record could be removed.
 /// Why:
-///   The side ref exists for the window between the save and the finish,
+///   A ref exists for the window between the save and the finish,
 /// so the merge's landing is what removes it,
 /// and only
-///  while the ref still holds the merge's commit:
+///  while the ref still holds the merge's own commit:
 /// another command may have put its own commit on the name,
 /// and that
 ///  commit may have no other.
-/// A ref that is not deleted stays,
-/// and the log says why,
-/// because nothing of the merge is lost either
-///  way.
+///  The record is removed last,
+/// because it is the only name that still needs those refs:
+/// a deletion
+///  that fails keeps the record,
+/// and the next command's recovery tries again
+/// (a cross-vendor audit of alpha.12,
+///  "Capture-ref cleanup is never retried after a transient failure").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function dropRecordAndSideRef({ place, root, record, intent }): Promise<void>;
+/// async function dropRecordAndSideRef({ place, root, record, intent }): Promise<boolean>;
 /// ```
-pub async fn drop_record_and_side_ref_awaiting(place: &RecoveryPlace, root: &Path, record: &Path, intent: &MergeIntent) -> Result<(), RecoveryError> {
-    remove_record(record)?;
-    drop_side_ref_awaiting(place, root, intent).await;
-    return Ok(());
+pub async fn drop_record_and_side_ref_awaiting(
+    place: &RecoveryPlace,
+    root: &Path,
+    record: &Path,
+    intent: &MergeIntent,
+) -> Result<bool, RecoveryError> {
+    return crate::merge_isolation_recovery_carry::drop_the_records_refs_then_the_record(
+        place,
+        root,
+        record,
+        intent,
+        crate::merge_isolation_recovery_carry::SideRef::Drop,
+    )
+    .await;
 }
 
 /// What:
 ///  Delete the side ref a record names,
-/// saying in the log when that fails.
+/// saying in the log when that fails,
+/// and answering whether the name is gone.
 /// Why:
 ///   A merge that lands must not leave a name pointing at its commit,
-/// but a deletion that fails is not a reason to
-///  keep the record or stop the command:
-/// the commit stays,
-/// and the name is what a person can delete.
+/// and the caller keeps the record when the
+///  name stayed,
+/// so a later command's recovery deletes it instead of it being orphaned.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function dropSideRef({ place, root, intent }): Promise<void>;
+/// async function dropSideRef({ place, root, intent }): Promise<boolean>;
 /// ```
-pub async fn drop_side_ref_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
+pub async fn drop_side_ref_awaiting(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> bool {
     let Some(name) = intent.side_ref.as_deref() else {
-        return;
+        return true;
     };
     // The ref is deleted only while it still holds this merge's commit: another command may have put its own commit on the
     //  name, and that commit may have no other.
     let arguments: [&str; 5] = ["update-ref", "--no-deref", "-d", name, intent.new_oid.as_str()];
-    if let Err(error) = run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
-        debug(
-            "settleFailedMerge",
-            format!("the side ref {name} no longer holds the landed merge's commit, so it was left where it is: {error}").as_str(),
-        );
-    }
+    return match run_git_checked_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
+        Ok(_dropped) => true,
+        Err(error) => {
+            debug(
+                "settleFailedMerge",
+                format!("the side ref {name} no longer holds the landed merge's commit, so it was left where it is: {error}").as_str(),
+            );
+            false
+        }
+    };
 }
 
 /// What:
@@ -332,6 +349,24 @@ pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
     out: &mut W,
 ) -> Result<crate::merge_isolation_recovery_steps::MergeRecoveryAction, MergeRefusal> {
     let side_ref: &str = intent.side_ref.as_deref().unwrap_or("its side ref");
+    // The capture's bytes are the person's files' own, so the ref that kept them goes before the record that names it: a
+    //  deletion that fails keeps the record, and the next command's recovery tries again.
+    if !crate::merge_isolation_recovery_carry::drop_capture_awaiting(place, root, intent).await {
+        let _noted = out.write_all(
+            format!(
+                "monochromatic-git-policy-cli: the merge saved on {side_ref} was not made, and the keep of the work it carries could not be \
+                 removed yet, so the record {} was kept and the next git command here tries again. Nothing of that merge is in the checkout, \
+                 and the merge commit {} is kept on {side_ref}.\n",
+                record.display(),
+                intent.new_oid
+            )
+            .as_bytes(),
+        );
+        return Ok(crate::merge_isolation_recovery_steps::MergeRecoveryAction::DeferredRefused);
+    }
+    if let Err(error) = remove_merge_intent(record) {
+        return Err(MergeRefusal { error: RecoveryError(format!("{} could not be removed: {error}", record.display())), began: true });
+    }
     let _noted = out.write_all(
         format!(
             "monochromatic-git-policy-cli: the merge saved on {side_ref} was not made: {} hold your own edits, which were saved after \
@@ -345,12 +380,5 @@ pub async fn settle_a_saved_merge_over_newer_edits<W: std::io::Write + ?Sized>(
         )
         .as_bytes(),
     );
-    if let Err(error) = remove_merge_intent(record) {
-        return Err(MergeRefusal { error: RecoveryError(format!("{} could not be removed: {error}", record.display())), began: true });
-    }
-    // The capture's bytes are the person's files' own, so the ref that kept them is not one more name to clean up by hand.
-    if let Some(capture) = intent.carried.as_ref() {
-        crate::merge_isolation_carry::drop_capture_ref_awaiting(&place.git, root, capture).await;
-    }
     return Ok(crate::merge_isolation_recovery_steps::MergeRecoveryAction::DeferredRefused);
 }

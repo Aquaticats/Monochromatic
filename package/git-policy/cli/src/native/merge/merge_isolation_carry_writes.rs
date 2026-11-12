@@ -322,7 +322,9 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     out: &mut W,
 ) -> Result<StepResult, CarryFailure> {
     let waited = match wait {
-        LockWait::BeforeTheApply => crate::index_holder_wait::wait_for_index_release_before_a_merge_that_clears_a_dead_lock(git_dir.join("index").as_path(), out),
+        // The merge's own apply never waits for another program's command: one look names the dead owner whose lock it clears,
+        //  and a live one ends the step so the merge is saved for a later finish instead (a cross-vendor audit of alpha.12).
+        LockWait::BeforeTheApply => crate::index_holder_wait::look_at_the_index_before_a_merge(git_dir.join("index").as_path(), out),
         LockWait::WhileFinishing => crate::index_holder_wait::wait_for_index_release_while_finishing_a_merge(git_dir.join("index").as_path(), out),
     };
     if !matches!(

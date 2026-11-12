@@ -963,3 +963,120 @@ fn diverged_with_a_deleted_marked_path(mark: &str) -> (PathBuf, PathBuf) {
     assert_eq!(status, "", "the mark hides the deletion from Git's own status, which is the premise of this control: {status}");
     return (parent, repo);
 }
+
+/// A stand-in for real Git that refuses the first deletion of a capture ref,
+/// as another command's lock on that ref makes Git refuse it,
+/// and answers everything else itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shim = (parent) => executable('locked-capture-deletion-git', `#!/bin/sh ... : > .git/$4.lock; realGit "$@"; rm -f .git/$4.lock ...`);
+/// ```
+fn git_that_locks_the_first_capture_deletion(parent: &Path) -> PathBuf {
+    let shim: PathBuf = parent.join("locked-capture-deletion-git");
+    let marker: PathBuf = parent.join("the-deletion-was-locked");
+    let log: PathBuf = parent.join("shim-invocations.txt");
+    let script: String = format!(
+        "#!/bin/sh\necho \"$*\" >> '{log}'\ndeletes=no\nref=\nlast=\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ]; then deletes=yes; fi\n  if [ \"$last\" = -d ]; then ref=\"$argument\"; fi\n  last=\"$argument\"\ndone\nif [ \"$deletes\" = yes ] && [ -n \"$ref\" ]; then\n  case \"$ref\" in\n    refs/cli-git/carried/*)\n      if [ ! -e '{marker}' ]; then\n        : > '{marker}'\n        lock=\"$({real} rev-parse --absolute-git-dir)/$ref.lock\"\n        : > \"$lock\"\n        {real} \"$@\"\n        status=$?\n        rm -f \"$lock\"\n        exit $status\n      fi\n      ;;\n  esac\nfi\nexec {real} \"$@\"\n",
+        marker = marker.display(),
+        log = log.display(),
+        real = REAL_GIT
+    );
+    crate::test_support::executable(shim.as_path(), script.as_bytes());
+    return shim;
+}
+
+/// What:
+///  A merge that finished keeps the record that names its capture when the ref's deletion met another command's lock,
+///  and says that the next command finishes the cleanup.
+/// Why:
+///  Removing the record first left a capture ref nothing ever retried,
+/// and a person had to clean it up by hand
+///  (a cross-vendor audit of alpha.12,
+/// "Capture-ref cleanup is never retried after a transient failure").
+///  The record
+///  is what the next command's recovery reads,
+/// so the name is removed once the lock is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attemptedWith(shim, repo, ['merge', ...])).toHaveCode(0); expect(listMergeIntents(gitDir)).toHaveLength(1); expect(refs()).not.toBe('');
+/// ```
+#[test]
+fn a_capture_ref_a_lock_blocked_leaves_the_record_that_retries_it() {
+    let (parent, repo): (PathBuf, PathBuf) = diverged_with_a_hidden_edit("blocked-cleanup", "--assume-unchanged");
+    let shim: PathBuf = git_that_locks_the_first_capture_deletion(parent.as_path());
+    let outcome: IsolatedMerge = attempted_with(shim.as_path(), repo.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+    let (code, stderr): (i32, String) = match outcome {
+        IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+        other => panic!("the merge is completed beside the blocked cleanup: {other:?}"),
+    };
+    assert_eq!(code, 0, "{stderr}");
+    assert!(parent.join("the-deletion-was-locked").exists(), "the lock was met");
+    let git_dir: PathBuf = repo.join(".git");
+    let records: Vec<PathBuf> = crate::merge_isolation_journal::list_merge_intents(git_dir.as_path()).expect("the records are listed");
+    assert_eq!(records.len(), 1, "the record is kept, and it is what names the ref: {records:?}");
+    let reference: String = git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/carried"]);
+    assert!(!reference.trim().is_empty(), "the ref the lock blocked is still there, and the record names it");
+    assert!(stderr.contains("was kept and the next git command in this worktree tries again"), "the line says what happens next: {stderr}");
+    assert!(stderr.contains("a ref its record keeps could not be removed yet"), "{stderr}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A merge that meets another program's live hold on the index saves itself at once,
+///  names the holder and the ref that keeps it,
+///  and leaves the checkout to the next command.
+/// Why:
+///  The owner's rule is that no command waits on another agent's command,
+/// and a merge has an answer that needs no wait:
+///  its commit is made before the lock is needed,
+/// so it is saved on a side ref and exits 0
+/// (owner's
+///  answer for a live foreign `index.lock`,
+/// `SPEC.md`,
+/// "Merges and commits never fail";
+/// a cross-vendor audit of
+///  alpha.12,
+/// "A merge waits for another agent's live index holder").
+///  The bound is read around the merge,
+/// so a merge
+///  that waited the old ceiling is the control's failure rather than a slow host's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdIndex(); const began = performance.now(); expect(attempted(repo, ['merge', ...])).toHaveCode(0); expect(performance.now() - began).toBeLessThan(30000); expect(stderr).toContain('does not wait for it');
+/// ```
+#[test]
+fn a_merge_that_meets_a_live_index_holder_saves_itself_without_waiting() {
+    let (parent, repo): (PathBuf, PathBuf) = diverged_with_staged_work("merge-held-index-live");
+    let index: PathBuf = repo.join(".git/index");
+    std::fs::write(repo.join(".git/index.lock"), b"").expect("the other program's lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+    let (code, stderr): (i32, String) = match outcome {
+        IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+        other => panic!("the merge is saved, not forwarded: {other:?}"),
+    };
+    assert_eq!(code, 0, "{stderr}");
+    // The wait's own notices are what a merge that waited writes, and no clock read decides this: a loaded host makes every step
+    //  slow, while the notices appear only when the command waits on the holder.
+    assert!(!stderr.contains("waits for the index lock"), "the merge does not wait for another program's command: {stderr}");
+    assert!(stderr.contains("does not wait for it"), "the line says the merge did not wait: {stderr}");
+    assert!(stderr.contains(format!("PID {}", std::process::id()).as_str()), "the holder is named: {stderr}");
+    assert!(stderr.contains("saved on refs/cli-git/kept/"), "the ref that keeps the merge is named: {stderr}");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing of the merge is in the branch yet");
+    let records: Vec<PathBuf> = crate::merge_isolation_journal::list_merge_intents(repo.join(".git").as_path()).expect("the records are listed");
+    // The saved merge writes its own record beside the first, and that one names the side ref and the merge the next command
+    //  finishes.
+    let saved: usize = records
+        .iter()
+        .filter(|record| {
+            let bytes: Vec<u8> = std::fs::read(record.as_path()).expect("a record");
+            return crate::merge_isolation_journal::parse_merge_intent(bytes.as_slice()).is_some_and(|saved| { return saved.side_ref.is_some(); });
+        })
+        .count();
+    assert_eq!(saved, 1, "one record names the side ref the next command finishes: {records:?}");
+    remove(parent.as_path());
+}

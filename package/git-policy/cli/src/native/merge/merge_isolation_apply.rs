@@ -38,7 +38,7 @@ use crate::merge_isolation_carry_apply::{CarryFailure, LockWait, changes_between
 use crate::merge_isolation_carry_landed::{LandedFile, landed_of, write_landed_record};
 /// The words a merge that could not be finished now prints,
 /// which its own file holds so this one stays inside the code-line limit.
-use crate::merge_isolation_apply_findings::{a_deferred_save_finding, a_merge_that_could_not_be_saved};
+use crate::merge_isolation_apply_findings::{WhyTheMergeIsSaved, a_deferred_save_finding, a_merge_that_could_not_be_saved, a_refused_cleanup};
 use crate::merge_isolation_apply_stops::{a_clear_that_met_newer_bytes, settle_a_failed_step};
 /// The carry of a merge that landed,
 /// its lines,
@@ -60,7 +60,7 @@ use crate::iso_time::now_iso;
 use crate::random_id::random_uuid;
 /// Waiting for any program's hold on the index lock before the checkout changes,
 /// and what the wait proved.
-use crate::index_holder_wait::{IndexWait, wait_for_index_release_before_a_merge_that_clears_a_dead_lock};
+use crate::index_holder_wait::{IndexWait, look_at_the_index_before_a_merge};
 /// Removing an index lock a gone process left,
 /// on the commit service's proof of disuse.
 use crate::service_index_unheld_removal::{Unheld, remove_if_the_owner_is_gone};
@@ -75,7 +75,6 @@ use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// A span of time the wait lasted.
-use std::time::Duration;
 /// The clock reading a side ref's number starts from.
 use std::time::SystemTime;
 
@@ -190,45 +189,49 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     let record: PathBuf = match write_merge_intent(git_dir, &intent) {
         Ok(written) => written,
         Err(error) => {
-            // A capture whose record could not be written names the merge nothing runs, so it goes.
-            if let Some(capture) = plan.carried {
-                drop_capture_ref(&session.context, root, capture);
-            }
-            return Err(Bail::from(format!("the merge record could not be written: {error}")));
+            // A capture whose record could not be written names nothing a later command would settle, so it goes; a capture whose
+            //  ref stays names itself in the refusal, because nothing else does.
+            let kept: String = match plan.carried {
+                Some(capture) if !drop_capture_ref(&session.context, root, capture) => match capture.reference.as_deref() {
+                    Some(kept) => format!(", and the keep of your edits is still on {kept}, which nothing removes: `git update-ref -d {kept}` deletes it"),
+                    None => String::new(),
+                },
+                _ => String::new(),
+            };
+            return Err(Bail::from(format!("the merge record could not be written: {error}{kept}")));
         }
     };
     // The bytes the person's paths hold are objects on a ref of their own now, and the record names them; nothing of the
     //  checkout has changed yet, which is the instant a kill leaves the command exactly as it was.
     reach_phase(Phase::MergeCarried)?;
     reach_phase(Phase::MergeIntent)?;
-    // Git's fast-forward takes `index.lock` before it changes anything and dies when another program holds it. The merge waits
-    //  for the holder here, bounded and naming it; a lock taken in the instant between is met by the round made again. The
-    //  record is written first, so a wait that ends with the lock still held leaves the next command the work of finishing
-    //  this very merge.
-    let waited: IndexWait = wait_for_index_release_before_a_merge_that_clears_a_dead_lock(git_dir.join("index").as_path(), &mut std::io::stderr());
-    // Some when the wait reached its ceiling; nothing when the lock is one this command may not clear at all.
-    let mut held_for: Option<Duration> = None;
-    let mut still_held: bool = false;
-    match waited {
+    // Git's fast-forward takes `index.lock` before it changes anything and dies when another program holds it. The look names a
+    //  dead owner whose lock this command may clear, and a live one it does not wait for: waiting on another agent's command is
+    //  what the owner forbids, and the save below is the answer that needs no wait. The record is written first, so a merge that
+    //  saves itself leaves the next command the work of finishing this very merge.
+    let looked: IndexWait = look_at_the_index_before_a_merge(git_dir.join("index").as_path(), &mut std::io::stderr());
+    let mut why: Option<WhyTheMergeIsSaved> = None;
+    match looked {
         IndexWait::NotHeld | IndexWait::Released(_) => {}
-        IndexWait::GaveUp(waited_for) => {
-            held_for = Some(waited_for);
-            still_held = true;
-        }
+        IndexWait::GaveUp(waited_for) => why = Some(WhyTheMergeIsSaved::TheWaitEnded(waited_for)),
+        // The look never waits, so a holder it met is one this merge leaves for the next command rather than wait for.
+        IndexWait::HeldByAnotherCommand(holder) => why = Some(WhyTheMergeIsSaved::AnotherProgramHoldsIt(holder)),
         IndexWait::OwnerGone(_) => {
             // A lock a gone process left is removed on the proof the commit service acts on, so a merge repairs what a commit
             //  repairs (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 3). A lock that proof does
             //  not cover (it holds content, it stands behind a service's marker, a process has it open) stays where it is.
-            still_held = !matches!(
+            if !matches!(
                 remove_if_the_owner_is_gone(&SYSTEM, git_dir.join("index").as_path(), &scan_platform_holders_bounded),
                 Unheld::Removed(_)
-            );
+            ) {
+                why = Some(WhyTheMergeIsSaved::NotTheCommandsToClear);
+            }
         }
     }
-    if still_held {
+    if let Some(reason) = why {
         // The owner's answer for a live foreign `index.lock` (`SPEC.md`, "Merges and commits never fail"): the merge saves its
         //  result on a side ref, exits 0, and the next command finishes the checkout when the lock is free.
-        return save_for_a_later_finish(session, plan, &intent, record.as_path(), reference.as_str(), held_for);
+        return save_for_a_later_finish(session, plan, &intent, record.as_path(), reference.as_str(), reason);
     }
     let place: RecoveryPlace = RecoveryPlace::settling(&session.context, git_dir, root);
     let changes: Vec<Change> = if plan.carried.is_some() {
@@ -252,9 +255,20 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         if matches!(failure, CarryFailure::Foreign(_) | CarryFailure::Changed(_)) {
             return Err(a_clear_that_met_newer_bytes(&place, record.as_path(), &intent, reference.as_str(), &failure));
         }
+        // A lock another program took after the look means nothing of the clear was written, so the merge is saved for a later
+        //  finish rather than made to wait, refused, or tried again in a round that would meet the same lock.
+        if matches!(failure, CarryFailure::IndexHeld(_)) {
+            return save_for_a_later_finish(
+                session,
+                plan,
+                &intent,
+                record.as_path(),
+                reference.as_str(),
+                WhyTheMergeIsSaved::AnotherProgramTookIt,
+            );
+        }
         let detail: String = failure_text(&failure);
-        let lock_taken: bool = matches!(failure, CarryFailure::IndexHeld(_));
-        return Err(settle_a_failed_step(&place, record.as_path(), &intent, reference.as_str(), detail.as_str(), lock_taken, 2, b""));
+        return Err(settle_a_failed_step(&place, record.as_path(), &intent, reference.as_str(), detail.as_str(), false, 2, b""));
     }
     if plan.carried.is_some() {
         reach_phase(Phase::MergeCleared)?;
@@ -309,12 +323,19 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         }
     }
     if carry_finished {
-        if let Err(error) = remove_merge_intent(record.as_path()) {
-            debug(TAG, format!("the merge record could not be removed: {error}").as_str());
-        }
-        // The record was the last thing that named the capture, so its bytes are in the checkout and the ref can go.
-        if let Some(capture) = plan.carried {
-            drop_capture_ref(&session.context, root, capture);
+        // The record was the last thing that named the capture, so its bytes are in the checkout and the ref goes first: a
+        //  deletion another command's lock blocked keeps the record, and the next command's recovery retries it instead of the
+        //  name being left for a person to clean up (a cross-vendor audit of alpha.12).
+        let gone: bool = match plan.carried {
+            Some(capture) => drop_capture_ref(&session.context, root, capture),
+            None => true,
+        };
+        if gone {
+            if let Err(error) = remove_merge_intent(record.as_path()) {
+                debug(TAG, format!("the merge record could not be removed: {error}").as_str());
+            }
+        } else {
+            report_stderr.push_str(a_refused_cleanup(record.as_path()).as_str());
         }
     }
     // The fast-forward carries no `--quiet`, and what Git says of it ("Updating a..b", "Fast-forward", its diffstat) is about
@@ -416,7 +437,7 @@ fn save_for_a_later_finish(
     intent: &MergeIntent,
     record: &Path,
     reference: &str,
-    held_for: Option<Duration>,
+    why: WhyTheMergeIsSaved,
 ) -> Result<IsolatedMerge, Bail> {
     let lock: PathBuf = plan.git_dir.join("index.lock");
     let Some(side_ref) = keep_on_a_side_ref(session, plan.new_oid) else {
@@ -440,7 +461,7 @@ fn save_for_a_later_finish(
         ));
     }
     debug(TAG, format!("the merge is saved on {side_ref} beside its first record {}", record.display()).as_str());
-    return Ok(IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_deferred_save_finding(reference, lock.as_path(), side_ref.as_str(), held_for) });
+    return Ok(IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_deferred_save_finding(reference, lock.as_path(), side_ref.as_str(), why) });
 }
 
 

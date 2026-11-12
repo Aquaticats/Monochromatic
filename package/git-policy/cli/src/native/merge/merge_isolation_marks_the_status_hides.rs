@@ -194,8 +194,6 @@ async fn paths_the_status_hides_awaiting(context: &GitContext, root: &Path, touc
 /// reading one could wait for a
 ///  writer that never comes,
 /// and no layer of the carry can hold it.
-///  A marked path whose worktree file is gone is no edit of the person's only where the mark is
-///  the reason it is gone (`HiddenMark::absence_is_the_marks_own`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
