@@ -88,24 +88,27 @@ impl SlowLane {
     /// const lane = SlowLane.start(handlers, busy); // tokio.spawn(run(lane, handlers.copy(), busy))
     /// ```
     pub fn start(handlers: &GitHandlers, busy: Arc<AtomicUsize>) -> SlowLane {
-        return SlowLane::start_with_slice(handlers, busy, HOUSEKEEPING_OF_ONE_ROUND);
+        return SlowLane::start_with_slice_and_lease(handlers, busy, HOUSEKEEPING_OF_ONE_ROUND, CLAIM_LEASE);
     }
 
     /// What:
-    ///  Start the lane with the housekeeping one look at a repository may start given,
-    /// which the shipped service takes from `HOUSEKEEPING_OF_ONE_ROUND`.
+    ///  Start the lane with the housekeeping one look at a repository may start
+    /// and the lease of the claims it takes given,
+    /// which the shipped service takes from `HOUSEKEEPING_OF_ONE_ROUND` and `CLAIM_LEASE`.
     /// Why:
     ///   A control states a slice it can spend in a moment,
-    /// so the bound that separates one look from the next is a state the control reaches instead of a duration it waits out.
+    /// so the bound that separates one look from the next is a state the control reaches instead of a duration it waits out;
+    /// and it states a short lease,
+    /// so a claim running out is a wait a control takes in a moment rather than the shipped 120 seconds.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const lane = SlowLane.startWithSlice(handlers, busy, slice);
+    /// const lane = SlowLane.startWithSliceAndLease(handlers, busy, slice, lease);
     /// ```
-    fn start_with_slice(handlers: &GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration) -> SlowLane {
+    fn start_with_slice_and_lease(handlers: &GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration, lease: Duration) -> SlowLane {
         let (inbox, taken): (UnboundedSender<Wake>, UnboundedReceiver<Wake>) = unbounded_channel::<Wake>();
         let owned: GitHandlers = handlers.for_round(std::collections::HashMap::<PathBuf, ReviewKey>::new());
-        let _running: tokio::task::JoinHandle<()> = tokio::spawn(run_awaiting(taken, owned, busy, housekeeping));
+        let _running: tokio::task::JoinHandle<()> = tokio::spawn(run_awaiting(taken, owned, busy, housekeeping, lease));
         return SlowLane { inbox };
     }
 
@@ -140,7 +143,7 @@ impl SlowLane {
 /// ```ts
 /// for await (const wake of inbox) { busy.add(1); let left = [wake, ...drain(inbox)]; while (left.length) { left = await lookOnce(housekeeping, left) } busy.sub(1) }
 /// ```
-async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration) {
+async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers, busy: Arc<AtomicUsize>, housekeeping: Duration, lease: Duration) {
     loop {
         let Some(first) = inbox.recv().await else { return };
         busy.fetch_add(1, Ordering::SeqCst);
@@ -161,7 +164,7 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
                 if let Some(key) = review_key.clone() {
                     keys.insert(git_dir.clone(), key);
                 }
-                if let Some(wait) = drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping).await {
+                if let Some(wait) = drain_the_slow_work_awaiting(git_dir.as_path(), &handlers.for_round(keys), housekeeping, lease).await {
                     soonest = Some(match soonest {
                         Some(already) => already.min(wait),
                         None => wait,
@@ -198,13 +201,18 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 /// ```ts
 /// await drainSlow(gitDir); if (bareCommon(gitDir)) await drainSlow(common)
 /// ```
-pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
-    let own: Option<Duration> = drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping).await;
+pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized>(
+    git_dir: &Path,
+    handlers: &H,
+    housekeeping: Duration,
+    lease: Duration,
+) -> Option<Duration> {
+    let own: Option<Duration> = drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping, lease).await;
     let Some(common) = common_directory_of(git_dir) else { return own };
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
         return own;
     }
-    let shared: Option<Duration> = drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping).await;
+    let shared: Option<Duration> = drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping, lease).await;
     return match (own, shared) {
         (Some(one), Some(other)) => Some(one.min(other)),
         (one, other) => one.or(other),
@@ -228,9 +236,9 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
 /// ```ts
 /// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS, housekeeping)
 /// ```
-async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
+async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration, lease: Duration) -> Option<Duration> {
     let mut nothing_to_plan: Replanning = Replanning { first: None, changes: Vec::new(), plans: None };
-    return drain_pending_awaiting(git_dir, handlers, CLAIM_LEASE, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
+    return drain_pending_awaiting(git_dir, handlers, lease, Renewal::Timed, &mut nothing_to_plan, &SLOW_KINDS, housekeeping).await;
 }
 
 /// Controls for the lane stay out of the release executable.

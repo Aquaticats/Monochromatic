@@ -951,6 +951,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
         common.as_path(),
         &lane_handlers,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+        crate::service_work::CLAIM_LEASE,
     ));
     let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {

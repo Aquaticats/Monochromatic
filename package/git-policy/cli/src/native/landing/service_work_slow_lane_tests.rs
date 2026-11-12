@@ -17,16 +17,17 @@
 use super::*;
 use crate::claim_time::ClaimTime;
 use crate::parallel_budget::HostResources;
-use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
+use crate::push_retry::{PLAN_DIRECTORY, PushRetries, Retrying};
+use crate::service_claim_renewal_running::Renewal;
 use crate::service_claim_watch::ClaimWatch;
 use crate::service_round::{Assignment, RoundDrain, drain_directories};
 use crate::service_server_work_loop_awaiting::work_loop_awaiting;
 use crate::service_work::{GitHandlers, Verdict, work_directory};
 use crate::service_work_handlers_replanning_and_acceptance::{PUSH_KINDS, SERVICE_KINDS, WorkHandlers};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository, wait_until};
-use crate::work_item::{DONE, FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::work_item::{CLAIMED, DONE, FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_trash_dispose_awaiting::INSIDE_A_SLOW_STEP;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::time::Duration;
 
 /// The branch every push item of these controls names.
@@ -214,7 +215,12 @@ fn the_lane_runs_the_slow_kinds_the_round_left() {
     );
     let counted: Counted = Counted::default();
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
-    let _left: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(world.common.as_path(), &counted, HOUSEKEEPING_OF_ONE_ROUND));
+    let _left: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
+        world.common.as_path(),
+        &counted,
+        HOUSEKEEPING_OF_ONE_ROUND,
+        crate::service_work::CLAIM_LEASE,
+    ));
     assert_eq!(counted.trashes.load(Ordering::SeqCst), 1, "the lane took the trash");
     assert_eq!(counted.reviews.load(Ordering::SeqCst), 1, "the lane took the review");
     assert_eq!(counted.pushes.load(Ordering::SeqCst), 0, "the lane takes no push");
@@ -504,7 +510,7 @@ fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let handlers: GitHandlers = GitHandlers::new(git_context());
     let lane: SlowLane =
-        crate::merge_second_pass::tests::await_it(async move { return SlowLane::start_with_slice(&handlers, busy, A_SLICE_ONE_LOOK_SPENDS); });
+        crate::merge_second_pass::tests::await_it(async move { return SlowLane::start_with_slice_and_lease(&handlers, busy, A_SLICE_ONE_LOOK_SPENDS, crate::service_work::CLAIM_LEASE); });
     lane.ask((git_dir, None));
     assert!(wait_until(&|| { return held.arrived.load(Ordering::SeqCst); }), "the lane is inside the first trash");
     // The slice is already spent while that trash is held, so the trash behind it is not started by this look.
@@ -523,4 +529,257 @@ fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
     );
     drop(lane);
     remove(staged.root.as_path());
+}
+
+/// The lease the controls of a kept claim give it,
+/// so one runs out inside a control instead of the shipped 120 seconds.
+const A_LEASE_A_CONTROL_WAITS_OUT: Duration = Duration::from_millis(600);
+
+/// How long past an answer a control waits before it looks again,
+/// so the claim the answer named has run out.
+const A_MARGIN_PAST_THE_ANSWER: Duration = Duration::from_millis(150);
+
+/// A repository directory with one removal of the subvolume `id` queued,
+/// and the id of that record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [world, id] = worldWithARemoval('name', 61);
+/// ```
+fn world_with_a_removal(name: &str, id: u64) -> (World, String) {
+    let root: PathBuf = fixture(name);
+    let common: PathBuf = root.join("common");
+    let parent: PathBuf = root.join("parent");
+    std::fs::create_dir(common.as_path()).expect("the Git directory");
+    std::fs::create_dir(parent.as_path()).expect("the directory the removal renamed out of");
+    let work: PathBuf = work_directory(common.as_path());
+    let item: WorkItem = crate::worktree_remove_hand_over::removal_item(common.as_path(), parent.as_path(), id);
+    enqueue(work.as_path(), &item).expect("the record is written");
+    return (World { root, common, work }, item.id());
+}
+
+/// Handlers whose delete answers `said` by the attempt's number counting from one,
+/// and count the attempts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Said { subvolumeDelete(item) { return this.said(this.asked.increment()) } }
+/// ```
+struct Said {
+    /// What the delete says, by the attempt's number counting from one.
+    said: Box<dyn Fn(u32) -> Verdict + Send + Sync>,
+    /// How many times the delete was asked.
+    asked: Arc<AtomicU32>,
+}
+
+impl WorkHandlers for Said {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn subvolume_delete(&self, _item: &WorkItem) -> Verdict {
+        let attempt: u32 = self.asked.fetch_add(1, Ordering::SeqCst) + 1;
+        return (self.said)(attempt);
+    }
+}
+
+/// The handler of a control and the counter of its attempts.
+fn said(answers: impl Fn(u32) -> Verdict + Send + Sync + 'static) -> (Said, Arc<AtomicU32>) {
+    let asked: Arc<AtomicU32> = Arc::new(AtomicU32::new(0));
+    return (Said { said: Box::new(answers), asked: Arc::clone(&asked) }, asked);
+}
+
+/// The number of tries the record claimed in `world` carries,
+/// which a recovery at the claim's end writes as one more than the tries before it.
+fn tries_of_the_claimed_record(world: &World) -> u32 {
+    let names: Vec<String> = names_in(world, CLAIMED);
+    let name: &String = names.first().expect("a record is claimed");
+    let text: String = std::fs::read_to_string(state_directory(world.work.as_path(), CLAIMED).join(name)).expect("the claim is a file");
+    return WorkItem::decode(text.as_str()).expect("the record decodes").tries;
+}
+
+/// What:
+///  A slow item claimed after the round of the pushes has already read when the claims it answered run out,
+/// and answering `Retry` because the condition can pass,
+/// is looked at again when its own claim runs out,
+/// with no other wake.
+/// Why:
+///   This is the interleaving the audit of `0.6.1-alpha.12` reproduced:
+/// the server queues slow work and then runs the push round
+/// (`service_server_work_loop_awaiting.rs`),
+/// the push round reads when the claims it answered run out,
+/// a slow item claimed after that reading has no timer,
+/// and `Retry` keeps the claim (`service_work_settling_with_words.rs`),
+/// so the item waited until an unrelated command woke the service:
+/// 130 s after a claim whose lease is 120 s it was still the same claim with one attempt.
+/// The service's own words promise it is tried again when its claim runs out,
+/// so the look that keeps the claim answers the moment it ends,
+/// and the look at that moment takes the claim back,
+/// claims the record again with one more try, and runs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [world] = worldWithARemoval(...); const [handlers, asked] = said((n) => n === 1 ? retry : done)
+/// const wait = await laneLook(world); expect(asked).toBe(1); await sleep(wait); await laneLook(world); expect(asked).toBe(2)
+/// ```
+#[test]
+fn a_slow_item_that_answers_a_retryable_answer_is_tried_again_when_its_claim_runs_out() {
+    let (world, id): (World, String) = world_with_a_removal("slow-lane-a-kept-claim", 61);
+    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|attempt| {
+        return if attempt == 1 { Verdict::Retry(String::from("the volume is busy")) } else { Verdict::Done };
+    });
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let answered: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
+        world.common.as_path(),
+        &handlers,
+        HOUSEKEEPING_OF_ONE_ROUND,
+        A_LEASE_A_CONTROL_WAITS_OUT,
+    ));
+    let waited: Duration = answered.unwrap_or_else(|| panic!("the look that keeps a claim answers when it runs out, or nothing looks at it again"));
+    assert!(waited <= A_LEASE_A_CONTROL_WAITS_OUT, "the answer is no later than the claim's end: {waited:?}");
+    assert_eq!(asked.load(Ordering::SeqCst), 1, "the first look ran the item once");
+    assert_eq!(names_in(&world, CLAIMED).len(), 1, "the retryable answer keeps the claim");
+    std::thread::sleep(waited + A_MARGIN_PAST_THE_ANSWER);
+    let _again: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
+        world.common.as_path(),
+        &handlers,
+        HOUSEKEEPING_OF_ONE_ROUND,
+        A_LEASE_A_CONTROL_WAITS_OUT,
+    ));
+    assert_eq!(asked.load(Ordering::SeqCst), 2, "the look at the claim's end runs the item again, with no other wake");
+    assert_eq!(names_in(&world, DONE), vec![id], "the item the second attempt finished is done");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A claim this look could not settle,
+/// because the step that moves a settled record could not run,
+/// is looked at again when its lease runs out.
+/// Why:
+///   `Retry` is not the only answer that keeps a claim:
+/// a settling step the process could not run leaves the record claimed as well
+/// (`service_work_storage_awaited.rs`),
+/// and a claim nothing looks at again keeps the work behind it for ever.
+/// The file where the `done` directory must be makes every settlement fail,
+/// which is the state a step that cannot be run leaves.
+/// The look answers the claim's end,
+/// and the look at that moment takes the claim back, claims the record with one more try, and runs it again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [world] = worldWithARemoval(...); blockSettling(world); const wait = await laneLook(world); await sleep(wait); await laneLook(world); expect(asked).toBe(2)
+/// ```
+#[test]
+fn a_claim_whose_settling_could_not_run_is_looked_at_again_when_its_lease_runs_out() {
+    let (world, _id): (World, String) = world_with_a_removal("slow-lane-a-claim-that-could-not-be-settled", 62);
+    // A file where the `done` directory must be makes every settlement of a finished item fail, so the claim is the look's to
+    //  keep and nothing else would ever look at it again.
+    let done: PathBuf = state_directory(world.work.as_path(), DONE);
+    std::fs::remove_dir(done.as_path()).expect("the empty done directory");
+    std::fs::write(done.as_path(), b"in the way").expect("the blocker");
+    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|_attempt| { return Verdict::Done; });
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let answered: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
+        world.common.as_path(),
+        &handlers,
+        HOUSEKEEPING_OF_ONE_ROUND,
+        A_LEASE_A_CONTROL_WAITS_OUT,
+    ));
+    let waited: Duration = answered.unwrap_or_else(|| panic!("the look that could not settle a claim answers when it runs out"));
+    assert!(waited <= A_LEASE_A_CONTROL_WAITS_OUT, "the answer is no later than the claim's end: {waited:?}");
+    assert_eq!(asked.load(Ordering::SeqCst), 1, "the first look ran the item once");
+    assert_eq!(names_in(&world, CLAIMED).len(), 1, "the claim the settling step could not move is kept");
+    std::thread::sleep(waited + A_MARGIN_PAST_THE_ANSWER);
+    let _again: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
+        world.common.as_path(),
+        &handlers,
+        HOUSEKEEPING_OF_ONE_ROUND,
+        A_LEASE_A_CONTROL_WAITS_OUT,
+    ));
+    assert_eq!(asked.load(Ordering::SeqCst), 2, "the look at the claim's end claims the record again and runs it");
+    assert_eq!(tries_of_the_claimed_record(&world), 1, "the recovery at the claim's end queued it with one more try");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The look at a bare repository's common records answers the end of a claim it keeps,
+/// as the look at the directory itself does.
+/// Why:
+///   A bare repository has no instance whose own Git directory is the common one,
+/// so the records its worktrees left there are drained by the look the lane gives the common directory
+/// (`drain_the_slow_work_awaiting`),
+/// which is a drain of its own.
+/// A claim that look keeps is a claim nothing else would look at again,
+/// so its answer is what wakes the lane.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [world] = worldWithARemoval(...); makeBare(world.common); const wait = await laneLook(linkedGitDir(world))
+/// expect(wait).toBeLessThanOrEqual(lease); expect(asked).toBe(1)
+/// ```
+#[test]
+fn the_lanes_look_at_a_bare_repositorys_common_records_answers_the_end_of_a_claim_it_keeps() {
+    let (world, _id): (World, String) = world_with_a_removal("slow-lane-common-kept-claim", 63);
+    std::fs::write(world.common.join("config"), "[core]\n\tbare = true\n").expect("the config of a bare repository");
+    let linked: PathBuf = world.common.join("worktrees").join("w");
+    std::fs::create_dir_all(linked.as_path()).expect("a linked worktree's Git directory");
+    std::fs::write(linked.join("commondir"), "../..\n").expect("the commondir the linked Git directory names");
+    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|_attempt| { return Verdict::Retry(String::from("the volume is busy")); });
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
+    let answered: Option<Duration> = runtime.block_on(drain_the_slow_work_awaiting(
+        linked.as_path(),
+        &handlers,
+        HOUSEKEEPING_OF_ONE_ROUND,
+        A_LEASE_A_CONTROL_WAITS_OUT,
+    ));
+    let waited: Duration = answered.unwrap_or_else(|| panic!("the look at a bare repository's common records answers when its claim runs out"));
+    assert!(waited <= A_LEASE_A_CONTROL_WAITS_OUT, "the answer is no later than the claim's end: {waited:?}");
+    assert_eq!(asked.load(Ordering::SeqCst), 1, "the common directory's record ran");
+    assert_eq!(names_in(&world, CLAIMED).len(), 1, "the retryable answer keeps the claim");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The round's drain answers the end of a claim it keeps,
+/// as the look of the lane does,
+/// so the loop that serves the pushes is left with a wake for it.
+/// Why:
+///   A control of the rule, not of a defect:
+/// the round already read the claim ends itself after its drain,
+/// and this holds that answer still when the drain became the one place that makes it,
+/// so the loop that serves the pushes cannot lose the wake for a claim the drain kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [world] = worldWithARemoval(...); blockSettling(world); const drained = await roundDrain(world); expect(drained.wait).toBeLessThanOrEqual(lease)
+/// ```
+#[test]
+fn the_rounds_drain_answers_the_end_of_a_claim_it_keeps() {
+    let (world, _id): (World, String) = world_with_a_removal("slow-lane-the-round-keeps-a-claim", 64);
+    let done: PathBuf = state_directory(world.work.as_path(), DONE);
+    std::fs::remove_dir(done.as_path()).expect("the empty done directory");
+    std::fs::write(done.as_path(), b"in the way").expect("the blocker");
+    let (handlers, asked): (Said, Arc<AtomicU32>) = said(|_attempt| { return Verdict::Done; });
+    let drained = crate::merge_second_pass::tests::await_it(crate::service_work::drain_planned_with_awaiting(
+        world.common.as_path(),
+        &handlers,
+        &ClaimTime::read(),
+        A_LEASE_A_CONTROL_WAITS_OUT,
+        Renewal::Timed,
+        &Retrying::none(),
+        &SERVICE_KINDS,
+    ));
+    let waited: Duration = drained.wait.unwrap_or_else(|| panic!("the round answers when to look again for the claim it keeps"));
+    assert!(waited <= A_LEASE_A_CONTROL_WAITS_OUT, "the answer is no later than the claim's end: {waited:?}");
+    assert_eq!(asked.load(Ordering::SeqCst), 1, "the round ran the item once");
+    assert_eq!(names_in(&world, CLAIMED).len(), 1, "the claim the settling step could not move is kept");
+    remove(world.root.as_path());
 }
