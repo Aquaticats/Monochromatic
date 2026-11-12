@@ -40,7 +40,6 @@
 //! ```
 
 use crate::add_timing::{begin_work, end_work};
-use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
@@ -49,7 +48,7 @@ use crate::package_repair_cargo_concurrent::{ItemLabel, map_concurrent_awaiting}
 use crate::package_repair_cargo_lock::{read_lock, restore_lock};
 use crate::package_repair_cargo_workspaces::{MANIFEST, Workspace, distinct_workspaces, manifest_directories_awaiting, read_workspace_awaiting};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolRun, run_tool_awaiting};
-use crate::package_repair_prewarm::{PrewarmEntry, common_directory_awaiting, hand_over_in_a_job};
+use crate::package_repair_prewarm::{PrewarmEntry, common_directory_awaiting};
 /// Whether a directory a clean deletes from is still inside the worktree it serves.
 use crate::package_repair_touches_only_its_own_worktree::is_inside_the_worktree;
 /// The jobs of one workspace and what their runs take,
@@ -57,6 +56,11 @@ use crate::package_repair_touches_only_its_own_worktree::is_inside_the_worktree;
 #[path = "package_repair_cargo_jobs.rs"]
 mod jobs;
 use self::jobs::{CargoTool, look_for_the_program, ReadWorkspaceJob, RepairWorkspaceJob};
+/// The hand-over of the filling to the commit service and the line the add answers for it,
+/// kept in a file of its own to stay under the file-size limit.
+#[path = "package_repair_cargo_hand_over.rs"]
+mod hand_over;
+use self::hand_over::hand_the_filling_over;
 use crate::package_repair_prewarm_job::stage_the_worktrees_own_state;
 use crate::package_repair_report::{Finding, Outcome, Tool, missing_tool};
 use crate::shell_quote::shell_quote;
@@ -86,7 +90,8 @@ pub enum BuildStatePlan {
     /// the text says why,
     /// for the log.
     Nothing(String),
-    /// The worktree holds build state of its own, copied with `target/`:
+    /// The worktree holds build state of its own,
+    /// copied with `target/`:
     /// the add moves it aside in one rename and the service cleans it there,
     /// so no build can trust the copy's artifacts and the add asks Cargo nothing.
     MovedAside {
@@ -583,74 +588,6 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         findings.push(hand_the_filling_over(request, handed_over.as_slice(), common_dir.as_deref()).await);
     }
     return findings;
-}
-
-/// What:
-///  Hand the filling of the worktree's build directories to the commit service,
-/// and answer the line the person reads.
-/// Why:
-///   The record is written before the service is reached,
-/// so a wake that cannot reach it leaves the work named rather than lost,
-/// and the add never fails for it:
-/// the worktree is correct without the filling and only its first build is slower.
-/// The writing of a record and the wake that may wait for a service to start are storage and socket
-///  work,
-/// so they run as a job of the blocking pool and never on the task that polls the three repairs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const handedOver = async (request, entries) => { const told = await handOverWithinTheBudget(request.git, await commonDirectory(request.destination), request.destination, entries); return repaired(told); };
-/// ```
-async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: &[PrewarmEntry], common_dir: Option<&Path>) -> Finding {
-    let began: Instant = begin_work();
-    // Where a person watches what became of the work this add leaves behind: the queue's own states, and the service's journal.
-    let the_queues_states: Option<String> = common_dir.map(|common| return crate::service_work::work_directory(common).display().to_string());
-    let told: Result<Result<(), String>, BlockingJobError> = match common_dir {
-        Some(common) => {
-            let state: (crate::transaction_git::GitContext, PathBuf, PathBuf, Vec<PrewarmEntry>) =
-                (request.git.clone(), common.to_path_buf(), request.destination.to_path_buf(), entries.to_vec());
-            run_a_job_or_in_turn(state, hand_over_in_a_job).await
-        }
-        None => Ok(Err(String::from("git could not name the repository's common directory"))),
-    };
-    end_work("cargoPrewarmHandOver", began);
-    let staged: usize = entries.iter().filter(|entry| return entry.staged_in.is_some()).count();
-    let workspace_noun: &str = if entries.len() == 1 { "build directory" } else { "build directories" };
-    let them: &str = if entries.len() == 1 { "it" } else { "them" };
-    let queue: String = match the_queues_states {
-        Some(directory) => format!("`{directory}/{{pending,claimed,done,failed}}` and the service's journal"),
-        // No queue directory could be named, so the line says only what happens; a command naming a path that is not there would
-        //  be worse than none.
-        None => String::from("the commit service's journal"),
-    };
-    // A workspace whose own copied state the add moved aside is named apart: what waits for the service there is a clean of
-    //  state the worktree no longer holds, and a build started at once compiles it itself.
-    let moved: String = if staged == 0 {
-        String::new()
-    } else {
-        format!(
-            ", and the cleaning of the {staged} {} the copy carried, moved aside before this command answered so that no build trusts {}",
-            if staged == 1 { "build state" } else { "build states" },
-            if staged == 1 { "it" } else { "them" }
-        )
-    };
-    let detail: String = match told {
-        Ok(Ok(())) => format!(
-            "Cargo kept dependency builds and handed the filling of {} {workspace_noun} to the commit service{moved}, whose progress shows in {queue}, and which fills or cleans {them} after this command returns",
-            entries.len()
-        ),
-        // The record stays and the service fills it when it next runs for this repository, so this is a line of the report and
-        //  never the add's failure: the worktree is whole either way and its first build only compiles more.
-        Ok(Err(reason)) => format!(
-            "Cargo kept dependency builds and wrote the record that fills {} {workspace_noun}{moved}, which it could not hand to the commit service ({reason}); the worktree's first build compiles what it needs itself, and the record waits in {queue} until a service runs for this repository",
-            entries.len()
-        ),
-        Err(refusal) => format!(
-            "Cargo kept dependency builds and could not write the record that fills {} {workspace_noun}{moved} ({refusal}); the worktree's first build compiles what it needs itself, and nothing was left for a service to pick up",
-            entries.len()
-        ),
-    };
-    return Finding { tool: Tool::Cargo, outcome: Outcome::Repaired { detail, millis: began.elapsed().as_millis() } };
 }
 
 /// What:
