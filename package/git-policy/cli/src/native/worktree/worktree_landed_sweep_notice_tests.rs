@@ -98,13 +98,12 @@ fn a_handed_over_removal_is_named_with_the_record_its_outcome_stands_in() {
     assert!(line.contains("is now on main"), "{line}");
     assert!(line.contains("the commit service"), "{line}");
     assert!(line.contains("The branch stays"), "{line}");
-    let record: String = crate::service_work::work_directory(std::path::Path::new("/the repository/.git"))
-        .join(format!("subvolume-delete-{}", "0".repeat(40)))
-        .display()
-        .to_string();
-    assert!(line.contains(record.as_str()), "the record the outcome stands in is named: {line}");
-    assert!(line.contains("`done` there means the worktree is gone"), "{line}");
-    assert!(line.contains("means Git kept it"), "{line}");
+    let work: String = crate::service_work::work_directory(std::path::Path::new("/the repository/.git")).display().to_string();
+    assert!(line.contains(work.as_str()), "the work directory the outcome is read in is named: {line}");
+    assert!(line.contains("subvolume-delete-"), "and the record's own name: {line}");
+    assert!(line.contains("`done` under it means the worktree is gone"), "{line}");
+    assert!(line.contains("`failed` means it was kept"), "{line}");
+    assert!(line.contains("the reason on your next command's standard error"), "{line}");
     assert!(line.contains("git worktree remove '/a worktree/with a space'"), "{line}");
 }
 

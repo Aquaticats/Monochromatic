@@ -683,6 +683,61 @@ stash,
 revert,
 or include them in this migration's commits.
 
+## Upstream asked for a reassessment
+
+Optique's maintainer commented on commit `4879a44e6a2460ab3c2531744e24a1f2aef27aeb` on 2026-11-12T03:14:38Z,
+asking whether this project would reassess Optique on 1.3.6 or on upstream `main`,
+"If performance is still a reason for moving away".
+
+What was established that day:
+
+- `doc/research/optique-typo-suggestion-overhead-upstream-record.md` holds the upstream history,
+  the release state,
+  and a measurement of the old commit parser on each version:
+  a thousand-path parse took 2,696 ms on 1.1.1,
+  184 ms on 1.3.6
+  and 95 ms on the pre-release `1.4.0-dev.2971`.
+- `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md` holds the cause,
+  a standalone script,
+  and the workarounds.
+- Performance was the recorded reason for one consumer only,
+  `package/git-policy/cli/`,
+  whose TypeScript wrapper was deleted on 2026-10-13 (`642b6d72cb`).
+- The workspace-wide deprecation rests on `doc/decision/cli-arg-validation.md`,
+  amended 2026-10-31,
+  whose context names `node:util` `parseArgs` adoption and Valibot,
+  and no performance reason.
+  The measurement therefore bears on none of the reasons that decision records.
+- An Optique parse of three tokens cost 0.52 to 0.74 ms on every version measured,
+  and each positional token before a `--` adds about 0.18 ms on 1.3.6.
+  Which of the consumers this handover lists pass many such tokens was not checked;
+  the section "Existing consumer constraints" names forwarding ones.
+
+Decided by the owner on 2026-11-12:
+
+- The removal plan stays as it is ("Keep the removal plan").
+  No reassessment of Optique is scheduled.
+- The data reply to the maintainer goes out only after the owner has edited it
+  (the option chosen reads "I edit,
+  then post").
+  The draft is in the troubleshooting doc;
+  no agent posts it.
+- Nobody for this project reported the cost upstream before 2026-09-28
+  (the option chosen reads "No,
+  nobody reported it").
+
+Open:
+
+- Which further questions go to the maintainer.
+  The owner's instruction on 2026-11-12:
+  "You're supposed to put on your statistician and mathmatician and software engineer's hats
+  to resolve questions we can resolve first."
+  So each drafted question is first answered here by analysis,
+  measurement or source reading where that is possible,
+  and only what is left is offered for sending.
+  The drafted questions are in `${HOME}/temp/agent/optique-questions-for-maintainer-2026-11-12.md`,
+  which is scratch and not committed.
+
 ## Next action
 
 When the user returns,

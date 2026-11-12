@@ -1104,16 +1104,26 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    because a merge of another branch brings every branch sitting on its commits along;
    a repository that keeps no reflog for that branch proves nothing about it,
    so its worktree is examined as it was before this rule;
-   a branch moved onto a commit another branch had already moved onto holds no commit of its own either,
-   which is the state `git reset --hard main` leaves in a task worktree;
+   a branch moved onto a commit another branch's own reflog names holds no commit of its own either,
+   which is the state `git reset --hard main` leaves in a task worktree,
+   and that other branch need not still sit on the commit:
+   one that committed again names the same commit in an older line;
+   the one move the merge itself makes in the branch it ran in is no witness,
+   so a fast-forward merge of that tip never counts against the branch that made it;
    a branch merely made at a commit records no commit before its first reflog line,
    so a tip another branch was created at still holds this branch's work;
    a branch moved onto a commit this one made keeps the worktree,
-   because Git records no owner of a commit;
+   because Git records no owner of a commit,
+   and a landed worktree whose tip another branch's history passed through stays the same way,
+   with the notice saying so;
 - the worktree does not hold another worktree this repository registers,
    whose files and whose own record a removal would take with it,
-   and the registrations are read again as the removal runs,
-   so a worktree a command adds inside it while the sweep works keeps it too;
+   and the registrations are read again inside the removal,
+   in the moment the destroy follows,
+   so a worktree a command adds inside it while the sweep works keeps it too,
+   and the commit service reads them again immediately before it destroys the worktree;
+   what no look can keep is an add that lands between that last look and the destroy,
+   which is the window Git's own removal takes for every write and lock in the tree it deletes;
 - the worktree is not the one the merge runs in,
    and it is not locked;
 - no merge,
@@ -1153,8 +1163,9 @@ Every other case is real `git worktree remove`,
 That removal never runs on the merge's own thread:
  the merge records it for the commit service of the worktree it ran in,
  and the line it prints names the record,
- where `done` means the worktree is gone and `failed` means Git kept it,
- with Git's own sentence in the service's journal.
+ where `done` means the worktree is gone and `failed` means it was kept,
+ with the reason on the standard error of your next command in that repository,
+ and Git's own sentence in the service's journal.
 Either way,
  **the branch is kept**,
  and so is every commit on it;
@@ -1162,6 +1173,29 @@ Either way,
 A removal recorded that way finishes after the merge returned,
  so the worktree stands at the prompt until the service has run it;
  `git worktree remove <path>` removes it now if nothing in it is yours.
+
+The service proves every condition above again,
+ in its own process,
+ immediately before it destroys anything:
+ the registrations,
+ the lock,
+ the unfinished marks,
+ the process table,
+ the ignored files (compared again with the worktree the merge ran in,
+ which the sweep names in the worktree's own Git directory),
+ the records its Git directory holds,
+ the record that this program made the worktree,
+ and every commit a reference lock holds.
+A worktree that no longer meets one of them stays,
+ and the next wrapper command in that repository names it once,
+ with the path,
+ the branch and the reason,
+ so nothing is kept in silence.
+The record names one worktree and not a path:
+ it is keyed by the path and by the identity of the registration standing beside it,
+ and the service recomputes that name before it removes anything.
+A worktree you removed by hand and added again at the same path is therefore a different worktree,
+ and the record of the earlier one leaves it exactly as it is.
 
 **What goes with the worktree.**
 The files Git ignores in it go too,
@@ -1171,6 +1205,10 @@ The files Git ignores in it go too,
 That is the whole reason a worktree is removed only when this program made it:
  a worktree you created by hand is never removed by itself,
  because this program cannot know which ignored files in it are yours.
+An ignored file you write after the merge returned is one the service compares again before it removes the worktree,
+ and it keeps the worktree;
+ what goes with it is a file written in the moment between that reading and Git's deletion,
+ which is the same window any check and the step relying on it leave.
 A worktree this program cannot prove it made is named instead,
  once per merge that lands its branch,
  with the `git worktree remove` line that removes it.
@@ -1193,6 +1231,11 @@ A worktree whose records could not all be copied stays,
 A commit a reference lock held in that worktree is kept the same way,
  on `refs/cli-git/kept/<batch>` of this repository,
  before anything is removed.
+A held record this program cannot read still names its batch in its own file name,
+ so the commit behind it is read from the worktree's per-worktree reference and kept there too,
+ and the record is named with the path it is at;
+ when nothing can be read for such a record,
+ the worktree stays and the notice says which record and where.
 
 **What a worktree left behind says.**
 Every merge that lands a branch names each worktree it kept,
@@ -2242,7 +2285,10 @@ the two tools that rewrite link layouts in place are the commit service's work w
    it passes `--locked`,
    asks Cargo for the resolution a stale lock needs as a step of its own,
    and puts the checked-out lock back only when the file still holds exactly what that resolution wrote.
-  A `Cargo.lock` you write while that clean runs is left exactly as you wrote it.
+  A `Cargo.lock` you write while that clean runs is left exactly as you wrote it,
+   even one that lands in the moment between the repair's last look and its restore:
+   the restore replaces the file itself in one step and puts back what it found there,
+   so your write stays and the checked-out lock is the copy kept under the repository's Git directory.
   A `target` or `node_modules` you keep as a link to a directory outside the worktree is left alone:
    a clean or an install through it would delete or rewrite the files of the checkout the link names,
    so the repair does nothing there and your first build recompiles what it needs.
@@ -6855,12 +6901,22 @@ Guard tests keep it so:
   and every later one checks it is still
   right:
   it compares the two installed units with what this release would write and,
-  only when they differ (an upgrade or
-  a downgrade moved the executable the units name),
+  only when they differ (a release changed the
+  template itself),
   rewrites them,
   reloads the manager,
   clears failed state and starts the socket.
-  When they match it opens no connection to the bus.
+  The program the units start is not named in their text but through a link the wrapper points at
+  the executable it is running
+  (`$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program`),
+  so an upgrade,
+  a downgrade or a second build of one release moves that link and changes no unit text:
+  no reload is asked for,
+  and the commit pays one read and,
+  when the program moved,
+  one rename.
+  When the units,
+  the link and the socket are right it opens no connection to the bus at all.
   Setting up writes two unit files into
   `$XDG_RUNTIME_DIR/systemd/user` (nothing is left in the home directory;
   the next first use after a login does it again)
@@ -7462,6 +7518,9 @@ a large `reachMs` with `updateRounds` above zero and two entries in `releasesSee
 of another release being replaced,
 and the journal of the instance shows that service's `retire requested` and `exiting`
 lines and the new `started` line;
+a service of another release that has not left after the client's wait for it is ended once,
+with one line saying so,
+and the commit goes on once the program this release installs answers;
 a large `answerWaitMs` is the queue or a held index,
 and the `answered` line of the
 request in the journal says which,
