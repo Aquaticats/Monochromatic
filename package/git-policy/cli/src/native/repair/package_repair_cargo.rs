@@ -606,7 +606,7 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
 async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: &[PrewarmEntry], common_dir: Option<&Path>) -> Finding {
     let began: Instant = begin_work();
     // Where a person watches what became of the work this add leaves behind: the queue's own states, and the service's journal.
-    let the_queues_states: Option<String> = common_dir.map(|common| crate::service_work::work_directory(common).display().to_string());
+    let the_queues_states: Option<String> = common_dir.map(|common| return crate::service_work::work_directory(common).display().to_string());
     let told: Result<Result<(), String>, BlockingJobError> = match common_dir {
         Some(common) => {
             let state: (crate::transaction_git::GitContext, PathBuf, PathBuf, Vec<PrewarmEntry>) =
@@ -616,7 +616,7 @@ async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: &[PrewarmEn
         None => Ok(Err(String::from("git could not name the repository's common directory"))),
     };
     end_work("cargoPrewarmHandOver", began);
-    let staged: usize = entries.iter().filter(|entry| entry.staged_in.is_some()).count();
+    let staged: usize = entries.iter().filter(|entry| return entry.staged_in.is_some()).count();
     let workspace_noun: &str = if entries.len() == 1 { "build directory" } else { "build directories" };
     let them: &str = if entries.len() == 1 { "it" } else { "them" };
     let queue: String = match the_queues_states {

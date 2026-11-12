@@ -265,7 +265,7 @@ fn a_worktree_with_no_build_directory_of_its_own_runs_no_clean() {
     let recorded: String = std::fs::read_to_string(calls.as_path()).unwrap_or_default();
     // The stand-in records the argument line, so the verb is the first word of a line; a directory whose name holds "clean" is
     // not a clean.
-    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| line.starts_with("clean ")).collect();
+    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| return line.starts_with("clean ")).collect();
     assert!(cleaned.is_empty(), "the add starts no clean where the worktree holds no build directory: {cleaned:?} of {recorded}");
     assert!(!matches!(done, Done::Cleaned(_)), "nothing of the worktree was cleaned");
     crate::test_support::remove(root.as_path());
@@ -307,7 +307,7 @@ fn a_build_directory_the_copy_carried_is_moved_aside_before_the_add_answers() {
     std::fs::create_dir_all(git_directory.as_path()).expect("the fixture's Git directory");
     let done: Done = crate::lazy_runtime::run_on_runtime(repair_workspace_awaiting(&tool, &workspace, worktree.as_path(), source.as_path(), Some(git_directory.as_path()))).expect("this process's runtime starts");
     let recorded: String = std::fs::read_to_string(calls.as_path()).unwrap_or_default();
-    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| line.starts_with("clean ")).collect();
+    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| return line.starts_with("clean ")).collect();
     assert!(cleaned.is_empty(), "the add runs no clean for state it moved aside: {recorded}");
     let Done::HandedOver(entry) = done else {
         panic!("the workspace is handed over to the filling");

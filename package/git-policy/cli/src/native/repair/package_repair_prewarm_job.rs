@@ -715,7 +715,7 @@ pub(crate) fn exclude_the_staging_names(git_dir: &Path) -> Result<(), String> {
         Ok(file) => file,
         Err(error) => return Err(format!("{} could not be opened ({error})", exclude.display())),
     };
-    return match std::io::Write::write_all(&mut file, text[named_before..].as_bytes()) {
+    return match std::io::Write::write_all(&mut file, &text.as_bytes()[named_before..]) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("{} could not be appended to ({error})", exclude.display())),
     };

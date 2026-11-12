@@ -586,7 +586,7 @@ fn a_build_started_at_once_is_correct_and_the_add_starts_no_clean() {
     let recorded: String = std::fs::read_to_string(record.as_path()).unwrap_or_default();
     // The add's own clean never passes `--locked` (the worktree was just made and nobody has it); the filling's clean of its
     //  staging copy always does, so a locked line is the service's work and not the add's wait.
-    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| line.starts_with("clean ") && !line.contains("--locked")).collect();
+    let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| return line.starts_with("clean ") && !line.contains("--locked")).collect();
     assert!(
         cleaned.is_empty(),
         "the add starts no clean for a workspace whose build directory the worktree does not have; it ran:\n{recorded}"
