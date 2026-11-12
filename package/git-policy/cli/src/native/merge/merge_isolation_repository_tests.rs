@@ -942,3 +942,118 @@ fn an_entry_at_an_ancestor_of_an_added_path_is_kept_whole_in_both_shapes() {
         remove(parent.as_path());
     }
 }
+
+/// What:
+///  A named pipe standing at a path a fast-forward adds stops the merge,
+///  with the path named and nothing changed,
+///  as it does in a merge that creates a commit.
+/// Why:
+///   The pipe holds no bytes a carry can hold,
+///  and reading one could wait for a writer that never comes;
+///  the fast-forward shape used to hand the
+///  merge to native Git whole,
+///  which removed the pipe with no copy and no notice,
+///  so the refusal is what protects it
+///  (`SPEC.md`,
+/// "A named pipe, a socket or a device at a path the merge writes or deletes").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', '--no-edit', 'feature'])).toEqual({ kind: 'finished', code: 1, stderr: /named pipe/ });
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_fast_forward_refuses_a_named_pipe_at_a_path_it_adds() {
+    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch_adding("pipe", "pipe", false);
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    a_named_pipe(repo.join("pipe").as_path());
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+    let (code, stdout, stderr): (i32, String, String) = match outcome {
+        IsolatedMerge::Finished { code, stdout, stderr } => (code, stdout, stderr),
+        other => panic!("the merge is the wrapper's to stop, and it was forwarded: {other:?}"),
+    };
+    assert_eq!(code, 1, "{stderr}");
+    assert!(stdout.is_empty(), "nothing is said about a merge that was not made: {stdout}");
+    assert!(stderr.contains("pipe"), "the path is named: {stderr}");
+    assert!(stderr.contains("a named pipe, a socket or a device"), "what stands there is named: {stderr}");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was merged");
+    assert_ne!(head, feature, "the merge would have moved the branch");
+    let kind: std::fs::FileType = std::fs::symlink_metadata(repo.join("pipe")).expect("the pipe is still in the checkout").file_type();
+    assert!(kind.is_fifo(), "the pipe is untouched");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A directory standing where a fast-forward puts a file stops the merge,
+///  naming the path and the files below it,
+///  as it does in a merge that creates a commit.
+/// Why:
+///   Git's own update replaces such a directory and everything below it goes with it,
+///  and the copies a merge keeps beside a
+///  path cannot hold a directory;
+///  the fast-forward shape used to hand the merge to native Git whole,
+///  which deleted the
+///  person's files with nothing to show where they went (`SPEC.md`,
+/// "A directory that stands where the merge puts a file").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', '--no-edit', 'feature'])).toEqual({ kind: 'finished', code: 1, stderr: /stands as a directory/ });
+/// ```
+#[test]
+fn a_fast_forward_refuses_a_directory_where_it_puts_a_file() {
+    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch_adding("directory", "build", false);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    assert_eq!(git_text(repo.as_path(), &["ls-files", "--", "build"]), "build", "the incoming commit holds the file");
+    std::fs::create_dir(repo.join("build")).expect("the person's directory takes the name");
+    std::fs::write(repo.join("build/out.bin"), b"the person's bytes\n").expect("file below it");
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+    let (code, stderr): (i32, String) = match outcome {
+        IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+        other => panic!("the merge is the wrapper's to stop, and it was forwarded: {other:?}"),
+    };
+    assert_eq!(code, 1, "{stderr}");
+    assert!(stderr.contains("build stands as a directory that holds build/out.bin"), "{stderr}");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was merged");
+    assert_eq!(std::fs::read(repo.join("build/out.bin")).expect("the person's file is still there"), b"the person's bytes\n");
+    remove(parent.as_path());
+}
+
+/// What:
+///  `merge.ff=only` carries the person's work over a fast-forward and leaves a merge that cannot fast-forward to
+///  native Git,
+///  as `--ff-only` typed on the command line does.
+/// Why:
+///  The setting states the same promise the option does,
+///  and a person cannot see which spelling their repository holds;
+///  a merge
+///  the setting forbids has to keep native Git's refusal (`SPEC.md`,
+/// "Carry edits forward").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', '--no-edit', 'feature'])).toHaveCode(0); expect(attempted(diverged, same)).toEqual({ kind: 'forward' });
+/// ```
+#[test]
+fn a_merge_ff_only_setting_carries_a_fast_forward_and_forwards_the_rest() {
+    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch("ff-only-setting");
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    git(repo.as_path(), &["config", "merge.ff", "only"]);
+    std::fs::write(repo.join("a.txt"), b"the person's own line\ntwo\nthree\n").expect("file");
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+    assert!(is_completed(&outcome), "{outcome:?}");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), feature, "the branch moved to the incoming commit itself");
+    assert_eq!(parents_of_the_head(repo.as_path()), 1, "no merge commit was made");
+    assert!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt").contains("the person's own line"), "the edit is carried");
+    remove(parent.as_path());
+    let (diverged_parent, diverged_repo): (PathBuf, PathBuf) = a_fast_forwarded_branch("ff-only-setting-diverged");
+    git(diverged_repo.as_path(), &["config", "merge.ff", "only"]);
+    std::fs::write(diverged_repo.join("keep.txt"), b"a commit main has and feature does not\n").expect("file");
+    git(diverged_repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    let head: String = git_text(diverged_repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused: IsolatedMerge = attempted(diverged_repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+    assert_eq!(refused, IsolatedMerge::Forward { notice: None }, "the refusal is native Git's, with its own words");
+    assert_eq!(git_text(diverged_repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was changed");
+    remove(diverged_parent.as_path());
+}
