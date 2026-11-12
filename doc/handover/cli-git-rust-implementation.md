@@ -153,7 +153,11 @@ the gate's verdict when it comes, and the Kimi and Sonnet audits of the released
 
 A measurement of the installed 0.6.1-alpha.10 from this landing:
 `git merge --ff-only` of the integration branch in the main checkout had moved `refs/heads/main` by 19:50,
-and the command, started at 19:36, was then still running its after-merge work, starting one short Git child after another.
+and the command, started at 19:36:15, went on with its after-merge work, starting one short Git child after another,
+until 19:56:13: twenty minutes for a fast-forward.
+During it, at about 19:54:20, a one-file docs commit in the same checkout printed
+"The commit service stopped answering; asking it again with the same commit, which cannot land twice." and then landed;
+round 240's agent has that timed occurrence by inbox note.
 The same fast-forward in the integration worktree took about four and a half minutes.
 The fix that takes the landed-worktree sweep off the merge's wait
 (`fix/git-policy-cli-landed-sweep-spares-a-new-worktree-and-never-holds-the-merge`, 552 ms where the release took 25 s)
@@ -170,7 +174,11 @@ reviews go to qwen4 and running Kimi reviews finish (19:27 and 19:31), and pass 
   (`worktree-removal-finishes-while-its-dependencies-are-being-linked`, `commit-service-hands-a-commit-its-shadow`,
   `commit-service-silence-on-an-ordinary-commit`): merge `main`, which holds the two later repairs.
 - Reframed by inbox note (19:34): the port agent (review commands model-neutral, qwen4 the default) and round 236 (the base option first).
-  The port agent's unit was no longer running at 19:50; whether it read the note before it ended is to be checked from its report.
+  The port agent ended at 19:49 having read both notes and reached neither the review commands nor the brief writers
+  (ported: the listing commands, the launcher lister, `remove-finished-worktrees` with the in-use check,
+  `start-a-batch-in-its-own-unit`, the wake step inside the launcher, a pool-limit override from the environment; 119 suites pass).
+  Round 244 (`feat/pi-shared-subagent-driver-review-commands-on-qwen4`, on the port branch) merges `main`,
+  ports the review starter and brief writer with qwen4 as the default and no model in any name, then the fix-brief writer and the rest.
 - No Kimi review is queued: 18 of round 231 are running and one has finished; the other two of that round were never started,
   because their branches change nothing under `package/git-policy/cli/src/native`
   (`open-issues-next-batch`, `pass-11-gate-failures`).
