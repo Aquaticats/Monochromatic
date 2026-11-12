@@ -15,7 +15,10 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 
 import { isMissingPathError } from './native-gate-paths.ts';
 
@@ -184,9 +187,10 @@ export async function createScopeStandIn(): Promise<ScopeStandIn> {
     directory,
     environment: {
       ...process.env,
-      PATH: `${programs}:${process.env
-        .PATH
-        ?? ''}`,
+      // The stand-ins, the running Node, and the system tools: never this repository's PATH, whose `git` is the wrapper.
+      PATH: `${programs}:${dirname(process.execPath)}:/usr/bin:/bin`,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: '/dev/null',
       [scopeStandInDirectoryVariable]: directory,
     } as Readonly<Record<string, string>>,
     async [Symbol.asyncDispose](): Promise<void> {

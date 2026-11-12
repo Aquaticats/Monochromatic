@@ -6,7 +6,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { runGateCommand, runGateCommandOrThrow } from './native-gate-run.ts';
+import { runGateCommand } from './native-gate-run.ts';
 import {
   installSteps,
   journalIdentifiers,
@@ -22,6 +22,7 @@ import {
   commitSubjects,
   committedFileText,
   fileTextOf,
+  fixtureGit,
   stagedPathNames,
 } from './install-fixture-checkout-reads-for-tests.ts';
 import {
@@ -551,18 +552,15 @@ await describe({
           fixture.directory,
           'worktree',
         );
-        await runGateCommandOrThrow({
-          program: 'git',
+        await fixtureGit({
+          directory: fixture.repository,
           args: [
-            '-C',
-            fixture.repository,
             'worktree',
             'add',
             '--quiet',
             '--detach',
             worktree,
           ],
-          deadlineMilliseconds: testDeadlineMilliseconds,
         });
         /**
          How the install in that worktree ended.

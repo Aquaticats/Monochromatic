@@ -14,10 +14,7 @@ import {
 
 import { NativeGateError } from './native-gate-error.ts';
 import { isMissingPathError } from './native-gate-paths.ts';
-import {
-  runGateCommand,
-  runGateCommandOrThrow,
-} from './native-gate-run.ts';
+import { runGateCommand } from './native-gate-run.ts';
 import {
   failureLinesOf,
   namedChecks,
@@ -25,6 +22,7 @@ import {
   resultLinesOf,
   scopeLabelOfTask,
 } from './native-ts-checks.ts';
+import { fixtureGit } from './install-fixture-checkout-reads-for-tests.ts';
 import {
   type ScopeStandIn,
   createScopeStandIn,
@@ -529,11 +527,9 @@ await describe({
       fn: async () => {
         await using standIn = await createScopeStandIn();
         await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
-        await runGateCommandOrThrow({
-          program: 'git',
+        await fixtureGit({
+          directory: scratch.path,
           args: ['init', '--quiet', '--initial-branch=main', '.',],
-          deadlineMilliseconds: testDeadlineMilliseconds,
-          workingDirectory: scratch.path,
         });
         await writeFile(
           join(
@@ -542,17 +538,15 @@ await describe({
           ),
           'tracked\n'
         );
-        await runGateCommandOrThrow({
-          program: 'git',
+        await fixtureGit({
+          directory: scratch.path,
           args: [
             'add',
             'tracked.txt',
           ],
-          deadlineMilliseconds: testDeadlineMilliseconds,
-          workingDirectory: scratch.path,
         });
-        await runGateCommandOrThrow({
-          program: 'git',
+        await fixtureGit({
+          directory: scratch.path,
           args: [
             '-c',
             'user.email=checks-test@example.invalid',
@@ -564,8 +558,6 @@ await describe({
             'first',
             'tracked.txt',
           ],
-          deadlineMilliseconds: testDeadlineMilliseconds,
-          workingDirectory: scratch.path,
         });
         /**
          How the command ended.

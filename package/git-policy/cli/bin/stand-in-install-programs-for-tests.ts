@@ -16,7 +16,10 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 
 import { fixtureGit } from './install-fixture-checkout-reads-for-tests.ts';
 
@@ -366,9 +369,10 @@ export async function createInstallFixture({
     directory,
     environment: {
       ...process.env,
-      PATH: `${programs}:${process.env
-        .PATH
-        ?? ''}`,
+      // The stand-ins, the running Node, and the system tools: never this repository's PATH, whose `git` is the wrapper.
+      PATH: `${programs}:${dirname(process.execPath)}:/usr/bin:/bin`,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: '/dev/null',
       // The identity a stand-in commit is made with, so a fixture never depends on this machine's Git configuration.
       GIT_AUTHOR_NAME: 'Install Test',
       GIT_AUTHOR_EMAIL: 'install-test@example.invalid',

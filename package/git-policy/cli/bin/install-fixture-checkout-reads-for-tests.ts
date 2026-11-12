@@ -16,6 +16,30 @@ import { runGateCommandOrThrow } from './native-gate-run.ts';
 const fixtureGitDeadlineMilliseconds = 120_000;
 
 /**
+ The directories a fixture's git commands find their Git in, which are the system ones and never this repository's wrapper.
+
+ A fixture is a throwaway checkout, so its commits want the gate's Git, pacman's current one, and not the wrapper this
+ repository puts first on `PATH`: the wrapper routes a commit through the service of the checkout it runs in, and a
+ fixture must not need a service to test a command. Reading the wrapper's output instead of Git's also hid which program
+ answered.
+ */
+const systemGitPath = '/usr/bin:/bin';
+
+/**
+ The variables a fixture's git commands run with, so no user configuration decides what a fixture's commit does.
+
+ @returns the environment of one fixture git command
+ */
+function fixtureGitEnvironment(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PATH: systemGitPath,
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+  };
+}
+
+/**
  Runs one git command in a fixture checkout and answers what it printed.
 
  @param directory - the checkout to run in
@@ -44,6 +68,7 @@ export async function fixtureGit({
       ...args,
     ],
     deadlineMilliseconds: fixtureGitDeadlineMilliseconds,
+    environment: fixtureGitEnvironment(),
   })).stdout;
 }
 
