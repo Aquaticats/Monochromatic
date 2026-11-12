@@ -197,6 +197,27 @@ export {
 } from './watch-for-overdue-runs.ts';
 
 /**
+ The step a launcher takes after its unit ended: an agent that ended its turn while work it started still runs is waited for, then
+ resumed with a short note. The launcher `start-pi-run-in-a-worktree.ts` takes it.
+ */
+export {
+  WAKE_LIMIT,
+  WORK_POLL_MILLISECONDS,
+  type ProcessAtAFolder,
+  isOwnFolder,
+  ownComponentOf,
+  processesAtTheirFolders,
+  OWN_WORK_NAMED_IN_A_NOTE,
+  type WakeOutcome,
+  type WakeResumeAnswer,
+  processesStillWorkingFor,
+  wakeIfItsOwnWorkOutlivesItsTurn,
+  wakePromptOf,
+  wakeResumeWordsOf,
+  workWaitMillisecondsOf,
+} from './wake-a-run-whose-work-outlives-its-turn.ts';
+
+/**
  The launchers that outlived their units: which processes are launchers, which of them have outlived a unit that ended, and the
  order they are ended in. The command is `list-launchers-whose-unit-has-ended.ts`.
  */

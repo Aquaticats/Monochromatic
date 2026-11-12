@@ -185,11 +185,36 @@ It used to wait on `systemd-run --wait` alone,
 and while an impostor manager held the session bus name on 2026-11-11,
 sixteen launchers never heard their units end and waited about ten hours.
 
+### After the unit ends
+
+An agent may end its turn while work it started still runs,
+such as a build or a reproduction in a scope of its own,
+and before 2026-11-11 this launcher called such a run finished and removed its worktree,
+so a review whose reproduction was still running was never written.
+Now the launcher waits for that work,
+at most the run's own wall clock,
+then resumes the agent's session with a short note naming what it left running,
+at most five wakes per run name.
+A resumed run gets a folder number of its own,
+so it never writes over the summary the first run wrote.
+
+A process counts as the run's own work only when its working folder is the run's worktree or run folder,
+or when one whole path component of that folder is the run's own name.
+A substring match tied five re-merge launchers to the Kimi review of the same branch,
+whose worktree `pi-kimi-review-<the run's name>-round-<n>` contains that name:
+they waited on another agent's work and would have resumed finished sessions.
+The note carries no claim about a person:
+it states what the run left running and asks it to continue,
+the same way every brief this package writes carries requirements as plain statements.
+
 When the run has ended the worktree is removed only if the run ended `idle` or on its stop file,
 its HEAD is a branch,
 and `git status` holds nothing.
 It is never removed by force,
 and every other ending keeps it and prints why.
+A worktree something of the run still works in is kept too:
+a removal would take the folder of a build or a reproduction the run left working,
+and a wake would have nothing to return to.
 
 ### `retry-pi-run-start-until-a-pool-has-room`
 
