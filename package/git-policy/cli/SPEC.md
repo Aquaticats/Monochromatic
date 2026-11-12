@@ -3058,6 +3058,107 @@ directory.
 These narrow the window to a few system calls;
 they do not close it.
 
+A worktree whose branch a merge landed is removed by those same routes,
+ and the removal a merge cannot make is recorded for the commit service instead of run there
+ (`src/native/worktree/worktree_landed_removal.rs`,
+ `src/native/worktree/worktree_remove_hand_over.rs`):
+ the merge proves that this program made the worktree,
+ that its branch holds a commit of its own,
+ that it is not the worktree the merge runs in,
+ that it is unlocked,
+ that no operation is unfinished in it,
+ that nothing works inside it,
+ that every ignored file it holds is one the worktree the merge ran in also holds,
+ and that the records of its own Git directory are copied,
+ and then it records the removal and returns.
+ The service proves that same list again immediately before it destroys anything
+ (`src/native/worktree/worktree_removal_second_look.rs`):
+ the registrations are read again,
+ the lock and the marks are looked for again,
+ the process table is read again,
+ the ignored files are compared again with the worktree the sweep names beside the registration
+ (the file `monochromatic-git-policy-cli-removal-compared-with` in it,
+ so a removal takes that record with the registration and needs no cleanup of its own),
+ the records of the worktree's own Git directory are copied again,
+ the record that this program made the worktree is read again,
+ and every commit a reference lock holds reaches `refs/cli-git/kept/<batch>` of the common Git directory before
+ the worktree's own Git directory goes,
+ because a batch can meet a reference lock in the whole window and not only before the hand-over.
+ The registration the record names must still be the one standing beside that path,
+ which is what the next paragraph says the record carries.
+ A worktree the service keeps is named in a record under the common Git directory,
+ `monochromatic-git-policy-cli/kept-worktree-notices`,
+ which the next wrapper command in any worktree of that repository shows once,
+ on standard error,
+ with the path,
+ the branch and the reason,
+ and a record whose words could not be written stays for the next command,
+ exactly as a failed push's record does.
+ A command whose output a program reads shows none of them and takes none.
+ A record identifies one worktree and not a path.
+ The hand-over writes, beside the registration,
+ in the file `monochromatic-git-policy-cli-removal-identity`,
+ the device and the inode of the registration and of the worktree root,
+ and the service compares them with the two directories standing there before it removes anything.
+ The device and the inode are the kernel's answer to which directory this is,
+ and they are what this program's own writes never move,
+ while the change time and the modification time move on every record a push or a held commit writes inside a
+ registration.
+ A worktree a person removed and added again at the same path is two other directories,
+ so the earlier record removes nothing there,
+ and it settles as one whose worktree is gone,
+ which is what its state has always meant,
+ with a line in the service's journal.
+ A record whose hand-over wrote no such identity,
+ which is every record an earlier release queued,
+ is compared with the name it was keyed by,
+ which is the name the release before this one computed from the path and the registration's device, inode and
+ change time:
+ a match proves the registration is untouched since the hand-over,
+ and a mismatch leaves the worktree and names it.
+ The record's own name keeps that earlier spelling for the same reason,
+ because a record queued while that release ran must still be the record this one finds under its id.
+ The worktree the ignored files were compared with is written beside the registration as well
+ (the file `monochromatic-git-policy-cli-removal-compared-with`):
+ no command of the merge is there any more to name it,
+ and the record has no field for either fact without changing a shape another release parses.
+A queue outlives the program that writes to it,
+ and every release of this program shares one queue for one Git directory,
+ so a consumer leaves a record it cannot read for the release that wrote it:
+ a kind this build does not know,
+ and a version above this build's,
+ are left in `pending` and looked at again,
+ which is one read per record per round;
+ a field this build does not know is ignored, and the record is this build's work when its kind and version are;
+ and a record that is not a record at all, which no release can ever read, is settled in `failed`
+ (`record_of_a_later_release` in `src/native/landing/work_item.rs`).
+ A whole-worktree removal that a commit service of an earlier release refused is queued once more by the next command
+ of the repository,
+ with a line that names the worktree:
+ that service reads the record's `oid` as a subvolume number,
+ answers a failure,
+ and nothing reads `failed` again,
+ so the landed worktree stayed for ever and nothing said so.
+ The second attempt is marked in the record itself,
+ through the attempt count it already carries,
+ so a removal Git refuses again is not queued by every later command.
+ A record an earlier release wrote carries neither the identity of its worktree nor the worktree its ignored files were
+ compared with,
+ so this release cannot prove those files again:
+ the service keeps that worktree and names it in the kept-worktree record,
+ which the person's next command shows,
+ rather than removing it on a proof it cannot repeat.
+Nothing about a worktree added inside a landed one is promised after that last reading:
+ a worktree registered,
+ a lock taken,
+ an operation started or an ignored file written between it and Git's deletion or the subvolume destroy goes with
+ the worktree,
+ which is the accepted risk of the paragraph above and not a second one.
+ What is promised is that the reading is made there,
+ in the process that destroys,
+ immediately before the destruction,
+ and that a worktree it keeps is named rather than kept in silence.
+
 The remedy the refusal names depends on how far that conversion got:
 a copy whose journal is at or past the exchange is finished
 by the conversion itself (which resumes,

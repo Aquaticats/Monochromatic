@@ -174,6 +174,17 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
+    // A removal a merge handed over that a commit service of an earlier release refused for good is queued once more,
+    // because that service could not read the record and nothing else would ever look at it again. The wake is the one
+    // a hand-over makes: a record this command queued must not wait for a command nobody runs.
+    let requeued: Vec<String> = crate::worktree_remove_hand_over::requeue_removals_an_earlier_release_refused(common_dir.as_path());
+    if !requeued.is_empty() {
+        let _woken: Result<(), String> = crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path());
+    }
+    for line in requeued {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
     // The trash of the worktree this command runs in is named here when no record accounts for it: an add hands it to the
     // commit service of the repository, whose records live under the common directory, so a trash nothing there accounts for
     // is one no service will empty, and nothing else mentions it.
@@ -211,6 +222,15 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };
     for notice in &push_notices_for(git_dir.as_path(), common_dir.as_path(), &abbreviate) {
+        // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
+        //  written stays for the next command.
+        let _written = notice.show(&mut std::io::stderr());
+    }
+    // A worktree the commit service kept stands in the repository until the person decides about it, and the decision to
+    //  remove it was taken by a merge that has ended: the record is the only thing left that says so, and this is the
+    //  command that shows it. It lives in the common Git directory because the worktree it names is still registered, and
+    //  a person may never run anything in that worktree again.
+    for notice in &crate::worktree_kept_notices::kept_worktree_notices(common_dir.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
         //  written stays for the next command.
         let _written = notice.show(&mut std::io::stderr());
