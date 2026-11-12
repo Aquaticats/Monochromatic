@@ -34,7 +34,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
-import { WRAPPER_COMMAND, } from '../dist/final/node/index.mjs';
+import {
+  WRAPPER_COMMAND,
+  entryLineOf,
+  reasonInFailedStart,
+} from '../dist/final/node/index.mjs';
 
 /**
  The launcher's own entry, run as the command a coordinator runs.
@@ -47,6 +51,19 @@ const LAUNCHER = new URL('start-pi-run-in-a-worktree.ts', import.meta.url,).path
  answers.
  */
 const WRAPPER_HELP_LINE = `Usage: git ${WRAPPER_COMMAND} <command> [options]`;
+
+/**
+ The error Pi printed when the settled-notification extension could not be loaded, which is what a Pi that leaves before its first
+ turn leaves in `stderr.log`.
+ */
+const EXTENSION_ERROR = 'Error: Failed to load extension '
+  + '"/repo/package/pi-plugin/agent-settled-notification/dist/final/node/index.mjs": '
+  + "Failed to load extension: Cannot find module '@monochromatic-dev/async-time-core/ts'";
+
+/**
+ The advice Pi prints after an extension it could not load, which is not the reason the run did not start.
+ */
+const PI_ADVICE = 'Hint: Start without extensions using "pi -ne".';
 
 /**
  `execFile` with a promise result, typed through Node's own adapter contract.
@@ -514,6 +531,131 @@ await describe({
         expect(await logIn(launcherGitLog,),).toContain('rev-parse --verify --quiet main^{commit}',);
         await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
         await expect(readdir(runs,),).resolves.toEqual([],);
+      },
+    },),
+    it({
+      name: 'says what Pi printed when Pi left before the run started, so the batch names the cause and not the unit memory line',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the stand-ins of the launcher's own search path live.
+         */
+        const launcherBin = join(
+          folder.path,
+          'launcher-bin',
+        );
+        /**
+         Where the stand-in of the session's own search path lives.
+         */
+        const sessionBin = join(
+          folder.path,
+          'session-bin',
+        );
+        /**
+         The checkout the run would work in.
+         */
+        const checkout = join(
+          folder.path,
+          'checkout',
+        );
+        /**
+         The folder the run's folder goes in.
+         */
+        const runs = join(
+          folder.path,
+          'runs',
+        );
+        /**
+         The prompt of the run, which can be read.
+         */
+        const prompt = join(
+          folder.path,
+          'prompt.md',
+        );
+        await mkdir(
+          checkout,
+          { recursive: true, },
+        );
+        await mkdir(
+          runs,
+          { recursive: true, },
+        );
+        await writeFile(prompt, 'do the work',);
+        /**
+         The git the launcher itself uses, which resolves the base and the checkout's root.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'git',
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'mise',
+          body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 1\n`,
+        },);
+        /**
+         The manager this test reads a unit's name from, which is free because no unit holds it. It answers slowly enough that
+         the unit's waiter has ended by the time the launcher looks again, so the wait reads the waiter gone rather than
+         spending its one-minute look interval.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemctl',
+          body: `sleep 0.2\nprintf '%s\\n' 'not-found'\nexit 0\n`,
+        },);
+        /**
+         The unit manager, which writes what a driver writes for a Pi that would not load its extensions, prints the block
+         systemd-run prints for a failed unit, and ends with a failing status.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemd-run',
+          body: `for word in "$@"; do\n  case "$word" in\n    --run-folder=*)\n      runFolder="\${word#--run-folder=}"\n      ;;\n  esac\ndone\nprintf '%s\\n' '{"endReason":"pi-exited","piExit":{"code":1}}' > "$runFolder/summary.json"\nprintf '%s\\n' '${EXTENSION_ERROR}' '    at loadOne (file:///repo/a.ts:12:9)' '${PI_ADVICE}' > "$runFolder/stderr.log"\nprintf '%s\\n' 'Finished with result: exit-code' 'Memory peak: 12.0M'\nexit 1\n`,
+        },);
+        /**
+         The git the session would find, which answers the policy namespace help as the wrapper does.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'git',
+          body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         What the launcher ended with.
+         */
+        const ended = await launch({
+          folder: folder.path,
+          launcherBin,
+          runs,
+          checkout,
+          prompt,
+        },);
+        /**
+         Everything the launcher printed, which is what a batch keeps and reads its one line from.
+         */
+        const printed = `${ended.stdout}${ended.stderr}`;
+        expect(ended.code,).toBe(1,);
+        expect(printed,).not.toContain('Memory peak: 12.0M Pi');
+        // The reason comes after the unit's own block, so the line a batch prints carries Pi's words rather than the memory line.
+        expect(reasonInFailedStart({ output: printed, },).reason,).toContain('Cannot find module',);
+        expect(entryLineOf({
+          name: 'refused',
+          started: {
+            status: ended.code,
+            output: printed,
+          },
+        },),).toContain('Cannot find module',);
+        expect(entryLineOf({
+          name: 'refused',
+          started: {
+            status: ended.code,
+            output: printed,
+          },
+        },),).not.toContain('Memory peak',);
       },
     },),
   ],
