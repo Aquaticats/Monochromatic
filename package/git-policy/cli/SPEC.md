@@ -7228,6 +7228,19 @@ and
   so the change rewrites no unit,
   asks no reload,
   and pays no round trip to the manager (see "What a release change costs a commit" below).
+  A service that has not left when `start_wait` runs out is ended once,
+  and said once,
+  and the wait goes on under `START_CEILING`:
+  a service that finishes a batch,
+  or a push it planned to try again,
+  outlasts the bound,
+  and a commit that ended there left the person's change uncommitted
+  (5 of 6 changes of release in the two-build reproduction of 2026-11-12 and 1 of 16 on another agent's fixture).
+  One ending only:
+  a unit the manager starts from a text an upgrade left behind comes back as the other release,
+  and the next commit's provisioning repairs that.
+  Test:
+  `a_service_of_another_release_that_outlasts_the_bound_is_ended_once_and_said_once`.
   The single service of the releases before one service per
   worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it,
   because the manager's

@@ -133,6 +133,33 @@ pub const SILENT_NOTICE: &str = "The commit service stopped answering; asking it
 pub const UPDATING_NOTICE: &str = "Updating the commit service...";
 
 /// What:
+///  The line that says the service of another release has not left within the stated bound,
+/// that it is ended once,
+/// and that the commit goes on.
+/// Why:
+///   The wait for a service of another release is the commit's, not a start's:
+/// a service that finishes a batch,
+/// or a push it planned to try again,
+/// can outlast the bound,
+/// and the commit that
+///  ended there left the person's change uncommitted.
+/// A service that is still there at the bound is ended once,
+/// which lets the manager start the program this
+///  release installs,
+/// and the line says so once because ending a service is not a thing to do without saying it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// replacingNotice('monochromatic-git-policy-cli@abc.service', 10)
+/// ```
+pub fn replacing_notice(unit: &str, waited: Duration) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the commit service of this worktree was started from another release and has not stopped after {} seconds, so it is ended and started again from the program this release installs ({unit}); this commit goes on once it answers.",
+        waited.as_secs()
+    );
+}
+
+/// What:
 ///  The notice for a commit that waits behind others.
 /// Why:
 ///   The position is the one fact the person needs:

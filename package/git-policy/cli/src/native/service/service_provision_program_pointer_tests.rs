@@ -76,11 +76,11 @@ fn two_releases_write_one_unit_text_naming_the_link() {
     let installed: [(&'static str, String); 2] = unit_texts(&machine.host);
     let program: PathBuf = program_of(machine.host.runtime_dir.as_path(), machine.host.service_binary.as_path());
     assert!(installed.iter().any(|(name, text)| { return *name == SERVICE_UNIT_NAME && text.contains(program.to_string_lossy().as_ref()); }), "the service unit starts the program through the link");
-    assert!(!installed.iter().any(|(_name, text)| text.contains(machine.host.service_binary.to_string_lossy().as_ref())), "no unit names an executable of its own");
+    assert!(!installed.iter().any(|(_name, text)| { return text.contains(machine.host.service_binary.to_string_lossy().as_ref()); }), "no unit names an executable of its own");
     // The next release, and a second build of this one, are other executables under another folder.
     for under in ["next-release/program", "second-build-of-this-release/program"] {
-        let program: PathBuf = another_program(&machine, under);
-        machine.host.service_binary = program;
+        let elsewhere: PathBuf = another_program(&machine, under);
+        machine.host.service_binary = elsewhere;
         assert_eq!(unit_texts(&machine.host), installed, "the unit text of {under} is the one the earlier release wrote");
     }
     // The real Git a release runs is not a release's own program, so a unit that names a different one is a different unit.

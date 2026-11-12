@@ -16,7 +16,7 @@
 
 use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, connect, listen};
 use crate::commit_timing::ReachTrace;
-use crate::service_messages::{ClientFailure, UPDATING_NOTICE, restarting_notice, starting_notice};
+use crate::service_messages::{ClientFailure, UPDATING_NOTICE, replacing_notice, restarting_notice, starting_notice};
 use crate::wait_ceilings::SERVICE_GREETING_SILENCE;
 use crate::service_protocol::{
     PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_retire,
@@ -332,6 +332,8 @@ pub(crate) fn reach_current(config: &ClientConfig, notices: &mut dyn Write, anno
 /// `reach_current` without the clock around it.
 pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
     let mut give_up_at: Option<Instant> = None;
+    // Whether the service of another release that outlasted the bound was already ended, which happens once.
+    let mut restarted: bool = false;
     loop {
         let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen)?;
         if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
@@ -361,6 +363,25 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
             }
         };
         if Instant::now() >= deadline {
+            // What: A service of another release that is still there at the bound is ended once,
+            //       said once,
+            //       and waited for again.
+            // Why:  The bound is the commit's, and a service that finishes a batch or a push it planned to try again outlasts
+            //       it; the commit that ended here left the person's change uncommitted (five of six changes of release in the
+            //       two-build reproduction of 2026-11-12, 10,032 to 10,052 ms of a wait that then failed, and 1 of 16 on
+            //       another agent's fixture). Ending it lets the manager start the program this release installs, because the
+            //       unit names the program link rather than an executable (`service_provision_program_pointer.rs`). One ending
+            //       only: a unit the manager starts from a text an upgrade left behind comes back as the other release again,
+            //       and the next commit's provisioning is what repairs that.
+            if !restarted
+                && let Some(watch) = config.start_watch.as_ref()
+            {
+                restarted = true;
+                let _written = writeln!(notices, "{}", replacing_notice(watch.unit.as_str(), config.start_wait));
+                let _ended = (watch.restart)(watch.bus.as_path(), watch.unit.as_str());
+                give_up_at = Some(Instant::now() + config.start_ceiling);
+                continue;
+            }
             return Err(ClientFailure::OtherRelease);
         }
         // Written in the version the service announced: a service of an earlier release reads a retire in no other.
