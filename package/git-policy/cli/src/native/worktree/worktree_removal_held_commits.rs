@@ -53,7 +53,7 @@
 
 use crate::held_commit_record::{Held, list};
 use crate::held_commit_words::{locks_named, removal};
-use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref;
+use crate::service_land_side_reference_write::keep_on_a_side_ref;
 use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, rescue_ref, value_of};
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};

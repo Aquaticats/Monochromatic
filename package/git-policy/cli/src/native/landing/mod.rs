@@ -114,6 +114,13 @@ pub mod service_land_take_index_lock;
 /// the import stream of a batch and the overlap tests of its requests.
 pub mod service_land_git_steps_and_import_stream;
 
+/// The write of a landing's own side reference:
+/// made once more only when the wait for it ended without an answer,
+/// never replacing a reference another command wrote,
+/// answered by the reference's own value,
+/// and what the landing does with a commit whose reference it could not prove.
+pub mod service_land_side_reference_write;
+
 /// The objects a batch lands:
 /// the commit Git built,
 /// or the commits made from the requests' changes.

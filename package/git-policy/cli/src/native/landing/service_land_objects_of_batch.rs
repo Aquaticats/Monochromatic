@@ -20,7 +20,8 @@ use crate::service_land_follow::classify;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput};
 use std::path::{Path, PathBuf};
-use crate::service_land_git_steps_and_import_stream::{ASideRefWrite, commits_from_marks, import_stream, keep_on_the_scratch_reference, remember_the_tip_a_side_reference_does_not_hold, run};
+use crate::service_land_git_steps_and_import_stream::{commits_from_marks, import_stream, run};
+use crate::service_land_side_reference_write::{ASideRefWrite, keep_on_the_scratch_reference, remember_the_tip_a_side_reference_does_not_hold};
 use crate::service_scratch_ref_marker_of_a_batch::record_scratch_ref;
 
 /// What:

@@ -144,7 +144,8 @@ pub(crate) enum ScratchRefRemoval {
 pub(crate) enum RefValue {
     /// The reference names this object.
     Names(String),
-    /// The reference is symbolic: its own value is the name of this other reference,
+    /// The reference is symbolic:
+    /// its own value is the name of this other reference,
     /// never an object.
     /// Why:
     ///   A reference the wrapper writes is written with `--no-deref`,
@@ -162,7 +163,8 @@ pub(crate) enum RefValue {
 ///  Whether `name` is a symbolic reference,
 /// and what it leads to when it is.
 /// Why:
-///  A symbolic reference names another reference, not an object,
+///  A symbolic reference names another reference,
+/// not an object,
 ///  and every reference the wrapper asks about is one it writes with `--no-deref`:
 ///  its own value is the only value that says what this command put there,
 ///  and what the target names can change without this reference moving
@@ -178,7 +180,8 @@ pub(crate) enum RefValue {
 enum ASymbolicReference {
     /// The reference is symbolic and leads to this reference.
     PointsAt(String),
-    /// The reference is not symbolic, so its own value is an object name.
+    /// The reference is not symbolic,
+    /// so its own value is an object name.
     NotSymbolic,
     /// Git gave no answer.
     Unasked,

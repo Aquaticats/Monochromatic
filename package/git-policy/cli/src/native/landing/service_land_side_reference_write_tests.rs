@@ -29,11 +29,11 @@
 
 use super::*;
 use super::tests::{World, built_request, world};
-use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref;
+use crate::service_land_side_reference_write::keep_on_a_side_ref;
 use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_dropped_batch, kept_ref, scratch_ref};
 use crate::service_index_lock::{Announce, Announcer};
 use crate::test_support::{git, git_text, remove, while_test_lives};
-use crate::transaction_git::{EXTRA_WAIT_FOR_THIS_THREAD, STEP_CEILING_FOR_THIS_THREAD};
+use crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD;
 use std::cell::RefCell;
 use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, SystemTime};
@@ -59,10 +59,14 @@ impl Announcer for Announced {
     }
 }
 
-/// The bound of a step in these controls,
-/// and the extra wait after it:
-/// a second each,
-/// so a wait that has to run out costs the control a moment and not a minute.
+/// The bound of a step in these controls:
+/// a second,
+/// so a wait that has to run out costs the control a moment.
+/// The short extra wait after it stays the shipped one,
+/// because that is the room the write made after a wait that ended has to finish in,
+/// and a control that shortened it too would measure how loaded the host is instead
+/// (`wait_ceilings.rs`,
+/// `SHORT_EXTRA_WAIT`).
 const ONE_SECOND: Duration = Duration::from_secs(1);
 
 /// How old the lock these controls plant is:
@@ -136,15 +140,13 @@ fn invocations_of(world: &World) -> String {
     return std::fs::read_to_string(side_ref_git_invocations(world).as_path()).unwrap_or_default();
 }
 
-/// Run `run` with the shortened bounds of these controls,
-/// and give the thread its shipped bounds back afterwards,
+/// Run `run` with the shortened bound of these controls,
+/// and give the thread its shipped bound back afterwards,
 /// whatever `run` did.
 fn with_a_short_wait<T>(run: impl FnOnce() -> T) -> T {
     STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(ONE_SECOND)); });
-    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(ONE_SECOND)); });
     let ended: T = run();
     STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
-    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
     return ended;
 }
 
@@ -413,5 +415,5 @@ fn a_built_commit_survives_a_prune_when_the_write_of_its_scratch_reference_is_le
     assert_eq!(landed.err(), Some(FailureCode::Unavailable), "the batch is not made, and it says so; the Git asked was:\n{asked}");
     assert_eq!(kept_names, commit, "the commit the batch built is kept where a commit that did not land is kept");
     assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
-    assert!(lines.iter().any(|line| line.contains(kept.as_str())), "the person is told where the commit is kept: {lines:?}");
+    assert!(lines.iter().any(|line| { return line.contains(kept.as_str()); }), "the person is told where the commit is kept: {lines:?}");
 }

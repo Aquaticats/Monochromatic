@@ -13,7 +13,8 @@
 //! ```
 
 use std::time::Duration;
-use crate::service_land_git_steps_and_import_stream::{keep_unlanded, run};
+use crate::service_land_git_steps_and_import_stream::run;
+use crate::service_land_side_reference_write::keep_unlanded;
 use crate::journald_native::Priority;
 use crate::service_journal::OPEN_EXTENSION;
 use crate::service_index_lock::{Announce, Announcer, IndexLock, WaitNotes, acquire_noting_wait_within};

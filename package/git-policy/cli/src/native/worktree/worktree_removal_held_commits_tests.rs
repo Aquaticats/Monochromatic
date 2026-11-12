@@ -8,7 +8,7 @@
 
 use super::keep_held_commits;
 use crate::held_commit_record::{Held, write};
-use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref;
+use crate::service_land_side_reference_write::keep_on_a_side_ref;
 use crate::test_support::{fixture, git, git_text, remove};
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};

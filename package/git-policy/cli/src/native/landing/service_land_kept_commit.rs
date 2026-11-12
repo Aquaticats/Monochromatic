@@ -28,7 +28,7 @@
 //! ```
 
 use crate::service_journal::Intent;
-use crate::service_land_git_steps_and_import_stream::keep_the_batches_commit;
+use crate::service_land_side_reference_write::keep_the_batches_commit;
 use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, value_of};
 use crate::transaction_git::GitContext;
 
