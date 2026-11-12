@@ -297,6 +297,49 @@ move its durable facts to their canonical doc and delete it from this page.
   A Sonnet subagent is reading the service's journal for those six commits, with real Git's read-only timings as the baseline
   (scratch under `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/`).
 
+#### Where the time of the slow commits went: the wrapper's own file work, not a queue and not child `git` (read 2026-11-12T13:57:54-05:00)
+
+- The read-only diagnosis of the six slowest commits (56 s to 199 s, 12:35 to 13:23) is saved as
+  `~/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/report.md`.
+  It corrects one thing in this handover's 13:30 record: the timing log sits in the shared Git directory and holds the commits of every worktree,
+  so the medians quoted there are of all worktrees, and only one of the six slowest was made in the main checkout.
+- Not a queue behind other commits: `queued_behind=0` in all six, `syncs_waited=0` in every landing.
+- Not child `git`: in one landing of 95 s the only children were two `git update-ref` calls of 4 and 9 ms.
+  Real Git's read-only commands took about 4 ms each under the same pressure (cached reads; no bound on what real Git's writes cost).
+- The seconds are in the wrapper's own file work with no child running:
+  in the service, `index_update_ms` of 95 s and 82 s, `ref_ms` of 22.8 s;
+  in the client, `shadow refs` 35 s, `index copy` 15.7 s, `scratch` 21 s, `index` 30 s, `unmergedFiles` 12.6 s;
+  in the gate, a policy of 8.9 s with 0.4 s of children.
+  Which file operation blocks was not traced.
+- Before a landing begins, waits of 17 s to 65 s (`queued_ms`) with nothing ahead of the commit, not explained.
+- Landings of three different worktrees' services ran back to back, each beginning within 0.2 s of the previous one's end.
+- A scratch `git commit` child took 29.9 s with `ssh-keygen` under it in uninterruptible sleep (commit signing waiting on the disk).
+- When sampled at about 13:45, the repository's disk was nearly idle and the busy device was the NVMe that holds `/var/home`
+  (51% util, 33.5 ms average write), which fits the owner's move.
+  Which files the wrapper writes on that disk during a commit is not established; it is the first thing the fix has to find out.
+- Other defects the journals showed:
+  - A service instance got `SIGTERM` 287 ms after its start (13:19:22), then lingered 33 s until its own last-resort alarm;
+    the commit that started it counted 34 refused connections and a start wait of 37327 ms. Who sent the signal is not established.
+  - Housekeeping rounds of the main checkout's service far over their 30 s budget, the worst 808916 ms (12:23:53).
+  - `pnpm` relinking a new worktree ran 1080 s and was stopped at its ceiling (13:15:29).
+  - About 45 "could not be relinked: toolchain: 1 launcher records still name another lock file" lines (12:10 to 12:47)
+    and about 66 "is still running ... for the repair of the new worktree" lines (12:10 to 13:18).
+  - Pushes of 52807 ms and 109709 ms.
+- Routed at about 13:58 by notes (files under `~/temp/agent/notes-to-send/`, names beginning `2026-11-12T1358-`):
+  - `commit-does-not-list-every-reference-on-the-path-it-waits-on-1` is reframed:
+    its centre is now the file work a commit waits on (a trace of every file the commit path touches and on which filesystem,
+    a reproduction in a container whose own disk is capped, taking off the waiting path what the commit does not need, the wait before the landing).
+    It keeps what it built for `git for-each-ref`.
+  - The stopped-and-lingering service went to the two runs on the service's start and stop
+    (`commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager-1`,
+    `commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer-1`).
+- Not routed yet, tracked here: the housekeeping rounds over budget, and the two repeated lines.
+  The relink that runs eighteen minutes inside an add is what pass 18's branch 7 takes off the add's path.
+- Starts at 13:57:54: none of the five runs of rounds 310, 311 and 312 was up
+  (26 to 56 minutes after their launchers began); pass 18 and the run for issue 6286 were active.
+  `/proc/pressure/io` full avg60=53.48.
+  New worktrees do not come up while an add sits in its package repair; pass 18 is what changes that.
+
 #### The owner on the disk pressure, and round 312 (2026-11-12T13:31:45-05:00)
 
 - The owner, typed at about 13:31, after the slow commits were reported:
