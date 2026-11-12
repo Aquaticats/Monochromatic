@@ -127,7 +127,7 @@ fn exchanged_add_recorded_as(name: &str, identity: SnapshotIdentity) -> Exchange
     match identity {
         SnapshotIdentity::Recorded => record_made(common.as_path(), container.as_path(), snapshot).expect("the record of the stage's creation"),
         SnapshotIdentity::NotRecorded => {
-            record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now()).expect("the record of the creation")
+            record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), None).expect("the record of the creation")
         }
     }
     let parent = open_root(container.parent().expect("the stage's parent")).expect("the parent");

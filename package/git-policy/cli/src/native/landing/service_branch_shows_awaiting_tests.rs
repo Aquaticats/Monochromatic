@@ -21,9 +21,11 @@ use std::path::PathBuf;
 /// const [sync, awaited] = bothAnswers(context, repo, reference, prepared);
 /// ```
 fn both_answers(context: &GitContext, repo: &Path, reference: &str, prepared: &str) -> (WhatTheBranchShows, WhatTheBranchShows) {
-    let synchronous: WhatTheBranchShows = what_the_branch_shows(context, repo, reference, prepared);
+    // The read takes the bytes Git printed for the name, so the control's text becomes one of those here.
+    let reference: crate::ref_name::RefName = crate::ref_name::RefName::from_text(reference);
+    let synchronous: WhatTheBranchShows = what_the_branch_shows(context, repo, &reference, prepared);
     let awaited: WhatTheBranchShows =
-        crate::lazy_runtime::run_on_runtime(what_the_branch_shows_awaiting(context, repo, reference, prepared)).expect("the runtime");
+        crate::lazy_runtime::run_on_runtime(what_the_branch_shows_awaiting(context, repo, &reference, prepared)).expect("the runtime");
     return (synchronous, awaited);
 }
 
@@ -101,12 +103,13 @@ fn the_awaited_silence_reports_what_the_synchronous_one_reports() {
         ),
         ("a request with no prepared commit", None, Some(ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread })),
     ];
+    let main: crate::ref_name::RefName = crate::ref_name::RefName::from_text("refs/heads/main");
     for (label, prepared, expected) in cases {
-        let synchronous: Option<ClientFailure> = the_silent_service_after_a_prepare(&context, repo.as_path(), "refs/heads/main", prepared);
+        let synchronous: Option<ClientFailure> = the_silent_service_after_a_prepare(&context, repo.as_path(), &main, prepared);
         let awaited: Option<ClientFailure> = crate::lazy_runtime::run_on_runtime(the_silent_service_after_a_prepare_awaiting(
             &context,
             repo.as_path(),
-            "refs/heads/main",
+            &main,
             prepared,
         ))
         .expect("the runtime");
