@@ -10535,7 +10535,8 @@ and each shown to fail against the shape it replaces:
   `worktree_copy_journal`,
   `start_retry` and
   `bounded_query`.
-- What the suite says about the merged tree, measured 2026-11-11T04:05:31-05:00:
+- What the suite says about the merged tree,
+  measured 2026-11-11T04:05:31-05:00:
   twenty-one tests fail on it,
   and the same twenty-one fail with the integration parent's own sources,
   so the resolution added none of them.
@@ -10552,7 +10553,8 @@ and each shown to fail against the shape it replaces:
   110 passed and 21 failed on the parent's sources,
   which hold none of this branch's three guard files,
   so two of the filtered tests are absent there.
-- Where each red comes from, read against the branch that brought it:
+- Where each red comes from,
+  read against the branch that brought it:
   - the ten `invocation::entry` overlay controls expect the four-entry overlay,
     which `90991fa86e` widened with the never-prompt pair whenever the process has no
     controlling terminal (`process/control_terminal.rs` reads `/dev/tty`).
@@ -10576,7 +10578,8 @@ and each shown to fail against the shape it replaces:
     `worktree::worktree_convert_compare::tests::a_stage_container_of_another_command_is_not_a_difference`,
     `subvolume::subvolume_sync::tests::another_commands_stage_container_is_left_out_of_a_pass`
     and `service::wait_ceilings::tests::a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling`
-    read stage containers, `.claude` folders and the answer ceiling,
+    read stage containers,
+    `.claude` folders and the answer ceiling,
     which the integration branch changed under them.
   - `markdown::markdown_linter::tests::a_linter_that_keeps_working_is_abandoned_at_its_ceiling_naming_the_file`
     and `repair::package_repair_prewarm::tests::a_worktree_added_again_at_the_same_path_gets_its_own_filling`
@@ -10597,8 +10600,265 @@ and each shown to fail against the shape it replaces:
   `merge_isolation_editor`,
   `process_identity`,
   `package_repair_command` and
-  `worktree_copy_journal` ran 205 tests, 205 passed,
+  `worktree_copy_journal` ran 205 tests,
+  205 passed,
   the bounded query's own control among them
   (`lfs::lfs_interactive::tests::a_configuration_question_that_never_answers_is_stopped_and_reported`)
   and the guard whose list shrank
   (`source_guard::blocking_code_off_the_runtime_tests::every_listed_exception_still_matches_code`).
+
+## Step T13, the two landing slices meet and the batch body's storage faces are complete, 2026-11-12T10:20:00-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted`
+  in `.claude/worktrees/pi-tokio-landing-two-slices-brought-onto-main-and-the-batch-body-converted`,
+  from main at `7c37536055`,
+  with main merged again at `f667e67676` (release 0.6.1-alpha.13).
+  Not merged into main.
+- What this run was asked for:
+  the two finished landing slices
+  (`tokio-landing-owed-index-and-replay-awaited`,
+  `tokio-landing-batch-body-storage-steps-awaited`)
+  merged onto today's main,
+  the five `max-lines` splits their records planned,
+  the controls the checks of their sessions doubted,
+  and the landing's batch body converted to call the awaited faces.
+
+### What the merges took
+
+- The first slice met main's split of the settlement
+  (`held_commit_settle_outcomes.rs`,
+  `held_commit_settle_move.rs`),
+  the branch name that became `RefName` with the bytes Git printed,
+  the repository the recovery report and the conclusion-state copy name,
+  and the split of `service_land_follow.rs` into `service_land_follow_index_reset.rs`,
+  whose awaited faces already existed.
+  Its own duplicated `reset_entries_awaiting` and `reset_once_awaiting` went,
+  because main's index-reset module holds them and `owed_index_repair.rs` asks for the derived names there.
+- The second slice met the same main,
+  and one collision the brief named beforehand:
+  both it and main added awaited Git steps to `service_land_git_steps_and_import_stream.rs`.
+  One set stays:
+  main's faces in that file,
+  with the second slice's `service_land_git_steps_awaited.rs` and its controls removed
+  and `service_land_take_index_lock.rs` asking the stream module.
+  One function answers the failure of a Git step (`the_failure_of_a_step`)
+  and one writes the line a kept commit is told by (`the_line_of_an_unlanded_commit`),
+  so both faces of a step cannot answer it two ways,
+  and the doc of `run_words` that a conflict hunk had taken with `failure_of` is back.
+- The intent's write keeps the record age main stamps beside the flush the second slice carries,
+  and `wait_ceilings.rs` keeps both sides' constants (`COMMIT_OWN_STATE_CEILING`,
+  `LONGEST_JOURNAL_WRITE`,
+  `JOURNAL_WRITE_CEILING`,
+  `PREPARATION_READ_CEILING`).
+- Two things main moved under the second slice's copies are carried into them:
+  `RefName::from_text` for a `CommitRequest`'s reference,
+  the `holders` an `Intent` records,
+  and the `repository` that `keep_of_intent` and `wait_line` name.
+- The merged tree type-checks with no warnings after each merge
+  (`native:check`),
+  and Clippy on every target passes at the tip of the branch.
+
+### The five files over the size limit
+
+- `landing/held_commit_settle.rs` 376 to 288 code lines,
+  `landing/service_amend_replayed.rs` 329 to 289,
+  `landing/service_replay.rs` 323 to 278,
+  each with a sibling `<file>_awaiting.rs` holding its awaited faces,
+  the job structures of the pool and the answer readers,
+  re-exported by the file itself where a caller outside it asks them.
+- `landing/owed_index_repair.rs` 632 to 221,
+  split the way its record plans:
+  `owed_index_repair_awaiting.rs` (273) for the awaited faces and the questions a job of the pool answers,
+  and `owed_index_repair_requests.rs` (165) for the builders and readers both faces ask through.
+  Its controls moved with it:
+  the awaited file declares them,
+  so they ask `super::` for the faces beside them and `super::super::` for the synchronous one.
+- `landing/service_land_follow.rs` was 339 at the first slice's base,
+  and main's split of it into `service_land_follow_index_reset.rs` had already taken it under the limit.
+- Nothing here changed a question,
+  an answer or a decision:
+  the moved code is the same code with the visibility a sibling module needs,
+  and the file each face came from keeps the synchronous face and the words of every stop.
+
+### The controls the two sessions doubted
+
+- The control with no failing run,
+  `both_faces_answer_one_thing_about_an_index_that_moved_after_the_copy`,
+  could not have one:
+  its fixture left the commit's own index holding the entry the landing replaced,
+  so the repair's other rule left the path out whether or not the moved rule ran.
+  Measured,
+  by planting the mistake it is named for:
+  the plant passed the control before the change and fails it after,
+  with `left: ["one.txt"]` against `right: []`,
+  and the family passes with the plant removed (`4 tests run: 4 passed`).
+  The fixture now gives each commit's own index the entry that landed there,
+  and moves the live index to what another command staged after the copy.
+- The twelve controls whose session showed a pass before a failure are each shown failing
+  against a mistake someone could make:
+  the awaited index listing read through a tree parser
+  (`left: Ok({...5225f47d...})` against `right: Ok({...0...})`),
+  the awaited read calling the blocking runner (`left: Err(Unavailable)`),
+  the awaited repair asking the copy for the head (`left: ["one.txt"]` against `right: []`),
+  the awaited amend writing its message under another name,
+  the awaited replay parenting on the base
+  (`Replayed { commits: [eeceb2b1...] }` against `Replayed { commits: [23e47d31...] }`),
+  the awaited replay reading parents with the blocking runner
+  (`Cannot { because: "the commit ... cannot be read" }` against `Replayed {...}`),
+  the awaited landed-below question reading the wrong branch (`left: false` against `right: true`),
+  the awaited branch write wording a refusal itself
+  (`fatal: prepare: cannot lock ref 'refs/heads/main': reference already exists` against
+  `the branch could not be moved`),
+  a look that gave nothing answered as no record,
+  the replay's awaited read calling the blocking runner
+  (`the runtime that runs this command's waits was asked for from inside itself`),
+  a look that gave nothing answered as an index that is gone,
+  and the replay's awaited copy read calling the blocking runner.
+  Each plant was removed after its run;
+  the branch holds none of them.
+
+### The control that met a limit, and which
+
+- `landing::service_land::hung_write_tests::a_client_is_told_it_is_inside_the_write_when_the_write_starts`
+  failed once in the second slice's broad selection with
+  `cannot start the acceptor of connections: the runtime that runs it has no worker thread`.
+  What it met is a time bound,
+  not a thread count:
+  the user's `RLIMIT_NPROC` is 32,768,
+  this run's cgroup says `pids.max` 3,000,
+  and nextest runs one process per test,
+  so eight test processes with the budget's workers are two orders of magnitude below either.
+  It met `BUILD_DEADLINE` (one second) and then `LATE_BUILD_PATIENCE` (five seconds):
+  the in-process build of the service's runtime was slow because the host was loaded,
+  the deadline replaced it with a current-thread stand-in,
+  and the late build did not arrive inside the patience,
+  so the service ended at its acceptor.
+  Reproduced with the knob that exists for it,
+  `CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS=8000` (a build past both bounds),
+  before the change:
+  `the runtime was built as a current-thread stand-in, because the multi-thread build outlasted its 1s deadline in 1004 ms`,
+  `and it had still given no worker 5000 ms later`.
+- The cause was in the control,
+  not in the service:
+  a control whose subject is the write notice started a service whose first act is to need a worker,
+  so its result depended on how fast the host built a runtime.
+  The module now builds the process's runtime and waits for its worker first
+  (`await_a_worker_within`,
+  the patience the module's other waits use),
+  then starts the service.
+  The same reproduction passes after it (`14.222 s`),
+  and the module's selection is `7 tests run: 7 passed`.
+  The bound itself stays as this plan designed it:
+  a build the system refused must not hold a commit forever.
+
+### What the batch body still needs
+
+- The body's own storage steps are awaited faces now:
+  `service_journal::write_intent_awaiting` and `write_start_awaiting` (the previous step),
+  the scratch-reference marker's records and the conclusion copy (the previous step),
+  `service_land_take_index_lock.rs`'s wait (the previous step),
+  and this run's `mark_done_awaiting`,
+  `remove_start_awaiting` and `witness_of_awaiting`,
+  each with a control that both faces answer one thing.
+  Clippy is clean and the package lint is clean on every file this run touched.
+- The body itself is not a task yet,
+  and the measurement that decides why is the first slice's:
+  a job of the blocking pool cannot carry a synchronous Git chain,
+  because tokio sets the runtime handle on the threads it spawns for the pool,
+  so `run_on_runtime` answers `Nested` there.
+  `landing/service_land_finish.rs` is such a chain:
+  `follow_up` calls `cleanup_done`,
+  `build_index`,
+  `carry_stages`,
+  `put_the_live_times_back`,
+  `release_flushed_with_record` and `owed_index_update::settle`,
+  and none of them has an awaited face.
+  The settlement's own face (`one_awaiting`) waits for them (`held_commit_settle_move.rs`),
+  and the body calls the finish after every branch move.
+- What the body also calls and has no awaited face of:
+  the object import (`service_land_objects_of_batch.rs`),
+  the reference-lock wait (`service_land_reference_lock.rs`),
+  the commit a `--all` amend reads (`service_built_checks::read_commit`),
+  and the entry's own steps
+  (`read_config_snapshot`,
+  `history_is_plain`,
+  `keep_what_an_ended_step_built`,
+  `end_scratch_ref_record`,
+  `deferral.settle`).
+- So the next slice writes the settlement's own face and the finish chain's awaited faces,
+  with the body's conversion after it,
+  and the loop that lands (`service/service_server.rs`,
+  `serve_in_a_landing`) after that,
+  in this plan's order.
+  Converting the body before them would put a blocking call on a task,
+  which is the one thing this move does not do.
+
+### Checks of this run
+
+- `native:clippy` on every target:
+  clean,
+  warnings denied.
+- `//:lint:monochromatic-lint`:
+  clean on every file this run touched;
+  the package's own red is `main`'s,
+  in files byte-identical to it
+  (`SPEC.md`,
+  `binary/`,
+  `command/`,
+  `worktree/`,
+  `worktree_copying/`,
+  `shadow/`,
+  `subvolume/`,
+  `landing/housekeeping_of_one_round.rs`,
+  `landing/service_branch_shows.rs`,
+  `landing/service_scratch_abandonment.rs`,
+  `landing/service_work_drain_pending_claims.rs`,
+  `service/service_units_of_removed_worktrees.rs`).
+- The landing's own selection,
+  `native:test:host -E 'test(/^landing::/)' --no-fail-fast`:
+  `1064 tests run: 1047 passed (18 slow), 9 failed, 8 timed out, 6401 skipped` at `6903eab733`
+  (the commit before this run's own faces),
+  and `1065 tests run: 1050 passed (20 slow), 10 failed, 5 timed out, 6403 skipped` at `e0319e7492`.
+  The failures are the index-lock and ceiling controls,
+  and the same selection at `main` (`f667e67676`) answers
+  `12 tests run: 0 passed, 5 failed, 7 timed out`:
+  under this host's load those waits reach their own ceilings on `main` too.
+- The five cases a person's commit goes through,
+  through the wrapper Cargo built from this worktree
+  and each fixture with its own `HOME` and runtime directory:
+  `an_explicit_path_commit_lands_once_and_leaves_nothing`,
+  `amends_through_the_service_equal_the_native_amend`,
+  `two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`,
+  `a_commit_waits_on_a_live_index_lock_holder_until_it_lets_go`,
+  `an_interrupt_sent_to_the_wrapper_alone_is_relayed_to_git`:
+  `5 tests run: 5 passed, 1077 skipped`.
+- A commit through the release wrapper,
+  measured by `native:perf --only commit-service`
+  against its own direct arm,
+  alternating this branch's build and main's:
+  the paired delta's median is 27.2,
+  33.7 and 28.2 ms for this branch
+  and 27.4,
+  27.3 and 37.4 ms for `main`,
+  so the run-to-run spread of one binary (6.5 and 10.1 ms) is larger than the difference between the two,
+  and both sit under the owner's 5,000 ms bound by two orders of magnitude.
+- Not run:
+  the container gate,
+  the whole `native_binary` suite (1082 controls;
+  five of them were run),
+  `native:perf`'s signed and forwarded scenarios,
+  `native:clippy:windows`,
+  and any mutation campaign (paused by the owner).
+
+### What is left, in this plan's order
+
+1. The settlement's own face and the finish chain's awaited faces
+   (`service_land_finish.rs`,
+   `held_commit_settle_move.rs`).
+2. The object import and the reference-lock wait of the body.
+3. The body's conversion (`landing/service_land_batch_body.rs`),
+   with the source guard
+   `source_guard/blocking_code_off_the_runtime_tests.rs` naming its `async fn` bodies by itself once they exist.
+4. The loop that lands (`serve_in_a_landing`).
+5. The commit path.
