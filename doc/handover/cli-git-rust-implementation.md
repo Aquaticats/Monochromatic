@@ -174,7 +174,7 @@ move its durable facts to their canonical doc and delete it from this page.
 
 #### The owner on it
 
-- Typed while this was being routed, at about 12:06:
+- Typed while this was being routed, between 12:00:11 and 12:04:49:
   "Yes the wrapper is supposed to do auto merge, but it should definitely have done it better."
 - So the merge is wanted, also for a push a person typed and for a branch that is not checked out.
   What changes is how it is done:
@@ -191,6 +191,43 @@ move its durable facts to their canonical doc and delete it from this page.
 - `push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch` (on `main`).
 - Each brief states that the build volume had 111 GiB free at 11:58 and that a build tree takes about 8 GiB.
   The package launcher holds each start while less than 100 GiB are free.
+- The audit `kimi-audit-alpha-14-push-and-auto-push-1` was told of the sighting and that it is known
+  (`~/temp/agent/notes-to-send/2026-11-12T1210-a-typed-push-of-a-branch-not-checked-out-published-a-merge-named-after-the-checked-out-branch.md`,
+  sent 12:04:49; the file's name carries a time that ran ahead of the clock).
+
+#### Integration pass 18, for 0.6.1-alpha.16, started 12:06:32 (round 306)
+
+- Brief: `~/temp/agent/pi-runs/integration-pass-18-for-alpha-16-prompt.md`;
+  branch `integrate/git-policy-cli-pass-18-for-alpha-16` on `main`;
+  notes and report under `~/temp/agent/integration-pass-18/`.
+- Nine branches, in this order:
+  late runtime `df38f33b4f`,
+  push notices `9da2d237ed`,
+  commit that concludes a merge `9bc31c8912`,
+  landing `d62b91889f` (two conflicts; a build straight after it),
+  removal fixes `f941f71d77`,
+  copy record `aba9bce1d4`,
+  add without waiting for its repair `9e1b450341`,
+  package repair `e12196309f` (one conflict; brings `a31ce6ee1d` and `9478219b1d`),
+  commit handed its shadow `3a4949f5ed` (last, taken out again when its `HOME` test needs design work).
+- Reviews of some of the nine are still running; a review does not hold an alpha.
+  A finding that arrives after the pass goes into the release after it.
+- Left out on purpose:
+  the LFS branches, the discard and abort guards being reworked, the fast-forward carry, the second merge,
+  the commit-path branches of rounds 296 and 297,
+  `fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it` (`af735d6330`, which goes onto the fix for issue 6286),
+  the fix for issue 6286 itself (round 301, still running: whichever of the two is ready first is merged first),
+  and `fix/cargo-shadow-lean-deadline-ends-a-pass-and-a-pass-keeps-up` (`743059e153`, another package with a release of its own).
+
+#### The hourly pass after 12:00
+
+- No Pi run ended between 11:10 and 11:46 (`runs-that-ended-since.ts`).
+- Culled: none.
+  The three redirected agents were still making turns or inside a bounded test of their own at 11:45
+  (`clean-counts-...-1` had been silent 2452 s inside a `timeout 3000` test run).
+- Started: round 305 (four runs) and round 306 (pass 18).
+- Free space: 107 GiB at 12:04:49.
+  With five starts at about 8 GiB each the launcher's 100 GiB gate decides how many come up now.
 
 ### The owner's answers of 2026-11-12T11:58:45-05:00, through the question tool: removal and ignored files, a kept commit, the LFS record, local-only branches
 
