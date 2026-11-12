@@ -520,6 +520,14 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// A table of commit shapes run wrapped and direct,
+/// with the exit status,
+/// the commit object's bytes,
+/// the tree,
+/// the index and the status compared.
+#[path = "binary_commit_bytes_match_direct_git_tests.rs"]
+mod commit_bytes_match_direct;
+
 /// A commit whose command line names the repository:
 /// `--git-dir` with `--work-tree`,
 /// `GIT_DIR` with `GIT_WORK_TREE`,
