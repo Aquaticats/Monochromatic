@@ -341,6 +341,22 @@ fn words_of_a_commit_nothing_keeps_behind_an_unreadable_record(record: &Path, wo
 }
 
 /// What:
+///  The batch number a record's file name carries,
+///  which is all a record this build cannot read still says.
+/// Why:
+///  Every name of a record is its batch number and the extension,
+///  and the batch number is what names the per-worktree reference the commit is read from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// batchOf('/<git dir>/monochromatic-git-policy-cli/held-commits/7.held') // 7
+/// ```
+fn batch_of(record: &Path) -> Option<u64> {
+    let stem: &std::ffi::OsStr = record.file_stem()?;
+    return stem.to_str()?.parse::<u64>().ok();
+}
+
+/// What:
 ///  The worktree root a registration names,
 ///  read from its `gitdir` record without waiting for a writer,
 ///  or nothing when that record cannot be read.
@@ -381,8 +397,11 @@ fn worktree_of(git_dir: &Path) -> Option<PathBuf> {
 /// keepTheCommitOfAnUnreadableRecord(git, commonDir, gitDir, record) // { kind, line }
 /// ```
 fn keep_the_commit_of_an_unreadable_record(git: &GitContext, common_dir: &Path, git_dir: &Path, record: &Path) -> UnreadableKeeping {
-    let worktree: PathBuf = worktree_of(git_dir).unwrap_or_else(|| return git_dir.to_path_buf());
-    let Some(seq) = record.file_stem().and_then(|stem| return stem.to_str()).and_then(|text| return text.parse::<u64>().ok()) else {
+    let worktree: PathBuf = match worktree_of(git_dir) {
+        Some(found) => found,
+        None => git_dir.to_path_buf(),
+    };
+    let Some(seq) = batch_of(record) else {
         return UnreadableKeeping::Refused(words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
             record,
             worktree.as_path(),
@@ -521,7 +540,11 @@ pub(crate) fn keep_held_commits(common_dir: &Path, git: &GitContext) -> KeptComm
                 UnreadableKeeping::Kept(line) => kept.said.push(line),
                 UnreadableKeeping::Refused(line) => {
                     kept.refused.push(line);
-                    unkept_worktrees.push(worktree_of(git_dir.as_path()).unwrap_or_else(|| return git_dir.clone()));
+                    let holder: PathBuf = match worktree_of(git_dir.as_path()) {
+                        Some(found) => found,
+                        None => git_dir.clone(),
+                    };
+                    unkept_worktrees.push(holder);
                 }
             }
         }

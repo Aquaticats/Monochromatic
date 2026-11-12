@@ -502,9 +502,8 @@ fn remove(place: &LandedPlace<'_>, one: &Registration, operations: &dyn RemoveOp
     // Asked again inside the removal, in the window it destroys in: its proof of cleanliness starts Git and walks the
     // tree, which is long enough for a command to add a worktree inside this one and for the service to record a refused
     // push (a cross-vendor review of the landed sweep, round 208).
-    let ask = || return nothing_new_would_go_with_it(place, one);
-    let look: LastLook<'_> = LastLook { ask: &ask };
-    let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir, last_look: Some(look) };
+    let look: NothingNewWouldGoWithIt<'_> = NothingNewWouldGoWithIt { common_dir: place.common_dir, one };
+    let request: RemoveRequest<'_> = RemoveRequest { context: place.context, plan: &plan, common_dir: place.common_dir, last_look: Some(&look) };
     match remove_with(operations, &request) {
         RemoveOutcome::Removed => {
             crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
@@ -623,6 +622,31 @@ fn unsaved_records_reason(admin: &Path, unsaved: &[String]) -> String {
 }
 
 /// What:
+///  The sweep's own last look for one candidate:
+///  the question what a removal deletes beside the files Git keeps.
+/// Why:
+///  A named type stands where a closure would capture the directory and the registration,
+///  because this codebase keeps closures out of calls like this one
+///  (`LastLook` in `worktree_remove.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class NothingNewWouldGoWithIt implements LastLook { ask() { return nothingNewWouldGoWithIt(this.commonDir, this.one) } }
+/// ```
+struct NothingNewWouldGoWithIt<'a> {
+    /// The common Git directory the removal works in.
+    common_dir: &'a Path,
+    /// The registration the removal takes.
+    one: &'a Registration,
+}
+
+impl LastLook for NothingNewWouldGoWithIt<'_> {
+    fn ask(&self) -> Result<(), String> {
+        return nothing_new_would_go_with_it(self.common_dir, self.one);
+    }
+}
+
+/// What:
 ///  Why nothing may be removed from the worktree `one` now,
 ///  or `Ok(())` when what a removal deletes beside the files Git keeps is still what the sweep read.
 /// Why:
@@ -644,12 +668,12 @@ fn unsaved_records_reason(admin: &Path, unsaved: &[String]) -> String {
 /// ```ts
 /// nothingNewWouldGoWithIt(place, registration) // throws the sentence a person reads
 /// ```
-fn nothing_new_would_go_with_it(place: &LandedPlace<'_>, one: &Registration) -> Result<(), String> {
-    let unsaved: Vec<String> = snapshot_one(place.common_dir, one.admin.as_path());
+fn nothing_new_would_go_with_it(common_dir: &Path, one: &Registration) -> Result<(), String> {
+    let unsaved: Vec<String> = snapshot_one(common_dir, one.admin.as_path());
     if !unsaved.is_empty() {
         return Err(unsaved_records_reason(one.admin.as_path(), unsaved.as_slice()));
     }
-    let registered_now: Vec<Registration> = match registrations_of(place.common_dir) {
+    let registered_now: Vec<Registration> = match registrations_of(common_dir) {
         Ok(found) => found,
         Err(reason) => return Err(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
     };
@@ -753,7 +777,7 @@ fn examine_and_remove(place: &LandedPlace<'_>, one: &Registration, registered: &
     // What the removal deletes beside the files Git keeps is asked here first, so a candidate that would lose a record or
     // a nested worktree costs no proof of cleanliness, and the same question is asked again inside the removal, in the
     // window it destroys in (`nothing_new_would_go_with_it`).
-    if let Err(reason) = nothing_new_would_go_with_it(place, one) {
+    if let Err(reason) = nothing_new_would_go_with_it(place.common_dir, one) {
         return Examined::Kept(reason);
     }
     let removal: Result<(), String> = remove(place, one, operations);

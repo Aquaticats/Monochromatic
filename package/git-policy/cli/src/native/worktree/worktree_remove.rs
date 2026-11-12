@@ -158,7 +158,7 @@ pub enum RemoveOutcome {
 /// ```ts
 /// type RemoveRequest = { context: GitContext; plan: RemovePlan; commonDir: string };
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct RemoveRequest<'a> {
     /// How to start real Git for the cleanliness proof.
     pub context: &'a GitContext,
@@ -169,7 +169,7 @@ pub struct RemoveRequest<'a> {
     /// The question the caller asks again as the removal runs,
     /// immediately before anything is destroyed,
     /// whose refusal is why nothing is removed.
-    pub last_look: Option<LastLook<'a>>,
+    pub last_look: Option<&'a dyn LastLook>,
 }
 
 /// What:
@@ -185,22 +185,29 @@ pub struct RemoveRequest<'a> {
 ///  would go with it.
 ///  This is the last moment the caller can look,
 ///  so nothing but the destroy follows its answer.
+///  The question is a trait rather than a closure,
+///  because a closure a caller captures its own state in is what this codebase keeps out of its calls.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LastLook = () => void; // throws the reason nothing is removed
+/// interface LastLook { ask(): void } // throws the reason nothing is removed
 /// ```
-#[derive(Clone, Copy)]
-pub struct LastLook<'a> {
+pub trait LastLook {
     /// The question,
     /// which answers the reason nothing is removed.
-    pub ask: &'a dyn Fn() -> Result<(), String>,
+    fn ask(&self) -> Result<(), String>;
 }
 
-impl std::fmt::Debug for LastLook<'_> {
-    /// A question is not text, so it prints as the one name a person reads in a message.
+impl std::fmt::Debug for RemoveRequest<'_> {
+    /// A request prints the directory it works on and whether its caller asks a question again;
+    /// a question itself is not text.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str("LastLook(..)");
+        return formatter
+            .debug_struct("RemoveRequest")
+            .field("plan", &self.plan)
+            .field("common_dir", &self.common_dir)
+            .field("last_look", &self.last_look.is_some())
+            .finish();
     }
 }
 
@@ -595,7 +602,7 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // that read them before it proved this one clean has read them too early. Nothing is changed when it refuses, and the
     // refusal is the reason the caller asked for.
     if let Some(look) = request.last_look
-        && let Err(reason) = (look.ask)()
+        && let Err(reason) = look.ask()
     {
         debug(TAG, format!("{} is no longer one this removal may destroy ({reason}); nothing is removed", target.display()).as_str());
         return RemoveOutcome::Refused(reason);

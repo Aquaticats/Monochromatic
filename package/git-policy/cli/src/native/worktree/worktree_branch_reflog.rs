@@ -92,7 +92,15 @@ const REFLOG_LIMIT: u64 = 16 << 20;
 /// isNoCommit('0000000000000000000000000000000000000000000000000000000000000000') // true
 /// ```
 fn is_no_commit(field: &[u8]) -> bool {
-    return !field.is_empty() && field.iter().all(|byte| return *byte == b'0');
+    return !field.is_empty() && field.iter().all(is_zero);
+}
+
+/// Whether the byte is the zero a null object name is made of.
+/// Why:
+///  Named apart from the test that uses it,
+///  because a closure that captures nothing is what this codebase keeps out of its calls.
+fn is_zero(byte: &u8) -> bool {
+    return *byte == b'0';
 }
 
 /// The bytes of the reflog of `reference`,
@@ -197,7 +205,11 @@ pub(crate) fn branch_moved_onto(common_dir: &Path, reference: &str, commit: &str
         if next != wanted || old == next || is_no_commit(old) {
             continue;
         }
-        if merge_move.is_some_and(|skipped| return old == skipped.from.as_bytes() && next == skipped.to.as_bytes()) {
+        let the_merges_own_move: bool = match merge_move {
+            Some(skipped) => old == skipped.from.as_bytes() && next == skipped.to.as_bytes(),
+            None => false,
+        };
+        if the_merges_own_move {
             continue;
         }
         return true;
