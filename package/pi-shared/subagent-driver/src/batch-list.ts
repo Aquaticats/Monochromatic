@@ -429,6 +429,25 @@ export function entryLineOf({
 }
 
 /**
+ What starting a batch answered: the line each entry ended with, in the list's order, and the entries that did not start.
+
+ The entries that failed travel beside the lines because the command that started the batch has to answer with a status, and a
+ batch that printed a failure and exited 0 told its caller nothing: a unit that ran one, or a coordinator reading the unit's
+ status, could not tell a batch of ten runs that all started from one where every entry was refused.
+ */
+export type StartedBatch = {
+  /**
+   One line per entry, in the list's order.
+   */
+  readonly lines: readonly string[];
+
+  /**
+   The names of the entries whose start did not end with status 0, including one that never started at all.
+   */
+  readonly failed: readonly string[];
+};
+
+/**
  Starts every entry of a batch, one after another, and answers with the line each one ended with.
 
  @param entries - the runs to start
@@ -443,11 +462,11 @@ export function entryLineOf({
 
  @param keepFailure - where the whole of what a failed start printed is kept, or nothing when it is not kept anywhere
 
- @returns one line per entry, in the list's order
+ @returns one line per entry in the list's order, and the entries that did not start
 
  @example
  ```ts
- const lines = await startBatch({ entries, runsFolder: '/runs', deadlineSeconds: 7_200, start, wait, keepFailure, },);
+ const { lines, failed } = await startBatch({ entries, runsFolder: '/runs', deadlineSeconds: 7_200, start, wait, keepFailure, },);
  ```
  */
 export async function startBatch({
@@ -470,7 +489,7 @@ export async function startBatch({
     readonly name: string;
     readonly output: string;
   }) => Promise<{ readonly keptAt?: string }>;
-},): Promise<readonly string[]> {
+},): Promise<StartedBatch> {
   /**
    What each entry ended with, in the list's order.
    */
@@ -493,7 +512,10 @@ export async function startBatch({
    What each entry answered, in the list's order.
    */
   const answered = await Promise.all(started,);
-  return await Promise.all(answered.map(async function lineFor(
+  /**
+   The lines it ended with, in the same order.
+   */
+  const lines = await Promise.all(answered.map(async function lineFor(
     startedEntry,
     index,
   ) {
@@ -518,4 +540,23 @@ export async function startBatch({
       ...(keptAt === undefined ? {} : { keptAt, }),
     },);
   },),);
+  /**
+   The runs that did not start, which are why the batch answers with a failing status.
+   */
+  const failed = answered.flatMap(function nameOfFailed(
+    startedEntry,
+    index,
+  ) {
+    /**
+     The name the list gave this entry, which the line printed beside it already carries.
+     */
+    const name = entries[index]
+      ?.name
+      ?? '';
+    return (startedEntry.status === 0) ? [] : [name,];
+  },);
+  return {
+    lines,
+    failed,
+  };
 }

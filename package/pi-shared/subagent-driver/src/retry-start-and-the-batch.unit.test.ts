@@ -277,9 +277,9 @@ await describe({
              */
             const waits: number[] = [];
             /**
-             The lines the batch answered.
+             The lines the batch answered, and the entries it says failed.
              */
-            const lines = await startBatch({
+            const { lines, failed, } = await startBatch({
               entries: [
                 {
                   name: 'a',
@@ -306,6 +306,7 @@ await describe({
             expect(starts,).toEqual(['a', 'b',],);
             expect(waits,).toEqual([BATCH_STAGGER_MILLISECONDS, BATCH_STAGGER_MILLISECONDS,],);
             expect(lines,).toEqual(['a: status 0', 'b: status 0',],);
+            expect(failed,).toEqual([],);
           },
         },),
         it({
@@ -319,7 +320,7 @@ await describe({
              Where the batch says it kept them.
              */
             const keptAt = '/runs/a-start-failure.log';
-            const lines = await startBatch({
+            const { lines, failed, } = await startBatch({
               entries: [
                 {
                   name: 'a',
@@ -361,6 +362,53 @@ await describe({
               `a: status 1 Error: it did not start (all it printed: ${keptAt})`,
               'b: status 0',
             ],);
+            expect(failed,).toEqual(['a',],);
+          },
+        },),
+        it({
+          name: 'names every entry whose start did not end with status 0, including one that never started',
+          fn: async () => {
+            const { failed, } = await startBatch({
+              entries: [
+                {
+                  name: 'a',
+                  branch: 'feat/a',
+                },
+                {
+                  name: 'b',
+                  branch: 'feat/b',
+                },
+                {
+                  name: 'c',
+                  branch: 'feat/c',
+                },
+              ],
+              runsFolder: '/runs',
+              deadlineSeconds: 7_200,
+              start: async function startOne({ name, },) {
+                if (name === 'a') {
+                  return {
+                    status: 0,
+                    output: '',
+                  };
+                }
+                if (name === 'b') {
+                  return {
+                    status: 1,
+                    output: 'Error: it did not start\n',
+                  };
+                }
+                // A retry that could not be started at all answers no status, and that is a failed entry too.
+                return {
+                  output: '',
+                  startProblem: 'spawn ENOENT',
+                };
+              },
+              wait: async function passTime() {
+                // The stagger is not what this test reads.
+              },
+            },);
+            expect(failed,).toEqual(['b', 'c',],);
           },
         },),
       ],

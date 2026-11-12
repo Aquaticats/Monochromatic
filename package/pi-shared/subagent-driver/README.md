@@ -328,6 +328,13 @@ Node ends an uncaught error with `Node.js v26.13.0`,
 and for all ten starts of 2026-11-11 that was the whole of what the batch printed.
 The whole of what a failed start printed is appended to `<runs-folder>/<name>-start-failure.log`,
 and the line names that file.
+The command exits 0 only when every entry started:
+when one entry's start ended non-zero, or could not be started at all,
+it prints how many of how many failed and which they were,
+and exits 1.
+Before this it exited 0 whatever happened,
+so a unit that ran a batch, or a coordinator reading that unit's status,
+could not tell ten started runs from ten refusals.
 
 ## Command line
 

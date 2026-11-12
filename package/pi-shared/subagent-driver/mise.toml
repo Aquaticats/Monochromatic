@@ -82,7 +82,7 @@ runPiCommand('retry-pi-run-start-until-a-pool-has-room')
 """
 
 [tasks."start-pi-runs-from-a-batch-list"]
-description = "Start every entry of a batch list through the retrying start, one at a time, and print the line each entry ended with: a failed entry names its own reason, and the whole of what it printed is kept beside the runs"
+description = "Start every entry of a batch list through the retrying start, one at a time, and print the line each entry ended with: a failed entry names its own reason, the whole of what it printed is kept beside the runs, and the task exits non-zero when any entry failed"
 usage = 'arg "[args]" var=#true help="--batch-file=<file> [--runs-folder=<folder>] [--deadline-seconds=<n>]"'
 shell = "node --input-type=module-typescript -e"
 run = """

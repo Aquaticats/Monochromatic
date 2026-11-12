@@ -173,9 +173,12 @@ async function keepFailedOutput({
 }
 
 /**
- The line each entry ended with.
+ The line each entry ended with, and the entries that did not start.
  */
-const lines = await startBatch({
+const {
+  lines,
+  failed,
+} = await startBatch({
   entries,
   runsFolder: options.runsFolder,
   deadlineSeconds: options.deadlineSeconds,
@@ -187,4 +190,13 @@ const lines = await startBatch({
 for (const line of lines) {
   process.stdout
     .write(`${line}\n`,);
+}
+
+// A batch that printed a failure and exited 0 told its caller nothing: a unit that ran it reads 0 as every entry started, and a
+// coordinator reading that unit cannot tell this batch from one whose entries all started. The lines above say which entry
+// failed and why, so the status only has to say that one did.
+if (failed.length > 0) {
+  process.stderr
+    .write(`${String(failed.length,)} of ${String(entries.length,)} entries failed: ${failed.join(', ')}\n`,);
+  process.exitCode = 1;
 }
