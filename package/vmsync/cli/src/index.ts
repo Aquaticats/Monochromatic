@@ -10,6 +10,13 @@
  */
 
 /**
+ The containment check every derived per-VM path passes.
+ 
+ @internal
+ */
+export { assertIsManagedVmDir, } from './config.ts';
+
+/**
  Hypervisor detection for the running platform.
  
  @internal
@@ -59,11 +66,25 @@ export { vmDir, } from './config.ts';
 export { nameFromPath, } from './import.ts';
 
 /**
+ The `boot` command's entry point, so its name check is exercised at the built artifact.
+ 
+ @internal
+ */
+export { bootVm, } from './boot.ts';
+
+/**
  The memory-string parser `boot` runs before handing a domain to libvirt.
  
  @internal
  */
 export { parseMemoryToBytes, } from './boot.ts';
+
+/**
+ The `config` command's entry point, so its name check is exercised at the built artifact.
+ 
+ @internal
+ */
+export { updateConfig, } from './config-cmd.ts';
 
 /**
  The whitespace scan `qemu-img` runs over a `sha256sum` line.
@@ -78,3 +99,17 @@ export { firstWhitespaceIndex, } from './qemu-img.ts';
  @internal
  */
 export { ddTransferArgs, } from './nbd.ts';
+
+/**
+ The `status` command's entry point, so its name check is exercised at the built artifact.
+ 
+ @internal
+ */
+export { showStatus, } from './status.ts';
+
+/**
+ The `sync` command's entry point, so its name check is exercised at the built artifact.
+ 
+ @internal
+ */
+export { syncVm, } from './sync.ts';

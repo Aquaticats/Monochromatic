@@ -1,3 +1,5 @@
+import { dirname, join, } from 'node:path';
+
 import {
   describe,
   expect,
@@ -5,13 +7,56 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  assertIsManagedVmDir,
+  bootVm,
   detectHypervisor,
   isVmNameChar,
+  showStatus,
   stripJsoncComments,
+  syncVm,
+  updateConfig,
   validateName,
   vmConfigPath,
   vmDir,
 } from '../dist/final/node/index.mjs';
+
+/**
+ Names that must never reach a path derivation: separators, parent components,
+ absolute paths, whitespace, and the empty string.
+ */
+const VM_NAMES_THAT_ESCAPE: readonly string[] = [
+  '../evil',
+  '..',
+  '.',
+  'a/b',
+  '/etc/passwd',
+  'my vm',
+  '',
+];
+
+/**
+ Every command that derives a per-VM path, paired with the call a user makes.
+ A name check that lives in one handler instead of in the shared helpers shows up
+ here as a command that reads or writes outside the managed root.
+ */
+const COMMANDS_THAT_DERIVE_A_PATH = [
+  {
+    name: bootVm.name,
+    run: async (name: string,) => bootVm(name,),
+  },
+  {
+    name: syncVm.name,
+    run: async (name: string,) => syncVm(name,),
+  },
+  {
+    name: showStatus.name,
+    run: async (name: string,) => showStatus(name,),
+  },
+  {
+    name: updateConfig.name,
+    run: async (name: string,) => updateConfig({ name, },),
+  },
+] as const;
 
 //region validateName: rejects unsafe VM names, accepts safe ones
 
@@ -323,6 +368,31 @@ await describe({
             expect(result.endsWith('vmsync/fedora-dev',),).toBe(true,);
           },
         },),
+
+        it({
+          name: 'returns a path directly inside the managed root',
+          fn: async () => {
+            const result = vmDir('alpine',);
+            expect(dirname(result,),).toBe(dirname(vmDir('other',),),);
+          },
+        },),
+
+        ...VM_NAMES_THAT_ESCAPE.map(function mapEscapingName(name,) {
+          return it({
+            name: `rejects ${JSON.stringify(name,),}`,
+            fn: async () => {
+              let caught: unknown;
+              try {
+                vmDir(name,);
+              }
+              catch (error) {
+                caught = error;
+              }
+              expect(caught,).toBeInstanceOf(Error,);
+              expect((caught as Error).message,).toContain('invalid VM name',);
+            },
+          },);
+        },),
       ],
     },),
     describe({
@@ -335,10 +405,109 @@ await describe({
             expect(result.endsWith('vmsync/alpine/vmsync.jsonc',),).toBe(true,);
           },
         },),
+
+        ...VM_NAMES_THAT_ESCAPE.map(function mapEscapingName(name,) {
+          return it({
+            name: `rejects ${JSON.stringify(name,),}`,
+            fn: async () => {
+              let caught: unknown;
+              try {
+                vmConfigPath(name,);
+              }
+              catch (error) {
+                caught = error;
+              }
+              expect(caught,).toBeInstanceOf(Error,);
+              expect((caught as Error).message,).toContain('invalid VM name',);
+            },
+          },);
+        },),
       ],
     },),
 
     //endregion vmDir / vmConfigPath
+
+    //region assertIsManagedVmDir: the containment check behind every derived path
+
+    describe({
+      name: assertIsManagedVmDir.name,
+      children: [
+        it({
+          name: 'accepts a direct child of the managed root',
+          fn: async () => {
+            expect(() => {
+              assertIsManagedVmDir({ name: 'alpine', candidate: vmDir('alpine',), },);
+            },)
+              .not
+              .toThrow();
+          },
+        },),
+
+        it({
+          name: 'rejects a sibling directory outside the managed root',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              assertIsManagedVmDir({
+                name: 'alpine',
+                candidate: join(dirname(vmDir('alpine',),), 'elsewhere',),
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(Error,);
+            expect((caught as Error).message,).toContain('resolves outside',);
+          },
+        },),
+
+        it({
+          name: 'rejects a nested child of the managed root',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              assertIsManagedVmDir({
+                name: 'alpine',
+                candidate: join(vmDir('alpine',), 'images',),
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(Error,);
+            expect((caught as Error).message,).toContain('resolves outside',);
+          },
+        },),
+      ],
+    },),
+
+    //endregion assertIsManagedVmDir
+
+    //region command entry points: each validates before it reads or writes
+
+    describe({
+      name: 'commands deriving a per-VM path',
+      children: [
+        ...COMMANDS_THAT_DERIVE_A_PATH.map(function mapCommand(command,) {
+          return it({
+            name: `${command.name} rejects an escaping name`,
+            fn: async () => {
+              let caught: unknown;
+              try {
+                await command.run('../evil',);
+              }
+              catch (error) {
+                caught = error;
+              }
+              expect(caught,).toBeInstanceOf(Error,);
+              expect((caught as Error).message,).toContain('invalid VM name',);
+            },
+          },);
+        },),
+      ],
+    },),
+
+    //endregion command entry points
 
     //region detectHypervisor: platform-based hypervisor detection
 

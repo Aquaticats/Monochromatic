@@ -10,7 +10,11 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { homedir, } from 'node:os';
-import { join, } from 'node:path';
+import {
+  dirname,
+  join,
+  resolve,
+} from 'node:path';
 
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
@@ -31,58 +35,6 @@ import {
  ```
  */
 const l = tagged({ tag: 'vmsync', },);
-
-//region Data directories
-
-/**
- Root data directory for all vmsync-managed VMs.
- */
-export const DATA_DIR: string = join(
-  homedir(),
-  '.local',
-  'share',
-  'vmsync',
-);
-
-/**
- Resolves the directory path for a named VM.
- 
- @param name - VM name
- 
- @returns Absolute path to the VM directory
- 
- @example
- ```ts
- vmDir('alpine'); // "/home/user/.local/share/vmsync/alpine"
- ```
- */
-export function vmDir(name: string,): string {
-  return join(
-    DATA_DIR,
-    name,
-  );
-}
-
-/**
- Resolves the config file path for a named VM.
- 
- @param name - VM name
- 
- @returns Absolute path to vmsync.jsonc
- 
- @example
- ```ts
- vmConfigPath('alpine'); // "/home/user/.local/share/vmsync/alpine/vmsync.jsonc"
- ```
- */
-export function vmConfigPath(name: string,): string {
-  return join(
-    vmDir(name,),
-    CONFIG_FILENAME,
-  );
-}
-
-//endregion Data directories
 
 //region Name validation
 
@@ -159,6 +111,10 @@ function isValidVmName(name: string,): boolean {
 /**
  Validates a VM name contains only safe characters.
  
+ Every function that derives a per-VM path calls this one, because a name
+ with a separator, a parent component, or an absolute path would escape
+ `DATA_DIR` and address configuration or disk images of another VM.
+ 
  @param name - VM name to validate
  
  @throws Error when name contains invalid characters
@@ -178,6 +134,109 @@ export function validateName(name: string,): void {
 }
 
 //endregion Name validation
+
+//region Data directories
+
+/**
+ Root data directory for all vmsync-managed VMs.
+ */
+export const DATA_DIR: string = join(
+  homedir(),
+  '.local',
+  'share',
+  'vmsync',
+);
+
+/**
+ Asserts a resolved candidate names one managed VM directory.
+ 
+ The name grammar is the enforcement; this check is the second one, so a future
+ loosening of the grammar, or a name that arrives already resolved, cannot put
+ the result outside the managed root.
+ 
+ @param name - VM name the candidate was derived from
+ 
+ @param candidate - resolved path to check
+ 
+ @throws Error when candidate is not a direct child of `DATA_DIR`
+ 
+ @example
+ ```ts
+ assertIsManagedVmDir({ name: 'alpine', candidate: vmDir('alpine') }); // OK
+ assertIsManagedVmDir({ name: 'evil', candidate: '/etc/passwd' });      // throws
+ ```
+ */
+export function assertIsManagedVmDir(
+  {
+    name,
+    candidate,
+  }: {
+    readonly name: string;
+    readonly candidate: string;
+  },
+): void {
+  if (dirname(candidate,)
+    !== DATA_DIR) {
+    throw new Error(
+      `invalid VM name: ${name} (resolves outside ${DATA_DIR})`,
+    );
+  }
+}
+
+/**
+ Resolves the directory path for a named VM.
+ 
+ Validates the name and the resolved path, so every caller (boot, sync,
+ status, config, import) inherits the check instead of repeating it.
+ 
+ @param name - VM name
+ 
+ @returns Absolute path to the VM directory
+ 
+ @throws Error when name is not a valid VM name, or resolves outside `DATA_DIR`
+ 
+ @example
+ ```ts
+ vmDir('alpine'); // "/home/user/.local/share/vmsync/alpine"
+ ```
+ */
+export function vmDir(name: string,): string {
+  validateName(name,);
+  /**
+   Candidate joined onto the managed root before any canonicalisation, so a
+   name that is already absolute cannot replace the root instead of joining it.
+   */
+  const candidate = resolve(
+    DATA_DIR,
+    name,
+  );
+  assertIsManagedVmDir({
+    name,
+    candidate,
+  },);
+  return candidate;
+}
+
+/**
+ Resolves the config file path for a named VM.
+ 
+ @param name - VM name
+ 
+ @returns Absolute path to vmsync.jsonc
+ 
+ @example
+ ```ts
+ vmConfigPath('alpine'); // "/home/user/.local/share/vmsync/alpine/vmsync.jsonc"
+ ```
+ */
+export function vmConfigPath(name: string,): string {
+  return join(
+    vmDir(name,),
+    CONFIG_FILENAME,
+  );
+}
+
+//endregion Data directories
 
 //region JSONC parsing
 
