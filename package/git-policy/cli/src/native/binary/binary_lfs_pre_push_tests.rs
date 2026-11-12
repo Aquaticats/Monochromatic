@@ -276,14 +276,14 @@ fn the_caller_can_switch_the_upload_off_through_a_configuration_the_environment_
 fn an_inherited_command_scope_does_not_override_the_callers_newer_setting() {
     const NEW_URL: &str = "https://new.invalid/lfs";
     const OLD_URL: &str = "https://old.invalid/lfs";
-    for (case, prefix, variable) in [
-        ("dash-c", vec!["-c", "lfs.url=https://new.invalid/lfs"], None),
-        ("config-env", vec!["--config-env=lfs.url=PUSH_URL"], Some(("PUSH_URL", NEW_URL))),
+    for (case, selection, variable) in [
+        ("dash-c", vec![String::from("-c"), format!("lfs.url={NEW_URL}")], None),
+        ("config-env", vec![String::from("--config-env=lfs.url=PUSH_URL")], Some(("PUSH_URL", NEW_URL))),
     ] {
         let fixture: Fixture = fixture(format!("lfs-push-inherited-{case}").as_str());
         let world: World = world(&fixture, true, None);
         executable(fixture.root.join("bin/git-lfs").as_path(), url_recording_source(world.record.as_path()).as_bytes());
-        let mut arguments: Vec<&str> = prefix;
+        let mut arguments: Vec<&str> = selection.iter().map(String::as_str).collect();
         arguments.extend(["push", "origin", "main"]);
         let mut command = wrapped_commit(&fixture, world.repo.as_path(), arguments.as_slice());
         command.env("GIT_CONFIG_PARAMETERS", format!("'lfs.url'='{OLD_URL}'"));
