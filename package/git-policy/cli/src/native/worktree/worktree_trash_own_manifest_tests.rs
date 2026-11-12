@@ -106,6 +106,35 @@ fn a_manifest_name_that_holds_a_link_is_refused() {
 }
 
 /// What:
+///  A hard link at the manifest's name is refused instead of written through,
+///  so a file outside the trash keeps its bytes,
+///  and a file another process left at that name is left where it is.
+/// Why:
+///   `O_NOFOLLOW` refuses a symbolic link and says nothing about a hard link,
+/// and the manifest emptied whatever regular file was at the name before any check could see it;
+/// both lose bytes of a file the wrapper did not write,
+/// inside a trash it made a moment earlier.
+#[test]
+fn a_manifest_name_that_holds_a_hard_link_or_a_file_is_left_alone() {
+    let root: PathBuf = fixture("trash-own-manifest-hard-link");
+    let name: String = "a".repeat(40);
+    let manifest: TrashManifest = planted(root.as_path(), name.as_str(), 1);
+    let victim: PathBuf = root.join("victim");
+    let original: &[u8] = b"user data that must survive\n";
+    std::fs::write(victim.as_path(), original).expect("the person's file");
+    let path: PathBuf = root.join(TRASH_PARENT).join(&name).join(MANIFEST_FILE_NAME);
+    std::fs::hard_link(victim.as_path(), path.as_path()).expect("a hard link at the manifest's name");
+    assert!(write(root.as_path(), &manifest).is_err(), "a hard link is not written through");
+    assert_eq!(std::fs::read(victim.as_path()).expect("the person's file"), original, "and the file it is another name of keeps its bytes");
+    std::fs::remove_file(path.as_path()).expect("make room for a file of somebody else's");
+    let theirs: &[u8] = b"bytes of a file the wrapper did not write\n";
+    std::fs::write(path.as_path(), theirs).expect("a file at the manifest's name");
+    assert!(write(root.as_path(), &manifest).is_err(), "a file that is already there is refused, not emptied");
+    assert_eq!(std::fs::read(path.as_path()).expect("the file that was there"), theirs, "and its bytes stay");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A named pipe at the manifest's name is refused at once,
 ///  so no command waits for a reader that may never come.
 /// Why:

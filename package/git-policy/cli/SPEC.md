@@ -1508,8 +1508,12 @@ the identity of the trash directory (device,
 inode and birth time,
 taken when it was
 made) and the identity of each directory moved into it.
-That file is written at a name opened without following a link and without blocking:
-a link another process put there is refused instead of written through,
+That file is created at its name and never replaces what is there:
+no file at that name loses its bytes to the manifest,
+a link another process put there
+(a symbolic one,
+or a hard one whose inode a write would empty)
+is refused instead of written through,
 which would replace the file it points at,
 and a named pipe there is refused at once instead of waited on,
 so no add waits for a reader that may never come.

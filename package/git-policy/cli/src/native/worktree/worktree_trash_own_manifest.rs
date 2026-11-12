@@ -75,11 +75,12 @@ const MANIFEST_LIMIT: u64 = 1024 * 1024;
 /// That is why the write needs no staging name of its own,
 /// and leaves no
 ///  half-written file beside the manifest.
-/// The name is opened without following a link and without blocking,
+/// The name is created and never replaces what is at it,
 /// so a link another process put there is
 ///  refused instead of written through,
+/// a file it put there keeps its bytes,
 /// and a pipe is refused instead of waited on:
-/// neither is a file the wrapper made,
+/// none is a file the wrapper made,
 /// and no bytes of the manifest's reach anything outside the trash.
 ///
 /// In TS you'd write (pseudocode):

@@ -18,10 +18,14 @@
 //!  registration's `gitdir`,
 //! a journal and a list of files are all read this way,
 //! and a name the wrapper writes inside a directory of its own is written this way,
+//! by creating it rather than by opening what is there,
 //! so the type is taken from the open
 //!  handle:
 //! a name swapped for a link or a pipe between a check and the open cannot redirect the read or the write,
 //!  and the read is bounded by the caller's limit.
+//! A name the wrapper writes is one it made itself,
+//! so anything already there is another process's entry:
+//! no file, link or pipe that is already at the name is ever emptied, awaited or replaced
 //! A file a person names in a configuration is read through a link
 //!  (`read_plain_file_through_links`):
 //! the pipe is what must not be waited on there,
@@ -30,7 +34,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const bytes = readPlainFile(path, limit); // throws when the file is not a plain one
-//! writePlainFile(path, bytes);              // the same, for a name the wrapper writes
+//! writePlainFile(path, bytes);              // the same, for a name the wrapper creates
 //! ```
 
 use std::os::unix::fs::OpenOptionsExt;
@@ -60,7 +64,29 @@ pub const SMALL_FILE_LIMIT: u64 = 1 << 20;
 ///   A person meets this text when a rules file is not one,
 /// and it names what the path
 ///  holds instead.
-const NOT_A_PLAIN_FILE: &str = "it is not a plain file (a named pipe, a device or a directory)";
+const NOT_A_PLAIN_FILE: &str = "it is not a plain file (a link, a named pipe, a device or a directory)";
+
+/// What:
+///  The words that refuse a name something else already holds,
+///  chosen by what is there.
+/// Why:
+///   The wrapper writes names it made itself,
+/// so a file at one is somebody else's,
+/// and the person reads which kind of entry kept it.
+/// A hard link is the case the name alone cannot show:
+/// it looks like the wrapper's own record,
+/// and emptying it would replace the bytes of the file it is another name of.
+fn taken_name_words(path: &Path) -> String {
+    use std::os::unix::fs::MetadataExt as _;
+    let Ok(found) = std::fs::symlink_metadata(path) else { return String::from(NOT_A_PLAIN_FILE) };
+    if !found.file_type().is_file() {
+        return String::from(NOT_A_PLAIN_FILE);
+    }
+    if found.nlink() > 1 {
+        return String::from("a file another name is a hard link to is already there, and writing it would replace the bytes of that file too");
+    }
+    return String::from("a file is already there, and the wrapper writes its own record at that name rather than replacing one");
+}
 
 /// What:
 ///  Whether the open follows a link the name holds,
@@ -198,47 +224,50 @@ pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
 
 /// What:
 ///  The file `path` names,
-/// created when it is not there and emptied when it is,
-/// opened without blocking and without following a link,
-///  and refused when the open handle is not a plain file.
+/// created for writing,
+///  and refused when anything is already at the name.
 /// Why:
-///   A write that follows a link replaces the file it points at,
-/// and one that opens a named pipe waits for a reader;
-///  both are entries another process may put at a name the wrapper writes,
-/// so the type of what was opened decides and never the name.
+///   The wrapper writes names it made itself,
+/// so what is at one now is another process's entry,
+/// and every way of writing it is a way of losing somebody's bytes:
+/// a symbolic link carries the write to the file it points at,
+/// a hard link shares that file's inode itself,
+/// a named pipe waits for a reader,
+/// and an ordinary file is emptied by the open alone.
+/// Creating the name with `O_EXCL` refuses a link without following it,
+/// answers at once for a pipe,
+/// and leaves every file that is already there with its bytes,
+///  so nothing at the name is emptied before the type can be examined,
+/// and nothing is examined but the plain file this call made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function openedForWriting(path: string): File { const file = openSync(path, 'w', 0o666, O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW); return fstatSync(file).isFile() ? file : refuse(); }
+/// function openedForWriting(path: string): File { return openSync(path, 'wx', 0o666, O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW); }
 /// ```
 fn opened_for_writing(path: &Path) -> std::io::Result<std::fs::File> {
-    let file: std::fs::File = match std::fs::OpenOptions::new().write(true).create(true).truncate(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | libc::O_NOFOLLOW).open(path) {
-        Ok(opened) => opened,
-        // A named pipe opened for writing without a reader answers this at once, so the caller's message says what the name
-        //  holds rather than what the kernel calls it.
-        Err(error) if error.raw_os_error() == Some(libc::ENXIO) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE)),
-        Err(error) => return Err(error),
+    return match std::fs::OpenOptions::new().write(true).create_new(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC | libc::O_NOFOLLOW).open(path) {
+        Ok(opened) => Ok(opened),
+        // `O_EXCL` refuses a link, a pipe, a device, a directory and a file alike, so the message is the only thing left
+        //  that can say which of them kept the name.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, taken_name_words(path))),
+        Err(error) => Err(error),
     };
-    if !file.metadata()?.file_type().is_file() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, NOT_A_PLAIN_FILE));
-    }
-    return Ok(file);
 }
 
 /// What:
 ///  Write `bytes` to the plain file at `path`,
-/// created when it is not there,
-/// opened without blocking and without following a link,
-///  and refused when the name holds anything else.
+/// created here and never in place of what is there,
+///  and refuse the name when it holds anything.
 /// Why:
 ///   See the module description:
 /// a write through a link loses the file it points at,
+/// a write over a file that is already there loses that one,
 /// and one to a named pipe
 ///  waits for a reader that may never come.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writePlainFile(path, bytes); // throws when the name holds a link, a pipe, a device or a directory
+/// writePlainFile(path, bytes); // throws when the name holds a link, a pipe, a device, a directory or a file
 /// ```
 pub fn write_plain_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write as _;
