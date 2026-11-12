@@ -185,17 +185,30 @@ fn a_named_directory_takes_its_assume_unchanged_files() {
     remove(root.as_path());
 }
 
-/// A path marked skip-worktree by hand that the commit names does not fail the commit,
-/// as before the copy.
+/// What:
+///  A path marked skip-worktree by hand that the commit names keeps the base's entry,
+///  and the other paths the commit names are staged as usual.
+/// Why:
+///  Git's own `add_files_to_cache` skips a marked entry,
+/// so `git commit -m x -- a.txt b.txt` over an edited skip-worktree `a.txt` commits `b.txt` alone
+///  (measured against Git 2.56.0,
+/// and the binary table's row for a named skip-worktree path is the contrast);
+///  the wrapper's private index carries no mark, so this puts the entry back after the staging
+///  rather than recording bytes Git would not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(privateContent(a.txt)).toBe('a'); expect(privateContent(b.txt)).toBe('changed b');
+/// ```
 #[test]
-fn a_named_skip_worktree_file_does_not_fail_the_commit() {
+fn a_named_skip_worktree_file_keeps_the_base_entry_as_git_keeps_it() {
     let root: PathBuf = fixture("commit-index-skip-named");
     let (repo, indexes, base) = committed_repository(root.as_path());
     git(repo.as_path(), &["update-index", "--skip-worktree", "--", "a.txt"]);
     std::fs::write(repo.join("a.txt"), "changed a\n").expect("change a");
     std::fs::write(repo.join("b.txt"), "changed b\n").expect("change b");
     initialize_explicit(repo.as_path(), &indexes, base.as_str(), &[OsString::from("a.txt"), OsString::from("b.txt")]);
-    assert_eq!(private_content(repo.as_path(), &indexes, "a.txt"), "changed a");
+    assert_eq!(private_content(repo.as_path(), &indexes, "a.txt"), "a");
     assert_eq!(private_content(repo.as_path(), &indexes, "b.txt"), "changed b");
     remove(root.as_path());
 }

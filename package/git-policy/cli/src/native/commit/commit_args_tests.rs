@@ -445,8 +445,8 @@ fn an_abbreviated_only_leaves_where_git_reads_it() {
 /// ```
 #[test]
 fn an_abbreviated_interactive_or_patch_control_leaves_where_git_reads_it() {
-    // `--interactive`: no other long option of `git commit` starts with `inter`.
-    for spelling in ["--inter", "--intera", "--interactive"] {
+    // `--interactive`: `--intera` is unambiguous, while `--inter` is ambiguous with `--inter-hunk-context`.
+    for spelling in ["--intera", "--interactiv", "--interactive"] {
         assert!(names_selection_control(spelling), "{spelling}");
         assert_eq!(
             private_selection_commit_args(&args(&[spelling, "a.txt", "-m", "msg"]), &args(&["a.txt"])),
@@ -463,7 +463,7 @@ fn an_abbreviated_interactive_or_patch_control_leaves_where_git_reads_it() {
             "{spelling}"
         );
     }
-    for ambiguous in ["--pat", "--pa", "--p"] {
+    for ambiguous in ["--pat", "--pa", "--p", "--inter"] {
         assert!(!names_selection_control(ambiguous), "{ambiguous}");
         assert_eq!(
             private_selection_commit_args(&args(&[ambiguous, "a.txt", "-m", "msg"]), &args(&["a.txt"])),
