@@ -135,6 +135,45 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The changeover audit: a removal lost through the built wrapper, a record the older service fails for good, and a retry nobody wakes (2026-11-11T23:47:05-05:00)
+
+Kimi's audit of the changeover and leftovers ended after 62 minutes
+(`${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-12-release-changeover-and-leftovers/findings.md`).
+It built the release before from `c434449377`, the commit the coordinator's correction named.
+Three findings, each reported as reproduced against the built alpha.12 binary with no source patched;
+none has been rerun by anyone else yet.
+
+- A nested worktree added after the hand-over is deleted with the outer one, its tracked edit with it
+  (`worktree/worktree_landed_removal.rs:754-765`, `worktree/worktree_remove_hand_over.rs:437-449` and `:497-524`).
+  This is the gap in the hand-over shown through the wrapper,
+  where the qwen4 review had shown it by calling the functions.
+- The alpha.11 service fails alpha.12's removal record for good:
+  alpha.12 reuses the kind `subvolume-delete` with a SHA-1 in `oid`,
+  alpha.11 parses `oid` as a subvolume number and answers `Failed`,
+  and alpha.12 never queues a failed id again,
+  so the landed worktree stays.
+  The audit says the retirement handshake does not close the window; that part is by reading.
+  It may have happened here at 22:36; nothing has been checked for it yet.
+- A slow item that answers "try again" after the push round has read the claims gets no wake:
+  claimed at 21,734 ms, still the same claim at 151,808 ms,
+  against a 120-second lease and the service's own words "this is tried again when its claim runs out".
+
+The first two went to the round 259 agent as its third note,
+with the requirement that a service leaves queued what it does not understand.
+The third has its own agent, round 267 (23:47:05),
+`service-retried-slow-item-is-looked-at-again-when-its-claim-runs-out`, from `main`.
+
+Thirteen runs ended between 22:45 and 23:45.
+Five of the ten Kimi audits are among them (LFS, commit path, push, merge and pull, changeover),
+four of the restarted qwen4 reviews,
+the tracking-repair fix agent of round 257 and the wg follow-up.
+A digest of the eight not yet read is being written to `${HOME}/temp/agent/digest-2026-11-11T2350/digest.md`;
+it checks every "reproduced" against the commands the run's session really ran.
+
+No further review is started until the hourly pass has read free space again (174 GiB at 23:45):
+each review and each agent builds the wrapper.
+The two agents started since then (rounds 266 and 267) were started for the disk itself and for a reproduced defect.
+
 ### The cleanup service installed, free space falling fast, and the first audit of alpha.12 (2026-11-11T23:43:24-05:00)
 
 #### Free space
