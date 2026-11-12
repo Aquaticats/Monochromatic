@@ -158,6 +158,7 @@ if (!readOnlyInMain) {
     checkoutFolder: options.checkoutFolder,
     worktree,
     branch: options.branch,
+    base: options.base,
   },),);
   /**
    What linking the worktree's dependencies answered.

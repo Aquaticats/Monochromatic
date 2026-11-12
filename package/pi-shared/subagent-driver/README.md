@@ -193,6 +193,11 @@ or start a run it would refuse.
   and `--wall`,
   which are all required.
 - `--branch=none` runs in the checkout itself and makes no worktree.
+- `--base`:
+  the commit or branch the run's new branch starts at,
+  `main` when it is not given.
+  A fix for a reviewed branch names that branch;
+  a review names the commit it reviews.
 - `--run`:
   the run folder's number.
   Without it the next number no folder of that name holds is taken,
@@ -208,8 +213,12 @@ or start a run it would refuse.
   `--runs-folder`,
   and `--checkout-folder`.
 
-The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`,
-made from the checkout's `main` unless the run's branch already exists.
+The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`.
+A branch this launcher creates starts at `--base`,
+and a branch that already exists is added as it is,
+keeping its own commits,
+because moving it would rewrite work someone else may be reading;
+the line the launcher prints says which of the two it did.
 The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to put the run away,
 which is the only bound that reaches a driver stuck in a file system call.
 
@@ -277,8 +286,12 @@ An entry may also name `prompt`,
 `wall`,
 `run`,
 `sessionOf`,
-`provider` and
-`model`.
+`provider`,
+`model` and
+`base`,
+which is the commit or branch the run's new branch starts at
+(`main` when the entry names none,
+and never used when the run's branch already exists).
 A `prompt` that is not a path is read under the runs folder,
 and an entry with none reads `<name>-prompt.md` there.
 Entries start twenty seconds apart,

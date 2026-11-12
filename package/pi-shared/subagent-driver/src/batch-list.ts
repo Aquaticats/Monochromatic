@@ -74,6 +74,12 @@ export type BatchEntry = {
   readonly branch: string;
 
   /**
+   The commit or branch the run's new branch starts at; `main` when absent. An existing branch of the same name keeps its own
+   commits, so this is not used then.
+   */
+  readonly base?: string;
+
+  /**
    The first prompt, as a path or as a name under the runs folder; the run's own prompt file when absent.
    */
   readonly prompt?: string;
@@ -244,6 +250,7 @@ export function retryWordsOf({
     `--tasks=${String(entry.tasks ?? BATCH_DEFAULT_TASK_COUNT,)}`,
     `--wall=${String(entry.wall ?? BATCH_DEFAULT_WALL_SECONDS,)}`,
     ...((entry.run === undefined) ? [] : [`--run=${String(entry.run,)}`,]),
+    ...((entry.base === undefined) ? [] : [`--base=${entry.base}`,]),
     ...((entry.provider === undefined) ? [] : [`--provider=${entry.provider}`,]),
     ...((entry.model === undefined) ? [] : [`--model=${entry.model}`,]),
     ...((entry.sessionOf === undefined) ? [] : [`--session-of=${entry.sessionOf}`,]),
