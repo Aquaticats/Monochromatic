@@ -196,8 +196,9 @@ function collectLines(
  The archive is hundreds of megabytes across the tunnel;
  a working link finishes it in seconds,
  and a link that stopped moving is worth giving up on rather than waiting for.
+ Ten minutes is a bound for a stalled transfer and not a target.
  */
-const ASN_FETCH_DEADLINE_MILLISECONDS = 10 * 60 * 1000;
+const ASN_FETCH_DEADLINE_MILLISECONDS = 600_000;
 
 /**
  Reads the next chunk of the database,
@@ -295,7 +296,10 @@ export async function fetchAsnNetworks(
   /**
    HTTP response carrying gzip-encoded NDJSON.
    */
-  const response = await fetch(databaseUrl(token,), { signal, },);
+  const response = await fetch(
+    databaseUrl(token,),
+    { signal, },
+  );
   if (!response.ok) {
     throw new AsnDatabaseError(
       `IPinfo Lite database request failed with HTTP ${String(response.status,)}.`,
