@@ -9,6 +9,7 @@
  */
 
 import {
+  chmod,
   mkdir,
   mkdtemp,
   rm,
@@ -178,6 +179,22 @@ await describe({
             },);
             await mkdir(join(processes, '14',), { recursive: true, },);
             await mkdir(join(processes, 'not-a-number',), { recursive: true, },);
+            // A process of another account, whose folder this one may not read: a process list always holds one, and the first
+            // of them is process 1, which is what ended remove-finished-worktrees on 2026-11-11.
+            await writeProcess({
+              folder: processes,
+              pid: '1',
+              worksIn: '/root',
+            },);
+            // The folder a link is in decides whether the link may be read, so an unsearchable one is what another account's
+            // process looks like from here. It is made searchable again when this test ends, whether it ends well or not, so the
+            // folder it made can be removed.
+            await chmod(join(processes, '1',), 0o000,);
+            await using madeReadableAgain = {
+              async [Symbol.asyncDispose]() {
+                await chmod(join(processes, '1',), 0o700,);
+              },
+            };
             /**
              What each readable process is, smallest number first.
              */

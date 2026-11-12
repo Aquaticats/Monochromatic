@@ -16,6 +16,7 @@ import {
   stdout,
 } from 'node:process';
 import { errorCodeOf, } from './error-code-of.ts';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import { optionIn, } from './option-in.ts';
 import { requiredText, } from './required-option-values.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
@@ -142,7 +143,12 @@ const unitPatternGiven = optionIn({
  What this run of the command was asked for.
  */
 const options = {
-  checkoutFolder: (checkoutFolderGiven === '') ? cwd() : checkoutFolderGiven,
+  checkoutFolder: (checkoutFolderGiven === '')
+    // A task of this package runs in the package folder, so the folder the command was started in is not the checkout: the
+    // checkout is the folder above it that holds `.git`, and a default of the package folder reads every unit as a run whose
+    // worktree is gone, which is what this command reported on 2026-11-11.
+    ? await checkoutFolderOf({ from: cwd(), },)
+    : checkoutFolderGiven,
   // A pattern that is empty is one systemd would match every unit with, which is never what a caller meant.
   unitPattern: (unitPatternGiven === '')
     ? PI_UNIT_PATTERN

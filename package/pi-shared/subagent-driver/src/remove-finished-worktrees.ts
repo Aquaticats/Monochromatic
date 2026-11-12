@@ -36,6 +36,7 @@ import {
   entriesOrNothingIn,
   isThere,
 } from './newest-finished-run-of-a-name.ts';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import { optionIn, } from './option-in.ts';
 import { fieldsOf, } from './read-pi-fields.ts';
 import {
@@ -173,7 +174,12 @@ const processGiven = optionIn({
  What this run of the command was asked for.
  */
 const options = {
-  checkoutFolder: (checkoutGiven === '') ? cwd() : checkoutGiven,
+  checkoutFolder: (checkoutGiven === '')
+    // A task of this package runs in the package folder, so the folder the command was started in is not the checkout: the
+    // checkout is the folder above it that holds `.git`, and a default of the package folder reads every unit as a run whose
+    // worktree is gone, which is what this command reported on 2026-11-11.
+    ? await checkoutFolderOf({ from: cwd(), },)
+    : checkoutGiven,
   runsFolder: (runsGiven === '')
     ? join(
       homedir(),
