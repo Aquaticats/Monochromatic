@@ -214,7 +214,54 @@ move its durable facts to their canonical doc and delete it from this page.
   briefed with what is already known and in work,
   and with the rule on destructive commands as the owner restated it today.
 
-#### Four more reviews digested and routed, rounds 298 and 299 (2026-11-12T11:08:00-05:00)
+#### The audits of 0.6.1-alpha.14 started, and free space (2026-11-12T11:09:51-05:00)
+
+- Ten Kimi audits,
+  round 300,
+  started 11:08:50 at the release's commit `b1cdc4a842`,
+  one per area as for alpha.12
+  (commit path;
+  commit service and landing;
+  discarding commands;
+  LFS;
+  merge and pull;
+  package repair on add and commit;
+  push and automatic push;
+  release changeover and leftovers;
+  worktree add;
+  worktree remove and the landed sweep).
+  Three Sonnet audits beside them,
+  as subagents of this session,
+  each in a worktree of its own that it removes at its end.
+- What their briefs carry that alpha.12's did not
+  (`~/temp/agent/pi-runs/shared-rules-for-long-audits-of-0.6.1-alpha.14.md`):
+  the rule on destructive commands as the owner restated it
+  (a missing saved copy is not a finding;
+  a command that destroys without refusing is);
+  a list of what is already decided or in work,
+  to be reported in one line each
+  (`alpha-14-what-is-already-known-and-in-work.md`,
+  eight decisions and nineteen defects);
+  the 4G floor;
+  and pass 17's own account of where it chose a side.
+  The audit of discarding commands was pointed at what that list is silent on:
+  whether each opt-out gives what real Git gives,
+  whether each refusal names the right thing,
+  and every place where the release saves and goes on.
+- Their starts are not yet shown by feed;
+  checked at the next pass.
+- Free space:
+  147 GiB at 11:08:50,
+  down from 209 GiB at 09:56.
+  Thirteen audits will build.
+  The floor stays 80 GiB.
+  A listing of the agent worktrees whose work is entirely on `main` and that are safe to remove is running
+  (`~/temp/agent/pi-runs/remove-landed-agent-worktrees.ts`,
+  unedited,
+  without `--remove`);
+  the removal follows from its saved list.
+
+#### Four more reviews digested and routed, rounds 298 and 299 (2026-11-12T11:06:10-05:00)
 
 `~/temp/agent/digest-2026-11-12T1054-reviews/digest.md`,
 read against `main` at `dc3ae6c1bb`.
