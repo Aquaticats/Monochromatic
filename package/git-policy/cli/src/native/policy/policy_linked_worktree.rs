@@ -79,48 +79,19 @@ use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_dis
 /// The common Git directory,
 ///  for naming the file every worktree shares.
 use crate::worktree_identity::common_directory;
-/// The path with every link resolved as far as it exists,
-///  for comparing two spellings of one file,
-///  and the directory a command runs in,
-///  which `--work-tree` does not move.
-use crate::repository_link_paths::{chain_directory, resolve_as_far_as_it_exists};
+/// What:
+///  The path with every link resolved as far as it exists,
+///  for comparing two spellings of one file.
+use crate::repository_link_paths::resolve_as_far_as_it_exists;
+/// The directory a command runs in,
+///  which a clean's dry runs start in and a relative `--file` path is read from.
+use crate::command_run_directory::command_run_directory;
 /// The tokens after the subcommand word.
 use crate::global_arguments::command_tokens;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw bytes.
 use std::path::{Path, PathBuf};
-
-/// What:
-///  The directory the command runs in,
-///  as Git resolved it:
-///  this process's own directory moved by the `-C` chain the caller
-///  wrote before the subcommand.
-///  `&[OsString]` borrows that chain.
-///  `Result<PathBuf, String>` is the directory or why it could not be named.
-/// Why:
-///   A relative `--file` path is read from where the command runs,
-///  `--work-tree` does not move that directory for `git config`,
-///  and it may name a directory the command does not run in at all,
-///  so the worktree top level plus Git's own prefix is not the answer here:
-///  that prefix is empty whenever the caller sits outside the `--work-tree`,
-///  which is exactly when the two disagree.
-///  Only the `-C` chain moves the directory Git reads a relative path from.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const commandDirectory = (globalPrefix) => chainDirectory(process.cwd(), globalPrefix);
-/// ```
-fn command_directory(global_prefix: &[OsString]) -> Result<PathBuf, String> {
-    // The caller's own directory, which no option changes: Git moves it only for `-C`.
-    let Ok(cwd) = std::env::current_dir() else {
-        return Err(String::from(
-            "monochromatic-git-policy-cli could not name the directory this command runs in, so the command was \
-             not judged.",
-        ));
-    };
-    return Ok(chain_directory(cwd.as_path(), global_prefix));
-}
 
 /// What:
 ///  Whether the path a `--file` write names is the configuration file every worktree
@@ -155,7 +126,9 @@ fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> 
 ///  The refusal of a command that would change the remote settings every worktree of the
 ///  repository shares,
 ///  when the command runs in a linked worktree.
-///  `&SharedRemoteChange` borrows the change the guard decided about.
+///  `&SharedRemoteChange` borrows the change the guard decided about,
+///  and `Option<&Path>` the directory Git runs the shell of a `!` alias in,
+///  when the command that writes is the one that shell runs.
 /// Why:
 ///   One `.git/config` is shared by the main checkout and every linked worktree,
 ///  so a write from a
@@ -168,15 +141,21 @@ fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> 
 ///       exempt tool cache keep today's behaviour,
 ///  and every other command is left to the policies below.
 ///  A
-///       `--file` write is this rule's only when its path resolves to that same file.
+///       `--file` write is this rule's only when its path resolves to that same file,
+///  read from
+///       the directory the writing command runs in:
+///  the shell's directory for a command a `!` alias runs,
+///  and the
+///       caller's `-C` chain for every other one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function refuseSharedRemoteSettings(facts, change, allowedDirs): PolicyOutcome;
+/// function refuseSharedRemoteSettings(facts, change, shellDirectory, allowedDirs): PolicyOutcome;
 /// ```
 fn refuse_shared_remote_settings(
     facts: &mut dyn RepositoryFacts,
     change: &SharedRemoteChange,
+    shell_directory: Option<&Path>,
     allowed_worktree_dirs: &[ToolCacheDirectory],
 ) -> PolicyOutcome {
     let location: RepositoryLocation = match facts.location() {
@@ -201,7 +180,9 @@ fn refuse_shared_remote_settings(
     };
     // A `--file` write names its own file: only the path that resolves to this repository's shared file is one.
     if let Some(named) = &change.named_file {
-        let directory: PathBuf = match command_directory(facts.transaction_context().global_prefix.as_slice()) {
+        // Where the writing command runs: a `!` alias's shell starts at the top of the working tree Git changed to,
+        //  while every other command starts where the caller's `-C` chain ends.
+        let directory: PathBuf = match command_run_directory(facts.transaction_context().global_prefix.as_slice(), shell_directory) {
             Ok(found) => found,
             Err(message) => return fact_unavailable(message),
         };
@@ -222,7 +203,9 @@ fn refuse_shared_remote_settings(
 /// What:
 ///  Whether a `git clean -X` that carries its own `-e`/`--exclude` patterns would delete a path those patterns
 ///  alone call ignored.
-///  `&[OsString]` borrows the clean's own tokens after the subcommand.
+///  `&[OsString]` borrows the clean's own tokens after the subcommand,
+///  and `Option<&Path>` the directory Git runs the shell of a `!` alias in,
+///  when the clean is the command that shell runs.
 /// Why:
 ///   A pattern can pull two different things into a clean:
 ///  a path the worktree itself ignores is an ignored file,
@@ -232,19 +215,25 @@ fn refuse_shared_remote_settings(
 ///  Git answers both sets itself:
 ///  the dry run of the clean as typed and the dry run of the same clean without the patterns,
 ///  and what only the first answer names is what the patterns add.
+///  Both dry runs carry the directory the clean runs in (`command_run_directory`)
+///  and are started there,
+///  so neither measures a subtree the clean does not delete from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // await cleanDeletesAPathOnlyItsExclusionsIgnore(facts, ['-fX', '-e', 'notes.txt'])
+/// // await cleanDeletesAPathOnlyItsExclusionsIgnore(facts, ['-fX', '-e', 'notes.txt'], shellDirectory)
 /// ```
 fn clean_deletes_a_path_only_its_exclusions_ignore(
     facts: &mut dyn RepositoryFacts,
     region: &[OsString],
+    shell_directory: Option<&Path>,
 ) -> Result<bool, String> {
     // The global options come before every start of Git, so they are read once for both dry runs.
     let prefix: Vec<OsString> = facts.transaction_context().global_prefix;
+    // Both dry runs start where the clean runs, which is where Git measures its prefix from.
+    let run_in: PathBuf = command_run_directory(prefix.as_slice(), shell_directory)?;
     // A region Git would refuse deletes nothing, and Git refuses it in its own words when the command runs.
-    let Some(with_patterns) = clean_dry_run_arguments(prefix.as_slice(), region) else {
+    let Some(with_patterns) = clean_dry_run_arguments(prefix.as_slice(), region, run_in.as_path()) else {
         return Ok(false);
     };
     let deleted: Vec<Vec<u8>> = facts.clean_deleted_paths(with_patterns)?;
@@ -253,7 +242,7 @@ fn clean_deletes_a_path_only_its_exclusions_ignore(
     }
     // The same clean without them deletes what the worktree itself ignores; both answers name a path the same way,
     //  so they are compared as Git printed them.
-    let Some(without_patterns) = clean_dry_run_arguments_without_exclusions(prefix.as_slice(), region) else {
+    let Some(without_patterns) = clean_dry_run_arguments_without_exclusions(prefix.as_slice(), region, run_in.as_path()) else {
         return Ok(true);
     };
     let otherwise_deleted: Vec<Vec<u8>> = facts.clean_deleted_paths(without_patterns)?;
@@ -284,10 +273,26 @@ pub(crate) fn check_linked_worktree(
 ) -> PolicyOutcome {
     // An alias reaches the command Git really runs, so the guard reads the expansion and every record names it.
     let seen: &[OsString] = forwarded.arguments.as_slice();
+    // What:
+    //  The words the guard decided about:
+    //  the caller's own for a built-in word,
+    //  an alias's expansion,
+    //  or the command the shell of a `!` alias runs.
+    // Why:
+    //  Every reading below names the flags, the paths and the revision of the command Git runs,
+    //  and for a `!` alias those are the shell's words,
+    //  not the alias name the wrapper forwards.
+    //  A record of the invocation itself still names what the person typed, which is `seen`.
+    let decided: &[OsString] = forwarded.decided_words.as_slice();
     // The settings every worktree shares are decided first: no guarded form below is about them,
     // and the guard read them from the command Git will run, a shell alias included.
     if let LinkedWorktreeDecision::SharedRemote(change) = &forwarded.decision {
-        return refuse_shared_remote_settings(facts, change, allowed_worktree_dirs);
+        return refuse_shared_remote_settings(
+            facts,
+            change,
+            forwarded.shell_directory.as_deref(),
+            allowed_worktree_dirs,
+        );
     }
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
     let (command, moves_head_only): (GuardedCommand, bool) = match &forwarded.decision {
@@ -313,6 +318,9 @@ pub(crate) fn check_linked_worktree(
         classify_effective_target(&location.identity, allowed_worktree_dirs);
     // During a merge, rebase, cherry-pick or revert, taking a side of conflicted files is let through after the files
     // are saved; the verdict also carries the sentence a rejection of the same line gets.
+    // The paths of that command are read from the caller's words against the caller's own prefix, so a `!` alias's
+    //  shell words are not passed here: they are relative to the shell's directory, and a save resolved from the
+    //  caller's would copy one file while Git replaced another.
     let mut conflict_note: String = String::new();
     if matches!(command, GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree)
         && matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree)
@@ -407,7 +415,7 @@ pub(crate) fn check_linked_worktree(
     }
     // The tokens after the subcommand, read once: which tree a forced form writes and which question a clean asks
     //  both come from them.
-    let region: &[OsString] = match command_tokens(seen) {
+    let region: &[OsString] = match command_tokens(decided) {
         Some((_word, tokens)) => tokens,
         None => &[],
     };
@@ -422,6 +430,7 @@ pub(crate) fn check_linked_worktree(
             location: &location,
             region,
             seen,
+            shell_directory: forwarded.shell_directory.as_deref(),
             dirty: None,
             discarded_limits,
             notices,
@@ -435,7 +444,7 @@ pub(crate) fn check_linked_worktree(
         // A clean that names its own exclusions is measured by what Git would delete only because of them, which is
         //  the one reading that applies those patterns.
         DirtyQuestion::CleanDryRun => (
-            clean_deletes_a_path_only_its_exclusions_ignore(facts, region),
+            clean_deletes_a_path_only_its_exclusions_ignore(facts, region, forwarded.shell_directory.as_deref()),
             dirty_worktree_message(command),
         ),
         DirtyQuestion::RepositoryStash => (facts.repository_holds_a_stash(), repository_stash_message(command)),
@@ -477,6 +486,7 @@ pub(crate) fn check_linked_worktree(
                 location: &location,
                 region,
                 seen,
+                shell_directory: forwarded.shell_directory.as_deref(),
                 dirty: Some(false),
                 discarded_limits,
                 notices,

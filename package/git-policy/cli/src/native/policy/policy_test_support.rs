@@ -15,6 +15,9 @@
 
 /// The facts interface and the fact types the script answers with.
 use crate::candidate_error::{CandidateError, CandidateFailure};
+/// The pair that makes one clean dry run:
+///  its directory and its arguments.
+use crate::command_clean::CleanDryRun;
 /// Real preparation,
 ///  for scripted facts given a repository.
 use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
@@ -135,11 +138,15 @@ impl RepositoryFacts for ScriptedFacts {
     ///   return patterns || forces > 1 ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
     /// }
     /// ```
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        self.asked.push(format!("clean-would-delete:{}", arguments.join(OsStr::new(" ")).to_string_lossy()));
+    fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
+        self.asked.push(format!(
+            "clean-would-delete:{}:{}",
+            dry_run.run_in.display(),
+            dry_run.arguments.join(OsStr::new(" ")).to_string_lossy()
+        ));
         let mut patterns: bool = false;
         let mut forces: usize = 0;
-        for argument in &arguments {
+        for argument in &dry_run.arguments {
             let bytes: &[u8] = argument.as_encoded_bytes();
             patterns |= bytes.starts_with(b"-e") || bytes.starts_with(b"--exclude");
             if bytes == b"-f" || bytes == b"--force" {

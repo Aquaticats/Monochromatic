@@ -22,6 +22,9 @@ use crate::candidate_error::CandidateError;
 use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
 /// Rule facts.
 use crate::repository_facts::RepositoryFacts;
+/// The pair that makes one clean dry run:
+///  its directory and its arguments.
+use crate::command_clean::CleanDryRun;
 /// The discarding-command forms.
 use crate::rule_linked_worktree::GuardedCommand;
 /// What one abort form would discard besides the operation's own state.
@@ -129,8 +132,8 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        return self.inner.clean_deleted_paths(arguments);
+    fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
+        return self.inner.clean_deleted_paths(dry_run);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -196,8 +199,8 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).ignored_files_the_tree_tracks(revision);
     }
 
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        return (**self).clean_deleted_paths(arguments);
+    fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
+        return (**self).clean_deleted_paths(dry_run);
     }
 
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {

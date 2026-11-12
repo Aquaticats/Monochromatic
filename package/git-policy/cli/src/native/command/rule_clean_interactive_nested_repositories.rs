@@ -23,7 +23,10 @@
 //! ```
 
 /// The table and the readings of `git clean`.
-use crate::command_clean::{CLEAN_TABLE, clean_dry_run_arguments, parse_clean_region};
+use crate::command_clean::{CLEAN_TABLE, CleanDryRun, clean_dry_run_arguments, parse_clean_region};
+/// Where Git runs the clean,
+///  which is where the reading of it must start.
+use crate::command_run_directory::command_run_directory;
 /// Which nested Git repositories that reading says the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
 /// Git's own option grammar,
@@ -98,11 +101,12 @@ pub enum CapDecision {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type InteractiveClean = { query: string[]; insertion: number };
+/// type InteractiveClean = { query: CleanDryRun; insertion: number };
 /// ```
 struct InteractiveClean {
-    /// The dry-run arguments of the clean as typed.
-    query: Vec<OsString>,
+    /// The dry run of the clean as typed,
+    ///  with the directory the clean runs in.
+    query: CleanDryRun,
     /// The index in the invocation's arguments where `--no-force -f` is written.
     insertion: usize,
 }
@@ -199,7 +203,11 @@ fn plan_interactive_clean(arguments: &[OsString]) -> Option<InteractiveClean> {
         return None;
     }
     return Some(InteractiveClean {
-        query: clean_dry_run_arguments(&arguments[..layout.prefix_len], region)?,
+        query: clean_dry_run_arguments(
+            &arguments[..layout.prefix_len],
+            region,
+            command_run_directory(&arguments[..layout.prefix_len], None).ok()?.as_path(),
+        )?,
         insertion: layout.prefix_len + 1 + option_region_end(&parsed, region.len()),
     });
 }

@@ -35,7 +35,7 @@ use crate::candidate_error::CandidateError;
 /// Candidate preparation on a private index.
 use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
 /// The captured-query runner and its byte helpers.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, run_metadata_git_in};
 use crate::repo_read_adapter::{location_of, sequencer_of};
 use crate::git_system_config::with_real_git;
 use crate::kept_names_in_the_git_directories::settle_kept_names;
@@ -48,7 +48,7 @@ use crate::repository_location::{
 };
 use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
 use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
-use crate::command_clean::clean_deleted_paths_from_answer;
+use crate::command_clean::{CleanDryRun, clean_deleted_paths_from_answer};
 /// The reading of a dry run written with one force,
 ///  which names the nested repositories that force keeps.
 /// The answer one `git add` selection question gives.
@@ -130,11 +130,14 @@ pub trait RepositoryFacts {
     /// Asked for `git stash drop` and `git stash clear`,
     /// which delete entries of the one stash every worktree shares.
     fn repository_holds_a_stash(&mut self) -> Result<bool, String>;
-    /// The paths the given `git clean --dry-run` argument list would delete,
+    /// The paths the given clean's dry run would delete,
     /// each as Git printed it,
     /// asked for a clean
     ///  that carries its own `-e`/`--exclude` patterns.
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String>;
+    /// The dry run starts in the directory the clean runs in,
+    ///  which the value carries,
+    ///  because Git reads the prefix of a command from the directory it was started in.
+    fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String>;
     /// Whether a merge,
     ///  cherry-pick or revert awaits its concluding commit.
     fn sequencer_state(&mut self) -> Result<SequencerState, String>;
@@ -303,13 +306,54 @@ impl GitFacts {
     /// async query(args: string[], fact: string): Promise<MetadataOutput>;
     /// ```
     pub(super) fn query(&mut self, arguments: Vec<OsString>, fact: &str) -> Result<MetadataOutput, String> {
+        return self.query_with_start(None, arguments, fact);
+    }
+
+    /// What:
+    ///  Run one captured Git query in a directory of its own,
+    ///  which is how a measurement made on behalf of a command that runs elsewhere starts.
+    ///  `&Path` borrows that directory.
+    /// Why:
+    ///   Git reads a command's prefix from the directory it was started in,
+    ///  so a query about another directory must start Git there;
+    ///  the count is the same one,
+    ///  because the process is.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async queryIn(directory, args, fact): Promise<MetadataOutput>;
+    /// ```
+    pub(super) fn query_in(&mut self, directory: &Path, arguments: Vec<OsString>, fact: &str) -> Result<MetadataOutput, String> {
+        return self.query_with_start(Some(directory), arguments, fact);
+    }
+
+    /// What:
+    ///  The one start every query of this provider goes through,
+    ///  and the count of it.
+    ///  `Option<&Path>` is the directory the query starts in,
+    ///  and nothing for this process's own.
+    /// Why:
+    ///   Two callers differ in that directory alone,
+    ///  and a second copy of the error wording would drift from this one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async queryWithStart(directory, args, fact): Promise<MetadataOutput>;
+    /// ```
+    fn query_with_start(
+        &mut self,
+        directory: Option<&Path>,
+        arguments: Vec<OsString>,
+        fact: &str,
+    ) -> Result<MetadataOutput, String> {
         self.queries += 1;
+        // The query runs where its caller said, or where this process stands.
+        let started: std::io::Result<MetadataOutput> = match directory {
+            Some(found) => run_metadata_git_in(self.real_git.as_path(), found, arguments.as_slice(), self.overlay.as_slice()),
+            None => run_metadata_git(self.real_git.as_path(), arguments.as_slice(), self.overlay.as_slice()),
+        };
         // `match` unpacks the start result; `Ok`/`Err` are the success/failure variants.
-        match run_metadata_git(
-            self.real_git.as_path(),
-            arguments.as_slice(),
-            self.overlay.as_slice(),
-        ) {
+        match started {
             Ok(output) => return Ok(output),
             // A read the wrapper ended at its ceiling says what blocked it and what stayed as it was.
             // `&error` borrows the error for the message.
@@ -426,8 +470,8 @@ impl RepositoryFacts for GitFacts {
         return stash_from_output(&output);
     }
 
-    fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        let output: MetadataOutput = self.query(arguments, "what the clean would delete")?;
+    fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
+        let output: MetadataOutput = self.query_in(dry_run.run_in.as_path(), dry_run.arguments, "what the clean would delete")?;
         return clean_deleted_paths_from_answer(&output);
     }
 

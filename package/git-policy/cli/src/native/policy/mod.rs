@@ -51,6 +51,10 @@ pub mod policy_checks;
 /// in its own file so the registry of shipped policies stays readable.
 pub mod policy_linked_worktree;
 
+/// The directory a Git command runs in,
+///  which a rule reads a relative path of it from.
+pub mod command_run_directory;
+
 /// Keeping the nested Git repositories a clean would delete,
 ///  and the one place a form is let through.
 pub mod policy_linked_worktree_nested_repositories;

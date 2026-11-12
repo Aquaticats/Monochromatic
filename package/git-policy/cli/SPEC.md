@@ -16107,6 +16107,26 @@ through real Git,
 with no guard and no index-writer coordination,
 because the wrapper never sees that command start.
 `git by the word Git will run` is the boundary of this guard.
+The rules below read the flags,
+the paths and the revision of the command the guard decided about,
+which for a `!` alias is the command inside its shell
+(`GuardedForwarded::decided_words` in `src/native/invocation/guarded_forwarded_command.rs`).
+A rule that read the alias name instead asked a clean with no `-ffdX` and no `-e` pattern what it would delete,
+measured nothing,
+saved nothing,
+and Git then deleted a nested repository and an untracked file unsaved;
+the audit line still names the command the person typed,
+which is what Git receives.
+The directory a command's own paths are read from,
+and the one a measurement on its behalf starts in,
+come from `command_run_directory`
+(`src/native/policy/command_run_directory.rs`):
+the shell's directory for a command a `!` alias runs,
+and the directory the caller's `-C` chain ends in for every other one.
+The conflicted-file carve-out still reads the caller's own words,
+because it resolves those paths against the caller's prefix,
+so a `!` alias keeps the usual rejection there,
+which refuses rather than saves the wrong file.
 
 A form is rejected in the main worktree and outside any worktree always,
 and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
@@ -16162,6 +16182,26 @@ it deletes every untracked file whether a pattern calls it ignored or not,
 and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
 which the status measurement over-reports rather than under-reports.
 A clean in a linked worktree that deletes ignored files with two or more `-f` keeps every nested Git repository first.
+Every one of those dry runs is started in the directory the clean runs in
+(`CleanDryRun` in `src/native/command/command_clean.rs`,
+whose directory comes from `command_run_directory` in `src/native/policy/command_run_directory.rs`
+and whose process is started by `run_metadata_git_in` in `src/native/repo_read/git_metadata.rs`):
+Git changes to the top of the working tree before it runs the shell of a `!` alias
+(`git.c:388` to `git.c:407`),
+so a clean the person's alias runs deletes from that top,
+and a dry run started in the caller's directory below it measures a narrower subtree,
+names no repository and no file above the caller,
+and the clean then deletes them unsaved.
+The caller's own `-C` chain is left out of the arguments
+(`without_directory_changes`),
+because Git reads a command's prefix from the directory it was started in:
+`git -C <top> clean -ffdX` from a subdirectory still names the caller's own prefix and refuses to remove it,
+while the same clean started at the top names the subdirectory and removes it.
+A directory that cannot be named
+(no shell directory Git could answer with,
+and no readable process directory)
+is a `fact-unavailable` finding,
+never a measurement from the caller's directory.
 Git removes such a repository whole (`builtin/clean.c`,
 `if (force > 1) rm_flags = 0`),
 with its own history and its uncommitted files,
@@ -17099,11 +17139,16 @@ a relative one,
 one through `..` or a link and one reached after `-C` are the plain form's rejection when they name that file,
 and a path that names any other file runs.
 That directory is where the command really starts,
-moved by its `-C` chain and by nothing else:
+moved by its `-C` chain:
 `--work-tree` names the tree Git reads and writes,
 never the directory a relative `--file` path is read from,
 and `git config` does not move into it,
 so a relative path under a `--work-tree` elsewhere is read from the same place as without one.
+The Git a `!` alias's shell runs starts somewhere else again:
+Git changes to the top of the working tree before it starts that shell
+(`git.c:388` to `git.c:407`),
+so a relative `--file` path written there is read from that top,
+while the caller's `-C` chain moves neither.
 A `-c` global option is one command's override,
 changes no file and is not a write to the shared settings.
 The main checkout,
@@ -17169,6 +17214,9 @@ and both editor forms,
 requires the shared bytes unchanged and the editor never started,
 and keeps the positive control that the same editor on the same worktree does change the shared file when Git
 itself runs it.
+A `--file` write from the Git a `!` alias's shell runs is refused from the top of the working tree that Git
+changed to,
+with the same real-Git control writing the shared file through the same relative spelling.
 The decision is `src/native/command/rule_shared_remote.rs`,
 the path a `--file` region names is read by `src/native/command/command_config.rs`,
 and the comparison with `$GIT_COMMON_DIR/config` is `src/native/policy/policy_linked_worktree.rs`.

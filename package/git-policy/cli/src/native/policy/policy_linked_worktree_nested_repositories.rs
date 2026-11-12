@@ -37,6 +37,9 @@ use crate::discarded_nested_repository::set_nested_repositories_aside;
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
 use crate::repository_facts::RepositoryFacts;
+/// The linked-worktree check's answer to where a clean runs,
+///  which both dry runs start in.
+use crate::command_run_directory::command_run_directory;
 use crate::repository_location::RepositoryLocation;
 use crate::policy_checks::{clean, rejected};
 /// The linked-worktree rule core.
@@ -52,7 +55,7 @@ use crate::worktree_identity::{common_directory, worktree_root};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The clock reading the conflict copies are named with,
 /// in milliseconds since the Unix epoch.
@@ -113,6 +116,11 @@ enum NestedRepositories {
 ///  Git itself says which paths the clean removes,
 ///  and the repository the clean deletes is the one below one of those paths,
 ///  found by looking inside the names Git printed and nowhere else.
+///  That reading carries the directory the clean runs in (`command_run_directory`)
+///  and is started there,
+///  so a repository above the directory the wrapper stands in is one it sees.
+///  `Option<&Path>` is the directory Git runs the shell of a `!` alias in,
+///  when the clean is the command that shell runs.
 ///  The one clean Git refuses itself,
 ///  `-x` written with `-X`,
 ///  is known from the region before any reading:
@@ -129,12 +137,13 @@ enum NestedRepositories {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function keepTheNestedRepositoriesACleanWouldDelete(facts, location, region, limits): NestedRepositories;
+/// function keepTheNestedRepositoriesACleanWouldDelete(facts, location, region, shellDirectory, limits): NestedRepositories;
 /// ```
 fn keep_the_nested_repositories_a_clean_would_delete(
     facts: &mut dyn RepositoryFacts,
     location: &RepositoryLocation,
     region: &[OsString],
+    shell_directory: Option<&Path>,
     discarded_limits: Limits,
 ) -> NestedRepositories {
     // A clean removes a nested repository only with a second `-f` (`builtin/clean.c`: `if (force > 1) rm_flags = 0`),
@@ -164,7 +173,12 @@ fn keep_the_nested_repositories_a_clean_would_delete(
         return NestedRepositories::Nothing;
     };
     let prefix: Vec<OsString> = facts.transaction_context().global_prefix;
-    let Some(as_typed) = clean_dry_run_arguments(prefix.as_slice(), region) else {
+    // A directory that cannot be named stops the clean: a dry run started anywhere else could hide a repository.
+    let run_in: PathBuf = match command_run_directory(prefix.as_slice(), shell_directory) {
+        Ok(found) => found,
+        Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
+    };
+    let Some(as_typed) = clean_dry_run_arguments(prefix.as_slice(), region, run_in.as_path()) else {
         return NestedRepositories::Nothing;
     };
     let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(as_typed) {
@@ -209,12 +223,12 @@ fn keep_the_nested_repositories_a_clean_would_delete(
 ///  A `struct` is a record with named fields.
 /// Why:
 ///   The saved nested repositories of a clean are kept at the one point a form is let through,
-///  and both such points hold the same seven things;
+///  and both such points hold the same eight things;
 ///  one record keeps them from drifting apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AllowedForm = { facts; command; location; region; seen; dirty; discardedLimits; notices };
+/// type AllowedForm = { facts; command; location; region; seen; shellDirectory; dirty; discardedLimits; notices };
 /// ```
 pub(crate) struct AllowedForm<'a> {
     /// The facts every question is asked.
@@ -228,6 +242,10 @@ pub(crate) struct AllowedForm<'a> {
     /// The command as Git will run it,
     /// aliases included.
     pub(crate) seen: &'a [OsString],
+    /// The directory Git runs the shell of a `!` alias in,
+    ///  when the clean is the command that shell runs;
+    ///  nothing for a direct command and an ordinary alias.
+    pub(crate) shell_directory: Option<&'a Path>,
     /// What the policy measured,
     ///  or nothing when it asked no question.
     pub(crate) dirty: Option<bool>,
@@ -253,7 +271,13 @@ pub(crate) struct AllowedForm<'a> {
 /// ```
 pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
     if matches!(form.command, GuardedCommand::CleanIgnored | GuardedCommand::CleanIgnoredOnly) {
-        match keep_the_nested_repositories_a_clean_would_delete(form.facts, form.location, form.region, form.discarded_limits) {
+        match keep_the_nested_repositories_a_clean_would_delete(
+            form.facts,
+            form.location,
+            form.region,
+            form.shell_directory,
+            form.discarded_limits,
+        ) {
             NestedRepositories::Nothing => {}
             NestedRepositories::Saved { copies, notice } => {
                 let mut places: Vec<String> = Vec::<String>::new();

@@ -132,10 +132,25 @@ fn an_alias_is_decided_on_the_command_it_expands_to() {
 /// ```
 #[test]
 fn a_shell_alias_is_decided_with_the_callers_arguments_after_its_own() {
-    for (value, words, command) in [
-        ("!git", vec!["fixup", "reset", "--hard"], GuardedCommand::ResetHard),
-        ("!git reset", vec!["fixup", "--hard"], GuardedCommand::ResetHard),
-        ("!git clean", vec!["fixup", "-fdx"], GuardedCommand::CleanIgnored),
+    for (value, words, shell, command) in [
+        (
+            "!git",
+            vec!["fixup", "reset", "--hard"],
+            vec!["reset", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        (
+            "!git reset",
+            vec!["fixup", "--hard"],
+            vec!["reset", "--hard"],
+            GuardedCommand::ResetHard,
+        ),
+        (
+            "!git clean",
+            vec!["fixup", "-fdx"],
+            vec!["clean", "-fdx"],
+            GuardedCommand::CleanIgnored,
+        ),
     ] {
         let walked: GuardedForwarded = decided(&[("fixup", value)], words.as_slice());
         assert_eq!(
@@ -144,7 +159,55 @@ fn a_shell_alias_is_decided_with_the_callers_arguments_after_its_own() {
             "{value} {words:?}"
         );
         assert_eq!(walked.arguments, args(words.as_slice()), "{value}: Git receives the caller's own words");
+        assert_eq!(
+            walked.decided_words,
+            args(shell.as_slice()),
+            "{value}: the rules read the command the shell runs"
+        );
     }
+}
+
+/// What:
+///  The words the guard decided about are the ones the rules read:
+///  the command inside a `!` alias's shell,
+///  an ordinary alias's expansion,
+///  and the caller's own words for a built-in.
+/// Why:
+///  The flags and paths of a clean decide what it deletes,
+///  and a rule that read the alias name instead saw a clean with no `-ffdX`
+///  and no `-e` pattern:
+///  it measured nothing,
+///  saved nothing,
+///  and Git deleted a nested repository and an untracked file unsaved.
+///  A `!` alias carries the caller's words into the shell after its own (`git.c:401` to `git.c:402`),
+///  so both halves are read here even though Git receives only the alias word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decideGuardedForwarded({ pairs: [['spring', '!git clean -Xf']], words: ['spring', '-e', 'notes.txt'] })
+/// //   => { decidedWords: ['clean', '-Xf', '-e', 'notes.txt'], arguments: ['spring', '-e', 'notes.txt'] }
+/// ```
+#[test]
+fn the_words_the_guard_decided_about_are_the_ones_a_rule_reads() {
+    let aliased: GuardedForwarded = decided(&[("spring", "!git clean -Xf")], &["spring", "-e", "notes.txt"]);
+    assert_eq!(
+        aliased.decision,
+        LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::CleanIgnoredOnly)
+    );
+    assert_eq!(aliased.decided_words, args(&["clean", "-Xf", "-e", "notes.txt"]));
+    assert_eq!(aliased.arguments, args(&["spring", "-e", "notes.txt"]));
+    // An ordinary alias is replaced by its expansion, so the words Git receives are the words the rules read.
+    let ordinary: GuardedForwarded = decided(&[("wipe", "reset --hard")], &["wipe"]);
+    assert_eq!(ordinary.decided_words, args(&["reset", "--hard"]));
+    assert_eq!(ordinary.decided_words, ordinary.arguments);
+    // So is a command the caller names itself.
+    let direct: GuardedForwarded = decided(&[], &["clean", "-ffdX"]);
+    assert_eq!(direct.decided_words, args(&["clean", "-ffdX"]));
+    assert_eq!(direct.decided_words, direct.arguments);
+    // A shell the guard cannot read names no command, so it carries the caller's own words and changes nothing.
+    let unread: GuardedForwarded = decided(&[("moves", "!cd sub && git clean -ffdX")], &["moves"]);
+    assert_eq!(unread.decision, LinkedWorktreeDecision::Pass);
+    assert_eq!(unread.decided_words, args(&["moves"]));
 }
 
 /// What the guard cannot read is left to Git and to the shell,
@@ -256,4 +319,91 @@ fn a_shell_alias_the_caller_moved_into_is_decided_where_git_runs_it() {
     );
     std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
     remove(root.as_path());
+}
+
+/// What:
+///  A `!` alias's shell runs at the top of the working tree,
+///  so the decision carries that directory and not the one the caller stands in.
+/// Why:
+///  Git changes to the top of the working tree before it starts the shell of a `!` alias
+///  (`git.c:388` to `git.c:407`),
+///  so `git -c 'alias.shellcfg=!git config' shellcfg --file ../../named.config ...`
+///  names one file from the caller's directory and another from the shell's.
+///  A guard that resolved that relative path from the caller's directory judged a write
+///  to `below/../..` while Git wrote the top's `../..`,
+///  which is how a write to the configuration every worktree shares went through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // cwd `<root>/below`; decideGuardedForwarded({ pairs: [['shellcfg', '!git config']], words: [...] })
+/// //   => { decision: 'shared-remote', shellDirectory: root }
+/// ```
+#[test]
+fn a_shell_alias_carries_the_directory_git_runs_its_shell_in() {
+    let root: PathBuf = fixture("guard-shell-directory");
+    git(root.as_path(), &["init", "--quiet", "--initial-branch=main", "."]);
+    let below: PathBuf = root.join("below");
+    std::fs::create_dir_all(below.as_path()).expect("directory below the worktree root");
+    let started_in: PathBuf = std::env::current_dir().expect("the directory this test started in");
+    std::env::set_current_dir(below.as_path()).expect("the worktree is where the wrapper starts");
+    let walked: GuardedForwarded = decide_guarded_forwarded(
+        &context_with_aliases(&[("shellcfg", "!git config")]),
+        no_environment().as_slice(),
+        &args(&[
+            "-c",
+            "alias.shellcfg=!git config",
+            "shellcfg",
+            "--file",
+            "../../named.config",
+            "remote.origin.url",
+            "https://example.invalid/through-a-shell-alias.git",
+        ]),
+    );
+    assert!(
+        matches!(walked.decision, LinkedWorktreeDecision::SharedRemote(_)),
+        "the shell alias's write was not decided at all"
+    );
+    assert_eq!(
+        walked.shell_directory.as_deref(),
+        Some(root.as_path()),
+        "the decision does not carry the directory the shell runs in"
+    );
+    std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A command the caller names itself,
+///  and one an ordinary alias expands to,
+///  run where the caller's `-C` chain ends,
+///  so neither carries a shell's directory.
+/// Why:
+///  The relative paths of those commands are read from the caller's directory,
+///  and a decision that carried a shell's directory would refuse a write to a file of
+///  the command's own,
+///  or name the wrong shared file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // decideGuardedForwarded({ words: ['config', '--file', 'named.config', ...] }).shellDirectory === undefined
+/// ```
+#[test]
+fn a_command_the_caller_names_carries_no_shell_directory() {
+    for (pairs, words) in [
+        (
+            vec![],
+            vec!["config", "--file", "named.config", "remote.origin.url", "https://example.invalid/named.git"],
+        ),
+        (
+            vec![("cfg", "config")],
+            vec!["cfg", "--file", "named.config", "remote.origin.url", "https://example.invalid/named.git"],
+        ),
+    ] {
+        let walked: GuardedForwarded = decided(pairs.as_slice(), words.as_slice());
+        assert!(
+            matches!(walked.decision, LinkedWorktreeDecision::SharedRemote(_)),
+            "{words:?} was not decided at all"
+        );
+        assert_eq!(walked.shell_directory, None, "{words:?} carries a shell directory");
+    }
 }
