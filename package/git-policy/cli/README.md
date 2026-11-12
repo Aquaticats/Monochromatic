@@ -5278,7 +5278,9 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   that is what a commit of the path would record,
   so a lockfile an earlier step had already staged is committed,
   and an install of a release another install committed in the meantime records nothing and says so instead of
-  failing a commit with nothing to record.
+  failing a commit with nothing to record,
+  and reads no journal,
+  because there is then no sample commit.
   A lockfile another process writes while the release is installed is never committed under this release's name:
   the install prints the write it found,
   refuses,
@@ -5287,7 +5289,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   Every toolchain step is bounded by `--deadline-seconds`
   (1800 by default;
   no run of either step was timed,
-  so the bound is a ceiling that a slower host overrides rather than a measurement),
+  so the bound is a ceiling that a slower host overrides rather than a measurement;
+  a deadline of 0 or of more than 2147483 seconds is refused before the first step runs),
   each git query by the same ten minutes the other gate commands give git,
   and the journal read by one minute.
   `--repository <path>` names the checkout
