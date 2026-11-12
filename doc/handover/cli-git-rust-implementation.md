@@ -135,6 +135,75 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### A commit failed on 0.6.1-alpha.12, and integration pass 16 for alpha.13 (2026-11-11T22:59:30-05:00)
+
+#### The failure
+
+The handover commit of 22:52 failed with exit status 1 in the main checkout, under the release installed sixteen minutes before:
+
+```text
+monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository (process 4131361) was sent `SIGKILL` when its ceiling came after 16 seconds, and the kernel has not released it: it is in uninterruptible sleep (state `D`), ...
+[warn] [2026-11-12T03:52:31.569Z] [monochromatic-git-policy-cli] [runNativeCommit] the scratch git commit was stopped after 16582 ms at its ceiling of 16332 ms
+```
+
+The same command run again landed at 22:53:29, after printing
+"the commit service of this worktree has answered nothing for 3 seconds, so it is stopped inside its own process;
+it is asked to restart".
+The disk was busy at the time (two batches adding worktrees, a cleanup dry run, the audits building).
+A busy disk is normal here and "Commits should never fail." has no exception for it.
+The fix for the ceiling (`fix/git-policy-cli-commit-does-not-fail-when-its-scratch-commit-stalls`, tip `0076cb74ed`)
+had been finished since 21:57 and was in no integration.
+
+#### Pass 16
+
+Round 265 (22:57), `integration-pass-16-for-alpha-13`,
+branch `integrate/git-policy-cli-pass-16-for-alpha-13`, from `main`:
+every finished branch `main` lacks, the three that bear on that failure first
+(the scratch-commit ceiling,
+the service silent on an ordinary commit,
+the object write taken off a commit's wait).
+The list came from the scratch lister `list-finished-branches-not-in-the-integration.ts`, run unedited,
+after the old integration branch `integrate/git-policy-cli-jam-fixes-after-alpha-9` was fast-forwarded to `main` in its own worktree
+so that the lister compares against what `main` holds.
+It showed twenty-three finished branches,
+ten more than the coordinator had in mind:
+several had ended between 19:23 and 21:41 and were in neither pass 15 nor any list.
+Held out on purpose:
+the abort second pass (decisions the owner has not seen yet)
+and the two branches kept unmerged since 2026-11-04 by an earlier owner decision.
+The pass compiles both test targets, runs Clippy,
+and runs by name the tests of the ceiling fix and the two landed-sweep controls that fail in the gate.
+When it reports,
+`main` takes it and `0.6.1-alpha.13` goes out the way alpha.12 did.
+
+That push of the old integration branch was refused by the server with
+"GH009: Git LFS object integrity could not be checked. Please contact GitHub support."
+The branch is local bookkeeping and nothing depends on its remote copy;
+the refusal is recorded because the wrapper's LFS work has an open item about pushes refused over LFS objects.
+
+#### Leftovers of two interrupted adds
+
+The package launcher gave up on two worktree adds at about 22:30 and killed them.
+Since then every wrapper command in the repository prints that
+`.claude/worktrees/pi-review-git-policy-cli-kimi-findings-pooled-shadow-review-findings` is "registered and possibly incomplete",
+with a hard reset or a forced removal for a person to run,
+and that a stage folder `.cli-git-worktree-copy-9f56192e-...` "was not changed ... remove it yourself".
+Both went by note (22:57) to the round 261 agent that owns the recovery of interrupted adds,
+as a live case of leftovers handed to a person.
+They stay in place for that agent and the driver-tests agent to read;
+the next hourly pass removes them.
+
+#### The cleanup service, undecided until about 23:45
+
+The stopgap unit restarts by 23:59:27 and will then run the new release's `lean run`, because it runs the installed binary.
+The dry run that was to show what a pass would remove had, by 22:58,
+listed run records (none to remove), toolchains (none to retire) and podman images (thirteen unused),
+but not yet build trees or units,
+and was still running 985 s in, past its own `--deadline-minutes 15`, in uninterruptible disk wait.
+If the listing is complete in time and names nothing in use, `lean service-install` runs;
+if not, the stopgap unit is stopped before it restarts.
+A deadline that does not end the run is a defect for the next cargo-shadow agent.
+
 ### The gate on the alpha.12 code, four reviews lost by the new review command, and a correction (2026-11-11T22:52:30-05:00)
 
 #### A correction to the 22:43 section
