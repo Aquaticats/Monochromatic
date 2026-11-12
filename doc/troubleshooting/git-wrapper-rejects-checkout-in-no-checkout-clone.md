@@ -257,12 +257,57 @@ and their values are host configuration the environment-named list keeps out of 
 The entry is asked after `OUT_DIR`,
 so a clone inside a build step's own output directory reports the narrower name.
 
-The limit is the entry's width:
-every repository under the build directory is exempt,
-including one a person deliberately keeps there,
-which then gets no worktree policies at all.
+The width of the entry is its limit:
+every repository under the build directory is exempt from the worktree rule,
+including one a person deliberately keeps there.
+The exemption is from that rule alone.
+A form there that would discard uncommitted work copies it into the folder of saved copies beside the audit
+log first and then runs,
+with `saved-exempt` in the record,
+so a build that resets or cleans its own vendored clone still succeeds and nothing a person wrote is lost
+(amendment "the exemption copies before a form discards").
+The one form the exemption still refuses is `git stash drop` or `git stash clear` while the repository holds
+an entry: a stash entry belongs to the repository and no copy of it is made.
 The notice on standard error names the variable that chose the directory,
 so a value that happens to cover a repository is visible to the person.
+
+### Amendment 2026-11-11T22:55:00-05:00: the exemption copies before a form discards
+
+A review of the entry above found that it returned before the dirty state was measured,
+so `git reset --hard HEAD` and `git clean -fdx` ran unguarded in any repository below the directory a
+variable named,
+and with `CARGO_TARGET_DIR` set to an ancestor that is every repository under it.
+The tracked edit was replaced and the untracked file deleted, both with exit `0`,
+and the notice itself said nothing was measured and nothing was saved.
+
+The exemption was decided for the worktree rule,
+and never for the rule that nothing a person wrote is discarded unsaved:
+refusing there would fail the build the exemption exists for,
+so the form now runs with its save instead (`SPEC.md`,
+"What a discarding form does in an exempt repository").
+A form that writes a tree or replaces the index copies the uncommitted changes of tracked files,
+a clean that deletes untracked files copies the untracked files the ignore rules do not cover,
+and a forced form also copies an ignored file whose path its tree tracks.
+A listing that never answered,
+and a copy that could not be written,
+stop the form with the worktree as it was.
+A clean that deletes ignored files and nothing else copies nothing,
+which is the owner's answer of 2026-11-10 that an ignored file is not a reason to hold a clean back.
+`git stash drop` and `git stash clear` are refused while the repository holds an entry,
+because the entry belongs to the repository and no copy of it is made.
+
+The same review found a relative `CARGO_BUILD_DIR` masking an absolute `CARGO_TARGET_DIR`,
+which the per-name rule above now settles:
+Cargo never reads that name, so its relative value describes nothing Cargo uses and the later names are asked.
+
+The controls are `policy_checks_tests`' `linked_worktree_exempts_a_cargo_build_directory`,
+`linked_worktree_exempt_clean_saves_the_untracked_files_it_deletes`,
+`linked_worktree_exempt_save_that_cannot_be_read_stops_the_command` and
+`linked_worktree_exempt_repository_still_refuses_a_stash_drop`,
+and `binary_build_script_clone_tests`'
+`a_hard_reset_in_a_clone_under_the_cargo_build_directory_saves_the_edit_and_runs`,
+`a_forced_clean_in_a_clone_under_the_cargo_build_directory_saves_the_untracked_file_and_runs` and
+`a_checkout_under_an_absolute_cargo_build_directory_runs_beside_a_relative_alias`.
 
 ### What Cargo really names, measured
 

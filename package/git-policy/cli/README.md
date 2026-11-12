@@ -2394,11 +2394,19 @@ The rule is:
   which is the whole tree those clones stand in,
   so a step that runs Git there without `OUT_DIR` is exempt too;
   a relative value names nothing,
-  and a repository a person deliberately keeps under it gets no worktree policies.
+  and one under `CARGO_BUILD_DIR`,
+  which Cargo never reads,
+  leaves the later names to be asked.
   An empty value of any of these variables counts as unset.
+  The exemption is from the worktree rule alone:
+  a form there that would discard uncommitted work is copied into the folder of saved copies first and then
+  runs,
+  so a build that resets or cleans its own vendored clone still succeeds and nothing written there is lost,
+  and `git stash drop` or `git stash clear` stays refused while the repository holds an entry,
+  which is not this worktree's.
   The exemption is chosen by the environment of the command itself,
   so the wrapper says on standard error which variable exempted the repository and which directory it named,
-  because a variable that happens to name a repository turns the guard off for it.
+  because a variable that happens to name a repository changes what the guard does for it.
 
 The guard reads the command Git will run,
 not the word on the command line:

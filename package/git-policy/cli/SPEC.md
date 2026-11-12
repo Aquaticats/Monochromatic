@@ -16136,9 +16136,20 @@ Cargo resolves one against a directory this invocation cannot know
 a configuration value against the file's directory),
 and a Git process a build script starts works in that script's package directory,
 so exempting a guess could cover a repository nobody named.
-The limit of this entry is its width:
-a repository someone deliberately keeps under the build directory
-gets no worktree policies at all.
+What a relative value leaves of the question depends on the name that carried it.
+`CARGO_BUILD_DIR` is a name Cargo never reads,
+so a relative value there describes and overrides nothing Cargo uses,
+and the next name is asked:
+a build step that exports it keeps the exemption its absolute `CARGO_TARGET_DIR` names
+(a review found the checkout refused here).
+The two names Cargo reads are the settings Cargo builds with,
+so a relative value under either leaves the build directory unknown,
+and no later name describes it.
+The width of this entry is its limit:
+every repository under the build directory is exempt from the worktree rule,
+including one a person deliberately keeps there,
+and the exemption never turns off the guards that copy work before a command discards it
+(the section "What a discarding form does in an exempt repository").
 An empty value of any of these variables counts as unset.
 A repository whose Git directory and worktree top both lie inside one of them is exempt,
 so the exemption covers the tool's own checkout and nothing else:
@@ -16150,7 +16161,9 @@ The wrapper says so on standard error before Git runs,
 naming the variable and the directory it points at,
 so a variable that happens to name a repository is visible to the person:
 "this repository is exempt from the worktree guard because `MISE_DATA_DIR` names <directory>,
-which contains both its Git directory and its worktree".
+which contains both its Git directory and its worktree.
+Nothing was measured, and the command runs without that rule; a form that discards uncommitted work is
+copied beside the audit log first and then runs".
 The comparison is made on resolved paths:
 each allowlisted directory is resolved before it is compared,
 and Git's identity query prints the resolved path of the worktree and the Git directory
@@ -16162,12 +16175,76 @@ for every spelling an invocation can use
 `core.worktree`,
 and a worktree added through a symbolic link all printed it on Git 2.56.0),
 so an exemption never depends on how a path was spelled.
-The record carries the same name in `facts.exemptedBy`
-and the outcome `exempt`.
+The record carries the same name in `facts.exemptedBy`,
+in the outcome `exempt` when nothing was at risk,
+and in the outcome `saved-exempt` when the work a discarding form would lose is in the folder of saved
+copies.
 The rejection names the form,
 what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
+
+#### What a discarding form does in an exempt repository
+
+The exemption is from the worktree rule and from nothing else.
+Never discarding user data holds in every repository,
+and the rule it replaces here is a refusal, which a build cannot live with:
+the case the exemption exists for is a build step that resets or cleans its own vendored clone.
+So a guarded form in an exempt repository runs as Git runs it,
+after what it would lose is copied into the folder of saved copies beside the audit log,
+which is the owner's "save,
+then allow" (`conflict_side_guard.rs`).
+
+What is copied follows the question the policy already asked about the form:
+
+- a form that writes a tree or replaces the index loses the uncommitted changes of tracked files,
+  which are `git diff --name-only -z` and `git diff --cached --name-only -z`,
+  each path once and in a settled order;
+- a clean that deletes untracked files (`-f`, `-fd`, `-fdx`) loses the untracked files the ignore rules
+  do not cover,
+  which is `git ls-files --others --exclude-standard --full-name -z`;
+  a clean whose `-e`/`--exclude` patterns pull in a path the worktree does not ignore is covered by the
+  same listing,
+  because only an untracked file can be new to it;
+- a forced checkout,
+  a forced switch and a hard reset also copy an ignored file whose path the tree they write tracks,
+  which the same `git ls-files` question already names for a person's refusal;
+- a clean that deletes ignored files and nothing else copies nothing:
+  the owner decided on 2026-11-10 that an ignored file is not a reason to hold a clean back
+  (`dirty_question`),
+  and in a tool's own tree the ignored files are that tool's build output,
+  which is exactly what a clean exists to delete.
+
+The copies are the ones the conflicted-file and abort carve-outs write,
+into `<common git dir>/monochromatic-git-policy-cli/discarded/<UTC time>/<path below the worktree>`,
+with the same permission bits or symbolic-link target,
+synced before Git starts,
+and with the same age and size limits applied after the save.
+The notice names the command,
+the folder and each copy before Git runs,
+and the record is `saved-exempt` with the copies and `facts.exemptedBy`;
+a form that finds nothing to copy records `exempt` and runs.
+A listing that never answered is a failure,
+never "nothing to save":
+it stops the form with the worktree as it was,
+and so does a copy that could not be written,
+because the alternative is the loss this save exists to prevent.
+A clean that would delete a nested Git repository still moves it whole first
+(`policy_linked_worktree_nested_repositories`),
+and one line names every copy that decision made.
+
+`git stash drop` and `git stash clear` are the one exception.
+The entry they delete belongs to the one stash the repository shares,
+no copy of it is made here,
+and a refusal is the only answer that loses nothing;
+a build never drops a stash,
+and the refusal names the hatch,
+so nothing reaches a build apart from a form it does not run.
+That exception is the cost of the exemption:
+a person who keeps a repository under a tool cache and means to drop a stash passes `--no-enforce-worktree`.
+
+The copies live in the repository's own Git directory,
+so they outlive the command but not the tool that deletes the whole clone.
 
 #### The abort forms while their operation waits
 
@@ -16258,8 +16335,11 @@ The main worktree and a directory outside a worktree keep the rejection,
 because the rule above refuses a form there always;
 `git merge --quit` and its siblings stop the operation and keep the index and files,
 and the hatch runs the abort anyway.
-The check runs after the allowlisted tool cache has answered `exempt`,
-so a repository no guard reads gets no copy either.
+The check runs for a repository the allowlist exempts as well,
+because the exemption is from the worktree rule and never from the rule that nothing a person wrote is
+discarded unsaved:
+an exempt repository's abort copies the person's own work first and then runs,
+and its record names the exemption beside the copies.
 
 #### The window between the measurement and the command
 
@@ -16732,7 +16812,8 @@ with `schemaVersion`,
 `hatch`,
 `logged`,
 `saved-conflict`,
-`saved-nested-repository` or `saved-abort`),
+`saved-nested-repository`,
+`saved-abort` or `saved-exempt`),
 `dirty`,
 `cwd` and `arguments`.
 Each path and argument this line names is written beside its text as its bytes
@@ -16747,7 +16828,9 @@ A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
 and so do a `saved-nested-repository` line,
 whose places hold the repositories a clean would have deleted,
-and a `saved-abort` line.
+a `saved-abort` line,
+and a `saved-exempt` line,
+whose places hold what the exemption copied before the form ran.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,
