@@ -6441,6 +6441,26 @@ on the commit path:
   and ends with the existing "Another program is using this repository's index"
   failure;
   the command to run again is the commit.
+- A lock the index cannot be taken for is not always another program's:
+  a Git directory that turned read-only,
+  a permission this process does not have,
+  a disk with no room left and a stale lock nothing can remove refuse it too.
+  Every refusal withdraws the batch and keeps the commit it built on `refs/cli-git/kept/<batch>`,
+  with the words a refused lock gets,
+  because the commit is on no branch whichever reason refused the lock
+  (`src/native/landing/service_land_take_index_lock.rs`).
+  The reference the batch held that commit on (`refs/worktree/cli-git-service/<batch>`)
+  is let go of only once the kept reference is proven to name the commit,
+  and only while it still names it:
+  the removal is `git update-ref -d <ref> <old>` with the value that was read,
+  so a reference another command wrote between the read and the removal is never removed.
+  A kept reference that cannot be written (a lock standing on it,
+  a name that already holds another batch's commit,
+  a directory that refuses the write)
+  leaves the batch's own reference where it is,
+  and the person is told the commit's name and that reference,
+  so a built commit is never one no reference names
+  (`src/native/landing/service_land_side_reference_write.rs`).
 - A client whose wait passes `ANSWER_CEILING` asks the service,
   on a new connection,
   to withdraw its request (protocol version 7:
@@ -6504,6 +6524,10 @@ on the commit path:
   and an open
   intent finishes a batch only when its branch has moved,
   so nothing lands later.
+  That keep follows the rule a withdrawal behind the index lock follows:
+  a kept reference that cannot be written leaves the batch's own reference where it is,
+  the person is told the commit's name and that reference,
+  and the batch's own reference is let go of only after the kept reference names the commit and only while it still does.
   A step of the landing never ends a hook of the person:
   every Git it starts carries the hooks-off options,
   and the one place a hook of the person runs below a step of the wrapper is a push to a local path
@@ -6522,6 +6546,10 @@ on the commit path:
   (the landing sweeps its own batch when it fails,
   the restart when it drops one;
   `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`).
+  Every other path that stops naming a built commit follows that one rule:
+  the reference a batch holds its commit on is removed only after another reference is proven to name the commit,
+  and only while it still names it (`git update-ref -d <ref> <old>`),
+  so a commit nothing else names is never the reason a reference goes.
 - A service killed between the import of a batch's objects and the write of its intent leaves the scratch reference with no
   intent to settle it,
   and a service instance is a hash of its worktree's Git directory,
@@ -8761,10 +8789,24 @@ a heading with the count,
 then one line per record naming the branch,
 the commit and the lock,
 with the exact `rm --` that clears it when no Git process uses the repository.
+The line names the locks that stand when it is printed,
+not the ones the record names from the instant the commit was held:
+one of those is often gone by the time the next command reads the record,
+and a message names what really stops the command at the moment it is printed.
 A command whose output a program reads prints nothing and settles the same.
 The first command that finds the locks gone settles them,
 and so does the service before its next batch and at its start
 (`src/native/landing/held_commit_settle.rs`).
+
+A settlement asks about the locks that can refuse its own branch write and no others:
+the branch it moves,
+the reference its transaction deletes beside it,
+`packed-refs.lock` and the reftable backend's list of tables
+(`src/native/landing/held_commit_settle.rs`).
+A lock on another reference can refuse neither the move nor the delete,
+and native Git commits on a branch while another branch's lock stands,
+so a held commit is never kept held behind a lock that is not in its way.
+The landing's own wait for a reference lock is unchanged and still looks at every reference lock of the repository.
 
 The settlement reads the branch and moves it by one compare-and-swap,
 with the side reference removed in the same transaction.
