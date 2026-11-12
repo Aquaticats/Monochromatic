@@ -135,6 +135,52 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The sixth cull pass (2026-11-11T23:07:07-05:00)
+
+Forty-five agents were running at 23:06,
+every one with turns taken,
+and fourteen launchers, each with a live agent or a start in progress.
+Pools by the package's count:
+DeepSeek 17 of 18, DeepSeek flex 15 of 20, Kimi flex 10 of 20, qwen4 4 of 18 with four more reviews starting.
+
+Nothing was stopped.
+No running task has been made pointless by pass 15 landing or by `0.6.1-alpha.12`.
+Six feeds had been silent for between fourteen and twenty-five minutes;
+each agent was inside one bounded command (a test run or a lint under `timeout`), so none was stuck.
+
+Reframed by note since the fifth pass, each because landed work or a newer measurement changed what the task should answer:
+
+- `alpha-11-against-alpha-10-where-a-commits-time-goes`:
+  alpha.11's slow first hour did not last and repeated after the alpha.12 install,
+  so the question is the changeover against plain load, not which release is slower.
+- `gate-failures-of-the-alpha-11-code`:
+  three of its seven no longer fail, one new failure is added, two others belong elsewhere.
+- `landed-removal-handed-to-the-service-proves-again-before-it-destroys`:
+  two gate failures and three reproduced losses from the review of the hand-over.
+- `review-findings-tokio-next-step-round-231`:
+  the unbounded read in the awaited route's fallback.
+- `review-findings-removal-with-a-nested-subvolume-round-231`:
+  the pending deletion that blocked a removal, and two warnings on a removal that succeeded.
+- `worktree-add-clean-check-index-install-and-pruning-made-cheaper`:
+  the two interrupted adds left for a person.
+- `review-findings-add-says-why-it-waits-round-219`:
+  a neighbour is taking the package repair off the add's path,
+  so its lines name the step really waited for.
+- `subagent-driver-tests-pass-after-the-two-branches-met`:
+  the review commands are in `main`; four defects from their first real use.
+- The commit-path audits (Kimi by note, Sonnet by message):
+  whether a commit keeps a message that is not valid UTF-8 byte for byte,
+  the question a cut-off review left unanswered.
+- The two changeover audits: the previous release is `c434449377`.
+
+Removed:
+the note about the second abort review that sat undelivered in the inbox of a run that had already ended;
+its content is in the brief of round 258.
+
+Kept on purpose until the next pass:
+the registered, incomplete worktree and the stage folder that two interrupted adds left,
+because two agents were told to read them.
+
 ### What eight more finished runs showed: losses in the new hand-over, and a wait without a bound (2026-11-11T23:04:22-05:00)
 
 The digest is `${HOME}/temp/agent/digest-2026-11-11T2245/digest.md`,
