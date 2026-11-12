@@ -373,7 +373,6 @@ fn write_message(work: MessageWrite) -> std::io::Result<()> {
 /// # Errors
 ///
 /// `TransactionStop::Message` when the message cannot be written or Git cannot write the commit.
-#[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the commit path calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
 pub(crate) async fn rebuilt_onto_awaiting(amended: &AmendedCommit, site: &BuildSite<'_>, tree: &str, parent: &str) -> Result<String, TransactionStop> {
     let message_file = site.scratch.join(MESSAGE_FILE_NAME);
     let work: MessageWrite = MessageWrite { path: message_file.clone(), message: amended.message.clone() };
