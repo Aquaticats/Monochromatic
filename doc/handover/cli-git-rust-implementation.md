@@ -135,6 +135,141 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The coordinator broke every Pi start for half an hour, and the fifth cull pass (2026-11-11T21:50:01-05:00)
+
+What happened. After merging the notification change into `main` (`92745e2835`, 21:18) the coordinator rebuilt the extension
+in the main checkout (21:19) without first linking the checkout's dependencies. The merge had added
+`@monochromatic-dev/async-time-core` to that package, the link was not there, the build left the import outside the bundle,
+and from 21:19 every new Pi process ended at once with
+`Failed to load extension ".../agent-settled-notification/dist/final/node/index.mjs": ... Cannot find module '@monochromatic-dev/async-time-core/ts'`.
+Thirteen runs started in that window ended `pi-exited, 0 turns`:
+the seven of round 251, the second landed-sweep review (252), the `wg` follow-up (253), the clean-inside-an-alias agent (254),
+the gate-failures agent (255), one qwen4 review of round 250, and the one real review the review-commands agent tried at the end of its run.
+Runs already going were not touched. Any other Pi session started on this machine between 21:19 and 21:50 failed the same way.
+It was seen at the 21:50 pass, from the list of runs that had ended.
+
+Repair, 21:50:30 to 21:50:53: `mise exec -- pnpm install --offline --frozen-lockfile` in the main checkout (it made the missing link),
+the extension's `build`, and its `verify:extension` ("agent-settled-notification extension verified").
+The rebuilt bundle names no workspace package any more.
+Twelve of the thirteen were started again at 21:51 (rounds 251 and 256, the same briefs; their worktrees had been kept).
+
+What this shows, as defects to fix and not as lessons to remember:
+
+- The landing agent's report said the main checkout "must be rebuilt after the branch lands"; it did not say "install first",
+  and the build task does not refuse to build with a workspace dependency that is not linked. It should.
+- `verify:extension` passed on the landing agent's tree, and nothing checks that Pi itself can load the extension from the main checkout.
+- A launcher that sees Pi exit before its first turn says only `status 1` and a memory line in the batch output.
+  The package's new failed-start line covers the launcher's own refusals, not a Pi that dies at once.
+
+These three go to the agent that repairs the driver's tests (round 251, by note).
+
+The fifth cull pass:
+
+- Nothing running was stopped, and no running task rests on a changed decision.
+- alpha.11's commits, read again (102 since the install): 93 landed, median 6,594 ms, ninetieth percentile 27,698, 57 over 5 s.
+  By window: 01:02 to 01:50Z 45 commits, median 12,348; 01:50 to 02:20Z 20, median 10,108; 02:20 to 02:52Z 37, median 2,969.
+  Not landed: the scratch ceiling once, the 20 s provision ceiling twice (none after 01:12Z), five refused by a policy finding,
+  and one `stopped: native-exit/git commit` in the last window, not yet looked at.
+  The last half hour is back at alpha.10's level (alpha.10's last hour: median 2,645), while far fewer agents were starting,
+  because of the breakage this section is about; so it does not yet show that alpha.11 settled.
+- Pools at 21:50, emptied by the dead starts: qwen plan DeepSeek 9 of 18, DeepSeek flex 5 of 20, Kimi flex 5 of 20, qwen4 1 of 18.
+
+### The gate's verdict on the alpha.11 code (2026-11-11T21:30:00-05:00)
+
+The gate of `08ece74c5e` (unit and log `gpc-gate-wrapper-next-alpha-on-08ece74c5e-20261111T204545-0500`) ended:
+`8322 tests run: 8315 passed (3 slow), 7 failed, 22 skipped`, in 844 s, `gate-exit-status=1`. The seven:
+
+- `policy::policy_checks::tests::overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty`
+  (for `merge --abort` in a clean linked worktree it expected `dirty:Tracked` and got `abort-discard:AbortMerge`);
+- `service::service_units_of_removed_worktrees::tests::a_service_of_a_gone_worktree_ends_the_plan_of_that_repository_and_the_journal_goes`;
+- `service::wait_ceilings::tests::the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add`;
+- `source_guard::blocking_code_off_the_runtime_tests::the_release_code_keeps_blocking_work_off_the_runtime`;
+- `testing::run_progress::tests::a_stuck_run_ends_its_process` and `..._though_its_report_cannot_be_written` (45 s each);
+- the binary-level `package_repair::a_shared_target_a_link_carries_out_of_the_worktree_is_left_built`.
+
+alpha.11 shipped before this verdict, under the owner's "Run it, don't wait (Recommended)".
+Round 255 (`fix/git-policy-cli-gate-failures-of-the-alpha-11-code`, from `main`) takes them: for each, which two of pass 14's changes met,
+and whether the test or the code is wrong by what the project decided.
+The last three may already be fixed by branches in pass 15 (the watchdog findings, the shared-target fixture):
+that agent checks them on those branches' tips and leaves them there, and pass 15 has a note to run those three by name after its merges.
+
+### What the 23 finished runs led to (2026-11-11T21:20:00-05:00)
+
+The digest is `~/temp/agent/digest-2026-11-11T2050/digest.md` (551 lines, by a Claude Code native subagent; it ran nothing and quotes the reports).
+
+Why the package launcher started none of round 235, from the agent that fixed it:
+"The launcher's first question was `git rev-parse --show-toplevel`, asked from the folder `mise` runs a task in — the package's own folder",
+the wrapper's `require-root` policy refused it (`require-root/not-at-root`), the launcher exited 1 before it made anything,
+and the batch kept only the stack's last line. The missing base was a second gap, not the cause.
+
+Merged into `main`, decided under the owner's delegation on the agents' checks:
+
+- `8331c838a8`, the launcher fix (`fix/pi-shared-subagent-driver-batch-starts-from-a-base-and-says-why-a-start-failed`, tip `eaa3a24513`;
+  90 suites passed on its tip): the launcher asks Git from the checkout, a batch entry's `base` and `--base=<commit or branch>`,
+  an unknown batch field refuses the list, three checks before anything is made, a failed start prints its reason
+  and keeps its output in `<runs-folder>/<name>-start-failure.log`.
+- `b4c8c9fc1f`, the 429 and preflight changes (`integrate/pi-shared-subagent-driver-429s-and-preflight-onto-main`,
+  "Fit to merge into `main` as it stands."). One conflict, in `src/start-pi-run-in-a-worktree.ts`, resolved by keeping both statements.
+  On the merged tree `test:unit` has 92 suite lines passing and two tests failing, named in the merge commit:
+  the preflight test's stand-in `git` does not answer the new base check, and a connection test got `stopped` false after 8.5 s.
+  The merge was concluded and not aborted because the wrapper refuses `git merge --abort` in the main worktree
+  ("To finish it, resolve the conflicts and commit with explicit paths"), and concluding discards nothing.
+  Round 251's first agent (`fix/pi-shared-subagent-driver-tests-pass-after-the-two-branches-met`) repairs both,
+  removes the driver-side second preflight if it is one (the owner: "Launcher preflight only"),
+  makes a batch exit non-zero when an entry failed, and ends with one real start through the package's batch command from a unit.
+  Until its verdict, starts still go through the scratch starter.
+- `92745e2835`, the notification change (`integrate/pi-plugin-agent-settled-notification-delivers-under-load-onto-main`,
+  "Fit to merge into `main` as it stands."; 35 tests). The extension was rebuilt in the main checkout afterwards.
+  Its one real send at load average 129 did not arrive; widening the 6,000 ms attempt bound is left for the owner.
+
+Not merged: the `wg` lifecycle branch, "Not fit to merge into `main` as it stands."
+(two lint tasks red with 47 and 5 findings, six README line-break errors, a flaky `cli-quicker:test:unit`, a stale assertion,
+and a decision on `fix/wg-cli-quicker-new-exemptions-apply-themselves`). Its deploy commands take the live tunnel down and up
+and need `sudo`: they wait for the owner. A follow-up agent for the lint and the flaky test is to be started.
+
+Reviews with findings that lose work or make a command wait, each given a fix agent from `main` (round 251), weighed as worth one
+because at least one finding in each was reproduced and the code is in the installed release:
+
+- the vendored-clone exemption (Kimi, `788a7f8d73`): a hard reset and a forced clean run unguarded in any repository below `CARGO_TARGET_DIR`.
+  The coordinator's reading of the owner's "Exempt Cargo build dir (Recommended)", put in the brief and open to veto:
+  the exemption is from the linked-worktree rule so that builds are not refused; it was never a decision to switch off the save-first guard.
+- a named pipe at an `assume-unchanged` path destroyed by a merge given to Git whole (qwen4, `273376beb7`);
+- the worktree trash hand-over (Kimi, `c4eb9e013d`): a hard-linked manifest name overwrites a file;
+- the add that says why it waits (Kimi, `f3730c5c89`): two waits without bound;
+- the package repair (Kimi, `58c8bd45dd`): a package tool left running unowned after its start ceiling;
+- the retry plans of a push (Kimi, `96c4677d30`): a named pipe blocks the drain, a kill erases a plan.
+
+With round 248's abort agent, seven agents now fix defects that reviews found in code alpha.11 released.
+
+qwen4 reviews, what went wrong with them:
+
+- Four ended without a review: each finished reading, started its own build in the background, ended its turn to wait for it,
+  and was never woken (blocked-commits findings, commit-exit-zero, held notice, landed sweep).
+  The landed-sweep one left an unconfirmed lead that matters, because that branch is in pass 15:
+  the service's own worktree removal may run without the held-commit keep. It is rerun with that lead named.
+  The review-commands agent (round 244) has the pattern by note: the wake must see work started in a `systemd-run` scope,
+  and a reviewer writes its file before it waits.
+- Two ended on the provider's answer `429 ... Allocated quota exceeded, please increase your quota limit` with about nine qwen4 reviews running
+  (`service-of-a-gone-worktree`, `shared-remote-file-option`; the driver then still ended a run on the first such error).
+  With `b4c8c9fc1f` on `main` the driver leaves a 429 to Pi's own retry, as the owner decided.
+  The pool stays at the owner's 18; what the plan's quota carries is not known and is watched.
+
+Started after the fix agents, 21:20 to 21:25:
+
+- Round 252, the second qwen4 look at the landed-sweep change (`7533b7202d`), with the one question named:
+  does the service's own removal keep a commit held for the worktree. Its brief tells the reviewer to keep its review file true at every moment.
+- Round 253, `fix/wg-lifecycle-branch-made-fit-to-merge` on the `wg` integration branch: the two lint tasks, the README, the flaky suite,
+  the stale assertion (applied, not run: it needs `sudo`), and whether `MONOCHROMATIC_WARN=false` or `MONOCHROMATIC_LOG_CONSOLE=off`
+  silences the start warning, which the owner decided has no toggle. No tunnel command, no deploy.
+- Round 254, `fix/git-policy-cli-clean-inside-a-shell-alias-is-measured-where-git-runs-it` on the shared-remote findings branch:
+  the gap that branch's agent found and left, a `!git clean` alias run below the worktree top measured from the wrong directory.
+
+No Pi process of the earlier `wg` run was left (checked with `ps` at 21:21).
+Pushes on alpha.11: the three merges and the handover commits of 21:09 to 21:19 were all on the remote at 21:19 with no hand push.
+
+Still open from the agents' own questions: gates unique per process; the commit service twice not reporting a commit it had made
+(the gate-and-install agent saw "The commit service has not said where this commit stands yet" and pushed by hand).
+
 ### The fourth cull pass (2026-11-11T20:50:00-05:00)
 
 Changed since the third pass: alpha.11 is installed; `main` got the test fix `08ece74c5e`; the owner is away until about 04:00.
