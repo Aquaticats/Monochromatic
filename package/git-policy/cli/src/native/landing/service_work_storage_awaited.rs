@@ -116,7 +116,46 @@ async fn a_storage_step_awaited_no_longer_than<T: Send + 'static>(ceiling: Durat
 /// const claimed = await claimAllAwaiting(workDir, kinds)
 /// ```
 pub(crate) async fn claim_all_awaiting(work_dir: &Path, kinds: &'static [WorkKind]) -> Result<Vec<Claimed>, String> {
-    return claim_all_within_awaiting(AFTER_COMMIT_STATE_CEILING, work_dir, kinds).await;
+    return claim_all_within_awaiting(the_claim_steps_ceiling(), work_dir, kinds).await;
+}
+
+/// The ceiling a control stated for the claim steps of this process,
+/// in milliseconds,
+/// or nothing when it stated none.
+/// The release executable keeps nothing of it.
+#[cfg(test)]
+static A_CLAIM_CEILING_FOR_A_CONTROL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// What:
+///  State the ceiling the next claim steps of this process take,
+///  so a control reaches the bound a round keeps in a moment instead of the sixty seconds a shipped step waits.
+/// Why:
+///   A round whose claim step got no place must ask to be looked at again,
+/// and only a control can reach that answer without waiting the shipped ceiling out;
+/// `claim_all_within_awaiting` states it for one caller instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdTheClaimStepsTo(20); // the next claim steps take 20 ms
+/// ```
+#[cfg(test)]
+pub(crate) fn hold_the_claim_steps_to(ceiling: Duration) {
+    A_CLAIM_CEILING_FOR_A_CONTROL.store(u64::try_from(ceiling.as_millis()).unwrap_or(u64::MAX), std::sync::atomic::Ordering::SeqCst);
+}
+
+/// The ceiling this process's claim steps take:
+/// the one a control stated,
+/// or `AFTER_COMMIT_STATE_CEILING`,
+/// which is what the after-commit work's own state steps take.
+fn the_claim_steps_ceiling() -> Duration {
+    #[cfg(test)]
+    {
+        let stated: u64 = A_CLAIM_CEILING_FOR_A_CONTROL.load(std::sync::atomic::Ordering::SeqCst);
+        if stated > 0 {
+            return Duration::from_millis(stated);
+        }
+    }
+    return AFTER_COMMIT_STATE_CEILING;
 }
 
 /// `claim_all_awaiting` with the ceiling its place and its job are given,
