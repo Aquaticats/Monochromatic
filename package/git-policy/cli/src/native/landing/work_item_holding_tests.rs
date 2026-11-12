@@ -124,8 +124,10 @@ fn a_settled_push_is_not_held_again() {
 ///  The work tree itself,
 ///  made to refuse every new name.
 /// Why:
-///   A promotion needs one rename inside `held` and `pending`, which both exist;
-///  what it must not need is a directory made under the work tree, and a work tree this user may not make a name in is that
+///   A promotion needs one rename inside `held` and `pending`,
+/// which both exist;
+///  what it must not need is a directory made under the work tree,
+/// and a work tree this user may not make a name in is that
 ///  requirement made visible.
 ///
 /// In TS you'd write (pseudocode):
@@ -142,10 +144,13 @@ fn a_work_directory_that_takes_no_new_name(work: &Path) -> PathBuf {
 /// What a promotion does:
 ///  it moves the held record with its one rename and makes none of the queue's directories.
 /// Why:
-///  The service made the record, so its directories are there; making seven of them on every commit cost a dozen metadata calls
+///  The service made the record,
+/// so its directories are there;
+/// making seven of them on every commit cost a dozen metadata calls
 /// on a machine where one of those can take a second
 /// (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
-/// The work tree here refuses every new name, so a promotion that creates anything answers that it moved nothing.
+/// The work tree here refuses every new name,
+/// so a promotion that creates anything answers that it moved nothing.
 #[test]
 #[cfg(unix)]
 fn a_promotion_moves_the_record_without_making_a_directory() {
@@ -165,7 +170,9 @@ fn a_promotion_moves_the_record_without_making_a_directory() {
 /// What a promotion into a work tree that has no states does:
 ///  it makes them and moves the record.
 /// Why:
-///  A work tree whose queue was swept, or one this release has never used, still has a held record to release:
+///  A work tree whose queue was swept,
+/// or one this release has never used,
+/// still has a held record to release:
 /// the cheap path must not be the only path.
 #[test]
 fn a_promotion_into_a_work_tree_without_states_makes_them() {

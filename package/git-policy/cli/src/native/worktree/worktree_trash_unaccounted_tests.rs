@@ -19,7 +19,8 @@ use std::path::PathBuf;
 const RECORDS_OF_OTHER_KINDS: usize = 12;
 
 /// A service that is never woken in these controls:
-/// nothing the scan did writes a record, so nothing is runnable because of it.
+/// nothing the scan did writes a record,
+/// so nothing is runnable because of it.
 struct NeverWoken;
 
 impl WakeTheService for NeverWoken {
@@ -30,7 +31,8 @@ impl WakeTheService for NeverWoken {
 
 /// The name of one object these controls name a record after,
 /// and of one trash directory too:
-/// forty lowercase hexadecimal digits, which is what a trash is named.
+/// forty lowercase hexadecimal digits,
+/// which is what a trash is named.
 fn object_name(index: usize) -> String {
     return format!("{:040x}", index);
 }
@@ -40,7 +42,8 @@ fn object_name(index: usize) -> String {
 ///  and a worktree whose trash parent is there.
 /// Why:
 ///   That is the shape every command in this repository meets:
-///  the scan is asked whether a trash is unaccounted for, and the queue it lists is almost entirely other work.
+///  the scan is asked whether a trash is unaccounted for,
+/// and the queue it lists is almost entirely other work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

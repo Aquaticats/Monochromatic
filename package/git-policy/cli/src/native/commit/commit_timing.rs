@@ -43,6 +43,9 @@ use crate::commit_prepare_part_durations::{PreparePart, drain_prepare_parts, pre
 /// kept apart from the preparation's so neither reading is read as the other.
 use crate::commit_build_part_durations::{build_parts_json, drain_build_parts};
 use crate::time_spent_outside_the_phases::{OutsideThePhases, outside_the_phases};
+/// How much of a command's total the record names,
+/// which the record's own methods answer with.
+pub use crate::commit_accounting::Accounting;
 use crate::common_directory_of_a_git_directory::common_directory_of;
 /// What the notice of the scratch `git commit` saw while the step ran,
 /// one entry per build.
@@ -73,91 +76,11 @@ pub const TIMING_SCHEMA_VERSION: u32 = 1;
 /// Module tag for diagnostics.
 const TAG: &str = "commitTiming";
 
-/// The word written for a release a service did not announce (the services of the earliest releases sent no release).
-const UNANNOUNCED: &str = "unannounced";
-
-/// What:
-///  What the client did to reach a service that speaks its protocol and was started from its release.
-/// Why:
-///   The 17-second commit began with a service of another release being asked to retire;
-/// the tries,
-/// the wait for a start,
-/// the
-///  retires sent and the releases that answered tell that apart from a slow landing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ReachTrace = { tries: number; refused: number; startWaited: number; retiresSent: number; releasesSeen: string[]; answeredBy?: string };
-/// ```
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct ReachTrace {
-    /// Connection attempts made,
-    /// each one a `connect` call.
-    pub tries: usize,
-    /// Attempts that found nothing listening or no greeting,
-    /// which is the service being started by the manager.
-    pub refused: usize,
-    /// Time from the first attempt of a reach to the greeting,
-    /// summed over the reaches that needed more than one attempt.
-    pub start_waited: Duration,
-    /// Retire messages sent to services of another release.
-    pub retires_sent: usize,
-    /// The release of every greeting,
-    /// in the order received,
-    /// without repeats.
-    pub releases_seen: Vec<String>,
-    /// The release of the service that finally took the request.
-    pub answered_by: Option<String>,
-    /// Time spent reaching,
-    /// retire rounds included.
-    pub elapsed: Duration,
-}
-
-impl ReachTrace {
-    /// Notes the release a greeting named.
-    pub fn saw_release(&mut self, release: Option<&str>) {
-        let word: String = release.unwrap_or(UNANNOUNCED).to_string();
-        if !self.releases_seen.contains(&word) {
-            self.releases_seen.push(word);
-        }
-    }
-}
-
-/// What:
-///  What a waiting notice of the service says of the holder of the index lock.
-/// Why:
-///   The notice is the only thing about the holder that reaches the client,
-/// and the record should say whether the wait was for a process proven to hold the lock or for one nobody could prove alive.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// holderKindOf(text) // 'proven-alive' | 'unproven'
-/// ```
-pub fn holder_kind_of(text: &str) -> &'static str {
-    return if text.contains("(proven by ") { "proven-alive" } else { "unproven" };
-}
-
-/// What:
-///  The kind of holder a wait was for after one more waiting notice,
-/// given the kind the earlier notices gave.
-/// Why:
-///  A proof counts when it comes and is never undone:
-/// the notices after the one that proved the holder (the way out of a wait that reached its ceiling,
-/// the service's own notice that it is inside a write the moment the holder lets go) say nothing of the holder,
-/// and the last notice must not decide what kind of holder the wait was for
-/// (the heartbeat of the connection and the holder's release meet at the same instant in the control that releases it after a
-/// whole number of beats).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// holderKindAfter(earlier, text) // earlier === 'proven-alive' ? 'proven-alive' : holderKindOf(text)
-/// ```
-pub fn holder_kind_after(earlier: Option<&'static str>, text: &str) -> &'static str {
-    return match earlier {
-        Some("proven-alive") => "proven-alive",
-        Some(_) | None => holder_kind_of(text),
-    };
-}
+/// What the client did to reach a service that speaks this release,
+/// with the waits that reaching cost,
+/// the words a waiting notice said of a foreign index holder,
+/// and the word this release writes for a service that announced no release.
+pub use crate::commit_reach_trace::{UNANNOUNCED, ReachTrace, holder_kind_after, holder_kind_of};
 
 /// What:
 ///  What the client did to hand one request to the service and get its answer.
@@ -212,42 +135,6 @@ struct Place {
     common_dir: PathBuf,
     /// The instance name that `journalctl --user --unit=cli-git@<instance>.service` takes.
     instance: String,
-}
-
-/// What:
-///  How much of a command's total the record's phases name,
-///  and how much they leave unnamed.
-/// Why:
-///   A reader of a slow commit asks which phase spent the time;
-///  a remainder that is not small says the record cannot answer,
-///  and those are the two figures that say so.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Accounting = { named: number; unnamed: number };
-/// ```
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Accounting {
-    /// Time the phases' names cover.
-    pub named: Duration,
-    /// Time no phase covers.
-    pub unnamed: Duration,
-}
-
-impl Accounting {
-    /// What:
-    ///  Whether the record accounts for its own total within the tolerance a control states.
-    /// Why:
-    ///  The tolerance belongs to the control,
-    ///  because only the control knows what its own fixture's remaining file work costs.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// accounting.within(TOLERANCE)
-    /// ```
-    pub fn within(&self, tolerance: Duration) -> bool {
-        return self.unnamed <= tolerance;
-    }
 }
 
 /// The whole milliseconds of a duration.

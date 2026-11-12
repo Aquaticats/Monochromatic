@@ -193,7 +193,8 @@ pub fn record_refusal(work_dir: &Path, id: &str, reason: &str) -> bool {
 ///   The promotion is the producer's approval,
 /// so a record that is not there is no approval and the caller says so.
 /// The rename is tried before anything is created:
-/// the service made the record it is promoting, so the state directories are there,
+/// the service made the record it is promoting,
+/// so the state directories are there,
 /// and creating seven of them on every commit cost a dozen metadata calls on a machine where one of those can take a second
 /// (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
 ///

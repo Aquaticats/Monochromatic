@@ -214,13 +214,18 @@ fn commit_a(fixture: &Fixture, repo: &Path, runtime: &Path) -> super::support::O
 const DISJOINT: [&str; 10] = ["routeMs", "prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "closingMs", "otherMs"];
 
 /// What:
-///  How much of a wrapped commit's time may go unnamed, in milliseconds.
+///  How much of a wrapped commit's time may go unnamed,
+/// in milliseconds.
 /// Why:
-///  The record exists to split a slow commit, and time no phase covers cannot be split;
-///  the figure is the work of the command after its last phase, which the closing phase states, so the remainder is the
+///  The record exists to split a slow commit,
+/// and time no phase covers cannot be split;
+///  the figure is the work of the command after its last phase,
+/// which the closing phase states,
+/// so the remainder is the
 ///  rounding of the figures and the clock read between two edges.
 ///  On this machine a wait no phase covered reached eight and fourteen seconds
-///  (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`), which is what this tolerance refuses.
+///  (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`),
+/// which is what this tolerance refuses.
 const UNNAMED_TOLERANCE_MS: u64 = 250;
 
 /// An ordinary commit appends one record to the repository and gets one line from the service,
@@ -312,11 +317,13 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
 
 /// What:
 ///  An ordinary wrapped commit's record names the whole of its time:
-///  the phases it states account for the total, and what they leave is inside a stated tolerance.
+///  the phases it states account for the total,
+/// and what they leave is inside a stated tolerance.
 /// Why:
 ///  A record whose remainder is large cannot say which phase spent a slow commit's time,
 ///  which is what it is written for;
-///  the phases used to leave the push's own records and the command's unwinding unnamed, and on this machine those reached
+///  the phases used to leave the push's own records and the command's unwinding unnamed,
+/// and on this machine those reached
 ///  seconds with no control failing (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
 #[test]
 fn the_phases_account_for_the_whole_of_a_wrapped_commit() {

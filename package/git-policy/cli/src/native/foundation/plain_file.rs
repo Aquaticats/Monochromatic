@@ -259,7 +259,8 @@ thread_local! {
     static READS: std::cell::RefCell<Vec<std::path::PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Records one read of the thread's own list, which the controls read.
+/// Records one read of the thread's own list,
+/// which the controls read.
 #[cfg(test)]
 fn note_a_read(path: &Path) {
     READS.with(|reads| { reads.borrow_mut().push(path.to_path_buf()); });

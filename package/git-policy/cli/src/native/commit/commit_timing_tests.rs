@@ -243,7 +243,8 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     remove(root.as_path());
 }
 
-/// The tolerance the controls here state for time no phase covers, in milliseconds:
+/// The tolerance the controls here state for time no phase covers,
+/// in milliseconds:
 /// wide enough for the rounding of each figure and the clock read between two edges,
 /// and narrow enough that a wait of a second fails.
 const UNNAMED_TOLERANCE_MS: u64 = 50;
@@ -256,9 +257,11 @@ const CLOSING_SLEEP_MS: u64 = 5;
 ///  and the same time inside a named phase passes it.
 /// Why:
 ///  The record exists to split a slow commit;
-///  a remainer that is not small says it cannot, and before this control that figure could reach seconds with nothing failing
+///  a remainer that is not small says it cannot,
+/// and before this control that figure could reach seconds with nothing failing
 ///  (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
-///  The second half of the control is the repair: a wait that a phase names is accounted for.
+///  The second half of the control is the repair:
+/// a wait that a phase names is accounted for.
 #[test]
 fn an_unnamed_wait_passes_no_tolerance() {
     let root: PathBuf = fixture("timing-unnamed");
