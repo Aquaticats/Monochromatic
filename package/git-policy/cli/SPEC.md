@@ -4233,6 +4233,20 @@ of which the two that rewrite link layouts in place are the service's work whene
   a lock Cargo refuses is resolved first by `cargo metadata --offline`,
   and the checked-out bytes go back only when the file still holds exactly what that resolution wrote,
   so a write of the person's lands in their own file and stays there.
+  That comparison is a moment of its own,
+  so the write that puts the checked-out bytes back is one step that hands back the file it replaced
+  (`renameat2(RENAME_EXCHANGE)`,
+  `rename_that_never_replaces.rs`):
+  a write that lands after the comparison is put back where the person wrote it,
+  and the checked-out bytes stay in the displaced directory where the line names them.
+  A lock the clean created where the checkout has none is taken away by a move and put back if it was written since,
+  and one the clean removed is written with `create_new`,
+  so no step of the restore replaces a file nobody kept.
+  The write the add's own clean makes is judged the same way.
+  A displaced directory on another filesystem than the worktree
+  (a linked worktree whose Git directory the main checkout holds) cannot exchange a file with the lock,
+  so there the checked-out bytes are written over it as before,
+  and the one window that leaves is the one no step from outside the writer closes.
   A lock that is not the resolution's and not the checked-out one is left exactly as it is found,
   and the job's diagnostic log says which file it was.
   A clean that stops anyway names the lock,
@@ -5331,7 +5345,10 @@ the notice then carries only Git's own words
 The file of a branch that needs no new try goes the same way:
 the worker that decided it removes that branch's file as it decides
 (`Replanning::forget`),
-so the loop writes no plan's file at all and replays nothing onto the journal
+and only after the record of what ended the plan is written,
+so a service killed between the two leaves the plan and a later service tries the push once more,
+never a notice that promises a retry nothing schedules.
+The loop writes no plan's file at all and replays nothing onto the journal
 (`PushRetries::apply` changes only the list it owns).
 Each statement about a branch is therefore made once,
 when its worker decides it,
@@ -5362,6 +5379,24 @@ A removal that fails is said in the service's own log,
 and the file stays:
 no later round tries that removal again,
 so a service started later finds the plan of a push that has landed and tries it once more.
+Both the write and the removal are jobs of the process's blocking pool,
+awaited by the task that decided the change
+(`push_retry_store.rs`,
+`save_awaiting` and `remove_awaiting`):
+the plan's own file is storage,
+and a task that listed the journal or read a record itself would hold a worker the runtime needs,
+where a name holding a pipe would hold it for ever.
+A record of a plan is read the way every record of this wrapper is read
+(`private_storage::read_regular_file`),
+so a pipe at a plan's name is answered at once and left alone rather than waited on and discarded.
+The listing of that journal answers twice:
+the entries it names,
+and an error that ended it before it named them all,
+which is what a directory read on a mount that stopped answering does;
+such an error leaves the journal unread,
+and it is listed again after a pause,
+because a plan it never named is otherwise absent from the plans the service holds
+and nothing else scans the item that waits for its push.
 A start whose read of that journal gave no answer within its ceiling keeps both directories,
 writes the plans and notes it makes there,
 and reads both again after a pause,

@@ -108,7 +108,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
         //  that was deleted.
         let worktree: Option<PathBuf> = worktree_named_by(retrying, git_dir);
         return match crate::unreachable_git_dir_proven_gone::prove(git_dir, worktree.as_deref(), &crate::unreachable_git_dir_proven_gone::the_mounts()) {
-            crate::unreachable_git_dir_proven_gone::Proof::MayReturn(_) => keep_plans_while_unreachable(git_dir, retrying, &unreachable),
+            crate::unreachable_git_dir_proven_gone::Proof::MayReturn(_) => keep_plans_while_unreachable(git_dir, retrying, &unreachable).await,
             crate::unreachable_git_dir_proven_gone::Proof::Gone(gone) => end_the_plans_of_a_gone_repository_awaiting(git_dir, retrying, &unreachable, &gone).await,
         };
     }
@@ -223,7 +223,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 "the push of {branch} {} is not tried again: its repository or branch record is no longer acceptable",
                 crate::service_timing::in_the_repository_at(due.item.repository.as_path())
             );
-            replanning.forget(git_dir, branch);
+            replanning.forget(git_dir, branch).await;
             continue;
         }
         let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
@@ -232,7 +232,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
         match verdict {
             Verdict::Done => {
                 clear_push_failures_before_awaiting(git_dir, branch, pushing_since).await;
-                replanning.forget(git_dir, branch);
+                replanning.forget(git_dir, branch).await;
                 crate::service_log!(
                     "the push of {branch:?} {} landed on try {} push_ms={}",
                     crate::service_timing::in_the_repository_at(due.item.repository.as_path()),
@@ -260,30 +260,37 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                         due.attempt + 1,
                         cause_line(text.as_str()).unwrap_or_default()
                     );
-                    replanning.forget(git_dir, branch);
                     if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await {
                         crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                     }
+                    replanning.forget(git_dir, branch).await;
                     continue;
                 }
                 // The notice says what happens next, so it has to be what this round did: a plan kept, or none at all.
-                let (said, outcome): (String, PushOutcome) = match replanning.first {
-                    Some(first) => {
-                        let planned: PlannedRetry = planned_retry(git_dir, replanning, first, &due.item, due.attempt + 1, text.as_str());
-                        // The framing promises a retry only when the plan the words speak of exists.
-                        let outcome: PushOutcome = if planned.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry };
-                        (planned.words, outcome)
-                    }
-                    None => {
-                        replanning.forget(git_dir, branch);
-                        (text, PushOutcome::UnfinishedWithNoRetry)
-                    }
+                let first_pause: Option<Duration> = replanning.first;
+                let planned: Option<PlannedRetry> = match first_pause {
+                    Some(pause) => Some(planned_retry(git_dir, replanning, pause, &due.item, due.attempt + 1, text.as_str()).await),
+                    None => None,
                 };
+                let (said, outcome): (String, PushOutcome) = match planned {
+                    // The framing promises a retry only when the plan the words speak of exists.
+                    Some(kept_plan) => {
+                        (kept_plan.words, if kept_plan.kept { PushOutcome::Unfinished } else { PushOutcome::UnfinishedWithNoRetry })
+                    }
+                    None => (text, PushOutcome::UnfinishedWithNoRetry),
+                };
+                let keeps_a_plan: bool = first_pause.is_some();
                 if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, outcome, said.as_str()).await {
                     crate::service_error!(
                         "the failed push of {commit} {} could not be recorded for the person: {reason}",
                         crate::service_timing::in_the_repository_at(due.item.repository.as_path())
                     );
+                }
+                // The record goes before the plan's file, as it does for every way a push ends here: a service killed
+                //  between the two leaves a plan a later one tries again, never a notice that promises a retry nothing
+                //  schedules.
+                if !keeps_a_plan {
+                    replanning.forget(git_dir, branch).await;
                 }
             }
             Verdict::Failed(text) => {
@@ -293,16 +300,18 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     due.attempt + 1,
                     cause_line(text.as_str()).unwrap_or_default()
                 );
-                replanning.forget(git_dir, branch);
+                // The record of a refusal the person must act on is the last word about this push, so it is written
+                //  before the plan's file goes: a kill between the two then leaves the plan, and a later service tries
+                //  the push again instead of the person waiting for a try nothing schedules.
                 if let Err(reason) = record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, text.as_str()).await {
                     crate::service_error!(
                         "the failed push of {commit} {} could not be recorded for the person: {reason}",
                         crate::service_timing::in_the_repository_at(due.item.repository.as_path())
                     );
                 }
+                replanning.forget(git_dir, branch).await;
             }
             Verdict::Skipped(text) => {
-                replanning.forget(git_dir, branch);
                 if !text.is_empty()
                     && let Err(reason) = record_push_skip_awaiting(git_dir, branch, commit, text.as_str()).await
                 {
@@ -311,6 +320,8 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                         crate::service_timing::in_the_repository_at(due.item.repository.as_path())
                     );
                 }
+                // The skip's words go before the plan's file, as every other record of a push's end does here.
+                replanning.forget(git_dir, branch).await;
             }
         }
     }
