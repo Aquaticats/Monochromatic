@@ -122,6 +122,9 @@ pub mod service_land_take_index_lock;
 /// the import stream of a batch and the overlap tests of its requests.
 pub mod service_land_git_steps_and_import_stream;
 
+/// The Git steps of a landing as a task of the runtime awaits them.
+pub mod service_land_git_steps_awaited;
+
 /// The objects a batch lands:
 /// the commit Git built,
 /// or the commits made from the requests' changes.

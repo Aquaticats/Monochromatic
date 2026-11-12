@@ -376,4 +376,23 @@ pub fn reclaim(platform: &Platform, lock: &Path) -> Reclaimed {
     return reclaim_if(platform, lock, StaleMark::HolderIsGone);
 }
 
+/// What:
+///  `reclaim` with the landing's abandoned claims carried rather than read from its state,
+/// for the reclaim of a job of the blocking pool.
+/// Why:
+///  The call chain a job takes cannot reach the landing's state,
+/// and what a claim's failed placement left must still be removed by the same landing's next attempt.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = reclaimCarrying(platform, lock, abandoned)
+/// ```
+pub(crate) fn reclaim_carrying(platform: &Platform, lock: &Path, abandoned: &mut Vec<(std::path::PathBuf, String)>) -> Reclaimed {
+    return reclaim_if_carrying(platform, lock, StaleMark::HolderIsGone, abandoned);
+}
+
 pub use crate::service_index_reclaim::{Reclaimed, StaleMark, reclaim_if};
+
+/// The reclaim a job of the blocking pool makes,
+/// with the landing's abandoned claims carried.
+use crate::service_index_reclaim::reclaim_if_carrying;

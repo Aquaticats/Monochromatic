@@ -518,7 +518,8 @@ pub const LONGEST_JOURNAL_WRITE: Duration = Duration::from_millis(40_188);
 /// `LONGEST_JOURNAL_WRITE`,
 /// five times that in whole minutes,
 /// so a write the log ever recorded lands well inside it,
-/// and the owner's "Commits should never fail." is kept for every write that finished at all.
+/// and the owner's "Commits should never fail."
+/// is kept for every write that finished at all.
 /// Limit:
 /// a write that outlasts this bound ends its landing,
 /// which answers a failure and keeps nothing of the batch on the branch;

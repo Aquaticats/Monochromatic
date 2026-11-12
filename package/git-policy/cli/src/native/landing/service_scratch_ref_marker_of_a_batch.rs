@@ -254,7 +254,8 @@ pub(crate) async fn record_scratch_ref_awaiting(journal: &Path, seq: u64, reposi
     }
 }
 
-/// The record of a batch's scratch reference, written as one job of the blocking pool.
+/// The record of a batch's scratch reference,
+/// written as one job of the blocking pool.
 #[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
 fn record_the_scratch_ref_of_a_batch(job: (PathBuf, u64, PathBuf, PathBuf)) {
     let (journal, seq, repository, git_dir) = job;
@@ -285,7 +286,8 @@ pub(crate) async fn forget_scratch_ref_awaiting(journal: &Path, seq: u64) {
     }
 }
 
-/// The record of a batch's scratch reference, removed as one job of the blocking pool.
+/// The record of a batch's scratch reference,
+/// removed as one job of the blocking pool.
 #[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
 fn forget_the_scratch_ref_of_a_batch(job: (PathBuf, u64)) {
     let (journal, seq) = job;
@@ -312,16 +314,6 @@ pub(crate) async fn end_scratch_ref_record_awaiting(context: &LandContext, reque
     }
     forget_scratch_ref_awaiting(context.journal.as_path(), seq).await;
 }
-
-/// What:
-///  The record of a batch's scratch reference that this instance may sweep,
-/// as the read of it found it.
-/// Why:
-///   The sweep decides one record at a time,
-/// and the Git it asks about the reference is the task's to start;
-/// the listing,
-/// the look for an intent beside it and the record's own text are storage,
-/// which a job of the pool reads.
 
 /// What:
 ///  The records one sweep may act on:
@@ -362,7 +354,8 @@ fn the_records_this_sweep_may_settle(job: (PathBuf, Option<String>)) -> Vec<(u64
     return settling;
 }
 
-/// The records a sweep settled, removed as one job of the blocking pool.
+/// The records a sweep settled,
+/// removed as one job of the blocking pool.
 #[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio-landing-batch-body-storage-steps-awaited.md)"))]
 fn remove_the_settled_records(paths: Vec<PathBuf>) {
     for path in paths {

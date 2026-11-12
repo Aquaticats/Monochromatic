@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::blocking_jobs_within_the_budget::a_controls_answer::{AStatesAnswer, state_the_answer};
+use crate::service_journal::{OPEN_EXTENSION, START_EXTENSION, Started, TEMPORARY_EXTENSION, batch_path, intent_text, read_start, write_start};
 use crate::test_support::{fixture, remove};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

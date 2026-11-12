@@ -59,12 +59,37 @@ fn refused_lock_remembered(state: &LandingState, (): ()) -> Option<Refused> {
 /// remember('/repo/.git/index.lock', 600_000)
 /// ```
 pub fn remember(lock: &Path, waited: Duration) {
+    keep_remembered(remember_in(lock, waited));
+}
+
+/// What:
+///  `remember` for a caller that carries the landing's memory of the lock it gave up on,
+/// and answers the memory the lock leaves.
+/// Why:
+///  A reclaim or a wait of a job of the blocking pool cannot write the landing's state,
+/// so the task that asked for the job keeps what the job answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const remembered = rememberIn(lock, waited)
+/// ```
+pub(crate) fn remember_in(lock: &Path, waited: Duration) -> Option<Refused> {
     // A lock that cannot be read now is remembered as nothing: the next wait is then a full one, the safe side.
     let Ok(Some(identity)) = read_lock_metadata(lock) else {
-        forget();
-        return;
+        return None;
     };
-    on_the_landing_state(Some(Refused { identity, waited }), keep_the_refused_lock);
+    return Some(Refused { identity, waited });
+}
+
+/// The lock this landing last gave up on,
+/// taken out of its state.
+pub(crate) fn remembered_here() -> Option<Refused> {
+    return on_the_landing_state((), refused_lock_remembered);
+}
+
+/// Keeps `refused` as the lock this landing last gave up on.
+pub(crate) fn keep_remembered(refused: Option<Refused>) {
+    on_the_landing_state(refused, keep_the_refused_lock);
 }
 
 /// What:
@@ -78,16 +103,31 @@ pub fn remember(lock: &Path, waited: Duration) {
 /// recall('/repo/.git/index.lock') // 600_000 | undefined
 /// ```
 pub fn recall(lock: &Path) -> Option<Duration> {
+    return recall_in(remembered_here(), lock);
+}
+
+/// What:
+///  `recall` with the landing's memory carried rather than read from its state.
+/// Why:
+///  A wait of a job of the blocking pool cannot read the landing's state,
+/// and the memory of the lock an earlier commit gave up on is what keeps the commits queued behind it from each
+/// waiting a whole ceiling for the same file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const earlier = recallIn(remembered, lock)
+/// ```
+pub(crate) fn recall_in(remembered: Option<Refused>, lock: &Path) -> Option<Duration> {
     let Ok(Some(identity)) = read_lock_metadata(lock) else {
         return None;
     };
-    let remembered: Refused = on_the_landing_state((), refused_lock_remembered)?;
-    return if remembered.identity == identity { Some(remembered.waited) } else { None };
+    let known: Refused = remembered?;
+    return if known.identity == identity { Some(known.waited) } else { None };
 }
 
 /// Forgets the lock this thread gave up on:
 /// the lock was taken,
 /// or is gone.
 pub fn forget() {
-    on_the_landing_state(None, keep_the_refused_lock);
+    keep_remembered(None);
 }

@@ -45,7 +45,8 @@ fn a_scratch_directory(root: &Path) -> PathBuf {
 }
 
 /// The cleanup a batch lands with:
-/// the state a merge, a cherry-pick or a revert left in the person's worktree.
+/// the state a merge,
+/// a cherry-pick or a revert left in the person's worktree.
 fn cleanup_of(root: &Path, scratch: PathBuf) -> Cleanup {
     return Cleanup { git_dir: root.join("git-dir"), scratch, reftable: false };
 }

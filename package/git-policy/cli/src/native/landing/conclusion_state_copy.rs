@@ -180,7 +180,8 @@ pub fn keep_of_intent(cleanup: Option<&Cleanup>, journal: &Path, seq: u64) -> Op
 /// and the branch may not move before the copy is there.
 /// A copy that did not run or gave no answer is answered as one that could not be made,
 /// which the cleanup reads as "no conclusion state was copied" and removes nothing on:
-/// the person's merge, cherry-pick or revert state stays where it is.
+/// the person's merge,
+/// cherry-pick or revert state stays where it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -208,7 +209,8 @@ pub(crate) struct TheConclusionStateOfABatch {
     seq: u64,
 }
 
-/// The copy of a batch's conclusion state, made as one job of the blocking pool.
+/// The copy of a batch's conclusion state,
+/// made as one job of the blocking pool.
 fn keep_the_conclusion_state_of_a_batch(job: TheConclusionStateOfABatch) -> Option<PathBuf> {
     return keep_of_intent(job.cleanup.as_ref(), job.journal.as_path(), job.seq);
 }
