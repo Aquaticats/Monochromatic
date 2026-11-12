@@ -199,17 +199,12 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     }
     // A pull that merges runs its fetch here and goes on as the `git merge FETCH_HEAD` it ends with; any other pull is native Git's.
     let merge_of_pull: CoordinatedForward;
-    // A merge goes through the isolated merge when it makes a commit, and when it is a fast-forward that something of the
-    //  person's stands in the way of; the ordinary fast-forward is native Git's own without that attempt
-    //  (`merge_isolation_a_fast_forward_in_the_way.rs`).
-    let mut isolate: bool = true;
     let forward: &CoordinatedForward = if typed.command.word() == b"pull" {
         match pull_step(typed, location.real_index_path.as_path()) {
             PullStep::Native => typed,
             PullStep::Ended(run) => return run,
-            PullStep::Merge { forward: merge, isolate: through_the_isolated_merge } => {
+            PullStep::Merge { forward: merge } => {
                 merge_of_pull = *merge;
-                isolate = through_the_isolated_merge;
                 &merge_of_pull
             }
         }
@@ -234,11 +229,10 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     // The commit service holds the index while it lands a commit, which ends by itself: the command waits for it, naming
     //  it, before Git starts. A lock that is not the service's is a foreign program's and keeps the behavior of native Git.
     wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
-    // A merge that native Git would refuse only because the index holds staged changes is completed in isolation.
-    if forward.command.word() == b"merge" && !isolate {
-        // Native Git never waits for the index lock; the fast-forward it is handed waits for the holder first.
-        wait_for_index_release_here(location.real_index_path.as_path(), name.as_str());
-    } else if forward.command.word() == b"merge" {
+    // A merge that native Git would refuse only because the index holds staged changes is completed in isolation, and one it
+    //  would fast-forward is asked about its written paths first: a name none of its own at one of them is refused here
+    //  before native Git's update removes it. Either way the merge it does not complete is handed on whole, below.
+    if forward.command.word() == b"merge" {
         let merge_input: IsolatedMergeInput<'_> = IsolatedMergeInput {
             real_git: forward.real_git.as_path(),
             overlay: forward.overlay.as_slice(),

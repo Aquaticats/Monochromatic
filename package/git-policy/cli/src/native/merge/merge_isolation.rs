@@ -1,10 +1,11 @@
 //! What:
-//!  A `git merge <branch>` completed in isolation:
-//!  a merge that creates a commit is computed from objects and applied with
-//!  Git's own two-way tree update,
-//!  and a merge that would fast-forward is carried here when anything of the person's
-//!  stands at the paths it writes,
-//!  so both shapes keep every entry and every file they do not write.
+//!  A true `git merge <branch>` completed in isolation when the index holds staged changes that make native Git
+//!  refuse it:
+//! the merge is computed from objects,
+//! committed,
+//! and applied with Git's own two-way tree update,
+//! which
+//!  keeps every entry and every file the merge does not change.
 //! Why:
 //!  Several sessions share one checkout.
 //!  Native Git refuses every merge that creates a commit while the index differs from `HEAD` at all (measured in
@@ -14,13 +15,6 @@
 //! because it is a two-way update that keeps entries it does not
 //!  write;
 //! a merge commit whose first parent is the current commit is exactly such an update.
-//!  A fast-forward is a two-way update too,
-//!  and at the paths it writes it overwrites an ignored untracked file of the person's without a word and
-//!  refuses their unsaved edit,
-//!  which no person can foresee from whether the other side happens to be strictly ahead
-//!  (`SPEC.md`,
-//! "Carry edits forward"),
-//!  so that shape is carried the same way (`merge_isolation_a_fast_forward_in_the_way.rs`).
 //!  So the merge tree comes from `git merge-tree --write-tree`,
 //! the commit from `git commit-tree`,
 //! and the checkout
@@ -38,7 +32,7 @@
 //! ```
 
 /// Names and sets of unsaved work.
-use crate::auto_push_dirty_paths::{diff_paths, overlapping_paths};
+use crate::auto_push_dirty_paths::{diff_paths, overlapping_paths, status_paths};
 /// Reading an environment value.
 use crate::child_environment::environment_value;
 /// Diagnostics for the log.
@@ -47,19 +41,17 @@ use crate::diagnostic_log::debug;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The merge messages.
 use crate::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source};
-/// Every path whose own work this merge would write over,
-/// and the capture that keeps it.
-use crate::merge_isolation_dirty_paths::{capture_for, dirty_paths};
-/// Whether a merge that would fast-forward keeps native Git's own fast-forward or is carried here.
-use crate::merge_isolation_a_fast_forward_in_the_way::{FastForward, the_fast_forward};
-/// The flow of a carried fast-forward,
-/// which moves the branch to the incoming commit and makes no merge commit.
-use crate::merge_isolation_carry_a_fast_forward::{FastForwardToCarry, carry_the_fast_forward};
+/// The ignored untracked files of the person's that stand at the paths a merge writes,
+/// which `git status` never lists.
+use crate::merge_isolation_ignored_paths::ignored_untracked_among;
 /// The word-level second pass over the conflicts of the merge tree,
 /// and the attribute tree it reads.
 use crate::merge_second_pass::Merged;
 /// Recovery of records.
 use crate::merge_isolation_recovery::recover_interrupted_merges;
+/// The person's own work in the paths the merge changes,
+/// and the durable ref that keeps it.
+use crate::merge_isolation_carry::{capture_work, keep_capture};
 /// The directory a merge would replace with a file,
 /// and the sentence that stops the merge instead.
 use crate::merge_isolation_a_directory_the_merge_replaces::{a_directory_the_merge_would_replace, the_line};
@@ -83,6 +75,7 @@ use crate::worktree_identity::WorktreeIdentity;
 /// Owned operating-system text.
 pub use crate::merge_isolation_run_types::{IsolatedMerge, IsolatedMergeInput};
 use crate::merge_isolation_run_types::{Bail, MAX_ROUNDS, MergeConfig, Plan, TAG, IN_PROGRESS_MARKERS, refused};
+use crate::merge_isolation_a_fast_forward_that_would_take_an_entry::what_the_fast_forward_owes;
 use crate::merge_isolation_git_reads::{Session, editor_would_open, stdin_and_stdout_are_one_terminal, lines_of, read_config, read_fetch_head};
 use crate::merge_isolation_apply::{apply, commit_merge, merge_tree, with_second_pass_report};
 /// The notices of a round that is made again.
@@ -263,25 +256,15 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
     {
         return Err(refused(1, the_line(reference.as_str(), &found)));
     }
-    // What this merge is, now that the paths it writes are known: a merge that must make a commit is completed here as it
-    //  always was; a fast-forward is native Git's whole while nothing of the person's stands at those paths or their
-    //  ancestors, and is carried here when something does (`SPEC.md`, "Carry edits forward").
-    let fast_forward: FastForward = the_fast_forward(&session.context, root, &shape, &config, fast_forwardable, touched.as_slice());
-    if fast_forward == FastForward::Forward {
-        return Err(Bail::Forward(None));
-    }
-    if fast_forward == FastForward::Carry {
-        let to_carry: FastForwardToCarry<'_> = FastForwardToCarry {
-            session: &session,
-            shape: &shape,
-            config: &config,
-            reference: reference.as_str(),
-            git_dir,
-            root,
-            commits: (head, target),
-            written: touched.as_slice(),
-        };
-        return carry_the_fast_forward(input, &to_carry);
+    // A merge that would move the branch by a fast-forward is native Git's whole, handed over at once, after the paths the
+    //  incoming commits change are asked about the entry Git's own update would remove without a copy; `--ff-only` and
+    //  `merge.ff=only` state that promise, and one they forbid is native Git's own refusal (`SPEC.md`, "A named pipe, a
+    //  socket or a device at a path the merge writes or deletes";
+    //  `merge_isolation_a_fast_forward_that_would_take_an_entry`).
+    let owed: Option<Bail> =
+        what_the_fast_forward_owes(&shape, &config, fast_forwardable, reference.as_str(), root, touched.as_slice());
+    if let Some(answer) = owed {
+        return Err(answer);
     }
     let description: Option<String> = if shape.message.is_some() {
         None
@@ -377,11 +360,68 @@ fn attempt_round(input: &IsolatedMergeInput<'_>, edited: &mut Option<Vec<u8>>) -
         old_oid: head,
         new_oid: new_oid.as_str(),
         carried: carried.as_ref(),
-        fast_forward: false,
-        written: incoming.as_slice(),
     };
     let done: IsolatedMerge = apply(input, &session, &plan)?;
     return Ok(with_second_pass_report(done, second_pass_files.as_slice()));
+}
+
+/// What:
+///  Every path whose worktree or index differs from the branch,
+/// untracked files included,
+/// and the ignored untracked
+///  files of the person's that stand at the paths the merge touches.
+/// Why:
+///   These are exactly the paths a merge that writes them would discard,
+/// and the untracked ones are why native
+///  Git refuses a merge that adds a path a file already stands at.
+///  `git status` never lists a file an ignore rule covers,
+/// so those paths are read from Git's own list of the untracked files the
+///  rules cover (`merge_isolation_ignored_paths.rs`);
+/// the merge writes over the only copy of their bytes as it would over
+///  any other untracked file's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dirty = statusPaths(await git(['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'])).concat(ignoredUntrackedAmong(context, root, touched));
+/// ```
+fn dirty_paths(session: &Session, root: &Path, touched: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, Bail> {
+    let status: GitOutput = session.run(&[
+        "--no-optional-locks",
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+    ])?;
+    if !status.succeeded() {
+        return Err(Bail::from(format!("git status failed: {}", status.error_text())));
+    }
+    let mut paths: Vec<Vec<u8>> = status_paths(status.stdout.as_slice());
+    for path in ignored_untracked_among(&session.context, root, touched).map_err(Bail::from)? {
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    return Ok(paths);
+}
+
+/// What:
+///  The person's own work in `paths`,
+/// captured as objects and kept on a ref of its own.
+/// Why:
+///   A ref written before the record and before the checkout changes is what makes the bytes survive a kill at any
+///  instant (`SPEC.md`,
+/// "Merges and commits never fail").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function captureFor(context, root, paths): Promise<Capture | null>;
+/// ```
+fn capture_for(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Result<Option<Capture>, String> {
+    if paths.is_empty() {
+        return Ok(None);
+    }
+    let capture: Capture = capture_work(context, root, paths)?;
+    return Ok(Some(keep_capture(context, root, &capture)?));
 }
 
 /// What:

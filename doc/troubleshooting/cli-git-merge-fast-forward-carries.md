@@ -1,274 +1,141 @@
-# A fast-forward merge that carried nothing while a diverged merge carried everything
+# A fast-forward merge that removes what a diverged merge refuses
 
 ## What was wrong
 
-The wrapper carried a person's unsaved work over a merge that creates a commit,
-and handed every fast-forward to native Git whole
+The wrapper handed every merge that would fast-forward to native Git whole
 (`src/native/merge/merge_isolation.rs`,
-the early `Bail::Forward` for
-`fast_forwardable && !merge_commit_wanted`).
+the early `Bail::Forward` for `fast_forwardable && !merge_commit_wanted`),
+ahead of every read it makes of the person's work.
 Native Git's fast-forward writes exactly the paths the incoming commits change,
 and at those paths it
 
 - overwrote an ignored untracked file of the person's with no copy and no notice;
 - refused an unsaved or staged edit with
-  `error: Your local changes to the following files would be overwritten by merge` and exit 2;
+  `error: Your local changes to the following files would be overwritten by merge`;
 - removed a file standing at an ancestor of a path it adds,
   because it needs a directory there;
-- removed a named pipe at a path it adds,
+- removed a named pipe at a path it writes or deletes,
   with no copy.
 
-The diverged shape carried the first two,
-and kept the third's bytes nowhere either.
-A person could not tell beforehand which shape their merge would take,
-so the same work in the same worktree was kept or lost
-depending on whether the other side happened to be strictly ahead.
+The diverged shape refused the named pipe before writing,
+so one worktree with one set of unsaved work was treated two ways
+depending on whether the other side happened to be strictly ahead,
+which a person cannot see beforehand.
 
-`git pull` was the same:
-`pull_isolation.rs` skipped the isolated merge
+`git pull` had the same gap:
+`index_writer_forward.rs` skipped the isolated merge
 whenever the fetched head only fast-forwarded.
 
 ## What the wrapper does now
 
-`src/native/merge/merge_isolation_a_fast_forward_in_the_way.rs` asks one question
-about the paths the incoming commits write and their ancestors:
-
-- `git --no-optional-locks status --porcelain=v1 -z --untracked-files=all --ignored=traditional`
-  with one `:(top,literal)` pathspec per written path,
-  in bounded argument batches;
-- the edits an `assume-unchanged` or `skip-worktree` entry hides
-  (`merge_isolation_marks_the_status_hides.rs`);
-- a `symlink_metadata` of each written path and of each directory on the way to it,
-  which also names a directory,
-  a pipe,
-  a socket or a device that `git status` does not list.
-
-An answered "nothing stands there" keeps native Git's own fast-forward,
+A fast-forward is native Git's whole and stays as cheap as it was,
 handed over at once.
-Anything else is carried by the same steps a merge commit takes
-(`merge_isolation_carry_a_fast_forward.rs`),
-except that the branch moves to the incoming commit itself:
-no merge tree,
-no message,
-no editor,
-no commit.
+Before it is handed over,
+the paths the incoming commits change are asked one question
+(`src/native/merge/merge_isolation.rs`,
+`merge_isolation_a_special_file_the_merge_changes.rs`):
+does a named pipe,
+a socket or a device stand at one of them.
+Such an entry holds no bytes,
+and Git's own update removes it without a copy,
+so the merge refuses it with the line and exit 1 a merge that creates a commit already used,
+and nothing in the worktree,
+the index or the branch changes.
+
+`--ff-only` is read exactly (`FastForwardChoice::Only`).
+A merge under it that can fast-forward is handed over after that question,
+and one that cannot is native Git's own refusal,
+`fatal: Not possible to fast-forward, aborting.` with exit 128,
+so the option keeps the promise it states.
+`merge.ff=only` asks the same question on its fast-forward.
+
+A `git pull` stated to merge now always sends its merge half through the isolated merge
+(`pull_isolation.rs`),
+so a fast-forward pull is asked the same question before native Git's own fast-forward removes an entry.
+A fetched head that cannot fast-forward under `--ff-only` keeps native Git's own refusal.
+
+## What is not guarded, and why
+
+The wrapper keeps no copy of anything here.
+The project's rule,
+as the owner restated it on 2026-11-12 about 10:33
+(`doc/handover/cli-git-rust-implementation.md`),
+is that a command which could destroy a person's data is refused and names what it would destroy,
+and that the guard's `--no-enforce-*` option runs it as real Git would;
+it is not that the wrapper saves a copy and lets the command run.
+So an ignored untracked file at a path native Git's fast-forward writes is still overwritten by native Git,
+exactly as `git merge` does without the wrapper,
+and an unsaved edit there is still refused by native Git with its own
+`error: Your local changes ... would be overwritten by merge`.
+The carries of the diverged path are being listed and turned into refusals by another agent,
+case by case;
+this record covers the fast-forward path alone.
+
+The two refusals the audit found in the diverged path stay refusals,
+in both shapes:
+a directory standing where the merge puts a file
+(refused before the decision,
+so a fast-forward refuses it too),
+and a named pipe,
+a socket or a device at a path the merge writes or deletes.
+Real Git deletes an ignored directory and exits 0 there,
+which measurement showed,
+and `README.md` no longer says native Git refuses such a checkout.
 
 ## Measurements
 
-Two runs of the same script (`/var/home/user/temp/agent/ff-carry/gate-cost.ts`),
-each with fifteen interleaved samples
-of every arm and each arm's own spread;
-a bare `git rev-parse HEAD` is the control for how much of a difference the
-host makes between samples.
-Both runs are on this repository's worktree (23,655 index entries).
-Worktree files and ignored entries change with every agent that runs,
-so the ignored count differs between them.
+The plain fast-forward through the wrapper costs what it did,
+measured on a two-file fixture with the two binaries taking turns in one loop,
+twenty samples each
+(`/var/home/user/temp/agent/ff-carry/latency.ts`,
+load average 52):
 
-The first run,
-at load average around 90 (a bare start:
-median 21.9,
-min 17.3,
-max 61.4):
+- before this change (0.6.1-alpha.12):
+  median 40.3 ms,
+  min 22.4,
+  max 673.2;
+- after it:
+  median 36.8 ms,
+  min 21.4,
+  max 176.5.
 
-- whole-tree `git status --porcelain=v1 -z --untracked-files=all`:
-  median 102.9
-- scoped `git status ... --ignored=traditional -- <20 paths>`:
-  median 47.8
-- scoped `git status ... -- <20 paths>` without the ignored answers:
-  median 39.6
-- `git diff-files --quiet -- <20 paths>`:
-  median 33.7
-- `git diff-index --quiet HEAD -- <20 paths>`:
-  median 30.1
-- `git ls-files --others --exclude-standard -z -- <20 paths>`:
-  median 30.5
-- `git ls-files --others --ignored --exclude-standard -z -- <20 paths>`:
-  median 27.9
-- `git diff-tree -r --name-only HEAD HEAD`:
-  median 34.4
+The question the carry used to ask is off the fast-forward path.
+While it was there it cost about 21 ms on a worktree of this repository's size,
+one scoped `git status --ignored` over the written paths (21.6 ms)
+plus the index marks (11.5 ms),
+against 78.6 ms for a whole-tree status over 23,677 index entries and 88,595 ignored paths
+(`/var/home/user/temp/agent/ff-carry/gate-cost.ts`).
+The guard that remains costs one `symlink_metadata` per written path,
+with no Git start of its own.
 
-The second run,
-on a quiet host (a bare start:
-median 4.2,
-min 3.6,
-max 6.1):
+## The audit's shapes after this change
 
-- whole-tree `git status --porcelain=v1 -z --untracked-files=all`:
-  median 57.5
-- scoped `git status ... --ignored=traditional -- <20 paths>`:
-  median 13.7
-- scoped `git status ... -- <20 paths>` without the ignored answers:
-  median 13.5
-- `git ls-files -v --stage -z -- <20 paths>` (the index marks):
-  median 7.2
-- `git diff-files --quiet -- <20 paths>`:
-  median 9.3
-- `git diff-index --quiet HEAD -- <20 paths>`:
-  median 10.1
-- `git ls-files --others --exclude-standard -z -- <20 paths>`:
-  median 7.5
-- `git ls-files --others --ignored --exclude-standard -z -- <20 paths>`:
-  median 7.5
-- `git diff-tree -r --name-only HEAD HEAD`:
-  median 7.9
+- A named pipe at a path a fast-forward writes or deletes:
+  refused,
+  exit 1,
+  nothing changed
+  (`f07_merge_refuses_where_git_succeeds.ts`,
+  `a_fast_forward_refuses_a_named_pipe_at_a_path_it_adds`).
+- An ignored directory where the merge puts a file:
+  refused,
+  exit 1,
+  named
+  (`a_fast_forward_refuses_a_directory_where_it_puts_a_file`).
+- An ignored untracked file at an added path,
+  an unsaved edit,
+  a staged edit:
+  native Git's own fast-forward,
+  which overwrites the ignored file and refuses the edits with its own words.
+  The wrapper takes no copy and prints nothing of its own
+  (`a_fast_forward_with_an_ignored_file_at_an_added_path_is_still_native_gits`,
+  `a_fast_forward_over_an_unsaved_edit_is_still_native_gits`).
 
-The question is two starts:
-the status over those paths,
-which answers the tracked,
-untracked and ignored ones at once,
-and the listing of the index marks,
-which no status answers.
-That is about 21 ms on a quiet host (13.7 plus 7.2) and
-about 78 ms under the load of the first run (47.8 plus a listing of the same size),
-against an alternative of four
-precise queries at 122 ms under that load.
-The whole plain fast-forward through the wrapper gains that:
-an isolated attempt that forwards keeps the prologue it
-had (`rev-parse`,
-`merge-base`,
-`diff-tree`,
-`git config`) and replaces the staged-work `diff-index` it no longer needs,
-which was 30.1 ms under that load,
-so the net addition is about one start.
-Measured through the wrapper on a two-file fixture at load average around 4,
-twenty samples of each binary taking turns,
-a plain `git merge --no-edit feature` costs 20.4 ms before this change (min 17.3,
-max 3088.5) and 20.1 ms after
-(min 17.9,
-max 334.7),
-which is the same number within a spread the host sets.
+## Evidence
 
-## What the shapes did, measured through the built wrapper
-
-The audit's own differential probes
-(`/var/home/user/temp/agent/sonnet-audits/alpha-12-merge-discarding-commands-lfs-and-package-repair/reproductions`,
-copied to `/var/home/user/temp/agent/ff-carry/reproductions`) run real Git on one copy of a repository
-and the built wrapper on the same copy:
-
-- `git merge --no-edit feature` over an unsaved edit in a file the incoming commit changes:
-  exit 1 with
-  `error: Your local changes ... would be overwritten by merge` before,
-  exit 0 after with Git's own
-  `Updating <a>..<b>` and `Fast-forward` lines,
-  both sides merged in the file,
-  and one parent;
-- the same merge with an ignored untracked file at a path it adds:
-  the person's bytes in no copy before,
-  and in the file,
-  between conflict markers,
-  after;
-- the same merge with an ignored file at an ancestor of a path it adds:
-  gone before,
-  kept whole beside the path after,
-  with the line naming the copy;
-- `git pull --no-rebase` for those shapes:
-  real Git refuses the unsaved and the staged edit (exit 1)
-  and the wrapper now carries them (exit 0),
-  keeps the ignored file at the added path and the ignored file
-  at the ancestor,
-  and carries the `assume-unchanged`,
-  `skip-worktree` and mode-only edits;
-- an ignored named pipe at a path a pull adds:
-  silently gone before,
-  refused after with the pipe still in the
-  checkout,
-  which is the one shape where the wrapper now ends a command nonzero that real Git completes.
-
-## What Git prints, measured
-
-`git merge --ff-only --no-edit -m <text> <commit>`,
-run under
-`GIT_REFLOG_ACTION=merge <branch>`,
-prints and records exactly what
-`git merge --no-edit -m <text> <branch>` prints and records,
-for a fast-forward:
-
-- default,
-  `--stat`,
-  `--ff-only`,
-  `--log`:
-  `Updating <a>..<b>`,
-  `Fast-forward`,
-  then the diffstat with its `create mode`,
-  `delete mode` and `mode change` lines;
-- `--no-stat`,
-  `-n`:
-  the two lines alone;
-- `-q`:
-  nothing;
-- with `-m <text>`:
-  `Fast-forward (no commit created; -m option ignored)`,
-  and the same suffix in the reflog entry.
-
-The child is given the message and no output-hiding option,
-because no Git run the wrapper starts carries `--quiet`
-(`README.md`,
-"No `--quiet` on the wrapper's own Git runs").
-The person's `-q`,
-`--stat` and `--no-stat` hide what they hide for Git
-by cutting what is printed (`merge_isolation_the_fast_forward_child.rs`).
-
-## What the copies a merge keeps beside a path cannot hold, and what is still refused
-
-A file standing at an ancestor of a path the merge writes is kept whole beside it:
-a copy of it is written before Git's update,
-and the entry stays where it is until that update removes it,
-so a merge that stops before the update leaves the checkout as it was;
-a copy whose bytes the entry still holds is removed by the next command as a duplicate
-(`merge_isolation_a_file_where_the_merge_puts_a_directory.rs`).
-
-Two shapes are still refused,
-and both are recorded as refusals that can end a merge nonzero:
-
-- a directory standing where the merge puts a file,
-  holding anything the merge does not delete itself;
-- a named pipe,
-  a socket or a device at a path the merge writes or deletes,
-  or at an ancestor of one.
-
-The copies a merge keeps beside a path move one entry and verify it by its bytes:
-the object its bytes make before the move,
-and the same object again before the private name goes.
-A directory is a tree rather than bytes,
-so a copy of it could neither be checked against what was judged nor ended by any command,
-and Git's own update would delete it with nothing to show the person where its files went.
-Making the copies hold a directory or a special entry needs that proof to come from somewhere else:
-the identity of the whole entry,
-a record that names every path below it,
-and a decision that ends it.
-Until then the refusals stay,
-and they are what protects those entries.
-
-## What the window costs
-
-A merge killed between the copy of an ancestor entry and Git's own update
-leaves the original entry in place and the copy beside it.
-The next command's kept-copy sweep finds the entry still holding the copy's bytes
-and removes the copy as a duplicate,
-and the merge's own recovery then meets the ancestor path when it installs the merge's files:
-a file standing where a directory must go stops that install with the unfinished record named,
-and the person's entry is still in their checkout.
-Nothing is lost,
-and the merge needs somebody to move that entry away before it can finish.
-
-## How this was measured and run
-
-The probes are in `/var/home/user/temp/agent/ff-carry`:
-
-- `gate-cost.ts` (the arms above,
-  interleaved with the control);
-- `git-output.ts` and `git-child-output.ts` (native Git's words against the child's,
-  five option shapes);
-- `ffchoice.ts` (`--ff`,
-  `--ff-only` and `--no-ff` tie-break in the order typed,
-  measured against Git 2.56.0);
-- `status-shapes.ts` (`git status` and `git ls-files` over an ignored file,
-  an ignored directory,
-  an ignored symbolic link,
-  an ignored named pipe,
-  an untracked file,
-  a modified and a staged one,
-  a deleted one,
-  and an ignored file at the ancestor of an added path:
-  status lists no pipe at all,
-  and lists the file below an ignored directory as `!! build/out.bin`).
+`/var/home/user/temp/agent/ff-carry` holds the audit's reproduction copies
+(`reproductions/`,
+`run-repros.sh`),
+the "before" binary (`binaries/before-alpha-12`),
+the measurement scripts (`latency.ts`,
+`gate-cost.ts`)
+and this run's logs.

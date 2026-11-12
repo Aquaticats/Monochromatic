@@ -223,6 +223,12 @@ pub mod merge_isolation_a_directory_the_merge_replaces;
 /// and the sentence that stops the merge before anything is written.
 pub mod merge_isolation_a_special_file_the_merge_changes;
 
+/// What a merge that would fast-forward owes the paths it writes:
+/// whether the whole command is native Git's,
+/// whether it goes on here,
+/// or the refusal that stops it before anything is written.
+pub mod merge_isolation_a_fast_forward_that_would_take_an_entry;
+
 /// The paths a merge changes whose edit Git's status does not show,
 /// because their index entry carries the
 ///  `assume-unchanged` or `skip-worktree` mark.
@@ -275,30 +281,3 @@ pub mod merge_isolation_editor_words;
 
 /// The values an isolated merge passes between its steps.
 pub mod merge_isolation_run_types;
-
-/// The paths whose own work a merge would write over,
-/// untracked and ignored files included,
-/// and the capture that keeps them.
-pub mod merge_isolation_dirty_paths;
-
-/// Whether a merge that would fast-forward keeps native Git's own fast-forward or is carried here,
-/// and the
-///  question about the paths it writes that decides it.
-pub mod merge_isolation_a_fast_forward_in_the_way;
-
-/// The flow of a carried fast-forward,
-/// which moves the branch to the incoming commit and makes no merge commit.
-pub mod merge_isolation_carry_a_fast_forward;
-
-/// The Git child the wrapper runs to move the branch,
-/// and the person's own words it is handed.
-pub mod merge_isolation_the_fast_forward_child;
-
-/// An entry of the person's standing at an ancestor of a path a merge writes,
-/// the copy of it kept beside it,
-///  and the line that says where.
-pub mod merge_isolation_a_file_where_the_merge_puts_a_directory;
-
-/// What a pull reads from its command line,
-/// and the halves its options go to.
-pub mod pull_isolation_the_command_line;
