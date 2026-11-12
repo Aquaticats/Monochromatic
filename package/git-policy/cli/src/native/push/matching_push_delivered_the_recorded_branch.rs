@@ -16,7 +16,24 @@
 //!  The remote that was pushed to is asked instead,
 //! with `git ls-remote`,
 //! and the answer is the ref's own object:
-//! the branch arrived when every push URL of the remote names the commit this push sent.
+//! the branch arrived when every push URL of the remote names the commit this push sent,
+//! or a commit that contains it.
+//!  Containment is the question and not equality.
+//! A matching push names no refspec,
+//! so what it carried is the branch's own tip,
+//!  which is a child of the commit the wrapper fixed before the push when another commit lands in between,
+//! and another client can move the remote's branch past that commit between the push and this question.
+//! The commit is on the remote either way,
+//! which is what the backup promises,
+//!  while equality alone called such a delivery a failure,
+//! told the person the remote might not have the commit,
+//!  and planned a retry that a branch behind its own remote can never pass.
+//!  An ancestry question can only be asked of objects this repository holds,
+//! so a ref naming a commit it has never seen is fetched from that same push URL into the reconcile's private ref
+//! (`auto_push_reconcile_basics_and_limits.rs`) before `git merge-base --is-ancestor` answers;
+//!  a fetch that did not finish,
+//! or an ancestry Git cannot answer,
+//! proves nothing and leaves the push the failure it was.
 //!  Two other sources were tried and are wrong.
 //! The push's own status is the thing that started this.
 //! The remote-tracking ref is a local copy that lags the remote,
@@ -32,7 +49,8 @@
 //! so the setting is where that URL is read from
 //! (`a_matching_push_to_a_push_remote_that_is_a_url_still_publishes_the_branch`).
 //!  A push URL that cannot be asked,
-//! or that names another object,
+//! one whose ref holds neither the commit nor a commit that contains it,
+//! or one whose ancestry this wrapper cannot have answered,
 //! proves nothing and leaves the push the failure it was,
 //!  because a delivery this wrapper cannot prove is never claimed,
 //! and the next push of something the remote already has succeeds and clears the record.
@@ -40,7 +58,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const arrived = gitMatched && exitCode !== 0
-//!   ? (await pushUrls(git, remote)).every((url) => lsRemote(git, [url, refOf(branchRef)]).get(refOf(branchRef)) === landedOid)
+//!   ? (await pushUrls(git, remote)).every((url) => holdsTheCommit({ url, ref: refOf(branchRef), landedOid }))
 //!   : false;
 //! ```
 
@@ -50,6 +68,16 @@ use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query, run_
 /// The two markers Git prints for a refused ref:
 /// the stale `[rejected]` and the remote's own `[remote rejected]`.
 use crate::auto_push_reconcile_basics_and_limits::{REJECTED_MARKER, REMOTE_REJECTED_MARKER};
+/// The ancestry question of two commits,
+/// and the fetch of a remote's own tip into a private ref,
+/// which the reconcile of a refused branch also asks.
+use crate::auto_push_reconcile_basics_and_limits::{
+    fetch_remote_tip, fetch_remote_tip_awaiting, is_ancestor, is_ancestor_awaiting,
+};
+/// Where a push goes:
+/// the remote (a name or a URL) and the ref it updates there,
+/// which is what the fetch of one remote's tip takes.
+use crate::auto_push_destination::Destination;
 /// Owned OS strings for the query's arguments.
 use std::ffi::OsString;
 
@@ -166,27 +194,143 @@ pub(crate) fn urls_the_push_went_to(listing: Option<&str>, remote: &str) -> Vec<
 }
 
 /// What:
-///  Whether every push URL named the commit,
-/// which is what proves the recorded branch arrived.
+///  Whether every push URL proved the commit's arrival,
+/// which is what makes the recorded branch delivered.
 /// Why:
 ///   Git reports a push as done only when every push URL of the remote took it,
-/// so one URL that names nothing else is not a delivery.
-/// No URL at all proves nothing.
+/// so one URL that does not hold the commit is not a delivery.
+/// No URL at all proves nothing,
+/// and neither does a URL this wrapper could not ask nor an ancestry it could not answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// answers.length > 0 && answers.every((answer) => answer === landedOid)
+/// proved.length > 0 && proved.every((answer) => answer === true)
 /// ```
-pub(crate) fn every_url_named_it(answers: &[Option<String>], landed_oid: &str) -> bool {
-    if answers.is_empty() {
+pub(crate) fn every_url_proved_it(proved: &[Option<bool>]) -> bool {
+    if proved.is_empty() {
         return false;
     }
-    for answer in answers {
-        if answer.as_deref() != Some(landed_oid) {
+    for answer in proved {
+        if *answer != Some(true) {
             return false;
         }
     }
     return true;
+}
+
+/// What:
+///  Whether the commit one push URL names on the recorded branch holds the commit this push sent,
+///  asked of this repository's objects and, when it holds none of them, of that URL itself.
+/// Why:
+///  Equality is the common answer and needs no question of its own:
+/// the ref names the commit.
+/// A ref that names another commit still holds this one when the branch moved past it,
+///  through a commit that landed after this push fixed what it may send,
+/// or another client's push between the two.
+///  An ancestry question can only be put of objects this repository holds,
+/// so a ref naming a commit it has never seen is fetched from the URL that named it
+/// (`fetch_the_tip`),
+/// and the object the fetch names is asked instead;
+///  an object that is still not here,
+/// a fetch that did not finish and an ancestry Git cannot answer prove nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsTheCommit = ({ url, remoteRef, landedOid, named }) => {
+///   if (named === landedOid) return true;
+///   const local = isAncestor(landedOid, named); if (local !== undefined) return local;
+///   const fetched = fetchTheTip(url, remoteRef); if (fetched === undefined) return undefined;
+///   return fetched === landedOid ? true : isAncestor(landedOid, fetched);
+/// };
+/// ```
+fn holds_the_commit(git: &PushGit, url: &str, remote_ref: &str, landed_oid: &str, named: &str) -> Result<Option<bool>, SingleFlightError> {
+    if named == landed_oid {
+        return Ok(Some(true));
+    }
+    if let Some(answer) = is_ancestor(git, landed_oid, named)? {
+        return Ok(Some(answer));
+    }
+    let Some(fetched): Option<String> = fetch_the_tip(git, url, remote_ref)? else { return Ok(None) };
+    if fetched == landed_oid {
+        return Ok(Some(true));
+    }
+    return is_ancestor(git, landed_oid, fetched.as_str());
+}
+
+/// What:
+///  The same question,
+/// asked by a caller that is itself a task of the runtime.
+/// Why:
+///   The service's push is a task,
+/// and the synchronous queries of this question enter the runtime and are refused from there.
+/// The rule,
+///  the fetch and the reading of every answer are the synchronous face's,
+/// so the two cannot disagree about a branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await holdsTheCommitOnTheRuntime(git, { url, remoteRef, landedOid, named })
+/// ```
+async fn holds_the_commit_awaiting(git: &PushGit, url: &str, remote_ref: &str, landed_oid: &str, named: &str) -> Result<Option<bool>, SingleFlightError> {
+    if named == landed_oid {
+        return Ok(Some(true));
+    }
+    if let Some(answer) = is_ancestor_awaiting(git, landed_oid, named).await? {
+        return Ok(Some(answer));
+    }
+    let Some(fetched): Option<String> = fetch_the_tip_awaiting(git, url, remote_ref).await? else { return Ok(None) };
+    if fetched == landed_oid {
+        return Ok(Some(true));
+    }
+    return is_ancestor_awaiting(git, landed_oid, fetched.as_str()).await;
+}
+
+/// What:
+///  The commit one push URL's ref names, fetched into the reconcile's private ref.
+/// Why:
+///  The ancestry of an object this repository does not hold can only be learned from the remote that has it,
+/// and the fetch a refused branch already makes is the machinery that does it:
+/// a private ref named for this process (never the `FETCH_HEAD` every fetch shares),
+///  swept of a killed instance's leftovers,
+///  deleted before this returns,
+///  and held to the push's own patience.
+/// A URL the push went to is a remote `git fetch` accepts as readily as `git push` does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fetched = await fetchRemoteTip({ destination: { remote: url, mergeRef: remoteRef } });
+/// return 'commit' in fetched ? fetched.commit : undefined;
+/// ```
+fn fetch_the_tip(git: &PushGit, url: &str, remote_ref: &str) -> Result<Option<String>, SingleFlightError> {
+    let destination: Destination = Destination { remote: url.to_owned(), merge_ref: remote_ref.to_owned() };
+    return Ok(match fetch_remote_tip(git, &destination)? {
+        Ok(tip) => Some(tip),
+        // A fetch that did not finish names nothing this wrapper can prove.
+        Err(_said) => None,
+    });
+}
+
+/// What:
+///  The same fetch,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///  The service's push is a task,
+/// and the fetch enters the runtime on the synchronous face and is refused from there;
+/// the ref name,
+/// the deletion and the reading of what Git said are that face's,
+/// so the two cannot leave different scaffolding behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await fetchTheTipOnTheRuntime(git, { url, remoteRef })
+/// ```
+async fn fetch_the_tip_awaiting(git: &PushGit, url: &str, remote_ref: &str) -> Result<Option<String>, SingleFlightError> {
+    let destination: Destination = Destination { remote: url.to_owned(), merge_ref: remote_ref.to_owned() };
+    return Ok(match fetch_remote_tip_awaiting(git, &destination).await? {
+        Ok(tip) => Some(tip),
+        // A fetch that did not finish names nothing this wrapper can prove.
+        Err(_said) => None,
+    });
 }
 
 /// What:
@@ -288,7 +432,7 @@ fn argv_of<'text>(arguments: &[&'text str]) -> Vec<OsString> {
 /// if (!asksTheRemote(push.gitMatched, push.exitCode)) return false;
 /// const ref = remoteRefOf(push.branchRef); if (ref === undefined) return false;
 /// const urls = pushUrls(git, push.remote); if (urls.length === 0) return false;
-/// return everyUrlNamedIt(urls.map((url) => lsRemote(git, [url, ref])), push.landedOid);
+/// return everyUrlProvedIt(urls.map((url) => holdsTheCommit({ url, remoteRef: ref, landedOid: push.landedOid, named: lsRemote(git, [url, ref]) })));
 /// ```
 pub(crate) fn delivered_although_git_failed(git: &PushGit, push: &MatchingPush<'_>) -> Result<bool, SingleFlightError> {
     if !asks_the_remote(push.git_matched, push.exit_code) {
@@ -303,16 +447,20 @@ pub(crate) fn delivered_although_git_failed(git: &PushGit, push: &MatchingPush<'
         Ok(_) => None,
         Err(_) => return Ok(false),
     };
-    let mut answers: Vec<Option<String>> = Vec::new();
+    let mut proved: Vec<Option<bool>> = Vec::new();
     for url in urls_the_push_went_to(listing.as_deref(), push.remote) {
         let answer = match run_query(git, argv_of(&ask_arguments(url.as_str(), remote_ref.as_str())).as_slice()) {
             Ok(output) if output.code == Some(0) => output,
             // A push URL that cannot be asked holds nothing this wrapper can prove.
             Ok(_) | Err(_) => return Ok(false),
         };
-        answers.push(object_named_by(String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(), remote_ref.as_str()));
+        let Some(named): Option<String> = object_named_by(String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(), remote_ref.as_str()) else {
+            // A ref the listing does not name holds nothing, and neither does a listing this release cannot read.
+            return Ok(false);
+        };
+        proved.push(holds_the_commit(git, url.as_str(), remote_ref.as_str(), push.landed_oid, named.as_str())?);
     }
-    return Ok(every_url_named_it(answers.as_slice(), push.landed_oid));
+    return Ok(every_url_proved_it(proved.as_slice()));
 }
 
 /// What:
@@ -342,16 +490,20 @@ pub(crate) async fn delivered_although_git_failed_awaiting(git: &PushGit, push: 
         Ok(_) => None,
         Err(_) => return Ok(false),
     };
-    let mut answers: Vec<Option<String>> = Vec::new();
+    let mut proved: Vec<Option<bool>> = Vec::new();
     for url in urls_the_push_went_to(listing.as_deref(), push.remote) {
         let answer = match run_query_awaiting(git, argv_of(&ask_arguments(url.as_str(), remote_ref.as_str())).as_slice()).await {
             Ok(output) if output.code == Some(0) => output,
             // A push URL that cannot be asked holds nothing this wrapper can prove.
             Ok(_) | Err(_) => return Ok(false),
         };
-        answers.push(object_named_by(String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(), remote_ref.as_str()));
+        let Some(named): Option<String> = object_named_by(String::from_utf8_lossy(answer.stdout.as_slice()).as_ref(), remote_ref.as_str()) else {
+            // A ref the listing does not name holds nothing, and neither does a listing this release cannot read.
+            return Ok(false);
+        };
+        proved.push(holds_the_commit_awaiting(git, url.as_str(), remote_ref.as_str(), push.landed_oid, named.as_str()).await?);
     }
-    return Ok(every_url_named_it(answers.as_slice(), push.landed_oid));
+    return Ok(every_url_proved_it(proved.as_slice()));
 }
 
 /// The judgement's own controls stay out of the release executable.

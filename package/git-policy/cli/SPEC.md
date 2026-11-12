@@ -7507,16 +7507,25 @@ in-process reader can) gives every value of the multi-valued keys.
   after a matching push that failed,
   `git remote get-url --push --all <remote>` names the URLs the push went to,
   one `git ls-remote --refs <url> refs/heads/<name>` per URL names the object that ref holds there,
-  and a push is reported as published only when every one of them names the commit it sent,
+  and a push is reported as published only when every one of them holds the commit it sent:
+  the ref names that commit,
+  or a commit that contains it,
   while the service journal names the refused sibling from Git's own line for it,
   and the report a later command shows carries that line as well,
   because a push whose recorded branch arrived keeps every line Git wrote.
   A refused sibling is then no failure of this branch and plans no retry.
   A matching push names no refspec,
   so the commit every URL is asked for is the one the branch named before the push read the worktree's verdicts;
-  a branch that moves while such a push runs leaves a URL naming another commit,
-  which proves nothing and leaves the push the failure it was,
-  so the retry that publishes the branch is still planned.
+  a commit that lands before such a push sends the branch's newer tip,
+  and another client can move the remote's branch past that commit between the push and the question,
+  so a URL usually names a commit that contains it rather than the commit itself.
+  Containment is proved by `git merge-base --is-ancestor <sent> <ref's object>`,
+  and an object this repository does not hold is first fetched from that same URL into the reconcile's private ref
+  (`refs/cli-git/auto-push/fetch-<pid>`,
+  swept and deleted as the reconcile's is,
+  written with `--no-write-fetch-head` so the file every fetch shares is left alone),
+  because only the remote that has the object can answer for it.
+  The fetch is held to the push's own patience, like the reconcile's.
   Neither the remote-tracking ref nor the remote's fetch URL can answer this:
   the tracking ref lags the remote,
   so it still names a commit whose branch the remote deleted and reads a push to an unreachable
@@ -7528,7 +7537,8 @@ in-process reader can) gives every value of the multi-valued keys.
   since `git remote get-url` answers nothing for one
   and the setting is where it is written down.
   A push URL that cannot be asked,
-  or that names another object,
+  one whose ref holds neither the commit nor a commit that contains it,
+  or one whose fetch or ancestry question did not answer,
   proves nothing and leaves the push the failure it was,
   so the retry that publishes the branch is still planned.
 

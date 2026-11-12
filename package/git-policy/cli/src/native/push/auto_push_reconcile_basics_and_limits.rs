@@ -228,15 +228,16 @@ const PRIVATE_FETCH_NAMESPACE: &str = "refs/cli-git/auto-push/";
 /// its fetch writes the same name again,
 /// and a kill between the fetch and the deletion leaves one.
 ///
-/// Why a control still calls it:
+/// Why a caller that is not the loop still asks this face:
 ///   The loop sweeps through the awaited face (`sweep_private_fetch_refs_awaiting`),
-/// and the control that compares the two faces asks both.
+/// and the delivery proof of a failed matching push sweeps and fetches through this one
+/// (`matching_push_delivered_the_recorded_branch.rs`),
+/// whose control compares the two faces as well.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (const ref of await git.for_each_ref(PRIVATE_FETCH_PREFIX)) if (!isAlive(pidOf(ref)) || pidOf(ref) === process.pid) await git.update_ref(['-d', ref]);
 /// ```
-#[cfg(test)]
 pub(crate) fn sweep_private_fetch_refs(git: &PushGit) -> Result<(), SingleFlightError> {
     let listed = run_query(git, &argv(&["for-each-ref", "--format=%(refname)", PRIVATE_FETCH_NAMESPACE]))?;
     if listed.code != Some(0) {
@@ -268,22 +269,23 @@ pub(crate) fn process_is_alive(pid: u64) -> bool {
 ///  Fetch the remote branch into a private ref and return the commit it names.
 /// Why:
 ///   `FETCH_HEAD` is shared by every fetch in the repository,
-/// so another process could replace it between the fetch
-///  and the read;
-/// a ref named for this process cannot be replaced,
-/// and it is deleted before this returns.
+/// so another process's `git pull` may be reading it,
+///  and the fetch writes none of it (`--no-write-fetch-head`);
+/// a ref named for this process cannot be replaced by another's fetch either,
+///  and it is deleted before this returns.
 ///   The refs a killed instance left are swept first,
-/// so a leak lasts until the next reconcile instead of for good.
+/// so a leak lasts until the next fetch instead of for good.
 ///
-/// Why a control still calls it:
+/// Why a caller that is not the loop still asks this face:
 ///   The loop fetches through the awaited face (`fetch_remote_tip_awaiting`),
-/// and the control that compares the two faces asks both.
+/// and the delivery proof of a failed matching push fetches the tip its own question needs through this one
+/// (`matching_push_delivered_the_recorded_branch.rs`),
+/// whose control compares the two faces as well.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function fetchRemoteTip({ destination }): Promise<string | PushAttempt>;
 /// ```
-#[cfg(test)]
 pub(crate) fn fetch_remote_tip(
     git: &PushGit,
     destination: &Destination,
@@ -294,6 +296,7 @@ pub(crate) fn fetch_remote_tip(
     let arguments = argv(&[
         "fetch",
         "--no-tags",
+        "--no-write-fetch-head",
         &destination.remote,
         &refspec,
     ]);
@@ -304,7 +307,7 @@ pub(crate) fn fetch_remote_tip(
         return Ok(Err(fetched));
     }
     // The fetch carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
-    record_text(&["fetch", "--no-tags", destination.remote.as_str(), refspec.as_str()], fetched.output.as_str());
+    record_text(&["fetch", "--no-tags", "--no-write-fetch-head", destination.remote.as_str(), refspec.as_str()], fetched.output.as_str());
     let tip = git_output(
         git,
         &argv(&[

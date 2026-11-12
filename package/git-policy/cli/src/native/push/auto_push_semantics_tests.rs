@@ -575,6 +575,74 @@ fn a_matching_push_whose_sibling_the_remote_refused_still_publishes_the_branch()
 }
 
 /// What:
+///  Another client moves the recorded branch past the commit this push sent,
+///  so the remote's ref names a child of it rather than the commit itself.
+/// Why:
+///  The service is the only pusher of the repositories it serves,
+/// but not the only client of the remote:
+///  a second worktree, a laptop or a colleague can push between this push and the question about it,
+/// and the remote then holds the commit as an ancestor.
+///  The backup is the commit's arrival,
+/// which the remote proved either way,
+/// so demanding that the ref name the commit itself reported a delivered commit as a failure;
+///  and the retry could never clear,
+/// because the local branch stays behind the remote and every later matching push of it is refused for that ref.
+#[test]
+fn a_matching_push_whose_remote_moved_past_the_commit_still_proves_the_delivery() {
+    let rig = rig("aps-matching-remote-moved-past");
+    let landed: String = publish_feature_and_commit_again(&rig);
+    // What this push sends is published, and another client then commits on top of it.
+    git(&rig.repo, &["push", "--quiet", "origin", &format!("{BRANCH}:{BRANCH}")]);
+    move_main_on_the_remote_only(&rig);
+    move_the_remote_branch_on(&rig, BRANCH);
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    let remote_tip: String = remote_refs(&rig.remote).get(BRANCH_REF).expect("the remote's branch").clone();
+    assert_ne!(remote_tip, landed, "another client moved the remote past the commit this push sent");
+    assert!(
+        git_output(&rig.remote, &["merge-base", "--is-ancestor", landed.as_str(), remote_tip.as_str()]).status.success(),
+        "the remote's branch holds the commit this push sent"
+    );
+    let (result, err) = service_push_of(&rig, landed.as_str());
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(result.exit_code, 0, "{err}");
+    assert!(!err.contains(PUSH_FAILED_NOTE), "a delivery the remote proves is not reported as a failed backup: {err}");
+    assert!(result.shown.contains("rejected"), "Git's line about the sibling is kept: {}", result.shown);
+    remove(&rig.root);
+}
+
+/// What:
+///  A commit lands on the recorded branch after the push fixed the commit it may send,
+///  so the matching push carries the branch's newer tip.
+/// Why:
+///  A matching push names no refspec,
+/// so Git sends the branch's own tip,
+/// which is a child of the commit the service fixed when the next commit lands in between;
+///  the new tip contains that commit,
+/// so the remote proves the commit arrived although its ref names the newer commit.
+///  Read as a failure it told the person the remote might not have the commit,
+/// and the retry that followed published a branch it had already published.
+#[test]
+fn a_matching_push_whose_branch_moved_past_the_captured_commit_still_proves_the_delivery() {
+    let rig = rig("aps-matching-branch-moved-past");
+    let captured: String = publish_feature_and_commit_again(&rig);
+    move_main_on_the_remote_only(&rig);
+    git(&rig.repo, &["config", "push.default", "matching"]);
+    // The branch moves after the service fixed the commit its push may send.
+    git(&rig.repo, &["commit", "--quiet", "--allow-empty", "--message=lands while the push runs"]);
+    let later: String = head_of(rig.repo.as_path());
+    let (result, err) = service_push_of(&rig, captured.as_str());
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(result.exit_code, 0, "{err}");
+    assert_eq!(remote_refs(&rig.remote).get(BRANCH_REF), Some(&later), "the branch's newer tip arrived");
+    assert!(
+        git_output(&rig.remote, &["merge-base", "--is-ancestor", captured.as_str(), later.as_str()]).status.success(),
+        "the tip the remote holds contains the commit the service fixed"
+    );
+    assert!(!err.contains(PUSH_FAILED_NOTE), "a delivery the remote proves is not reported as a failed backup: {err}");
+    remove(&rig.root);
+}
+
+/// What:
 ///  A remote's push URL is where the push went,
 /// so a branch the fetch URL holds proves nothing about it.
 /// Why:

@@ -5,7 +5,7 @@
 //! and that a remote which cannot be asked proves nothing.
 
 use super::*;
-use crate::test_support::{fixture, git, remove};
+use crate::test_support::{fixture, git, git_output, remove};
 use std::path::PathBuf;
 
 /// A branch of `refs/heads` is sent to the ref of its own name.
@@ -64,18 +64,18 @@ fn the_push_urls_are_the_lines_that_name_one() {
     assert!(urls_of("\n  \n").is_empty());
 }
 
-/// Every push URL must name the commit,
+/// Every push URL must prove the commit's arrival,
+/// by holding it or a commit that contains it,
 /// and no URL proves nothing.
 #[test]
-fn every_push_url_must_name_the_commit() {
-    let landed: &str = "3f786850e387550fdab836ed7e6dc881de23001b";
-    let one: Option<String> = Some(String::from(landed));
-    let other: Option<String> = Some(String::from("89e6c98d92887913ead7cdc37f937e1cc95807c6"));
-    assert!(every_url_named_it(std::slice::from_ref(&one), landed), "one URL that names it");
-    assert!(every_url_named_it(&[one.clone(), one.clone()], landed), "two URLs that both name it");
-    assert!(!every_url_named_it(&[one.clone(), other], landed), "one URL that names another object");
-    assert!(!every_url_named_it(&[one.clone(), None], landed), "one URL that could not be asked");
-    assert!(!every_url_named_it(&[], landed), "no URL at all");
+fn every_push_url_must_prove_the_delivery() {
+    let yes: Option<bool> = Some(true);
+    let no: Option<bool> = Some(false);
+    assert!(every_url_proved_it(std::slice::from_ref(&yes)), "one URL that holds it");
+    assert!(every_url_proved_it(&[yes, yes]), "two URLs that both hold it");
+    assert!(!every_url_proved_it(&[yes, no]), "one URL whose ref does not hold it");
+    assert!(!every_url_proved_it(&[yes, None]), "one URL whose ancestry could not be answered");
+    assert!(!every_url_proved_it(&[]), "no URL at all");
 }
 
 /// A remote the repository names answers with its own push URLs,
@@ -118,6 +118,71 @@ fn the_commit_the_remote_names_was_delivered() {
     let (root, push_git, landed): (PathBuf, PushGit, String) = published("mpdtr-delivered");
     let push: MatchingPush<'_> = MatchingPush { git_matched: true, remote: "origin", branch_ref: "refs/heads/main", exit_code: 1, landed_oid: landed.as_str() };
     assert!(delivered_although_git_failed(&push_git, &push).expect("the question is put"), "the remote names the commit");
+    remove(&root);
+}
+
+/// What:
+///  A remote's branch that holds the commit as one of its ancestors proves the delivery,
+///  although the ref names a child of it.
+/// Why:
+///  A matching push names no refspec,
+/// so what it carried is the branch's own tip,
+/// which can be a child of the commit the wrapper fixed before the push;
+///  and another client can move the branch past that commit between the push and this question.
+/// The commit is on the remote either way,
+/// which is what the backup promises,
+/// and an answer that demanded the ref name the commit itself left the push a failure and its retry planned for good.
+#[test]
+fn a_remote_naming_a_child_of_the_commit_proves_the_delivery() {
+    let (root, push_git, landed): (PathBuf, PushGit, String) = published("mpdtr-contains-locally");
+    git(&push_git.cwd, &["commit", "--quiet", "--allow-empty", "--message=later work"]);
+    git(&push_git.cwd, &["push", "--quiet", "origin", "HEAD:refs/heads/main"]);
+    let advanced: String = String::from_utf8_lossy(&git(&push_git.cwd, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
+    assert!(
+        git_output(&push_git.cwd, &["merge-base", "--is-ancestor", landed.as_str(), advanced.as_str()]).status.success(),
+        "the remote's branch holds the commit as an ancestor"
+    );
+    let push: MatchingPush<'_> = MatchingPush { git_matched: true, remote: "origin", branch_ref: "refs/heads/main", exit_code: 1, landed_oid: landed.as_str() };
+    assert!(delivered_although_git_failed(&push_git, &push).expect("the question is put"), "the remote's branch holds the commit");
+    remove(&root);
+}
+
+/// What:
+///  A remote whose branch holds the commit beyond an object this repository never fetched proves the delivery,
+///  and the question leaves the repository as it found it.
+/// Why:
+///  Another client's commit is not among this repository's objects,
+/// so the branch's own ref is fetched into the reconcile's private ref to answer;
+///  that ref is scaffolding and is deleted,
+/// and `FETCH_HEAD` is the one file every fetch in a repository shares,
+/// which another command's `git pull` reads,
+/// so the fetch writes none.
+#[test]
+fn a_remote_whose_branch_holds_an_unfetched_child_proves_the_delivery() {
+    let (root, push_git, landed): (PathBuf, PushGit, String) = published("mpdtr-contains-remotely");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    // Another client of the remote, which is the bare repository `published` made beside the clone under test.
+    git(&root, &["clone", "--quiet", root.join("remote.git").to_str().expect("utf-8"), elsewhere.to_str().expect("utf-8")]);
+    git(&elsewhere, &["commit", "--quiet", "--allow-empty", "--message=another client"]);
+    let advanced: String = String::from_utf8_lossy(&git(&elsewhere, &["rev-parse", "HEAD"]).stdout).trim().to_owned();
+    git(&elsewhere, &["push", "--quiet", "origin", "HEAD:refs/heads/main"]);
+    // The positive control: the commit that holds the one this push sent is not here until the question fetches it.
+    assert!(
+        !git_output(&push_git.cwd, &["cat-file", "-e", format!("{advanced}^{{commit}}").as_str()]).status.success(),
+        "another client's commit is not in this repository"
+    );
+    let push: MatchingPush<'_> = MatchingPush { git_matched: true, remote: "origin", branch_ref: "refs/heads/main", exit_code: 1, landed_oid: landed.as_str() };
+    assert!(delivered_although_git_failed(&push_git, &push).expect("the question is put"), "the remote's branch holds the commit");
+    assert!(
+        git_output(&push_git.cwd, &["cat-file", "-e", format!("{advanced}^{{commit}}").as_str()]).status.success(),
+        "the question fetched the object it needed to answer"
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&git(&push_git.cwd, &["for-each-ref", "--format=%(refname)", "refs/cli-git/auto-push/"]).stdout).trim(),
+        "",
+        "the private fetch ref the question made is gone"
+    );
+    assert!(!push_git.cwd.join(".git").join("FETCH_HEAD").exists(), "the file every fetch shares is left alone");
     remove(&root);
 }
 
@@ -165,5 +230,35 @@ fn the_awaited_face_answers_as_the_synchronous_one() {
     })
     .expect("the runtime answers");
     assert_eq!(answered, (true, false));
+    remove(&root);
+}
+
+/// What:
+///  The awaited face proves a delivery the remote's own object is needed for,
+///  and leaves the file every fetch shares alone as the synchronous one does.
+/// Why:
+///  The service's push is a task of the runtime and asks this face,
+/// so the fetch that proves an ancestry beyond this repository's objects is made as a task:
+///  a synchronous query there would be refused and the delivery would stay unproven,
+/// which is the false failure this face's control exists for.
+#[test]
+fn the_awaited_face_proves_a_delivery_that_needs_the_remotes_own_object() {
+    let (root, push_git, landed): (PathBuf, PushGit, String) = published("mpdtr-awaited-contains");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    git(&root, &["clone", "--quiet", root.join("remote.git").to_str().expect("utf-8"), elsewhere.to_str().expect("utf-8")]);
+    git(&elsewhere, &["commit", "--quiet", "--allow-empty", "--message=another client"]);
+    git(&elsewhere, &["push", "--quiet", "origin", "HEAD:refs/heads/main"]);
+    let push: MatchingPush<'_> = MatchingPush { git_matched: true, remote: "origin", branch_ref: "refs/heads/main", exit_code: 1, landed_oid: landed.as_str() };
+    let answered = crate::lazy_runtime::run_on_runtime(async {
+        return delivered_although_git_failed_awaiting(&push_git, &push).await.expect("the question is put");
+    })
+    .expect("the runtime answers");
+    assert!(answered, "the remote's branch holds the commit this push sent");
+    assert!(!push_git.cwd.join(".git").join("FETCH_HEAD").exists(), "the file every fetch shares is left alone");
+    assert_eq!(
+        String::from_utf8_lossy(&git(&push_git.cwd, &["for-each-ref", "--format=%(refname)", "refs/cli-git/auto-push/"]).stdout).trim(),
+        "",
+        "the private fetch ref the question made is gone"
+    );
     remove(&root);
 }

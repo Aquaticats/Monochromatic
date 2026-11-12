@@ -1330,6 +1330,52 @@ fn a_failed_push_whose_output_names_a_url_with_a_password_leaves_it_in_no_file_t
     remove(stage.root.as_path());
 }
 
+/// Another client of the stage's remote commits on `main` and publishes it,
+/// so the remote's branch moves past the commit the stage's push sends.
+/// Gives the commit it published.
+///  The bare remote's `HEAD` names no branch,
+/// so the clone checks nothing out and the branch is taken from the remote's own ref:
+/// a commit made on the unborn `master` a clone leaves would publish an unrelated history.
+fn another_client_moves_the_remote_past(stage: &Stage) -> String {
+    let elsewhere: PathBuf = stage.root.join("elsewhere");
+    git(&stage.root, &["clone", "--quiet", stage.remote.to_str().expect("utf-8"), elsewhere.to_str().expect("utf-8")]);
+    git(&elsewhere, &["config", "user.name", "Elsewhere"]);
+    git(&elsewhere, &["config", "user.email", "elsewhere@example.invalid"]);
+    git(&elsewhere, &["switch", "--quiet", "--create", "main", "--track", "origin/main"]);
+    git(&elsewhere, &["commit", "--quiet", "--allow-empty", "--message=another client"]);
+    git(&elsewhere, &["push", "--quiet", "origin", "main:main"]);
+    return git_text(&elsewhere, &["rev-parse", "HEAD"]);
+}
+
+/// What:
+///  A commit the remote already holds is no failed backup when another client moved the branch past it,
+///  so the person reads no failure record and the service plans no try.
+/// Why:
+///  The service is not the only client of a remote,
+/// so the branch it pushes can have moved on between the push that carried the commit and the question about it.
+///  A matching push's status is non-zero for the branch the remote refused,
+/// so the question decides the commit's fate:
+/// a judgement that demanded the ref name the commit itself read the answer "not delivered",
+///  planned a retry,
+/// and left the person a record saying the remote might not have the commit;
+///  the retry could never clear,
+/// because the local branch is behind the remote and every later push of it is refused the same way.
+#[test]
+fn a_matching_push_whose_remote_moved_past_the_commit_leaves_no_record_and_no_plan() {
+    let stage: Stage = stage_without_a_hook("push-matching-remote-moved-past");
+    // The commit this push sends is published, and another client then commits on top of it on the remote.
+    git(stage.repo.as_path(), &["push", "--quiet", "origin", "main:main"]);
+    let advanced: String = another_client_moves_the_remote_past(&stage);
+    git(stage.repo.as_path(), &["config", "push.default", "matching"]);
+    assert_eq!(remote_tip(&stage), advanced, "the remote's branch moved past the commit this push sends");
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let planned: Option<Duration> = round_with_real_git(&stage, &mut retries);
+    assert_eq!(notices(&stage), 0, "a commit the remote holds is not a failed backup: {}", notice_text(&stage));
+    assert!(retries.directories().is_empty(), "no plan names the repository");
+    assert_eq!(planned, None, "nothing is left to try again");
+    remove(stage.root.as_path());
+}
+
 /// A push that cannot reach the remote at all is still tried again by the service.
 #[test]
 fn an_offline_push_is_still_tried_again() {
