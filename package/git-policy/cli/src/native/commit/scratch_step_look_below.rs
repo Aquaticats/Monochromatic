@@ -131,7 +131,8 @@ fn the_state_a_control_states(found: &mut Vec<(i32, ProcessUse)>, step: i32, hel
 }
 
 /// What:
-///  The process the kernel holds in a disk wait, below a step,
+///  The process the kernel holds in a disk wait,
+///  below a step,
 ///  read in one look.
 /// Why:
 ///  A ceiling that comes for a step the kernel holds must stand aside instead of ending it,

@@ -263,7 +263,8 @@ fn a_stop_of_the_service_ends_the_step_before_its_ceiling() {
 }
 
 /// What:
-///  A step the kernel holds in a disk wait past its ceiling is waited for, and lands when it ends.
+///  A step the kernel holds in a disk wait past its ceiling is waited for,
+///  and lands when it ends.
 /// Why:
 ///   Ending a step that waits for the disk fails a commit that would have landed:
 ///  on 2026-11-11 two commits failed that way,

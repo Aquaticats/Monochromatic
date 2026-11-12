@@ -804,7 +804,8 @@ const A_SIGNER_STARTS: std::time::Duration = std::time::Duration::from_secs(20);
 ///   No run on this host can put a process into uninterruptible sleep (`BOX`),
 ///  and a control of a scratch step that outlasts its ceiling needs a program below the step that is slow:
 ///  the signer is the one program the step starts that the commit's own configuration can replace.
-///  What a control states is the kernel's answer about this program, and nothing else.
+///  What a control states is the kernel's answer about this program,
+///  and nothing else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -857,7 +858,8 @@ fn the_number_in(file: &Path, bound: std::time::Duration) -> i32 {
 ///  and the branch it prepared holds exactly one commit.
 /// Why:
 ///   On 2026-11-11 an ordinary commit failed this way and the same command succeeded eleven seconds later:
-///  the step was slow, not stuck,
+///  the step was slow,
+///  not stuck,
 ///  and the ceiling ended a commit that would have landed.
 ///  The control states the kernel's answer about the signer,
 ///  which is the whole of what a stalled disk gives the step,

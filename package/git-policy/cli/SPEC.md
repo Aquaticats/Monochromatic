@@ -5558,13 +5558,29 @@ and when the step is stopped:
 a commit whose message came with the command (`-m`,
 `-F`,
 `-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`,
-16,332 ms:
-three times the slowest `git commit` step record that is not one of the three over 26 s,
-5,444 ms,
-in the 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5 read on 2026-11-09;
-owner,
-2026-11-08,
-"About 16 seconds"),
+60,000 ms:
+three times the slowest `git commit` step that ended by itself,
+12,735 ms,
+in the 1,433 steps of the eight generations the timing log held on 2026-11-12,
+raised to the 60,000 ms floor `SCRATCH_COMMIT_STEP_CEILING_FLOOR`
+because a ceiling read from one generation swings with the rotation,
+which is what the 16,332 ms of three times a 5,444 ms record did on 2026-11-11,
+when an ordinary commit reached it inside a disk wait and failed:
+its step ran 47,978 ms,
+and a second commit failed the same way at 37,153 ms),
+and a step that reaches that ceiling while the kernel holds it in a call a signal cannot end is slow and not stuck,
+so the ceiling stands aside once for it:
+the step is waited for to `SCRATCH_COMMIT_STEP_STALL_CEILING` (`service/wait_ceilings.rs`,
+300,000 ms:
+6.2 times the slower of those two steps,
+and 23 times the slowest step that ended by itself),
+one line says the ceiling stood aside,
+how long the step has lasted,
+the process the kernel is holding and the bound it now runs under,
+the wait that owns the step is the one that says it,
+the record keeps the moment (`heldAfterCeilingMs`) and the bound (`stallCeilingMs`),
+and a step the kernel holds past that bound is ended as any step at its ceiling is,
+with words that say it was already waited for;
 that `git commit` and the processes it started ended with `SIGKILL` and no other child of the command touched
 (the notice holds the pidfd the step was given the moment it started and signals through it and nothing else,
 reads the programs below the step first and asks that descriptor afterwards whether the step is still there,
@@ -5588,7 +5604,7 @@ and nothing here reads a number
 (the wait that owns the step ends it instead,
 below);
 and a step the kernel has not released is said,
-once and again for as long as the wait lasts,
+once,
 in a line of its own:
 a process in uninterruptible sleep (`D`) cannot act on `SIGKILL` until the call it is inside returns,
 so the commit waits the kernel's time,
@@ -5611,7 +5627,10 @@ both find in uninterruptible sleep,
 so a process that acts on its stop in that interval is never said to be held;
 the wait that owns the step says that line and not the notice's thread,
 which a process at its thread limit never started,
-and it says the line again at every notice interval until the step is reaped;
+and it says that line once:
+a person who met the same sentence three times in one failed commit read nothing new the second time
+(2026-11-11,
+the release 0.6.1-alpha.11 that failed a commit in a disk wait);
 a look that could not be made decides nothing and is made again,
 so a `/proc` that refused one read never silences the explanation of a wait that lasts;
 a line the writer could not take is handed over again as soon as it can take one,
@@ -5654,8 +5673,11 @@ while the step still holds its number,
 and ended through descriptors pinned the same way,
 with every program it could not pin or not signal counted as `belowUnended`,
 so the stop says what it could not end instead of reporting a walk that ended everything it listed;
+and the ceiling comes only after that wait asks one look whether the kernel holds the step,
+which is what tells a slow step from a stuck one,
+because a held step is waited for to `SCRATCH_COMMIT_STEP_STALL_CEILING` and never ended at the ceiling it reached;
 and the child is reaped there,
-and a child the kernel holds in an uninterruptible call is waited for with no bound,
+and a child the kernel holds in an uninterruptible call is waited for with no bound after that,
 so the kernel's release of it is what ends the command
 (the owner's answer of 2026-11-10,
 "Keep waiting and say so",
@@ -5675,9 +5697,10 @@ A stop is written once,
 by whichever enforcer ended the step first,
 and the wait's own record sets `armed` for a step whose notice thread never ran.
 There is no state in which a commit under a ceiling waits with nothing to end its step:
-a step the kernel holds is signalled already,
-and the only wait left is the kernel's release of it,
-which the owner chose to wait for and the notice's line names.
+a step the kernel holds is waited for to the bound this package measured,
+and one it still holds past that bound is signalled,
+so the only wait left is the kernel's release of it,
+which the owner chose to wait for and the wait's one line names.
 
 ##### What a stop reads about a step, and what it sends
 

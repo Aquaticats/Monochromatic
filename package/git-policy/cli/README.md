@@ -4508,33 +4508,31 @@ Each line names what the command waits for,
    and says when the step is stopped.
    When the message came with the command (`-m`,
   `-F`,
-  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (16,332 ms,
-  three times the slowest
-  `git commit` step record that is not one of the three over 26 s,
-  5,444 ms,
-  over 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5;
-  owner,
-  2026-11-08,
-  "About 16 seconds",
-  after "About 3 s now" on the same day and "limit unless editor" on 2026-11-07;
+  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (60,000 ms:
+  three times the slowest `git commit` step that ended by itself,
+  12,735 ms,
+  over the 1,433 steps of the eight generations the timing log held on 2026-11-12,
+  raised to the one-minute floor `SCRATCH_COMMIT_STEP_CEILING_FLOOR` because a ceiling read from one generation
+  swings with the rotation;
   `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS` sets another ceiling in whole seconds):
    everything below the command is ended,
    nothing is committed,
    the person's index and files are as they were,
    and the same command can be run again.
-   The owner chose this knowing that on the data of 2026-11-07 it would have failed commits whose builds took 11 to 406 s;
-   those builds were a retry index without stat data,
-   which is fixed.
-   On the log of 2026-11-08 it still refuses three commits,
-   whose steps ran 26,256,
-   36,651 and 171,383 ms,
-   and the owner asked for each of them to be investigated.
+   A step that reaches that ceiling while the kernel holds it in a disk wait is slow and not stuck,
+   so the ceiling stands aside once for it and the step is waited for to `SCRATCH_COMMIT_STEP_STALL_CEILING`
+   (300,000 ms,
+  6.2 times the slower of the two steps the kernel held here on 2026-11-11),
+  and one line says the ceiling stood aside and names that bound.
+   The 16,332 ms this replaces was three times a 5,444 ms record,
+   and on 2026-11-11 it failed two ordinary commits whose steps were waiting for the disk
+  (37,153 and 47,978 ms).
    A step the kernel does not release is waited for with no bound:
    a process in uninterruptible sleep (state `D`,
    a stalled disk or a file system that stopped answering)
    cannot act on the `SIGKILL` until the call it is inside returns,
    so the wait that keeps waiting says,
-   once and again for as long as it lasts,
+   once,
    that the stop was sent and the kernel has not released the step,
    names that `git commit` and the process the kernel is holding
    (the step itself or a program it started),

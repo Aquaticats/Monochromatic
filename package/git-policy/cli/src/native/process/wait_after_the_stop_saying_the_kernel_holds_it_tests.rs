@@ -176,14 +176,16 @@ fn a_wait_whose_notice_thread_was_refused_still_says_the_kernel_holds_the_step()
 }
 
 /// What:
-///  The line is said once, however long the wait lasts.
+///  The line is said once,
+///  however long the wait lasts.
 /// Why:
 ///   A person who met the same sentence three times in one failed commit read nothing new the second time
 ///  (2026-11-11,
 ///  a commit the installed wrapper failed in a disk wait),
 ///  and the command has already said how long the step lasted before it stopped it:
 ///  one stop is one sentence.
-///  The wait here outlasts several notice intervals, so a line said again would be counted again.
+///  The wait here outlasts several notice intervals,
+///  so a line said again would be counted again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

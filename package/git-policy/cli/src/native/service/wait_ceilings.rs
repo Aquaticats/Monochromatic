@@ -279,7 +279,8 @@ pub const SCRATCH_COMMIT_STEP_MARGIN: u32 = 3;
 ///  13 times the 99th percentile of that day's 932 steps (4,850 ms),
 ///  3.7 times the 16,332 ms ceiling it replaces,
 ///  and 6.2 times below the first step the kernel ever held here long enough to be killed (37,153 ms).
-///  It is a floor and never a ceiling: a wider measurement still raises the ceiling above it.
+///  It is a floor and never a ceiling:
+///  a wider measurement still raises the ceiling above it.
 pub const SCRATCH_COMMIT_STEP_CEILING_FLOOR: Duration = Duration::from_secs(60);
 
 /// The longest the scratch repository's `git commit` runs when the message came with the command (`-m`,
@@ -323,7 +324,8 @@ pub const SCRATCH_COMMIT_STEP_CEILING: Duration = at_least(SCRATCH_COMMIT_STEP_C
 ///  so an ordinary slow disk on this machine never reaches it.
 ///  A step the kernel holds past this bound is ended as any step at its ceiling is,
 ///  and the commit says nothing was committed and names the bound.
-///  A step that may open the editor has no bound at all: the person is the wait.
+///  A step that may open the editor has no bound at all:
+///  the person is the wait.
 pub const SCRATCH_COMMIT_STEP_STALL_CEILING: Duration = Duration::from_secs(300);
 
 /// What:
