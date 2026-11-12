@@ -372,7 +372,8 @@ fn a_reader_that_goes_away_ends_the_run_by_the_signal_native_git_dies_of() {
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=big"]);
     let linked: PathBuf = fixture.root.join("linked");
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("UTF-8")]);
-    let mut native: Command = direct(&fixture);
+    // No `timeout` in front: this control reads the signal native Git itself ended of.
+    let mut native: Command = super::support::direct_held(&fixture);
     native.current_dir(&linked).args(["log", "-p", "--all"]);
     let through_native: (Option<i32>, Option<i32>) = ended_after_one_line(native);
     assert_eq!(through_native, (None, Some(libc::SIGPIPE)), "the control: native Git ends of SIGPIPE");

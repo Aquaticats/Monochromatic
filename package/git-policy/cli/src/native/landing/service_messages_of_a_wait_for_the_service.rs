@@ -125,9 +125,35 @@ pub fn restarting_notice(unit: &str, waited: Duration) -> String {
     );
 }
 
-/// Printed each time the service goes silent while a commit waits,
-/// before the same request is sent to it again.
-pub const SILENT_NOTICE: &str = "The commit service stopped answering; asking it again with the same commit, which cannot land twice.";
+/// What:
+///  The notice for a commit whose service has said nothing for one silence bound,
+/// written before the same request is sent to it again.
+/// Why:
+///   A service that is busy and one that has stopped look the same from the client,
+/// and the person decides whether to wait or to run something else:
+///  the words name how long the quiet lasted,
+/// what the command does about it,
+/// that a commit cannot be made twice,
+/// and that nothing is asked of the reader.
+///  The older words claimed the service had stopped answering,
+/// which the record of 2026-11-11 shows it had not:
+/// the service that printed the line answered on the next ask,
+/// and had landed the commit
+/// (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// silentNotice(waited) // 'The commit service has said nothing for 5 seconds, ...'
+/// ```
+pub fn silent_notice(waited: Duration) -> String {
+    // A part second of waiting is a second waited, and a long wait counts in whole seconds.
+    let seconds: u64 = waited.as_secs().max(1);
+    let unit: &str = if seconds == 1 { "second" } else { "seconds" };
+    return format!(
+        "The commit service has said nothing for {seconds} {unit}, so the same commit is being sent to it again; \
+         a commit cannot land twice, and this command goes on by itself, so there is nothing for you to do."
+    );
+}
 
 /// Printed once when the service is being replaced by a newer one.
 pub const UPDATING_NOTICE: &str = "Updating the commit service...";

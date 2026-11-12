@@ -173,6 +173,9 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
 /// so a batch pays one refresh,
 /// in the step that already holds the lock,
 /// instead of one per client that then waits for the lock the landing needs.
+///  The copy keeps the live index's times through every write of it,
+/// so Git's own question about the stat data of an entry it has not read keeps the answer the live index gave
+///  (`PrivateCopy::keep_the_live_times`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -197,6 +200,34 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
 }
 
 /// What:
+///  Gives the copy the live index's times back,
+/// whatever a step of the landing wrote into it,
+/// and never fails the landing for it.
+/// Why:
+///   A copy installed as the live index must be as old as the stat data its entries describe,
+/// or Git trusts a stat record whose file it would otherwise read again
+///  (`PrivateCopy::keep_the_live_times`).
+///  The times are a cache for the reader and never the landing's result,
+/// so a file system that refuses them leaves the copy installed and says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// copy.keepTheLiveTimes() // logged, never thrown
+/// ```
+pub(crate) fn put_the_live_times_back(copy: &PrivateCopy) {
+    if let Err(error) = copy.keep_the_live_times() {
+        crate::diagnostic_log::warn(
+            "serviceLand",
+            format!(
+                "the index {} keeps the time it was written at, so Git may trust stat data it would otherwise read again ({error})",
+                copy.path().display()
+            )
+            .as_str(),
+        );
+    }
+}
+
+/// What:
 ///  Records the worktree's stat data in the index the landing is about to install.
 /// Why:
 ///   The copy was made from the live index,
@@ -212,17 +243,28 @@ pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexP
 /// and a path the person has since edited must keep no stat data that would hide the edit,
 /// which is what `update-index --refresh` does with it anyway
 /// (`commit_index_stat_staleness.rs`).
+///  The copy is as old as the live index while Git answers that question,
+/// because a stat check compares the fields it reads only to the second:
+/// an edit made in the same second as the stat the live index records differs from it in nothing Git compares,
+///  so only the entry being newer than the index makes Git read the file.
+///  A copy written a moment ago would be newer than every entry,
+/// Git would answer from the recorded stat,
+/// and the person's edit would reach neither the next commit nor `git status`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await keepTheStatData({ git, repository, written, copy }) // refresh_if_stale(copy, staging = `written`)
+/// await keepTheStatData({ git, repository, written, copy }) // copy.keepTheLiveTimes(); refresh_if_stale(copy, staging = `written`); copy.keepTheLiveTimes()
 /// ```
 fn keep_the_stat_data(git: &GitContext, repository: &Path, written: &[Vec<u8>], copy: &PrivateCopy) {
     let left_out: Vec<OsString> = exempt_names(written);
+    put_the_live_times_back(copy);
     // What the copy looked like before the refresh, so the release flushes it only when the refresh rewrote it.
     let untouched: Option<(u64, std::time::SystemTime)> = file_stamp(copy.path());
     let _outcome: StatRefresh = refresh_stat_data_when_stale(git, repository, copy.path(), WorktreeStaging::Named(left_out.as_slice()));
-    if file_stamp(copy.path()) != untouched {
+    let rewritten: bool = file_stamp(copy.path()) != untouched;
+    // The refresh replaces the copy when it records anything, so the times go back on after it as well.
+    put_the_live_times_back(copy);
+    if rewritten {
         // Git replaced the copy without flushing it; the release of the lock flushes what it installs (`service_land_finish.rs`).
         copy.set_flushed(false);
     }
