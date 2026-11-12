@@ -2178,7 +2178,8 @@ fn announced(said: &std::sync::Mutex<Vec<Announce>>) -> String {
 /// Why:
 ///   Between the import and the branch write the batch's own reference is the only name the built commit has,
 ///  and a commit no reference names is one `git gc --prune=now` takes;
-///  a kept name another batch's commit holds, or a lock on it,
+///  a kept name another batch's commit holds,
+/// or a lock on it,
 ///  must therefore leave that reference where it is
 ///  (the owner's rule "never discard user data").
 ///

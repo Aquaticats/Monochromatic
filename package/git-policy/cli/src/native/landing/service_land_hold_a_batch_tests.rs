@@ -6,7 +6,8 @@
 //!  A commit no branch names and no reference names is one `git gc --prune=now` takes,
 //!  and a commit the person is told was not made must still be findable
 //!  (the owner's rule "never discard user data").
-//!  The removal is Git's compare-and-delete, so a reference another command wrote between the read and the removal is
+//!  The removal is Git's compare-and-delete,
+//! so a reference another command wrote between the read and the removal is
 //!  never removed.
 
 use super::{DropTheBatch, end_a_batch_the_write_never_started};
@@ -35,7 +36,10 @@ struct Ended {
 }
 
 /// What:
-///  One landing that built a commit, left it on the batch's own reference, wrote its intent, and then ends at `answered`.
+///  One landing that built a commit,
+/// left it on the batch's own reference,
+/// wrote its intent,
+/// and then ends at `answered`.
 /// Why:
 ///   That is the state every ending that does not move the branch reads:
 ///  the commit exists,
@@ -83,8 +87,8 @@ fn end_the_batch(name: &str, answered: FailureCode, take_the_kept_name: bool) ->
             said.lock().expect("lock").push(text);
         }
     };
-    let drop: DropTheBatch<'_> = DropTheBatch { git: &context.git, context: &context, repository: repo.as_path(), seq: THE_BATCH, intent: &intent, scratch: scratch.as_str(), new: intent.new.as_str(), announce: &announce };
-    end_a_batch_the_write_never_started(&drop, answered);
+    let drop: DropTheBatch<'_> = DropTheBatch { git: &context.git, context: &context, repository: repo.as_path(), seq: THE_BATCH, intent: &intent, scratch: scratch.as_str() };
+    end_a_batch_the_write_never_started(&drop, answered, &announce);
     let lines: Vec<String> = said.lock().expect("lock").clone();
     return Ended { root, repo, answered: FailureCode::Unavailable, said: lines };
 }
@@ -186,7 +190,7 @@ fn a_dropped_batch_does_not_remove_a_scratch_reference_another_command_wrote() {
     };
     write_intent(journal.as_path(), &intent).expect("the intent");
     let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING };
-    let drop: DropTheBatch<'_> = DropTheBatch { git: &context.git, context: &context, repository: repo.as_path(), seq: THE_BATCH, intent: &intent, scratch: scratch.as_str(), new: intent.new.as_str(), announce: &|_note: Announce| {} };
+    let drop: DropTheBatch<'_> = DropTheBatch { git: &context.git, context: &context, repository: repo.as_path(), seq: THE_BATCH, intent: &intent, scratch: scratch.as_str() };
     super::drop_the_batch(&drop);
     let still: String = git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()]);
     assert_eq!(still, other, "the reference another command wrote is not removed");

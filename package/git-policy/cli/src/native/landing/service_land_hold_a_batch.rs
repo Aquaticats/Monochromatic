@@ -149,16 +149,10 @@ its commit is not kept; {} Run the commit again once the journal at {} can be wr
             // The commit was built and is on no branch, so it is kept where a commit that did not land is kept: the record
             //  that would have held it could not be written, and the person is told where the commit is
             //  (`end_a_batch_that_will_not_land`).
-            end_a_batch_that_will_not_land(&DropTheBatch {
-                git: refused.git,
-                context: refused.context,
-                repository: refused.repository,
-                seq: refused.seq,
-                intent: refused.intent,
-                scratch: refused.scratch,
-                new: refused.new,
-                announce: refused.announce,
-            });
+            end_a_batch_that_will_not_land(
+                &DropTheBatch { git: refused.git, context: refused.context, repository: refused.repository, seq: refused.seq, intent: refused.intent, scratch: refused.scratch },
+                refused.announce,
+            );
             return Err(FailureCode::ReferenceLocked);
         }
     }
@@ -213,8 +207,6 @@ pub struct GivenUp<'a> {
     pub intent: &'a Intent,
     /// The side reference that held the batch's commits.
     pub scratch: &'a str,
-    /// The commit the batch built.
-    pub new: &'a str,
     /// The branch,
     /// by the bytes Git printed for its name.
     pub reference: &'a crate::ref_name::RefName,
@@ -240,12 +232,13 @@ pub struct GivenUp<'a> {
 /// ```ts
 /// const kept = keepAnUnlandedCommit(...); forgetTheBatch(); if (kept.named) updateRef(['-d', scratch, new])
 /// ```
-pub(crate) fn end_a_batch_that_will_not_land(drop: &DropTheBatch<'_>) {
+pub(crate) fn end_a_batch_that_will_not_land(drop: &DropTheBatch<'_>, announce: &dyn Announcer) {
+    let new: &str = drop.intent.new.as_str();
     let kept: crate::service_land_side_reference_write::AKeptCommit =
-        crate::service_land_side_reference_write::keep_an_unlanded_commit(drop.git, drop.repository, drop.seq, drop.scratch, drop.new, drop.announce);
+        crate::service_land_side_reference_write::keep_an_unlanded_commit(drop.git, drop.repository, drop.seq, drop.scratch, new, announce);
     forget_the_batch_that_will_not_land(drop);
     if kept.named {
-        let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(drop.git, drop.repository, drop.scratch, drop.new);
+        let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(drop.git, drop.repository, drop.scratch, new);
     }
 }
 
@@ -271,16 +264,10 @@ pub(crate) fn give_up(given: &GivenUp<'_>) -> FailureCode {
         given.reference
     );
     given.announce.announce(Announce::Holder(format!("The wait for the lock has ended, and Git said: {said}")));
-    end_a_batch_that_will_not_land(&DropTheBatch {
-        git: given.git,
-        context: given.context,
-        repository: given.repository,
-        seq: given.seq,
-        intent: given.intent,
-        scratch: given.scratch,
-        new: given.new,
-        announce: given.announce,
-    });
+    end_a_batch_that_will_not_land(
+        &DropTheBatch { git: given.git, context: given.context, repository: given.repository, seq: given.seq, intent: given.intent, scratch: given.scratch },
+        given.announce,
+    );
     return FailureCode::ReferenceLocked;
 }
 
@@ -298,11 +285,6 @@ pub struct DropTheBatch<'a> {
     pub intent: &'a Intent,
     /// The side reference that held the batch's commits.
     pub scratch: &'a str,
-    /// The commit the batch built,
-    /// the one value that reference is expected to name.
-    pub new: &'a str,
-    /// The clients of the batch.
-    pub announce: &'a dyn Announcer,
 }
 
 /// What:
@@ -328,7 +310,7 @@ pub struct DropTheBatch<'a> {
 /// ```
 pub(crate) fn drop_the_batch(drop: &DropTheBatch<'_>) {
     forget_the_batch_that_will_not_land(drop);
-    let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(drop.git, drop.repository, drop.scratch, drop.new);
+    let _let_go = crate::service_land_side_reference_write::let_go_of_a_reference_only_while_it_names(drop.git, drop.repository, drop.scratch, drop.intent.new.as_str());
 }
 
 /// What:
@@ -344,12 +326,12 @@ pub(crate) fn drop_the_batch(drop: &DropTheBatch<'_>) {
 /// ```ts
 /// endABatchTheWriteNeverStarted(drop, code) // the records go; a ceiling step keeps the commit first
 /// ```
-pub(crate) fn end_a_batch_the_write_never_started(drop: &DropTheBatch<'_>, code: FailureCode) {
+pub(crate) fn end_a_batch_the_write_never_started(drop: &DropTheBatch<'_>, code: FailureCode, announce: &dyn Announcer) {
     if code == FailureCode::StepTooSlow {
         forget_the_batch_that_will_not_land(drop);
         return;
     }
-    end_a_batch_that_will_not_land(drop);
+    end_a_batch_that_will_not_land(drop, announce);
 }
 
 /// What:
@@ -372,7 +354,8 @@ pub(crate) fn forget_the_batch_that_will_not_land(drop: &DropTheBatch<'_>) {
     remove_start(drop.context.journal.as_path(), drop.seq);
 }
 
-/// Controls for giving a batch back, and for keeping the commit it built as it is given back.
+/// Controls for giving a batch back,
+/// and for keeping the commit it built as it is given back.
 #[cfg(test)]
 #[path = "service_land_hold_a_batch_tests.rs"]
 mod tests;

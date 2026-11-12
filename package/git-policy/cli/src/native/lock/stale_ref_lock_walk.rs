@@ -197,6 +197,41 @@ pub fn candidate_at(root: &Path, lock: PathBuf) -> Option<Candidate> {
 }
 
 /// What:
+///  The reference locks that can refuse one write of `reference` below `roots`,
+///  and the delete of `also_deleted` beside it:
+///  each one's own lock,
+///  the packed references' lock and the reftable backend's list of tables.
+/// Why:
+///   A lock on another reference can refuse neither the write nor the delete,
+///  and native Git writes a branch while another branch's lock stands,
+///  so a caller that asks about every lock below the Git directory waits for,
+/// and names,
+///  locks that are not in its way.
+///  Deleting a packed reference rewrites `packed-refs`,
+///  and a reftable repository writes every reference through `reftable/tables.list`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const locksThatCanRefuseAWrite = (roots, reference, alsoDeleted) => roots.flatMap((root) => [lockOfAReference(root, reference), lockOfAReference(root, alsoDeleted), ...sharedBackendLocks(root)]).filter(exists)
+/// ```
+pub fn locks_that_can_refuse_a_write(roots: &[PathBuf], reference: &[u8], also_deleted: &[u8]) -> Vec<Candidate> {
+    let mut wanted: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for root in roots {
+        wanted.push((root.clone(), lock_of_a_reference(root.as_path(), reference)));
+        wanted.push((root.clone(), lock_of_a_reference(root.as_path(), also_deleted)));
+        for lock in shared_backend_locks(root.as_path()) {
+            wanted.push((root.clone(), lock));
+        }
+    }
+    let mut candidates: Vec<Candidate> = Vec::new();
+    for (root, lock) in wanted {
+        let found: Option<Candidate> = candidate_at(root.as_path(), lock);
+        candidates.extend(found);
+    }
+    return in_path_order(candidates);
+}
+
+/// What:
 ///  The candidates in path order,
 ///  one for each lock.
 /// Why:

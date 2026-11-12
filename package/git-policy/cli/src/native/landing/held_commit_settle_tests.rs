@@ -510,7 +510,8 @@ fn the_line_about_a_settled_hold_names_its_repository_and_says_the_commit_is_kep
 ///  a lock on `refs/heads/unrelated` can refuse neither write,
 ///  and native Git commits on `main` under exactly that lock,
 ///  so a settlement that waits for it keeps a person's commit held for as long as another program's lock exists
-///  (the owner's choice "Make it, hold until lock goes" is about the lock that held this branch write).
+///  (the owner's choice "Make it,
+/// hold until lock goes" is about the lock that held this branch write).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -531,7 +532,8 @@ fn a_lock_on_another_reference_does_not_keep_a_held_commit_from_landing() {
 }
 
 /// What:
-///  The line about a held commit names the lock that stands now, and no lock of another reference.
+///  The line about a held commit names the lock that stands now,
+/// and no lock of another reference.
 /// Why:
 ///   A message names what really stops the command at the moment it is printed:
 ///  the record names the locks that stood when the commit was held,

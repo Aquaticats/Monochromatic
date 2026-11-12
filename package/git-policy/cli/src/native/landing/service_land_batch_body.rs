@@ -223,8 +223,6 @@ pub(crate) fn land_batch_body(
                 seq,
                 intent: &intent,
                 scratch: scratch.as_str(),
-                new: new.as_str(),
-                announce,
             });
             if left == crate::service_land_requests_whose_client_is_gone::Wanted::None {
                 return Ok(outcomes);
@@ -288,17 +286,9 @@ pub(crate) fn land_batch_body(
                 //  back, so no record of a landing that did not happen outlives it. A step ended at a ceiling keeps the commit
                 //  the reference holds first (`land_batch_timed`), so that reference is left for it.
                 Err(code) => {
-                    let drop: crate::service_land_hold_a_batch::DropTheBatch<'_> = crate::service_land_hold_a_batch::DropTheBatch {
-                        git: &git,
-                        context,
-                        repository,
-                        seq,
-                        intent: &intent,
-                        scratch: scratch.as_str(),
-                        new: new.as_str(),
-                        announce,
-                    };
-                    crate::service_land_hold_a_batch::end_a_batch_the_write_never_started(&drop, code);
+                    let drop: crate::service_land_hold_a_batch::DropTheBatch<'_> =
+                        crate::service_land_hold_a_batch::DropTheBatch { git: &git, context, repository, seq, intent: &intent, scratch: scratch.as_str() };
+                    crate::service_land_hold_a_batch::end_a_batch_the_write_never_started(&drop, code, announce);
                     return Err(code);
                 }
             }
@@ -344,7 +334,6 @@ pub(crate) fn land_batch_body(
                             seq,
                             intent: &intent,
                             scratch: scratch.as_str(),
-                            new: new.as_str(),
                             reference: &first.reference,
                             stderr: moved.stderr.as_slice(),
                             announce,

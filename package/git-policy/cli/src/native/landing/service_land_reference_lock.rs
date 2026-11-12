@@ -133,7 +133,8 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
 ///   A caller that knows which locks can refuse its write asks about those and no others:
 ///  a lock on another reference refuses nothing it does,
 ///  and waiting for one holds the work behind a lock that is not in its way.
-///  The judgement, the poll and the words for what stands are the walk's own,
+///  The judgement,
+/// the poll and the words for what stands are the walk's own,
 /// so a wait over one write and a wait over the whole repository answer the same way.
 ///
 /// In TS you'd write (pseudocode):
@@ -142,7 +143,7 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
 /// ```
 pub(crate) fn wait_out_the_reference_locks_of(candidates: &[Candidate], judge: &Judge, deadline: Instant) -> Waiting {
     loop {
-        let standing: Vec<PathBuf> = candidates.iter().map(|candidate| { return candidate.lock.clone(); }).filter(|lock| { return lock.symlink_metadata().is_ok(); }).collect();
+        let standing: Vec<PathBuf> = the_locks_that_stand(candidates);
         if standing.is_empty() {
             return Waiting::Gone;
         }
@@ -159,11 +160,31 @@ pub(crate) fn wait_out_the_reference_locks_of(candidates: &[Candidate], judge: &
             if !last.cleared.is_empty() {
                 return Waiting::Gone;
             }
-            let left: Vec<PathBuf> = candidates.iter().map(|candidate| { return candidate.lock.clone(); }).filter(|lock| { return lock.symlink_metadata().is_ok(); }).collect();
+            let left: Vec<PathBuf> = the_locks_that_stand(candidates);
             return Waiting::Blocked { words: words_of(&last, left.as_slice()), locks: left };
         }
         std::thread::sleep(REFERENCE_LOCK_POLL);
     }
+}
+
+/// What:
+///  The locks of `candidates` that are there now.
+/// Why:
+///  A lock a wait looked at may go between two looks,
+///  and a line that named one which is gone would name a cause that is not true.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theLocksThatStand = (candidates) => candidates.map((c) => c.lock).filter(exists)
+/// ```
+fn the_locks_that_stand(candidates: &[Candidate]) -> Vec<PathBuf> {
+    let mut standing: Vec<PathBuf> = Vec::new();
+    for candidate in candidates {
+        if candidate.lock.symlink_metadata().is_ok() {
+            standing.push(candidate.lock.clone());
+        }
+    }
+    return standing;
 }
 
 /// What:

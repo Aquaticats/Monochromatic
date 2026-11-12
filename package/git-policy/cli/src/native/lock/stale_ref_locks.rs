@@ -82,7 +82,8 @@ pub fn clear_stale_ref_locks(roots: &[std::path::PathBuf], judge: &Judge) -> Out
 /// and report the rest.
 /// Why:
 ///   A caller that knows which locks can refuse its write judges those and no others:
-///  a lock on another reference can refuse nothing it does, and removing one would be a removal nothing here needs.
+///  a lock on another reference can refuse nothing it does,
+/// and removing one would be a removal nothing here needs.
 ///  The judgement of each lock and the words for the ones left are the walk's own,
 /// so both callers answer the same way.
 ///
