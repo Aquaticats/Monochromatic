@@ -7359,6 +7359,9 @@ a large `reachMs` with `updateRounds` above zero and two entries in `releasesSee
 of another release being replaced,
 and the journal of the instance shows that service's `retire requested` and `exiting`
 lines and the new `started` line;
+a service of another release that has not left after the client's wait for it is ended once,
+with one line saying so,
+and the commit goes on once the program this release installs answers;
 a large `answerWaitMs` is the queue or a held index,
 and the `answered` line of the
 request in the journal says which,
