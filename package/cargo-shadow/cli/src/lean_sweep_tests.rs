@@ -334,3 +334,18 @@ fn a_leftover_with_a_directory_this_user_may_not_write_is_removed_by_the_next_sw
         .unwrap_or_else(|| panic!("no line names the changed modes: {log:#?}"));
     assert!(line.contains(&claimed.display().to_string()), "{line}");
 }
+
+/// A pass whose deadline had already passed reads nothing, removes nothing, and says why:
+/// the deadline reaches the read of a profile directory, not only the space between two of them.
+#[test]
+fn a_pass_with_no_time_left_reads_nothing_and_removes_nothing() {
+    let root = scratch();
+    let (profile, stale, _current) = stale_and_current(root.path());
+    let mut log: Vec<String> = Vec::new();
+    let outcome: ProfileOutcome = apply_removals(&profile, &OlderCompilerSweep { grace_seconds: GRACE }, &real_environment(), NOW, false, &Deadline::after(std::time::Duration::ZERO), &mut log);
+    let named: bool = outcome.skipped.as_deref().is_some_and(|reason| { return reason.starts_with("the deadline passed while reading the profile directory"); });
+    assert!(named, "the pass says it did not read the profile directory: {outcome:?}");
+    for path in &stale {
+        assert!(path.exists(), "nothing is removed from a profile directory the pass did not read: {}", path.display());
+    }
+}

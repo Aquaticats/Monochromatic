@@ -40,6 +40,10 @@ use crate::lean_sizes::add_tree_bytes;
 /// Imports the names this file uses from `crate::lean_unit_reader`.
 use crate::lean_unit_reader::{IncrementalDirectory, ProfileRead, ProfileUnits, Unit, read_profile};
 
+/// What a profile outcome says when the deadline stopped the read of its directory:
+/// no list of a walk that did not finish is a list of what the directory holds.
+pub const CUT_READ: &str = "the deadline passed while reading the profile directory, so nothing in it was judged";
+
 /// What a planner decided to remove.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Removals {
@@ -272,13 +276,17 @@ pub fn apply_removals(
     log: &mut Vec<String>,
 ) -> ProfileOutcome {
     let mut outcome: ProfileOutcome = ProfileOutcome { profile: profile.to_path_buf(), ..ProfileOutcome::default() };
-    let first: Removals = match read_profile(profile) {
+    let first: Removals = match read_profile(profile, deadline) {
         ProfileRead::Known(units) => {
             note_unreadable(&units, &mut outcome);
             planner.plan(&units, now)
         }
         ProfileRead::Unknown(reason) => {
             outcome.skipped = Some(format!("unknown layout: {reason}"));
+            return outcome;
+        }
+        ProfileRead::Cut => {
+            outcome.skipped = Some(String::from(CUT_READ));
             return outcome;
         }
     };
@@ -311,10 +319,14 @@ pub fn apply_removals(
         }
     };
     // Classified again under the locks: what was judged before them may have changed.
-    let second: Removals = match read_profile(profile) {
+    let second: Removals = match read_profile(profile, deadline) {
         ProfileRead::Known(units) => planner.plan(&units, now),
         ProfileRead::Unknown(reason) => {
             outcome.skipped = Some(format!("unknown layout under the locks: {reason}"));
+            return outcome;
+        }
+        ProfileRead::Cut => {
+            outcome.skipped = Some(String::from(CUT_READ));
             return outcome;
         }
     };
