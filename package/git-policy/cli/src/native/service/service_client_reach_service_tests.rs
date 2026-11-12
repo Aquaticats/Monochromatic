@@ -65,9 +65,6 @@ struct StandIn {
     /// What the client asked for,
     /// in order.
     asked: Vec<String>,
-    /// Whether the unit the manager holds names an executable an upgrade removed,
-    /// so no start can bring it back until the manager reads the units again.
-    unit_executable_gone: bool,
     /// Whether the service of the stand-in accepts connections and greets none of them,
     /// which is what a service stopped inside its own process looks like;
     /// a restart is what clears it.
@@ -80,7 +77,7 @@ struct StandIn {
 impl StandIn {
     /// A manager that holds nothing and answers nothing.
     const fn empty() -> Self {
-        return Self { socket: None, state: None, release: None, asked: Vec::new(), unit_executable_gone: false, wedged: false, keep_serving: true };
+        return Self { socket: None, state: None, release: None, asked: Vec::new(), wedged: false, keep_serving: true };
     }
 }
 
@@ -133,10 +130,6 @@ fn stand_in_start(_bus: &Path, unit: &str) -> bool {
     let name: String = {
         let mut manager = MANAGER.lock().expect("lock");
         manager.asked.push(format!("start {unit}"));
-        // A unit whose executable is gone starts nothing until the manager reads the units again.
-        if manager.unit_executable_gone {
-            return false;
-        }
         match manager.socket.clone() {
             Some(name) => name,
             None => return false,
@@ -183,17 +176,6 @@ fn listen_at(name: &str) -> std::io::Result<UnixListener> {
     return UnixListener::bind_addr(&SocketAddr::from_abstract_name(name.as_bytes())?);
 }
 
-/// The reload the client asks for,
-/// recorded and answered from the stand-in:
-/// the manager reads its units again,
-/// which replaces a unit whose executable is gone.
-fn stand_in_reload(_bus: &Path) -> bool {
-    let mut manager = MANAGER.lock().expect("lock");
-    manager.asked.push(String::from("reload"));
-    manager.unit_executable_gone = false;
-    return true;
-}
-
 /// What the client asked of the stand-in,
 /// in order.
 fn asked() -> Vec<String> {
@@ -227,7 +209,6 @@ fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
             start: stand_in_start,
             reset: stand_in_reset,
             restart: stand_in_restart,
-            reload: stand_in_reload,
         }),
         keep_fresh: None,
         answer_ceiling: Duration::from_secs(5),
@@ -235,7 +216,6 @@ fn config(socket: &str, unit: &str, socket_unit: &str) -> ClientConfig {
         waiting_notice_after: Duration::from_secs(60),
         extra_wait: Duration::from_secs(1),
         start_ceiling: Duration::from_secs(5),
-        units_record_dir: None,
     };
 }
 
@@ -303,31 +283,29 @@ fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
 
 
 /// What:
-///  A service of another release that will not retire is proof that the unit the manager loaded and the files
-///  disagree,
-/// so the record of the texts the manager was told about is dropped.
+///  A service of another release that will not retire ends the command,
+/// and nothing is asked of the manager but this
+///  worktree's own unit.
 /// Why:
-///  The record can certify the files while the manager runs the release they replaced:
-/// an interrupted downgrade
-///  writes and reloads the older release's files and is killed before it records them,
-/// and an interrupted upgrade
-///  then writes the newer files without a reload,
-/// which leaves the files and the record agreeing and the manager running
-///  the older release.
-/// Repeating the commit took the fast path into the same answer,
-/// `ClientFailure::OtherRelease`,
-/// for ever
-///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-/// finding 2 of the round-2 review).
-/// The next commit now writes the units and reloads,
-/// which is the one repair of that state.
+///   Another release's answer means the unit the manager loaded is not the one the files describe,
+/// and the repair is that
+///  service's own retirement:
+/// it finishes its batch and exits,
+/// the manager unloads the unit once nothing runs in it,
+///  and the next start reads the file as it is now
+/// (`service_provision_instance_unloaded.rs`).
+/// A manager asked to re-read
+///  every unit it holds would stall every other client of it,
+/// which is what ended a desktop session on 2026-11-12
+///  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`),
+/// so no command may ask for it here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(await reachCurrent(configWithAnotherRelease)).toEqual({ otherRelease: true }); expect(recordExists()).toBe(false);
+/// expect(await reachCurrent(configWithAnotherRelease)).toEqual({ otherRelease: true }); expect(asked).not.toContain('reload');
 /// ```
 #[test]
-fn a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units() {
+fn a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_global() {
     let socket: String = address("client-reach-other-release");
     let listener: UnixListener = listen_at(socket.as_str()).expect("the service listens");
     // The service answers every connection as a later release of this wrapper, which reads no retire of this one.
@@ -347,148 +325,138 @@ fn a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units
             }
         }
     });
-    let runtime: PathBuf = crate::test_support::fixture("client-reach-other-release-runtime");
-    let texts: [(&'static str, String); 1] = [("a.service", String::from("what the manager was told"))];
-    crate::service_provision_loaded_unit_texts::record(runtime.as_path(), texts.as_slice()).expect("the record is written");
-    assert!(crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()), "the record stands before the answer");
     let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
     let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
     let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
     // The socket answers every time, so no manager is asked; the wait for the retire is the whole of this control.
     settings.start_watch = None;
     settings.start_wait = Duration::from_millis(300);
-    settings.units_record_dir = Some(runtime.clone());
+    MANAGER.lock().expect("lock").asked.clear();
     let mut announced: bool = false;
     let failure: ClientFailure = reach_current(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
         .expect_err("a service of another release that will not stop ends the command");
     assert_eq!(failure, ClientFailure::OtherRelease);
-    assert!(
-        !crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
-        "the record is dropped, so the next commit sets the units up again"
-    );
+    assert!(asked().is_empty(), "nothing of the manager was asked for: {:?}", asked());
     done.store(true, std::sync::atomic::Ordering::Relaxed);
     serving.join().expect("the service's thread");
-    crate::test_support::remove(runtime.as_path());
 }
 
-
 /// What:
-///  A service of another release that takes the retire and then cannot come back still drops the record.
+///  A greeting that is four seconds late lands the commit,
+/// and the client asks the manager to restart nothing.
 /// Why:
-///  Seeing another release answer at all proves that the unit the manager loaded is not the one the
-/// files describe,
-///  whatever happens next:
-/// the service that took the retire exits,
-/// the manager tries its cached older executable,
-///  which an upgrade may have removed,
-/// and the next connection finds nothing,
-/// so the wait ends with `DidNotStart`
-///  and never reaches the retirement deadline that dropped the record
-/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-/// finding 3 of the
-///  round-3 review).
-/// The record has to be dropped when the other release is seen,
-/// or every later commit keeps the fast
-///  path into the manager's unchanged unit.
+///  This is the first link of the 2026-11-12 chain:
+/// a commit waited three seconds for the greeting of a service that
+///  was starting,
+/// read that silence as a service stopped inside its own process,
+/// asked the manager to restart it,
+///  and then asked the manager for a reload that held it for 139,770 ms and ended the desktop session
+///  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+/// The service greeted five seconds later
+///  when the person ran the commit again.
+/// A fraction of a slow machine's start is no evidence of a stopped service,
+/// and only the
+///  whole start ceiling is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(await reachCurrent(answeringOnceFromAnotherRelease)).toEqual({ didNotStart: true }); expect(recordExists()).toBe(false);
+/// expect(await reach(configWithAServiceThatGreetsAfterFourSeconds)).toBeDefined(); expect(asked).not.toContain('restart ');
 /// ```
 #[test]
-fn a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_the_record() {
-    let socket: String = address("client-reach-other-release-once");
+fn a_greeting_four_seconds_late_lands_the_commit_and_nothing_is_restarted() {
+    let socket: String = address("client-reach-late-greeting");
     let listener: UnixListener = listen_at(socket.as_str()).expect("the service listens");
-    // One answer from another release, then nothing: the service left and the manager could not start its own.
+    let began: std::time::Instant = std::time::Instant::now();
     let serving = std::thread::spawn(move || {
-        if let Ok((mut stream, _address)) = listener.accept() {
-            let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from("another-release")) });
-            line.push('\n');
-            let _sent = stream.write_all(line.as_bytes());
+        let _set = listener.set_nonblocking(true);
+        // Long enough to outlast the late greeting and the wait of the control; the client stops asking when it is reached.
+        let deadline: std::time::Instant = began + Duration::from_secs(8);
+        while std::time::Instant::now() < deadline {
+            match listener.accept() {
+                Ok((mut stream, _address)) => {
+                    // Nothing greets for the first seconds, exactly as a service whose program is still starting answers.
+                    if began.elapsed() >= LATE_GREETING {
+                        let mut line: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) });
+                        line.push('\n');
+                        let _sent = stream.write_all(line.as_bytes());
+                    }
+                }
+                Err(_nothing_yet) => std::thread::sleep(Duration::from_millis(5)),
+            }
         }
     });
-    let runtime: PathBuf = crate::test_support::fixture("client-reach-other-release-once-runtime");
-    let texts: [(&'static str, String); 1] = [("a.service", String::from("what the manager was told"))];
-    crate::service_provision_loaded_unit_texts::record(runtime.as_path(), texts.as_slice()).expect("the record is written");
+    {
+        let mut manager = MANAGER.lock().expect("lock");
+        manager.state = Some(String::from("active"));
+        manager.asked.clear();
+    }
     let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
     let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
     let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
-    settings.start_watch = None;
-    settings.start_wait = Duration::from_millis(200);
-    settings.units_record_dir = Some(runtime.clone());
+    settings.start_ceiling = Duration::from_secs(20);
     let mut announced: bool = false;
-    let failure: ClientFailure = reach_current(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
-        .expect_err("a service that left and cannot come back ends the wait");
-    assert_eq!(failure, ClientFailure::DidNotStart);
+    let (_reader, version, release) = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+        .expect("a greeting that is late still lands the commit");
+    assert_eq!(version, PROTOCOL_VERSION);
+    assert_eq!(release.as_deref(), Some(RELEASE));
+    let asked_of_the_manager: Vec<String> = asked();
     assert!(
-        !crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
-        "the record is dropped when the other release answers, whatever the wait then finds"
+        !asked_of_the_manager.iter().any(|call| { return call.starts_with("restart "); }),
+        "a late greeting is no evidence of a service stopped inside its own process: {asked_of_the_manager:?}"
     );
+    assert!(!asked_of_the_manager.iter().any(|call| { return call == "reload"; }), "and nothing asks the manager to read every unit: {asked_of_the_manager:?}");
     serving.join().expect("the service's thread");
-    crate::test_support::remove(runtime.as_path());
 }
 
+/// How late the stand-in service's greeting is in `a_greeting_four_seconds_late_lands_the_commit_and_nothing_is_restarted`:
+/// longer than the three-second silence the releases before this one read as a stopped service.
+const LATE_GREETING: Duration = Duration::from_secs(4);
 
 /// What:
-///  A service that never greets because the manager's unit names an executable an upgrade removed is
-///  repaired by one reload of the units.
+///  A unit the manager reports running that has greeted nothing through the whole start ceiling is restarted once,
+/// and the manager is asked for nothing but that unit.
 /// Why:
-///  Two kills during a version switch leave the files and the record of what the manager was told
-/// agreeing while
-///  the manager holds the other release's unit;
-/// its executable is gone,
-/// so no reset and no start brings a
-///  greeting and the command ends with "The commit service did not start" however often it is run
-/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-/// finding 2 of the
-///  round-4 review).
-/// Reading the units again is the one step that replaces the program the unit names,
-/// so the client asks for
-///  it once,
-/// drops the record,
-/// and gives the wait one more ceiling;
-/// a service that still does not greet ends the command
-///  in bounded time.
+///  A service greets a connection before it restores anything,
+/// so a service that has run a whole start ceiling with
+///  nothing to say is one whose program stopped inside its own process,
+/// and no start of a unit the manager believes
+///  runs brings it back.
+/// The restart is the repair,
+/// it is bounded to one,
+/// and it asks for nothing the manager holds
+///  besides this worktree's unit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(await reach(configWithAGoneUnit)).toBeDefined(); expect(asked).toContain('reload'); expect(recordExists()).toBe(false);
+/// expect(await reach(configWithAWedge)).toBeDefined(); expect(count(asked, 'restart ')).toEqual(1); expect(asked).not.toContain('reload');
 /// ```
 #[test]
-fn a_service_that_never_greets_because_the_units_program_is_gone_is_repaired_by_one_reload() {
+fn a_unit_that_never_greets_is_restarted_once_at_the_start_ceiling_and_nothing_global_is_asked() {
     let socket: String = address("client-reach-gone-unit");
     {
         let mut manager = MANAGER.lock().expect("lock");
         manager.socket = Some(socket.clone());
-        manager.state = Some(String::from("inactive"));
-        manager.unit_executable_gone = true;
+        manager.state = Some(String::from("active"));
+        manager.wedged = false;
         manager.asked.clear();
     }
-    let runtime: PathBuf = crate::test_support::fixture("client-reach-gone-unit-runtime");
-    let texts: [(&'static str, String); 1] = [("a.service", String::from("what the manager was told"))];
-    crate::service_provision_loaded_unit_texts::record(runtime.as_path(), texts.as_slice()).expect("the record is written");
     let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
     let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
     let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
+    // Nothing listens at the address, so every connection is refused and the wait is the whole of this control.
     settings.start_wait = Duration::from_millis(100);
     settings.start_ceiling = Duration::from_millis(600);
-    settings.units_record_dir = Some(runtime.clone());
     let mut announced: bool = false;
+    // The stand-in's restart makes its service greet the next connection, so a repaired unit is reached.
     let reached = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false);
     let asked_of_the_manager: Vec<String> = asked();
-    let (_reader, version, _release) = reached.unwrap_or_else(|failure| {
-        panic!("the reload of the units must make the service startable: {failure:?} after {asked_of_the_manager:?}")
-    });
-    assert_eq!(version, PROTOCOL_VERSION);
-    assert_eq!(asked_of_the_manager.iter().filter(|call| { return *call == "reload"; }).count(), 1, "one reload, and one only: {asked_of_the_manager:?}");
-    assert!(
-        !crate::service_provision_loaded_unit_texts::remembers(runtime.as_path(), texts.as_slice()),
-        "the record is dropped, so the next command provisions again"
-    );
-    MANAGER.lock().expect("lock").unit_executable_gone = false;
-    crate::test_support::remove(runtime.as_path());
+    let restarts: usize = asked_of_the_manager.iter().filter(|call| { return call.starts_with("restart "); }).count();
+    let reloads: usize = asked_of_the_manager.iter().filter(|call| { return call.as_str() == "reload"; }).count();
+    assert!(reached.is_ok() || restarts == 1, "a unit that never greets is restarted once and the wait ends: {asked_of_the_manager:?}");
+    assert_eq!(restarts, 1, "one restart and no more: {asked_of_the_manager:?}");
+    assert_eq!(reloads, 0, "and nothing asks the manager to read every unit it holds: {asked_of_the_manager:?}");
+    MANAGER.lock().expect("lock").state = None;
 }
-
 /// What:
 ///  The stand-in service that accepts every connection and greets none until the stand-in is restarted,
 /// which is what a service stopped inside its own process looks like.
@@ -649,7 +617,6 @@ fn an_address_that_answers_nothing_with_no_manager_to_ask_is_named_truly() {
         waiting_notice_after: Duration::from_secs(60),
         extra_wait: Duration::from_secs(1),
         start_ceiling: Duration::from_secs(5),
-        units_record_dir: None,
     };
     let mut announced: bool = false;
     let mut notices: Vec<u8> = Vec::new();
@@ -702,7 +669,6 @@ fn an_address_nothing_listens_on_is_the_service_that_did_not_start() {
         waiting_notice_after: Duration::from_secs(60),
         extra_wait: Duration::from_secs(1),
         start_ceiling: Duration::from_secs(5),
-        units_record_dir: None,
     };
     let mut announced: bool = false;
     let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false).expect_err("nothing listens, so nothing is reached");
@@ -851,7 +817,6 @@ fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends(
         waiting_notice_after: Duration::from_secs(60),
         extra_wait: Duration::from_secs(1),
         start_ceiling: Duration::from_secs(5),
-        units_record_dir: None,
     };
     let mut notices: TimesOfLines = TimesOfLines::start();
     let mut announced: bool = false;

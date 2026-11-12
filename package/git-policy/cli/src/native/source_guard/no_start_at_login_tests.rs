@@ -41,12 +41,17 @@ use std::path::{Path, PathBuf};
 
 /// The members of the user manager (and of the bus daemon) the wrapper may call:
 /// say hello,
-/// reload,
 /// reset a failed unit,
 /// start,
 /// restart a unit the manager already holds,
 ///  stop,
 /// and read a unit's state.
+/// A reload is deliberately absent:
+/// it makes the manager read every unit it holds,
+/// at a cost that grows with everything
+///  else it runs,
+/// and nothing of this wrapper may ask for it
+/// (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
 /// Nothing that enables,
 /// links,
 /// presets,
@@ -59,7 +64,7 @@ use std::path::{Path, PathBuf};
 /// `SPEC.md`,
 /// the wait for the commit service),
 /// and it starts nothing at startup or at login.
-const ALLOWED_MEMBERS: &[&str] = &["Hello", "Reload", "StartUnit", "RestartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
+const ALLOWED_MEMBERS: &[&str] = &["Hello", "StartUnit", "RestartUnit", "StopUnit", "ResetFailedUnit", "GetUnit", "Get"];
 
 /// Texts that no release code line may carry:
 /// the manager's calls that make a unit start at startup or login,

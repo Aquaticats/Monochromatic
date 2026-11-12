@@ -404,6 +404,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the pause between looks at an earlier service's retirement",
     },
     Allowed {
+        file: "service/service_provision_instance_unloaded.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks at whether the manager dropped this worktree's units, on the synchronous face of provisioning",
+    },
+    Allowed {
         file: "transaction/transaction_phase.rs",
         rule: "blocking-sleep",
         why: "the pause between looks at a phase's release, on the synchronous face",
