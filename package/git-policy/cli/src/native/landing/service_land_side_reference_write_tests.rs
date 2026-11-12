@@ -28,7 +28,7 @@
 //! ```
 
 use super::*;
-use super::tests::{World, built_request, world};
+use super::tests::{World, built_request, request, world};
 use crate::service_land_side_reference_write::{
     AKeptCommit, ASideRefWrite, keep_on_a_side_ref, keep_on_the_scratch_reference, keep_on_the_scratch_reference_awaiting, keep_unlanded, keep_unlanded_awaiting,
 };
@@ -631,4 +631,49 @@ fn a_commit_no_reference_can_keep_is_named_to_the_person() {
         panic!("the person is told the commit's name; the lines were {lines:?}");
     };
     assert!(named.contains("no reference"), "the line says no reference is proven to name it: {named}");
+}
+
+/// What:
+///  A batch the import made every commit of,
+/// whose last name the repository refused,
+/// is kept beside that refusal and named to the person.
+/// Why:
+///  `fast-import` writes the commits and updates the batch's own reference last:
+///  a repository that refuses that update leaves them named by nothing at all,
+/// and a commit no
+///  reference names is one `git gc --prune=now` takes.
+///  The marks the import exported name every commit it made,
+///  so the landing keeps the batch's tip
+/// where a commit that did not land is kept and says so
+///  (the owner's rule "never discard user data").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refuseTheReferenceFolder(); expect((await landBatch(changes)).error).toEqual('unavailable'); expect(revParse(keptRef(1))).toBe(commit); expect(announced()).toContain(keptRef(1))
+/// ```
+#[test]
+fn a_batch_whose_import_could_not_name_its_commit_keeps_it_beside_the_refusal() {
+    let world: World = world("service-land-side-ref-import-refused");
+    let change: CommitRequest = request(&world, "typed", "typed.txt", "the change a person made\n");
+    // The batch's own reference cannot be written, and every other reference can: the folder the import writes
+    //  its reference into refuses every write.
+    let references: PathBuf = world.repo.join(".git/refs/worktree");
+    std::fs::create_dir_all(references.as_path()).expect("the reference's folder");
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a folder that refuses writes");
+    let announced: Announced = Announced(RefCell::new(Vec::new()));
+    let landed: Result<Vec<Outcome>, FailureCode> = crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        return land_batch_announcing(&world.context, 1, std::slice::from_ref(&change), &announced);
+    });
+    std::fs::set_permissions(references.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the folder takes writes again");
+    let kept: String = kept_ref(1);
+    let kept_read: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["rev-parse", "--verify", "--quiet", kept.as_str()]);
+    let held: String = String::from_utf8_lossy(kept_read.stdout.as_slice()).trim().to_string();
+    git(world.repo.as_path(), &["gc", "--prune=now"]);
+    let surviving: std::process::Output = crate::test_support::git_output(world.repo.as_path(), &["cat-file", "-e", held.as_str()]);
+    let lines: Vec<String> = announced.0.borrow().clone();
+    remove(world.root.as_path());
+    assert_eq!(landed.err(), Some(FailureCode::Unavailable), "the batch is not made, and it says so");
+    assert!(!held.is_empty(), "the commit the import made is kept on the reference a commit that did not land is kept on");
+    assert!(surviving.status.success(), "the commit survives a maintenance that drops what no reference names");
+    assert!(lines.iter().any(|line| { return line.contains(kept.as_str()); }), "the person is told where the commit is kept: {lines:?}");
 }

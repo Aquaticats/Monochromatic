@@ -6595,6 +6595,13 @@ on the commit path:
   because by then nothing names the commit
   (`keep_what_a_side_reference_write_left`,
   `src/native/landing/service_land_side_reference_write.rs`).
+  An import whose update of the batch's own reference the repository refused is the same ending,
+  reached without a reference that was ever written:
+  the marks `fast-import` exported name every commit of a batch it read to its end,
+  so that batch's tip is kept on `refs/cli-git/kept/<batch>` and named to the person,
+  and a batch the import stopped inside keeps nothing,
+  because the commit its marks name is not the commit its requests make together
+  (`src/native/landing/service_land_objects_of_batch.rs`).
 - A client whose wait passes `ANSWER_CEILING` asks the service,
   on a new connection,
   to withdraw its request (protocol version 7:

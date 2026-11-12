@@ -42,16 +42,30 @@ waiting for Git's write and reading the reference to answer it
 `src/native/landing/service_land_side_reference_write.rs`).
 
 **Nothing proves a name here.**
-This is the one window left open.
 It is the same window for both writers:
 an object exists before any reference names it,
 and a landing killed between the object and the write of the reference leaves that object to the
 collector's grace,
 as a killed `git fast-import` does.
 The wrapper's automatic maintenance uses `gc --auto` with the default grace,
-so only a concurrent `gc --prune=now` in that instant takes the commit,
-and closing it means naming the reference in the same import transaction for every case,
-which is a change to how batches are built and has not been decided.
+so only a concurrent `gc --prune=now` in that instant takes the commit.
+
+The import closes that window when the repository refuses its reference:
+`fast-import` exports its marks at the end of the stream and updates the batch's reference last,
+so a marks file naming every commit of the batch is a batch whose objects exist and whose reference
+was refused,
+and the landing keeps that tip on `refs/cli-git/kept/<batch>` and names it
+(`the_tip_a_refused_reference_left_unnamed`,
+`src/native/landing/service_land_objects_of_batch.rs`).
+A marks file naming fewer is an import that stopped inside the batch,
+so the commit it names is not the commit the person's requests make together,
+and nothing is kept for it.
+
+A kill in that instant is the one ending no marks recover,
+because the reference that will name the object is written after the object exists;
+what protects the commit then is the collector's grace alone,
+and naming each object before it is written is a change to how batches are built that has not been
+decided.
 
 ### 2. One name: `refs/worktree/cli-git-service/<batch>`
 

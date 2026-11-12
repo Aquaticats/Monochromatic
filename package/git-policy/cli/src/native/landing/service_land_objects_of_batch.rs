@@ -163,6 +163,14 @@ pub(crate) fn objects_of_batch(
         import_arguments.extend(["fast-import", "--done", marks_argument.as_str()]);
         let imported: GitOutput = run(git, repository, import_arguments.as_slice(), Some(import_stream(scratch, old, batch, amended_parents)))?;
         if !imported.succeeded() {
+            // The import makes the commits and updates the batch's reference at its end, so a repository that refuses that
+            //  update leaves every commit it made named by nothing, and `git gc --prune=now` takes an object nothing names. The
+            //  marks it exported name a batch it read to its end, so that batch's tip is kept beside the failure and named to the
+            //  person where a commit that did not land is kept (the owner's rule "never discard user data",
+            //  `keep_what_a_side_reference_write_left`).
+            if let Some(tip) = the_tip_a_refused_reference_left_unnamed(marks.as_path(), batch.len()) {
+                remember_the_tip_a_side_reference_does_not_hold(tip.as_str(), format!("the import of this batch could not write {scratch}"));
+            }
             return Err(classify(&imported));
         }
         // The import carries no `--quiet`, so its `--stats` report is kept in the service's log.
@@ -176,6 +184,28 @@ pub(crate) fn objects_of_batch(
         let last: String = made.last().cloned().ok_or(FailureCode::Unavailable)?;
         Ok((made, last))
     };
+}
+
+/// What:
+///  The commit of a batch `fast-import` made in full,
+/// when the marks it exported name every request of that batch,
+/// and nothing otherwise.
+/// Why:
+///  `fast-import` exports its marks at the end of the stream and updates the batch's reference last,
+///  so a marks file naming every commit is a batch whose objects the repository holds and whose
+///  reference it refused.
+///  A marks file naming fewer is an import that stopped inside the batch,
+/// and the commit it names is not the commit the person's requests make together,
+///  so it is not kept as one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tip = readMarks(marks, requests)?.at(-1)
+/// ```
+fn the_tip_a_refused_reference_left_unnamed(marks: &Path, requests: usize) -> Option<String> {
+    let text: String = std::fs::read_to_string(marks).ok()?;
+    let made: Vec<String> = commits_from_marks(text.as_str(), requests)?;
+    return made.last().cloned();
 }
 
 /// Controls for the objects a batch lands and the side reference that keeps them stay out of the release executable.
