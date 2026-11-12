@@ -522,7 +522,9 @@ fn a_question_for_a_drawn_shadow_is_answered_while_the_landing_thread_holds_a_ba
     let git_dir: PathBuf = root.join("gitdir");
     let drawn: PathBuf = crate::shadow_drawn::drawn_root_for(root.as_path(), git_dir.as_path()).join("drawn-00000000000000000000000000000003");
     std::fs::create_dir_all(drawn.as_path()).expect("a drawn tree");
-    let (shared, mut jobs) = shared_in("connection-shadow-answer");
+    // The instance is named for the Git directory the question names, so the answer is this service's to give without
+    //  asking the filesystem whose the directory is.
+    let (shared, mut jobs) = shared_serving("connection-shadow-answer", git_dir.clone());
     shared.drawn.note_ready(drawn.clone());
     let scratch: PathBuf = git_dir.join("monochromatic-git-policy-cli-scratch").join("monochromatic-git-policy-cli-service-ask-0");
     std::fs::create_dir_all(scratch.parent().expect("the scratch place").to_path_buf().as_path()).expect("the scratch place");

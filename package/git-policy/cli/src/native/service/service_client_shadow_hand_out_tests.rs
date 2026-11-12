@@ -76,7 +76,11 @@ fn a_stand_in(name: &str, behaviour: Behaviour) -> PathBuf {
         };
         if let Some(text) = answer {
             let _sent = writer.write_all(format!("{text}\n").as_bytes());
+            return;
         }
+        // A service that says nothing keeps its connection open, as a stopped one does: closing it would be an answer,
+        //  and the wait this control measures is the deadline and not a close.
+        std::thread::sleep(DRAWN_ANSWER_DEADLINE * 4);
     });
     return socket;
 }
