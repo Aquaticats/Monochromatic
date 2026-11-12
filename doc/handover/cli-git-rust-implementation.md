@@ -378,6 +378,113 @@ went to round 287's agent as a second note at 10:10:08.
   two shown working by their feeds at 10:10:51,
   the rest starting twenty seconds apart.
 
+#### The digests of four fix branches and of the discard guard, routed; rounds 293 and 294 (2026-11-12T10:20:00-05:00)
+
+Digests:
+`~/temp/agent/digest-2026-11-12T0956-work/digest.md` (read against `main` at `0895ca95ed`)
+and `~/temp/agent/digest-2026-11-12T1005-discard-guard/digest.md`.
+
+For the pass after pass 17,
+each merging cleanly into `main` and with every other:
+
+- push notices (`9da2d237ed`):
+  ready.
+  Left open on purpose:
+  an accepted push's server lines reach nobody when the service dies between the push's exit and its record
+  (text lost,
+  never a commit).
+  Closing it means keeping the masked output on disk as it is produced:
+  a choice for the owner.
+- cargo-shadow lean (`743059e153`):
+  ready.
+  Its own verdict:
+  not the whole answer to the disk pressure.
+- worktree add without waiting for package repair (`9e1b450341`):
+  ready.
+  Still over the owner's 60 seconds:
+  the relink when no service answers,
+  72.85 s with a `pnpm` of 62 s.
+  Options and a ranking are in `doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`.
+- the copy record that cannot be read (`aba9bce1d4`):
+  ready once its review (running) has read `6de98e7fbb`,
+  which inverts one of `main`'s controls and changes the fixture of two others.
+  It also repairs three controls that are probably red on `main` (not run on `main` by anyone).
+
+Found on `main`'s code by that last run,
+a loss:
+a person's btrfs snapshot,
+made between a source's last write and the file system's last commit,
+can be proved to be the wrapper's own stage and removed.
+One probe and one failure in 476 of `main`'s own test for it.
+Round 294 has an agent for it
+(`snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`):
+the proof fails closed,
+by an identity the add gives its stage and not by comparing transaction numbers,
+with no flush on an add's path.
+That direction is this session's,
+from "never discard user data",
+open to veto.
+The second agent of round 294
+(`add-says-when-its-copy-is-short-and-settles-below-a-read-only-directory`)
+takes the two findings of the 01:10 audit that the copy-record agent left untouched.
+
+The discard guard (`2f6ac5f6f0`,
+held out of releases):
+six findings fixed,
+merges cleanly,
+its Rust tests never shown failing first,
+one hole left (`git read-tree -m -u` still overwrites an ignored file).
+What a person sees differently is in the digest and goes to the owner as a question:
+copies saved where commands were refused or files were lost;
+new refusals for a file marked `assume-unchanged`,
+for `rm --f`,
+`mv --f` and `checkout-index --f`;
+autocorrection switched off for every mistyped command.
+Its follow-up waits for its review (queued).
+
+Three more runs ended by 10:15:07 with reports:
+the removal fixes brought onto `main` (`f941f71d77`),
+the second merge (`5c579487c5`,
+held out),
+and another session's measurement run.
+Round 293:
+a qwen4 review of each of the first two,
+queued.
+A digest of both is being written in `~/temp/agent/digest-2026-11-12T1018-removal-and-second-merge/`.
+
+Worktrees:
+
+- The worktree of a run that ends is removed by itself within a minute
+  (seen for three runs this hour;
+  each branch was on the remote at the same commit first).
+- While such a removal is still finishing,
+  an unrelated wrapper command,
+  a read-only one included,
+  prints "The interrupted removal of ... cannot be finished ... Run `git worktree prune`",
+  because a path that is already gone counts as a failure.
+  Nothing is lost and nothing needs doing.
+  Sent at 10:17:30 to the agent of the landed-removal second pass,
+  with the three sightings.
+- 129 worktrees are registered,
+  66 of them on a branch that is in `main`
+  (a fresh run's branch counts as that too),
+  about half of them review worktrees of rounds 133 and 162.
+  One old clean review worktree was removed by hand through the wrapper as a trial:
+  11.4 s.
+  The rest wait for a sweep that checks each one;
+  no cleanup unit is running since the restart.
+- Two lines "Waiting for the commit service of this worktree... nothing has answered" at 08:43:12 and 08:47:57
+  sit three and six seconds before two of the reload records.
+  Sent to the agent for issue 6286 at 10:17:30.
+
+The list of what waits for the owner is consolidated in
+`~/temp/agent/owner-questions-2026-11-12T1000/open-questions.md`:
+thirty-eight open items in four groups,
+twelve settled.
+They go to the owner through the question tool,
+four at a time,
+the ones that can lose data first.
+
 ### A wrapper killed for memory in a 512 MB scope: the holder scan's read of a descriptor record, issue 6287 (2026-11-12T09:50:16-05:00)
 
 #### What the owner said
