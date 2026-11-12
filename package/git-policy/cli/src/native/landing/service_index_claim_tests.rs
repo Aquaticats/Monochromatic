@@ -517,7 +517,7 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
         }
     };
     crate::service_index_attempts::forget_waits_chosen();
-    let taken = acquire_placing(&platform, &index, 9, ceiling, &announce, &mut notes, None)
+    let taken = acquire_placing(&platform, &index, 9, ceiling, &announce, &mut notes, None, &mut crate::service_index_lock::TheLockWaitsMemory::default())
     .expect("the stale lock is reclaimed in the same acquisition once the claim is dropped");
     assert!(refused.get() >= 1, "the acquisition met the other reclaimer's claim");
     assert!(notes.polled, "the wait looked again at the poll pace while another reclaimer held a claim, as nothing wakes it when the claim goes");

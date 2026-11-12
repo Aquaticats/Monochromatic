@@ -21,6 +21,7 @@
 //! ```
 
 pub use crate::service_journal_intent_text_and_parse::{Intent, intent_text, parse_intent};
+use crate::service_durable::WhatTheSyncsBecame;
 use crate::service_land_start::{IndexWitness, decode, encode};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -213,19 +214,47 @@ pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
 /// The reading is taken here,
 /// before the record is published and after the client sent its request,
 /// so the age it gives is never shorter than the wait that client is inside.
+/// The flush decisions are the landing's,
+/// read here,
+/// so a job of the blocking pool writes exactly what this face writes
+/// (`write_intent_awaiting`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await writeIntent(dir, intent) // the intent's lines and its clock reading, synced, renamed, and the directory synced
 /// ```
 pub fn write_intent(dir: &Path, intent: &Intent) -> std::io::Result<()> {
+    let mut became: WhatTheSyncsBecame = WhatTheSyncsBecame::default();
+    let written: std::io::Result<()> = write_intent_carrying(dir, intent, crate::service_durable::syncs_are_deferred_here(), &mut became);
+    became.keep();
+    return written;
+}
+
+/// What:
+///  `write_intent` with the landing's deferral given and what its syncs became left to the caller.
+/// Why:
+///   A job of the blocking pool cannot read the landing's state
+/// (`landing_state_carried_by_its_task.rs`),
+/// so the task that asks for the write tells it whether the landing defers,
+/// and records the syncs the job made when it answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeIntentCarrying(dir, intent, deferring, became)
+/// ```
+///
+/// # Errors
+///
+/// The error of the write,
+/// of the flush or of the rename.
+pub(crate) fn write_intent_carrying(dir: &Path, intent: &Intent, deferring: bool, became: &mut WhatTheSyncsBecame) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, intent.seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
     let text: String = format!("{}{}", intent_text(intent), crate::service_journal_record_age::stamp_line(&crate::claim_time::ClaimTime::read()));
     file.write_all(text.as_bytes())?;
-    crate::service_durable::flush_file(&file, "intent-file")?;
+    crate::service_durable::flush_file_carrying(&file, "intent-file", deferring, became)?;
     fs::rename(&temporary, batch_path(dir, intent.seq, OPEN_EXTENSION))?;
-    return crate::service_durable::flush_directory(dir, "intent-dir");
+    return crate::service_durable::flush_directory_carrying(dir, "intent-dir", deferring, became);
 }
 
 /// The extension of the record that a batch's index update is installed.
