@@ -183,6 +183,15 @@ static inline void fsnotify_group_lock(struct fsnotify_group *group)
 	mutex_lock(&group->mark_mutex);
 ```
 
+The holder takes the same mutex to add or remove a watch,
+and to tear its group down
+([fs/notify/mark.c:1025-1036][mark-add],
+[fs/notify/mark.c:662-669][mark-destroy]),
+so a read of the record also waits for whatever the holder's own watch operation is doing,
+and that operation takes the watched inode's own lock.
+A read of such a record can therefore wait on a file system the holder is watching,
+which no deadline in the reader can end.
+
 So two wrapper processes reading the same descriptor's record do not read it twice as fast:
 the second waits for the first to finish building the whole record.
 Each has its own `seq_file` and builds its own buffer in turn,
@@ -327,6 +336,16 @@ and each arm ran in its own scope with `MemoryMax=8G`:
 installed wrapper: 53.75 s, scope memory.peak 887,349,248 bytes, merge exit 0
 branch build:       7.72 s, scope memory.peak   5,861,376 bytes, merge exit 0
 ```
+
+A second run of the same arm gave the other shape of the same wait,
+and it is worth keeping because it is not the buffer:
+the installed wrapper did not finish within 140 s while its scope's charge stayed near 5 MB,
+and the process was in `D` with `wchan` = `inotify_show_fdinfo` throughout
+(sampled every three seconds,
+eleven minutes later).
+A read that waits on the group's mutex held by the holder's own watch operation
+holds nothing but its page while it waits,
+which is what that run shows.
 
 A plain `git status --porcelain` does not scan in this release:
 traced with
@@ -526,3 +545,5 @@ and bound what is taken from one that is opened.
 [group-lock]: https://github.com/torvalds/linux/blob/c03c1a14507dfaf8b856c2608f9ac216021fc222/include/linux/fsnotify_backend.h?plain=1#L287-L291
 [proc-readlink]: https://github.com/torvalds/linux/blob/c03c1a14507dfaf8b856c2608f9ac216021fc222/fs/proc/base.c?plain=1#L1815-L1852
 [d-path]: https://github.com/torvalds/linux/blob/c03c1a14507dfaf8b856c2608f9ac216021fc222/fs/d_path.c?plain=1#L265-L297
+[mark-add]: https://github.com/torvalds/linux/blob/c03c1a14507dfaf8b856c2608f9ac216021fc222/fs/notify/mark.c?plain=1#L1025-L1036
+[mark-destroy]: https://github.com/torvalds/linux/blob/c03c1a14507dfaf8b856c2608f9ac216021fc222/fs/notify/mark.c?plain=1#L662-L669
