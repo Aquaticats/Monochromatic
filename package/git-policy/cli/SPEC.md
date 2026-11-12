@@ -4286,19 +4286,47 @@ The write names the reference's full name,
 because `git update-ref origin/main <commit>` is accepted and changes nothing
 (measured with Git 2.56.0 on 2026-11-11),
 and only a remote-tracking reference under `refs/remotes/` is ever written.
-That name is derived from the branch's upstream and not taken from Git's answer,
+That name is derived from the branch's upstream and not read as a revision Git resolves,
 because `rev-parse` reads the short name `origin/main` from `refs/heads` and `refs/tags`
 as readily as from `refs/remotes`,
 so a repository that holds a local branch named `origin/main` would have that branch moved.
+The upstream is taken in full, `refs/remotes/origin/main` and not `origin/main`,
+because an abbreviation is only the shortest unambiguous name:
+the same repository answers the colliding branch's name as `remotes/origin/main`,
+which is no reference name a write takes,
+so the repair would read it as no reference of its own and write nothing.
 The value written is the commit the push delivered and never a name,
 because `update-ref` resolves a name when it writes,
 so a branch that moved after the push would be published without ever reaching the remote.
+The commit the push itself pinned is the value the repair is given,
+and a value that is no commit name writes nothing.
+Those are the only two facts the repair refuses:
+a name outside `refs/remotes/` and a value that is not an object name,
+and every caller passes the pinned commit, so no repair that worked is refused.
+The branch's upstream is read from its configuration (`git for-each-ref --format=%(upstream)`),
+not through `@{upstream}`,
+because that is a revision and answers nothing while the remote-tracking reference is absent,
+which is one of the states a push can leave.
+A reference that is absent is created,
+with the empty expected old value that makes the write a create:
+Git creates the branch's remote-tracking reference on a push whose fetch refspec maps the branch,
+and creates nothing where the refspec does not map it
+(measured with Git 2.56.0 on 2026-11-11),
+so the repair does what the push itself would have done.
 A reference that already names the delivered commit or a commit above it is left alone:
 another push or a fetch that advanced it between the push and the repair keeps its commit.
 A lock that refuses the write through every retry is not cleared,
 since nothing may clear another Git's lock without a proof that its holder is gone (see "Reference locks left by a Git that was killed");
 the push then says that it delivered the commit and that the reference names an older commit until a push or a fetch writes it,
 and the state reaches the service's log.
+Each refusal names its own cause and no other:
+a lock another Git held through every retry,
+another process that wrote the reference first, whose value the repair then keeps,
+a reference Git could not read,
+a name that is no remote-tracking reference,
+and a value that is no commit name
+(`still_behind` in `src/native/push/push_tracking_ref_repair.rs`).
+A person who read one cause for all of them was told to wait for a lock that was not there.
 
 A failed push never fails the commit:
 the service leaves a notice that the next command in the repository shows.
@@ -10992,11 +11020,25 @@ one look at the held records of a worktree that holds none costs 27.8 microsecon
 (2,000 looks through the command's notice desk,
 `push_notices_for`),
 which is nothing beside the owner's limit of five seconds per commit.
-The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
+The gate itself promotes its own record into `pending` when it passes and unlinks it when it
 blocks,
 so a blocked gate keeps the commit local,
 and a promotion creates every state directory a claim passes through (see "What a landed batch leaves
 behind").
+The promotion publishes the record with the same exclusive write every other record of the queue is written
+with and never with a rename over `pending`:
+a hold and a producer's `enqueue` can land in either order,
+so a `pending` record for the same push can already be there,
+and a rename would replace it,
+which costs the count of tries it carries and,
+beside a claim,
+makes a second runnable record for a push already in flight.
+A promotion that finds the queue holding the push answers that it is queued,
+one that finds the queue finished with it answers that,
+and the held record gives way to the queue's own record either way.
+A producer's round treats a held record as an id the queue knows,
+so it cannot write a `pending` record beside the hold that keeps the same push out of every round until its
+gate answers.
 A hold is never written over a record the queue already has:
 `done`,
 `failed`,
