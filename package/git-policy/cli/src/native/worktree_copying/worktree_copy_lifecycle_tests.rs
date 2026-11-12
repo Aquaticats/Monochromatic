@@ -1370,10 +1370,54 @@ fn btrfs_a_snapshot_add_that_carried_its_ignored_state_reports_no_missing_copy()
     remove(root.as_path());
 }
 
+/// A source whose own ignored-state copy still runs is no source for a snapshot either:
+/// the worktree is made,
+/// nothing of the half-filled ignored state reaches it,
+/// one line says why,
+/// and the record naming it unfilled stays.
+/// Why:
+///   The snapshot rung copies the source's whole ignored state at one instant,
+/// so a source that holds only part
+///  of its own is published as a job half done with nothing said,
+/// while every other rung refuses such a source and
+///  names it;
+/// the snapshot rung read no record of a copy being made at all (audit of 0.6.1-alpha.12,
+///  finding F1).
+#[test]
+fn btrfs_a_snapshot_add_from_a_source_still_being_filled_names_the_missing_copy() {
+    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("lifecycle-snapshot-source-filling") else { return };
+    let main: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    // The state a copy in progress leaves in the worktree it fills: a journal naming it, owned by a process that lives until this control ends.
+    let live = journal_for(main.as_path(), common.as_path(), main.as_path(), &crate::worktree_copy_owner::current_copy_owner().expect("owner"));
+    let topic: PathBuf = root.join("topic");
+    let mut invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(topic.as_path()));
+    invocation.add_plan = Some(crate::worktree_ladder_test_support::plan_to(topic.clone()));
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &invocation,
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_without_checkout("topic", topic.as_path()).as_slice())),
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "the add itself still succeeds: {:?}", settlement.copy_failure);
+    assert!(settlement.copy_failure.is_none(), "a source that is busy is not the add's failure");
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    // A snapshot of the half-filled source would have carried `ignored/pkg/index.js`, which is what the source held when the copy that fills it was stopped.
+    assert!(!topic.join("ignored").exists(), "the half-filled ignored state is not published as the worktree's: {said:?}");
+    assert!(said.contains("received no ignored-state copy"), "a worktree without the source's ignored files is told: {said:?}");
+    assert!(live.path.exists(), "the running copy's journal is whole");
+    assert!(
+        recorded_names(common.as_path()).iter().any(|name: &String| return name.ends_with(".add")),
+        "the record of the destination this command did not fill stays, so a later add from it is held back: {:?}",
+        recorded_names(common.as_path())
+    );
+    remove(root.as_path());
+}
+
 /// Another command registers a worktree while this one's Git runs:
 /// only the destination this command named is copied into,
-/// so two concurrent adds each get exactly their own copy.
-#[cfg(unix)]
+/// so two concurrent adds each get exactly their own copy.#[cfg(unix)]
 #[test]
 fn a_creation_copies_only_into_the_destination_it_named() {
     let root: PathBuf = fixture("lifecycle-own-destination");

@@ -318,6 +318,52 @@ fn mode_of(path: &Path) -> u32 {
     return std::fs::symlink_metadata(path).expect("the entry").mode() & 0o7777;
 }
 
+/// The mode of a source directory that grants its owner reading and searching and no writing:
+/// retained state of the source,
+/// never a permission for the copy to fail.
+const READ_ONLY_DIRECTORY: u32 = 0o500;
+
+/// What:
+///  A file that changed below a directory the source keeps readable only is copied again,
+/// the stage holds the new bytes,
+///  and the staged directory keeps the source's mode.
+/// Why:
+///   The settling applies the source's modes before it compares,
+/// so a changed entry sits in the stage below a
+///  directory its owner may not write;
+/// removing that entry for its retry needs the owner's writing for the moment of the
+///  retry and nothing more.
+/// Without it the add fails where real Git's own succeeds,
+/// twice in one run of the
+///  audit of 0.6.1-alpha.12,
+/// with `Permission denied (os error 13)` as the whole of what the person read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { entries } = await copyAndSettle(...CHANGES_ONCE, { directoryMode: 0o500 }); expect(entries).toHaveLength(3); expect(readFileSync(join(stage, 'cache/a.txt'), 'utf8')).toBe('rewritten once\n'); expect(modeOf(join(stage, 'cache'))).toBe(0o500);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_changed_file_below_a_read_only_directory_is_copied_again() {
+    use std::os::unix::fs::PermissionsExt;
+    let (held, root, source, stage, listed_before_the_mode_changed) = two_ignored_files("settling-read-only-directory", CHANGES_ONCE);
+    drop(listed_before_the_mode_changed);
+    std::fs::set_permissions(source.join("cache").as_path(), std::fs::Permissions::from_mode(READ_ONLY_DIRECTORY)).expect("the source keeps the mode its owner gave it");
+    // The fixture listed the source before the mode changed, so the manifest is taken again: this control copies what a source whose cache was readable only all along would give.
+    let mut left_out: LeftOut = LeftOut::default();
+    let entries: Vec<WorktreeCopyEntry> =
+        collect_pruned_manifest(source.as_path(), [b"cache".to_vec()].as_slice(), &[], Prune::Never, &mut left_out, &CopyCeiling::unbounded()).expect("the manifest");
+    assert!(left_out.unreadable.is_empty(), "{:?}", left_out.unreadable);
+    let settled: Settled = copy_and_settle(source.as_path(), stage.as_path(), entries).expect("a changed entry below a read-only directory is copied again, never a failure");
+    assert!(settled.unsettled.is_empty(), "the entry settled at its second copy: {:?}", settled.unsettled);
+    assert_eq!(settled.entries.len(), 3, "every entry of the manifest is staged: {:?}", settled.entries);
+    assert_eq!(std::fs::read(stage.join("cache/a.txt")).expect("a staged a"), b"rewritten once\n", "the stage holds the bytes the source has now");
+    assert_eq!(mode_of(stage.join("cache").as_path()), READ_ONLY_DIRECTORY, "the staged directory keeps the source's retained mode once the retry is done");
+    assert!(source.join("cache/a.txt").is_file(), "the source keeps its own file");
+    drop(held);
+    remove(root.as_path());
+}
+
 /// What:
 ///  A directory the source removed while the copy ran is left out with the entries below it,
 /// and the add goes
