@@ -302,7 +302,9 @@ fn the_paths_a_subdirectory_clean_prints_are_read_below_the_command() {
 ///  at the removed path and below one,
 ///  and it is found although it holds no `.git` entry.
 /// Why:
-///  A bare repository keeps its history in the directory itself (`HEAD`, `objects`, `refs`),
+///  A bare repository keeps its history in the directory itself:
+///  `HEAD`,
+///  `objects` and `refs` are its markers,
 ///  which is what Git's own `is_git_directory` reads,
 ///  and a second `-f` deletes it as an ordinary ignored directory with every object it holds,
 ///  so a walk that looks only for `.git` lets a clone nobody pushed lose everything.
@@ -335,7 +337,8 @@ fn a_bare_repository_is_found_below_a_removed_path() {
 /// Why:
 ///  A directory read or a metadata lookup on a mount whose server stopped answering never returns,
 ///  and the wrapper must not hold the command for as long as that mount takes;
-///  the walk runs on an awaited thread, and a look that outlasts the ceiling names the directory instead.
+///  the walk runs on an awaited thread,
+///  and a look that outlasts the ceiling names the directory instead.
 #[test]
 fn a_look_inside_that_does_not_answer_stops_the_clean() {
     let root: PathBuf = fixture("clean-nested-slow-walk");

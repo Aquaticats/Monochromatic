@@ -97,7 +97,8 @@ fn detects_deleting_forms() {
 /// Why:
 ///  A dry run of that region exits nonzero without naming a path,
 ///  so a reader that takes every nonzero exit for Git's refusal deletes on a reading it never got;
-///  the region itself says Git will refuse, and no dry run is needed to know it.
+///  the region itself says Git will refuse,
+///  and no dry run is needed to know it.
 #[test]
 fn reports_the_one_region_git_refuses_itself() {
     for values in [

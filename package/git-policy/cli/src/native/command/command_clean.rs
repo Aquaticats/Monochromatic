@@ -50,7 +50,8 @@ pub const CLEAN_DELETION_FACT: &str = "what the clean would delete";
 /// Why:
 ///  The message is this crate's own,
 ///  and it names the reading the person can run again;
-///  a failed reading is never Git's refusal of the clean, so no caller classifies by these words.
+///  a failed reading is never Git's refusal of the clean,
+///  so no caller classifies by these words.
 pub const UNREADABLE_CLEAN_DELETION: &str = "Git could not read what the clean would delete:";
 
 /// The words that begin the reading of a clean's own dry run that never answered.

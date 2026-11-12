@@ -9,7 +9,9 @@
 //!  so nothing it or the person can see says the work inside it is about to go.
 //!  Git's typed dry run names every path it would remove (`msg_would_remove` in `builtin/clean.c`),
 //!  and the repositories are the directories below those paths that are a repository of their own:
-//!  one with a `.git` entry, or a bare one whose `HEAD`, `objects` and `refs` sit in the directory itself,
+//!  one with a `.git` entry,
+//!  or a bare one whose `HEAD`,
+//!  `objects` and `refs` sit in the directory itself,
 //!  because a second `-f` deletes both shapes and names neither.
 //!  The path Git names is sometimes the repository itself and sometimes a directory that holds it.
 //!  Git writes a trailing slash on a directory it names at the top level and none on one it names from inside
@@ -40,7 +42,8 @@
 /// The answer Git gave one dry run,
 ///  and what a failed one means.
 use crate::git_metadata::{MetadataOutput, READ_CEILING};
-/// `work_within` looks at a file system that may never answer, on a thread awaited under a ceiling.
+/// `work_within` looks at a file system that may never answer,
+///  on a thread awaited under a ceiling.
 use crate::work_awaited_within_a_ceiling::work_within;
 /// `plain_components` reads a Git-printed path as the plain components below the worktree it must be.
 use crate::fs_beneath::plain_components;
@@ -152,8 +155,10 @@ pub fn removed_paths_from_dry_run(lines: &[Vec<u8>]) -> Vec<Vec<u8>> {
 ///  A name Git prints is relative to the directory the clean runs in,
 ///  not to the worktree top level (`relative_path` in `builtin/clean.c`),
 ///  so the command's own prefix is written before it:
-///  read from the top level instead, a clean started in a subdirectory named a directory that is
-///  not the one Git looked at, and the repository it held was deleted unsaved.
+///  read from the top level instead,
+///  a clean started in a subdirectory named a directory that is
+///  not the one Git looked at,
+///  and the repository it held was deleted unsaved.
 ///  Git writes a `.` in front of a path it prints from inside a directory it will not remove itself
 ///  (`remove_dirs` prints the cwd's own entries from a `./` path),
 ///  so a `.` component is dropped and a parent component steps up inside the worktree.
@@ -250,15 +255,18 @@ fn names_below_the_command(printed: &[u8], command: &[OsString]) -> Option<Vec<O
 /// What:
 ///  Every directory at or below `start` that is a Git repository of its own,
 ///  read on a thread the caller waits for only until `ceiling`.
-///  `walk` is the look itself, so a control can hold it past the ceiling without a mount whose server stopped.
+///  `walk` is the look itself,
+///  so a control can hold it past the ceiling without a mount whose server stopped.
 /// Why:
 ///  A directory read or a metadata lookup on a mount whose server stopped answering can wait in the kernel with no end,
 ///  and the thread it holds cannot be ended while that call runs;
 ///  only work on another thread lets the command stop waiting,
 ///  so a look that gives no answer in the ceiling stops the clean with a sentence naming the directory
 ///  instead of holding the command for as long as the mount takes.
-///  The thread is abandoned, never cancelled:
-///  it ends when the kernel lets the call go, or at the process exit where the kernel lets the task be ended then.
+///  The thread is abandoned,
+///  never cancelled:
+///  it ends when the kernel lets the call go,
+///  or at the process exit where the kernel lets the task be ended then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -284,7 +292,8 @@ pub(crate) fn repositories_beneath_within_a_ceiling(
 /// Why:
 ///  A nested repository is a directory with a `.git` entry of its own,
 ///  whether that entry is a directory or a file,
-///  or a bare repository, which has no `.git` entry at all,
+///  or a bare repository,
+///  which has no `.git` entry at all,
 ///  and moving the outermost one takes every repository inside it,
 ///  so the walk opens no directory below one.
 ///  Every component of `start` is checked as a directory of its own first,
@@ -345,7 +354,8 @@ fn walk_beneath(worktree_root: &Path, start: &[OsString]) -> Result<Vec<Vec<OsSt
 ///   A second `-f` deletes both shapes whole,
 ///  without naming the repository it removes,
 ///  and a bare repository has no `.git` entry to find.
-///  `.git` is read as the entry itself, so a file (a worktree's or a submodule's) counts as much as a directory.
+///  `.git` is read as the entry itself,
+///  so a file (a worktree's or a submodule's) counts as much as a directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -360,15 +370,18 @@ fn a_repository_is(directory: &Path) -> bool {
 
 /// What:
 ///  Whether one directory is a bare repository:
-///  a `HEAD` file, an `objects` directory and a `refs` directory,
+///  a `HEAD` file,
+///  an `objects` directory and a `refs` directory,
 ///  which is what Git's own `is_git_directory` reads before it calls a directory a repository.
 /// Why:
 ///  A bare repository keeps its whole history in the directory itself,
 ///  so nothing else marks it as a repository,
 ///  and Git's clean deletes it as an ordinary ignored directory.
 ///  A `HEAD` whose content no longer names a head still counts:
-///  the directory is a person's repository that Git would delete, and saving it is never deleting it.
-///  The markers are read through links, as Git opens them.
+///  the directory is a person's repository that Git would delete,
+///  and saving it is never deleting it.
+///  The markers are read through links,
+///  as Git opens them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -399,7 +412,11 @@ fn a_bare_repository_is(directory: &Path) -> bool {
 /// (path: string) => stat(path, { throwIfNoEntry: false })?.isDirectory() ?? false;
 /// ```
 fn a_directory_is(path: &Path) -> bool {
-    return std::fs::metadata(path).map(|found| { return found.is_dir(); }).unwrap_or(false);
+    let Ok(found) = std::fs::metadata(path) else {
+        // A marker this cannot read is one that is not there.
+        return false;
+    };
+    return found.is_dir();
 }
 
 /// What:

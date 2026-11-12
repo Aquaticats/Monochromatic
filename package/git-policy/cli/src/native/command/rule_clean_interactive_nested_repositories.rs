@@ -117,7 +117,9 @@ struct InteractiveClean {
 ///  because its menu cannot be asked before Git deletes;
 ///  a repository Git would keep at one force is one no menu may offer,
 ///  and the clean still runs every other thing the person asked for.
-///  The one clean Git refuses itself, `-x` written with `-X`, is known from the region and deletes nothing,
+///  The one clean Git refuses itself,
+///  `-x` written with `-X`,
+///  is known from the region and deletes nothing,
 ///  so it needs no cap.
 ///  A dry run that did not answer stops the command,
 ///  because a repository it could not see may be one the menu would have offered,

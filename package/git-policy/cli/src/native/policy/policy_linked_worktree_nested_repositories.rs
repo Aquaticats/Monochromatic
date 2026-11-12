@@ -113,8 +113,11 @@ enum NestedRepositories {
 ///  Git itself says which paths the clean removes,
 ///  and the repository the clean deletes is the one below one of those paths,
 ///  found by looking inside the names Git printed and nowhere else.
-///  The one clean Git refuses itself, `-x` written with `-X`, is known from the region before any reading:
-///  it deletes nothing, so Git's own refusal is the answer the person gets.
+///  The one clean Git refuses itself,
+///  `-x` written with `-X`,
+///  is known from the region before any reading:
+///  it deletes nothing,
+///  so Git's own refusal is the answer the person gets.
 ///  A dry run that did not answer was read by nobody,
 ///  and a nonzero exit is no proof that the clean which runs afterwards refuses,
 ///  so that clean stops instead of running on a guess.
