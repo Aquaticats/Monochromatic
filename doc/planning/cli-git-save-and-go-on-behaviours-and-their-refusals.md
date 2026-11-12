@@ -117,7 +117,7 @@ Another agent holds this case:
 
 ## 2. A `checkout` or `restore` that takes a side of a conflicted file
 
-**Status: converted in this branch.**
+**Status: converted in this branch, commit `a9beb329b3`.**
 
 The typed command and the state:
 a merge (or a rebase of either backend,
@@ -657,6 +657,9 @@ The commands the brief names were each read:
 
 ## The converted case, as it was done
 
+The conversion is `a9beb329b3`,
+whose parent is the commit that added this page.
+
 1. The controls first,
    through the built executable,
    failing on the unchanged tree:
@@ -724,3 +727,13 @@ audit: "form":"CheckoutPaths","outcome":"hatch"
   the run that completed took about five minutes in the same fixture and was not measured against a control.
 - The installed wrapper moved from `0.6.1-alpha.13` to `0.6.1-alpha.15` while this page was written;
   every quoted run names its release.
+- The refusal names a file only when the in-process reader can see the layout and the index.
+  A `GIT_` variable that reader does not tolerate,
+  `GIT_CONFIG_GLOBAL` among them,
+  leaves the command refused and the file unnamed (**run**:
+  `GIT_CONFIG_GLOBAL=/dev/null` gave the policy's ordinary text,
+  while the same command without it gave the new one).
+  The command is refused either way;
+  only the sentence about the conflict is lost.
+- A path the line names through pathspec magic or a wildcard is not named back,
+  because a pattern names a set and the refusal never claims a file it cannot prove.
