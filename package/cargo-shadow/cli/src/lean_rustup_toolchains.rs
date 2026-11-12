@@ -33,8 +33,9 @@ use crate::lean_identity::{Deadline, Identity, identity_of};
 use crate::lean_proc_scan::scan_processes;
 /// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::tree_bytes;
-/// Named reads of directory entries.
-use crate::lean_text::is_directory;
+/// Named reads of directory entries,
+/// and the open that never waits and refuses what is not a regular file.
+use crate::lean_text::{is_directory, read_regular_text};
 
 /// The environment variable that names a toolchain.
 const TOOLCHAIN_VARIABLE: &str = "RUSTUP_TOOLCHAIN";
@@ -113,20 +114,20 @@ pub fn dated_nightly_name(directory_name: &str) -> Option<String> {
 /// function pinsIn(checkout: string, pinned: Set<string>): void
 /// ```
 fn pins_in(checkout: &Path, pinned: &mut HashSet<String>) {
-    if let Ok(text) = fs::read_to_string(checkout.join("toolchain.lock.json"))
+    if let Ok(text) = read_regular_text(&checkout.join("toolchain.lock.json"))
         && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
         && let Some(version) = value.pointer("/tools/rust/version").and_then(serde_json::Value::as_str)
     {
         pinned.insert(version.to_string());
     }
-    if let Ok(text) = fs::read_to_string(checkout.join(".cache").join("toolchain.env.json"))
+    if let Ok(text) = read_regular_text(&checkout.join(".cache").join("toolchain.env.json"))
         && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
         && let Some(name) = value.get(TOOLCHAIN_VARIABLE).and_then(serde_json::Value::as_str)
     {
         pinned.insert(name.to_string());
     }
     for file in ["rust-toolchain", "rust-toolchain.toml"] {
-        if let Ok(text) = fs::read_to_string(checkout.join(file)) {
+        if let Ok(text) = read_regular_text(&checkout.join(file)) {
             for line in text.lines() {
                 let trimmed: &str = line.trim().trim_start_matches("channel").trim_start_matches([' ', '=']).trim_matches(['"', ' ']);
                 if trimmed.starts_with("nightly-") {
@@ -152,7 +153,7 @@ pub fn pinned_by(checkouts: &[PathBuf], settings: &Path) -> HashSet<String> {
     for checkout in checkouts {
         pins_in(checkout, &mut pinned);
     }
-    if let Ok(text) = fs::read_to_string(settings) {
+    if let Ok(text) = read_regular_text(settings) {
         for line in text.lines() {
             if let Some((_, value)) = line.split_once('=') {
                 let name: &str = value.trim().trim_matches('"');

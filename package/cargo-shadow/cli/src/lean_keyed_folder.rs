@@ -36,7 +36,9 @@ use sha2::{Digest, Sha256};
 use toml_edit::DocumentMut;
 /// Named reads of paths and text:
 /// a ledger is read the way every other name here is.
-use crate::lean_text::read_small_text;
+/// The unbounded read that refuses what is not a regular file,
+/// and the small read a ledger takes.
+use crate::lean_text::{read_regular_text, read_small_text};
 
 /// The Cargo variable the shadow sets for the child only.
 pub const BUILD_DIR_VARIABLE: &str = "CARGO_BUILD_BUILD_DIR";
@@ -99,7 +101,7 @@ pub fn base_of_template(template: &str) -> Option<PathBuf> {
 /// ```
 pub fn configured_base(cargo_home: &Path) -> Option<PathBuf> {
     for name in ["config.toml", "config"] {
-        let Ok(text) = fs::read_to_string(cargo_home.join(name)) else { continue };
+        let Ok(text) = read_regular_text(&cargo_home.join(name)) else { continue };
         let Ok(document) = text.parse::<DocumentMut>() else { return None };
         let template: &str = document.get("build")?.get("build-dir")?.as_str()?;
         return base_of_template(template);

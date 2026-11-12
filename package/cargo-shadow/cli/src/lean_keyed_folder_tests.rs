@@ -7,6 +7,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::lean_keyed_folder::{base_of_template, configured_base, keyed_build_dir, leave_ledger, read_ledger, toolchain_of, workspace_key};
+use crate::lean_test_support::{make_pipe, within};
 use crate::test_scratch::scratch;
 
 #[test]
@@ -60,4 +61,18 @@ fn the_ledger_is_written_once_and_read_back() {
     leave_ledger(&inner, Path::new("/work/one"));
     leave_ledger(&inner, Path::new("/work/two"));
     assert_eq!(read_ledger(&inner), Some(PathBuf::from("/work/one")));
+}
+
+/// A pipe where a Cargo configuration would be is no configured base and holds nothing:
+/// the name is a person's file, so the open refuses what is not a regular file.
+#[test]
+fn a_pipe_at_a_cargo_configuration_is_no_base_and_does_not_hold_the_run() {
+    let root = scratch();
+    let home: PathBuf = root.path().join("cargo-home");
+    std::fs::create_dir_all(&home).expect("cargo home");
+    make_pipe(&home.join("config.toml"));
+    make_pipe(&home.join("config"));
+    let named_home: PathBuf = home.clone();
+    let base: Option<PathBuf> = within(move || { return configured_base(&named_home); });
+    assert_eq!(base, None);
 }

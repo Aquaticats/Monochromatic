@@ -18,6 +18,9 @@
 /// Files and paths.
 use std::{fs, path::{Path, PathBuf}};
 
+/// The open that never waits and refuses what is not a regular file.
+use crate::lean_text::read_regular_text;
+
 /// What:
 /// `pub fn common_git_directory(checkout: &Path) -> Option<PathBuf>` is the Git directory all checkouts of the repository share.
 /// Why:
@@ -32,10 +35,10 @@ pub fn common_git_directory(checkout: &Path) -> Option<PathBuf> {
     if dot_git.is_dir() {
         return Some(dot_git);
     }
-    let text: String = fs::read_to_string(&dot_git).ok()?;
+    let text: String = read_regular_text(&dot_git).ok()?;
     let own: PathBuf = PathBuf::from(text.trim().strip_prefix("gitdir:")?.trim());
     let own_absolute: PathBuf = if own.is_absolute() { own } else { checkout.join(own) };
-    let common_text: String = fs::read_to_string(own_absolute.join("commondir")).ok()?;
+    let common_text: String = read_regular_text(&own_absolute.join("commondir")).ok()?;
     let common: PathBuf = PathBuf::from(common_text.trim());
     let joined: PathBuf = if common.is_absolute() { common } else { own_absolute.join(common) };
     return fs::canonicalize(joined).ok();
@@ -60,7 +63,7 @@ pub fn list_checkouts(start: &Path) -> Vec<PathBuf> {
     }
     let Ok(entries) = fs::read_dir(common.join("worktrees")) else { return checkouts };
     for entry in entries.flatten() {
-        let Ok(text) = fs::read_to_string(entry.path().join("gitdir")) else { continue };
+        let Ok(text) = read_regular_text(&entry.path().join("gitdir")) else { continue };
         let dot_git: PathBuf = PathBuf::from(text.trim());
         if let Some(worktree) = dot_git.parent()
             && worktree.exists()

@@ -113,6 +113,31 @@ pub fn read_unlinked_small_text(path: &Path, limit: usize) -> io::Result<String>
 }
 
 /// What:
+/// `pub(crate) fn read_regular_text(path: &Path) -> std::io::Result<String>` is all of a regular file at a path,
+/// opened so that nothing at the path can hold the caller,
+/// and a link at the path is followed.
+/// Why:
+/// The rule the readers here keep applies to every name these tools did not create themselves:
+/// the open never waits on a pipe,
+/// and the entry it opened must be a regular file.
+/// This is that rule for a caller that wants the whole file:
+/// a Git directory record,
+/// a toolchain pin,
+/// a Cargo configuration or a lock file is a short file,
+/// and a caller that cannot read it acts as it does on a missing one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readRegularText = (path: string): string => readFileSync(path, { flag: 'r' }).toString();
+/// ```
+pub(crate) fn read_regular_text(path: &Path) -> io::Result<String> {
+    let mut file: fs::File = open_regular(path, true)?;
+    let mut text: String = String::new();
+    file.read_to_string(&mut text)?;
+    return Ok(text);
+}
+
+/// What:
 /// `pub fn read_small_bytes(path: &Path, limit: usize) -> std::io::Result<Vec<u8>>` is the first `limit` bytes of a regular file at a
 /// path,
 /// opened so that nothing at the path can hold the caller,

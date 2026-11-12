@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::HashSet, fs, path::{Path, PathBuf}, proces
 
 use crate::lean_identity::Deadline;
 use crate::lean_rustup_toolchains::{Installed, ToolchainVerdict, Uninstaller, dated_nightly_name, installed_toolchains, pinned_by, retire_nightlies};
-use crate::lean_test_support::{DAY, NOW, age_everything};
+use crate::lean_test_support::{DAY, NOW, age_everything, make_pipe, within};
 use crate::test_scratch::scratch;
 
 /// The grace period of these tests.
@@ -151,4 +151,21 @@ fn a_nightly_a_process_names_in_its_environment_is_kept() {
     let (verdicts, asked) = retire_in(root.path(), &[], Path::new("/proc"));
     assert!(asked.is_empty(), "{verdicts:?}");
     assert!(named.exists());
+}
+
+/// A pipe where a checkout records the toolchain it pins pins nothing and holds nothing:
+/// the read of that name refuses what is not a regular file instead of opening it.
+#[test]
+fn a_pipe_at_a_toolchain_record_pins_nothing_and_does_not_hold_the_run() {
+    let root = scratch();
+    let checkout: PathBuf = root.path().join("checkout");
+    fs::create_dir_all(checkout.join(".cache")).expect("checkout");
+    make_pipe(&checkout.join("toolchain.lock.json"));
+    make_pipe(&checkout.join(".cache").join("toolchain.env.json"));
+    make_pipe(&checkout.join("rust-toolchain"));
+    let settings: PathBuf = root.path().join("settings.toml");
+    make_pipe(&settings);
+    let named_checkout: PathBuf = checkout.clone();
+    let pinned: HashSet<String> = within(move || { return pinned_by(&[named_checkout], &settings); });
+    assert!(pinned.is_empty(), "a pipe names no toolchain: {pinned:?}");
 }
