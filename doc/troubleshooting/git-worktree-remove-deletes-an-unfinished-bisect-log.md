@@ -113,6 +113,9 @@ so a caller that only forwards the removal keeps no record of where the bisect s
 Git's own clean-worktree refusal answers for modified,
 staged and untracked files,
 which a bisect leaves alone.
+The same held for a bisect that never opened its log:
+with `BISECT_START` and `BISECT_NAMES` in place and no log,
+`git worktree remove` exited `0` and took both files and the registration (measured 2026-11-11).
 
 ### Relying on a detached `HEAD` to show the bisect
 
