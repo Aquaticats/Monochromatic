@@ -213,7 +213,7 @@ fn two_worktrees_trash_records_run_beside_each_other() {
     let both: SideBySide = SideBySide::of();
     // The trashes are the slow lane's kinds, which the round that answers a push never claims.
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
-    runtime.block_on(crate::service_work_slow_lane::drain_the_slow_work_awaiting(world.common.as_path(), &both));
+    runtime.block_on(crate::service_work_slow_lane::drain_the_slow_work_awaiting(world.common.as_path(), &both, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND));
     assert_eq!(settled(&world, DONE), 2, "both trashes were emptied");
     assert_eq!(both.most.load(Ordering::SeqCst), 2, "the two worktrees' trashes were inside the handler at the same moment");
     world.cleaned();
@@ -240,7 +240,7 @@ fn one_worktrees_two_trash_records_run_one_after_the_other() {
     enqueue(world.work.as_path(), &record(&world, WorkKind::Trash, 0, "refs/cli-git/trash", "4444444444444444444444444444444444444444")).expect("the second trash");
     let both: SideBySide = SideBySide::of();
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime of this thread");
-    runtime.block_on(crate::service_work_slow_lane::drain_the_slow_work_awaiting(world.common.as_path(), &both));
+    runtime.block_on(crate::service_work_slow_lane::drain_the_slow_work_awaiting(world.common.as_path(), &both, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND));
     assert_eq!(settled(&world, DONE), 2, "both trashes of the one worktree were emptied");
     assert_eq!(both.most.load(Ordering::SeqCst), 1, "the one worktree's trashes never ran at the same moment");
     world.cleaned();
@@ -443,9 +443,9 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
         crate::service_work_items_side_by_side::hold_the_width_to(width);
         let began: Instant = Instant::now();
         let lane_dir: PathBuf = git_dir.clone();
-        let running: tokio::task::JoinHandle<()> = crate::lazy_runtime::spawn_on_runtime(async move {
+        let running: tokio::task::JoinHandle<Option<Duration>> = crate::lazy_runtime::spawn_on_runtime(async move {
             let handlers: GitHandlers = GitHandlers::new(git_context());
-            return crate::service_work_slow_lane::drain_the_slow_work_awaiting(lane_dir.as_path(), &handlers).await;
+            return crate::service_work_slow_lane::drain_the_slow_work_awaiting(lane_dir.as_path(), &handlers, crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND).await;
         })
         .expect("the runtime starts the lane");
         assert!(emptied_by(work.as_path(), trash_name_of_round(round, 0).as_str(), MEASURED_WORKTREES, MEASURED_DRAIN_CEILING), "round {round} of width {width} emptied every trash of its queue");
@@ -811,8 +811,8 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
     }
     let stand_ins: Arc<StandIns> = Arc::new(StandIns::new());
     let lane_handlers: Arc<StandIns> = Arc::clone(&stand_ins);
-    let lane = async move { crate::service_work_slow_lane::drain_the_slow_work_awaiting(git_dir.as_path(), lane_handlers.as_ref()).await };
-    let running: tokio::task::JoinHandle<()> = crate::lazy_runtime::spawn_on_runtime(lane).expect("the runtime starts the lane");
+    let lane = async move { crate::service_work_slow_lane::drain_the_slow_work_awaiting(git_dir.as_path(), lane_handlers.as_ref(), crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND).await };
+    let running: tokio::task::JoinHandle<Option<Duration>> = crate::lazy_runtime::spawn_on_runtime(lane).expect("the runtime starts the lane");
     assert!(wait_until(&|| { return stand_ins.inside.load(Ordering::SeqCst) > 0; }), "a slow item of the lane is running");
     // The claims the lane holds are its own, and the push's round takes only the pushes.
     assert!(wait_until(&|| { return claimed(&held_world(&staged, work.as_path()), WorkKind::Review) > 0; }), "the review waits claimed, as the measured service held it");
