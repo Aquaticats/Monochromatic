@@ -1947,6 +1947,10 @@ its content is not part of the tree.
 delete it with `btrfs subvolume delete`,
 or unmount it,
 then run the deletion again.
+A nested subvolume or a mount point that appears after that first look is refused where the deletion meets it,
+with the same reason and the same ways forward;
+the entries the deletion had already removed from that directory stay removed,
+and everything beside them is left as it is.
 Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
  it and calls `rmdir`,
 which the kernel allows for an empty subvolume root.
