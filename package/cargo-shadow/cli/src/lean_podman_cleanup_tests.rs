@@ -9,7 +9,7 @@
 //! an image a container holds is kept rather than reported as a failure,
 //! and the container list asks for external (Buildah working) containers.
 
-use std::{cell::RefCell, collections::{HashMap, HashSet}};
+use std::{cell::RefCell, collections::{HashMap, HashSet}, time::Duration};
 
 use crate::lean_container_references::{collect_references, words_of};
 use crate::lean_identity::Deadline;
@@ -35,12 +35,15 @@ struct Fake {
     removal_calls: RefCell<Vec<Vec<String>>>,
     /// Volume names asked for.
     removed_volumes: RefCell<Vec<String>>,
+    /// How long each removal takes,
+    /// so a test can put the run's deadline inside the loop.
+    pause: Duration,
 }
 
 impl Fake {
     /// A Podman with these image rows and no container.
     fn with_images(images: Vec<Image>) -> Fake {
-        return Fake { images, containers: Vec::new(), volumes: Vec::new(), refusals: HashMap::new(), removal_calls: RefCell::new(Vec::new()), removed_volumes: RefCell::new(Vec::new()) };
+        return Fake { images, containers: Vec::new(), volumes: Vec::new(), refusals: HashMap::new(), removal_calls: RefCell::new(Vec::new()), removed_volumes: RefCell::new(Vec::new()), pause: Duration::ZERO };
     }
 }
 
@@ -56,6 +59,7 @@ impl PodmanApi for Fake {
     }
     fn remove_image(&self, references: &[String]) -> Result<(), String> {
         self.removal_calls.borrow_mut().push(references.to_vec());
+        std::thread::sleep(self.pause);
         return match references.first() {
             Some(first) => match self.refusals.get(first) {
                 Some(refusal) => Err(refusal.clone()),
@@ -66,8 +70,15 @@ impl PodmanApi for Fake {
     }
     fn remove_volume(&self, name: &str) -> Result<(), String> {
         self.removed_volumes.borrow_mut().push(name.to_string());
+        std::thread::sleep(self.pause);
         return Ok(());
     }
+}
+
+/// A deadline these tests are nowhere near reaching,
+/// for the cases that are not about the deadline.
+fn untouched() -> Deadline {
+    return Deadline::after(Duration::from_secs(3_600));
 }
 
 /// An image row.
@@ -137,10 +148,10 @@ fn a_cleanup_removes_each_judged_image_logs_each_proof_and_a_dry_run_asks_for_no
     let rows: Vec<Image> = (0..60).map(|index| { return image(&format!("id{index:04}"), "<none>", "<none>", 30 * DAY); }).collect();
     let fake: Fake = Fake::with_images(rows);
     let mut log: Vec<String> = Vec::new();
-    let dry: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, true, &mut log);
+    let dry: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, true, &untouched(), &mut log);
     assert_eq!(dry.images.len(), 60);
     assert!(fake.removal_calls.borrow().is_empty());
-    let real: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &mut log);
+    let real: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &untouched(), &mut log);
     assert_eq!(real.images.len(), 60);
     assert_eq!(fake.removal_calls.borrow().len(), 60);
     assert!(log.iter().any(|line| { return line.starts_with("removing image id0000 (id0000): podman listed 60 image rows and 0 containers"); }));
@@ -158,7 +169,7 @@ fn a_multi_tag_image_is_removed_through_every_tag_and_an_untagged_one_by_its_id(
     ];
     let fake: Fake = Fake::with_images(rows);
     let mut log: Vec<String> = Vec::new();
-    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &mut log);
+    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &untouched(), &mut log);
     assert_eq!(outcome.images, vec![String::from("aaa111"), String::from("bbb222")]);
     assert_eq!(*fake.removal_calls.borrow(), vec![vec![String::from("localhost/gate:one"), String::from("localhost/gate:two")], vec![String::from("bbb222")]]);
 }
@@ -175,7 +186,7 @@ fn an_image_that_went_with_another_one_counts_as_gone_and_one_a_container_holds_
     );
     fake.refusals.insert(String::from("eee555"), String::from("Error: eee555: something this tool has no reading for"));
     let mut log: Vec<String> = Vec::new();
-    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &mut log);
+    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &untouched(), &mut log);
     assert_eq!(outcome.gone_with_another, vec![String::from("ccc333")], "{} failures", outcome.failures.len());
     assert!(outcome.kept_images.iter().any(|(id, why)| { return id == "ddd444" && why.contains("container"); }), "{:?}", outcome.kept_images);
     assert_eq!(outcome.failures.len(), 1, "{:?}", outcome.failures);
@@ -213,4 +224,80 @@ fn the_source_scan_reads_build_files_and_skips_dependency_and_documentation_dire
     let words: HashSet<String> = collect_references(root.path(), &Deadline::after(std::time::Duration::from_secs(30))).expect("finished");
     assert!(words.contains("localhost/x:current") && words.contains("x-cargo"));
     assert!(!words.contains("localhost/dependency:old") && !words.contains("localhost/doc:old"));
+}
+
+/// What:
+/// `fn images_and_a_volume(count: usize) -> (Vec<Image>, Vec<Volume>)` is this many unused untagged old images and one dangling old volume.
+/// Why:
+/// The loop over removals is what the deadline bounds,
+/// so the fixtures are long enough to see where it stopped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function imagesAndAVolume(count: number): [Image[], Volume[]]
+/// ```
+fn images_and_a_volume(count: usize) -> (Vec<Image>, Vec<Volume>) {
+    let rows: Vec<Image> = (0..count).map(|index| { return image(&format!("id{index:04}"), "<none>", "<none>", 30 * DAY); }).collect();
+    let volumes: Vec<Volume> = vec![Volume { name: String::from("dangling-old"), created: NOW - 30 * DAY }];
+    return (rows, volumes);
+}
+
+/// A cleanup whose deadline has passed removes nothing and says it was cut:
+/// no `podman rmi` and no `podman volume rm` is started after the run's bound.
+#[test]
+fn a_cleanup_with_no_time_left_removes_nothing_and_says_it_was_cut() {
+    let (rows, volumes) = images_and_a_volume(3);
+    let mut fake = Fake::with_images(rows);
+    fake.volumes = volumes;
+    let mut log: Vec<String> = Vec::new();
+    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &Deadline::after(Duration::ZERO), &mut log);
+    assert!(outcome.images.is_empty(), "{outcome:?}");
+    assert!(outcome.volumes.is_empty(), "{outcome:?}");
+    assert!(outcome.cut, "the cleanup reports the bound it stopped at: {outcome:?}");
+    assert!(fake.removal_calls.borrow().is_empty(), "no image removal is started after the deadline: {:?}", fake.removal_calls.borrow());
+    assert!(fake.removed_volumes.borrow().is_empty(), "no volume removal is started after the deadline: {:?}", fake.removed_volumes.borrow());
+}
+
+/// A deadline that falls inside the loop stops it at the next removal:
+/// what was removed is the front of the judged order,
+/// what is left of it waits for the next run,
+/// and the cleanup says it was cut rather than finished.
+#[test]
+fn a_deadline_that_passes_inside_the_loop_stops_it_at_the_next_removal() {
+    let (rows, _volumes) = images_and_a_volume(60);
+    let expected: Vec<String> = rows.iter().map(|row| { return row.id.clone(); }).collect();
+    let mut fake = Fake::with_images(rows);
+    fake.pause = Duration::from_millis(40);
+    let mut log: Vec<String> = Vec::new();
+    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &Deadline::after(Duration::from_secs(1)), &mut log);
+    assert!(outcome.cut, "a loop the deadline stopped says it was cut: {outcome:?}");
+    assert!(!outcome.images.is_empty(), "at least the first removal happens before a one-second deadline: {outcome:?}");
+    assert!(outcome.images.len() < expected.len(), "sixty removals of 40 ms cannot all fit in one second: {outcome:?}");
+    assert_eq!(outcome.images, expected[..outcome.images.len()].to_vec(), "the loop stopped at a removal, it did not skip around");
+}
+
+/// A cleanup with time left finishes everything it judged and is not reported as cut.
+#[test]
+fn a_cleanup_with_time_left_removes_everything_and_is_not_cut() {
+    let (rows, volumes) = images_and_a_volume(2);
+    let mut fake = Fake::with_images(rows);
+    fake.volumes = volumes;
+    let mut log: Vec<String> = Vec::new();
+    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &untouched(), &mut log);
+    assert_eq!(outcome.images, vec![String::from("id0000"), String::from("id0001")], "{outcome:?}");
+    assert_eq!(outcome.volumes, vec![String::from("dangling-old")], "{outcome:?}");
+    assert!(!outcome.cut, "{outcome:?}");
+}
+
+/// A dry run with no time left judges nothing and says it was cut,
+/// so a report never claims what a real run would not have reached.
+#[test]
+fn a_dry_run_with_no_time_left_judges_nothing_and_says_it_was_cut() {
+    let (rows, volumes) = images_and_a_volume(2);
+    let mut fake = Fake::with_images(rows);
+    fake.volumes = volumes;
+    let mut log: Vec<String> = Vec::new();
+    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, true, &Deadline::after(Duration::ZERO), &mut log);
+    assert!(outcome.images.is_empty() && outcome.volumes.is_empty(), "{outcome:?}");
+    assert!(outcome.cut, "{outcome:?}");
 }

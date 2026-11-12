@@ -18,6 +18,8 @@
 //! The newest image of each repository is kept as the repository's current one.
 //! Podman is asked to remove plainly (never with `--force`),
 //! so Podman itself refuses an image a container started in the meantime.
+//! The removal loop stops at the run's deadline before it starts another removal,
+//! so the mechanism is bounded by the run like every other one.
 //! Each judged image is asked for by every tag it carries,
 //! because Podman refuses an image with more than one tag by id;
 //! a refusal that says the image is not known counts it as gone,
@@ -32,6 +34,10 @@
 use crate::lean_run_report::emit;
 /// Sets.
 use std::collections::{HashMap, HashSet};
+
+/// The run's deadline,
+/// which the removal loop obeys like every other mechanism.
+use crate::lean_identity::Deadline;
 
 /// One image row of `podman images --all` (one per tag).
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -159,6 +165,11 @@ pub struct PodmanOutcome {
     pub kept_volumes: Vec<(String, String)>,
     /// Failures.
     pub failures: Vec<String>,
+    /// Whether the run's deadline stopped the loop with judged images or volumes still to remove.
+    /// Why it is its own field:
+    /// a loop that stopped short is neither a failure nor a finished mechanism,
+    /// and the next run judges them again from Podman's own lists.
+    pub cut: bool,
 }
 
 /// What:
@@ -329,16 +340,25 @@ pub fn judge_volumes(volumes: &[Volume], references: &HashSet<String>, grace_sec
 }
 
 /// What:
-/// `pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_seconds: i64, now: i64, dry_run: bool, log: &mut Vec<String>) -> PodmanOutcome`
-/// removes what the judgements allow.
+/// `pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_seconds: i64, now: i64, dry_run: bool, deadline: &Deadline, log: &mut Vec<String>) -> PodmanOutcome`
+/// removes what the judgements allow,
+/// and stops starting removals once the run's deadline has passed.
 /// Why:
 /// Every removed id has a log line with the proof it was judged on.
+/// One deadline covers the whole run,
+/// and a removal started after it is a call the run never promised to make:
+/// each `podman rmi` has its own limit of minutes,
+/// so a loop that never looks at the deadline runs for the image count times that limit.
+/// A removal already begun is allowed to finish,
+/// because Podman is asked plainly and a call cut in the middle leaves its own storage part done;
+/// the loop checks before each one, reports that it was cut,
+/// and the next run judges the rest again from Podman's own lists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function cleanPodman(api: PodmanApi, refs: Set<string>, graceSeconds: number, now: number, dryRun: boolean, log: string[]): PodmanOutcome
+/// export function cleanPodman(api: PodmanApi, refs: Set<string>, graceSeconds: number, now: number, dryRun: boolean, deadline: Deadline, log: string[]): PodmanOutcome
 /// ```
-pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_seconds: i64, now: i64, dry_run: bool, log: &mut Vec<String>) -> PodmanOutcome {
+pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_seconds: i64, now: i64, dry_run: bool, deadline: &Deadline, log: &mut Vec<String>) -> PodmanOutcome {
     let mut outcome: PodmanOutcome = PodmanOutcome::default();
     match (api.images(), api.container_image_ids()) {
         (Ok(images), Ok(containers)) => {
@@ -346,6 +366,10 @@ pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_sec
             outcome.kept_images = keep;
             let proof: String = format!("podman listed {} image rows and {} containers (any state); none of the containers uses it, no current source names a tag of it, it is not the newest of its repository, and it is older than {grace_seconds} s", images.len(), containers.len());
             for id in remove {
+                if deadline.passed() {
+                    outcome.cut = true;
+                    break;
+                }
                 let mut rows: Vec<&Image> = Vec::new();
                 for row in &images {
                     if row.id == id {
@@ -381,6 +405,10 @@ pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_sec
             let (remove, keep) = judge_volumes(&volumes, references, grace_seconds, now);
             outcome.kept_volumes = keep;
             for name in remove {
+                if deadline.passed() {
+                    outcome.cut = true;
+                    break;
+                }
                 emit(log, format!("{} volume {name}: podman reports it dangling (no container in any state mounts it), no current source names it, older than {grace_seconds} s", if dry_run { "would remove" } else { "removing" }));
                 if dry_run {
                     outcome.volumes.push(name);

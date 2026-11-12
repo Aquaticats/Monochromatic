@@ -201,6 +201,8 @@ pub fn run_toolchains(toolchains: &Path, pinned: &HashSet<String>, dry_run: bool
 /// volumes (Recommended)":
 /// as the user,
 /// never as root.
+/// The deadline reaches the listing of named tags and the removal loop,
+/// so no `podman rmi` starts after the run's bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -211,7 +213,7 @@ pub fn run_podman(main_checkout: &Path, dry_run: bool, deadline: &Deadline) -> V
         return vec![String::from("podman: the deadline passed while reading the sources for named tags, so nothing was judged")];
     };
     let mut log: Vec<String> = Vec::new();
-    let outcome = clean_podman(&RealPodman, &references, GRACE_SECONDS, now_seconds(), dry_run, &mut log);
+    let outcome = clean_podman(&RealPodman, &references, GRACE_SECONDS, now_seconds(), dry_run, deadline, &mut log);
     let verb: &str = if dry_run { "would remove" } else { "removed" };
     let mut lines: Vec<String> = vec![format!(
         "podman: {verb} {} images and {} volumes; {} images were gone with another one of this run; kept {} images and {} volumes",
@@ -221,6 +223,9 @@ pub fn run_podman(main_checkout: &Path, dry_run: bool, deadline: &Deadline) -> V
         outcome.kept_images.len(),
         outcome.kept_volumes.len()
     )];
+    if outcome.cut {
+        lines.push(String::from("  the run's deadline passed while removing images and volumes; what was not reached waits for the next run"));
+    }
     for failure in &outcome.failures {
         lines.push(format!("  podman failure: {failure}"));
     }
