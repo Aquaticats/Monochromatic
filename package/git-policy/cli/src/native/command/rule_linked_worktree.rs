@@ -505,13 +505,13 @@ fn guarded_decision(
         return Ok(LinkedWorktreeDecision::Pass);
     }
     if word == b"rm" {
-        return Ok(decided(GuardedCommand::Remove, force_discard(region)));
+        return Ok(decided(GuardedCommand::Remove, force_discard(b"rm", region)));
     }
     if word == b"mv" {
-        return Ok(decided(GuardedCommand::Move, force_discard(region)));
+        return Ok(decided(GuardedCommand::Move, force_discard(b"mv", region)));
     }
     if word == b"checkout-index" {
-        return Ok(decided(GuardedCommand::CheckoutIndex, force_discard(region)));
+        return Ok(decided(GuardedCommand::CheckoutIndex, force_discard(b"checkout-index", region)));
     }
     if word == b"read-tree" {
         return Ok(decided(GuardedCommand::ReadTree, read_tree_discard(region)?));

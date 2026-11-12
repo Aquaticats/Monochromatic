@@ -113,31 +113,40 @@ fn every_restore_form_overwrites_except_usage() {
 
 /// Force spells discard for `rm`,
 /// `mv` and `checkout-index`,
-/// in every cluster and abbreviation.
+/// in every cluster and every abbreviation Git's own table accepts,
+/// `--f` included.
 #[test]
 fn force_in_any_spelling_overwrites() {
-    for (values, expected) in [
-        (vec![], Discard::Harmless),
-        (vec!["a.txt"], Discard::Harmless),
-        (vec!["-r", "--cached", "a.txt"], Discard::Harmless),
-        (vec!["-n", "-k", "a", "b"], Discard::Harmless),
-        (vec!["--prefix=force/", "-a"], Discard::Harmless),
-        (vec!["-f", "a.txt"], Discard::Overwrites),
-        (vec!["-rf", "dir"], Discard::Overwrites),
-        (vec!["-fr", "dir"], Discard::Overwrites),
-        (vec!["--force", "a.txt"], Discard::Overwrites),
-        (vec!["--forc", "a.txt"], Discard::Overwrites),
-        (vec!["--fo", "a.txt"], Discard::Overwrites),
-        (vec!["--force=x", "a.txt"], Discard::Overwrites),
-        (vec!["--", "-f"], Discard::Harmless),
-        (vec!["--fe", "a.txt"], Discard::Harmless),
-    ] {
-        assert_eq!(
-            force_discard(os_arguments(values.as_slice()).as_slice()),
-            expected,
-            "{values:?}"
-        );
+    for word in ["rm", "mv", "checkout-index"] {
+        for (values, expected) in [
+            (vec![], Discard::Harmless),
+            (vec!["a.txt"], Discard::Harmless),
+            (vec!["-r", "--cached", "a.txt"], Discard::Harmless),
+            (vec!["-n", "-k", "a", "b"], Discard::Harmless),
+            (vec!["--prefix=force/", "-a"], Discard::Harmless),
+            (vec!["-f", "a.txt"], Discard::Overwrites),
+            (vec!["-rf", "dir"], Discard::Overwrites),
+            (vec!["-fr", "dir"], Discard::Overwrites),
+            (vec!["--force", "a.txt"], Discard::Overwrites),
+            (vec!["--forc", "a.txt"], Discard::Overwrites),
+            (vec!["--fo", "a.txt"], Discard::Overwrites),
+            (vec!["--f", "a.txt"], Discard::Overwrites),
+            (vec!["--force=x", "a.txt"], Discard::Overwrites),
+            (vec!["--", "-f"], Discard::Harmless),
+            (vec!["--fe", "a.txt"], Discard::Harmless),
+        ] {
+            assert_eq!(
+                force_discard(word.as_bytes(), os_arguments(values.as_slice()).as_slice()),
+                expected,
+                "{word} {values:?}"
+            );
+        }
     }
+    // `git worktree remove` names one other option, so `--f` is its `--force` too.
+    assert_eq!(
+        force_discard(b"worktree", os_arguments(&["--f", "here"]).as_slice()),
+        Discard::Overwrites
+    );
 }
 
 /// What:
@@ -256,8 +265,11 @@ fn real_git_accepts_the_shortest_abbreviations() {
     let repo = repository(root.as_path(), "repo");
     for values in [
         vec!["rm", "--fo", "--ignore-unmatch", "missing.txt"],
+        vec!["rm", "--f", "--ignore-unmatch", "missing.txt"],
         vec!["mv", "--fo", "missing.txt", "other.txt"],
+        vec!["mv", "--f", "missing.txt", "other.txt"],
         vec!["checkout-index", "--fo", "--all"],
+        vec!["checkout-index", "--f", "--all"],
         vec!["read-tree", "--res", "HEAD"],
         vec!["switch", "--discard", "main"],
         vec!["checkout", "--forc", "main"],

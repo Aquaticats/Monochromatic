@@ -71,9 +71,9 @@ pub fn worktree_removal(region: &[OsString]) -> Option<WorktreeRemoval> {
         return None;
     }
     let rest: &[OsString] = &region[1..];
-    // `force_discard` reads `-f` in any short cluster and `--force` in any abbreviation of four letters, which are
-    //  exactly the spellings Git's own option table accepts for this command.
-    let force: bool = crate::command_discard::force_discard(rest) == crate::command_discard::Discard::Overwrites;
+    // `force_discard` reads `-f` in any short cluster and `--force` in every prefix this command's own option table
+    //  leaves unambiguous (`--f` included), which are exactly the spellings Git accepts here.
+    let force: bool = crate::command_discard::force_discard(b"worktree", rest) == crate::command_discard::Discard::Overwrites;
     // The first token that is not an option is the directory; `--` separates the two, and Git stops reading options
     //  after it.
     let mut options_end: bool = false;

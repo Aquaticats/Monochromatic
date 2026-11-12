@@ -205,25 +205,103 @@ fn is_equals(byte: &u8) -> bool {
     return *byte == b'=';
 }
 
+/// The long option names of `git rm` (`builtin/rm.c`, `builtin.h`).
+/// Why:
+///   Git accepts a prefix of a long option only while no other option of the same command starts
+///  the same way,
+///  so the sibling names are what decides whether `--f` is `--force` or nothing.
+pub const RM_LONG_OPTIONS: &[&str] = &[
+    "cached",
+    "force",
+    "dry-run",
+    "ignore-unmatch",
+    "quiet",
+    "sparse",
+    "pathspec-from-file",
+    "pathspec-file-nul",
+];
+
+/// The long option names of `git mv`.
+pub const MV_LONG_OPTIONS: &[&str] = &["force", "verbose", "dry-run", "sparse"];
+
+/// The long option names of `git worktree remove`.
+pub const WORKTREE_REMOVE_LONG_OPTIONS: &[&str] = &["force", "dry-run"];
+
+/// The long option names of `git checkout-index`.
+pub const CHECKOUT_INDEX_LONG_OPTIONS: &[&str] = &[
+    "all",
+    "force",
+    "prefix",
+    "stage",
+    "index",
+    "quiet",
+    "no-create",
+    "temp",
+    "stdin",
+];
+
+/// The long option names of `git restore` (`builtin/checkout.c`, `checkout_options` and `switch_options`).
+pub const RESTORE_LONG_OPTIONS: &[&str] = &[
+    "source",
+    "staged",
+    "worktree",
+    "patch",
+    "ours",
+    "theirs",
+    "merge",
+    "conflict",
+    "ignore-unmerged",
+    "overlay",
+    "no-overlay",
+    "quiet",
+    "progress",
+    "no-progress",
+    "help",
+    "recurse-submodules",
+    "no-recurse-submodules",
+    "pathspec-from-file",
+    "pathspec-file-nul",
+];
+
+/// The long option names of each command that reads `--abort`.
+/// Why:
+///   A command's own table decides which abbreviation of `--abort` it accepts,
+///  and the five commands do not name their other options alike.
+pub const ABORT_LONG_OPTIONS: &[&str] = &["abort", "autostash", "allow-empty", "allow-empty-message", "apply", "autosquash", "append"];
+
 /// What:
-///  Whether a token spells the long option `full` (written with its leading dashes) by any abbreviation of at
-///  least `minimum` characters,
+///  Whether a token spells the long option `wanted` by a spelling Git accepts for the command whose
+///  other long option names are `siblings`,
 /// with or without an `=value`.
 /// Why:
-///   Git accepts every unambiguous prefix of a long option;
-/// `minimum` is the shortest prefix that no sibling
-///  option of the command shares.
+///   Git accepts every unambiguous prefix of a long option (`parse-options.c`, `parse_long_opt`):
+/// `--f` reaches `--force` where `--force` is the only name starting that way,
+/// while `--s` is ambiguous among `--source` and `--staged` and is no option at all.
+///  A hand-picked minimum length is what let `rm --f`,
+///  `mv --f` and `checkout-index --f` through the guard while Git ran them as `--force`,
+///  so the rule is Git's own and the sibling names come from the command's table.
+///  An exact spelling wins over every prefix, as it does in Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function spellsLong(token: string, full: string, minimum: number): boolean;
+/// function spellsLong(token: string, wanted: string, siblings: string[]): boolean;
 /// ```
-fn spells_long(token: &[u8], full: &str, minimum: usize) -> bool {
+fn spells_long(token: &[u8], wanted: &str, siblings: &[&str]) -> bool {
     if !token.starts_with(b"--") {
         return false;
     }
-    let name: &[u8] = token.split(is_equals).next().unwrap_or_default();
-    return name.len() >= minimum && full.as_bytes().starts_with(name);
+    let written: &[u8] = token.split(is_equals).next().unwrap_or_default();
+    let name: &[u8] = &written[b"--".len()..];
+    if name == wanted.as_bytes() {
+        return true;
+    }
+    let mut matched: Vec<&str> = Vec::<&str>::new();
+    for sibling in siblings {
+        if sibling.as_bytes().starts_with(name) {
+            matched.push(sibling);
+        }
+    }
+    return matched.len() == 1 && matched[0] == wanted;
 }
 
 /// What:
@@ -254,7 +332,7 @@ fn has_short(token: &[u8], letter: u8) -> bool {
 /// ```
 pub fn restore_discard(region: &[OsString]) -> Discard {
     for token in options_of(region) {
-        if token == b"-h" || spells_long(token, "--help", 4) {
+        if token == b"-h" || spells_long(token, "help", RESTORE_LONG_OPTIONS) {
             return Discard::Harmless;
         }
     }
@@ -286,14 +364,16 @@ pub fn restores_index_only(region: &[OsString]) -> bool {
         let token: &[u8] = tokens[at];
         at += 1;
         if token.starts_with(b"--") {
-            if spells_long(token, "--staged", 4) {
+            if spells_long(token, "staged", RESTORE_LONG_OPTIONS) {
                 staged = true;
             }
-            if spells_long(token, "--worktree", 3) {
+            if spells_long(token, "worktree", RESTORE_LONG_OPTIONS) {
                 worktree = true;
             }
             // `--source <tree>` and `--conflict <style>` take the next token as their value, whatever it looks like.
-            if !token.contains(&b'=') && (spells_long(token, "--source", 4) || spells_long(token, "--conflict", 3)) {
+            if !token.contains(&b'=')
+                && (spells_long(token, "source", RESTORE_LONG_OPTIONS) || spells_long(token, "conflict", RESTORE_LONG_OPTIONS))
+            {
                 at += 1;
             }
             continue;
@@ -330,11 +410,17 @@ pub fn restores_index_only(region: &[OsString]) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function forceDiscard(region: string[]): Discard;
+/// function forceDiscard(word: string, region: string[]): Discard;
 /// ```
-pub fn force_discard(region: &[OsString]) -> Discard {
+pub fn force_discard(word: &[u8], region: &[OsString]) -> Discard {
+    let siblings: &[&str] = match word {
+        b"mv" => MV_LONG_OPTIONS,
+        b"checkout-index" => CHECKOUT_INDEX_LONG_OPTIONS,
+        b"worktree" => WORKTREE_REMOVE_LONG_OPTIONS,
+        _ => RM_LONG_OPTIONS,
+    };
     for token in options_of(region) {
-        if has_short(token, b'f') || spells_long(token, "--force", 4) {
+        if has_short(token, b'f') || spells_long(token, "force", siblings) {
             return Discard::Overwrites;
         }
     }
@@ -426,7 +512,7 @@ pub fn read_tree_discard(region: &[OsString]) -> Result<Discard, OptionError> {
 /// ```
 pub fn abort_discard(region: &[OsString]) -> Discard {
     for token in options_of(region) {
-        if spells_long(token, "--abort", 4) {
+        if spells_long(token, "abort", ABORT_LONG_OPTIONS) {
             return Discard::Overwrites;
         }
     }
