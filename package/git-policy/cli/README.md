@@ -6860,9 +6860,11 @@ above the service's last-resort alarm,
 so the host's default stop timeout never decides
 (`DefaultTimeoutStopSec=` in a user's manager configuration can set it shorter than the bounds).
 A service whose unit was written before this setting has the old kill mode until the next commit's provisioning rewrites the
-template and asks the manager to reload its unit files;
-a reload makes the manager read the new settings for the stops that follow,
-and a service that runs meanwhile is not restarted.
+template,
+which is a template change and so drops this worktree's own unit and starts it again;
+the service that runs meanwhile is asked to retire first,
+so the batch it holds is finished,
+and no other unit of the account is read or touched.
 Commits queue in arrival order,
 a batch of whatever is queued lands with one
 durable write,
@@ -6884,38 +6886,54 @@ The units are runtime units with no `[Install]` section (no `WantedBy=`,
 `RequiredBy=` or `Also=`),
 so `systemctl --user enable`
 has nothing to link;
-provisioning links nothing,
-writes only below `$XDG_RUNTIME_DIR/systemd/user` (the one other thing it does
-there is remove files an earlier release put in `~/.config/systemd/user`),
-and asks the manager only to reload,
-reset a failed
-unit,
+provisioning links nothing that would enable a unit,
+writes only below `$XDG_RUNTIME_DIR` (the two unit templates and the notes under its `systemd/user`,
+the program link the service unit runs at its top,
+and the removal of files an earlier release put in `~/.config/systemd/user`),
+and asks the manager only to reset a failed unit,
 start,
+restart a unit it already holds,
 stop and report a state.
+Nothing of this wrapper asks the manager to read every unit it holds:
+a reload holds the manager's own event loop for as long as it reads them,
+and on 2026-11-12 one of those,
+139,770 ms long,
+ended a desktop session (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
 Guard tests keep it so:
 `src/native/source_guard/no_start_at_login_tests.rs` and
 `src/native/service/service_provision_never_starts_at_login_tests.rs`.
+A defect of the manager is worked around here rather than passed on:
+every call is bounded,
+a manager that does not answer leaves the units written and the commit going,
+a unit it holds at an old text or in a failed state is dropped, reset or started again,
+and no command tells a person to run anything by hand for it.
+A service that never greets is restarted once at the whole start ceiling,
+and a commit that ends there names the journal command.
 
 - The first commit that needs the service sets up its socket activation itself,
   and every later one checks it is still
   right:
-  it compares the two installed units with what this release would write and,
+  it points the program link at the release it is running,
+  compares the two installed units with what this release would write and,
   only when they differ (a release changed the
   template itself),
   rewrites them,
-  reloads the manager,
-  clears failed state and starts the socket.
+  and then lets the worktree's own units go and starts them again rather than reloading the manager
+  (`src/native/service/service_provision_instance_unloaded.rs`).
   The program the units start is not named in their text but through a link the wrapper points at
   the executable it is running
-  (`$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program`),
+  (`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,
+  `src/native/service/service_instance.rs`,
+  `program_link`),
   so an upgrade,
   a downgrade or a second build of one release moves that link and changes no unit text:
-  no reload is asked for,
+  the manager is asked nothing at all,
   and the commit pays one read and,
   when the program moved,
   one rename.
   When the units,
-  the link and the socket are right it opens no connection to the bus at all.
+  the link and the record of what the manager was told are right and the socket file is there it opens no connection to
+  the bus at all.
   Setting up writes two unit files into
   `$XDG_RUNTIME_DIR/systemd/user` (nothing is left in the home directory;
   the next first use after a login does it again)

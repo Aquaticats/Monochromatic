@@ -7466,13 +7466,26 @@ and
   The wrapper's client of the manager has no `Reload` member at all (`systemd_dbus.rs`),
   and the guard on the members it may call fails if one comes back
   (`source_guard/no_start_at_login_tests.rs`,
-  `ALLOWED_MEMBERS`).
+  `ALLOWED_MEMBERS`),
+  as does a line-for-line control over every release source
+  (`no_release_code_line_makes_the_manager_read_every_unit_it_holds`).
+  A provisioning that finds the units,
+  the record of what the manager was told,
+  the socket file there and no earlier socket of this worktree listening asks the manager nothing at all.
   Tests:
   `a_moved_program_moves_only_the_link`,
+  `a_release_change_of_every_kind_changes_no_unit_text`,
+  `a_provisioning_of_an_installation_that_is_in_place_asks_the_manager_nothing`,
   `a_unit_of_an_earlier_release_is_rewritten_and_started`,
+  `a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a_reload`,
   and the container proof
   `mise run //package/git-policy/cli:test:service-manager`,
   whose arm from `main` ends an unrelated `Type=dbus` service and its target and whose arm from this release keeps both.
+  The migration those two releases meet is the same one:
+  `0.6.1-alpha.13`'s template names the executable of the release that wrote it and `0.6.1-alpha.14`'s names a program link
+  of its own,
+  so either text is rewritten once and its unit dropped once,
+  with no reload.
 - The record of the unit texts the manager last read is per unit instance
   (`service_provision_loaded_unit_texts.rs`,
   `<instance>.units-the-manager-read` in the notes folder of the runtime unit directory,
@@ -7483,12 +7496,21 @@ and
   The record is written after the manager was watched dropping the instance and never before,
   so a commit that finds the files matching and the record older drops the instance and starts it again,
   and the commits after it find the record and take the fast path.
+  Only a call that proved what the manager holds may write it:
+  the manager was watched dropping this worktree's units (`Unloaded::Dropped` in `service_provision_instance_unloaded.rs`),
+  or the record already said so.
+  A manager that could not be asked keeps the record unwritten,
+  even when the start that followed succeeded,
+  because a start alone does not say which text the manager started from;
+  the next commit drops the unit and starts it again.
   Without it the killed upgrade's files look like an installation the manager runs,
   every later commit reaches the service of the release that was replaced,
   and ends with "The commit service that is running was started from another release of this git wrapper ...",
   however often it is run.
   Test:
-  `a_commit_killed_before_it_recorded_the_units_is_repaired_by_the_next_commit`.
+  `a_commit_killed_before_it_recorded_the_units_is_repaired_by_the_next_commit`,
+  and `a_manager_that_does_not_answer_never_fails_the_commit`,
+  which holds the record unwritten after a manager that timed out.
   A service of another release answering at all is proof that the manager's copy and the files disagree,
   and the repair is that service's own retirement:
   it finishes its batch and exits,
@@ -7500,6 +7522,16 @@ and
   which the unloaded unit no longer contradicts.
   Test:
   `a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_global`.
+  A service of another release that is still there at the end of the wait it was given is ended once there,
+  said once,
+  and waited for again under `START_CEILING`,
+  because the wait's bound is the commit's and a service finishing a batch outlasts it;
+  the ending is this worktree's own unit's `RestartUnit`,
+  and one ending only,
+  since a unit the manager starts from a text an upgrade left behind comes back as the other release and the next
+  commit's provisioning repairs that.
+  Test:
+  `a_service_of_another_release_that_outlasts_the_bound_is_ended_once_and_said_once`.
 - A greeting that has not come is never,
   by itself,
   read as a service stopped inside its own process.
@@ -7522,6 +7554,57 @@ and
   `a_greeting_four_seconds_late_lands_the_commit_and_nothing_is_restarted`,
   and
   `a_unit_that_never_greets_is_restarted_once_at_the_start_ceiling_and_nothing_global_is_asked`.
+  What that costs the person:
+  with the three-second rule gone,
+  a service that is truly stopped inside its own process is given two whole start ceilings
+  (one before the restart and one after it)
+  before the commit fails,
+  and the commit prints the starting notice after `START_NOTICE_GRACE`,
+  the line that says the unit was restarted,
+  and the failure that names the journal command.
+- A defect of the service manager is worked around by the wrapper,
+  and it is never a reason for a command to fail,
+  to wait without a bound,
+  or to tell a person to do something by hand.
+  The defects on record, and what this code does about each:
+  - A manager-wide reload holds every start request of every client for as long as it runs.
+    No release code asks for one: the member list the client is checked against holds none
+    (`source_guard/no_start_at_login_tests.rs`),
+    and a control over every release source fails if one comes back
+    (`no_release_code_line_makes_the_manager_read_every_unit_it_holds`).
+    So nothing this wrapper does can put another client's start behind a reload it asked for.
+  - systemd v262.1 reads a reply that expired during such a reload as a lost bus name
+    (`src/core/unit.c:3576`,
+    `src/core/service.c:5975`)
+    and then treats a live service as gone.
+    This code produces no such state by asking for a reload;
+    a unit the manager then reports `inactive` or `failed` is started,
+    or reset and started once,
+    by the client's own wait (`service_client_reach_service.rs`),
+    and the connection it makes is the truth about whether the service is there.
+  - A start request that gets no answer within a bound.
+    Every manager call carries its own bound (`systemd_dbus.rs`,
+    `EXCHANGE_WAIT`),
+    a provisioning call that times out leaves the units written,
+    the record unwritten,
+    and the commit going (`a_manager_that_does_not_answer_never_fails_the_commit`),
+    and the client's wait ends at `START_CEILING` naming the unit and the state the manager gave.
+  - A unit an earlier release left failed,
+    stale,
+    or naming a program that is gone.
+    The two unit texts are compared with this release's and rewritten where they differ,
+    the program link is pointed at the running executable before anything is started
+    (`a_replacement_that_stops_before_its_rename_leaves_the_old_link`),
+    a failed unit is reset and started once by the client's wait,
+    and a unit the manager holds at an older text is dropped and started again, not reloaded
+    (`a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a_reload`).
+  What this release does not do:
+  start the service without a manager.
+  Where no session bus can be reached,
+  provisioning ends the commit with the remedy for an account with no user services
+  (`platform_without_manager`),
+  and the wrapper that starts its own service itself is another change,
+  not this one.
 
 #### Commands that add commits
 

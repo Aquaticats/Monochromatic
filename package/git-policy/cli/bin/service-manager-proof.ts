@@ -20,7 +20,13 @@
   service and its target, and the arm from this worktree has to keep both and ask for no manager-wide operation at all.
 
  Usage:
-  `node bin/service-manager-proof.ts --image <tag> --main-wrapper <path> [--units <count>] [--probe-deadline <value>]`
+  `node bin/service-manager-proof.ts --image <tag> --main-wrapper <path> [--seed-wrapper <path>] [--units <count>]
+  [--probe-deadline <value>]`
+
+  `--seed-wrapper` names the release the migration arm's machine is provisioned by first, and defaults to the release
+  `--main-wrapper` names. A machine here can carry either of the two templates an earlier release left, `0.6.1-alpha.13`'s
+  (the executable of the release that wrote it) or `0.6.1-alpha.14`'s (a link of that release's own), and a proof run
+  names the build of each it wants that arm to meet.
  */
 import { resolve, } from 'node:path';
 
@@ -69,6 +75,11 @@ type Options = {
    The executable of the release the account installed from `main`.
    */
   readonly mainWrapper: string;
+  /**
+   The executable of the release that provisions the migration arm's machine first, which is the release from `main`
+   unless a run names another build of an earlier release.
+   */
+  readonly seedWrapper: string;
   /**
    How many transient units each machine holds.
    */
@@ -123,6 +134,7 @@ function options({ argv, }: { readonly argv: readonly string[]; }): Options {
   return {
     image,
     mainWrapper,
+    seedWrapper: given.get('--seed-wrapper',) ?? mainWrapper,
     units: Number(given.get('--units',) ?? defaultUnitCount,),
     probeDeadline: given.get('--probe-deadline',) ?? defaultProbeDeadline,
   };
@@ -316,6 +328,7 @@ async function main_(): Promise<void> {
   const {
     image,
     mainWrapper,
+    seedWrapper,
     units,
     probeDeadline,
   } = options({ argv: process.argv
@@ -359,7 +372,7 @@ async function main_(): Promise<void> {
     units,
     seed: {
       kind: 'release',
-      wrapper: mainWrapper,
+      wrapper: seedWrapper,
     },
   });
   printReport({ report: fixed, });

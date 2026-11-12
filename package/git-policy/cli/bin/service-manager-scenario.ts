@@ -67,7 +67,8 @@ export type ArmReport = {
 export type Seed = { readonly kind: 'none'; } | {
   readonly kind: 'release';
   /**
-   The executable of the release from `main`.
+   The executable of the release that provisions the machine first, which is the release from `main` unless a run names
+   another build of an earlier release.
    */
   readonly wrapper: string;
 };
@@ -322,7 +323,7 @@ async function prepareArm({
     change: 'seed',
   });
   state.steps
-    .push(`the machine was seeded by the release from main, as one that has its template installed: ${seeded.output}`);
+    .push(`the machine was seeded by the release at ${seed.wrapper}, as one that has its template installed: ${seeded.output}`);
   /**
    The `ExecStart` line the seeding left, which is the earlier release's absolute path.
    */
