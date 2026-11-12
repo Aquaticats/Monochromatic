@@ -89,7 +89,8 @@ fn a_release_after_the_next_send_keeps_the_tree_that_send_names() {
 }
 
 /// What:
-///  The tree of a request sent again with the tree it already had, until both sends are over.
+///  The tree of a request sent again with the tree it already had,
+///  until both sends are over.
 /// Why:
 ///   A client whose answer was lost sends the same request again with the identity and the tree it already had
 ///  (`submit_loop`,

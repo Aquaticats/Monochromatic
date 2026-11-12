@@ -12867,7 +12867,8 @@ and how long anyone waits:
   was handed back to its client,
   or was withdrawn,
   so what is left of its tree is collected by the age rule below.
-  A release is one send's end, never the identity's:
+  A release is one send's end,
+  never the identity's:
   the landing answers a request inside the call that lands its group,
   and the release of that group comes after the answer,
   after the journal's entries for it are written and removed,

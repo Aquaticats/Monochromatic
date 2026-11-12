@@ -300,7 +300,8 @@ fn a_queued_tree_is_held_until_the_group_that_request_is_in_is_over() {
 }
 
 /// What:
-///  The hold of the next attempt of a request the group handed back, after that group's own release.
+///  The hold of the next attempt of a request the group handed back,
+///  after that group's own release.
 /// Why:
 ///   `remove_the_trees` runs after `land_group` has already sent the group's answers
 ///  and after `board.end_group` has written and removed the journal's entries for it,

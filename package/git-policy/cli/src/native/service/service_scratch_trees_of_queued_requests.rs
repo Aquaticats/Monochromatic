@@ -55,7 +55,8 @@ use std::sync::Mutex;
 ///  a release is one send's end,
 ///  so the last release is the one that gives the tree back to the age rule.
 struct HeldSends {
-    /// The request identity, as the client sends it.
+    /// The request identity,
+    /// as the client sends it.
     id: String,
     /// The name of the tree the newest send of this identity named,
     /// which is the name a collection sees the tree by.
@@ -66,9 +67,11 @@ struct HeldSends {
 
 /// Lock kept:
 ///  the trees of this service's queued and in-flight requests,
-///  each as the identity of the request that named it, the name of the tree its newest send named,
+///  each as the identity of the request that named it,
+///  the name of the tree its newest send named,
 ///  and how many of its sends are still noted:
-/// the sections are one removal and one addition of an entry, or one count,
+/// the sections are one removal and one addition of an entry,
+/// or one count,
 /// and nothing is read from or written to the device under the lock,
 /// so a connection that queues a request and a landing that answers one never wait on storage,
 /// and a collection reads the record while both keep serving.
@@ -88,7 +91,8 @@ static HELD: Mutex<Vec<HeldSends>> = Mutex::new(Vec::new());
 ///  (`submit_loop`,
 /// `service_client.rs`),
 ///  so its note replaces itself and the tree its queued landing reads stays held.
-///  A note is one send of the identity, so a send the service has noted counts until its own release arrives,
+///  A note is one send of the identity,
+///  so a send the service has noted counts until its own release arrives,
 ///  and the tree stays spared while any of those sends is still noted.
 ///  A path with no file name in it names no tree of a scratch place and is not recorded.
 ///
@@ -100,8 +104,8 @@ pub fn note(id: &str, tree: &Path) {
     let Some(name) = tree.file_name() else { return };
     let mut held = HELD.lock().expect("the trees the queued requests hold");
     if let Some(earlier) = position_of(held.as_slice(), id) {
-        // The attempt this request left is its own to release, so only the tree it names now is spared; the send of that
-        //  attempt stays counted until its release arrives, because this one alone is not the end of the identity.
+        // The attempt this request left is its own to release, so only the tree it names now is spared; the send of
+        //  that attempt stays counted until its release arrives, because this one alone is not the end of the identity.
         let mut entry: HeldSends = held.remove(earlier);
         entry.tree = name.to_os_string();
         entry.sends += 1;
@@ -115,10 +119,12 @@ pub fn note(id: &str, tree: &Path) {
 ///  Gives up one send of the request `id`,
 ///  and forgets the identity's tree once that is the last send the service holds.
 /// Why:
-///   Every send the service noted is released once: the landing answered it,
+///   Every send the service noted is released once:
+///  the landing answered it,
 ///  the service handed it back to its client,
 ///  or its client withdrew it.
-///  A release is one send's end, never the identity's:
+///  A release is one send's end,
+///  never the identity's:
 ///  the landing answers a request before the group it is in is over,
 ///  so the same request can be noted again with the next attempt's tree before this release arrives,
 ///  and forgetting the identity here took the hold off the tree that attempt is still to read.
