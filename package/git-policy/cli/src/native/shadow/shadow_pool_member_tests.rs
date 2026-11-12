@@ -194,13 +194,13 @@ fn a_rotation_of_the_wrappers_own_timing_log_between_the_fill_and_the_claim_refu
         None,
         "the wrapper's own log is no entry a commit reads, so its rotation refuses nothing"
     );
-    // The positive control: an entry a commit does read that appeared after the fill is still refused. `lfs` is a
-    //  folder git-lfs makes when it first writes, and no creation of this fixture has one.
-    let lfs: PathBuf = template.common_dir.join("lfs");
-    std::fs::create_dir_all(lfs.as_path()).expect("the shared lfs directory");
+    // The positive control: an entry a commit does read that appeared after the fill is still refused. `rr-cache` is a
+    //  directory a rerere run makes, and `lfs` is the one shared name the creation always makes and links.
+    let rerere: PathBuf = template.common_dir.join("rr-cache");
+    std::fs::create_dir_all(rerere.as_path()).expect("the shared rr-cache directory");
     assert_eq!(
         refusal(&template, member.as_path()).expect("checked"),
-        Some(String::from("the shared entry lfs is not in the member")),
+        Some(String::from("the shared entry rr-cache is not in the member")),
         "an entry a commit reads that the repository gained is still a refusal"
     );
     remove(root.as_path());
@@ -388,6 +388,54 @@ fn a_real_entry_at_a_shared_name_is_a_refusal() {
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
         Some(String::from("the shared entry rr-cache is not a link in the member"))
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A shared entry the repository has lost since the fill refuses the member,
+///  and the refusal names it.
+/// Why:
+///   The link a fill made points at a directory that is gone,
+///  while a creation of this moment makes that directory and links it,
+///  so the two trees are not the same view:
+/// what writes into the directory a link names fails on one that resolves to nothing
+///  (`git-lfs`'s clean filter writes its object into `<git-dir>/lfs`).
+///  A member that is not the tree a creation makes is removed,
+///  and the commit makes its own creation.
+#[test]
+fn a_shared_entry_the_repository_lost_is_a_refusal() {
+    let root: PathBuf = fixture("shadow-pool-member-shared-entry-gone");
+    let repo: PathBuf = repository_of(root.as_path());
+    let common: PathBuf = repo.join(".git");
+    std::fs::create_dir(common.join("lfs")).expect("git-lfs has run in this repository");
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    assert_eq!(
+        std::fs::read_link(shadow.join("lfs")).expect("the link a creation makes"),
+        common.join("lfs"),
+        "the creation links the repository's own lfs"
+    );
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        None,
+        "a member whose every link resolves is the tree a creation makes"
+    );
+    std::fs::remove_dir_all(common.join("lfs")).expect("another command removes lfs");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        Some(String::from("the shared entry lfs points at an entry the repository no longer holds")),
+        "a link to nothing is not the tree a creation of this moment makes"
+    );
+    let fresh: PathBuf = creation(root.as_path(), &template, "created-after");
+    assert_eq!(
+        std::fs::read_link(fresh.join("lfs")).expect("the link a creation of this moment makes"),
+        common.join("lfs"),
+        "a creation makes the store the member's link could not reach"
+    );
+    assert!(
+        std::fs::symlink_metadata(common.join("lfs").as_path()).is_ok_and(|metadata| { return metadata.is_dir(); }),
+        "and the store it links is there"
     );
     remove(root.as_path());
 }
