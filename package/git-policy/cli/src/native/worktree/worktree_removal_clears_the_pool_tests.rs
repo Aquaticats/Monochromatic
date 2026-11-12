@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, remove, repository};
+use std::time::Duration;
 
 /// A repository,
 /// its canonical common directory and the pool a linked worktree of it fills.
@@ -42,6 +43,30 @@ fn the_pool_of_a_worktree_that_is_gone_is_removed() {
     clear_the_pool_of_a_removed_worktree(fixture.common.as_path(), fixture.admin.as_path());
     assert!(!fixture.member.exists(), "no finished member is left behind");
     assert!(!fixture.pool.exists(), "and no pool folder either");
+    remove(fixture.root.as_path());
+}
+
+/// What:
+///  A removal sweeps the drawn shadows of the removed worktree and leaves the tree a commit is running in.
+/// Why:
+///  A drawn tree is used where it stands, so the pool's own removal cannot take the folder of drawn ones,
+///  and the removal is the named event that collects those nothing renewed.
+///  A tree a live commit holds is fresh: the commit's Git is reading it while the removal runs,
+///  and it must still be there when the commit finishes.
+#[test]
+fn a_removal_takes_the_drawn_shadows_nothing_renewed_and_leaves_the_one_a_commit_holds() {
+    let fixture: Fixture = fixture_with_a_pooled_worktree("removal-drawn-shadows");
+    let drawn_root: PathBuf = crate::shadow_drawn::drawn_root_for(fixture.common.as_path(), fixture.admin.as_path());
+    let held: PathBuf = drawn_root.join("drawn-a-tree-a-commit-holds");
+    let stopped: PathBuf = drawn_root.join("drawn-a-tree-a-command-that-stopped");
+    std::fs::create_dir_all(held.as_path()).expect("a tree a commit holds");
+    std::fs::create_dir_all(stopped.as_path()).expect("a tree nothing renews");
+    let abandoned: Duration = crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60);
+    std::fs::File::open(stopped.as_path()).expect("the stopped tree").set_modified(std::time::SystemTime::now() - abandoned).expect("an age");
+    std::fs::remove_dir_all(fixture.admin.as_path()).expect("the administrative directory goes as Git's removal takes it");
+    clear_the_pool_of_a_removed_worktree(fixture.common.as_path(), fixture.admin.as_path());
+    assert!(!stopped.exists(), "the tree nothing renewed goes with the worktree");
+    assert!(held.exists(), "the tree a commit is running in stays for that commit's own Git");
     remove(fixture.root.as_path());
 }
 

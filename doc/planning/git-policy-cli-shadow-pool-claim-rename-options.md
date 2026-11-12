@@ -884,7 +884,41 @@ and neither the claim nor the creation waits for it.
 
 ### The option E probe and its result
 
-Not written yet: the probe runs before option E is built.
+The probe passed, and option E is built.
+
+The question was whether Git and the wrapper's own ref writes are content in a shadow that holds no
+`objects/pack`,
+`refs/heads` and `refs/tags`,
+because the creation would stop making them and the claim would answer "no pack and no ref"
+with one question about each absent directory instead of three listings.
+`${HOME}/temp/agent/commit-hands-out-a-tree/probe-e.ts` makes a disposable repository with one commit and a tag,
+makes a bare shadow of it,
+removes those three directories,
+writes the shadow's `HEAD`,
+its `packed-refs` with the base ref,
+and its `objects/info/alternates` into the person's object directory,
+and then asks real Git to work in it.
+Git 2.56.0's answers:
+
+```
+for-each-ref in the lean shadow:
+refs/heads/main fc577a51670c88ff9c2089f9874bcd4bf9ea73ee
+git commit in the lean shadow exited 0
+git log exited 0: 3550fba probe
+fc577a5 a
+git rev-parse HEAD exited 0: 3550fba50e74dce46177d8f4f4828c4c53bde76d
+git status exited 0: ?? a.txt
+```
+
+So Git makes the loose ref it writes under `refs` and the object's own directory under `objects`,
+and the wrapper's ref store writes no loose ref on the files backend beyond `packed-refs`
+and the symbolic ones whose parent directories it already makes.
+The build is in the commit that names this record:
+a creation makes the directory itself, `objects`, `objects/info` and `refs`;
+the claim refuses a tree that holds any of the three, which is what a shadow a commit used holds;
+and the shared entries come from one listing of the common directory in the order the named list has them.
+The package's end-to-end control that builds one commit in a creation and the same commit in a claimed member
+runs in the lean member and lands both.
 
 ### What the hand-out costs
 

@@ -12977,13 +12977,94 @@ the links and the copied `config.worktree`.
 It holds no ref store and no conclusion state,
 which a commit adds after it takes one,
 from this invocation's own capture.
+The skeleton is the directory itself,
+`objects`,
+`objects/info` and `refs`:
+`objects/pack`, `refs/heads` and `refs/tags` are left to Git,
+which makes the loose object's own directory and the loose ref it writes,
+and the check answers "no pack and no ref" with one question about each absent directory
+(`shadow_skeleton.rs`,
+`shadow_pool_member.rs`).
+A member that holds one of the three is refused, which is what a shadow a commit has used holds.
 
+#### A shadow handed out from the drawn folder
+
+The service draws a finished shadow out of the pool before a commit asks for one,
+and hands it over:
+this is the option of
+`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`
+that the owner decided for on 2026-11-11,
+in its checked form, so every question a claim asks is asked of the tree that is handed out.
+
+- The drawn trees live in `<common-dir>/monochromatic-git-policy-cli-shadow-drawn/<worktree>`,
+  one entry per tree named `drawn-<identity>`,
+  beside the pool's folder and never inside it
+  (`SHADOW_DRAWN_FOLDER` in `wrapper_names_old_and_new.rs`):
+  a claim takes a member out of the pool's folder,
+  and the removal of a removed worktree takes that folder out of its name with one rename,
+  while a drawn tree is used where it stands and is left alone while a commit holds it.
+- The draw is one `rename` of a pool member into that folder and the same check a claim makes,
+  and it runs beside the landing loop on a thread of its own
+  (`service_shadow_draw.rs`),
+  so what it can delay is the next draw and nothing else:
+  a draw that stalls for the 5,606 ms the slowest measured rename took costs the commits in that window
+  the pool's member and no wait of their own.
+- A commit asks on a connection of its own,
+  `{"type":"shadow"}` with its own Git directory and its scratch tree,
+  and the answer is written by that connection's own task and never by the landing thread
+  (`service_server_connection_handling.rs`,
+  `answer_the_shadow_question`):
+  a commit's wait for its tree does not grow while another commit lands.
+  The service keeps the trees it drew in memory and hands one out with each answer,
+  so two commits that ask at once never get one tree;
+  a restarted service hands out nothing it did not draw,
+  and a tree an earlier one drew is left to the sweep by its age.
+- The ask is bounded at `DRAWN_ANSWER_DEADLINE`, 250 ms,
+  which is a hundred and fifty times the largest answer measured over 3,000 round trips
+  (`service_client_shadow_hand_out.rs`).
+  A socket nobody listens on, a service that does not answer, an empty stock,
+  and an answer naming a tree that is not this worktree's drawn one are all the same to a commit:
+  it takes the pool's member or makes its creation, within the bounds it has today,
+  and says nothing.
+- A commit that is handed a tree runs `refusal` on it,
+  which is the same check a claim runs and is all reads,
+  then writes the ref store and the conclusion state into it as it does into a claimed member.
+  A tree this invocation refuses is released in the background and the commit takes the other routes.
+- The tree is renewed every `SCRATCH_REFRESH_EVERY` while the command that holds it lives,
+  exactly as the commit's own scratch tree is,
+  so no lock is written and none can be left held:
+  a client killed at any instruction stops renewing,
+  and the sweep removes the tree once it has not been renewed for `SCRATCH_TREE_ABANDONED_AFTER`.
+  `sweep_drawn` runs beside every wrapped command,
+  beside the service's own draw,
+  and for a removed worktree, which takes the trees of its own folder that nothing renewed and leaves a fresh one:
+  a tree a live commit holds is fresh, and its Git is reading it while the removal runs.
+- The request that lands a commit names the drawn tree it was built in, in its `shadow` field,
+  and the service removes that tree with the scratch tree once that landing is over.
+  A request the service answered as not landed, or never took,
+  leaves the tree to the command, which releases it beside itself in the background.
+- A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
+  their commit makes its creation, and it asks nothing.
+- `buildParts` names the ask and the check `shadow hand-out`:
+  a build that took a drawn tree names no `shadow pool` and no creation stretch,
+  so a reading of a slow commit tells the three routes apart.
+
+- A commit first asks the service for a finished shadow the service drew ahead of it,
+  and takes the pool's member by one `rename` only when the service holds none.
+  The drawn route is the one taken when the service answers:
+  the tree is a member the service already renamed out of the pool
+  (`shadow_drawn.rs`),
+  and every check below is still made of it.
 - A claim is one `rename` of a member onto the commit's `<scratch>/shadow`,
   which fails for the second claimant,
   so no lock is taken and no commit waits for another
   (`AGENTS.md`,
   `NLK`).
-- A claimed member is checked before it is used,
+  It is the service's `rename` that the drawn route moves off the commit's wait:
+  `330` measured claims put a median 0.08 ms and at most 5,606 ms in it
+  (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
+  "The cost, over 330 commits").
+- A handed-out tree is checked before it is used, and a claimed member is checked before it is used,
   and everything the check reads is a read:
   its `config` must be the text this invocation's creation would write,
   its alternates must name this invocation's object directory,
@@ -13051,10 +13132,11 @@ from this invocation's own capture.
   and then the member it took is not in the tree the deletion was given,
   or it finds no pool and the commit makes its own shadow.
 
-`buildParts` names the claim `shadow pool`:
+`buildParts` names the claim `shadow pool` and the hand-out `shadow hand-out`:
 a build that took a member names no `shadow skeleton`,
 `shadow config` or `shadow links` stretch,
-so a reading of the record can tell the one route from the other,
+so a reading of the record can tell the three routes apart,
+a build that was handed a drawn tree names `shadow hand-out` and no `shadow pool` either,
 and a claim that refused a member names `shadow pool refused` beside them.
 
 #### Private `HEAD` shape
@@ -15489,8 +15571,15 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 11,
-the first whose landing answers `held`
+The commit request speaks protocol version 12,
+the first whose client asks the service for a finished shadow drawn ahead of it
+(`{"type":"shadow"}`,
+answered `{"type":"drawn","tree":...}` or `{"type":"no-shadow"}`),
+and whose request names the tree it was handed in a `shadow` field.
+A service of version 11 refuses the question as a message it does not know,
+which the client reads as no tree and answers by taking the pool's member or making its own creation:
+the question is an offer and never a step a commit needs.
+It was 11 because a landing answers `held`
 when a reference lock keeps a commit off its branch:
 the answer carries the commit and the words the command prints,
 and a client of version 10 reads a message type it does not know as a line it cannot read,

@@ -143,6 +143,13 @@ pub(crate) fn clear_the_pool_of_a_removed_worktree_with(common_dir: &Path, git_d
         Ok(()) => debug(TAG, format!("removed the shadow pool {}", taken.display()).as_str()),
         Err(error) => warn(TAG, format!("the shadow pool {} of the removed worktree {} could not be removed ({error}); it stays and keeps its disk", taken.display(), git_dir.display()).as_str()),
     }
+    // The drawn folder of the same worktree is swept entry by entry and never taken out of its name: a tree a commit is
+    //  running in is used where it stands, and the removal of the worktree must leave it for that commit's own Git.
+    //  Nothing renews a tree whose command stopped, so the age rule is what collects those.
+    let drawn: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn_of(common_dir, git_dir, std::time::SystemTime::now());
+    if !drawn.is_empty() {
+        debug(TAG, format!("removed {} drawn shadows of the removed worktree {}", drawn.len(), git_dir.display()).as_str());
+    }
 }
 
 /// What:

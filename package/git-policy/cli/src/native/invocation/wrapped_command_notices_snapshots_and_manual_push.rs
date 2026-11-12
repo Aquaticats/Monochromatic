@@ -427,8 +427,8 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 ///  The command is the named event that collects it,
 /// so the next command in the repository removes what the prune left,
 ///  and no timer and no age is needed for a folder that is provably dead.
-///  It reads the common directory and the pool folder and starts no Git,
-///  so a command that has no pool pays one `read_dir` that finds nothing.
+///  It reads the common directory, the pool folder and the folder of drawn shadows and starts no Git,
+///  so a command that has no pool pays two `read_dir`s that find nothing.
 ///  A folder that cannot be removed is left for the next command:
 ///  nothing here can fail the command the person asked for.
 ///
@@ -439,6 +439,11 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 pub(crate) fn sweep_shadow_pools_of_gone_worktrees<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) {
     let Some(common_dir) = checks.facts.known_common_dir() else { return };
     let _removed: Vec<PathBuf> = crate::shadow_pool::sweep_gone_worktrees(common_dir.as_path());
+    // What: The finished shadows the service drew ahead of commits and nothing renewed are collected by their age.
+    // Why:  A command killed after it was handed one leaves a tree no other rule reaches: a drawn tree is used where it
+    //       stands, and the pool's own removal takes the pool's folder and never this one. The command is the named event
+    //       that collects it, and a command whose repository has none pays one `read_dir` that finds nothing.
+    let _swept: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn(common_dir.as_path(), std::time::SystemTime::now());
 }
 
 /// What:
