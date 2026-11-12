@@ -607,12 +607,17 @@ pub fn collect_idle_trees(
         }
     }
     let mut standing: Standing = Standing { began: Instant::now(), last_said: Instant::now(), judged: 0, given: collection.given, removed: 0, bytes: 0, kept: 0, skipped: 0 };
+    // The last tree of this pass that the position orders, which is where a cut pass continues.
+    let mut last_of_the_rest: Option<PathBuf> = None;
     for index in &to_judge {
         if deadline.passed() {
             break;
         }
         progress(&mut standing, deadline);
         let tree: &Tree = &trees[*index];
+        if !found.candidates[*index] {
+            last_of_the_rest = Some(tree.path.clone());
+        }
         let Some(workspace) = workspace_of(&tree.path, deadline) else {
             // Its workspace was not read, so nothing was decided about it: the next pass judges it first.
             break;
@@ -690,7 +695,6 @@ pub fn collect_idle_trees(
     let _ = std::fs::remove_dir(&trash);
     // A pass that judged nothing keeps the position it started at, unless the list held nothing after it.
     // A candidate never becomes the position: the candidates are judged from the front on every pass.
-    let last_of_the_rest: Option<PathBuf> = collection.outcomes[..collection.judged].iter().rev().map(|outcome| { return outcome.tree.clone(); }).find(|path| { return !found.candidates.iter().zip(trees.iter()).any(|(candidate, tree)| { return *candidate && tree.path == *path; }); });
     collection.resume_after = if collection.judged < collection.given {
         match last_of_the_rest {
             Some(last) => Some(last),
