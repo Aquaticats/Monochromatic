@@ -135,6 +135,86 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The cleanup service installed, free space falling fast, and the first audit of alpha.12 (2026-11-11T23:43:24-05:00)
+
+#### Free space
+
+`/var/mnt/encrypted` had 231 GiB free at 22:31, 221 at 22:43, 196 at 23:06 and 177 at 23:42:
+about 47 GiB an hour,
+while thirteen audits, eight reviews, the gate and seven new agents each built the wrapper.
+The rule from here until it turns:
+`df --output=avail --block-size=G /var/mnt/encrypted` at every hourly pass;
+under 80 GiB no new agent is started, finished worktrees are removed at once, and audits are paused last.
+
+#### The cleanup service, and a plan reversed
+
+The 22:59 section said the stopgap unit would be stopped if the dry run had not listed build trees by about 23:45.
+It had not (it ran 57 minutes without reaching them and was ended by its process number),
+and the unit was not stopped,
+because the measurement that mattered had changed:
+at 47 GiB an hour a stopped cleaner fills the disk during the owner's absence,
+and a full disk has already cut runs off once.
+What stands in for the missing listing:
+the source commits between `0.1.5-alpha.9` and `0.1.5-alpha.10` make the scan keep more, not less
+(what a process runs, a tree whose ledger guards a live workspace, a workspace gone only on a confirmed absence),
+with one widening, a claimed tree holding a directory this user may not write;
+and the same proofs have been removing trees under alpha.9 since 2026-11-08.
+That is a judgement from reading, not a measurement, and is recorded as one.
+
+`cargo-shadow lean service-install` ran at 2026-11-11T23:40:02-05:00:
+"stopped and disabled cargo-shadow-lean.timer",
+"wrote /home/user/.config/systemd/user/cargo-shadow-lean.service",
+"removed ... cargo-shadow-lean.timer, the once-a-day timer; the run is continuous now",
+"cargo-shadow-lean.service is active".
+The unit shows `RuntimeMaxUSec=5h 30min` and `RestartUSec=1min`,
+only the `.service` file is left,
+and the pass that began at 23:39:31 runs the new binary
+(its first lines: no run record removed, no toolchain retired).
+The hand-written stopgap is replaced.
+
+Two defects for the next cargo-shadow agent:
+`lean run --dry-run --deadline-minutes 15` was still running after 57 minutes,
+and a dry run cannot answer "what would a pass remove" in less time than a pass
+(the code's own `RUN_DEADLINE_SECONDS` is five hours).
+
+#### Finished worktrees
+
+The package's `remove-finished-worktrees` ends at once with
+"EACCES: permission denied, readlink '/proc/1/cwd'"
+(sent to the driver-tests agent with the other defects).
+The older scratch script, run unedited, found one finished and clean worktree to remove
+(the push audit's) and nine finished ones left alone,
+eight because they hold uncommitted entries and one because its status could not be read.
+Most space is in build trees, which the cleanup service owns;
+pass 16 landing will free the worktrees of its twenty-three branches.
+
+#### The first audit of alpha.12: three ways a push notice is lost
+
+Kimi's audit of push and automatic push ended after 23 minutes
+(`${HOME}/temp/agent/kimi-trials/kimi-audit-alpha-12-push-and-auto-push/report.md`):
+
+- a push that failed for good is settled as failed although its notice could not be written
+  (`landing/service_work_settling_a_verdict.rs:90-112`);
+- a push that succeeded is settled as done although the server's lines could not be written
+  (`landing/service_work.rs:488-501`);
+- a kill while a due retry records its final refusal leaves neither plan nor notice
+  (the plan is removed first, and a notice is replaced by removing the old one before the new one exists).
+
+The first two were reproduced by making the notice folder unwritable, which is a trap;
+a full disk gives the same error and is not.
+The third needs only a kill.
+All three went to the round 261 agent on push notices,
+with the instruction to run each script itself before relying on its log.
+
+#### A review finding in the trash code
+
+The qwen4 review of the trash-boundary branch (`25e242d545`) ended with its file still marked not final and one finding by reading:
+a trash entry's subdirectory that vanishes between the listing and the walk fails the removal,
+the service gives the trash up for good,
+and it is named as left behind on every later command.
+No data is lost.
+It went to the round 251 agent on the trash hand-over.
+
 ### The sixth cull pass (2026-11-11T23:07:07-05:00)
 
 Forty-five agents were running at 23:06,
