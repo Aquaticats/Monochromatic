@@ -325,10 +325,10 @@ XVS:
  GPT models cannot be trusted on long-horizon work.
 
 KRV:
- Reviews of a change go to Kimi K3.1 Pro alone:
- Pi with `--provider synthetic --model hf:moonshotai/Kimi-K3.1-Pro`,
+ Reviews of a change go to qwen4-max-preview alone:
+ Pi with `--provider qwen-token-plan-individual --model qwen4-max-preview`,
  in a worktree of its own,
- outside the Neuralwatt slots.
+ on the qwen4 pool.
 
 LHZ:
  Long-horizon audits,
@@ -340,7 +340,7 @@ LHZ:
 PFW:
  Alongside advisor,
  never instead:
- a Kimi review reads the paths its prompt names,
+ a qwen4 review reads the paths its prompt names,
  whole files and the diff,
  never prose.
 Background it;

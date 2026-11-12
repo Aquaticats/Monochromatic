@@ -126,6 +126,41 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Reviews go to qwen4 instead of Kimi, and pass 14 ended (2026-11-11T19:27:00-05:00)
+
+The owner, at about 19:27: "Make the Qwen 4 pool 18, and use it for reviews INSTEAD of Kimi."
+
+What that changes:
+
+- The `qwen-token-plan` pool (`qwen-token-plan-individual`, `qwen4-max-preview`) is 18 in the package
+  (`package/pi-shared/subagent-driver/src/pool-limits.ts`, with the owner's words beside it).
+  The scratch gate still says 4 and is not edited, so only a start through the package's gate sees 18.
+- Every new review of a change is a qwen4 run. No new Kimi review is started.
+- The Kimi reviews already running (round 231 and a few of round 210 and 219) are left to finish.
+  The owner, 19:31, through the question tool (options: let them finish, stop and re-run on qwen4, stop without re-running):
+  "Let them finish (Recommended)".
+- Long audits are unchanged: Kimi and Sonnet side by side, and qwen4 "Not used for audits" (the owner, 17:58).
+- `AGENTS.md` rules KRV and PFW now name qwen4.
+  The owner, 19:31, through the question tool (options: rewrite both, this session only): "Rewrite KRV and PFW (Recommended)".
+  KRV reads "Reviews of a change go to qwen4-max-preview alone: Pi with
+  `--provider qwen-token-plan-individual --model qwen4-max-preview`, in a worktree of its own, on the qwen4 pool.";
+  PFW says "a qwen4 review". LHZ (long audits) is untouched.
+- What stands in the way of 18 at once: a review's worktree starts at the reviewed commit, and the package's launcher cannot yet
+  start a run from a named commit (round 236 adds it). Until then qwen4 reviews start through the scratch starter, four at a time.
+
+Round 242, started 19:26 before that instruction as the paired trial and now simply the first qwen4 reviews:
+`merge-abort-is-allowed-during-a-merge`, `merge-commit-landing-in-a-busy-checkout`,
+`held-notice-names-a-published-commit-and-reviews-stay-claimed`, `alpha-10-audit-merge-never-waits-on-a-fifo-and-takes-hidden-edits`.
+Their briefs are the Kimi briefs of round 231 with the run folder and worktree names changed
+(`~/temp/agent/qwen-trials/qwen-review-<name>/`, the same `change.diff`).
+
+Pass 14 ended at about 19:27 (325 turns): all 25 branches merged, tip `e33452755e`
+on `integrate/git-policy-cli-pass-14-for-alpha-11`, with three repair commits
+(`7c0583c34c` four build breaks, `18d0ccf431` thirteen test-side breaks, `e33452755e` a duplicated control).
+`native:build` and `native:test:host --no-run` pass at that tip; no test suite, Clippy or mutation run was made.
+Where it had to pick one side, for a reviewer to look at: the settlement judgement (`AtTheDestination`, `NotCompared` kept),
+the held path's forget, a service keeping its own journal, and reviews before the freeing steps with the housekeeping budget.
+
 ### The package launcher started none of round 235, and a removal that left its folder (2026-11-11T19:08:40-05:00)
 
 Round 235 did not start at 18:57.
