@@ -695,9 +695,11 @@ fn the_service_keeps_a_worktree_another_worktree_was_added_inside_after_the_hand
 ///  finding 1).
 #[test]
 fn the_service_keeps_a_worktree_a_process_started_working_in_after_the_hand_over() {
-    let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-process");
+    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-process", "*.log\n");
     let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
-    let bound: PathBuf = linked.worktree.join("bound.txt");
+    // An ignored file, so Git's own removal has nothing to refuse: it deletes what it ignores without a word, which is what
+    //  makes this the shape of the loss and not a refusal a person reads.
+    let bound: PathBuf = linked.worktree.join("build.log");
     std::fs::write(bound.as_path(), b"what the process is building\n").expect("a file the process works on");
     // The process the sweep could not have seen: it starts after the record was written and stays inside the worktree.
     let mut working: std::process::Child = std::process::Command::new("sleep")
