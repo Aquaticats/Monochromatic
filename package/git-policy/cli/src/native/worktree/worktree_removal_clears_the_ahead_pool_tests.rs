@@ -93,6 +93,44 @@ fn a_member_that_cannot_go_is_the_reason_the_removal_refuses() {
 const TAKEN_BY_A_CLEAR: &str = "removing-0f0e0d0c-0b0a-4908-8706-050403020100";
 
 /// What:
+///  A symbolic link at the pool's name,
+///  and at the name a clear leaves a pool it took,
+///  is no pool of this program:
+///  nothing is renamed and nothing below either name is read or deleted.
+/// Why:
+///   Nobody but this program writes a pool name,
+/// and a name it built is no proof of what stands at it:
+/// the rename moved
+///  the link,
+/// `read_dir` of the taken name followed it,
+/// each member's path was below the linked name,
+///  and the plain-directory branch deleted the files
+///  from the target and the removal reported success (a review finding,
+/// F4).
+/// A name is not a proof of what is at it.
+#[test]
+fn a_symbolic_link_at_a_pool_name_is_no_pool_and_what_it_points_at_survives() {
+    let root: PathBuf = fixture("ahead-pool-link");
+    let admin: PathBuf = root.join("worktrees/wt");
+    let folder: PathBuf = admin.join("monochromatic-git-policy-cli");
+    let outside: PathBuf = root.join("outside");
+    let keep: PathBuf = outside.join("member/keep.txt");
+    std::fs::create_dir_all(keep.parent().expect("the folder a person keeps")).expect("a folder outside the registration");
+    std::fs::write(keep.as_path(), b"mine\n").expect("a file outside the registration");
+    std::fs::create_dir_all(folder.as_path()).expect("the data folder");
+    let pool: PathBuf = pool_folder(admin.as_path());
+    std::os::unix::fs::symlink(outside.as_path(), pool.as_path()).expect("a link at the pool's name");
+    // The same shape at the name a killed clear leaves, which no fill ever reads.
+    let left: PathBuf = folder.join(TAKEN_BY_A_CLEAR);
+    std::os::unix::fs::symlink(outside.as_path(), left.as_path()).expect("a link at a taken name");
+    assert_eq!(clear_the_pools_ahead_of_a_worktree(admin.as_path()), Ok(()), "the clear takes no link and has nothing else to do");
+    assert_eq!(std::fs::read(keep.as_path()).expect("the file below the link's target is still there"), b"mine\n", "the file outside the registration survives");
+    assert!(keep.is_file(), "and its directory with it");
+    assert!(std::fs::symlink_metadata(pool.as_path()).is_ok(), "the link itself is not this program's to move or remove");
+    assert!(std::fs::symlink_metadata(left.as_path()).is_ok(), "and neither is the one at the taken name");
+}
+
+/// What:
 ///  A pool a clear renamed and was killed before emptying is taken by the next clear,
 ///  with its members,
 ///  and the wrapper's folder goes with it.
