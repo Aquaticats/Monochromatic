@@ -22,4 +22,14 @@ pub(crate) struct Settings<'a> {
     /// Whether Git shows the history the commit objects say,
     /// so the object store may answer the checks of a commit Git built.
     pub(crate) plain_history: bool,
+    /// What the landing does about a batch's side reference:
+    /// writes it itself,
+    /// with the mark the repository asks for beside its lock,
+    /// or leaves it to Git.
+    /// Why:
+    ///  The reference is a name the wrapper owns,
+    ///  so its write is four file-system calls,
+    ///  and a Git start for it is time the person waits on for nothing
+    ///  (`side_reference_written_here.rs`).
+    pub(crate) side_reference: crate::side_reference_written_here::SideReferenceWritePlan,
 }

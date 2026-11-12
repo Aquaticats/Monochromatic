@@ -153,6 +153,11 @@ pub mod service_land_git_steps_and_import_stream;
 /// or the commits made from the requests' changes.
 pub mod service_land_objects_of_batch;
 
+/// The reference that keeps a batch's commits reachable until its branch moves,
+/// written by the landing itself where that write is provably Git's,
+/// and left to Git everywhere else.
+pub mod side_reference_written_here;
+
 /// What the commit service's landing does once the branch has moved:
 /// index entries and conclusion state.
 pub mod service_land_copy;

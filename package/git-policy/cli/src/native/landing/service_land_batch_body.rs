@@ -165,8 +165,7 @@ pub(crate) fn land_batch_body(
             old.as_str(),
             &batch,
             amended_parents.as_slice(),
-            settings.plain_history,
-            settings.import_fsync,
+            settings,
         )?;
         timing.objects += objects_began.elapsed();
         reach("after-objects");
