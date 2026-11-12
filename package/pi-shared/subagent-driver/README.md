@@ -285,13 +285,25 @@ and a branch that already exists is added as it is,
 keeping its own commits,
 because moving it would rewrite work someone else may be reading;
 the line the launcher prints says which of the two it did.
-The checkout it works in is the nearest folder above the one it was started in that holds a `.git`,
-which a worktree marks with a file;
-it does not ask Git for that root,
-because this repository's Git wrapper refuses every command whose folder is not the root,
+A `git worktree add` killed by its own bound is cleared and tried once more,
+and when both attempts fail the branch the first one made is removed too:
+whoever makes a thing cleans it up,
+and `git branch --delete`, never the forced form, is what decides,
+so a branch holding anything unmerged stays and the line that says the start failed names it.
+The checkout it works in is the repository,
+found by walking up from the folder it was started in to the folder a checkout marks and then reading which repository that
+folder belongs to:
+a linked worktree's `.git` is a file naming the Git directory it was given,
+whose `commondir` names the Git directory every worktree shares.
+Every command of this package that needs the repository finds it the same way from anywhere inside it or inside a linked
+worktree,
+so a run's worktree is never made inside another worktree and a default never names two different folders.
+A checkout that keeps its Git directory elsewhere, such as a submodule, is not read that way and is named with
+`--checkout-folder`.
+Reading folder by folder is also what works here at all:
+this repository's Git wrapper refuses every command whose folder is not the root of the repository,
 and a command of this package runs from the package's own folder.
 On 2026-11-11 that refusal ended all ten starts of a batch before any of them made a worktree.
-`--checkout-folder` names the checkout instead.
 
 The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to put the run away,
 which is the only bound that reaches a driver stuck in a file system call.
@@ -305,6 +317,12 @@ It used to wait on `systemd-run --wait` alone,
 and while an impostor manager held the session bus name on 2026-11-11,
 sixteen launchers never heard their units end and waited about ten hours.
 
+The line a launcher prints as it ends names what is ending, which is the launcher,
+and what the run's unit is doing at that moment, read with `systemctl --user is-active`:
+a wait that gave up while the unit was still `active` says so,
+because a line that read `unit the-unit-ended with status 1`
+was taken for the run's end while the run it had started was alive and working.
+
 Nothing is made before five checks pass,
 the first of which is the one above:
 the `git` the session would run is this repository's policy wrapper,
@@ -315,8 +333,18 @@ and Pi starts in this session and loads the extensions its settings name.
 That last one is `pi --help` in the session's `PATH` and `HOME`:
 Pi loads its extensions before it prints the help, and exits without calling a model.
 It took 1.55 to 2.90 seconds in this checkout on 2026-11-11, with a 7.89 second outlier under load,
-so it is asked at each start rather than remembered,
-and a session whose extension cannot be loaded is refused with Pi's own error.
+and 95 to 145 seconds later that evening while other agents loaded the machine.
+So the answer is kept for ten minutes beside the runs,
+for the same session, `HOME` and checkout only,
+and a batch asks it once instead of every launcher paying for it.
+The bound is two minutes,
+and what a killed question means is said in the line it prints:
+a Pi that failed and printed its reason is a refusal,
+a Pi this check's own bound killed is a warning and the start goes ahead,
+because a loaded machine is not a broken Pi,
+and a Pi a signal from outside killed is a warning that names the signal.
+Only the first is a reason to refuse a run.
+A session whose extension cannot be loaded is refused with Pi's own error.
 On 2026-11-11 a rebuilt extension imported a workspace package the checkout had not linked,
 and thirteen runs ended `pi-exited` with no turn before anyone read what Pi had printed.
 A start that fails one of them prints every reason it found and exits non-zero,
@@ -485,7 +513,9 @@ which defaults to this package's `doc/rules-every-pi-brief-carries.md` in the ch
 
 It writes the diff of the ranges under the source folder,
 the brief that names the code files among them,
-and an empty `reproductions/` folder,
+an empty `reproductions/` folder,
+and `what-the-review-read.json`,
+which records the commit, the ranges and the source folder a fix that answers this review starts from,
 and prints one line:
 
 ```text
@@ -549,8 +579,6 @@ and exits `0` only when every start ended `0`.
 
 `--review`,
 repeatable;
-`--base`,
-the commit or branch every fix starts at;
 `--branch-prefix`,
 the namespace a fix's branch lives under, such as `fix/`;
 `--package`,
@@ -562,15 +590,27 @@ six hours by default;
 and `--batch-file`,
 which, when given, is written as the list that starts those agents.
 
-A fix is named after the change its review read,
-without the `-round-<n>` that says which round wrote the review,
+No commit is an option:
+each review writes `what-the-review-read.json` beside its brief,
+which names the commit, the ranges and the source folder it read,
+and a fix starts at that commit.
+A branch moves on as soon as anyone commits to it,
+so a fix that started at the branch would answer a change nobody reviewed.
+A review that recorded nothing gets no brief,
+and the line says which file is missing.
+
+A fix run is `fix-of-<the review's own name>`,
+so it shares neither a name, a worktree nor a unit with the review it answers,
 and its branch is the prefix and that name.
+Its brief names what the review read,
+as the review's own ranges and commit,
+so no fix is told it answers `main` whatever was reviewed.
 Each brief is written to `<runs folder>/<fix name>-prompt.md`,
 names the rules file first,
 quotes the ban on synthetic host load,
 states the requirements as the project's own,
 and names no owner, no hurry and no due date.
-A review whose `review.md` or `change.diff` is not there gets no brief:
+A review whose `review.md`, `change.diff` or record is not there gets no brief:
 the line names the missing file and the rest go on,
 and the command exits `1` when any review was left without one.
 
@@ -909,6 +949,33 @@ or in the provider's own store.
 `wall-clock`,
 `driver-failed`,
 `model-error` and `pi-not-stopped` exit non-zero after writing the summary.
+
+`idle` means the agent ended its turn with nothing of its own still running.
+An agent that ends its turn while a build it started still compiles has not finished its task,
+and before 2026-11-12 the driver closed such a session as `idle`: two runs that night lost the work of an hour
+because their agent waited for a build and nobody brought them back.
+So the driver asks what the run left running before it ends as `idle`,
+and keeps the session open while any of it runs.
+The feed holds one `waiting` line when the wait begins,
+which names every process it waits for;
+when the work is gone the driver sends the agent a message naming what ended and asking it to read the result with the `process` tool,
+notes a `wake` line with Pi's answer,
+and goes on.
+The run's own wall clock bounds that wait:
+a run whose work outlasts it ends `wall-clock`,
+and its feed gains a `problem` line naming the work it waited for,
+so the two ends are never one word.
+
+What the driver asks is in `work-the-run-left-running.ts`:
+the run's own `process` tool, whose every answer is a record of the feed and whose records carry the process number,
+the folder it started in and the command it runs;
+the machine's process table, for a process working in the run's worktree or run folder whose control group is not the run's own unit,
+which is how a `systemd-run --scope` the agent made is found;
+and the unit a command names with `--unit=`,
+asked of the manager,
+for work whose number has gone.
+What none of them can show is not guessed at,
+and a run with nothing running ends `idle` as it always did.
 
 `driver-failed` means the driver itself hit an error:
 `driverError` names it,

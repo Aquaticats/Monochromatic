@@ -30,6 +30,7 @@ import {
 } from './answer-a-model-error.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
+import { askAboutItsWork, } from './kept-while-work-runs.ts';
 import type { WatchRequest, } from './watch-request.ts';
 
 /**
@@ -420,7 +421,7 @@ function idleLongEnough(watch: WatchRequest,): boolean {
 
  @param watch - watch request
 
- @returns whether the run ends here
+ @returns whether nothing stands between the run and its end but the rest it has had
  */
 function mayEndIdle(watch: WatchRequest,): boolean {
   /**
@@ -450,6 +451,10 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
    Where the watch stands with the model error it last answered, so one error is answered by one attempt.
    */
   const retry: RetryWaiting = {};
+  /**
+   The work this run left running, once the driver has seen it and is waiting for it to end; nothing until then.
+   */
+  const waited: { work?: readonly string[] } = {};
   /* oxlint-disable eslint/no-await-in-loop -- a look at the limits, then one message and Pi's answer before the next look; two
      deliveries at once would reorder the inbox. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -463,6 +468,16 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       wallDeadline: watch.deadline,
     },);
     if (progress !== 'still-running') {
+      // A run the wall clock ended while it waited for work it left running did not end with nothing to do, and its summary
+      // must not read as one that did.
+      if ((progress === 'wall-clock') && (waited.work !== undefined)) {
+        watch.record
+          .note({
+            kind: 'problem',
+            problem: `the run ended on its wall clock while it waited for the work it left running: ${waited.work
+              .join(', ',)}`,
+          },);
+      }
       return progress;
     }
     /**
@@ -487,7 +502,18 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       },);
     }
     // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
-    else if ((retry.owed === undefined) && mayEndIdle(watch,)) {
+    else if ((retry.owed === undefined) && (mayEndIdle(watch,))) {
+      /**
+       What the run left running, asked before it may end as a run that finished its turn: an agent that ended its turn while a
+       build compiled is waiting for that build, so the run is kept, and sent back to it once it is over.
+       */
+      const asked = await askAboutItsWork({
+        watch,
+        waited,
+      },);
+      if (asked !== 'nothing') {
+        continue;
+      }
       return 'idle';
     }
   }

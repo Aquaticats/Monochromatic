@@ -28,7 +28,9 @@ export type PiExit = {
 /**
  Why a run ended. `idle` and `stop-file` are the ends a run chooses; the others fail the driver.
 
- `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from, `pi-not-stopped`
+ `idle` means the agent ended its turn with nothing of its own still running: a run whose work is still going when the agent
+ settles is kept, and ends on its wall clock instead if the work outlasts it. `model-error` means Pi settled on a last assistant
+ message that ended in an error nothing recovered from, `pi-not-stopped`
  means Pi was still alive when every bound on ending it ran out, `compaction-failed` means a compaction Pi reported failing left
  it silent instead of taking the prompt, and `driver-failed` covers the driver's own failures.
  */
@@ -43,6 +45,22 @@ export type EndReason =
     | 'driver-failed'
     | 'model-error'
     | 'pi-not-stopped';
+
+/**
+ Every reason a run can end with, so a reader of summaries can ask about all of them without naming any twice.
+ */
+export const END_REASONS: readonly EndReason[] = [
+  'idle',
+  'stop-file',
+  'prompt-rejected',
+  'compaction-failed',
+  'pi-exited',
+  'turn-cap',
+  'wall-clock',
+  'driver-failed',
+  'model-error',
+  'pi-not-stopped',
+];
 
 /**
  Where a run stands: over for a reason, or still going.

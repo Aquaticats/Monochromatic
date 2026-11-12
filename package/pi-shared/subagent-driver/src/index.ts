@@ -82,6 +82,7 @@ export {
   type RecordOfPiRunRequest,
   startRecordOfPiRun,
 } from './record-of-pi-run.ts';
+export { END_REASONS, } from './driver-types.ts';
 export {
   CLEAN_END_REASONS,
   endReasonOfPromptWait,
@@ -218,6 +219,14 @@ export {
   wakeResumeWordsOf,
   workWaitMillisecondsOf,
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
+export {
+  type WorkOfARun,
+  cgroupOf,
+  unitNamedBy,
+  wakeMessageOf,
+  workOutlivingTheTurnIn,
+  workTheToolReportedIn,
+} from './work-the-run-left-running.ts';
 
 /**
  A batch started as its own systemd user unit, so it outlives the process that asked for it: `start-a-batch-in-its-own-unit.ts`.

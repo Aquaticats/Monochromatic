@@ -17,6 +17,7 @@ import {
 import {
   BATCH_DEFAULT_DEADLINE_SECONDS,
 } from './batch-list.ts';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import {
   batchOutputFileOf,
   batchUnitCommandOf,
@@ -162,6 +163,7 @@ const command = batchUnitCommandOf({
     folder: import.meta.dirname,
     command: 'start-pi-runs-from-a-batch-list',
   },),
+  checkoutFolder: await checkoutFolderOf({ from: process.cwd(), },),
 },);
 
 /**

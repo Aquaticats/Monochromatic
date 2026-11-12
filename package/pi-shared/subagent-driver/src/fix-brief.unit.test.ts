@@ -212,7 +212,7 @@ await describe({
             expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },),)
               .not.toBe(branchOfAReview({ review: aReview(), },),);
             // Two rounds of one change answer on two branches, so the second does not find the first one's commits.
-            expect(branchOfAFixFor({ review: `${aReview()}`, branchPrefix: aBranchPrefix(), },),)
+            expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },),)
               .not.toBe(branchOfAFixFor({ review: 'rewrite-the-gate-round-134', branchPrefix: aBranchPrefix(), },),);
             expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },).toLowerCase(),)
               .not.toContain('kimi',);

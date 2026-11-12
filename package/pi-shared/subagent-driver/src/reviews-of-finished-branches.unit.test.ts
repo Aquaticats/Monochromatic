@@ -16,9 +16,11 @@ import {
   BATCH_STAGGER_MILLISECONDS,
   REVIEWING_MODEL,
   REVIEWING_PROVIDER,
+  LONGEST_MEASURED_REVIEW_TURNS,
   REVIEW_START_DEADLINE_SECONDS,
   REVIEW_TURN_CAP,
   REVIEW_WALL_SECONDS,
+  TURN_CAP_MARGIN,
   type BriefOfOneReview,
   entryLineOf,
   type ReviewStartingSeams,
@@ -323,6 +325,20 @@ await describe({
             expect(words,).toContain(`--model=${REVIEWING_MODEL}`,);
             expect(words,).toContain(`--runs-folder=${aRunsFolder()}`,);
             expect(words,).toContain(`--checkout-folder=${aCheckoutFolder()}`,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'the cap a review gets',
+      children: [
+        it({
+          name: 'is a quarter above the longest finished review measured, so a cap that cut reviews off mid-reading fails this',
+          fn: async () => {
+            expect(REVIEW_TURN_CAP,).toBe(Math.ceil(LONGEST_MEASURED_REVIEW_TURNS * TURN_CAP_MARGIN),);
+            // Forty-seven cut off reviews that ended at 147, 153 and 156 turns on 2026-11-11.
+            expect(REVIEW_TURN_CAP,).toBeGreaterThan(LONGEST_MEASURED_REVIEW_TURNS,);
+            expect(REVIEW_TURN_CAP,).toBeGreaterThan(47,);
           },
         },),
       ],

@@ -25,6 +25,7 @@ import {
   ENTRY_REASON_CHARACTERS,
   type CommandOutput,
   type GitRunner,
+  type RunCommand,
   PI_START_CHECK_MEMORY_SECONDS,
   baseProblemIn,
   checkoutFolderOf,
@@ -98,6 +99,55 @@ function answering(answer: CommandOutput,): {
       },);
       return answer;
     },
+  };
+}
+
+
+/**
+ A Pi that prints its help and loads what its settings name, counting how often it was asked.
+
+ @param asked - where to note each question
+
+ @returns how a command is run for this check
+
+ @example
+ ```ts
+ const run = aPiThatAnswersItsHelp({ asked, },);
+ ```
+ */
+function aPiThatAnswersItsHelp({ asked }: { readonly asked: string[] },): RunCommand {
+  return async function answered() {
+    asked.push('pi',);
+    return {
+      status: 0,
+      stdout: 'Usage: pi\n',
+      stderr: '',
+    };
+  };
+}
+
+/**
+ A Pi whose printing of its help this check's own bound kills, counting how often it was asked.
+
+ @param asked - where to note each question
+
+ @returns how a command is run for this check
+
+ @example
+ ```ts
+ const run = aPiThatTheBoundKills({ asked, },);
+ ```
+ */
+function aPiThatTheBoundKills({ asked }: { readonly asked: string[] },): RunCommand {
+  return async function answered() {
+    asked.push('pi',);
+    return {
+      status: (-1),
+      stdout: '',
+      stderr: '',
+      problem: 'Command failed: pi --help',
+      killedByItsOwnBound: true,
+    };
   };
 }
 
@@ -470,9 +520,12 @@ await describe({
       name: piProblemIn.name,
       children: [
         it({
-          name: 'says nothing when Pi prints its help and loads the extensions this session names',
+          name: 'refuses nothing and warns about nothing when Pi prints its help and loads the extensions this session names',
           fn: async () => {
-            expect(await piProblemIn({
+            /**
+             What the check answered about a Pi that starts.
+             */
+            const answer = await piProblemIn({
               run: async function answered() {
                 return {
                   status: 0,
@@ -483,7 +536,9 @@ await describe({
               sessionPath: '/bin',
               home: '/home/a',
               folder: '/repo',
-            },),).toEqual({},);
+            },);
+            expect(answer.problem,).toBeUndefined();
+            expect(answer.warning,).toBeUndefined();
           },
         },),
         it({
@@ -550,28 +605,31 @@ await describe({
             /**
              What Pi answers, which is its help and a load failure nothing found.
              */
-            const run = async function answered() {
-              asked.push('pi',);
-              return {
-                status: 0,
-                stdout: 'Usage: pi\n',
-                stderr: '',
-              };
-            };
-            expect(await piProblemIn({
+            const run = aPiThatAnswersItsHelp({ asked, },);
+            /**
+             What the first start is told.
+             */
+            const first = await piProblemIn({
               run,
               sessionPath: '/session/bin',
               home: '/home/a',
               folder: '/repo',
               runsFolder: folder.path,
-            },),).toEqual({},);
-            expect(await piProblemIn({
+            },);
+            expect(first.problem,).toBeUndefined();
+            expect(first.warning,).toBeUndefined();
+            /**
+             What the start after it is told.
+             */
+            const second = await piProblemIn({
               run,
               sessionPath: '/session/bin',
               home: '/home/a',
               folder: '/repo',
               runsFolder: folder.path,
-            },),).toEqual({},);
+            },);
+            expect(second.problem,).toBeUndefined();
+            expect(second.warning,).toBeUndefined();
             expect(asked.length,).toBe(1,);
           },
         },),
@@ -583,14 +641,7 @@ await describe({
              How many times Pi was asked.
              */
             const asked: string[] = [];
-            const run = async function answered() {
-              asked.push('pi',);
-              return {
-                status: 0,
-                stdout: 'Usage: pi\n',
-                stderr: '',
-              };
-            };
+            const run = aPiThatAnswersItsHelp({ asked, },);
             /**
              An answer asked just past the memory, which no start may reuse.
              */
@@ -645,16 +696,7 @@ await describe({
              How many times Pi was asked.
              */
             const asked: string[] = [];
-            const run = async function answered() {
-              asked.push('pi',);
-              return {
-                status: (-1),
-                stdout: '',
-                stderr: '',
-                problem: 'Command failed: pi --help',
-                killedByItsOwnBound: true,
-              };
-            };
+            const run = aPiThatTheBoundKills({ asked, },);
             /**
              What the first start is told.
              */

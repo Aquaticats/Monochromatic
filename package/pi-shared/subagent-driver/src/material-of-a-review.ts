@@ -8,6 +8,7 @@
  @module
  */
 
+import { isRecord, } from './read-pi-fields.ts';
 import type { CommandOutput, } from './run-command.ts';
 
 /**
@@ -177,28 +178,45 @@ export function readingIn({
    The record, of any shape.
    */
   const kept: unknown = JSON.parse(shown,);
-  if ((typeof kept) !== 'object') {
+  if (!isRecord(kept,)) {
     throw new ReviewReadingError(`${file} holds no JSON object naming what the review read`,);
   }
   /**
-   The fields the record was written with.
+   The fields the record was written with, kept as the record holds them.
    */
-  const fields = kept as Partial<Record<keyof ReviewReading, unknown>>;
+  const fields = {
+    review: kept.review,
+    commit: kept.commit,
+    source: kept.source,
+    ranges: kept.ranges,
+  };
   if (
     ((typeof fields.review) !== 'string') || ((typeof fields.commit) !== 'string')
-    || ((typeof fields.source) !== 'string') || (!Array.isArray(fields.ranges,))
-    || (!fields.ranges.every(function isARange(range,) {
-      return (typeof range) === 'string';
-    },))
+      || ((typeof fields.source) !== 'string')
+      || (!Array.isArray(fields.ranges,))
   ) {
     throw new ReviewReadingError(
       `${file} names no review, commit, ranges and source folder, so where a fix for it would start cannot be read`,
     );
   }
+  /**
+   The ranges the record kept, which a fix reads the review against.
+   */
+  const ranges = fields.ranges
+    .filter(function isARange(range,): range is string {
+      return (typeof range) === 'string';
+    },);
+  if (ranges.length
+    !== fields.ranges
+      .length) {
+    throw new ReviewReadingError(
+      `${file} names a range that is no text, so where a fix for it would start cannot be read`,
+    );
+  }
   return {
     review: fields.review,
     commit: fields.commit,
-    ranges: fields.ranges as readonly string[],
+    ranges,
     source: fields.source,
   };
 }

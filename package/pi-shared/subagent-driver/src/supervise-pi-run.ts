@@ -44,6 +44,8 @@ import type {
 import { preview, } from './previews-of-pi-messages.ts';
 import { putTheRunAway, } from './put-the-run-away.ts';
 import { endReasonOfRun, } from './take-the-first-prompt.ts';
+import { runCommandWithChildProcess, } from './run-command.ts';
+import { workOutlivingTheTurnIn, } from './work-the-run-left-running.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
   fieldsOf,
@@ -298,6 +300,16 @@ export async function supervisePiRun(
     options,
     inbox,
     deadline,
+    workLeftRunning: async function workLeftRunning() {
+      return await workOutlivingTheTurnIn({
+        runFolder: options.runFolder,
+        workingFolder: options.workingFolder,
+        processFolder: process.env
+          .PI_RUNS_PROCESS_FOLDER
+          ?? '/proc',
+        run: runCommandWithChildProcess,
+      },);
+    },
   },);
   /**
    What putting the run away left: Pi's own statistics, and whether its leaving could be confirmed.

@@ -233,6 +233,25 @@ async function startRunWithAMessage(): Promise<RunUnderTest> {
 }
 
 /**
+ Starts a run whose Pi ended its turn with nothing open, which is the state a run may end from.
+
+ @returns the run, and the folder that goes with it
+
+ @example
+ ```ts
+ await using run = await startRunThatSettled();
+ ```
+ */
+async function startRunThatSettled(): Promise<RunUnderTest> {
+  const run = await startRunAtWork();
+  run.record.observe({
+    event: { type: 'agent_settled', },
+    declineDialog: refuseDialog,
+  },);
+  return run;
+}
+
+/**
  Starts a run whose Pi settled on a failure another attempt may fix, and then is at work again, which is what a message it took
  from the inbox starts.
 
@@ -784,6 +803,109 @@ await describe({
         expect(endReason,).toBe('model-error',);
         expect(sent,).toEqual([],);
         expect(run.record.retriesTaken(),).toBe(0,);
+      },
+    },),
+    it({
+      name: 'keeps a run whose own work still runs, then sends the agent back when that work ends',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which the one that sends the agent back to its work joins.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was asked about, which is how the test ends it after two looks.
+         */
+        let looks = 0;
+        /**
+         The line that names the work the run left running.
+         */
+        const work = ['proc_7adb (native-build-2) 486667 systemd-run --user --scope'];
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            return (looks <= 2) ? work : [];
+          },
+        },);
+        // The run was kept for as long as its work ran, and sent a message once it ended.
+        expect(endReason,).toBe('idle',);
+        expect(sent.length,).toBe(1,);
+        expect(sent[0],).toContain('proc_7adb (native-build-2) 486667 systemd-run --user --scope',);
+        /**
+         What the run's feed holds.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.filter((entry,) => entry.kind === 'waiting').length,).toBe(1,);
+        expect(String(feed.find((entry,) => entry.kind === 'waiting')?.problem,),).toContain('native-build-2',);
+        expect(feed.some((entry,) => (entry.kind === 'wake') && (entry.success === true)),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'ends on its wall clock while its work still runs, and its feed says what it waited for',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which a kept run must not send while it waits.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async function workLeftRunning() {
+            return ['proc_7adb (native-build-2) 486667 systemd-run --user --scope',];
+          },
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        expect(sent,).toEqual([],);
+        /**
+         What the run's feed holds.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.some((entry,) => entry.kind === 'waiting'),).toBe(true,);
+        // A run the wall clock ended while it waited for work did not end with nothing to do, and the feed says so.
+        expect(String(feed.at(-1)?.problem,),).toContain('waited for the work it left running',);
+      },
+    },),
+    it({
+      name: 'ends a run with nothing running as it always did, sending nothing',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent, which nothing running must not produce.
+         */
+        const sent: string[] = [];
+        /**
+         The deadlines the work was asked under, which must be none at all when there is nothing to wait for.
+         */
+        let looks = 0;
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            return [];
+          },
+        },);
+        expect(endReason,).toBe('idle',);
+        expect(sent,).toEqual([],);
+        expect(looks,).toBeGreaterThan(0,);
+        /**
+         What the run's feed holds, which must name no wait and no wake.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.some((entry,) => entry.kind === 'waiting'),).toBe(false,);
+        expect(feed.some((entry,) => entry.kind === 'wake'),).toBe(false,);
       },
     },),
   ],

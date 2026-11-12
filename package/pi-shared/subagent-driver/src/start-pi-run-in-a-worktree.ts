@@ -56,6 +56,10 @@ import {
 } from './turn-cap-of-finished-runs.ts';
 import { unitCommandOf, } from './unit-command-of-a-run.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
+import {
+  launcherEndedLineOf,
+  unitStateNow,
+} from './the-line-a-launcher-ends-with.ts';
 import { makeWorktree, } from './worktree-of-a-run.ts';
 
 // The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
@@ -342,7 +346,18 @@ const waited = await waitForUnitToEnd({
 const status = (waited.ended === 'the-unit-ended')
   ? (waiter.exitCode ?? 0)
   : 1;
-console.log(`${options.name}: unit ${waited.ended} with status ${String(status,)}; run folder ${runFolder}; worktree ${worktree}`,);
+console.log(launcherEndedLineOf({
+  runName: options.name,
+  unitName: unitNameOfGiven({ name: options.name, },),
+  unitState: await unitStateNow({
+    run: runCommandWithChildProcess,
+    unitName: unitNameOfGiven({ name: options.name, },),
+  },),
+  ended: waited.ended,
+  status,
+  runFolder,
+  worktree,
+},),);
 
 /**
  What finishing the run answered, which is the status this command exits with.

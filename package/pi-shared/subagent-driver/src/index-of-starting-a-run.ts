@@ -108,6 +108,15 @@ export {
 } from './session-file-of-a-run.ts';
 export { nextRunNumber, } from './next-run-number.ts';
 export {
+  launcherEndedLineOf,
+  unitStateNow,
+} from './the-line-a-launcher-ends-with.ts';
+export {
+  askAboutItsWork,
+  type WorkAsked,
+  type WorkWaitedFor,
+} from './kept-while-work-runs.ts';
+export {
   CHECKOUT_MARKER,
   CheckoutNotFoundError,
   checkoutFolderOf,

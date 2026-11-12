@@ -20,7 +20,9 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  CLEAN_END_REASONS,
   DEFAULT_REVIEWS_FOLDER_IN_HOME,
+  END_REASONS,
   SAVED_REVIEW_NOTE,
   lastAssistantTextIn,
   newestRunOf,
@@ -87,6 +89,63 @@ function sessionLine(role: string, texts: readonly string[],): string {
       },),
     },
   },);
+}
+
+
+/**
+ Writes one run a reason ended before it wrote its findings, and asserts nothing that reads as a review was saved.
+
+ @param reason - why the run ended
+
+ @returns nothing
+
+ @example
+ ```ts
+ await aCutOffRunSavesNothing({ reason: 'turn-cap', },);
+ ```
+ */
+async function aCutOffRunSavesNothing({ reason }: { readonly reason: string },): Promise<void> {
+  await using folder = await makeFolder();
+  /**
+   The run's folder, whose summary says what ended it before it wrote its findings.
+   */
+  const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'c-round-1', },)}-1`,);
+  /**
+   The session the cut-off run left, whose last message is the sentence it was at.
+   */
+  const sessionFile = join(folder.path, 'session.jsonl',);
+  await mkdir(runFolder, { recursive: true, },);
+  await writeFile(sessionFile, JSON.stringify({
+    type: 'message',
+    message: {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Let me check the build target location.', },],
+    },
+  },),);
+  await writeFile(join(runFolder, 'summary.json',), JSON.stringify({
+    endReason: reason,
+    sessionStats: { sessionFile, },
+  },),);
+  /**
+   What saving that review answered.
+   */
+  const saved = await saveTheLastMessage({
+    runsFolder: join(folder.path, 'runs',),
+    reviewFolder: folder.path,
+    review: 'c-round-1',
+  },);
+  expect(saved.saved,).toBe(false,);
+  expect(saved.line,).toContain(`ended ${reason}`,);
+  // Nothing that reads as a review is written, because the sentence the run was at is not one.
+  /**
+   The file a review would have been written to.
+   */
+  const reviewFile = join(
+    folder.path,
+    'c-round-1',
+    'review.md',
+  );
+  await expect(readFile(reviewFile,),).rejects.toThrow(MISSING_PATH_CODE,);
 }
 
 await describe({
@@ -232,46 +291,20 @@ await describe({
           },
         },),
         it({
-          name: 'writes nothing for a run a cap, a wall clock or an abort ended, and says why the review is missing',
+          name: 'writes nothing for a run any cap, wall clock or abort ended, and says why the review is missing',
           fn: async () => {
-            await using folder = await makeFolder();
             /**
-             The run's folder, whose summary says a cap ended it before it wrote its findings.
+             The reasons a run ends with that are not its own terms, which a review that stopped before writing its findings
+             has.
              */
-            const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'c-round-1', },)}-1`,);
-            /**
-             The session the cut-off run left, whose last message is the sentence it was at.
-             */
-            const sessionFile = join(folder.path, 'session.jsonl',);
-            await mkdir(runFolder, { recursive: true, },);
-            await writeFile(sessionFile, JSON.stringify({
-              type: 'message',
-              message: {
-                role: 'assistant',
-                content: [{ type: 'text', text: 'Let me check the build target location.', },],
-              },
-            },),);
-            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({
-              endReason: 'turn-cap',
-              sessionStats: { sessionFile, },
-            },),);
-            const saved = await saveTheLastMessage({
-              runsFolder: join(folder.path, 'runs',),
-              reviewFolder: folder.path,
-              review: 'c-round-1',
+            const cutShort = END_REASONS.filter(function notItsOwnTerms(reason,) {
+              return !CLEAN_END_REASONS.has(reason,);
             },);
-            expect(saved.saved,).toBe(false,);
-            expect(saved.line,).toContain('ended turn-cap',);
-            // Nothing that reads as a review is written, because the sentence the run was at is not one.
-            /**
-             The file a review would have been written to.
-             */
-            const reviewFile = join(
-              folder.path,
-              'c-round-1',
-              'review.md',
-            );
-            await expect(readFile(reviewFile,),).rejects.toThrow(MISSING_PATH_CODE,);
+            // The list is every reason a run can name but the two it chooses, so a reason added to the driver is covered here.
+            expect(cutShort.length,).toBeGreaterThan(0,);
+            await Promise.all(cutShort.map(function oneReason(reason,) {
+              return aCutOffRunSavesNothing({ reason, },);
+            },),);
           },
         },),
       ],

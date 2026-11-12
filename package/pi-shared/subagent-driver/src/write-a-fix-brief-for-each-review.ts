@@ -141,7 +141,8 @@ async function readingOfAReview({
   catch (error) {
     // A review that recorded nothing, or recorded something no reader can follow, gives a fix no commit to start at; the
     // caller says so in one line and the other reviews go on.
-    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (error instanceof ReviewReadingError) || (error instanceof SyntaxError)) {
+    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (error instanceof ReviewReadingError)
+      || (error instanceof SyntaxError)) {
       return {};
     }
     throw error;
@@ -224,7 +225,8 @@ for (const review of options.reviews) {
   /**
    What the review read, in its own words, which the brief names so a fix answers the change that was reviewed.
    */
-  const subject = `${reading.ranges.join(' and ',)} at commit ${reading.commit}`;
+  const subject = `${reading.ranges
+    .join(' and ',)} at commit ${reading.commit}`;
   /**
    The file the brief is written to, which the batch list's entry reads.
    */
