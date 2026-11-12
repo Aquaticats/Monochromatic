@@ -166,7 +166,7 @@ The list came from the scratch lister `list-finished-branches-not-in-the-integra
 after the old integration branch `integrate/git-policy-cli-jam-fixes-after-alpha-9` was fast-forwarded to `main` in its own worktree
 so that the lister compares against what `main` holds.
 It showed twenty-three finished branches,
-ten more than the coordinator had in mind:
+twelve more than the coordinator had in mind:
 several had ended between 19:23 and 21:41 and were in neither pass 15 nor any list.
 Held out on purpose:
 the abort second pass (decisions the owner has not seen yet)
