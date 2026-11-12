@@ -122,8 +122,18 @@ fn the_clone_keeps_its_tools(fixture: &Fixture) {
         }
     }
     drop(environment);
-    let cargo: PathBuf = std::env::var_os("CARGO").map_or_else(|| PathBuf::from("cargo"), PathBuf::from);
-    let toolchain: PathBuf = cargo.parent().map_or_else(|| PathBuf::from("/usr/bin"), PathBuf::from);
+    let cargo: PathBuf = std::env::var_os("CARGO").map_or_else(
+        || {
+            return PathBuf::from("cargo");
+        },
+        PathBuf::from,
+    );
+    let toolchain: PathBuf = cargo.parent().map_or_else(
+        || {
+            return PathBuf::from("/usr/bin");
+        },
+        PathBuf::from,
+    );
     for tool in ["cargo", "rustc"] {
         let link: PathBuf = fixture.root.join("bin").join(tool);
         let _removed = std::fs::remove_file(link.as_path());
