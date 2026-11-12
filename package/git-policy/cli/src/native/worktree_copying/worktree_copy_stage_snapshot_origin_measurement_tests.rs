@@ -52,22 +52,22 @@ fn measure_what_reading_the_origin_of_a_snapshot_costs() {
     let mut again: Vec<u128> = Vec::new();
     for _sample in 0..SAMPLES {
         // The source's record alone.
-        let started: Instant = Instant::now();
+        let source_started: Instant = Instant::now();
         crate::fs_btrfs_ioctl::subvolume_info(source.as_path()).expect("the source's record");
-        once.push(started.elapsed().as_micros());
+        once.push(source_started.elapsed().as_micros());
         // The source's record and the journal directory's, which is what the record read before this change.
-        let started: Instant = Instant::now();
+        let both_started: Instant = Instant::now();
         crate::fs_btrfs_ioctl::subvolume_info(source.as_path()).expect("the source's record");
         crate::fs_btrfs_ioctl::subvolume_info(journal.as_path()).expect("the journal's record");
-        twice.push(started.elapsed().as_micros());
+        twice.push(both_started.elapsed().as_micros());
         // What the record reads now.
-        let started: Instant = Instant::now();
+        let origin_started: Instant = Instant::now();
         origin_of_the_source(source.as_path()).expect("the origin");
-        recorded.push(started.elapsed().as_micros());
+        recorded.push(origin_started.elapsed().as_micros());
         // The same read again, as the control for the spread.
-        let started: Instant = Instant::now();
+        let again_started: Instant = Instant::now();
         origin_of_the_source(source.as_path()).expect("the origin");
-        again.push(started.elapsed().as_micros());
+        again.push(again_started.elapsed().as_micros());
     }
     for (arm, samples) in [("source record only", once), ("source and journal records", twice), ("the origin as recorded", recorded), ("the origin again", again)] {
         let (middle, p99, largest) = spread(samples);
