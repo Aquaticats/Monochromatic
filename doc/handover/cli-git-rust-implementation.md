@@ -135,6 +135,165 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Free space falls while the build-folder cleaner removes nothing; relink notices; four digested runs (2026-11-12T11:44:02-05:00)
+
+#### Free space on the build volume
+
+- Readings of `df` on `/var/mnt/encrypted`, in GiB:
+  147 at 11:08:50,
+  119 at 11:33:04,
+  116 at 11:36:03,
+  115 at 11:37:54,
+  112 at 11:41:15 and at 11:42:26,
+  114 at 11:44:02.
+  The fall is not steady:
+  28 GiB in the first 24 minutes,
+  5 GiB in the 11 minutes after that.
+- The floor recorded in this handover is 80 GiB (under it nothing is started).
+  The package launcher holds a new run while less than 100 GiB are free
+  (`FREE_SPACE_FLOOR_BYTES` in `package/pi-shared/subagent-driver/src/free-space-floor.ts`).
+  The older scratch launcher was not read for a floor;
+  the runs it still holds back are reviews for the qwen4 pool,
+  no more than three.
+- Where the space is:
+  in the build trees of the runs working now.
+  Thirty-four agent worktrees were in use at 11:38
+  (a live unit named after the worktree, or a process whose working directory is inside it),
+  thirteen of them with five or more processes.
+  One such tree measured 8.0 and 8.4 GiB on 2026-11-11.
+- What was tried and gave nothing back:
+  sixty-eight agent worktrees that no unit and no process uses were cleaned with `cargo clean`
+  (unit `clean-build-trees-of-unused-pi-worktrees-1138`,
+  the unedited scratch helper `clean-build-trees-of-paused-agents.ts`,
+  log `~/temp/agent/gate/clean-build-trees-2026-11-12T1138.log`);
+  every line read so far says "Removed 2 files" of about 500 bytes,
+  so none held a build tree.
+  The list came from `~/temp/agent/scratch-scripts/list-agent-worktrees-that-no-unit-and-no-process-uses.ts`
+  (log `~/temp/agent/gate/agent-worktrees-in-use-2026-11-12T1138.log`).
+- Not on this volume:
+  container storage is under `/var/home/user/.local/share/containers/storage` (`podman info`),
+  on the home volume, which had 280.68 GiB free at 11:35:19.
+  `podman system df` there: 1744 images, 256 in use, 231.2 GB, of which 221.1 GB reclaimable.
+  Nothing was pruned.
+- `agent-worktrees-in-use` also shows `pi-base-check-snapshot-origin` with seven processes and no unit:
+  left alone, its owner was not established.
+
+#### The build-folder cleaner was working, not stalled, and its pass removed nothing
+
+- At 11:33 `journalctl --user --unit=cargo-shadow-lean.service` showed no entry since before 10:30,
+  which read as a stall.
+  It was one pass, from 08:58:06 to 11:35:19, that writes its whole report when it ends:
+  every line carries the stamp 11:35:19.
+- systemd's line for the pass:
+  "Consumed 23min 10.886s CPU time over 2h 38min 12.722s wall clock time, 4G memory peak, 34.4M memory swap peak."
+  The unit's `MemoryMax` is 4G, so the pass reached its cap.
+- The pass's own report:
+  "older-compiler sweep: 55586 of 55586 profile directories read; removed 0 units and 0 incremental directories (0.00 GiB)",
+  "listed 55586 profile directories in 44 s",
+  "size caps: removed 0 units and 0 incremental directories (0.00 GiB)",
+  "free space on host build base (/var/mnt/encrypted/cargo-build): 251.05 GiB before, 116.89 GiB after, -134.16 GiB changed".
+- Every "left alone ... unknown layout" line is printed twice.
+- The unit restarted itself as written (`NRestarts=14`, `Result=success`).
+  It was not restarted or reloaded by hand.
+- This is a defect of ours:
+  a pass of two hours and thirty-eight minutes that reaches its memory cap and removes nothing
+  does not keep up with builds that took 134 GiB meanwhile,
+  and it is silent for the whole pass.
+  The measurements went to the running agent
+  `cargo-shadow-lean-keeps-what-its-check-refused-and-never-waits-on-a-fifo-1`
+  (`~/temp/agent/notes-to-send/2026-11-12T1145-a-lean-pass-took-two-hours-thirty-eight-minutes-and-removed-nothing.md`,
+  sent 11:44:02),
+  with the question what has to change for the volume not to fill
+  when every tree belongs to a working run
+  (a smaller tree per run, trees shared between runs of one base commit, or a tree removed when its run ends).
+
+#### Eight worktrees "not relinked after 3 tries", told to whoever commits next
+
+- The commit of `13cb122151` in the main checkout at 11:32:13 printed eight notices,
+  one for each of eight worktrees added between 11:08 and 11:23
+  (four of the ten Kimi audits, one Sonnet audit, one review, two fix agents):
+  "the package state of <worktree> was not relinked after 3 tries,
+  so its links still name the checkout it was copied from",
+  followed by two commands "to finish it by hand".
+- Against the requirements:
+  the wrapper cleans up after itself;
+  here it asks a person to finish its work,
+  in a command about something else,
+  and says a count of tries where it owes the reason each try failed.
+- At 11:23:33 a `git worktree add` started at 11:17 was 339 seconds old, with `cargo` children;
+  the bound for an add is sixty seconds.
+- Both went to the agent whose task is the repair an add starts,
+  `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried-1`
+  (`~/temp/agent/notes-to-send/2026-11-12T1133-eight-new-worktrees-were-not-relinked-after-three-tries.md`,
+  sent 11:33:04).
+  The two commands of the notice were not run against any agent's worktree.
+
+#### Digest of two fixes and two reviews (`~/temp/agent/digest-2026-11-12T1112-fixes-and-reviews/digest.md`)
+
+A Sonnet subagent's second pass over four ended runs, merge results against `main` at `8cabbf38fb`.
+It built and ran nothing itself.
+None of the four branches is in `main` or in 0.6.1-alpha.15.
+
+- No finding in the four runs loses data.
+- LFS push, `fix/git-policy-cli-lfs-push-uploads-every-object-the-remote-lacks` (`9e23c2623e`):
+  held, not ready.
+  Its commit `a723733c55` writes a record `push-programs.json` into the repository's Git directory on every commit,
+  carrying `PATH`, `GIT_EXEC_PATH`, `GIT_SSH`, `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` verbatim
+  (`service/service_client_program_search.rs:88,119,155`, called from `service/service_client.rs:158`).
+  The last two are whole command lines and can hold a credential;
+  the review showed both land in the file, with fake values, through the built wrapper (file mode 600).
+  The record is never removed and a typed `git push` never refreshes it.
+  The remedy text at `lfs/lfs_pre_push.rs:384` is wrong (it says a push by hand records the list; only a commit does).
+  No such record exists in this repository's Git directories (names checked, never contents).
+  The branch also carries seven earlier unmerged LFS upload-plan commits,
+  so taking those without the record means reverting `a723733c55`.
+- Correction of this session's own wording:
+  the note to that review quoted a rule "a secret is never printed and never written where another program can read it".
+  The second half is this session's wording, not a recorded decision
+  (`rg` for it in this handover, `AGENTS.md` and the driver's docs found nothing).
+  The recorded rule is that secrets are never printed or committed.
+  So whether, and how, the two command-line variables may reach a file is a question for the owner,
+  asked together with whether a typed push refreshes the record;
+  the wrong remedy text needs no question.
+- Package repair, `fix/git-policy-cli-package-repair-never-waits-on-a-reader-of-its-messages-that-has-stalled` (`e12196309f`):
+  the held `git worktree add` on a full, stalled standard-error pipe is reproduced through the built wrapper
+  (the test failed first at 30.022 s; with the fix the add ends in 5237 ms).
+  A second stalled write, of the report line, was reproduced after the fix and deliberately left;
+  its agent asks whether the add's whole standard-error output should be bounded at its owner.
+  Ready after one conflict in `service/wait_ceilings_tests.rs`
+  (keep `main`'s replacement test and the branch's new one).
+  It brings two earlier unmerged commits, `a31ce6ee1d` and `9478219b1d`,
+  and with them the open veto on `ToolStart::LetGoWithoutAnAnswer`.
+- Late runtime, `fix/git-policy-cli-service-checks-its-runtime-again-before-it-gives-up-on-a-late-one` (`df38f33b4f`):
+  merges cleanly.
+  Limit: its controls drove a seam in the library and never went through the service binary, which its brief required.
+  Status 4 can still occur after the sixty seconds of patience.
+  Its commit `f7c9ec4a87` fails on purpose (the guard shown red).
+- Landing, `fix/git-policy-cli-landing-keeps-the-built-commit-when-a-keep-or-a-lock-is-refused` (`d62b91889f`):
+  its review found no defect, but read about two fifths of a 3927-line diff and ran nothing through a wrapper.
+  Two conflicting files (`worktree_removal_held_commits.rs` and its tests).
+  The digest infers from `rg`, without a build, that the merged tree does not compile
+  until `main`'s `keep_this_commit` is moved onto the branch's `keep_on_a_side_ref`:
+  the integration verifies this with a trial build.
+- For the owner, from the digest:
+  the landing branch (and an older form already on `main`, `ce414de363`) keeps a held commit
+  on a `refs/cli-git/kept/...` reference before a worktree removal runs.
+  Is that the saved copy the rule restated at 10:33 rules out?
+  It does not hold the branch, since the older form is on `main`.
+- In the four sessions:
+  one wrapper line in a run's command (the false "interrupted removal ... cannot be finished" line, in a `git status` of about 25 s),
+  no "Waiting for the commit service" lines,
+  no wrapper under a cap below 4G.
+
+#### What follows
+
+- The hourly pass after 12:00 culls first and starts nothing unless the launcher's 100 GiB is there.
+- The next integration (pass 18) takes, with the limits stated here:
+  the late-runtime fix, the package repair (one conflict), the landing branch (two conflicts, trial build),
+  and the branches already listed as ready (push notices `9da2d237ed`, cargo-shadow lean `743059e153`,
+  commit-concludes `9bc31c8912`).
+  The LFS branch stays out.
+
 ### Pass 17 merged into `main` for 0.6.1-alpha.14 (2026-11-12T10:52:40-05:00)
 
 - Integration pass 17 ended at 10:51:25 with its report
