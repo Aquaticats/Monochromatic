@@ -953,15 +953,17 @@ fn a_former_holder_that_writes_is_at_work_again() {
     let work: std::path::PathBuf = root.join("work");
     let stop: std::path::PathBuf = root.join("stop");
     // The holder says it is connected, waits to be released, closes its socket, and then writes its own work every
-    //  twentieth of a second without starting a process or spinning.
+    //  twentieth of a second. Its waits are reads of a pipe nothing writes to, so the tree holds no other process that
+    //  moves a byte or uses a tick between two looks: the holder's own signs are the only progress there is.
     let script: String = format!(
         concat!(
+            "exec 4< <(sleep 300)\n",
             "exec 3<>/dev/tcp/127.0.0.1/{port}\n",
             ": > '{connected}'\n",
-            "while [ ! -e '{release}' ]; do sleep 0.02; done\n",
+            "while [ ! -e '{release}' ]; do read -t 0.02 -u 4 line; done\n",
             "exec 3>&-\n",
             "exec 3<&-\n",
-            "while [ ! -e '{stop}' ]; do printf 'local pack work\\n' >> '{work}'; sleep 0.05; done\n",
+            "while [ ! -e '{stop}' ]; do printf 'local pack work\\n' >> '{work}'; read -t 0.05 -u 4 line; done\n",
         ),
         port = port,
         connected = connected.display(),
@@ -1033,12 +1035,13 @@ fn a_look_that_cannot_read_a_descriptor_list_counts_a_holder_for_nothing() {
     let stop: std::path::PathBuf = root.join("stop");
     let script: String = format!(
         concat!(
+            "exec 4< <(sleep 300)\n",
             "exec 3<>/dev/tcp/127.0.0.1/{port}\n",
             ": > '{connected}'\n",
-            "while [ ! -e '{release}' ]; do sleep 0.02; done\n",
+            "while [ ! -e '{release}' ]; do read -t 0.02 -u 4 line; done\n",
             "exec 3>&-\n",
             "exec 3<&-\n",
-            "while [ ! -e '{stop}' ]; do printf 'local pack work\\n' >> '{work}'; sleep 0.05; done\n",
+            "while [ ! -e '{stop}' ]; do printf 'local pack work\\n' >> '{work}'; read -t 0.05 -u 4 line; done\n",
         ),
         port = port,
         connected = connected.display(),
