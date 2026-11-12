@@ -1,7 +1,8 @@
 # The commit service without a service manager
 
-Status, 2026-11-12: part 1 done (the inventory).
-Parts 2, 3, 4, 5, 6, 7 and 8 are added below as each is finished;
+Status, 2026-11-12: parts 1 and 2 done (the inventory, and how Bazel does
+without a service manager).
+Parts 3, 4, 5, 6, 7 and 8 are added below as each is finished;
 this line is rewritten each time.
 
 The task: the wrapper's commit service stops being a unit of the user's
@@ -615,3 +616,185 @@ refusal (7, 22), the retirement of the earlier single service (6, 11),
 the unit files as an install record (4), the sweep and the management commands
 (31 to 36), the journal (37, which is not the manager), and the tooling and the
 tests (41 to 48).
+
+## Part 2: how Bazel does without a service manager
+
+Sources: the Bazel repository at commit
+`7574c94c3b87f4edba2167e61912c86a6a6cf77c` (fetched 2026-11-12, a sparse
+checkout of `src/main/cpp`, `src/main/java/com/google/devtools/build/lib/server`,
+`src/main/java/com/google/devtools/build/lib/runtime`, `src/main/tools` and
+`docs`), and its documentation page `docs/run/client-server.mdx`.
+Every claim below is read from those files at those lines; where the
+documentation is silent the source is quoted.
+
+**Finding a running server.**
+The documentation says the client finds the server "based on the output base"
+(`docs/run/client-server.mdx` lines 15 to 22), and that one output base is one
+server, so two workspaces have two servers and two users have two.
+The source is more specific. `<output base>/server/server_info.rawproto` holds
+a protobuf `ServerInfo` with the address, a request cookie, a response cookie
+and the server's pid. `BlazeServer::Connect` (`src/main/cpp/blaze.cc` lines 1102
+to 1135) reads that file, refuses an address that is not `127.0.0.1:`,
+`[0:0:0:0:0:0:0:1]:` or `[::1]:` (1120 to 1125), refuses a negative pid, calls
+`VerifyServerProcess(server_pid)` and then pings the server, sending the request
+cookie (1087) and accepting the answer only if the response cookie equals the
+one the file held (1093).
+So the file is not trusted by itself: the process it names must still be the
+process that wrote it, and the server must prove it holds the matching cookie.
+`VerifyServerProcess` (`src/main/cpp/blaze_util_linux.cc` lines 290 to 302) is
+the pid plus the process's start time read from `/proc/<pid>/stat`, and it
+treats a zombie or dead state as gone; the start time is written beside the pid
+by `WriteSystemSpecificProcessIdentifier` (268 to 285) into
+`server/server.starttime`.
+A second file, `server/server.pid.txt`, is written by the daemonizer before the
+socket is bound, and `GetServerPid` (`src/main/cpp/server_launcher.cc` lines 468
+to 478) reads it; its comment says "there is no race here on startup since the
+server creates the pid file strictly before it binds the socket" (462 to 464).
+Bazel's transport is TCP on the loopback address with gRPC; the wrapper's is a
+unix socket path, so the port file is the one part of this that has no analogue
+to adopt, and the wrapper already has the better answer: a path in the runtime
+directory.
+
+**Starting one.**
+`StartServerAndConnect` (`src/main/cpp/blaze.cc` lines 504 to 560) deletes the
+stale `server/command_port` and OOM files, writes the `server/cmdline` file the
+version check reads later, changes into the workspace, and calls
+`ExecuteDaemon`.
+`ExecuteDaemon` (`src/main/cpp/blaze_util_posix.cc` lines 411 to 512) creates a
+`socketpair`, `posix_spawn`s a small helper program, `daemonize`, closing the
+parent's end in the child, waits for that helper to exit (which guarantees the
+pid file exists), reads the pid from the pid file, and keeps the other end of
+the socketpair in a `SocketBlazeServerStartup`. `IsStillAlive` (383 to 407)
+polls that descriptor for `POLLIN` or `POLLHUP`; when the helper's end closes,
+the server died during startup, and `ConnectOrDie` then prints the server's log
+and exits instead of waiting out its timeout (478 to 500).
+The helper does the detachment (`src/main/tools/daemonize.cc`):
+it waits for the parent's pipe write so the pid file exists first (266 to 272),
+ignores `SIGHUP`, calls `setsid()` (270), sets standard input to `/dev/null` and
+standard output and standard error to the log file, opened `O_TRUNC` or
+`O_APPEND` (`SetupStdio`, 62 to 90), and then `execv`s the server (303).
+The server therefore leaves the client's session, its terminal and its process
+group, which is also why the client can later kill all of it with
+`killpg` (see "replacing").
+What it inherits is the environment the client prepares
+(`PrepareEnvironmentForJvm`, `server_launcher.cc` 573 to 660, and
+`ExecuteDaemon`'s `env` argument), not the client's own: it is passed as a
+complete environment, and the variables a JVM cannot survive are removed.
+
+**Two clients starting at once.**
+Bazel does not let two clients race to start one server: the client takes an
+exclusive file lock and holds it for its whole invocation.
+`AcquireClientLocks` (`src/main/cpp/server_launcher.cc` lines 58 to 113) takes
+a shared lock on the install base (`<install base>.lock`, to allow concurrent
+readers and to serialize garbage collection) and an exclusive lock on
+`<output base>/lock`. `AcquireLock` (`src/main/cpp/blaze_util_posix.cc` lines
+695 to 760) opens the lock file, takes `flock`-style lock through `TryLock`,
+writes the holder's identity into the file for the person (`WriteOwnerInformation`,
+724 to 727), checks the file was not concurrently deleted (`StillExists`, 720),
+and on failure reads the owner's text, prints "Another command holds the output
+base lock" with it (744), sleeps 500 ms and retries until
+`--block_for_lock`'s timeout, which defaults to waiting forever and can be a
+duration or `false` (`startup_options.cc` 228 to 262).
+The documentation states the consequence: "Each server can handle at most one
+invocation at a time; further concurrent invocations will either block or
+fail-fast (see `--block_for_lock`)" (`docs/run/client-server.mdx` lines 20 to
+22).
+So Bazel's answer to "two clients starting at once" is a lock that covers the
+whole command. That is the one Bazel answer the wrapper cannot adopt: a wrapper
+commit queues at the service instead, so the lock must cover only the start of
+one worktree's server, and the brief's rule that a lock covers the smallest
+unit and has its reason beside it says the same.
+
+**Replacing a server of another version or other startup options.**
+The client writes the canonical server command line into `server/cmdline` before
+a start (blaze.cc 535 to 538), because `/proc/<pid>/cmdline` cannot be read for
+long command lines (673 to 677). `KillRunningServerIfDifferentStartupOptions`
+(blaze.cc 658 to 709) reads that file, compares it through
+`AreStartupOptionsDifferent` (589 to 650) ignoring a fixed list of volatile
+options (`IsVolatileArg`, 565 to 587: `--option_sources`, `--max_idle_secs`,
+`--connect_timeout_secs`, `--local_startup_timeout_secs`, `--client_debug`,
+`--preemptible`, `-XX:HeapDumpPath`), prints which options differ, and kills the
+server when they do. A server of another version is found by another record:
+the `install` symlink in the output base, which
+`EnsureCorrectRunningVersion` (712 to 731) compares with this installation and
+replaces when it differs, killing a connected server with the message "Killing
+running server because it is using another version". The documentation says the
+same in one sentence: "the client first checks that the server is the
+appropriate version; if not, the server is stopped and a new one started"
+(`docs/run/client-server.mdx` lines 73 to 76).
+The stop is `EnsurePreviousServerProcessTerminated` (blaze.cc 484 to 502), which
+first verifies the pid, then `KillServerProcess`
+(`src/main/cpp/blaze_util_posix.cc` lines 783 to 800), which sends `SIGKILL` to
+the *process group* (`killpg`), not to the process, so everything the server
+started dies with it, and then waits for the group to be gone.
+This is Bazel's answer for "the server's program changed": a recorded command
+line, a comparison, a kill of the group, and a fresh start.
+
+**When a server exits by itself.**
+`ServerWatcherRunnable` (`src/main/java/com/google/devtools/build/lib/server/ServerWatcherRunnable.java`
+lines 30 to 221) watches the command manager: when the server has been idle for
+`max_idle_secs`, it calls `server.shutdown()` (215 to 219). The default is three
+hours (`src/main/cpp/startup_options.cc` line 124,
+`max_idle_secs = blaze::IsRunningWithinTest() ? 15 : 3 * 3600`, which is 15 s
+inside Bazel's own tests), documented as "The server process will stop after a
+period of inactivity (3 hours, by default, which can be modified using the
+startup option `--max_idle_secs`)" (`docs/run/client-server.mdx` lines 32 to
+34), and the option says zero means never
+(`BlazeServerStartupOptions.java` lines 216 to 225).
+Memory pressure is an answer too, but an opt-in one:
+`--shutdown_on_low_sys_mem` makes a server that has been idle for at least five
+minutes exit when free RAM is below both 5 percent and 1 GiB
+(`ServerWatcherRunnable.java` lines 36 to 40, 100 to 115; the option's text is
+`BlazeServerStartupOptions.java` 227 to 236), and the documentation recommends
+it together with a shorter idle timeout for machines with many workspaces
+(`docs/run/client-server.mdx` lines 43 to 57).
+
+**What a client does when the server died or does not answer.**
+`ConnectOrDie` (blaze.cc 425 to 478) tries to connect every 100 ms, prints
+"... still trying to connect to local <product> server (<pid>) after N
+seconds ..." every second or so (435 to 448), and ends at
+`local_startup_timeout_secs` (default 120, `startup_options.cc` line 94) with
+"couldn't connect to server (<pid>) after N seconds." (477 to 478).
+If the startup socketpair closes first, the message is "Server crashed during
+startup" and the server's log is printed or named (457 to 470).
+For a server that is not starting but already recorded, the client verifies the
+pid and its start time: a pid file whose process does not verify is
+`PID_FILE_BUT_NO_SERVER`, and one that verifies but does not answer is killed
+and reported as `SERVER_UNRESPONSIVE` (blaze.cc 484 to 502).
+The single RPC connect timeout is `--connect_timeout_secs`, default 30
+(`startup_options.cc` line 93).
+
+**Where the server's output goes.**
+`ServerProcessInfo` (`src/main/cpp/server_process_info.cc` lines 20 to 33)
+names `<output base>/server/jvm.out`, and the log is truncated at each start
+unless `--server_jvm_out` names a file, in which case that file is appended to
+(`jvm_log_file_append_ = !server_jvm_out.IsEmpty()`).
+There is no size bound of Bazel's own: the truncation at each start is the
+bound, and a long-lived server can append to it for hours.
+
+**What Bazel says about cgroups and about being started under a service
+manager.**
+A cgroup of its own is an option, not a requirement, and the option is
+Linux-only and off by default:
+`--experimental_run_in_user_cgroup` ("If true, the Bazel server will be run with
+systemd-run, and the user will own the cgroup. This flag only takes effect on
+Linux.", `BlazeServerStartupOptions.java` lines 553 to 560), and
+`--experimental_cgroup_parent` for a cgroup path someone else prepared (527 to
+545).
+The implementation is in the daemonizer (`src/main/tools/daemonize.cc` lines 198
+to 303): it writes a shell script that `exec`s the server with its arguments
+(199 to 240), then, only if `/usr/bin/systemd-run` exists and is executable
+(281), runs `systemd-run --user --scope -- /bin/true` as a probe (283 to 291)
+and only if that exits zero replaces itself with
+`systemd-run --user --scope -- /bin/bash <script>` (294 to 298); "In all other
+cases, including the cases when systemd-run is not available, we replace it with
+the original exe" (278 to 280, 303).
+For a prepared cgroup it reads `/proc/self/mounts` and writes the pid into
+`cgroup.procs` of each cgroup mount, ignoring a controller it may not write
+(`MoveToCgroup`, 330 to 370).
+That is the whole of Bazel's use of a service manager, and it is a fallback:
+the manager is found by a probe whose failure costs nothing, the probe and the
+call are bounded by the client's own startup timeout, and nothing a build does
+depends on it.
+
+What the wrapper adopts from this, and where it does not fit, is part 3.
