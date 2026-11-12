@@ -623,17 +623,21 @@ pub fn settle_records_without_a_claim(root: &Path) -> Result<Vec<String>, Worktr
         let path: PathBuf = listed.map_err(|error| { return raw_failure(&error); })?.path();
         let name: String = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
         // A claim's own files end in `.stage`; everything a claim names keeps that name and changes only its suffix.
-        let identifier: &str = match name.strip_suffix(DESTINATION_SUFFIX) {
-            Some(stem) => stem,
+        let (identifier, marker): (&str, bool) = match name.strip_suffix(DESTINATION_SUFFIX) {
+            Some(stem) => (stem, false),
             None => match name.strip_suffix(crate::worktree_copy_stage_claim::COMPLETE_SUFFIX) {
-                Some(_stem) => {
-                    markers.push(path);
-                    continue;
-                }
+                Some(stem) => (stem, true),
                 None => continue,
             },
         };
-        if !root.join(format!("{identifier}.stage")).exists() {
+        // A live add marks its worktree complete and removes its claim a moment later, so only a marker whose claim is
+        // already gone is one no add stands behind.
+        if root.join(format!("{identifier}.stage")).exists() {
+            continue;
+        }
+        if marker {
+            markers.push(path);
+        } else {
             records.push(path);
         }
     }

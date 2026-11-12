@@ -628,6 +628,14 @@ Read-only commands,
   and is named
    on one line.
   A file that cannot be copied at all fails the copy with its own path in the message.
+  A record of that copy that a crash left empty or cut short is not a reason to stop a command:
+  the command that meets it moves it aside into the journal root's `unreadable` folder,
+  never over another record and never deleting one,
+  writes a stage claim again where the records beside it name the stage folder so the copies that settle it still
+  run,
+  and goes on,
+  with one line naming what may stand on disk because of it.
+  Nothing you made is removed on the strength of a record that cannot be read.
   A worktree whose own ignored-state copy is still running is no source:
   a second add run from it creates its worktree,
   writes one line saying that the worktree received no ignored state and why,

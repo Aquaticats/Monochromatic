@@ -360,6 +360,20 @@ mod catalog_specifiers;
 #[path = "binary_worktree_copy_tests.rs"]
 mod worktree_copy;
 
+/// What a record of an interrupted copy does to the next command when a crash left it empty or cut short:
+/// it is moved aside,
+/// and the command runs.
+#[path = "binary_worktree_copy_unreadable_record_tests.rs"]
+mod worktree_copy_unreadable_record;
+
+/// A measurement for the handover,
+/// not a control:
+/// what one flush of each record costs on this host,
+/// with the same arm measured twice as the control,
+/// and what an add of 2,000 ignored files costs beside it.
+#[path = "binary_worktree_copy_flush_measurement_tests.rs"]
+mod worktree_copy_flush_measurement;
+
 /// Worktree commands beside an add whose real Git still runs:
 /// none waits,
 /// and each new worktree gets exactly its own copy.

@@ -4,7 +4,9 @@
 //! completed,
 //! or discarded
 //!  with a notice;
-//! malformed state fails closed and stays;
+//! a record that cannot be read is moved aside and the command goes on
+//!  (`worktree_copy_unreadable_records.rs`),
+//! while a path that is not this account's private plain file fails closed and stays;
 //! the pending check that forwarded commands run first.
 //! Why:
 //!  A copy interrupted by a crash must not leave a worktree half-filled forever,

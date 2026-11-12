@@ -3405,8 +3405,10 @@ A reader takes the bytes line only as the first line or the line after the text 
 and requires those two lines to name one path when both are there,
 because the release installed before the bytes line wrote a container path verbatim:
 a destination parent holding a line break then spelled lines of the record itself.
-A claim of any other shape is refused and kept,
-never acted on.
+A claim of any other shape is a record this release cannot read:
+the command that finds it moves it aside and writes it again where the records beside it name its stage
+("A record that cannot be read" below),
+so the shape check of an earlier release names the same case a reader now settles.
 The record of the object a stage's creation made is `<identifier>.made` beside the claim:
 the container's bytes,
 the object's identity and the instant after which nothing of the wrapper's is written into that folder,
@@ -3771,10 +3773,15 @@ and of the two callers,
 not a check beside them,
 and it is not done in this round.
 
-Malformed or unsafe journal,
-install-log,
+A journal,
 stage claim,
-or stage state fails closed without deleting the journal or a path outside the validated private stage.
+record of an unfilled worktree,
+or stage binding whose bytes are not the record this release writes is the mark of an interrupted copy
+and is settled ("A record that cannot be read" below);
+a file at one of those names that is not this account's private plain file,
+an install-log line whose bytes are not UTF-8,
+and every path relation no writer writes fail closed without deleting the journal or a path outside the validated private
+stage.
 
 After the destination settles successfully,
 write exactly one human summary line to stderr.
@@ -3826,6 +3833,74 @@ and
 `a_git_child_of_a_command_that_is_not_run_again_keeps_its_signal`,
 and
 `a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal`.
+
+### A record that cannot be read
+
+A copy publishes every record whole by one rename and flushes none of them,
+so a filesystem that commits a name before its bytes can leave a record empty or cut short
+(`fs/btrfs/inode.c` writes a renamed inode's data only when it replaces a non-empty regular file,
+and `fs/btrfs/transaction.c` waits for buffered data only under `flushoncommit`,
+which is off;
+the mount option's own documentation says "the filesystem is consistent but buffered writes may last more than one
+transaction commit").
+Such a record is the mark of a copy that was interrupted,
+never a reason to stop a command:
+every command in a linked worktree or bare repository reads these records before Git runs,
+so one of them would otherwise stop every command of the repository,
+in every worktree,
+until a person removed the file.
+
+The command that meets one settles it in the pass that runs before every forwarded command
+(`worktree_copying/worktree_copy_unreadable_records.rs`):
+
+- The writer is judged first,
+  as every item of a copy is judged:
+  a journal whose name carries a live owner,
+  and a stage record whose journal or claim names one,
+  are that owner's and are left whole with no wait.
+  A claim's and an unfilled record's name carries no owner,
+  and a record whose bytes do not read cannot name one either,
+  so such a record has none to wait for, which is what an interrupted copy is.
+- A record whose writer is gone is renamed into `<common git dir>/monochromatic-git-policy-cli-worktree-copy/v1/unreadable`,
+  never deleted,
+  and never over a record an earlier command kept there.
+  One line names the record,
+  the folder it went to,
+  and what may still stand on disk because of it.
+  The folder is not work:
+  a command does not sweep for it.
+- A stage claim is written again under its own name from the records beside it where they name the folder,
+  the record of the object that folder's creation made (`<identifier>.made`) or the destination record
+  (`<identifier>.add`) whose worktree parent holds it.
+  The claim written again names no owner,
+  so the same pass settles the stage and,
+  where the add still owes a copy,
+  makes it.
+  A claim whose folder nothing names is moved aside with the words that say what may stand.
+- A destination record whose claim was moved is still read:
+  the sweep settles every `<identifier>.add` that no `<identifier>.stage` names,
+  naming the worktree it describes with the two commands that settle it,
+  and removing the record and its marker once the worktree is gone or replaced.
+  A marker whose claim and record are both gone says nothing and is removed.
+- The registration inside a stage (`registration`) that cannot be read is moved aside under a name that keeps its
+  container,
+  and the copy it belongs to proves its destination from that destination's own registration,
+  which is what a stage an earlier release made does.
+- A record of an unfilled worktree that cannot be read is moved aside,
+  and its line names the worktree the copy was filling where a journal or destination record of the same copy still
+  says it,
+  because no command names that worktree as one holding less than its source ignores any more.
+
+Nothing a person made is removed on the strength of a record that cannot be read:
+the pass settles the wrapper's own records only,
+and a stage folder,
+a worktree and a file are touched exactly as the policy above allows when a record does read.
+What it cannot settle it names once,
+in the same line that says where the record went,
+and then goes on:
+a stage folder whose name only the lost journal held,
+and a worktree that only the lost record of an unfilled copy named,
+are named there and nowhere else.
 
 ### Package-manager repair of a new worktree
 

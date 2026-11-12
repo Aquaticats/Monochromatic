@@ -149,7 +149,9 @@ pub fn stage_binding_reading(container: &Path) -> Result<Option<BindingFile>, Wo
 pub fn stage_binding(container: &Path) -> Result<Option<Binding>, WorktreeCopyError> {
     return match stage_binding_reading(container)? {
         Some(BindingFile::Recorded(binding)) => Ok(Some(binding)),
-        Some(BindingFile::Unreadable { .. }) | None => Err(failure_with_cause(
+        // An absent record is a stage an earlier release staged, which proves its destination on its own.
+        None => Ok(None),
+        Some(BindingFile::Unreadable { .. }) => Err(failure_with_cause(
             format!(
                 "monochromatic-git-policy-cli: the registration recorded for the private stage {} is unreadable; nothing was changed and the stage stays.",
                 quote(container.to_string_lossy().as_ref())
