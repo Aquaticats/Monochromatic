@@ -295,7 +295,7 @@ fn an_unreadable_stage_claim_never_stops_a_command() {
         require_what_became_of_the_record(before.as_slice(), common.as_path(), name.as_str(), refused, &damage, stderr.as_str());
         if refused {
             require_the_settlement_line(stderr.as_str(), &damage);
-            assert!(stderr.contains("written again beside the claim name"), "{}: the claim is written again from the records beside it: {stderr}", damage.what);
+            assert!(stderr.contains("the record at its own name was written again"), "{}: the claim is written again at its own name from the records beside it: {stderr}", damage.what);
             assert!(stderr.contains(claim.container().to_string_lossy().as_ref()), "{}: the line names the folder: {stderr}", damage.what);
         }
     }

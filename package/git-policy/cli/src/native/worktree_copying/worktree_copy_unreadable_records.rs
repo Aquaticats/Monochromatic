@@ -217,7 +217,7 @@ fn settle_unreadable_claims(common_dir: &Path, verdicts: &mut StageVerdicts, not
                     kept.as_path(),
                     reason.as_str(),
                     format!(
-                        "It names the stage folder {} again, so the sweeps that settle that folder and make the ignored-state copy the add still owes find it.",
+                        "It was written again from the record of the object its stage's creation made or from the destination record beside it, naming the stage folder {} again, so the sweeps that settle that folder and make the ignored-state copy the add still owes find it.",
                         quote(found.to_string_lossy().as_ref())
                     )
                     .as_str(),
