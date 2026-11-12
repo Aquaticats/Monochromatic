@@ -24,6 +24,43 @@ use std::path::Path;
 #[cfg(unix)]
 pub(crate) const PERMISSION_BITS_WITHOUT_EXECUTE: u32 = 0o7666;
 
+/// The bits of `st_mode` that say what kind of entry it describes.
+#[cfg(unix)]
+const THE_KIND_OF_ENTRY_BITS: u32 = 0o170000;
+
+/// The kind `st_mode` carries for a regular file.
+#[cfg(unix)]
+const A_REGULAR_FILE: u32 = 0o100000;
+
+/// What:
+///  Every permission bit a person can set on the entry whose `st_mode` this is,
+///  and nothing when that entry was not a regular file.
+/// Why:
+///  A regular file is the one entry whose mode is a person's:
+///  they set its read,
+/// write and special bits,
+/// and Git records none of them but the execute bits.
+/// A symbolic link's own
+///  mode is the platform's `0777` on Linux and says nothing of the link,
+/// so reading the bits of a link's
+///  mode gives a set the person never made and wrote `0666` over the `0644` Git's entry implies when
+///  a merge replaced a link with a file
+///  (a Qwen review of `72013e1710`,
+/// its first finding).
+///  A directory's bits are its own and are never given to the file a merge puts where it stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thePermissionBitsAPersonSet = (mode) => (mode & 0o170000) === 0o100000 ? mode & 0o7666 : undefined;
+/// ```
+#[cfg(unix)]
+pub(crate) fn the_permission_bits_a_person_set(mode: u32) -> Option<u32> {
+    if mode & THE_KIND_OF_ENTRY_BITS != A_REGULAR_FILE {
+        return None;
+    }
+    return Some(mode & PERMISSION_BITS_WITHOUT_EXECUTE);
+}
+
 
 /// What:
 ///  Give the entry a write is about to place the permission bits of the entry it replaces,
@@ -44,11 +81,11 @@ pub(crate) const PERMISSION_BITS_WITHOUT_EXECUTE: u32 = 0o7666;
 /// (a Kimi K3.1 Pro review of `1a98764d1f`,
 /// its fifth finding).
 ///  A symbolic link carries no permissions,
-/// so two of those are left as the write made them.
+/// so an entry that is not a regular file gives nothing back and the write keeps what it made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function keepThePermissionsOfWhatItReplaces(placed: string, replaced: string): void; // (replaced & 0o7666) | (placed & 0o111)
+/// function keepThePermissionsOfWhatItReplaces(placed: string, replaced: string): void; // thePermissionBitsAPersonSet(replaced) | (placed & 0o111)
 /// ```
 pub(crate) fn keep_the_permissions_of_the_entry_it_replaces(placed: &Path, replaced: &Path) -> Result<(), String> {
     #[cfg(unix)]
@@ -60,10 +97,13 @@ pub(crate) fn keep_the_permissions_of_the_entry_it_replaces(placed: &Path, repla
         let Ok(here) = std::fs::symlink_metadata(placed) else {
             return Err(format!("{} could not be read to give it the permissions of {}", placed.display(), replaced.display()));
         };
-        if !here.file_type().is_file() || !there.file_type().is_file() {
+        if !here.file_type().is_file() {
             return Ok(());
         }
-        let bits: u32 = (there.permissions().mode() & PERMISSION_BITS_WITHOUT_EXECUTE) | (here.permissions().mode() & 0o111);
+        let Some(there_bits) = the_permission_bits_a_person_set(there.permissions().mode()) else {
+            return Ok(());
+        };
+        let bits: u32 = there_bits | (here.permissions().mode() & 0o111);
         return match std::fs::set_permissions(placed, std::fs::Permissions::from_mode(bits)) {
             Ok(()) => Ok(()),
             Err(error) => Err(format!("{} could not be given the permissions of {}: {error}", placed.display(), replaced.display())),

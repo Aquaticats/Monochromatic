@@ -17,9 +17,9 @@
 //! ```
 
 use crate::inner_git_words::record_words;
-/// Every permission bit a person can set except the three the merge decides from Git's entry.
+/// Every permission bit a person can set on the entry a take read, and nothing for an entry that was not a regular file.
 #[cfg(unix)]
-use crate::merge_isolation_carry_permissions::PERMISSION_BITS_WITHOUT_EXECUTE;
+use crate::merge_isolation_carry_permissions::the_permission_bits_a_person_set;
 use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_changes::{Change, worktree_path};
 use crate::merge_isolation_recovery_steps::{Installed, Judged, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk};
@@ -235,6 +235,7 @@ pub async fn install_entries_awaiting<W: std::io::Write + ?Sized>(
     }
     // The checkout wrote each file with the mode Git's entry implies, and the rest of the permission bits the person's file
     //  had are not in that entry: they come back before the reading of what Git's update left, so the carry keeps them.
+    //  A file the take read as a symbolic link has none of the person's to come back, so its mode stays Git's.
     give_back_the_permissions_of_the_files_the_install_wrote(root, &taken_writes, out);
     if let Err(error) = finish_asides_awaiting(place, root, &taken_writes, out).await {
         return Err(MergeRefusal { error, began });
@@ -292,11 +293,14 @@ pub fn install_entries(
 /// which the take checked against the judgement,
 /// so nothing else
 ///  can have written the path since;
-/// a path with nothing standing there before the install has no bits of the person's to keep.
+/// a path with nothing standing there before the install has no bits of the person's to keep,
+/// and neither
+///  has an entry that was a symbolic link,
+/// whose own mode is the platform's and not a person's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const taken of takenWrites) keepThePermissionsAfterTheCheckout(taken.location, taken.taken.mode); // (taken & 0o7666) | (written & 0o111)
+/// for (const taken of takenWrites) keepThePermissionsAfterTheCheckout(taken.location, taken.taken.mode); // only for a regular file: (taken & 0o7666) | (written & 0o111)
 /// ```
 fn give_back_the_permissions_of_the_files_the_install_wrote<W: std::io::Write + ?Sized>(root: &Path, taken: &[TakenOnDisk], out: &mut W) {
     for entry in taken {
@@ -306,16 +310,23 @@ fn give_back_the_permissions_of_the_files_the_install_wrote<W: std::io::Write + 
 
 /// What:
 ///  Give one file the permission bits `taken` held,
-///  keeping the executable bits the checkout wrote.
+///  keeping the executable bits the checkout wrote,
+///  and nothing at all when the entry the take read was not a regular file.
 /// Why:
 ///  The executable bit is the one Git decides,
 /// so it comes from the file the checkout wrote;
 /// every other bit is the
-///  person's.
+///  person's,
+/// and only a regular file carries bits of a person's:
+/// a symbolic link's own mode is the platform's `0777`
+///  and says nothing of the link,
+/// so taking its bits wrote `0666` over the `0644` Git's entry implies
+///  (a Qwen review of `72013e1710`,
+/// its first finding).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function giveBackOneFilesPermissions(location: string, taken: number): void;
+/// function giveBackOneFilesPermissions(location: string, taken: number): void; // thePermissionBitsAPersonSet(taken) | (written & 0o111)
 /// ```
 fn give_back_one_files_permissions<W: std::io::Write + ?Sized>(location: &Path, taken: u32, out: &mut W) {
     #[cfg(unix)]
@@ -325,7 +336,8 @@ fn give_back_one_files_permissions<W: std::io::Write + ?Sized>(location: &Path, 
         if !written.file_type().is_file() {
             return;
         }
-        let bits: u32 = (taken & PERMISSION_BITS_WITHOUT_EXECUTE) | (written.permissions().mode() & 0o111);
+        let Some(taken_bits) = the_permission_bits_a_person_set(taken) else { return };
+        let bits: u32 = taken_bits | (written.permissions().mode() & 0o111);
         if (written.permissions().mode() & 0o7777) == bits {
             return;
         }
