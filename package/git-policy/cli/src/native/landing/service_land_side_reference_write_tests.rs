@@ -30,7 +30,7 @@
 use super::*;
 use super::tests::{World, built_request, world};
 use crate::service_land_side_reference_write::{
-    ASideRefWrite, keep_on_a_side_ref, keep_on_the_scratch_reference, keep_on_the_scratch_reference_awaiting, keep_unlanded, keep_unlanded_awaiting,
+    AKeptCommit, ASideRefWrite, keep_on_a_side_ref, keep_on_the_scratch_reference, keep_on_the_scratch_reference_awaiting, keep_unlanded, keep_unlanded_awaiting,
 };
 use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_dropped_batch, kept_ref, scratch_ref};
 use crate::service_index_lock::{Announce, Announcer};
@@ -531,12 +531,15 @@ fn the_awaited_kept_commit_is_the_one_the_synchronous_line_names() {
     let context: GitContext = git_context();
     let tip: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let kept: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(BATCH);
-    let synchronous: String = keep_unlanded(&context, repo.as_path(), BATCH, tip.as_str());
+    let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(BATCH);
+    let synchronous: AKeptCommit = keep_unlanded(&context, repo.as_path(), BATCH, scratch.as_str(), tip.as_str());
+    assert!(synchronous.named, "the synchronous face proves another reference names the commit");
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", kept.as_str()]), tip, "the synchronous line names a reference the commit is kept on");
     // The reference goes, so the awaited face keeps the commit on a name nothing holds yet.
     git(repo.as_path(), &["update-ref", "-d", kept.as_str()]);
-    let awaited: String = crate::lazy_runtime::run_on_runtime(keep_unlanded_awaiting(&context, repo.as_path(), BATCH, tip.as_str())).expect("the runtime");
-    assert_eq!(awaited, synchronous, "both faces tell the person one thing about where their commit is kept");
+    let awaited: AKeptCommit = crate::lazy_runtime::run_on_runtime(keep_unlanded_awaiting(&context, repo.as_path(), BATCH, scratch.as_str(), tip.as_str())).expect("the runtime");
+    assert_eq!(awaited.line, synchronous.line, "both faces tell the person one thing about where their commit is kept");
+    assert_eq!(awaited.named, synchronous.named, "and both prove the keep the same way");
     assert_eq!(
         git_text(repo.as_path(), &["rev-parse", "--verify", "--quiet", kept.as_str()]),
         tip,

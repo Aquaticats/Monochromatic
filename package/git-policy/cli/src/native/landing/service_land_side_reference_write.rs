@@ -503,28 +503,63 @@ fn refused_words_of(output: &GitOutput) -> String {
     };
 }
 
+/// What became of keeping the commit a batch built on the reference a commit that did not land is kept on,
+/// and what the person is told about it.
+/// Why:
+///  A caller that lets go of the reference the batch held the commit on must know whether another reference names it:
+///  a reference that is the only name of a commit is one `git gc --prune=now` takes,
+///  so it is removed only after another name is known to be written
+///  (the owner's rule "never discard user data").
+///  The sentence and the answer come from one read of the reference after the write,
+/// so no caller can decide from a keep it did not prove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AKeptCommit = { named: boolean; line: string }
+/// ```
+pub(crate) struct AKeptCommit {
+    /// Whether a reference of this repository names the commit now.
+    pub(crate) named: bool,
+    /// The line the person reads,
+    /// naming the reference the commit is kept at and,
+    /// when no reference could hold it,
+    /// the commit and the reference it stays on.
+    pub(crate) line: String,
+}
+
 /// What:
 ///  Keeps the commit built for a batch that was withdrawn on a side ref,
-/// and returns the line that tells the person where it is.
+/// and answers whether a reference of this repository names it and the line that tells the person where it is.
 /// Why:
 ///   The owner's answer for a wait that reaches its bound is that nothing lands later by itself and the commit is kept for a retry;
 ///  the person's staged changes are untouched,
 /// so running the commit again builds the same commit,
 /// and the side ref lets them
 ///  recover this one if the worktree changed meanwhile.
+///  A keep Git refused leaves the batch's own scratch reference as the only name the commit has,
+///  so the person is told the commit's name and that reference:
+///  a sentence that named a recoverable commit without saying where it is would read as a commit that was lost.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await keepOnASideRef(git, repository, seq, tip); return `kept at refs/cli-git/kept/${seq}`
+/// const kept = keepOnASideRef(git, repository, seq, tip); return { named: !kept, line: kept ? `could not be kept on a side ref (${kept}), so it stays at ${scratchRef(seq)}` : `kept at refs/cli-git/kept/${seq}` }
 /// ```
-pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
+pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, held: &str, tip: &str) -> AKeptCommit {
     let name: String = kept_ref(seq);
-    if keep_the_batches_commit(git, repository, seq, tip).is_some() {
-        return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
-    }
-    return format!(
-        "monochromatic-git-policy-cli: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
-    );
+    let Some(words) = keep_the_batches_commit(git, repository, seq, tip) else {
+        return AKeptCommit {
+            named: true,
+            line: format!(
+                "monochromatic-git-policy-cli: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+            ),
+        };
+    };
+    return AKeptCommit {
+        named: false,
+        line: format!(
+            "monochromatic-git-policy-cli: the commit built for you, {tip}, could not be kept on a side ref ({words}), so it stays at {held} (see it with `git log {held}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+        ),
+    };
 }
 
 /// What:
@@ -543,13 +578,75 @@ pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: 
 /// const line = await keepUnlandedAwaiting(git, repository, seq, tip);
 /// ```
 #[cfg_attr(not(test), expect(dead_code, reason = "no production caller yet: the landing's body calls the synchronous face until it is a task (doc/planning/git-policy-cli-full-tokio.md)"))]
-pub(crate) async fn keep_unlanded_awaiting(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
+pub(crate) async fn keep_unlanded_awaiting(git: &GitContext, repository: &Path, seq: u64, held: &str, tip: &str) -> AKeptCommit {
     let name: String = kept_ref(seq);
-    if keep_the_batches_commit_awaiting(git, repository, seq, tip).await.is_some() {
-        return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
+    let Some(words) = keep_the_batches_commit_awaiting(git, repository, seq, tip).await else {
+        return AKeptCommit {
+            named: true,
+            line: format!(
+                "monochromatic-git-policy-cli: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+            ),
+        };
+    };
+    return AKeptCommit {
+        named: false,
+        line: format!(
+            "monochromatic-git-policy-cli: the commit built for you, {tip}, could not be kept on a side ref ({words}), so it stays at {held} (see it with `git log {held}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+        ),
+    };
+}
+
+/// What:
+///  Keeps the commit a batch built that is not on its branch,
+///  tells the person where it is kept,
+///  and lets go of the reference the batch held it on only once another reference names it.
+/// Why:
+///   Every path that answers a batch as not made after Git built its commit ends here,
+///  and the rule is one rule:
+///  a reference that is the only name of a built commit is deleted only after another name for that commit is known to be written,
+///  and never when the name it deleted was not the value that was read
+///  (a compare-and-delete,
+///  `git update-ref -d <ref> <old>`):
+///  a commit no reference names is one `git gc --prune=now` takes,
+///  and what a person made is never discarded
+///  (the owner's rule).
+///  A keep the wrapper could not write leaves the scratch reference where it is,
+///  and the person is told the commit's name and that reference.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = keepUnlanded(git, repository, seq, tip); announce(kept.line); if (kept.named) await updateRefDelete(scratchRef(seq), tip);
+/// ```
+pub(crate) fn keep_an_unlanded_commit(git: &GitContext, repository: &Path, seq: u64, held: &str, tip: &str, announce: &dyn Announcer) {
+    let kept: AKeptCommit = keep_unlanded(git, repository, seq, held, tip);
+    announce.announce(Announce::Waiting(kept.line));
+    if !kept.named {
+        return;
     }
-    return format!(
-        "monochromatic-git-policy-cli: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+    if let_go_of_a_reference_only_while_it_names(git, repository, held, tip) {
+        return;
+    }
+    crate::service_warn!("batch {seq} {}: the commit {tip} is kept, and its scratch reference {held} was left as it is: it does not name that commit any more, or it could not be removed", crate::service_timing::in_the_repository_at(repository));
+}
+
+/// What:
+///  Removes the reference `name` only while it still names `tip`,
+///  which is Git's own compare-and-delete (`update-ref -d <ref> <old>`).
+/// Why:
+///   A command that reads a reference and then removes it by name alone removes whatever another command wrote in between,
+///  and that may be the only name of another commit
+///  (the owner's rule "never discard user data").
+///  The expected old value is the value that was read,
+///  so the removal happens only when the reference still holds what this command proved safe to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removed = await git(['-c', 'core.logAllRefUpdates=false', 'update-ref', '-d', '--no-deref', name, tip]); return removed.ok
+/// ```
+fn let_go_of_a_reference_only_while_it_names(git: &GitContext, repository: &Path, name: &str, tip: &str) -> bool {
+    return matches!(
+        answering(git, GitRequest::new(repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", name, tip])),
+        StepAnswer::Answered(output) if output.succeeded()
     );
 }
 

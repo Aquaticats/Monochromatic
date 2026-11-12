@@ -13,14 +13,13 @@
 //! ```
 
 use std::time::Duration;
-use crate::service_land_git_steps_and_import_stream::run;
-use crate::service_land_side_reference_write::keep_unlanded;
+use crate::service_land_side_reference_write::keep_an_unlanded_commit;
 use crate::journald_native::Priority;
 use crate::service_journal::OPEN_EXTENSION;
-use crate::service_index_lock::{Announce, Announcer, IndexLock, WaitNotes, acquire_noting_wait_within};
+use crate::service_index_lock::{Announcer, IndexLock, WaitNotes, acquire_noting_wait_within};
 use crate::service_timing::{LandTiming, wait_line};
 use crate::service_protocol::{CommitRequest, FailureCode};
-use crate::transaction_git::{GitContext, NO_REFLOG_SETTING};
+use crate::transaction_git::GitContext;
 use std::path::Path;
 use std::time::Instant;
 
@@ -28,11 +27,21 @@ use std::time::Instant;
 ///  Takes the index lock for a batch,
 /// noting how long it waited and who held it;
 /// when the lock is refused the intent is forgotten,
-///  the built commit is kept on a side ref and the scratch branch is deleted.
+///  the built commit is kept on a side ref and the reference the batch held it on is let go of.
 /// Why:
 ///  The lock is asked for after the objects and the intent are made,
 /// so it is held for the branch move and the index build only;
 ///  a refusal leaves nothing that a restart of the service could land.
+///  The refusal is not always another program's lock:
+///  a repository that turned read-only,
+///  a permission the process does not have,
+///  a full disk or a stale lock that cannot be removed
+///  all refuse it too,
+///  and each of them answers a batch whose commit Git built and no branch names.
+///  So every refusal keeps the commit and tells the person where it is
+///  (`keep_an_unlanded_commit`):
+///  the scratch reference goes only once another reference names the commit,
+///  and it stays when the keep cannot be written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,12 +100,12 @@ pub(crate) fn take_index_lock(
         }
         Err(failure) => {
             // Nothing moved: forget the intent, so a restart of the service cannot land the batch later (owner, 2026-11-03: "No,
-            //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.
+            //  keep it for a retry"), keep the built commit on a side ref the message names, and let go of the reference the batch
+            //  held it on. The commit is on no branch whatever refused the lock, so the lock's own code decides nothing about it:
+            //  a refusal that is not another program's lock (a read-only Git directory, a permission, a full disk, a stale lock
+            //  nothing can remove) loses the commit exactly as one that is.
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(journal, seq, OPEN_EXTENSION));
-            if failure.code == FailureCode::IndexInUse {
-                announce.announce(Announce::Waiting(keep_unlanded(git, repository, seq, new)));
-            }
-            let _deleted = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch], None);
+            keep_an_unlanded_commit(git, repository, seq, scratch, new, announce);
             return Err(failure.code);
         }
     }

@@ -29,9 +29,9 @@
 //! ```
 
 use crate::service_land_follow::classify;
-use crate::service_land_side_reference_write::{StepAnswer, answering, answering_awaiting, keep_unlanded, take_ceiling_step};
+use crate::service_land_side_reference_write::{StepAnswer, answering, answering_awaiting, keep_an_unlanded_commit, take_ceiling_step};
 use crate::service_protocol::{CommitRequest, FailureCode};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest};
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
@@ -345,7 +345,8 @@ fn names_of(listing: &[u8]) -> BTreeSet<Vec<u8>> {
 /// What:
 ///  Tells the clients of a batch which step was ended at its ceiling,
 /// and keeps the commit the batch built on a side ref
-///  before the landing gives its scratch branch up.
+///  before the landing gives its scratch branch up,
+///  letting go of that branch only once another reference names the commit.
 /// Why:
 ///   A landing that ends at a ceiling lands nothing,
 /// so the commit its import built is on the scratch branch
@@ -353,6 +354,10 @@ fn names_of(listing: &[u8]) -> BTreeSet<Vec<u8>> {
 /// the marker names why the commit was not made,
 /// and the message names the ref the commit is kept
 ///  at.
+///  A keep that could not be written leaves the scratch reference where it is,
+///  and the person is told the commit's name and that reference:
+///  a reference that is the only name of a built commit is removed only after another name is written
+///  (`keep_an_unlanded_commit`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -364,10 +369,8 @@ pub fn keep_what_an_ended_step_built(context: &crate::service_land_context::Land
     announce.announce(crate::service_index_lock::Announce::Waiting(format!("monochromatic-git-policy-cli: {step}, so this commit was not made.\n")));
     let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
     let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(seq);
-    if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
-        announce.announce(crate::service_index_lock::Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
-        let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
-    }
+    let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) else { return };
+    keep_an_unlanded_commit(&git, first.repository.as_path(), seq, scratch.as_str(), tip.as_str(), announce);
 }
 
 /// Controls for the awaited Git steps of a landing stay out of the release executable.
