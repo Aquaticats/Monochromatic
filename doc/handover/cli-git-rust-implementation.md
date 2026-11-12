@@ -228,9 +228,19 @@ Each pick is quoted as the owner gave it.
 - Carried merge of 215.5 s on this host against 0.9 s in a private process namespace:
   issue 6287, fixed in 0.6.1-alpha.15.
 
+#### Round 309, started 12:30:01 from these answers and the audit
+
+- `review-briefs-demand-what-was-read-and-run-and-a-review-that-ran-nothing-is-started-again`
+  (in `package/pi-shared/subagent-driver`, on `main`; builds no Rust).
+- `commit-forms-real-git-refuses-are-refused-with-gits-own-message` (on `main`).
+- `file-mode-through-a-merge-is-written-as-real-git-writes-it` (on `main`).
+- `index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone` (on `main`),
+  the audit's leftover `index.lock`.
+- Briefs under `~/temp/agent/pi-runs/`, each named after its run with `-prompt.md`.
+
 #### Free space
 
-- 107 GiB at 12:26:24, so the launcher's gate lets round 308 start.
+- 107 GiB at 12:26:24, so the launcher's gate lets round 308 start; 103 GiB at 12:30:01.
 
 ### The owner's answers of 2026-11-12T12:11:18-05:00, through the question tool: a slow push, finished records, a way back, a foreign subvolume
 
