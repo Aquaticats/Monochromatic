@@ -593,6 +593,25 @@ because which arm an add takes depends on the build state its copy carried.
 So the clean is still most of what the repair costs on the adds that take it,
 and this change removes the ones that delete nothing.
 
+At the last commit that changes code (`27a90cf8f0`):
+
+- `mise run //package/git-policy/cli:native:clippy`:
+  `Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 21.27s`,
+  with no finding.
+- `mise run //package/git-policy/cli:native:test:host -- --no-fail-fast package_repair`:
+  `Summary [  10.961s] 156 tests run: 156 passed, 7283 skipped`.
+- `mise run //package/git-policy/cli:native:test:binary:host -- --no-fail-fast
+  an_external_build_directory_never_cleans_through_a_linked_target
+  a_build_started_at_once_is_correct_and_the_add_starts_no_clean real_cargo_rebuilds_own_crates
+  the_line_for_work_left_behind_names_the_queue_and_the_journal`:
+  `Summary [   8.067s] 5 tests run: 5 passed, 1080 skipped`,
+  every one of them named in the log.
+
+`mise run //:lint:monochromatic-lint -- --max-warnings 0` over the three repair files,
+the binary
+control file,
+this document and the package `README.md` finishes with no finding at this commit.
+
 ## What this does not cover
 
 - The repository linter's state outside this branch.
