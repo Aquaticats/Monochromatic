@@ -5276,9 +5276,11 @@ the merge exits 0,
 and the worktree ends whole,
 whichever of the two lands first.
 At `merge-intent` the merge came out on top of the commit
-(`Merge branch 'feature'`, then `second`);
+(`Merge branch 'feature'`,
+then `second`);
 at `merge-applied` the commit came out on top of the merge.
-A commit that the policies refuse, such as `git commit --all` or one with no path,
+A commit that the policies refuse,
+such as `git commit --all` or one with no path,
 changes nothing and exits nonzero in either case,
 and a merge still holds its mark until its own install is whole.
 

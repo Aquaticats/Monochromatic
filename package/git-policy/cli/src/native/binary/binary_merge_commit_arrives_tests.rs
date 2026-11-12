@@ -271,7 +271,8 @@ fn one_of_a_worktree(phase: &str, commit_arguments: &[&str], clean: bool) {
 }
 
 /// What:
-///  The commit row of the phase table, in the worktree the audit measured F12 in:
+///  The commit row of the phase table,
+/// in the worktree the audit measured F12 in:
 /// the person's staged edit,
 /// committed by its path,
 ///  arriving while the merge is part-way in the install.
