@@ -156,9 +156,41 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
     }
     let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());
     let entered: bool = crate::add_timing::begin_step(label.as_str());
+    // AUDIT PATCH (merge-and-pull-never-fail): fault points for the audit, armed only by AUDIT_KILL_AT / AUDIT_TRACE.
+    let audit_number: usize = audit_fault_point("before", request);
     let output: std::io::Result<GitOutput> = run_git_pausing(context, request, START_RETRY_BUDGET, &mut std::thread::sleep);
+    audit_fault_point_after("after", audit_number);
     crate::add_timing::end_step(entered);
     return output;
+}
+
+/// AUDIT PATCH: the number of the Git child about to start, killing this process when `AUDIT_KILL_AT=before:<n>` names it.
+fn audit_fault_point(when: &str, request: &GitRequest) -> usize {
+    static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let number: usize = COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    if let Some(path) = std::env::var_os("AUDIT_TRACE") {
+        let words: Vec<String> = request.arguments.iter().take(4).map(|word| word.to_string_lossy().into_owned()).collect();
+        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(file, "{number} {}", words.join(" "));
+        }
+    }
+    audit_kill_if_named(when, number);
+    return number;
+}
+
+/// AUDIT PATCH: kills this process when `AUDIT_KILL_AT=after:<n>` names the Git child that just ended.
+fn audit_fault_point_after(when: &str, number: usize) {
+    audit_kill_if_named(when, number);
+}
+
+/// AUDIT PATCH: `SIGKILL` to this process when the variable names this point.
+fn audit_kill_if_named(when: &str, number: usize) {
+    if let Ok(spec) = std::env::var("AUDIT_KILL_AT") {
+        if spec == format!("{when}:{number}") {
+            // SAFETY: `kill` of this process by its own number, with `SIGKILL`.
+            unsafe { libc::kill(libc::getpid(), libc::SIGKILL) };
+        }
+    }
 }
 
 /// What:
