@@ -10,7 +10,7 @@ use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, DONE, FAILED, PENDING, WorkItem, enqueue, id_of_entry, state_directory};
 use crate::work_item_recovery::requeue_expired;
 use crate::worktree_remove_hand_over::removal_item;
-use std::cell::Cell;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::path::{Path, PathBuf};
 
 /// A handler whose subvolume delete answers one verdict every time it is asked,
@@ -18,9 +18,9 @@ use std::path::{Path, PathBuf};
 struct OneVerdict {
     /// What the delete says,
     /// by the attempt's number counting from one.
-    said: Box<dyn Fn(u32) -> Verdict>,
+    said: Box<dyn Fn(u32) -> Verdict + Send + Sync>,
     /// How many times the delete was asked.
-    asked: Cell<u32>,
+    asked: AtomicU32,
 }
 
 impl WorkHandlers for OneVerdict {
@@ -37,8 +37,7 @@ impl WorkHandlers for OneVerdict {
     }
 
     fn subvolume_delete(&self, _item: &WorkItem) -> Verdict {
-        let attempt: u32 = self.asked.get() + 1;
-        self.asked.set(attempt);
+        let attempt: u32 = self.asked.fetch_add(1, Ordering::SeqCst) + 1;
         return (self.said)(attempt);
     }
 }
@@ -72,7 +71,7 @@ struct Queued {
 /// ```ts
 /// const queued = (name, said) => { fixture(name); enqueue(removalItem(53)); return { common, work, id, handlers }; }
 /// ```
-fn queued(name: &str, said: impl Fn(u32) -> Verdict + 'static) -> Queued {
+fn queued(name: &str, said: impl Fn(u32) -> Verdict + Send + Sync + 'static) -> Queued {
     let root: PathBuf = fixture(name);
     let common: PathBuf = root.join("common");
     let parent_path: PathBuf = root.join("parent");
@@ -81,7 +80,7 @@ fn queued(name: &str, said: impl Fn(u32) -> Verdict + 'static) -> Queued {
     let item: WorkItem = removal_item(common.as_path(), parent_path.as_path(), 53);
     let work: PathBuf = work_directory(common.as_path());
     enqueue(work.as_path(), &item).expect("the record");
-    return Queued { root, common, work, id: item.id(), handlers: OneVerdict { said: Box::new(said), asked: Cell::new(0) } };
+    return Queued { root, common, work, id: item.id(), handlers: OneVerdict { said: Box::new(said), asked: AtomicU32::new(0) } };
 }
 
 /// Drain whatever `queued` holds,
@@ -131,7 +130,7 @@ fn settled_in(work: &Path, id: &str) -> &'static str {
 fn a_retryable_deletion_keeps_its_claim_and_is_not_settled_as_a_failure() {
     let queued: Queued = queued("settling-retry-keeps-its-claim", |_attempt: u32| { return Verdict::Retry(String::from("a transient failure of the destroy")); });
     drained(&queued);
-    assert_eq!(queued.handlers.asked.get(), 1, "the attempt the verdict answered is the one that ran");
+    assert_eq!(queued.handlers.asked.load(Ordering::SeqCst), 1, "the attempt the verdict answered is the one that ran");
     assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), CLAIMED, "a retryable answer is not a failure and is not done, so the claim is kept");
     remove(queued.root.as_path());
 }
@@ -170,7 +169,7 @@ fn a_retryable_deletion_whose_claim_ran_out_is_queued_again_and_the_next_attempt
     );
     assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), PENDING, "the record waits for the round that follows");
     drained(&queued);
-    assert_eq!(queued.handlers.asked.get(), 2, "the record is tried again after a retryable verdict");
+    assert_eq!(queued.handlers.asked.load(Ordering::SeqCst), 2, "the record is tried again after a retryable verdict");
     assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), DONE, "the attempt that followed deleted the subvolume and the record is done");
     remove(queued.root.as_path());
 }
@@ -199,7 +198,7 @@ fn the_other_verdicts_keep_the_state_they_had() {
         let answered: Verdict = verdict.clone();
         let queued: Queued = queued("settling-other-verdicts", move |_attempt: u32| { return answered.clone(); });
         drained(&queued);
-        assert_eq!(queued.handlers.asked.get(), 1, "{verdict:?} is settled by the attempt that answered it");
+        assert_eq!(queued.handlers.asked.load(Ordering::SeqCst), 1, "{verdict:?} is settled by the attempt that answered it");
         assert_eq!(settled_in(queued.work.as_path(), queued.id.as_str()), state, "{verdict:?} is settled in {state}");
         remove(queued.root.as_path());
     }

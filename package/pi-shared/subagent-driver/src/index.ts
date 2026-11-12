@@ -184,6 +184,7 @@ export {
   parseRunningPiUnits,
   PiUnitsUnreadableError,
   type RunningPiUnit,
+  runNameOfUnit,
   startRunningPiUnits,
   unitNameOfGiven,
 } from './running-pi-units.ts';
@@ -196,6 +197,122 @@ export {
   type OverdueWatchRequest,
   watchForOverdueRuns,
 } from './watch-for-overdue-runs.ts';
+
+/**
+ The step a launcher takes after its unit ended: an agent that ended its turn while work it started still runs is waited for, then
+ resumed with a short note. The launcher `start-pi-run-in-a-worktree.ts` takes it.
+ */
+export {
+  WAKE_LIMIT,
+  WORK_POLL_MILLISECONDS,
+  type ProcessAtAFolder,
+  isOwnFolder,
+  ownComponentOf,
+  processesAtTheirFolders,
+  OWN_WORK_NAMED_IN_A_NOTE,
+  type WakeOutcome,
+  type WakeResumeAnswer,
+  processesStillWorkingFor,
+  wakeIfItsOwnWorkOutlivesItsTurn,
+  wakePromptOf,
+  wakeResumeWordsOf,
+  workWaitMillisecondsOf,
+} from './wake-a-run-whose-work-outlives-its-turn.ts';
+
+/**
+ A batch started as its own systemd user unit, so it outlives the process that asked for it: `start-a-batch-in-its-own-unit.ts`.
+ */
+export {
+  BATCH_UNIT_CPU_PERCENT,
+  BATCH_UNIT_IO_WEIGHT,
+  BATCH_UNIT_MEMORY,
+  BATCH_UNIT_SECONDS,
+  BATCH_UNIT_TASK_COUNT,
+  type BatchUnitRequest,
+  batchOutputFileOf,
+  batchUnitCommandOf,
+  batchUnitNameOf,
+  startedLineOf,
+} from './batch-run-as-a-unit.ts';
+
+/**
+ Which run worktrees are finished, and whether one may be removed: `remove-finished-worktrees.ts`.
+ */
+export {
+  type Worktree,
+  type WorktreeDecision,
+  briefQueuedAfter,
+  decideWorktree,
+  folderSomeProcessWorksIn,
+  isInside,
+  ownFoldersOf,
+  pausedNamesIn,
+  readFileOrNothing,
+  runNameOfWorktree,
+  runWorktreesIn,
+  worktreesIn,
+  writtenAt,
+} from './finished-worktrees.ts';
+
+/**
+ The launchers that outlived their units: which processes are launchers, which of them have outlived a unit that ended, and the
+ order they are ended in. The command is `list-launchers-whose-unit-has-ended.ts`.
+ */
+export {
+  LAUNCHER_MINIMUM_AGE_SECONDS,
+  type LauncherPastItsUnit,
+  type LauncherProcess,
+  type SignalProcess,
+  STOP_SIGNAL,
+  childrenOf,
+  launcherLineOf,
+  launchersIn,
+  launchersPastTheirUnits,
+  optionWordOf,
+  signalFailureLineOf,
+  stopLaunchers,
+  stopTargetsOf,
+  wordsInCommand,
+} from './launchers-whose-unit-has-ended.ts';
+export { unitStateIsRunning, } from './wait-for-a-unit-to-end.ts';
+
+/**
+ The commands that read what is going on: the processes whose command line holds a text, the running units whose worktree a
+ removal or a merge took away, and the final report of each agent's newest finished run.
+ */
+export {
+  COMMAND_LINE_CHARACTERS,
+  type CommandLineMatch,
+  commandHolds,
+  matchLineOf,
+  processesWhoseCommandLineHolds,
+} from './processes-whose-command-line-holds-text.ts';
+export {
+  type UnitWithoutItsWorktree,
+  countLineOf,
+  goneLineOf,
+  serviceUnitsIn,
+  unitsWhoseWorktreeIsGone,
+} from './units-whose-worktree-is-gone.ts';
+export {
+  NO_FINISHED_RUN_OF_THAT_NAME,
+  SUMMARY_FILE_NAME,
+  type AttemptOfARun,
+  attemptsOfARun,
+  entriesOrNothingIn,
+  isThere,
+  newestFinishedRunOf,
+} from './newest-finished-run-of-a-name.ts';
+export {
+  REPORT_LINES,
+  REPORT_MORE_LINES_SUFFIX,
+  REPORT_WIDTH,
+  type SummaryOfARun,
+  noFinishedRunLineOf,
+  reportLinesIn,
+  reportLinesOf,
+  summaryIn,
+} from './report-of-a-run.ts';
 
 /**
  A runs folder a test writes its own runs into, so no test reads the real one.
@@ -221,3 +338,8 @@ export {
  The library surface of starting a run, kept in a file of its own so that neither list outgrows the line budget.
  */
 export * from './index-of-starting-a-run.ts';
+
+/**
+ The library surface of the review commands, kept in a file of its own for the same reason.
+ */
+export * from './index-of-reviewing-a-change.ts';

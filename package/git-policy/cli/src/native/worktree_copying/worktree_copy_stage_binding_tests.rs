@@ -2,6 +2,7 @@
 //! and of the check every installation makes against it.
 
 use super::*;
+use crate::private_storage::{take_directory_syncs, take_file_syncs};
 use crate::test_support::{fixture, git, remove, repository};
 use crate::worktree_add_binding::bind_registration;
 
@@ -33,6 +34,36 @@ fn container(root: &Path) -> PathBuf {
     let made: PathBuf = root.join(".cli-git-worktree-copy-stage");
     crate::private_storage::create_private_directory(made.as_path()).expect("container");
     return made;
+}
+
+/// What:
+///  The registration a staged copy is bound to is published whole and flushes nothing.
+/// Why:
+///   The record is the wrapper's own bookkeeping of a copy,
+/// a power cut that loses it costs the placement of a copy and never a byte of a person's,
+/// and native Git flushes nothing for the worktree add it serves
+/// (`SPEC.md`,
+/// "The records an add writes for itself").
+/// The control that the recorders see a flush is a durable private file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordStageBinding(); expect(fileSyncs()).toEqual([]); expect(directorySyncs()).toEqual([]);
+/// ```
+#[test]
+fn the_stage_binding_flushes_nothing() {
+    let (root, _common, binding) = registered_worktree("stage-binding-flushes-nothing");
+    let stage: PathBuf = container(root.as_path());
+    take_file_syncs();
+    take_directory_syncs();
+    record_stage_binding(stage.as_path(), &binding).expect("recorded");
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new(), "the stage binding flushes no file");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "the stage binding flushes no directory");
+    assert_eq!(stage_binding(stage.as_path()).expect("read").as_ref(), Some(&binding), "the binding is published whole");
+    let control: PathBuf = root.join("durable-control");
+    crate::private_storage::write_private_file(control.as_path(), b"control").expect("control");
+    assert!(!take_file_syncs().is_empty(), "the recorder sees a durable private file");
+    remove(root.as_path());
 }
 
 /// A recorded binding reads back as the same registration,

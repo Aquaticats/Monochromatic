@@ -9,6 +9,10 @@ import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 import { optionIn, } from './option-in.ts';
 import { requiredText, } from './required-option-values.ts';
+import {
+  DEFAULT_REVIEWS_FOLDER_IN_HOME,
+  DEFAULT_RUNS_FOLDER_IN_HOME,
+} from './reviewer-of-a-change.ts';
 
 /**
  The command's command line, for the error message.
@@ -30,24 +34,6 @@ const RUNS_FOLDER_OPTION = '--runs-folder=';
  The option that names the folder that holds one folder per review.
  */
 const REVIEW_FOLDER_OPTION = '--review-folder=';
-
-/**
- The parts of the coordinator's runs folder below the home directory of whoever runs this.
- */
-const DEFAULT_RUNS_FOLDER_IN_HOME: readonly string[] = [
-  'temp',
-  'agent',
-  'pi-runs',
-];
-
-/**
- The parts of the coordinator's reviews folder below the home directory of whoever runs this.
- */
-const DEFAULT_REVIEW_FOLDER_IN_HOME: readonly string[] = [
-  'temp',
-  'agent',
-  'kimi-reviews',
-];
 
 /**
  A command line the command cannot use.
@@ -136,7 +122,7 @@ export function parseSaveReviewOptions(commandLine: readonly string[],): {
     reviewFolder: (reviewFolder === '')
       ? join(
         homedir(),
-        ...DEFAULT_REVIEW_FOLDER_IN_HOME,
+        ...DEFAULT_REVIEWS_FOLDER_IN_HOME,
       )
       : reviewFolder,
   };

@@ -24,6 +24,14 @@
 //! where the person is the wait and a stop would lose what they typed.
 //! The ceiling is `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`),
 //! with its measurement.
+//!  A step that reaches its ceiling while the kernel holds it in a disk wait is slow and not stuck,
+//!  and ending it there failed two commits on 2026-11-11,
+//!  so the ceiling stands aside once for such a step and the step is waited for to
+//!  `SCRATCH_COMMIT_STEP_STALL_CEILING` instead:
+//!  the line that says so belongs to the wait that owns the child
+//!  (`process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`),
+//!  which always runs,
+//!  and the notice says the later bound in every waiting line it prints after that.
 //! A stop ends that `git commit` and what it started with `SIGKILL`:
 //! the step runs in a scratch repository on a private copy of the index,
 //! and the objects it wrote are content-addressed files the next build writes again,
@@ -414,13 +422,13 @@ impl NativeCommitNotice {
     ///  Where a wait that must say why it still lasts hands its line.
     /// Why:
     ///   The wait that stops a step the kernel then holds is the only code that keeps waiting,
-    /// and the line that explains that wait must reach the person even when no notice thread was started.
+    /// and the lines that explain that wait must reach the person even when no notice thread was started.
     ///  The writer thread is this notice's,
     ///  and this is the queue it takes whole lines from.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// notice.linesForTheWait(); // SyncSender<string> | undefined
+    /// notice.linesForTheWait(); // Queue<string> | undefined
     /// ```
     pub fn lines_for_the_wait(&self) -> Option<&SyncSender<String>> {
         return self.said.as_ref();
@@ -503,17 +511,28 @@ impl NativeCommitNotice {
             // The processes the previous look saw below the step, and when that look was.
             let mut before: Vec<SeenBelow> = Vec::new();
             let mut last_look: Duration = Duration::ZERO;
+            // What: The bound the step runs under once a look finds the kernel holding it in a disk wait.
+            // Why:  A step inside an uninterruptible call is waiting for the disk and not stuck in its own work,
+            //       so ending it at the ceiling it reached fails a commit that would have landed
+            //       (`scratch_step_held_by_the_kernel.rs`).
+            //       A step that may open an editor keeps no ceiling at all and never reaches here.
+            let stall_bound: Duration = crate::wait_ceilings::stall_ceiling_of(ceiling);
+            // Whether the ceiling already stood aside for this step, so it stands aside once and not at every look.
+            let mut stood_aside: bool = false;
+            // The one line that says why the ceiling stood aside, kept until the writer takes it.
+            let mut standing_aside_line: Option<String> = None;
             // One label for every way the loop ends, so the facts leave through the channel and not through the join.
             'notice: loop {
                 let waited: Duration = began.elapsed();
                 // What: The ceiling this look counts from.
-                // Why:  A control may plant one, so the ceiling comes at the look it chose instead of a slept window.
+                // Why:  A control may plant one, so the ceiling comes at the look it chose instead of a slept window;
+                //       and a step the kernel holds runs under the bound it is waited for, not the one it reached.
                 //
                 // In TS you'd write (pseudocode):
                 // ```ts
-                // const bound = ceilingOfThisLook(ceiling);
+                // const bound = stoodAside ? stallBound : ceilingOfThisLook(ceiling);
                 // ```
-                let bound: Duration = ceiling_of_this_look(ceiling);
+                let bound: Duration = if stood_aside { stall_bound } else { ceiling_of_this_look(ceiling) };
                 // One look: the step, the programs below it, and what they are using.
                 // A step that has not started yet is nothing to look at, which is not a look that failed.
                 let look: Option<Vec<(i32, ProcessUse)>> = match watched.number() {
@@ -547,26 +566,58 @@ impl NativeCommitNotice {
                     && seen_at.is_some()
                     && since_seen >= bound
                 {
-                    let the_ceiling: TheCeiling = ceiling_came(&watched);
-                    // A step signalled while the walk below it failed leaves whatever it started unnamed.
-                    facts.below_unlisted = !the_ceiling.below_listed;
-                    // A program this ceiling could not end may still be running, and the record says so.
-                    facts.below_unended = the_ceiling.below_unended;
-                    match the_ceiling.came {
-                        CeilingCame::Stopped => {
-                            facts.stopped_after = Some(waited);
-                            // What: The step was sent the stop.
-                            // Why:  Whether the kernel has released it is said by the wait that keeps waiting for it, and not
-                            //       from this thread, which the system may never have started
-                            //       (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`).
-                            break 'notice;
-                        }
-                        CeilingCame::TheStepEnded => break 'notice,
-                        // The look failed: nothing is known about the step, and the ceiling stays armed so a later look can stop it.
-                        CeilingCame::Unknown => {
-                            facts.blind_looks = facts.blind_looks.saturating_add(1);
+                    // What: The ceiling stands aside once for a step the kernel holds in a disk wait.
+                    // Why:  Such a step is slow, not stuck: it is waiting for a call of the kernel's,
+                    //       which a signal cannot shorten,
+                    //       and ending it there fails a commit that would have landed (`scratch_step_held_by_the_kernel.rs`).
+                    //       The wait that owns the step stands aside for the same reason and says the same line,
+                    //       so this thread says nothing of its own
+                    //       (`process/step_waited_for_while_the_kernel_holds_it.rs`).
+                    if !stood_aside
+                        && bound < stall_bound
+                        && let Some(number) = watched.number()
+                        && let Some(entry) = crate::scratch_step_look_below::the_process_the_kernel_holds(below)
+                    {
+                        stood_aside = true;
+                        facts.held_after_ceiling = Some(waited);
+                        facts.stall_ceiling = Some(stall_bound);
+                        standing_aside_line = Some(crate::scratch_step_held_by_the_kernel::a_stall_is_waited_for(crate::scratch_step_held_by_the_kernel::AStall {
+                            step: number,
+                            waited,
+                            until: stall_bound,
+                            held: crate::scratch_step_held_by_the_kernel::HeldProgram { number: entry.0, name: entry.1.name.clone() },
+                        }));
+                    }
+                    if !stood_aside {
+                        let the_ceiling: TheCeiling = ceiling_came(&watched);
+                        // A step signalled while the walk below it failed leaves whatever it started unnamed.
+                        facts.below_unlisted = !the_ceiling.below_listed;
+                        // A program this ceiling could not end may still be running, and the record says so.
+                        facts.below_unended = the_ceiling.below_unended;
+                        match the_ceiling.came {
+                            CeilingCame::Stopped => {
+                                facts.stopped_after = Some(waited);
+                                // What: The step was sent the stop.
+                                // Why:  Whether the kernel has released it is said by the wait that keeps waiting for it, and not
+                                //       from this thread, which the system may never have started
+                                //       (`process/wait_after_the_stop_saying_the_kernel_holds_it.rs`).
+                                break 'notice;
+                            }
+                            CeilingCame::TheStepEnded => break 'notice,
+                            // The look failed: nothing is known about the step, and the ceiling stays armed so a later look can stop it.
+                            CeilingCame::Unknown => {
+                                facts.blind_looks = facts.blind_looks.saturating_add(1);
+                            }
                         }
                     }
+                }
+                // What: The line that says why the ceiling stood aside is handed to the writer once.
+                // Why:  A reader that stopped reading holds the one place the queue has,
+                //       so a line the writer could not take is tried again at the next look and never lost.
+                if let Some(line) = standing_aside_line.take()
+                    && sending.try_send(line.clone()).is_err()
+                {
+                    standing_aside_line = Some(line);
                 }
                 if ticker.due(waited) {
                     let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), bound);

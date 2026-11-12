@@ -23,6 +23,8 @@ import {
 } from './running-pi-units.ts';
 import {
   type PoolMembership,
+  type ProviderPool,
+  PROVIDER_POOLS,
   membershipOf,
   poolNamed,
 } from './pool-limits.ts';
@@ -112,7 +114,13 @@ export type GoingRun = {
  const membership = membershipOfCommandLine({ commandLine: ['node', 'launcher.ts', '--name=a',], },);
  ```
  */
-function membershipOfCommandLine(commandLine: readonly string[],): PoolMembership {
+function membershipOfCommandLine({
+  commandLine,
+  pools = PROVIDER_POOLS,
+}: {
+  readonly commandLine: readonly string[];
+  readonly pools?: readonly ProviderPool[];
+},): PoolMembership {
   /**
    The pool the launcher's own options name.
    */
@@ -131,7 +139,8 @@ function membershipOfCommandLine(commandLine: readonly string[],): PoolMembershi
       commandLine,
       option: NAME_OPTION,
     },),
-    ...(pool.inAPool ? { pool, } : {}),
+    pools,
+    ...(pool.holds === 'a-pool' ? { pool, } : {}),
   },);
 }
 
@@ -185,9 +194,11 @@ async function commandLineOrNothingIn(path: string,): Promise<readonly string[]>
 export async function launcherRunsIn({
   processFolder,
   launcherEntryNames,
+  pools = PROVIDER_POOLS,
 }: {
   readonly processFolder: string;
   readonly launcherEntryNames: readonly string[];
+  readonly pools?: readonly ProviderPool[];
 }): Promise<readonly GoingRun[]> {
   /**
    The entries of the process folder, which is one per process number.
@@ -233,7 +244,10 @@ export async function launcherRunsIn({
     }
     runs.push({
       name,
-      membership: membershipOfCommandLine(commandLine,),
+      membership: membershipOfCommandLine({
+        commandLine,
+        pools,
+      },),
     },);
   }
   return runs;
@@ -295,7 +309,7 @@ export function poolOfExecStart({ shown, }: { readonly shown: string },): PoolMe
     option: '--model',
   },);
   if ((provider === '') || (model === '')) {
-    return { inAPool: false, };
+    return { holds: 'no-pool', };
   }
   return poolNamed({
     provider,
@@ -305,6 +319,9 @@ export function poolOfExecStart({ shown, }: { readonly shown: string },): PoolMe
 
 /**
  Reads every Pi run going now, from the launchers and from systemd.
+
+ A unit whose own command line could not be read holds a slot in every pool its name could be running on, which is what the
+ caller counts: a guessed single pool read that one pool full and the others empty.
 
  @param run - how a command is run, which a test replaces
 
@@ -327,11 +344,13 @@ export async function goingRunsNow({
   run,
   processFolder,
   launcherEntryNames,
+  pools = PROVIDER_POOLS,
   onProblem,
 }: {
   readonly run: RunCommand;
   readonly processFolder: string;
   readonly launcherEntryNames: readonly string[];
+  readonly pools?: readonly ProviderPool[];
   readonly onProblem: (problem: string) => void;
 }): Promise<readonly GoingRun[]> {
   /**
@@ -340,6 +359,7 @@ export async function goingRunsNow({
   const launchers = await launcherRunsIn({
     processFolder,
     launcherEntryNames,
+    pools,
   },);
   /**
    The runs the launchers already account for.
@@ -400,7 +420,10 @@ export async function goingRunsNow({
         name,
         membership: (shown.status === 0)
           ? poolOfExecStart({ shown: shown.stdout, },)
-          : membershipOf({ runName: name, },),
+          : membershipOf({
+            runName: name,
+            pools,
+          },),
       },
     );
   }

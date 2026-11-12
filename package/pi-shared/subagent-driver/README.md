@@ -120,6 +120,9 @@ In the order a run that names no model of its own takes them:
   so a run moved there gets twice the wall clock it asked for.
 - `opencode-go`:
   closed to new runs (limit 0) until the owner says its week has reset.
+  The owner,
+  2026-11-11:
+  "Be careful with opencode go as it has a weekly limit and I'm 99% through the weekly limit."
 - `neuralwatt-kimi-flex`:
   20 runs of Kimi K3.1 Pro flex,
   taken only by a run that names that model.
@@ -128,7 +131,26 @@ In the order a run that names no model of its own takes them:
   taken only by a run that names that model.
   Reviews of a change run here.
 
-A closed pool takes no new run at all.
+A closed pool takes no new run at all,
+and keeps its place in the table,
+so the count prints it at zero room (`opencode-go 0/0`) and the runs already on it are still counted where they are.
+Every pool's limit can be set for one command without a code change,
+which is how a pool with a weekly or monthly quota is closed and reopened:
+`PI_RUNS_POOL_LIMITS` holds `<pool name>=<n>` pairs separated by commas,
+a limit of zero closes the pool,
+and any number above zero is the room it takes again.
+
+```sh
+# reopen OpenCode Go once the owner says the week has reset
+PI_RUNS_POOL_LIMITS=opencode-go=20 start-pi-run-when-a-pool-has-room --counts-only
+# close Neuralwatt's Kimi flex pool for the day
+PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=0 start-pi-run-when-a-pool-has-room --counts-only
+```
+
+A pair naming no pool,
+or holding anything but a whole number,
+is refused rather than counted,
+because a mistyped name would otherwise close nothing and read as though it had.
 A run that names a model only one pool takes stays on that pool.
 A run that resumes a session stays on the pool it named while that pool takes new runs,
 with no wall factor;
@@ -140,10 +162,18 @@ in the order above.
 A run is counted from its launcher's own command line while the launcher is still running,
 and from the unit's `ExecStart` once the launcher has gone,
 so a launcher that has not made its unit yet still holds its slot.
-An audit (`sol-`) and a Kimi run on a provider no pool holds are counted in no pool,
-because neither competes for those slots.
-A run whose unit's own command line could not be read is counted in `opencode-go`,
-which is where the launcher this replaced counted every unit whose launcher had gone.
+An audit (`sol-`) is counted in no pool,
+because an audit runs on another account and competes for none of these slots.
+
+A run whose pool cannot be read holds a slot in every pool it could be running on,
+and the command names the unit it could not read on standard error:
+every pool for an ordinary run,
+the Kimi flex pool alone for a run named `kimi-`,
+and no pool for an audit.
+Holding a slot in each is the safe direction:
+a guessed single pool read that pool full while the others read empty,
+which is how runs sat on standard Neuralwatt while the count said it had room.
+A count can therefore read fuller than the runs really are.
 
 ### The room a new run needs
 
@@ -265,11 +295,36 @@ so no provider slot is spent on a run that could not have worked.
 Before this, a launcher took a slot, made a worktree and linked its dependencies,
 and only then did the driver find that its prompt file was not there.
 
+### After the unit ends
+
+An agent may end its turn while work it started still runs,
+such as a build or a reproduction in a scope of its own,
+and before 2026-11-11 this launcher called such a run finished and removed its worktree,
+so a review whose reproduction was still running was never written.
+Now the launcher waits for that work,
+at most the run's own wall clock,
+then resumes the agent's session with a short note naming what it left running,
+at most five wakes per run name.
+A resumed run gets a folder number of its own,
+so it never writes over the summary the first run wrote.
+
+A process counts as the run's own work only when its working folder is the run's worktree or run folder,
+or when one whole path component of that folder is the run's own name.
+A substring match tied five re-merge launchers to the Kimi review of the same branch,
+whose worktree `pi-kimi-review-<the run's name>-round-<n>` contains that name:
+they waited on another agent's work and would have resumed finished sessions.
+The note carries no claim about a person:
+it states what the run left running and asks it to continue,
+the same way every brief this package writes carries requirements as plain statements.
+
 When the run has ended the worktree is removed only if the run ended `idle` or on its stop file,
 its HEAD is a branch,
 and `git status` holds nothing.
 It is never removed by force,
 and every other ending keeps it and prints why.
+A worktree something of the run still works in is kept too:
+a removal would take the folder of a build or a reproduction the run left working,
+and a wake would have nothing to return to.
 
 ### `retry-pi-run-start-until-a-pool-has-room`
 
@@ -321,6 +376,311 @@ Node ends an uncaught error with `Node.js v26.13.0`,
 and for all ten starts of 2026-11-11 that was the whole of what the batch printed.
 The whole of what a failed start printed is appended to `<runs-folder>/<name>-start-failure.log`,
 and the line names that file.
+
+### `start-a-batch-in-its-own-unit`
+
+`--batch-file`,
+`--deadline-seconds`,
+and `--output-file`.
+
+A batch ran as a background shell of the process that asked for it until 2026-11-11,
+when that process was restarted,
+about fifty launchers ended with it while every agent kept running in its own `pi-*` unit,
+and the launchers' after-run steps were lost.
+This command starts `start-pi-runs-from-a-batch-list` as a systemd user unit of its own,
+named `launch-<the list's name>` and never `pi-*`,
+because the slot count reads every `pi-*` unit as a run.
+Its caps are the batch's own:
+four processors,
+16G of memory and 4096 tasks,
+since the launchers only link dependencies and wait while the agents work in units of theirs,
+and its `RuntimeMaxSec` is two days,
+which bounds the longest run,
+a flex pool's doubled wall clock and the wakes that may resume it.
+Both streams go to the list's own name and `.out` beside it,
+and nowhere else,
+because a unit has no terminal.
+
+## Reviewing a change
+
+A review of the change `x` is the run `review-x`,
+on branch `test/review-x`,
+with everything it writes in `<reviews folder>/x`:
+the diff it read (`change.diff`),
+its brief (`brief.md`),
+its reproduction scripts (`reproductions/`),
+and its findings (`review.md`).
+The reviews folder is `$HOME/temp/agent/change-reviews` unless a command is given another,
+and that name says what the folder holds and no model's name.
+
+The reviewer's provider and model are named once, in `src/reviewer-of-a-change.ts`:
+`qwen-token-plan-individual` and `qwen4-max-preview`,
+the qwen plan's review pool.
+No command, option, run, branch or folder carries a model's name,
+so a review of another model is one edit there and no new names.
+
+A review's worktree starts at the commit the review reads,
+which the launcher's `--base` takes.
+A branch of that name that already exists is added as it is,
+so a second review of the same change needs the old branch removed first;
+the launcher's own line says which of the two it did.
+
+### `write-a-brief-for-a-review`
+
+`--review`,
+the change's name;
+`--commit`,
+the commit under review;
+`--range`,
+what changed, repeatable because a branch the integration merged more than once is read over each merge's own range;
+`--source`,
+the folder whose changes are reviewed;
+`--focus`,
+what the reviewer looks hardest at,
+which defaults to data loss, a failed or doubled commit or merge, an unbounded wait,
+and a race with commands running at the same time or a process killed at any instruction;
+`--reviews-folder`;
+`--runs-folder`,
+the folder every run of this package writes into,
+which the brief lists among the folders a reviewer must not read;
+and `--rules-file`,
+which defaults to this package's `doc/rules-every-pi-brief-carries.md` in the checkout.
+
+It writes the diff of the ranges under the source folder,
+the brief that names the code files among them,
+and an empty `reproductions/` folder,
+and prints one line:
+
+```text
+# --review=rewrite-the-gate --commit=abc1234 --range=main...fix/rewrite-the-gate --source=package/git-policy/cli/src/native
+review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/brief.md; its worktree starts at abc1234. Its folder is <reviews>/rewrite-the-gate
+```
+
+The files are the `.rs` and `.ts` code the ranges touched,
+without their tests and test stand-ins,
+and without a file the reviewed commit does not hold.
+A change that leaves no such file under the source folder writes nothing,
+prints `nothing to review under <source> in <ranges>`,
+and exits `1`:
+a reviewer given no file reports nothing,
+which reads as a clean review although nothing was reviewed.
+
+### `start-reviews-of-finished-branches`
+
+`--branch`,
+repeatable;
+`--integration`,
+the branch a branch's change is read against;
+`--source`;
+`--reviews-folder`;
+and `--runs-folder`.
+
+For each branch it writes the brief through the command above,
+then starts its review through the retrying start,
+so the review waits for a slot of the review pool instead of refusing.
+The run's words are fixed here,
+with the reasons beside them in `src/reviews-of-finished-branches.ts`:
+its worktree starts at the branch's tip;
+its wall is six hours;
+its turn cap is a quarter above the longest of the 28 reviews measured on 2026-11-11;
+and it names the reviewer's provider and model.
+Starts go twenty seconds apart,
+and the command waits for every review it started before it answers.
+A start that failed prints its reason,
+and the whole of what it printed is kept beside the runs in `<run name>-start-failure.log`.
+
+A branch already reviewed,
+one whose change leaves nothing to review,
+and one whose brief could not be written are each one line,
+and the rest go on:
+the scratch starter stopped at the first of them,
+and two reviews of round 231 were lost that way with no line anyone read.
+
+When a review ends,
+the command saves its last assistant message as its `review.md` when the review wrote none,
+through `save-the-final-message-of-a-review-that-wrote-no-review-file`.
+It ends with `reviews ended with statuses <status>...`,
+one status per review,
+`none` for a start that could not be run at all,
+and exits `0` only when every start ended `0`.
+
+### `write-a-fix-brief-for-each-review`
+
+`--review`,
+repeatable;
+`--base`,
+the commit or branch every fix starts at;
+`--branch-prefix`,
+the namespace a fix's branch lives under, such as `fix/`;
+`--package`,
+the package the fix changes;
+`--reviews-folder`;
+`--runs-folder`;
+`--wall-seconds`,
+six hours by default;
+and `--batch-file`,
+which, when given, is written as the list that starts those agents.
+
+A fix is named after the change its review read,
+without the `-round-<n>` that says which round wrote the review,
+and its branch is the prefix and that name.
+Each brief is written to `<runs folder>/<fix name>-prompt.md`,
+names the rules file first,
+quotes the ban on synthetic host load,
+states the requirements as the project's own,
+and names no owner, no hurry and no due date.
+A review whose `review.md` or `change.diff` is not there gets no brief:
+the line names the missing file and the rest go on,
+and the command exits `1` when any review was left without one.
+
+## Removing finished worktrees
+
+### `remove-finished-worktrees`
+
+`--checkout-folder`,
+the checkout whose worktrees the launcher makes (this folder by default);
+`--runs-folder`;
+`--review-folder`;
+`--paused-file`,
+a list of names paused earlier,
+one per line after its first word;
+`--process-folder`;
+`--apply`,
+which does the removals rather than listing them;
+and `--clean-folder` with `--clean-word`,
+a command run in that folder inside each worktree before it is removed.
+
+The owner:
+"You're the coordinator and you're supposed to remove finished worktrees automatically."
+A worktree added on btrfs is a snapshot,
+so finished worktrees left in place filled the disk.
+
+A run's worktree is removed only when all of these hold,
+and each line says which one did not:
+
+- its unit has ended;
+- the run finished its work,
+  which is its summary saying `idle`,
+  or,
+  for a review,
+  its `review.md` existing;
+- it is not on the pause list,
+  or its latest run finished its turn since;
+- no brief for its name was written after its latest run ended,
+  which is a resume or a re-merge waiting for a slot;
+- nothing of the run works in it:
+  not in the worktree,
+  not in any of its run folders,
+  and not in its review folder;
+- `git status` holds nothing uncommitted.
+
+A worktree some process still works in is the check that matters most:
+before 2026-11-11 this step ran `cargo clean` in,
+and removed,
+the worktree of a run that had ended idle while a build or a reproduction that run started was still working there,
+so the wake had nothing to return to.
+Nothing is ever removed by force,
+and every branch is kept.
+
+## Reading what is going on
+
+Three commands read a machine rather than start anything,
+and each is safe to run while runs are going.
+
+### `list-processes-whose-command-line-holds-text`
+
+`--text`,
+which every matching command line must hold,
+and `--command-characters`,
+how much of each command line to print (200 by default).
+
+```text
+# --text=start-pi-run-in-a-worktree
+4300 parent 4242 age 12m node /runs/start-pi-run-in-a-worktree.ts --name=copy-route --branch=feat/copy-route
+```
+
+It prints the process number,
+the parent's number,
+the age in minutes,
+and the head of the command line,
+one line per process,
+and `no process whose command line holds <text>` when nothing matches.
+It reads command lines and never an environment,
+and it never names its own process.
+
+### `list-launchers-whose-unit-has-ended`
+
+`--launcher-entry`,
+repeatable,
+the basename a launcher is run as
+(this package's launcher and the scratch one it replaced by default);
+`--minimum-age-seconds`,
+one hour by default;
+and `--stop`,
+which ends each launcher it names.
+
+```text
+# --minimum-age-seconds=3600
+copy-route: unit inactive, launcher 12 started 120 min ago, children 20:systemd-run
+```
+
+A launcher that outlived its unit makes the pool gate answer `ALREADY RUNNING` for that run's name
+and holds that run's slot,
+and it waits on a waiter that never heard the unit end.
+The age matters because a launcher makes a worktree and links dependencies before its unit exists,
+so one younger than the minimum may simply not have got there yet.
+
+`--stop` sends `SIGTERM` to each child before the launcher itself,
+because ending the launcher alone can leave its waiter holding the unit's name.
+A launcher whose unit's state could not be read is never ended:
+a manager that could not be asked says nothing about the unit,
+and it is printed only when it is listed,
+not acted on.
+
+### `list-running-units-whose-worktree-is-gone`
+
+`--checkout-folder`,
+the checkout whose worktrees the launcher makes (this folder by default),
+and `--unit-pattern`,
+the units to look at (`pi-*` by default).
+
+```text
+# --checkout-folder=/repo
+GONE /repo/.claude/worktrees/pi-gone
+3 running units, 1 without their worktree
+```
+
+A unit without its worktree cannot commit where a reader looks for its work,
+and it holds its pool slot until its own bound ends it,
+so this is the line a coordinator acts on.
+The worktree's name comes from `worktreeFolderOf`,
+the one place that names worktrees.
+
+### `print-the-final-report-of-the-newest-run-of-each-agent`
+
+`--agent`,
+repeatable,
+one block per agent;
+`--runs-folder`;
+`--lines`,
+how many lines of each final message (30 by default);
+and `--width`,
+how much of each line (420 by default).
+
+```text
+# --agent=copy-route --agent=never-run
+=== copy-route-1: idle, 40 turns
+the work is done
+and pushed
+=== never-run: no finished run
+```
+
+The newest attempt of an agent's name that wrote a summary is the run it reads,
+so an attempt still going is not mistaken for one that finished,
+and the report is the head of the last message the summary kept.
+The summary cuts that message to 900 characters,
+which is enough for a head;
+a whole report a run wrote to its own file is read from that file.
 
 ## Command line
 
@@ -559,11 +919,12 @@ the wait ends after its silence bound and the run ends as `prompt-rejected`.
 `--review` (repeatable),
 `--runs-folder`,
 and `--review-folder`.
-A Kimi review that ends without writing `review.md` leaves its findings only in its last message,
+A review that ends without writing `review.md` leaves its findings only in its last message,
 and a review's worktree is kept until that file exists.
 This reads the last assistant message whole from the Pi session file the newest finished
-`kimi-review-<review>-<n>` run names,
+`review-<review>-<n>` run names,
 and writes it as `<review-folder>/<review>/review.md` with a note saying which run it came from.
+The review folder is `$HOME/temp/agent/change-reviews` unless the caller names another.
 The summary's own `lastAssistantText` cannot be the source:
 it is cut to 900 characters.
 A review that wrote its own file is left alone,

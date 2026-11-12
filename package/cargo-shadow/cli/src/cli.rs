@@ -112,7 +112,7 @@ pub enum Command {
     /// run records,
     /// toolchains and container images that nothing uses,
     /// each only after a proof it is not in use,
-    /// or install the daily systemd timer that runs this.
+    /// or install the systemd user service that keeps this running.
     Lean {
         /// What to do.
         #[command(subcommand)]
@@ -162,9 +162,26 @@ pub enum LeanAction {
         #[arg(long)]
         deadline_minutes: Option<u64>,
     },
-    /// Install the systemd user timer that runs `lean run` once a day at 04:30 local time and at no other moment.
+    /// Install the systemd user service that keeps `lean run` running:
+    /// each pass ends on its own deadline and the next starts a minute after it.
+    /// It stops and disables `cargo-shadow-lean.timer`,
+    /// the once-a-day timer the old install wrote,
+    /// and removes its file.
+    ServiceInstall {
+        /// Write the unit files and leave the service off.
+        #[arg(long)]
+        no_enable: bool,
+        /// Where the unit files go (default `~/.config/systemd/user`).
+        #[arg(long)]
+        unit_directory: Option<std::path::PathBuf>,
+    },
+    /// The old name of `service-install`:
+    /// it now writes the continuous service,
+    /// removes the once-a-day timer and enables the service,
+    /// and it says so when it runs.
+    #[command(hide = true)]
     TimerInstall {
-        /// Write the unit files and leave the timer off.
+        /// Write the unit files and leave the service off.
         #[arg(long)]
         no_enable: bool,
         /// Where the unit files go (default `~/.config/systemd/user`).

@@ -26,14 +26,14 @@
 
 use crate::service_client_settings_and_watches::RECONNECTS;
 pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_retire};
-use crate::service_client_listen_and_ask_to_retire::{Heard, listen, read_message};
+use crate::service_client_listen_and_ask_to_retire::{Heard, a_message_is_already_here, listen, read_message};
 pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;
 use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
 use crate::service_client_waiting_words::{place_number, say_the_write_it_is_inside, say_where_it_stands};
-use crate::service_messages::{ClientFailure, SILENT_NOTICE};
+use crate::service_messages::{ClientFailure, silent_notice};
 use crate::service_client_why_withdrawn::WhyWithdrawn;
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
@@ -302,10 +302,18 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 trace.answer_wait += written_at.elapsed();
                 return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal });
             }
-            // Where the commit stands is said here, before each wait, so a service that sends nothing at all is answered
-            //  in the same words as one that only beats: neither has started on this commit.
-            say_where_it_stands(notices, config, parked, last_place, &mut told_place);
-            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
+            // What:
+            //  Where the commit stands, and that it is inside a write, are said here, before each wait, so a service that
+            //  sends nothing at all is answered in the same words as one that only beats: neither has started on this commit.
+            // Why:
+            //  A notice is said to a wait that is still on,
+            // and a message the service has already sent may be the answer:
+            //  a client the machine held up spoke of a write over the landing it had not read yet.
+            // Nothing between two passes waits, so the words that came with the message just read are said here too.
+            if !a_message_is_already_here(&mut reader) {
+                say_where_it_stands(notices, config, parked, last_place, &mut told_place);
+                say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
+            }
             // What: The connection is declared for this one read, so a stop delivered to another thread of this process can
             //  wake it.
             // Why:  The kernel hands a process-directed signal to any thread, and a thread that is not the waiting one only
@@ -395,9 +403,6 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     break None;
                 }
             }
-            // Words about the write that came with this message are said at once when they differ from the ones already said,
-            // so a write that has stayed stuck a new minute is not held until the beat after it.
-            say_the_write_it_is_inside(notices, config, parked, inside_words.as_deref(), &mut inside_told);
         };
         trace.answer_wait += written_at.elapsed();
         if let Some(done) = answered {
@@ -410,7 +415,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             return Err(if last_break_was_silence { ClientFailure::ServiceSilent } else { ClientFailure::MayNotHaveLanded });
         }
         if last_break_was_silence {
-            let _written = writeln!(notices, "{SILENT_NOTICE}");
+            let _written = writeln!(notices, "{}", silent_notice(config.heartbeat_silence));
         }
         std::thread::sleep(CONNECT_PAUSE * u32::try_from(breaks).unwrap_or(1));
     }

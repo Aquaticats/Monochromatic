@@ -152,6 +152,9 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
         }
         running.push(merge_key_of_a_record(record.as_path()));
     }
+    // A control reaches here to write the state a merge that started after this scan leaves, which is the one thing the sweep
+    //  has to read the records again for.
+    crate::service_fault::reach("recovery-owners-planned");
     sweep_kept_copies_awaiting(place, running.as_slice(), out).await;
     for (record, intent, liveness) in planned {
         let action: MergeRecoveryAction = if liveness == OwnerLiveness::Alive {

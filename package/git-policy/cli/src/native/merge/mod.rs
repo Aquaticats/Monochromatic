@@ -232,6 +232,10 @@ pub mod merge_isolation_marks_the_status_hides;
 /// or leaving a path alone because what stands there is not the entry that was judged.
 pub mod merge_isolation_carry_place;
 
+/// The permission bits of the entry a planned write replaces,
+/// which Git records only the execute bits of.
+pub mod merge_isolation_carry_permissions;
+
 /// The writing half of an isolated merge:
 /// the commit and the two-way update.
 pub mod merge_isolation_apply;

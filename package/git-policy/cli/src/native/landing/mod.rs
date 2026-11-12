@@ -103,6 +103,12 @@ pub mod scan_awaited_under_a_ceiling;
 /// and the report of a line that cannot be proved.
 pub mod earlier_service_command_line_read;
 
+/// The questions about the file system that the look at an earlier commit service asks:
+/// the bytes that spell a path,
+/// the part of a path the file system knows,
+/// and the identity of each earlier journal that exists.
+pub mod earlier_service_look_paths;
+
 /// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
 pub mod earlier_service_process_look;
 
@@ -146,6 +152,11 @@ pub mod service_land_git_steps_and_import_stream;
 /// the commit Git built,
 /// or the commits made from the requests' changes.
 pub mod service_land_objects_of_batch;
+
+/// The reference that keeps a batch's commits reachable until its branch moves,
+/// written by the landing itself where that write is provably Git's,
+/// and left to Git everywhere else.
+pub mod side_reference_written_here;
 
 /// What the commit service's landing does once the branch has moved:
 /// index entries and conclusion state.
@@ -260,6 +271,10 @@ pub mod service_commit_saved_message;
 
 /// The shapes a service preparation hands back.
 pub mod service_prepare_ready_shapes;
+
+/// The two Git steps a service preparation starts itself,
+/// with the face a task of the runtime asks.
+pub mod service_prepare_own_git_steps;
 
 /// The smaller steps of a service preparation.
 pub mod service_prepare_changes_config_and_pathspec_steps;
@@ -397,6 +412,9 @@ pub mod service_work_drain_pending_claims;
 /// How long one round may go on starting housekeeping,
 /// and what it leaves for a later round.
 pub mod housekeeping_of_one_round;
+
+/// Which items of one batch of that drain run at once and how many of them.
+pub mod service_work_items_side_by_side;
 
 /// The drain's step that deletes the subvolumes a removal handed over.
 pub mod service_work_drain_deletes_subvolumes;
