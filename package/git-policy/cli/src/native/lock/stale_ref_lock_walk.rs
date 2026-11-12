@@ -143,6 +143,76 @@ pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
     return found;
 }
 
+/// What:
+///  The lock Git takes to write the reference whose name is `name` below `root`,
+///  as `root/<name>.lock`.
+/// Why:
+///   A write of one reference is refused by that reference's own lock and by nothing else,
+///  so a caller that asks about one write names the lock of the reference it writes,
+///  and the name reaches Git whole as its own bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lockOfAReference = (root, name) => `${root}/${name}.lock`
+/// ```
+pub fn lock_of_a_reference(root: &Path, name: &[u8]) -> PathBuf {
+    let mut lock: PathBuf = root.join(crate::path_bytes::os_from_path_bytes(name));
+    lock.as_mut_os_string().push(LOCK_SUFFIX);
+    return lock;
+}
+
+/// What:
+///  The locks of the files a writer of any reference takes beside the reference it writes:
+///  the packed references and the reftable backend's list of tables.
+/// Why:
+///   Deleting a reference that lives in the packed references rewrites `packed-refs` under its lock,
+///  and a reftable repository writes every reference through `reftable/tables.list`,
+///  so a write of one reference can be refused by these two as well as by the reference's own lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sharedBackendLocks = (root) => ['packed-refs.lock', 'reftable/tables.list.lock'].map((name) => `${root}/${name}`)
+/// ```
+pub fn shared_backend_locks(root: &Path) -> [PathBuf; 2] {
+    return [root.join(PACKED_LOCK), root.join(REFTABLE_TABLES_LOCK)];
+}
+
+/// What:
+///  The candidate for the lock at `lock` found below `root`,
+///  or nothing when no regular file stands there.
+/// Why:
+///   A caller that knows which lock can refuse its write reads those locks only:
+///  a lock file another program holds is a candidate,
+///  and the path of one that is not there is no evidence of a holder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const candidateAt = (root, lock) => isRegularFile(lock) ? { root, lock } : undefined
+/// ```
+pub fn candidate_at(root: &Path, lock: PathBuf) -> Option<Candidate> {
+    if !is_regular_file(lock.as_path()) {
+        return None;
+    }
+    return Some(Candidate { root: root.to_path_buf(), lock, orphan_staging: false });
+}
+
+/// What:
+///  The candidates in path order,
+///  one for each lock.
+/// Why:
+///  A caller that adds the same lock from two roots names it once,
+///  and the order is the one every other walk here answers in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const inPathOrder = (found) => found.sort(byLock).filter(once)
+/// ```
+pub fn in_path_order(mut found: Vec<Candidate>) -> Vec<Candidate> {
+    found.sort_by(by_lock);
+    found.dedup_by(same_lock);
+    return found;
+}
+
 /// The pid file Git writes beside a lock:
 /// the lock's name without `.lock`,
 /// then `~pid.lock`.

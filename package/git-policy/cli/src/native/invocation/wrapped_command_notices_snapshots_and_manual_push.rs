@@ -272,10 +272,10 @@ pub(crate) fn show_held_commits<F: RepositoryFacts>(stripped: &StrippedInvocatio
             crate::held_commit_settle::Settled::Landed { commit } => lines.push(crate::held_commit_words::landed(held, commit, false)),
             crate::held_commit_settle::Settled::LandedTheIndexWaits { commit } => lines.push(crate::held_commit_words::landed(held, commit, true)),
             crate::held_commit_settle::Settled::AlreadyThere { commit } => lines.push(crate::held_commit_words::already_there(held, commit)),
-            crate::held_commit_settle::Settled::WaitsForLocks(_standing) => {
-                // The record names the locks it was held behind, which is what the words give; the ones that stand now are the
-                //  same set unless another program took one meanwhile, and the next command settles the commit either way.
-                waiting.push(crate::held_commit_words::waiting(held, commit_name_of(&context, held).as_str()));
+            crate::held_commit_settle::Settled::WaitsForLocks(standing) => {
+                // The settlement names the locks that stand now and can refuse this batch's branch write: a line worded from the
+                //  record would name the lock that held the commit, which is often gone by the time this command prints it.
+                waiting.push(crate::held_commit_words::waiting(held, commit_name_of(&context, held).as_str(), standing.as_slice()));
             }
             crate::held_commit_settle::Settled::Conflicts { commit, paths } => waiting.push(crate::held_commit_words::conflicts(held, commit, paths.as_slice())),
             crate::held_commit_settle::Settled::Cannot { commit, because } => waiting.push(crate::held_commit_words::cannot(held, commit, because.as_str())),

@@ -131,7 +131,7 @@ The branch moves as soon as the lock is gone. {}",
             let short: String = short_name(refused.git, refused.repository, objects.as_path(), None, refused.new);
             let held_now: usize = list(refused.first.git_dir.as_path()).0.len();
             let answer: String = answer(&held_batch, short.as_str(), held_now);
-            refused.announce.announce(Announce::Holder(waiting(&held_batch, short.as_str())));
+            refused.announce.announce(Announce::Holder(waiting(&held_batch, short.as_str(), held_batch.locks.as_slice())));
             return Ok(vec![Outcome::Held { commit: refused.new.to_string(), words: answer }; refused.requests]);
         }
         // A record that cannot be written is a commit that could not be made durable: the words are the lock's own, and nothing

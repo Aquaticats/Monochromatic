@@ -73,9 +73,27 @@ pub fn clear_stale_ref_locks_for(command: &Command, judge: &Judge) -> Outcome {
 /// function clearStaleRefLocks(roots: string[], judge: Judge): Outcome;
 /// ```
 pub fn clear_stale_ref_locks(roots: &[std::path::PathBuf], judge: &Judge) -> Outcome {
+    return clear_stale_ref_locks_of(ref_lock_candidates(roots).as_slice(), judge);
+}
+
+/// What:
+///  Judge the given reference locks,
+/// remove the ones whose holder is proven gone,
+/// and report the rest.
+/// Why:
+///   A caller that knows which locks can refuse its write judges those and no others:
+///  a lock on another reference can refuse nothing it does, and removing one would be a removal nothing here needs.
+///  The judgement of each lock and the words for the ones left are the walk's own,
+/// so both callers answer the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function clearStaleRefLocksOf(candidates: Candidate[], judge: Judge): Outcome;
+/// ```
+pub fn clear_stale_ref_locks_of(candidates: &[crate::stale_ref_lock_walk::Candidate], judge: &Judge) -> Outcome {
     let mut outcome: Outcome = Outcome::default();
-    for candidate in ref_lock_candidates(roots) {
-        judge_and_clear(&candidate, judge, &mut outcome);
+    for candidate in candidates {
+        judge_and_clear(candidate, judge, &mut outcome);
     }
     return outcome;
 }
