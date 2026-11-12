@@ -10,8 +10,8 @@
 //!  The carry then finds the merge's paths holding that commit's content,
 //!  and the record and the ref that keep every
 //!  byte of the person's work are the only copy left of the older layer.
-//!  `never discard user data` says the bytes stay, and the
-//!  answer a recovery already gives for a killed merge is the one these controls demand of a running command:
+//!  `never discard user data` says the bytes stay,
+//!  and the answer a recovery already gives for a killed merge is the one these controls demand of a running command:
 //!  the person's layers are merged with the branch as it is now,
 //!  the later commit stands,
 //!  and the command
@@ -102,8 +102,8 @@ fn an_edit_survives_a_commit_that_lands_while_the_carry_runs() {
 ///  two installs beside each other,
 ///  left an index the merge commit did not explain.
 /// A second merge is not refused for it:
-/// it waits, and what it
-///  merges into is the branch as the first merge left it.
+/// it waits,
+///  and what it merges into is the branch as the first merge left it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,7 +165,8 @@ fn an_edit_survives_a_second_merge_that_arrives_while_the_carry_runs() {
 ///  "Merges and commits never fail").
 /// A record that no later command can settle would be worse than the defect,
 /// so the next command must
-///  finish it, which is what the exit status of `git merge-base --is-ancestor` decides.
+///  finish it,
+///  which is what the exit status of `git merge-base --is-ancestor` decides.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
