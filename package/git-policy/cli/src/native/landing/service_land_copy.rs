@@ -149,6 +149,9 @@ fn sweep_leftovers(directory: &Path) {
 /// The directory it
 ///  owns goes with the value,
 /// after the copy has been installed or abandoned.
+///  The copy also carries the times the live index had when it was read,
+/// which a copy installed as the live index must keep
+///  (`keep_the_live_times`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -162,6 +165,9 @@ pub struct PrivateCopy {
     /// Where the copy is;
     /// no file exists there when the live index did not exist.
     path: PathBuf,
+    /// The access and modification times the live index had when this copy was read from it,
+    /// and nothing when there was no live index.
+    live_times: Option<(std::time::SystemTime, std::time::SystemTime)>,
     /// The directory,
     /// open and held exclusively with `flock` for as long as the value lives:
     /// the kernel releases the hold when
@@ -180,6 +186,70 @@ impl PrivateCopy {
     /// Where the copy is.
     pub fn path(&self) -> &Path {
         return self.path.as_path();
+    }
+
+    /// What:
+    ///  Puts the live index's own access and modification times back on the copy.
+    /// Why:
+    ///   Git re-reads the stat data of an entry whose time is not older than the index file's
+    /// (`is_racy_stat`),
+    /// which is how an edit made in the same second as the stat the index records
+    ///  is found at all:
+    /// a stat check compares those fields only to the second,
+    /// so such an edit differs from the recorded stat in nothing Git reads.
+    ///  A copy is written by this landing after the person's own command wrote the live index,
+    /// so a copy keeping its own writing time would be newer than every entry's stat,
+    ///  Git would trust the recorded stat,
+    /// and the person's edit would reach neither the next commit nor `git status`.
+    ///  The same reason gives the commit's private copies the live index's times
+    /// (`commit_index_bytes.rs`,
+    /// issue #544).
+    ///  Setting the times is a cache nicety for the reader and never the landing's result,
+    /// so the caller logs a failure and installs the copy anyway.
+    ///  The times are metadata the last flush of the copy did not put on the disk,
+    /// so a copy whose times moved is one the release flushes again before it installs it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await copy.keepTheLiveTimes() // utimensat(path, liveIndexTimes)
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// The operating system's error when the copy cannot be opened or its times set.
+    pub fn keep_the_live_times(&self) -> std::io::Result<()> {
+        let Some((accessed, modified)) = self.live_times else { return Ok(()) };
+        let opened: std::fs::File = std::fs::OpenOptions::new().write(true).open(self.path.as_path())?;
+        let recorded: Option<std::time::SystemTime> = opened.metadata().ok().and_then(Self::the_modification_time);
+        // A copy that already has them is left untouched: setting them again would dirty metadata a flush already covered.
+        if recorded == Some(modified) {
+            return Ok(());
+        }
+        opened.set_times(std::fs::FileTimes::new().set_accessed(accessed).set_modified(modified))?;
+        self.flushed.set(false);
+        return Ok(());
+    }
+
+    /// The modification time one open file has,
+    /// or nothing when it cannot be read.
+    /// Why:
+    ///  Comparing the copy's own time with the live index's is one borrowed question,
+    /// so it is a named function rather than a closure (`rust/avoidable-closure`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const modificationTime = (file) => { try { return file.stat().mtime } catch { return undefined } }
+    /// ```
+    fn the_modification_time(held: std::fs::Metadata) -> Option<std::time::SystemTime> {
+        return held.modified().ok();
+    }
+
+    /// The access and modification times the live index had,
+    /// for a writer of the copy that sets them itself before the flush that covers them
+    /// (`index_reset_publish.rs`,
+    /// `publish_with`).
+    pub fn live_times(&self) -> Option<(std::time::SystemTime, std::time::SystemTime)> {
+        return self.live_times;
     }
 
     /// Whether the copy is known to be on the disk as it is.
@@ -211,6 +281,9 @@ impl PrivateCopy {
     /// the copy is then given the live index's own mode,
     /// which is the mode Git gave that file and the one an
     ///  index installed without a change keeps.
+    ///  The times of the live index are kept with the copy as well,
+    /// because a copy installed as the live index must stay as old as the stat data its entries describe
+    ///  (`keep_the_live_times`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -225,12 +298,14 @@ impl PrivateCopy {
         let parent: &Path = live.parent().ok_or(FailureCode::Unavailable)?;
         sweep_leftovers(parent);
         let (directory, held) = Self::make_directory(parent)?;
-        let copy: PrivateCopy = PrivateCopy { path: directory.join(COPY_FILE), directory, _hold: held, flushed: std::cell::Cell::new(false) };
+        let mut copy: PrivateCopy = PrivateCopy { path: directory.join(COPY_FILE), directory, live_times: None, _hold: held, flushed: std::cell::Cell::new(false) };
         let marker_text: String = format!("{MARKER_HEAD}\npid={}\nbatch={seq}\n", std::process::id());
         write_new(copy.directory.join(MARKER_FILE).as_path(), marker_text.as_bytes()).map_err(storage_failure_of)?;
         match std::fs::File::open(live) {
             Ok(mut source) => {
-                let live_permissions: std::fs::Permissions = source.metadata().map_err(storage_failure_of)?.permissions();
+                let live_metadata: std::fs::Metadata = source.metadata().map_err(storage_failure_of)?;
+                let live_permissions: std::fs::Permissions = live_metadata.permissions();
+                copy.live_times = Some((live_metadata.accessed().map_err(storage_failure_of)?, live_metadata.modified().map_err(storage_failure_of)?));
                 let mut made: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(copy.path.as_path()).map_err(storage_failure_of)?;
                 std::io::copy(&mut source, &mut made).map_err(storage_failure_of)?;
                 // No flush here: every writer of the copy replaces it by rename, and the copy that is installed is flushed by the

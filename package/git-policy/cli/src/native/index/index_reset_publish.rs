@@ -165,6 +165,7 @@ fn write_all_with(steps: &Steps<'_>, file: &mut std::fs::File, bytes: &[u8]) -> 
 
 /// What:
 ///  Write `bytes` to a new file of the mode Git gives an index,
+/// give it `times`,
 /// flush it,
 /// and rename it over `target`,
 /// through `steps`.
@@ -174,19 +175,28 @@ fn write_all_with(steps: &Steps<'_>, file: &mut std::fs::File, bytes: &[u8]) -> 
 /// its mode is set before any byte is
 ///  written;
 /// a failure at any step removes it and leaves `target` as it was.
+///  The times are set before the one flush,
+/// so they are on the disk with the bytes:
+/// an index installed as the live index must be as old as the stat data its entries describe,
+///  and a second flush spent on that metadata would be the landing's cost for nothing
+/// (`service_land_copy.rs`,
+/// `keep_the_live_times`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await publishWith(steps, target, bytes, shared); // throws; the target is the old index or the whole new one
+/// await publishWith(steps, target, bytes, shared, times); // throws; the target is the old index or the whole new one
 /// ```
 ///
 /// # Errors
 ///
 /// The input and output error of the step that failed.
-pub fn publish_with(steps: &Steps<'_>, target: &Path, bytes: &[u8], shared: i32) -> std::io::Result<()> {
+pub fn publish_with(steps: &Steps<'_>, target: &Path, bytes: &[u8], shared: i32, times: Option<(std::time::SystemTime, std::time::SystemTime)>) -> std::io::Result<()> {
     let (mut file, temporary) = create_beside(steps, target, shared)?;
     // Each step runs only when the one before it succeeded, as `and_then` did.
     let mut written: std::io::Result<()> = write_all_with(steps, &mut file, bytes);
+    if written.is_ok() {
+        written = set_times(&file, times);
+    }
     if written.is_ok() {
         written = (steps.sync)(&file);
     }
@@ -199,13 +209,29 @@ pub fn publish_with(steps: &Steps<'_>, target: &Path, bytes: &[u8], shared: i32)
     return written;
 }
 
+/// What:
+///  Give one written file the times the caller named,
+///  and nothing for a caller that named none.
+/// Why:
+///  A form that needs no times is one call site's `None`,
+/// and the one that does is the landing's copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const touched = (file, times) => times === undefined ? undefined : file.utimes(times.atime, times.mtime)
+/// ```
+fn set_times(file: &std::fs::File, times: Option<(std::time::SystemTime, std::time::SystemTime)>) -> std::io::Result<()> {
+    let Some((accessed, modified)) = times else { return Ok(()) };
+    return file.set_times(std::fs::FileTimes::new().set_accessed(accessed).set_modified(modified));
+}
+
 /// `publish_with` the operating system's calls.
 ///
 /// # Errors
 ///
 /// As `publish_with`.
-pub fn publish(target: &Path, bytes: &[u8], shared: i32) -> std::io::Result<()> {
-    return publish_with(&SYSTEM, target, bytes, shared);
+pub fn publish(target: &Path, bytes: &[u8], shared: i32, times: Option<(std::time::SystemTime, std::time::SystemTime)>) -> std::io::Result<()> {
+    return publish_with(&SYSTEM, target, bytes, shared, times);
 }
 
 /// Controls for the publication step stay out of the release executable.
