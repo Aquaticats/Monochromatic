@@ -760,6 +760,8 @@ the manager reports it from its own monotonic clock.
 the incident evidence,
 the controlled reproduction,
 and the remaining unknowns.
+[The reload-remedy proposal](../planning/git-wrapper-reload-remedy.md)
+carries the three directions for removing the reload from the commit path and what a choice between them needs.
 No message was posted to systemd's tracker.
 
 [GitHub issue 6286]: https://github.com/Aquaticats/Monochromatic/issues/6286

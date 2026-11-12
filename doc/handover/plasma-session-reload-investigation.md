@@ -64,6 +64,13 @@ Nothing is deployed in the host or the repository.
 
 ## Open work
 
+- The wrapper remedy has three written directions with costs and a ranking in
+  [the reload-remedy proposal](../planning/git-wrapper-reload-remedy.md):
+  a stable program link in the shared template,
+  one unit file per worktree,
+  and moving only the waits.
+  No option is chosen;
+  the owner left the choice open on 2026-11-12 and handed the write-up on.
 - Decide and implement the wrapper remedy for issue 6286:
   a commit must not ask the shared manager for a reload that outlives a client's patience,
   and a three-second greeting silence must not be read as a service stopped inside its own process.
