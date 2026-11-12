@@ -642,25 +642,28 @@ fn diverged_with_a_hidden_edit(name: &str, mark: &str) -> (PathBuf, PathBuf) {
 }
 
 /// What:
-///  A named pipe at a path whose index entry carries `assume-unchanged` or `skip-worktree`,
+///  A named pipe or a socket at a path whose index entry carries `assume-unchanged` or `skip-worktree`,
 ///  where the merge changes or deletes that path,
 ///  stops the merge and stays in the checkout.
 /// Why:
 ///  The marks hide the path from `git status`,
 /// so it reaches the merge through the read of the marks
 ///  instead of the paths Git's status lists.
-///  A pipe holds no bytes,
+///  Neither entry holds bytes,
 /// so no layer of the carry can hold it,
-/// and the gate that
-///  stops the merge for such an entry must run whatever mark the entry carries (owner's rules
-/// "never discard user
-///  data",
+/// and the gate
+///  that stops the merge for such an entry must run whatever mark the entry carries and whatever kind it is
+/// (owner's
+///  rules "never discard user data",
 /// "nothing should ever wait forever or indefinitely").
-///  Git's own aborted merge restores such a path to the branch's
-///  content,
-/// which replaced the pipe with a plain file and reported a clean status
-/// (a cross-vendor review of 0.6.1-alpha.11,
-///  its first finding).
+///  Git's own aborted merge
+///  restores such a path to the branch's content,
+/// which replaced the pipe with a plain file and reported a clean
+///  status (a cross-vendor review of 0.6.1-alpha.11,
+/// its first finding).
+///  A device is the third such entry and
+///  needs a privileged call to stand at a path,
+/// so it is the one kind no control here plants.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -668,49 +671,130 @@ fn diverged_with_a_hidden_edit(name: &str, mark: &str) -> (PathBuf, PathBuf) {
 /// ```
 #[cfg(unix)]
 #[test]
-fn a_named_pipe_at_a_marked_path_where_the_merge_changes_a_path_stops_the_merge_and_keeps_the_pipe() {
-    /// `is_fifo` reads the type of the entry a named pipe is.
-    use std::os::unix::fs::FileTypeExt;
-    for mark in ["assume-unchanged", "skip-worktree"] {
-        for the_merge_deletes in [false, true] {
-            let (parent, repo): (PathBuf, PathBuf) = with_a_marked_pipe_the_merge_changes(mark, the_merge_deletes);
-            let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-            let wanted: PathBuf = repo.clone();
-            let answered: Option<IsolatedMerge> = crate::parallel_test_support::finished_within_at(
-                crate::parallel_test_support::PATIENCE,
-                move || {
-                    return attempted(wanted.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
-                },
-            );
-            let label: String = format!("{mark}, merge deletes: {the_merge_deletes}");
-            let Some(outcome) = answered else {
-                panic!("{label}: the merge waited for a writer of the named pipe at a.txt that never came");
-            };
-            let (code, stderr): (i32, String) = match outcome {
-                IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
-                other => panic!("{label}: the merge is the wrapper's to stop, and it was forwarded: {other:?}"),
-            };
-            assert_eq!(code, 1, "{label}: {stderr}");
-            assert!(stderr.contains("a.txt") && stderr.contains("a named pipe, a socket or a device"), "{label}: {stderr}");
-            let kind: std::fs::FileType = std::fs::symlink_metadata(repo.join("a.txt")).expect("the pipe is still in the checkout").file_type();
-            assert!(kind.is_fifo(), "{label}: the pipe is untouched");
-            assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "{label}: nothing was merged");
-            assert!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/"]).is_empty(), "{label}: no ref keeps anything");
-            remove(parent.as_path());
+fn a_special_file_at_a_marked_path_where_the_merge_changes_a_path_stops_the_merge_and_keeps_it() {
+    let mut entries: Vec<HoldsNoBytes> = vec![HoldsNoBytes::Pipe];
+    // A socket's own name is bounded by the address a program binds, and a fixture's path is longer than that, so no
+    //  socket can stand at a fixture path on the systems this runs on.
+    #[cfg(target_os = "linux")]
+    entries.push(HoldsNoBytes::Socket);
+    for entry in entries {
+        for mark in ["assume-unchanged", "skip-worktree"] {
+            for the_merge_deletes in [false, true] {
+                let (parent, repo): (PathBuf, PathBuf) = with_a_marked_special_file_the_merge_changes(entry, mark, the_merge_deletes);
+                let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+                let wanted: PathBuf = repo.clone();
+                let answered: Option<IsolatedMerge> = crate::parallel_test_support::finished_within_at(
+                    crate::parallel_test_support::PATIENCE,
+                    move || {
+                        return attempted(wanted.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
+                    },
+                );
+                let label: String = format!("{:?}, {mark}, merge deletes: {the_merge_deletes}", entry);
+                let Some(outcome) = answered else {
+                    panic!("{label}: the merge waited on the entry at a.txt, which holds no bytes");
+                };
+                let (code, stderr): (i32, String) = match outcome {
+                    IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+                    other => panic!("{label}: the merge is the wrapper's to stop, and it was forwarded: {other:?}"),
+                };
+                assert_eq!(code, 1, "{label}: {stderr}");
+                assert!(stderr.contains("a.txt") && stderr.contains("a named pipe, a socket or a device"), "{label}: {stderr}");
+                assert!(entry.stands_at(repo.join("a.txt").as_path()), "{label}: the entry is untouched");
+                assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "{label}: nothing was merged");
+                assert!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/"]).is_empty(), "{label}: no ref keeps anything");
+                remove(parent.as_path());
+            }
         }
     }
 }
 
-/// A repository whose `a.txt` is a named pipe at a path carrying `mark`,
+/// The entries a merge can meet that hold no bytes,
+/// neither of which a capture can carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HoldsNoBytes = 'pipe' | 'socket';
+/// ```
+#[cfg(unix)]
+#[derive(Clone, Copy, Debug)]
+enum HoldsNoBytes {
+    /// A named pipe,
+    /// which a program streams bytes through rather than holding them in.
+    Pipe,
+    /// A socket,
+    /// which a running program answers on.
+    #[cfg(target_os = "linux")]
+    Socket,
+}
+
+#[cfg(unix)]
+impl HoldsNoBytes {
+    /// What:
+    ///  Put this entry at `path`,
+    ///  where a tracked file's worktree copy stood.
+    /// Why:
+    ///   The kind is what the person's program left there,
+    /// and the merge must meet the real one.
+    ///  A socket is bound through a handle of the directory it stands in:
+    /// the name a program binds is bounded
+    ///  by the address's own limit,
+    /// and a fixture's path is longer than that.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const standAt = (kind, path) => kind === 'pipe' ? execFileSync('mkfifo', [path]) : listen(`/proc/self/fd/${dirFd}/${name}`);
+    /// ```
+    fn stand_at(&self, path: &Path) {
+        match self {
+            HoldsNoBytes::Pipe => a_named_pipe(path),
+            #[cfg(target_os = "linux")]
+            // The listener makes the socket's node and goes; the node stays a socket, which is all the merge reads.
+            HoldsNoBytes::Socket => {
+                use std::os::unix::io::AsRawFd;
+                let directory: std::fs::File = std::fs::File::open(path.parent().expect("a socket stands inside a directory"))
+                    .expect("the directory the socket stands in");
+                let name: &std::ffi::OsStr = path.file_name().expect("the socket's own name");
+                let mut through: std::path::PathBuf = std::path::PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()));
+                through.push(name);
+                std::os::unix::net::UnixListener::bind(through.as_path()).expect("a socket at the path");
+            }
+        }
+    }
+
+    /// What:
+    ///  Whether this entry is still what stands at `path`.
+    /// Why:
+    ///   A merge that wrote the path would leave a file there instead.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const standsAt = (kind, path) => symlinkMetadataSync(path)[kind === 'pipe' ? 'isFIFO' : 'isSocket']();
+    /// ```
+    fn stands_at(&self, path: &Path) -> bool {
+        /// `is_fifo` and `is_socket` read the two entry types.
+        use std::os::unix::fs::FileTypeExt;
+        let Ok(found) = std::fs::symlink_metadata(path) else {
+            return false;
+        };
+        let kind: std::fs::FileType = found.file_type();
+        return match self {
+            HoldsNoBytes::Pipe => kind.is_fifo(),
+            #[cfg(target_os = "linux")]
+            HoldsNoBytes::Socket => kind.is_socket(),
+        };
+    }
+}
+
+/// A repository whose `a.txt` holds `entry` at a path carrying `mark`,
 /// and whose `feature` changes or deletes that path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const repo = base('a.txt'); onBranch('feature', () => writeOrDelete('a.txt')); onMain(() => { mark; mkfifo; });
+/// const repo = base('a.txt'); onBranch('feature', () => writeOrDelete('a.txt')); onMain(() => { mark; standAt(entry, 'a.txt'); });
 /// ```
 #[cfg(unix)]
-fn with_a_marked_pipe_the_merge_changes(mark: &str, the_merge_deletes: bool) -> (PathBuf, PathBuf) {
-    let parent: PathBuf = fixture(format!("merge-marked-pipe-{mark}-{the_merge_deletes}").as_str());
+fn with_a_marked_special_file_the_merge_changes(entry: HoldsNoBytes, mark: &str, the_merge_deletes: bool) -> (PathBuf, PathBuf) {
+    let parent: PathBuf = fixture(format!("merge-marked-{entry:?}-{mark}-{the_merge_deletes}").as_str());
     let repo: PathBuf = repository(parent.as_path(), "repo");
     std::fs::write(repo.join("a.txt"), b"base\n").expect("file");
     git(repo.as_path(), &["add", "--", "a.txt"]);
@@ -725,10 +809,10 @@ fn with_a_marked_pipe_the_merge_changes(mark: &str, the_merge_deletes: bool) -> 
     }
     git(repo.as_path(), &["switch", "--quiet", "main"]);
     git(repo.as_path(), &["update-index", format!("--{mark}").as_str(), "--", "a.txt"]);
-    std::fs::remove_file(repo.join("a.txt")).expect("the tracked copy makes way for the pipe");
-    a_named_pipe(repo.join("a.txt").as_path());
+    std::fs::remove_file(repo.join("a.txt")).expect("the tracked copy makes way for the entry");
+    entry.stand_at(repo.join("a.txt").as_path());
     let status: String = git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]);
-    assert_eq!(status, "", "the mark hides the pipe from Git's own status, which is the premise of this control: {status}");
+    assert_eq!(status, "", "the mark hides the entry from Git's own status, which is the premise of this control: {status}");
     return (parent, repo);
 }
 
