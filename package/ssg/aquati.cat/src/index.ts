@@ -37,6 +37,7 @@ export {
  */
 export {
   insertHash,
+  isFingerprintedName,
   sha256Buffer,
 } from './build/fingerprint-naming.ts';
 

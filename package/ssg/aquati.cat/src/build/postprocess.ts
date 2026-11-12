@@ -55,6 +55,7 @@ import { sha256, } from '../lib/cache-hash.ts';
 
 import {
   insertHash,
+  isFingerprintedName,
   sha256Buffer,
 } from './fingerprint-naming.ts';
 import { isLeafExcluded, } from './postprocess-excludes.ts';
@@ -70,13 +71,7 @@ const l = tagged({
   l: logger,
 },);
 
-/* oxlint-disable no-restricted-syntax/no-regex -- fingerprinted-filename anchored suffix matchers; the input is a basename (bounded by filesystem name length) and both patterns anchor at `$`. `{10}` is a constant repetition count and `[^.]+` is linear with no nesting; no backtracking risk. */
-/**
- Regex matching a previously fingerprinted filename.
- Matches `name.{10 hex chars}.ext` patterns.
- */
-const STALE_HASH_PATTERN = /\.[0-9a-f]{10}\.[^.]+$/u;
-
+/* oxlint-disable no-restricted-syntax/no-regex -- fingerprinted-filename anchored suffix matcher; the input is a basename (bounded by filesystem name length) and the pattern anchors at `$`. `{10}` is a constant repetition count and `[^.]+` is linear with no nesting; no backtracking risk. */
 /**
  Regex matching a previously fingerprinted filename with zstd compression.
  Matches `name.{10 hex chars}.ext.zst` patterns.
@@ -470,7 +465,7 @@ const staleFiles = fullScan
    Basename used for the stale-fingerprint pattern check, regardless of subdirectory depth.
    */
     const name = basename(filePath,);
-    return STALE_HASH_PATTERN.test(name,)
+    return isFingerprintedName(name,)
       || STALE_HASH_ZST_PATTERN
         .test(name,);
   },);
@@ -487,7 +482,7 @@ const leafAssetFiles = fullScan
    Basename used for the stale-fingerprint pattern check independent of the full path.
    */
     const name = basename(filePath,);
-    if (STALE_HASH_PATTERN.test(name,)
+    if (isFingerprintedName(name,)
       || STALE_HASH_ZST_PATTERN
         .test(name,))
       return false;
