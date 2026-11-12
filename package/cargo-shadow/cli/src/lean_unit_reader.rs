@@ -23,9 +23,9 @@
 //! ```
 
 /// Named reads of paths and text.
-use crate::lean_text::{all_hex, extension_is};
+use crate::lean_text::{all_hex, extension_is, read_small_bytes};
 /// Directory reading and metadata.
-use std::{collections::HashMap, fs, io::Read, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
+use std::{collections::HashMap, fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
 /// How many bytes of a fingerprint file hold the `rustc` field (it is the first field Cargo writes).
 pub const FINGERPRINT_HEAD_BYTES: usize = 512;
@@ -108,17 +108,21 @@ pub fn compiler_of(head: &str) -> Option<u64> {
 /// `fn read_head(path: &Path) -> Option<String>` reads the first bytes of a file as text.
 /// Why:
 /// Only the `rustc` field is needed.
+/// The name is one in a build tree,
+/// which is a directory other commands write:
+/// a pipe at it holds a plain read until a writer arrives,
+/// and a device never reaches its end,
+/// so the open never waits and the entry it opened must be a regular file.
+/// A name that cannot be read that way is no compiler here,
+/// and the unit it belongs to is reported as unreadable and never removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const readHead = (path: string): string | undefined => readFileSync(path).subarray(0, 512).toString();
+/// const readHead = (path: string): string | undefined => { try { return readRegularSync(path).subarray(0, 512).toString(); } catch { return undefined; } };
 /// ```
 fn read_head(path: &Path) -> Option<String> {
-    let mut file: fs::File = fs::File::open(path).ok()?;
-    let mut buffer: Vec<u8> = vec![0; FINGERPRINT_HEAD_BYTES];
-    let count: usize = file.read(&mut buffer).ok()?;
-    buffer.truncate(count);
-    return Some(String::from_utf8_lossy(&buffer).to_string());
+    let head: Vec<u8> = read_small_bytes(path, FINGERPRINT_HEAD_BYTES).ok()?;
+    return Some(String::from_utf8_lossy(&head).to_string());
 }
 
 /// What:

@@ -85,6 +85,25 @@ pub struct ProfileOutcome {
 }
 
 /// What:
+/// `fn note_unreadable(units: &ProfileUnits, outcome: &mut ProfileOutcome)` names every fingerprint directory the reader could not read.
+/// Why:
+/// The owner allowed this reader its parsing of Cargo's internal files on the condition that a directory it does not recognise is left
+/// untouched and reported,
+/// and a fingerprint whose compiler cannot be read is that case:
+/// the unit is left alone,
+/// and a person is told which fingerprint it was and why nothing was judged from it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function noteUnreadable(units: ProfileUnits, outcome: ProfileOutcome): void
+/// ```
+fn note_unreadable(units: &ProfileUnits, outcome: &mut ProfileOutcome) {
+    for label in &units.unreadable {
+        outcome.refusals.push(format!("{label} is a fingerprint directory this reader could not read, so its unit is left untouched"));
+    }
+}
+
+/// What:
 /// `fn items_of_unit(unit: &Unit) -> Vec<Item>` is the identity of every path of a unit that still exists.
 /// Why:
 /// The identity is the one the removal checks again.
@@ -254,7 +273,10 @@ pub fn apply_removals(
 ) -> ProfileOutcome {
     let mut outcome: ProfileOutcome = ProfileOutcome { profile: profile.to_path_buf(), ..ProfileOutcome::default() };
     let first: Removals = match read_profile(profile) {
-        ProfileRead::Known(units) => planner.plan(&units, now),
+        ProfileRead::Known(units) => {
+            note_unreadable(&units, &mut outcome);
+            planner.plan(&units, now)
+        }
         ProfileRead::Unknown(reason) => {
             outcome.skipped = Some(format!("unknown layout: {reason}"));
             return outcome;

@@ -956,6 +956,10 @@ pub mod lean_guard;
 /// The reader of a profile directory's units.
 pub mod lean_unit_reader;
 
+/// The tests of the reader of a profile directory's units.
+#[cfg(test)]
+mod lean_unit_reader_tests;
+
 /// The removal of units under the shared protocol.
 pub mod lean_unit_removal;
 

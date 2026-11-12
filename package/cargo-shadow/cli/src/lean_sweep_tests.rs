@@ -13,7 +13,7 @@ use rustix::fs::{FlockOperation, flock};
 use crate::lean_identity::Deadline;
 use crate::lean_removal::{Item, claim_into_trash, item_of};
 use crate::lean_sweep_plan::OlderCompilerSweep;
-use crate::lean_test_support::{DAY, HOUR, NOW, add_incremental, add_new_unit, add_old_unit, copy_a_program, make_profile, real_environment};
+use crate::lean_test_support::{DAY, HOUR, NOW, add_incremental, add_new_unit, add_old_unit, copy_a_program, make_pipe, make_profile, real_environment, within};
 use crate::lean_unit_removal::{ProfileOutcome, apply_removals};
 use crate::test_scratch::scratch;
 
@@ -205,6 +205,25 @@ fn a_fingerprint_with_no_readable_compiler_is_never_removed() {
     let outcome: ProfileOutcome = sweep(&profile);
     assert_eq!(outcome.units, 1);
     assert!(odd.exists());
+}
+
+#[test]
+fn a_pipe_at_a_fingerprint_json_is_reported_and_holds_nothing() {
+    let root = scratch();
+    let profile: PathBuf = make_profile(root.path(), "debug");
+    let stale: Vec<PathBuf> = add_old_unit(&profile, "alpha", "00000000000000aa", OLD_COMPILER, NOW - 10 * DAY);
+    add_old_unit(&profile, "beta", "00000000000000bb", NEW_COMPILER, NOW - HOUR);
+    let pipe_holder: PathBuf = profile.join(".fingerprint").join("gamma-00000000000000cc");
+    fs::create_dir_all(&pipe_holder).expect("fingerprint directory");
+    make_pipe(&pipe_holder.join("lib-gamma.json"));
+    let judged_profile: PathBuf = profile.clone();
+    let outcome: ProfileOutcome = within(move || { return sweep(&judged_profile); });
+    let named: bool = outcome.refusals.iter().any(|reason| { return reason.starts_with("gamma-00000000000000cc is a fingerprint directory this reader could not read"); });
+    assert!(named, "the pass names the fingerprint it could not read: {outcome:?}");
+    for path in &stale {
+        assert!(!path.exists(), "the rest of the profile directory is still swept: {}", path.display());
+    }
+    assert!(pipe_holder.exists(), "what could not be read is left untouched");
 }
 
 #[test]
