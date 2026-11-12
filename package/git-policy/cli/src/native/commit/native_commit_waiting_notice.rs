@@ -120,6 +120,7 @@ use crate::config_snapshot::ConfigSnapshot;
 /// Whether the commit's arguments open an editor.
 use crate::service_commit_args_editor_opening::opens_editor;
 /// The notice's sink.
+use std::ffi::OsString;
 use std::io::Write;
 /// The writer thread's own time,
 /// kept where the notice thread can read it.
@@ -271,8 +272,9 @@ fn ceiling_of_this_look(ceiling: Duration) -> Duration {
 pub struct NoticeStart<'a> {
     /// The configuration the commit is built under.
     pub snapshot: Option<&'a ConfigSnapshot>,
-    /// The commit command's own arguments.
-    pub commit_arguments: &'a [String],
+    /// The commit command's own arguments,
+    /// each with its own bytes.
+    pub commit_arguments: &'a [OsString],
     /// The cadence of the lines.
     pub cadence: Cadence,
     /// How long the step lasts before it is stopped,
@@ -321,18 +323,19 @@ pub struct NativeCommitNotice {
 
 /// Whether the commit is signed:
 /// the configuration says so or the command line asks for it.
-pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[String]) -> bool {
+pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[OsString]) -> bool {
     if crate::service_prepare::config_signs(snapshot) {
         return true;
     }
     let mut asked: bool = false;
     for argument in commit_arguments {
-        if argument == "--" {
+        let bytes: &[u8] = crate::path_bytes::argument_bytes(argument.as_os_str());
+        if bytes == b"--" {
             break;
         }
-        if argument == "--no-gpg-sign" {
+        if bytes == b"--no-gpg-sign" {
             asked = false;
-        } else if argument.starts_with("--gpg-sign") || (argument.starts_with("-S") && !argument.starts_with("--")) {
+        } else if bytes.starts_with(b"--gpg-sign") || (bytes.starts_with(b"-S") && !bytes.starts_with(b"--")) {
             asked = true;
         }
     }
@@ -436,15 +439,14 @@ impl NativeCommitNotice {
     /// ```ts
     /// const notice = NativeCommitNotice.start({ snapshot, commitArguments, cadence });
     /// ```
-    pub fn start(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[String], cadence: Cadence, sink: Box<dyn Write + Send>) -> Self {
+    pub fn start(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[OsString], cadence: Cadence, sink: Box<dyn Write + Send>) -> Self {
         return Self::start_within(NoticeStart { snapshot, commit_arguments, cadence, ceiling: crate::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING, sink });
     }
 
     /// Starts the notice with the ceiling given.
     pub fn start_within(start: NoticeStart<'_>) -> Self {
         let NoticeStart { snapshot, commit_arguments, cadence, ceiling, sink } = start;
-        let words: Vec<std::ffi::OsString> = commit_arguments.iter().map(std::ffi::OsString::from).collect();
-        if opens_editor(words.as_slice()) {
+        if opens_editor(commit_arguments) {
             // The person is the wait, and a message typed into an editor would be lost by a stop.
             return Self::silent(None);
         }

@@ -134,6 +134,49 @@ fn queries_pass_arguments_and_overlay_and_close_stdin() {
 }
 
 /// What:
+///  Every read the wrapper parses runs in the C locale,
+///  whatever locale the person's command carries.
+/// Why:
+///  The wrapper reads Git's own words to decide what a clean deletes,
+///  and a translated word is not the word it matches
+///  (`Supprimerait nested/` under `fr_FR`),
+/// so a localized Git used to have every nested repository deleted unsaved.
+///  The locale is a setting of the read,
+/// never of the command Git runs for the person.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // probe: print "${LC_ALL-none}"; expect("C")
+/// ```
+#[test]
+fn a_read_the_wrapper_parses_runs_in_the_c_locale() {
+    let root: PathBuf = fixture("metadata-locale");
+    let probe: PathBuf = root.join("locale-probe");
+    let recorded: PathBuf = root.join("locale-recorded");
+    executable(
+        probe.as_path(),
+        format!(
+            "#!/bin/sh\nprintf '%s' \"${{LC_ALL-none}}\" > '{}'\nprintf 'Would remove nested/\\n'\n",
+            recorded.display()
+        )
+        .as_bytes(),
+    );
+    let output: MetadataOutput = run_metadata_git(
+        probe.as_path(),
+        &[OsString::from("clean"), OsString::from("-n")],
+        &[],
+    )
+    .expect("the probe starts");
+    assert!(output.success, "{}", String::from_utf8_lossy(output.stderr.as_slice()));
+    assert_eq!(output.stdout, b"Would remove nested/\n".to_vec());
+    assert_eq!(
+        std::fs::read_to_string(recorded.as_path()).expect("the probe recorded its locale"),
+        "C"
+    );
+    remove(root.as_path());
+}
+
+/// What:
 ///  A read that never returns is ended at the ceiling and said so,
 ///  while the same ceiling lets a
 ///       read that answers through.

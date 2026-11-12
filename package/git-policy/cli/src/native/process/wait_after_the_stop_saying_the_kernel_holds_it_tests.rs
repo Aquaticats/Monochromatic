@@ -24,6 +24,7 @@ use crate::native_commit_waiting_notice::{NativeCommitNotice, NoticeStart, refus
 use crate::scratch_step_look_below::the_controls_window as the_look_controls;
 use crate::test_support::SharedSink;
 use crate::wait_progress::Cadence;
+use std::ffi::OsString;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,8 +32,8 @@ use std::time::Instant;
 
 /// The words of a commit command line,
 /// as the notice reads them.
-fn words(text: &[&str]) -> Vec<String> {
-    return text.iter().map(|word| { return (*word).to_string(); }).collect();
+fn words(text: &[&str]) -> Vec<OsString> {
+    return text.iter().map(OsString::from).collect();
 }
 
 /// The `git commit` of the step,

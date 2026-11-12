@@ -14,10 +14,15 @@
 //!  Both the shared paths and the history since the base grow with the repository,
 //!  so the history is walked once and each changed path is looked at as the walk meets it,
 //!  rather than walked once per path (`AGENTS.md` `RG2`).
+//! The walk has two faces:
+//! the synchronous one a caller on a thread asks (`capture_order_of_each`),
+//! and the awaited one a
+//!  task of the runtime asks (`capture_order_of_each_awaiting`),
+//! which awaits its Git child on the runtime.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const decisions = await captureOrderOfEach(site, captured, tip, shared); // Map<path, 'prepared' | 'landed' | 'unordered'>
+//! const decisions = await captureOrderOfEachAwaiting(site, captured, tip, shared); // Map<path, 'prepared' | 'landed' | 'unordered'>
 //! ```
 
 use crate::commit_transaction::{TransactionStop, failed};
@@ -26,6 +31,7 @@ use crate::replay_shared_paths::SharedPath;
 use crate::service_protocol::LandedCapture;
 use crate::service_replay::{Captured, MergeSite};
 use crate::transaction_git::{GitRequest, run_git_checked};
+use crate::transaction_git_awaiting::run_git_checked_awaiting;
 use std::collections::{BTreeMap, HashMap};
 
 /// What:
@@ -278,6 +284,81 @@ fn the_exclusion_of(captured: &Captured) -> Option<String> {
 }
 
 /// What:
+///  The one walk a history and a set of shared paths need:
+///  the question Git is asked and what its answer is read against.
+/// Why:
+///  Both faces walk one history the same way,
+/// so the question,
+/// the stamps and the capture come from this one plan and
+///  no face can ask about another range than the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WalkPlan = { request: GitRequest; stamps: Map<string, number>; captured: number };
+/// ```
+struct WalkPlan<'a> {
+    /// The question the walk asks Git.
+    request: GitRequest,
+    /// The capture stamp of each commit this service landed.
+    stamps: HashMap<&'a str, u64>,
+    /// The stamp of the capture the walk decides for.
+    captured: u64,
+}
+
+/// What:
+///  The state every candidate path starts in,
+///  and the walk the history and the paths need,
+///  which is absent when the order decides nothing.
+/// Why:
+///  A capture with no stamp of its own and a conflict with no path at all are answered without
+///  reading the history,
+/// so both faces ask Git only when the order could decide.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const planOf = (site, captured, tip, shared) => ({ states: new Map(shared.map((e) => [e.path, NOTHING_SEEN])), plan: captured.captured === 0 || shared.length === 0 ? undefined : { ... } });
+/// ```
+fn plan_of<'a>(
+    site: &MergeSite<'a>,
+    captured: &'a Captured,
+    tip: &str,
+    shared: &[SharedPath],
+) -> (BTreeMap<Vec<u8>, OrderSoFar>, Option<WalkPlan<'a>>) {
+    let mut states: BTreeMap<Vec<u8>, OrderSoFar> = BTreeMap::new();
+    for entry in shared {
+        states.insert(entry.path.clone(), NOTHING_SEEN);
+    }
+    if captured.captured == 0 || states.is_empty() {
+        return (states, None);
+    }
+    let stamps: HashMap<&str, u64> = stamps_by_commit(captured.landed.as_slice());
+    // A change captured on a branch that did not exist yet has no commit to leave out of the walk.
+    let exclusion: Option<String> = the_exclusion_of(captured);
+    let arguments: Vec<&str> = history_arguments(tip, exclusion.as_deref());
+    let request: GitRequest = GitRequest::new(site.cwd, arguments.as_slice());
+    return (states, Some(WalkPlan { request, stamps, captured: captured.captured }));
+}
+
+/// What:
+///  The states filled from the output Git gave the walk,
+///  and the failure a walk whose output cannot be read stands for.
+/// Why:
+///  Both faces read the one output through this function,
+/// so a commit whose name is not text fails the
+///  same walk the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function walkAnswered(states, plan, output) { if (noteHistory(...) instanceof Error) throw failed(...) }
+/// ```
+fn walk_answered(states: &mut BTreeMap<Vec<u8>, OrderSoFar>, plan: &WalkPlan<'_>, output: &[u8]) -> Result<(), TransactionStop> {
+    return match note_history(output, &plan.stamps, plan.captured, states) {
+        Ok(()) => Ok(()),
+        Err(reason) => Err(failed(format!("reading the history of the paths the branch changed failed: {reason}"))),
+    };
+}
+
+/// What:
 ///  The decision of every shared path,
 ///  from one walk over the history since the base.
 /// Why:
@@ -298,23 +379,43 @@ pub fn capture_order_of_each(
     tip: &str,
     shared: &[SharedPath],
 ) -> Result<BTreeMap<Vec<u8>, CaptureOrderDecision>, TransactionStop> {
-    let mut states: BTreeMap<Vec<u8>, OrderSoFar> = BTreeMap::new();
-    for entry in shared {
-        states.insert(entry.path.clone(), NOTHING_SEEN);
-    }
-    if captured.captured == 0 || states.is_empty() {
+    let (mut states, planned) = plan_of(site, captured, tip, shared);
+    let Some(plan) = planned else {
         return Ok(decisions(&states));
-    }
-    let stamps: HashMap<&str, u64> = stamps_by_commit(captured.landed.as_slice());
-    // A change captured on a branch that did not exist yet has no commit to leave out of the walk.
-    let exclusion: Option<String> = the_exclusion_of(captured);
-    let arguments: Vec<&str> = history_arguments(tip, exclusion.as_deref());
-    let request: GitRequest = GitRequest::new(site.cwd, arguments.as_slice());
-    let listed = run_git_checked(site.context, &request)?;
-    match note_history(listed.stdout.as_slice(), &stamps, captured.captured, &mut states) {
-        Ok(()) => {}
-        Err(reason) => return Err(failed(format!("reading the history of the paths the branch changed failed: {reason}"))),
-    }
+    };
+    let listed = run_git_checked(site.context, &plan.request)?;
+    walk_answered(&mut states, &plan, listed.stdout.as_slice())?;
+    return Ok(decisions(&states));
+}
+
+/// What:
+///  `capture_order_of_each` with its Git child awaited on the runtime.
+/// Why:
+///   A task of the runtime cannot enter it to wait for a child
+/// (`transaction_git_awaiting.rs`),
+/// and the replay walks the history
+///  once the replay is a task.
+/// The plan,
+/// the walk and the failure a walk whose output cannot be read stands for are the
+///  synchronous face's,
+/// so the two decide the same paths the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const order = await captureOrderOfEachAwaiting(site, captured, tip, shared);
+/// ```
+pub async fn capture_order_of_each_awaiting(
+    site: &MergeSite<'_>,
+    captured: &Captured,
+    tip: &str,
+    shared: &[SharedPath],
+) -> Result<BTreeMap<Vec<u8>, CaptureOrderDecision>, TransactionStop> {
+    let (mut states, planned) = plan_of(site, captured, tip, shared);
+    let Some(plan) = planned else {
+        return Ok(decisions(&states));
+    };
+    let listed = run_git_checked_awaiting(site.context, &plan.request).await?;
+    walk_answered(&mut states, &plan, listed.stdout.as_slice())?;
     return Ok(decisions(&states));
 }
 
@@ -341,3 +442,8 @@ fn decisions(states: &BTreeMap<Vec<u8>, OrderSoFar>) -> BTreeMap<Vec<u8>, Captur
 #[cfg(test)]
 #[path = "service_replay_capture_order_tests.rs"]
 mod tests;
+
+/// Controls for the awaited walk stay out of the release executable.
+#[cfg(test)]
+#[path = "service_replay_capture_order_awaiting_tests.rs"]
+mod awaiting_tests;

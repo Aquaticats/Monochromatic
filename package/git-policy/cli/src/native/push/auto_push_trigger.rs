@@ -400,7 +400,7 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
     };
     // The record is written before the route is read: a context with no route (a non-systemd session, a container, another
     //  `XDG_RUNTIME_DIR`) then leaves the push on disk for the next wake instead of losing it with the message.
-    if let Err(failure) = write_push_record(watch.layout.worktree_root.as_path(), watch.layout.git_dir.as_path(), branch, tip.as_str(), watch.before.as_str()) {
+    if let Err(failure) = write_push_record(watch.layout.worktree_root.as_path(), watch.layout.git_dir.as_path(), &crate::ref_name::RefName::from_text(branch), tip.as_str(), watch.before.as_str()) {
         record_ending(watch, command, Outcome::Declined, "handover-failed", render(&failure).as_str());
         // Terminal output error: the message is the only report of a push that was not handed over.
         let _written = writeln!(stderr, "{}", render(&failure));
@@ -430,7 +430,7 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
         },
         repository: watch.layout.worktree_root.clone(),
         git_dir: watch.layout.git_dir.clone(),
-        reference: watch.branch_ref.clone(),
+        reference: crate::ref_name::RefName::from_text(watch.branch_ref.as_str()),
         parent: watch.before.clone(),
     };
     if let Err(failure) = hand_over_push(&handoff, tip.as_str(), stderr) {

@@ -76,6 +76,35 @@ fn a_worktree_configuration_is_compared_by_its_bytes() {
     remove(root.as_path());
 }
 
+/// A claim asks one question of each entry the creation shares:
+/// where its link points.
+/// Why:
+///   The entry's type comes with the listing of the member,
+/// and a link that is missing or is not a link already fails the read of its target,
+/// so a second question per entry is a question whose answer the call beside it gives.
+/// The claim on this volume is the one a commit waits on,
+/// and the disk under it stalls on single questions for seconds
+/// (`doc/planning/cli-git-commit-latency-under-many-agents.md`,
+/// "The repository scratch sweep and a conclusion's copies,
+/// off the commit's path").
+#[test]
+fn a_claim_asks_one_link_question_of_each_shared_entry() {
+    let root: PathBuf = fixture("shadow-pool-member-questions");
+    let repo: PathBuf = repository_of(root.as_path());
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let (shared, _) = crate::shadow_links::shared_entries_of(template.common_dir.as_path(), template.git_dir.as_path()).expect("shared entries");
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    reset_link_questions();
+    assert_eq!(refusal(&template, shadow.as_path()).expect("checked"), None, "a creation is a member");
+    assert_eq!(
+        link_questions(),
+        shared.len() as u64,
+        "a claim asks the target of each of the {} shared entries once, and nothing else of them",
+        shared.len()
+    );
+    remove(root.as_path());
+}
+
 /// A leftover of a use is refused,
 /// and the refusal names it rather than guessing.
 #[test]
@@ -264,6 +293,30 @@ fn an_entry_a_commit_reads_that_appeared_after_the_member_is_a_refusal() {
     assert_eq!(
         refusal(&template, shadow.as_path()).expect("checked"),
         Some(String::from("the shared entry rr-cache is not in the member"))
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A real entry at a shared name the repository still holds is a refusal,
+///  named as the link the member is not.
+/// Why:
+///   The listing of the member answers the type of every entry it holds,
+/// so the one question a shared name is asked of the file system is where its link points:
+/// a directory or a file where a creation linked the repository's own entry
+///  is a leftover of a use, and the next commit would trust what it holds.
+#[test]
+fn a_real_entry_at_a_shared_name_the_repository_holds_is_a_refusal() {
+    let root: PathBuf = fixture("shadow-pool-member-real-entry-held");
+    let repo: PathBuf = repository_of(root.as_path());
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let shadow: PathBuf = creation(root.as_path(), &template, "created");
+    // `hooks` is one entry a creation links from the repository, so a real one here is a use's leftover.
+    std::fs::remove_file(shadow.join("hooks").as_path()).expect("the real link");
+    std::fs::create_dir(shadow.join("hooks").as_path()).expect("a real entry where a link belongs");
+    assert_eq!(
+        refusal(&template, shadow.as_path()).expect("checked"),
+        Some(String::from("the shared entry hooks is not a link in the member"))
     );
     remove(root.as_path());
 }

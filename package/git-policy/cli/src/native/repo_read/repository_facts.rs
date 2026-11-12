@@ -51,7 +51,6 @@ use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_f
 use crate::command_clean::clean_deleted_paths_from_answer;
 /// The reading of a dry run written with one force,
 ///  which names the nested repositories that force keeps.
-use crate::command_clean_nested_repositories::dry_run_lines_from_answer;
 /// The answer one `git add` selection question gives.
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
@@ -60,6 +59,9 @@ use crate::rule_commit_sequencer::{
     SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
     sequencer_state, sequencer_state_when_query_fails,
 };
+/// What one abort form would discard,
+/// and the forms that ask.
+use crate::{repository_facts_abort_discard::AbortDiscard, rule_linked_worktree::GuardedCommand};
 /// The transaction Git context.
 use crate::transaction_git::GitContext;
 /// The common directory of a location's identity.
@@ -133,13 +135,6 @@ pub trait RepositoryFacts {
     /// asked for a clean
     ///  that carries its own `-e`/`--exclude` patterns.
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String>;
-    /// The lines of the same clean's dry run written with exactly one `-f`,
-    /// each as Git printed it,
-    /// asked for the nested repositories a clean with a second `-f` would delete.
-    /// Git keeps every nested repository at one force and names each of them
-    ///  (`Would skip repository`),
-    ///  and the same walk removes them at the second.
-    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String>;
     /// Whether a merge,
     ///  cherry-pick or revert awaits its concluding commit.
     fn sequencer_state(&mut self) -> Result<SequencerState, String>;
@@ -149,6 +144,12 @@ pub trait RepositoryFacts {
     /// Asked by a refusal in a linked worktree,
     ///  which must name where the setting belongs.
     fn main_worktree_root(&mut self) -> Result<PathBuf, String>;
+
+    /// What the abort form `command` would discard besides the state of the operation it undoes,
+    /// and whether that operation waits at all.
+    /// Asked before an abort form runs,
+    /// so the person's own work is saved first and the operation's own state is let go.
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String>;
     /// Whether `git switch <target>` or `git checkout <target>` would create a local
     /// branch from the one remote branch of that name.
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String>;
@@ -430,12 +431,6 @@ impl RepositoryFacts for GitFacts {
         return clean_deleted_paths_from_answer(&output);
     }
 
-    fn clean_dry_run_lines_with_one_force(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
-        let what: &str = "which repositories the clean would keep";
-        let output: MetadataOutput = self.query(arguments, what)?;
-        return dry_run_lines_from_answer(&output, what);
-    }
-
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
         // The query and its reading live beside this provider, as the `git add` fact's do.
         return crate::repository_facts_ignored_files::ignored_files_the_tree_tracks(self, revision);
@@ -467,6 +462,10 @@ impl RepositoryFacts for GitFacts {
             main_worktree_query_arguments(self.global_prefix.as_slice());
         let output: MetadataOutput = self.query(arguments, "the worktrees of the repository")?;
         return main_worktree_from_answer(&output);
+    }
+
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        return crate::repository_facts_abort_discard::abort_discard(self, command);
     }
 
     fn remote_guess_creates_branch(&mut self, target: &OsStr) -> Result<bool, String> {

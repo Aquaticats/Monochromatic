@@ -68,6 +68,8 @@ fn every_foreign_lock_wait_is_the_measured_whole_minute() {
 /// so that the loop in `landing/service_commit.rs` stays under the line limit;
 /// that move is d5af173797,
 /// which kept every condition and every message as it was.
+/// The decision the loop asks is `landing/service_commit_rebuild_ceiling.rs` (`0bafaea12d`),
+/// so `may_rebuild` is read where it is written.
 #[test]
 fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     assert_eq!(MOVED_BRANCH_REBUILD_CEILING, ANSWER_CEILING);
@@ -79,7 +81,7 @@ fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     let answered: &str = include_str!("../landing/service_commit_after_a_moved_branch.rs");
     let commit: &str = include_str!("../landing/service_commit.rs");
     assert!(answered.contains("may_rebuild"), "the answer to a moved branch takes this ceiling");
-    assert!(!answered.contains("REBUILD_ATTEMPTS") && !commit.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
+    assert!(!answered.contains("REBUILD_ATTEMPTS") && !commit.contains("REBUILD_ATTEMPTS") && !decision.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
 }
 
 /// The scratch repository's `git commit` is stopped at three times the slowest `git commit` step record:
@@ -217,4 +219,19 @@ fn the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add() {
     assert_eq!(SNAPSHOT_AHEAD_CEILING, Duration::from_secs(60), "the owner, 2026-11-10: \"60s is fine for adding worktrees\"");
     let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");
     assert!(rung.contains("SNAPSHOT_AHEAD_CEILING"), "the snapshot rung takes this ceiling");
+}
+
+/// The start of one repair tool is bounded by the wait a client grants a service's own start:
+/// both are one program's start on this host,
+/// and the repair's run takes that bound from this file.
+/// A start that does not answer waits for ever otherwise,
+/// because the quiet window,
+/// the ceiling and the notice are read from a clock the run reaches only after the start.
+#[test]
+fn a_repair_tool_start_is_bounded_by_the_service_start_wait() {
+    assert_eq!(REPAIR_TOOL_START_CEILING, START_CEILING);
+    let run: &str = include_str!("../repair/package_repair_command.rs");
+    assert!(run.contains("REPAIR_TOOL_START_CEILING"), "the repair's run takes this bound");
+    let start: &str = include_str!("../repair/package_repair_start.rs");
+    assert!(start.contains("async fn start_within("), "the start of a tool is the bounded one");
 }

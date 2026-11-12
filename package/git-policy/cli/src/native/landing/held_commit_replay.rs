@@ -86,7 +86,7 @@ pub enum Replay {
 /// revParseQuiet(reference) // '' when the ref is missing, undefined when Git gave no answer
 /// ```
 fn current_value(git: &GitContext, held: &Held) -> Option<String> {
-    let request: GitRequest = GitRequest::new(held.repository.as_path(), &["rev-parse", "--verify", "--quiet", held.reference.as_str()]);
+    let request: GitRequest = GitRequest::new(held.repository.as_path(), held.reference.value_question().as_slice());
     let output: GitOutput = run_git(git, &request).ok()?;
     if output.succeeded() {
         return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());

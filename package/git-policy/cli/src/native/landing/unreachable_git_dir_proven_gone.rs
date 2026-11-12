@@ -12,6 +12,10 @@
 //! and a
 //!  repository that was deleted,
 //! whose plans can never run and whose records went with the directory.
+//! The same question is asked about the units of the worktree a service serves
+//! (`service_units_of_removed_worktrees::worktree_is_gone`),
+//! so a service of a deleted repository,
+//! its socket unit and its sweep agree with its retry plans about what is gone.
 //! The owner's
 //!  "nothing should ever wait forever or indefinitely" is what the second case breaks:
 //! on 2026-11-10 a service kept
@@ -203,6 +207,24 @@ impl Mounts for TheMountTable {
             return false;
         }
     }
+}
+
+/// What:
+///  The mount table of the running system,
+///  read once for the whole process.
+/// Why:
+///   A serving service asks whether its worktree is still there every minute
+/// (`service_server::OWN_WORKTREE_CHECK`),
+/// and the table is a file of the kernel that does not change between two such asks;
+/// a table read per question would cost a file read a minute for every service.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await theMounts().isMountPoint('/`) // the one table of the process
+/// ```
+pub fn the_mounts() -> &'static TheMountTable {
+    static MOUNTS: std::sync::OnceLock<TheMountTable> = std::sync::OnceLock::new();
+    return MOUNTS.get_or_init(TheMountTable::default);
 }
 
 /// The mount table this process reads,

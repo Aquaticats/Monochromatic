@@ -141,21 +141,68 @@ fn a_runtime_directory_with_room(tag: &str) -> PathBuf {
 }
 
 /// What:
+///  The bytes of the name of a runtime directory whose own spelling and its spelling through one `..` both fit
+///  inside one socket address.
+/// Why:
+///   The spelling through a relative part holds the name twice,
+///  once as the directory and once after `..`,
+/// and `..` with the two slashes around it takes four bytes between the copies.
+/// One byte of the room goes to the separator after the parent and one to the separator after `..`,
+/// and what is left is halved,
+/// so the two copies together never pass the longest runtime directory an address can carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nameLengthToSpell(30) // the name of a runtime directory under a parent of 30 bytes
+/// ```
+fn name_length_to_spell(parent: usize) -> usize {
+    let longest: usize = longest_runtime_directory(INSTANCE);
+    let room: usize = longest - parent - 1 - 4;
+    return room / 2;
+}
+
+/// What:
 ///  A runtime directory whose name leaves room for the other spellings of it,
 /// inside the longest runtime directory a socket address can carry.
 /// Why:
-///  A spelling through a relative part holds the name twice,
-/// once as the directory and once after `..`,
-/// so a name of half the room that is left keeps both spellings inside the longest address,
-/// and the check about the room an address needs cannot be what refuses a control of spellings.
+///   The check about the room an address needs cannot be what refuses a control of spellings,
+/// so the name is measured by `name_length_to_spell`,
+/// which keeps both spellings inside one address.
 fn a_runtime_directory_to_spell(tag: &str) -> PathBuf {
     let parent: PathBuf = short_parent();
-    let longest: usize = longest_runtime_directory(INSTANCE);
-    // `/`, `..` and `/` are the three bytes one spelling adds between the two copies of the name.
-    let room: usize = longest - parent.as_os_str().len() - 1 - 3;
-    let name_length: usize = room / 2;
+    let name_length: usize = name_length_to_spell(parent.as_os_str().len());
     assert!(name_length > tag.len(), "the tag {tag:?} leaves room to pad a name of {name_length} bytes");
     return runtime_directory_of_length(parent.as_os_str().len() + 1 + name_length, tag);
+}
+
+/// What:
+///  Every parent length from a scratch directory's to the longest leaves both spellings inside one socket address.
+/// Why:
+///   The room is halved,
+/// and an odd room halves down by one,
+/// so a construction that assumed three bytes between the copies of the name spent the room exactly for every second
+/// parent length and produced an address one byte past what the kernel carries:
+/// `two_spellings_of_one_runtime_directory_are_one_service` failed whenever the test process's number of digits made
+/// the parent even.
+/// Measured 2026-11-11T10:05-05:00 with pid 919300:
+/// the dotted address took 108 bytes,
+/// and a run whose pid made the parent odd passed.
+#[test]
+fn the_two_spellings_of_a_runtime_directory_fit_one_socket_address_at_every_parent_length() {
+    let longest: usize = longest_runtime_directory(INSTANCE);
+    let suffix: usize = socket_path_suffix_bytes(INSTANCE);
+    // Up to the longest parent whose halved room still leaves a name of two bytes, which both parities cover.
+    for parent in 10..=(longest - 9) {
+        let name: usize = name_length_to_spell(parent);
+        assert!(name > 1, "a parent of {parent} bytes leaves a name of {name} bytes");
+        // The name, the separator after the parent, `..` between the copies, and the name again.
+        let dotted: usize = parent + 1 + name + 4 + name;
+        assert!(
+            dotted + suffix <= LONGEST_SOCKET_PATH,
+            "a parent of {parent} bytes spells the directory in {dotted} bytes, which with the {suffix} of a socket path takes more than the {} one address carries",
+            LONGEST_SOCKET_PATH
+        );
+    }
 }
 
 /// What:
@@ -307,6 +354,13 @@ fn a_service_the_manager_made_elsewhere_is_refused_with_both_addresses() {
     for part in [made.display().to_string(), socket_path(runtime.as_path(), INSTANCE).display().to_string(), String::from("/run/user/1000"), String::from("XDG_RUNTIME_DIR")] {
         assert!(said.contains(part.as_str()), "the message names {part:?}: {said}");
     }
+    // The socket the manager already holds is another runtime directory's service for this worktree, and this command starts
+    //  nothing: a unit started here would listen for a worktree no command of this runtime directory ever looks at.
+    assert!(
+        !manager.calls.iter().any(|call| { return call.starts_with("start "); }),
+        "nothing was started in a manager that serves another runtime directory: {:?}",
+        manager.calls
+    );
 }
 
 /// What:

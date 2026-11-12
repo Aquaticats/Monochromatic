@@ -71,6 +71,7 @@ fn the_rejection_names_one_repository_in_the_singular() {
         repositories: subject.as_slice(),
         failure: &failure(),
         saved_root: saved_root.as_path(),
+        still_moved: &[],
     });
     for expected in [
         "this clean would delete the Git repository nested and everything in it",
@@ -94,6 +95,7 @@ fn the_rejection_names_many_repositories_and_counts_the_rest() {
         repositories: many.as_slice(),
         failure: &failure(),
         saved_root: saved_root.as_path(),
+        still_moved: &[],
     });
     assert!(message.contains("the Git repositories repo0, repo1"), "{message}");
     assert!(message.contains("and 2 more"), "{message}");
@@ -101,4 +103,31 @@ fn the_rejection_names_many_repositories_and_counts_the_rest() {
     assert!(message.contains("nothing of them could be saved first"), "{message}");
     assert!(message.contains("The repositories are still where they were."), "{message}");
     assert!(!message.contains("repo7"), "{message}");
+}
+
+/// What:
+///  A repository the stopped save could not put back is named with the place it is,
+///  and the sentence no longer claims the worktree is untouched.
+/// Why:
+///   Every other sentence in this rejection would be false then,
+///  and that place is the only thing that tells the person where their repository went.
+#[test]
+fn a_repository_that_could_not_be_put_back_is_named_where_it_is() {
+    let subject: Vec<Vec<u8>> = vec![b"nested".to_vec(), b"vendor/lib".to_vec()];
+    let saved_root: PathBuf = PathBuf::from("/common/.git/monochromatic-git-policy-cli/discarded");
+    let stayed: Vec<SavedCopy> = vec![copy("/common/.git/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested")];
+    let message: String = nested_repository_not_saved_message(NotSaved {
+        repositories: subject.as_slice(),
+        failure: &failure(),
+        saved_root: saved_root.as_path(),
+        still_moved: stayed.as_slice(),
+    });
+    for expected in [
+        "nested => /common/.git/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested",
+        "could not be put back where they were and are kept here:",
+        "Every other repository is still where it was.",
+    ] {
+        assert!(message.contains(expected), "{expected} missing from {message}");
+    }
+    assert!(!message.contains("nothing was changed"), "{message}");
 }

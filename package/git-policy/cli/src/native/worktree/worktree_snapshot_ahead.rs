@@ -250,6 +250,9 @@ pub enum AheadLook {
         made: ObjectId,
         /// The walk of the claimed snapshot against the source's index.
         proof: Proof,
+        /// The millisecond its name says the copy was made in,
+        /// which is the age of the ignored state the new worktree receives.
+        copied_at_millis: u128,
     },
     /// There was nothing to claim and nothing was waited for:
     /// the add takes its own snapshot.

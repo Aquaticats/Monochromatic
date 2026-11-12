@@ -57,6 +57,31 @@ function modelErrorOf({
 }
 
 /**
+ What Pi reported of its own automatic retry giving up on the model error the run stands on, as the summary carries it.
+
+ @param run - what the run's events said
+
+ @returns the summary's fields, or nothing when Pi reported giving up on nothing
+ */
+function piRetryOf(run: ObservedPiRun,): {
+  readonly piRetryGaveUp?: {
+    readonly attempts: number;
+    readonly problem: string;
+  };
+} {
+  /**
+   What Pi reported when it stopped retrying.
+   */
+  const stopped = run.piRetryGaveUp();
+  return stopped.gaveUp ? {
+    piRetryGaveUp: {
+      attempts: stopped.attempts,
+      problem: stopped.problem,
+    },
+  } : {};
+}
+
+/**
  What Pi reported of a compaction, when that is why the run could not go on, as the summary carries it.
 
  @param run - what the run's events said
@@ -274,6 +299,7 @@ export function startRecordOfPiRun({
           run: observed,
           retries: state.retriesSinceAnswer,
         },),
+        ...piRetryOf(observed,),
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
         ...compactionProblemOf(observed,),

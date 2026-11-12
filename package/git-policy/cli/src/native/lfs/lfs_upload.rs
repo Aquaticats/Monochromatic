@@ -34,7 +34,7 @@ use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// the wait a stalled child is ended by,
 /// and the line that says how a longer one is allowed.
 use crate::bounded_push::{
-    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, push_patience, wait_until_done_noting, run_bounded_push,
+    STOPPED_EXIT_CODE, STOP_GRACE, StopCause, command_label, connected_window, push_patience, wait_until_done_noting, run_bounded_push,
 };
 /// The invocation's environment values,
 /// and whether its overlay turns prompting off for the children.
@@ -56,7 +56,7 @@ use crate::lfs_upload_explanations::{
     stopped_upload_words,
 };
 /// Hides the credentials in a URL of relayed text.
-use crate::lfs_output_mask::mask_userinfo;
+use crate::lfs_output_mask::mask_url_secrets;
 use crate::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
 use crate::scratch_location::scratch_file;
@@ -212,7 +212,7 @@ fn run_with_captured_stderr(
     if let Err(error) = read {
         return Err(CaptureError::Scratch(error.to_string()));
     }
-    return Ok((ended, mask_userinfo(bytes.as_slice())));
+    return Ok((ended, mask_url_secrets(bytes.as_slice())));
 }
 
 /// What:
@@ -254,7 +254,17 @@ async fn await_upload(
     // The upload leaves no reference lock, so the ledger the stop sweeps is empty.
     let locks: LockLedger = LockLedger::none();
     let patience = push_patience(environment);
-    let ended: Result<ExitStatus, StopCause> = match wait_until_done_noting(&mut child, &[captured], patience, label.as_str(), &mut waits, None).await {
+    let ended: Result<ExitStatus, StopCause> = match wait_until_done_noting(
+        &mut child,
+        &[captured],
+        patience,
+        label.as_str(),
+        &mut waits,
+        None,
+        connected_window(environment),
+    )
+    .await
+    {
         // A wait that could not be made at all is this process's own defect, and its words say which.
         Err(wait) => return Err(RunError::Wait(wait.to_string())),
         Ok(finished) => finished,

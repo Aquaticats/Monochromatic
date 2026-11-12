@@ -2,7 +2,7 @@
  Finds the first error in a failed check's output and the cause that two reports of the same break share.
 
  Reads the output line by line with string operations, one pass, so a very long output costs time in proportion to its
- length only.
+ length only, and keeps nothing but the first error's own excerpt, however much output stands before it.
 
  @module
  */
@@ -199,9 +199,100 @@ export function errorStartOf(line: string,): ErrorStart | typeof NOT_AN_ERROR_ST
 }
 
 /**
- Finds the first error in a check's output.
+ A read of a check's output that keeps the first error, wherever in the output it stands.
 
- @param output - the first part of the output, where the first error is
+ The check runner feeds it line by line as the output arrives, so a start that holds megabytes of compiled-in noise
+ costs the same as one that holds nothing: no more than the error's own excerpt is ever kept.
+ */
+export type FirstErrorScan = {
+  /**
+   Reads the next line of the output.
+   */
+  readonly pushLine: (line: string) => void;
+  /**
+   The first error read so far, or {@link NO_ERROR_IN_OUTPUT} when no line has started one.
+   */
+  readonly error: () => FirstError | typeof NO_ERROR_IN_OUTPUT;
+};
+
+/**
+ Starts a read of a check's output.
+
+ @returns the read, fed one line at a time
+
+ @example
+ ```ts
+ const scan = firstErrorScan();
+ for (const line of ['error: x', ' --> src/a.rs:1:1',]) { scan.pushLine(line,); }
+ scan.error(); // code ''
+ ```
+ */
+export function firstErrorScan(): FirstErrorScan {
+  /**
+   The lines of the first error's excerpt, empty until a line starts an error.
+   */
+  const excerpt: string[] = [];
+  /**
+   What the read has: the error's start once a line started one, and whether the excerpt is complete, after which the
+   rest of the output costs nothing.
+   */
+  const state: {
+    start: ErrorStart | typeof NOT_AN_ERROR_START;
+    complete: boolean;
+  } = {
+    start: NOT_AN_ERROR_START,
+    complete: false,
+  };
+  return {
+    pushLine: function pushLine(line,) {
+      if (state.complete)
+        return;
+      /**
+       The line without colors or the task prefix, which is what the issue shows.
+       */
+      const text = withoutTaskPrefix(stripAnsi(line,),);
+      if (state.start === NOT_AN_ERROR_START) {
+        /**
+         What this line starts, when it starts an error.
+         */
+        const found = errorStartOf(text,);
+        if (found === NOT_AN_ERROR_START)
+          return;
+        state.start = found;
+        excerpt.push(text,);
+        return;
+      }
+      // The excerpt ends at a blank line, at the line mise prints after a failed task, at the next error, or at the bound.
+      if (
+        (text.trim() === '') || text.startsWith(TASK_FAILURE_START,)
+          || (errorStartOf(text,) !== NOT_AN_ERROR_START)
+          || (excerpt.length >= EXCERPT_LINES)
+      ) {
+        state.complete = true;
+        return;
+      }
+      excerpt.push(text,);
+    },
+    error: function firstError() {
+      /**
+       The error's start, which is the sentinel while no line started one.
+       */
+      const { start, } = state;
+      if (start === NOT_AN_ERROR_START)
+        return NO_ERROR_IN_OUTPUT;
+      return {
+        code: start.code,
+        message: start.message,
+        excerpt: excerpt.join('\n',),
+      };
+    },
+  };
+}
+
+/**
+ Finds the first error in a check's output given as one text.
+
+ @param output - the whole output
 
  @returns the first error, or {@link NO_ERROR_IN_OUTPUT} when no line starts one
 
@@ -212,47 +303,13 @@ export function errorStartOf(line: string,): ErrorStart | typeof NOT_AN_ERROR_ST
  */
 export function firstErrorOf(output: string,): FirstError | typeof NO_ERROR_IN_OUTPUT {
   /**
-   Lines without colors and task prefixes.
+   The read of that text.
    */
-  const lines = stripAnsi(output,)
-    .split('\n',)
-    .map(withoutTaskPrefix,);
-  /**
-   Position of the first line that starts an error.
-   */
-  const start = lines.findIndex(function startsError(line,) {
-    return errorStartOf(line,) !== NOT_AN_ERROR_START;
-  },);
-  if (start === (-1))
-    return NO_ERROR_IN_OUTPUT;
-  /**
-   Code and message of that line.
-   */
-  const found = errorStartOf(lines[start] ?? '',);
-  if (found === NOT_AN_ERROR_START)
-    return NO_ERROR_IN_OUTPUT;
-  /**
-   Lines after the first that continue it: up to a blank line or the next error.
-   */
-  const continuation: string[] = [];
-  for (const line of lines.slice(start + 1,)) {
-    if (
-      (line.trim() === '') || line.startsWith(TASK_FAILURE_START,)
-        || (errorStartOf(line,) !== NOT_AN_ERROR_START)
-        || (continuation.length >= (EXCERPT_LINES - 1))
-    ) {
-      break;
-    }
-    continuation.push(line,);
+  const scan = firstErrorScan();
+  for (const line of output.split('\n',)) {
+    scan.pushLine(line,);
   }
-  return {
-    code: found.code,
-    message: found.message,
-    excerpt: [
-      lines[start] ?? '',
-      ...continuation,
-    ].join('\n',),
-  };
+  return scan.error();
 }
 
 /**

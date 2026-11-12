@@ -63,8 +63,8 @@ pub(crate) fn arguments_after_subcommand(arguments: &[OsString], subcommand_inde
 /// ```ts
 /// reference === 'HEAD' ? 'a detached head' : reference.replace(/^refs\/heads\//, '')
 /// ```
-pub(crate) fn switched_branch_name(reference: &str) -> String {
-    return if reference == "HEAD" { String::from("a detached head") } else { reference.trim_start_matches("refs/heads/").to_string() };
+pub(crate) fn switched_branch_name(reference: &crate::ref_name::RefName) -> String {
+    return if reference.is_head() { String::from("a detached head") } else { reference.short().spoken() };
 }
 
 /// The standard input of the command when a pathspec file is read from it,

@@ -186,6 +186,17 @@ Else need authorization;
 Drafts stay local;
  read-only research allowed.
 
+XSU:
+ Delete what is superseded unasked,
+ everywhere it lives (branches,
+ worktrees,
+ units,
+ briefs,
+ scratch),
+ once its content is shown to live elsewhere;
+ unshown:
+ keep it and say why.
+
 TSK:
  Broad multi-area requests:
  one task-list item per major area,
@@ -239,10 +250,10 @@ XVS:
  GPT models cannot be trusted on long-horizon work.
 
 KRV:
- Reviews of a change go to Kimi K3.1 Pro alone:
- Pi with `--provider synthetic --model hf:moonshotai/Kimi-K3.1-Pro`,
+ Reviews of a change go to qwen4-max-preview alone:
+ Pi with `--provider qwen-token-plan-individual --model qwen4-max-preview`,
  in a worktree of its own,
- outside the Neuralwatt slots.
+ on the qwen4 pool.
 
 LHZ:
  Long-horizon audits,
@@ -254,7 +265,7 @@ LHZ:
 PFW:
  Alongside advisor,
  never instead:
- a Kimi review reads the paths its prompt names,
+ a qwen4 review reads the paths its prompt names,
  whole files and the diff,
  never prose.
 Background it;
@@ -562,16 +573,18 @@ RT4:
 ## Before briefing an agent
 
 BRQ:
- Briefs and notes carry as requirements only what the user said or decided,
- quoted with source;
- derivations and own ideas are revisable suggestions;
- inferred requirements or policy:
+ Briefs and notes carry as requirements only what the user decided,
+ stated as the project's own,
+ citing its record,
+ implying no human owner;
+ own ideas are suggestions;
+ inferred ones:
  ask first.
 
 DQB:
  Before briefing work on a component,
  grep `doc/decision/` for its records
- and quote every owner decision and amendment that bears on the task,
+ and state every decision and amendment that bears on the task as the project's own,
  with path and lines.
 
 FBN:

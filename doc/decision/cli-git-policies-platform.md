@@ -3,14 +3,69 @@
 ## Status
 
 Accepted.
-Implementation is tracked by GitHub issues #342 through #357.
-The public package is prepared for npm distribution,
-but registry publication remains indefinitely deferred in #358.
+Implementation is tracked by GitHub issues #341 through #356;
+the hk and Pkl retirement capstone is #357.
+The parts of this record that describe the TypeScript implementation are superseded,
+as `Superseded in part on 2026-10-13` records.
 
 The canonical implementation interface is
 `package/git-policy/cli/SPEC.md`.
 The execution record is
 `doc/handover/cli-git-policies-platform.md`.
+
+## Superseded in part on 2026-10-13
+
+`doc/decision/cli-git-rust-rewrite.md`,
+accepted 2026-10-04,
+replaced this platform's TypeScript implementation with one Rust executable,
+and the deletion landed on 2026-10-13 in commit `642b6d72cb`.
+The platform decisions stand:
+the PATH wrapper,
+configurable policies with severities and per-invocation escapes,
+the fixed transform order,
+stable JSONL findings,
+the transactional commit gate,
+whole-sequence convergence,
+CI independence,
+and linked-worktree ignored state.
+Every part of this record that describes TypeScript machinery records the retired implementation;
+these are the parts the rewrite replaced:
+
+- `Policy identifiers and configuration`:
+  plugin namespaces,
+  `defineConfig`,
+  and Valibot option schemas belong to the retired Node authoring API.
+- `Distribution`:
+  the Node package,
+  its `definePlugin` and `definePolicy` helpers,
+  its `ABSENT_GIT_VALUE` symbol,
+  the single MJS artifact,
+  and the npm tarball are gone;
+  every policy is compiled into the executable,
+  no configuration loads code,
+  and there are no plugins.
+- `Management commands`:
+  `trust`,
+  `untrust` and
+  `status` are retired forms that explain themselves and change nothing.
+- `Configuration discovery`:
+  one file is read,
+  `monochromatic-git-policy-cli.config.jsonc` at the repository top level,
+  instead of `cli-git.config.mjs` or `cli-git.config.ts`.
+- `Config-loading classification`:
+  a configuration that fails validation blocks the command,
+  and no trust step stands between the file and execution.
+- `Exact-snapshot trust`,
+  `Trust consent`,
+  `Relaxed exact-path mode`,
+  and `Recursive trust`:
+  configuration is data,
+  so there is no stored snapshot,
+  no consent stage,
+  and no relaxed mode.
+- npm publication:
+  the deferral of #358 closed on 2026-11-09,
+  because the audited `@monochromatic-dev/cli-git` package no longer exists.
 
 ## Decision
 
@@ -178,15 +233,16 @@ Exact public TypeScript declarations and invariants live in
 ## Policy identifiers and configuration
 
 Built-in policy IDs are unprefixed.
-Plugin IDs use `<consumer-namespace>/<policy-name>`.
-The consumer chooses each plugin namespace in its config.
-Namespace registration order and each plugin's declaration order are significant.
+Plugin IDs used `<consumer-namespace>/<policy-name>`,
+chosen by the consumer's configuration,
+and there are no plugins today:
+every policy is shipped in the executable.
 
-`defineConfig` is a typed identity helper.
-Cli-git does not merge shared and local configuration.
-Consumers that need inheritance merge ordinary JavaScript objects before calling `defineConfig`,
-preferably with `deepmerge-ts` or explicit merge logic.
-Collection merge semantics remain visible consumer code rather than hidden cli-git behavior.
+`defineConfig` was a typed identity helper for the retired Node configuration.
+The JSONC file replaced it,
+and it holds one configuration with no inheritance,
+so a repository that needs a shared setting writes it into that file.
+Collection merge semantics remain visible repository data rather than hidden cli-git behavior.
 
 Every registered policy uses its declared default when omitted from `policies`.
 Registering a plugin therefore activates that plugin's declared defaults.
@@ -282,11 +338,18 @@ Documentation must state this behavior change.
 
 ## Distribution
 
+Superseded on 2026-10-13 (commit `642b6d72cb`):
+the release artifact is one Rust executable,
+`monochromatic-git-policy-cli`,
+and the Node package this record prepared is neither built nor published.
+The rest of `Distribution` records the package this record decided,
+kept for its reasoning.
+
 Prepare `@monochromatic-dev/git-policy-cli` as a public npm-ready Node package.
 The package installs the shadowing `git` bin and exports side-effect-free authoring modules from the same package.
 Importing authoring helpers must not execute CLI startup code.
 
-Public authoring exports include:
+The package exported these authoring helpers:
 
 - `defineConfig`;
 - `definePlugin`;
@@ -299,10 +362,13 @@ Public authoring exports include:
   trigger,
   and context types.
 
-The public API uses one exported unique `ABSENT_GIT_VALUE` symbol for mutable revisions,
+It also exported one unique `ABSENT_GIT_VALUE` symbol for mutable revisions,
 missing object IDs,
-and command forms without a subcommand.
-This represents domain absence without nullable unions and is never serialized to JSONL.
+and command forms without a subcommand,
+which represented domain absence without nullable unions and was never serialized to JSONL.
+No such export exists now:
+the shipped policies are Rust,
+and a repository configures them as data.
 
 Repo-owned policies retain separate workspace source packages but are bundled into the single public cli-git MJS
 artifact and exported from `@monochromatic-dev/git-policy-cli`.
@@ -326,28 +392,36 @@ The package must pass `npm pack` inspection and installation in a disposable non
 Registry upload,
 registry authentication,
 publish-workflow enablement,
-and provenance publication belong only to indefinitely deferred issue #358.
+and provenance publication ended with that npm package;
+issue #358 closed on 2026-11-09
+because the audited `@monochromatic-dev/cli-git` package no longer exists.
 
 ## Management commands
 
-Cli-git intercepts one namespaced Git subcommand:
+Cli-git intercepts one namespaced Git subcommand,
+`monochromatic-git-policy-cli`,
+and its earlier spelling `git cli-git <command>` is answered the same way,
+with one line on standard error that names the new one:
 
 ```text
-git cli-git --help
-git cli-git trust --help
-git cli-git trust [--yes]
-git cli-git check [--policy <id>]... (--all | -- <pathspec>...)
-git cli-git fix [--policy <id>]... (--all | -- <pathspec>...)
-git cli-git untrust
-git cli-git status
+git monochromatic-git-policy-cli --help
+git monochromatic-git-policy-cli check [--policy <id>]... (--all | -- <pathspec>...)
+git monochromatic-git-policy-cli fix [--policy <id>]... (--all | -- <pathspec>...)
+git monochromatic-git-policy-cli doctor
 ```
 
+`service`,
+`migrate-to-subvolume` and
+`convert-worktree-to-subvolume` are the other subcommands.
+The two subvolume commands each have their own `--help`,
+and `service` takes one of `status`,
+`settle-earlier-batches` or
+`stop-units-of-removed-worktrees`.
 Management parsing uses the internal argv region parser.
-Namespace and trust help write human-readable stdout and exit `0` before real-Git resolution,
+Namespace help writes human-readable stdout and exits `0` before real-Git resolution,
 transaction recovery,
 repository config discovery,
-candidate building,
-or trust-registry access.
+or candidate building.
 Unknown options remain usage failures with exit `2`.
 `check` and `fix` require exactly one scope source:
 `--all` or one or more pathspecs after `--`.
@@ -355,23 +429,38 @@ A repeated `--policy` filters the enabled set.
 An empty filter means every enabled policy.
 
 `trust`,
-`untrust`,
-and `status` inspect or recover trust without first executing repository config.
-`status` reports stable exact-trust state rather than executing config to inventory policies.
-`check` and `fix` load only trusted config.
+`untrust` and
+`status` are retired,
+because configuration is data and there is no code to approve or revoke.
+Each still parses,
+prints an explanation to standard error,
+changes nothing and exits `0`;
+`trust --help` sends that explanation to standard output,
+while `untrust --help` and `status --help` are usage errors with exit `2`.
+`check` and `fix` load the JSONC configuration and refuse one that fails validation.
 Ordinary Git commands continue to invoke the resolved real Git executable by absolute path.
 
 ## Configuration discovery
 
 Discovery is bounded to the effective Git repository root.
-Precedence is:
+The file is `monochromatic-git-policy-cli.config.jsonc` at the repository top level,
+at most 1 MiB,
+and it is data:
+it never names code to run.
+Without the file the defaults apply.
+A repository that holds only the earlier name `cli-git.config.jsonc` is read from it,
+with one line on standard error that names the new file.
+The retired `cli-git.config.mjs` and `cli-git.config.ts` are never read or executed:
+beside a JSONC file `git monochromatic-git-policy-cli check` reports a `legacy-config-ignored`
+configuration warning,
+while `fix` and every other command stay silent;
+alone they are a configuration failure that asks for the translation.
+That replaced the precedence this record decided,
+in which `cli-git.config.mjs` won over `cli-git.config.ts` and both were code,
+on 2026-10-13 (commit `642b6d72cb`).
 
-1. `cli-git.config.mjs`;
-2. `cli-git.config.ts`;
-3. built-in policies only.
-
-Keeping both files is valid;
-MJS wins.
+The rest of `Configuration discovery` records the executable-configuration rules of that retired precedence,
+kept for their reasoning.
 
 A consumer-built MJS artifact must be self-contained except for Node built-in imports.
 Static imports,
@@ -412,11 +501,12 @@ external subcommands,
 future Git commands,
 and ambiguous forms take the config-loading path.
 
-An untrusted or changed config blocks a config-loading command.
-An untrusted-config diagnostic names the affected path and gives both recovery commands:
-interactive `git cli-git trust` and explicit noninteractive `git cli-git trust --yes`.
+A configuration that fails validation blocks a config-loading command.
+The failure names the file and the first check it failed.
 Cli-git does not continue with built-ins only.
 There is no global config-discovery kill switch.
+No trust step stands between the file and its execution,
+because the file is data that runs no code.
 
 ## Exact-snapshot trust
 
@@ -851,11 +941,10 @@ issue `#356` added an independent final-newline check that invokes the direct ch
 tooling.
 Do not reintroduce generic hk execution in CI.
 
-External consumers that exercise trusted config in CI run:
-
-```text
-git cli-git trust --yes
-```
+The `git cli-git trust --yes` step an external consumer ran in CI before exercising trusted configuration
+is retired with that configuration:
+configuration is data,
+so nothing needs approving.
 
 ## Performance and packaging gates
 
@@ -961,17 +1050,14 @@ Consumer lockfiles and self-contained builds govern plugin inputs.
   canonical implementation interface and verification contract.
 - `doc/handover/cli-git-policies-platform.md`:
   implementation state and evidence.
-- `package/git-policy/cli/README.md` and `package/git-policy/cli/src/index.ts`:
+- `package/git-policy/cli/README.md` and `package/git-policy/cli/src/native/main.rs` with
+  `package/git-policy/cli/src/native/invocation/entry.rs`:
   current wrapper behavior.
-  Moved:
-  the TypeScript wrapper was retired on 2026-10-13 (merge `9e633292e7`);
-  the entry point is now
-  `package/git-policy/cli/src/native/main.rs` with `src/native/entry.rs`.
-- `package/git-policy/cli/src/escape-hatch.ts`:
-  parser-based invocation escape hatches.
-  Moved:
-  now `package/git-policy/cli/src/native/escape_hatch.rs` (same retirement,
-  2026-10-13).
+  The TypeScript wrapper and its entry point were deleted on 2026-10-13
+  (commit `642b6d72cb`).
+- `package/git-policy/cli/src/native/invocation/escape_hatch.rs`:
+  parser-based invocation escape hatches,
+  which the retired TypeScript escape-hatch module held until the same deletion.
 - `package/fs-id/core/README.md`:
   implemented filesystem identity prerequisite and verified platform behavior.
 - `doc/planning/final-newline-normalization.md`:
@@ -985,4 +1071,5 @@ Consumer lockfiles and self-contained builds govern plugin inputs.
 - GitHub issue #357:
   completed hk and Pkl retirement capstone.
 - GitHub issue #358:
-  recorded and indefinitely deferred npm publication.
+  the npm publication deferral,
+  closed on 2026-11-09 because the audited package no longer exists.

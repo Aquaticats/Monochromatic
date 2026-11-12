@@ -94,7 +94,8 @@ fn btrfs_an_add_claims_the_snapshot_the_wrapper_made_ahead() {
         ceiling: Duration::from_secs(1),
     };
     let look: AheadLook = look_for_a_snapshot_ahead(&fixture.source, &fixture.plan, stage.as_path(), &crate::fixture_content_decision::content_environment(), &service);
-    let AheadLook::Claimed { made: claimed, proof } = look else { panic!("the add claims the snapshot ahead, and it answered {look:?}") };
+    let AheadLook::Claimed { made: claimed, proof, copied_at_millis } = look else { panic!("the add claims the snapshot ahead, and it answered {look:?}") };
+    assert_eq!(Some(copied_at_millis), made_at(made.as_os_str()), "the copy's instant is the millisecond its name holds, which is the age of the ignored state the worktree receives");
     assert_eq!(proof.entries.len(), fixture.source.clean.tracked, "the proof covers every tracked file");
     assert_eq!(identity_of_name(stage.as_path()), Some(claimed), "the claimed object is the one recorded");
     assert_eq!(std::fs::read(stage.join("shared.txt")).expect("the claimed copy's file"), b"second, longer\n");
