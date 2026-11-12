@@ -1616,19 +1616,53 @@ fn a_stage_holding_a_persons_file_below_the_document_folder_is_kept() {
 }
 
 /// The trash a snapshot sets its left-out directories aside in,
+/// that trash's manifest,
 /// and Git's own files,
-/// are the wrapper's own even though the wrapper makes them after the record is written.
+/// are the wrapper's own even though the wrapper makes them after the record is written;
+/// a directory the leave-out moved into the trash is accounted for by its birth time,
+/// and nothing below it is looked at.
 #[test]
 fn a_stage_the_wrapper_wrote_later_is_still_accounted_for() {
     let (root, common, container, _record) = killed_add_with_its_object_recorded("claim-add-wrappers-own");
     std::thread::sleep(std::time::Duration::from_millis(20));
     let trash: PathBuf = container.join(".claude/cli-git-trash").join("0".repeat(40));
     crate::private_storage::create_private_directory_all(trash.as_path()).expect("the trash the leave-out makes");
-    std::fs::write(trash.join("set-aside"), b"a directory the leave-out moved").expect("a set-aside entry");
+    // A directory the leave-out moved in came from the source, so it is older than the record however late the move was.
+    let moved: PathBuf = trash.join("d0");
+    crate::private_storage::create_private_directory_all(moved.as_path()).expect("a directory the leave-out moved");
+    std::fs::write(moved.join("carried"), b"a file the source had").expect("a file the source had");
+    std::fs::write(trash.join(".manifest"), b"a manifest the leave-out wrote").expect("the manifest the leave-out writes");
     std::fs::write(container.join(".git"), b"gitdir: elsewhere\n").expect("the pointer the ladder writes");
     let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
     assert!(!container.exists(), "the stage holds only what the wrapper wrote and is removed");
     assert!(notices.iter().any(|notice: &String| { return notice.contains("removed the stage"); }), "{notices:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A file a person puts inside the trash of a killed stage's add keeps the whole stage,
+///  and is named.
+/// Why:
+///   The trash is the wrapper's own folder,
+/// and what it holds is what the leave-out moved there;
+/// a file inside a trash root that no move made is born after the record,
+/// so it is exactly what the reaping may not delete,
+/// and it exists nowhere else.
+#[test]
+fn a_stage_holding_a_persons_file_inside_its_trash_is_kept() {
+    let (root, common, container, _record) = killed_add_with_its_object_recorded("claim-add-person-inside-trash");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let trash: PathBuf = container.join(".claude/cli-git-trash").join("0".repeat(40));
+    crate::private_storage::create_private_directory_all(trash.as_path()).expect("the trash the leave-out makes");
+    let mine: PathBuf = trash.join("mine.txt");
+    std::fs::write(mine.as_path(), b"a person's only copy").expect("a person's file inside the trash");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reap");
+    assert_eq!(std::fs::read(mine.as_path()).expect("the person's file"), b"a person's only copy", "nothing a person put inside the trash is removed");
+    assert!(
+        notices.iter().any(|notice: &String| { return notice.contains("was not changed") && notice.contains("mine.txt"); }),
+        "the line names the entry: {notices:?}"
+    );
+    make_removable(container.as_path());
     remove(root.as_path());
 }
 

@@ -1038,8 +1038,9 @@ fn a_trash_entry_that_was_replaced_is_left_alone_with_its_reason() {
 ///  A trash whose entry could not be removed is offered to the service as one more try may finish,
 ///  and the verdict is not the one a proof refusal gets.
 /// Why:
-///  A directory the emptying listed and then could not remove because something was written into it is a condition that can
-///  pass, and a record settled as failed is never claimed again:
+///  A directory the emptying listed and then could not remove because something was written into it is a condition
+///  that can pass,
+/// and a record settled as failed is never claimed again:
 /// one passing failure would strand a half-emptied trash on the disk for ever,
 /// named on every later command in that worktree.
 /// The tries are the recovery's own,
@@ -1073,6 +1074,73 @@ fn a_trash_whose_entry_could_not_be_removed_is_retried_not_given_up_on() {
     .expect("the runtime");
     assert!(matches!(&verdict, Verdict::Retry(reason) if reason.contains(entry_name(0).as_str())), "an entry that stayed may be removable next time: {verdict:?}");
     assert!(entry.join("appeared").is_file(), "and what appeared in it is untouched");
+    remove(root.as_path());
+}
+
+/// What:
+///  A file written inside a recorded entry after the manifest was written is left where it is,
+///  and the emptying names the entry and stops.
+/// Why:
+///   The manifest records each directory the leave-out moved and nothing about what stands inside one,
+/// so a file a person wrote there exists nowhere else and was never read by the wrapper.
+/// The entry's own directory is newer than the manifest exactly when something was written into it,
+/// and that is what keeps it:
+/// the trash is emptied only of what the snapshot recorded putting there.
+#[test]
+fn a_file_written_inside_a_recorded_entry_after_the_manifest_is_left_alone() {
+    let name: String = "5".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-entry-written-into", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let manifest_file: PathBuf = trash.join(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME);
+    // The wrapper wrote its manifest a while ago; everything it moved in is older than it.
+    age_by(manifest_file.as_path(), std::time::Duration::from_secs(600));
+    let theirs: PathBuf = trash.join(entry_name(0).as_str()).join("personal-recovery.txt");
+    std::fs::write(theirs.as_path(), b"a person's only copy\n").expect("a file written while the trash waits to be emptied");
+    let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
+    assert!(matches!(&verdict, Verdict::Failed(reason) if reason.contains(entry_name(0).as_str())), "the entry that was written into is kept and named: {verdict:?}");
+    assert_eq!(std::fs::read(theirs.as_path()).expect("the person's file"), b"a person's only copy\n", "nothing a person wrote inside the trash is removed");
+    assert!(trash.join(entry_name(0).as_str()).is_dir(), "and the entry stays with it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A trash whose removal failed once is emptied by the next attempt,
+///  because the instant the manifest names moves forward with the emptying's own work.
+/// Why:
+///   An entry the emptying partly removed has a directory newer than the manifest,
+/// and a later attempt that read that as somebody's write would leave the trash standing for ever;
+/// the second attempt here is what a retrying service does.
+#[test]
+fn a_trash_whose_removal_failed_once_is_emptied_by_the_next_attempt() {
+    let name: String = "3".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-retried-emptying", name.as_str(), 1);
+    crate::worktree_trash_own_manifest::write(worktree.as_path(), &manifest).expect("the trash says what it is");
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    let entry: PathBuf = trash.join(entry_name(0).as_str());
+    std::fs::create_dir_all(entry.join("inner")).expect("a directory inside the entry");
+    std::fs::write(entry.join("inner/file"), b"left out\n").expect("a file inside it");
+    let inside: PathBuf = entry.clone();
+    // The removal of the entries runs on the caller's thread while the caller is itself a task of the runtime, and the act
+    //  writes into the entry only on the first attempt, which is the failure the retry has to survive.
+    let (first, second): (Verdict, Verdict) = crate::lazy_runtime::run_on_runtime(async move {
+        let once: std::cell::Cell<bool> = std::cell::Cell::new(false);
+        let appending: PathBuf = inside.join("appeared");
+        crate::subvolume_remove_listing_test_support::act_after_each_listing(move |listed: &Path| {
+            if listed.file_name() != Some(std::ffi::OsStr::new("inner")) || once.replace(true) {
+                return;
+            }
+            std::fs::write(appending.as_path(), b"written while the emptying ran").expect("an entry written into after the entry was listed");
+        });
+        let first: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
+        let second: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));
+        crate::subvolume_remove_listing_test_support::stop_acting();
+        return (first, second);
+    })
+    .expect("the runtime");
+    assert!(matches!(first, Verdict::Retry(_)), "the first attempt may pass: {first:?}");
+    assert!(matches!(second, Verdict::Done), "and the next attempt empties what the first left: {second:?}");
+    assert!(!trash.exists(), "the trash is gone");
     remove(root.as_path());
 }
 

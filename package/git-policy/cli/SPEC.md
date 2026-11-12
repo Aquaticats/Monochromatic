@@ -1639,6 +1639,17 @@ a link or anything unrecorded is left alone and named in the
 failure),
 while an entry of a directory that another command removed after the removal listed it counts as removed,
 because the removal deletes only what it listed and what it listed is already gone.
+A recorded entry whose own directory is newer than the manifest is left alone too,
+with its whole trash,
+because something was written inside it after the wrapper wrote what it moved there:
+what the emptying deletes is what the snapshot recorded putting in its trash,
+and a file a person wrote there exists nowhere else.
+The check is one look at each entry's own directory and never a walk of what it holds,
+so an emptying costs the same however many files the snapshot left out;
+a change made below an entry's own directory leaves that directory's instant alone and is not seen.
+The emptying moves the manifest's instant forward when it leaves a trash standing,
+so its own partial removal is not read as a person's write by the attempt that follows,
+which keeps every try of a passing failure worth making.
 A worktree that is no longer there is done rather than failed:
 a removal of it took the trash with it.
 Nothing is found by scanning the trash parent for names,
@@ -3749,9 +3760,15 @@ before the snapshot exists,
 and the object at the container's name is still that identity,
 and no entry of the folder is born after the record's `written` instant
 except the ones the wrapper itself writes there after that instant:
-the trash parent `.claude/cli-git-trash` with everything below it,
 `.claude` itself,
+the trash parent `.claude/cli-git-trash`,
+a trash root below it,
+the manifest inside a trash root,
+the directories the leave-out renamed into a trash root,
 and `.git` with everything below it.
+Nothing below a directory the leave-out renamed into a trash root is examined:
+a per-file proof of it would read the whole ignored state of the source on the command that meets a dead claim,
+and the trash records nothing per file.
 A record that is absent,
 that does not read as this release writes it,
 that names another container,
@@ -3766,6 +3783,8 @@ A folder holding an entry born after the recorded instant that is not one of the
 named by the entry,
 because nothing there says whether the wrapper's own interrupted write or a person's copy put it there,
 and only a person can tell;
+a file or a directory a person puts inside a trash root is such an entry and keeps the stage,
+which is what a file inside the wrapper's own trash is worth keeping for;
 the wrapper's own writes after the record are the trash the leave-out makes and Git's index and pointer,
 and a write of the difference between the trees (`read-tree -u`) creates entries the record cannot account for,
 so a kill during that step leaves a stage the next command reports rather than removes.

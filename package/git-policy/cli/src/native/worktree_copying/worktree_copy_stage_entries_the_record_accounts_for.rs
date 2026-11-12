@@ -11,10 +11,16 @@
 //! so every entry
 //!  born after it is unaccounted for,
 //! except the entries the wrapper itself makes later and names here:
-//! the trash a snapshot
+//! the trash parent,
+//! the trash root a snapshot
 //!  sets its left-out directories aside in,
+//! the manifest inside that root,
 //! and Git's own `.git`,
 //! whose index and pointer the ladder writes.
+//! The trash is examined:
+//! a directory or a file a person puts inside a trash root is born after the record and keeps the folder,
+//! and a directory the leave-out moved in is the source's own and is not walked into,
+//! because a per-file proof of what such a directory holds would read the whole ignored state of the source.
 //! A folder holding an unaccounted entry is left whole and named,
 //! which is the conservative answer for a
 //!  folder that holds a copy of a checkout's state.
@@ -45,6 +51,118 @@ const GIT_DIRECTORY: &str = ".git";
 /// which holds the trash.
 const CLUSTER_DIRECTORY: &str = ".claude";
 
+/// The file a trash carries inside itself,
+/// written here as well as in `worktree_trash_own_manifest::MANIFEST_FILE_NAME`,
+/// for the reason `TRASH_PARENT` is.
+const TRASH_MANIFEST: &str = ".manifest";
+
+/// The number of names below the trash parent in `relative`,
+/// or nothing when it is not below it.
+/// Why:
+///   The trash's own levels are what the accounting treats differently:
+/// the parent,
+/// a trash root,
+/// and the entries inside a root are three different answers,
+/// and counting the names is how they are told apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesBelowTheTrashParent = (relative) => relative === TRASH_PARENT ? 0 : relative.startsWith(`${TRASH_PARENT}/`) ? relative.slice(TRASH_PARENT.length + 1).split('/').length : undefined;
+/// ```
+fn names_below_the_trash_parent(relative: &Path) -> Option<usize> {
+    let rest: &Path = relative.strip_prefix(Path::new(TRASH_PARENT)).ok()?;
+    return Some(rest.components().count());
+}
+
+/// What:
+///  Whether a name is one the wrapper gives a trash directory:
+/// forty lowercase hexadecimal digits.
+/// Why:
+///   A trash root is the one directory below the trash parent that the wrapper itself makes after it records the stage,
+/// so it has to be told from a directory a person keeps there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isATrashName = (name) => /^[0-9a-f]{40}$/.test(name);
+/// ```
+fn is_a_trash_name(name: &std::ffi::OsStr) -> bool {
+    use std::os::unix::ffi::OsStrExt as _;
+    let bytes: &[u8] = name.as_bytes();
+    return bytes.len() == 40 && bytes.iter().all(is_a_lowercase_hexadecimal_digit);
+}
+
+/// Whether a byte is a digit or one of `a` to `f`,
+/// the alphabet a trash's name is written in.
+fn is_a_lowercase_hexadecimal_digit(byte: &u8) -> bool {
+    return byte.is_ascii_digit() || (b'a'..=b'f').contains(byte);
+}
+
+/// What:
+///  Whether the relative path is a trash root,
+/// the directory one snapshot's leave-out puts its set-aside directories in.
+/// Why:
+///   The wrapper makes it after its record,
+/// so the birth-time rule would take it for a person's entry and keep every stage whose leave-out ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isATrashRoot = (relative) => namesBelowTheTrashParent(relative) === 1 && isATrashName(basename(relative));
+/// ```
+fn is_a_trash_root(relative: &Path) -> bool {
+    return names_below_the_trash_parent(relative) == Some(1) && relative.file_name().is_some_and(is_a_trash_name);
+}
+
+/// What:
+///  Whether a name is one the leave-out gives a directory it moved into a trash:
+/// `d` and a count.
+/// Why:
+///   Inside a trash root the wrapper's own names are the manifest and the entries it moved there,
+/// and every other name is somebody's:
+/// a file the wrapper never wrote has to be told from one it did,
+/// and the trash records no per-file identity.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAnEntryName = (name) => /^d[0-9]+$/.test(name);
+/// ```
+fn is_an_entry_name(name: &std::ffi::OsStr) -> bool {
+    use std::os::unix::ffi::OsStrExt as _;
+    let bytes: &[u8] = name.as_bytes();
+    return bytes.len() > 1 && bytes.first() == Some(&b'd') && bytes[1..].iter().all(u8::is_ascii_digit);
+}
+
+/// What:
+///  Whether the relative path is the name of an entry the leave-out moved into a trash.
+/// Why:
+///   The entries are what a trash holds of the source's,
+/// and they are the wrapper's own by name and by the move that put them there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAnEntryOfATrash = (relative) => namesBelowTheTrashParent(relative) === 2 && isAnEntryName(basename(relative));
+/// ```
+fn is_an_entry_of_a_trash(relative: &Path) -> bool {
+    return names_below_the_trash_parent(relative) == Some(2) && relative.file_name().is_some_and(is_an_entry_name);
+}
+
+/// What:
+///  Whether the relative path is the manifest inside a trash root,
+/// the file the wrapper writes after it moved everything in.
+/// Why:
+///   It is the wrapper's own,
+/// and it is born after the record like the trash root;
+/// everything else inside a root is judged by its birth time,
+/// which is what tells a directory the source had from one a person made after the kill.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isATrashManifest = (relative) => basename(relative) === TRASH_MANIFEST && isATrashRoot(dirname(relative));
+/// ```
+fn is_a_trash_manifest(relative: &Path) -> bool {
+    let Some(parent) = relative.parent() else { return false };
+    return is_a_trash_root(parent) && relative.file_name() == Some(std::ffi::OsStr::new(TRASH_MANIFEST));
+}
+
 /// What:
 ///  Whether the wrapper itself makes the entry at this relative path after it records the object.
 /// Why:
@@ -66,25 +184,51 @@ fn is_the_wrappers_own(relative: &Path) -> bool {
     let git: &Path = Path::new(GIT_DIRECTORY);
     let cluster: &Path = Path::new(CLUSTER_DIRECTORY);
     let trash: &Path = Path::new(TRASH_PARENT);
-    return relative.starts_with(git) || relative == cluster || relative.starts_with(trash);
+    return relative.starts_with(git) || relative == cluster || relative == trash || is_a_trash_root(relative) || is_a_trash_manifest(relative) || is_an_entry_of_a_trash(relative);
 }
 
 /// What:
 ///  Whether the entries below this relative path are not examined at all.
 /// Why:
-///   Git's own directory and the snapshot's trash hold the source's and the leave-out's entries by the
-///  thousand,
-/// and nothing of the wrapper's there is worth an entry-by-entry look;
-/// `.claude` is entered,
-/// so a
-///  person's file beside the trash is found.
+///   Git's own directory holds the source's and the ladder's entries by the thousand,
+/// and nothing of the wrapper's there is worth an entry-by-entry look.
+/// The trash is examined:
+/// its roots and their own entries are what a person's file could stand beside or in,
+/// and the two findings of the alpha.12 audit are files there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// path === GIT_DIRECTORY || path.startsWith(`${GIT_DIRECTORY}/`) || path === TRASH_PARENT || path.startsWith(`${TRASH_PARENT}/`)
+/// path === GIT_DIRECTORY || path.startsWith(`${GIT_DIRECTORY}/`)
 /// ```
 fn is_left_unexamined(relative: &Path) -> bool {
-    return relative.starts_with(GIT_DIRECTORY) || relative.starts_with(TRASH_PARENT);
+    return relative.starts_with(GIT_DIRECTORY);
+}
+
+/// What:
+///  Whether the entries below this relative path are examined and not walked into.
+/// Why:
+///   A directory the leave-out moved into a trash is the source's own tree,
+/// moved whole;
+/// a per-file proof of what it holds would read every entry of the ignored state on every add that meets a dead stage,
+/// and the trash records nothing per file.
+/// So the entry itself is judged by its birth time and what is inside it is left as it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesBelowTheTrashParent(relative) >= 2
+/// ```
+fn is_not_walked_into(relative: &Path) -> bool {
+    return names_below_the_trash_parent(relative).is_some_and(is_deeper_than_a_trash_root);
+}
+
+/// What:
+///  Whether a count of names below the trash parent is deeper than a trash root,
+/// which is where a directory the leave-out moved stands.
+/// Why:
+///   The walk reads this answer from a number,
+/// and naming it keeps the predicate about the trash's levels rather than about the number.
+fn is_deeper_than_a_trash_root(below: usize) -> bool {
+    return below >= 2;
 }
 
 /// What:
@@ -198,7 +342,7 @@ pub fn unaccounted_entry(container: &Path, written: SystemTime) -> Option<String
                     Err(error) => return Some(words_for_unexamined(below.as_path(), &error)),
                 }
             }
-            if metadata.is_dir() {
+            if metadata.is_dir() && !is_not_walked_into(below.as_path()) {
                 pending.push((entry.path(), below));
             }
         }

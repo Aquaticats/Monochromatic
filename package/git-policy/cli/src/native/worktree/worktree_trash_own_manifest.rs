@@ -1,7 +1,8 @@
 //! What:
 //!  The manifest a trash carries inside itself,
 //! what it proves,
-//! and how a later pass reads it.
+//! how a later pass reads it,
+//! and whether anything was written into a recorded entry since it was written.
 //! Why:
 //!  The work item that empties a trash is written after the snapshot is published,
 //! so a command killed between the
@@ -30,9 +31,10 @@
 //! ```
 
 use crate::fs_beneath::{handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components};
+use crate::diagnostic_log::debug;
 use crate::plain_file::write_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
-use crate::worktree_trash_manifest::TrashManifest;
+use crate::worktree_trash_manifest::{TrashManifest, entry_name};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -98,22 +100,29 @@ pub fn write(root: &Path, manifest: &TrashManifest) -> Result<(), String> {
 
 /// What:
 ///  The manifest a trash carries inside itself,
-///  with the identity of the file that carries it.
+///  with the identity of the file that carries it and the instant it was written.
 /// Why:
 ///   The bytes say which trash the leave-out made,
 /// and the identity of the file they were read through is what the emptying compares again
 ///  on the object it takes the name to before it removes that object,
 /// so a file another process moved onto the name is never removed unread.
+/// The instant is the file's own modification time:
+/// everything the leave-out moved in was there when the manifest was written,
+/// so a recorded entry whose directory is newer than it
+///  has had something written into it since,
+/// and what is there is somebody's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type OwnManifest = { manifest: TrashManifest; file: ObjectId };
+/// type OwnManifest = { manifest: TrashManifest; file: ObjectId; written: SystemTime };
 /// ```
 pub struct OwnManifest {
     /// What the leave-out made and moved.
     pub manifest: TrashManifest,
     /// The object that held those bytes when they were read.
     pub file: crate::fs_beneath::ObjectId,
+    /// When the wrapper wrote those bytes.
+    pub written: std::time::SystemTime,
 }
 
 /// What:
@@ -164,9 +173,11 @@ pub fn read(root: &Path, name: &str) -> Option<TrashManifest> {
 /// ```
 pub fn its_own(trash: &std::fs::File, name: &str) -> Option<OwnManifest> {
     let file: std::fs::File = open_file_at(trash, OsStr::new(MANIFEST_FILE_NAME)).ok()?;
-    if !file.metadata().ok()?.file_type().is_file() {
+    let found: std::fs::Metadata = file.metadata().ok()?;
+    if !found.file_type().is_file() {
         return None;
     }
+    let written: std::time::SystemTime = found.modified().ok()?;
     let carrier: crate::fs_beneath::ObjectId = identity_of(&file).ok()?;
     let mut bytes: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut std::io::Read::take(&file, MANIFEST_LIMIT + 1), &mut bytes).ok()?;
@@ -178,7 +189,7 @@ pub fn its_own(trash: &std::fs::File, name: &str) -> Option<OwnManifest> {
     if manifest.trash != identity_of(trash).ok()? {
         return None;
     }
-    return Some(OwnManifest { manifest, file: carrier });
+    return Some(OwnManifest { manifest, file: carrier, written });
 }
 
 /// What:
@@ -214,6 +225,78 @@ fn opened_trash(root: &Path, name: &str) -> Result<std::fs::File, String> {
         Ok(trash) => Ok(trash),
         Err(error) => Err(format!("{} is not a plain directory ({error})", shown(root, name).display())),
     };
+}
+
+/// What:
+///  The first recorded entry of `trash` that was written into after the manifest was written,
+/// as the reason it stays,
+///  or nothing when nothing was.
+/// Why:
+///   The manifest records the identity of each directory the leave-out moved,
+/// and nothing about what stands inside one,
+/// so a file written into a recorded entry after the manifest is a file the wrapper never read and never recorded.
+/// An entry's own directory is newer than the manifest exactly when something was written directly inside it,
+///  which is the check this pays for:
+/// one `statx` per entry,
+/// never a walk of what the entry holds,
+/// so an add whose trash is emptied pays no look at the hundreds of thousands of entries a snapshot leaves out.
+/// A change made below the entry's own directory leaves that directory's instant alone and is not seen;
+/// `SPEC.md` states that limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writtenInto = (trash, own) => own.manifest.entries.findIndex((_, i) => mtime(join(trash, entryName(i))) > own.written);
+/// ```
+pub fn written_into_after(trash: &std::fs::File, own: &OwnManifest, inside: &Path) -> Option<String> {
+    for (index, _recorded) in own.manifest.entries.iter().enumerate() {
+        let name: String = entry_name(index);
+        let Ok(found) = crate::fs_beneath::entry_metadata_at(trash, std::ffi::OsStr::new(name.as_str())) else { continue };
+        let Ok(modified) = found.modified() else { continue };
+        if modified > own.written {
+            return Some(format!(
+                "{} was written into after the wrapper wrote what it moved into the trash, so it is left alone: the emptying deletes only what the snapshot recorded putting there, and what is in it now exists nowhere else",
+                inside.join(name.as_str()).display()
+            ));
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Move the manifest's instant forward when the emptying leaves the trash standing.
+/// Why:
+///   An entry the emptying partly removed has a directory newer than the manifest,
+/// and the next attempt would read the emptying's own unlinks as somebody's write and leave the trash for ever.
+/// The instant is only ever the reference of that check,
+/// so moving it forward is how the next attempt starts where this one ended;
+/// a file written into an entry *after* this instant is caught as before,
+/// and one written during this attempt is not.
+/// The instant is the later of the clock and the newest entry's own,
+/// so a clock that stepped back while the emptying ran cannot make the emptying's own work look like a person's write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const moveTheInstantForward = (trash, manifest) => utimensat(trash, MANIFEST_FILE_NAME, max(now(), ...entries.map(mtime)));
+/// ```
+pub fn move_the_instant_forward(trash: &std::fs::File, manifest: &TrashManifest) {
+    let mut instant: std::time::SystemTime = std::time::SystemTime::now();
+    for index in 0..manifest.entries.len() {
+        let name: String = entry_name(index);
+        if let Ok(found) = crate::fs_beneath::entry_metadata_at(trash, std::ffi::OsStr::new(name.as_str()))
+            && let Ok(modified) = found.modified()
+            && modified > instant
+        {
+            instant = modified;
+        }
+    }
+    let since_the_epoch: std::time::Duration = instant.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let times: [libc::timespec; 2] = [
+        libc::timespec { tv_sec: since_the_epoch.as_secs() as libc::time_t, tv_nsec: since_the_epoch.subsec_nanos() as libc::c_long },
+        libc::timespec { tv_sec: since_the_epoch.as_secs() as libc::time_t, tv_nsec: since_the_epoch.subsec_nanos() as libc::c_long },
+    ];
+    if let Err(error) = crate::fs_beneath::set_times_at(trash, OsStr::new(MANIFEST_FILE_NAME), times) {
+        debug("worktreeTrashOwnManifest", format!("the instant of the manifest cannot be moved forward ({error}), so a later attempt may read this one's work as somebody's write").as_str());
+    }
 }
 
 /// The path a message names for the trash `name` of `root`.

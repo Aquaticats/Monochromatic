@@ -17,8 +17,9 @@
 //! the deletion opens each directory on the
 //!  way by one plain name below the handle of the one above,
 //! compares identities,
-//! and leaves anything else alone with a
-//!  reason.
+//! leaves anything else alone with a
+//!  reason,
+//! and tells the service whether one more try could finish what a refusal left.
 //! A record stays until the trash is gone or the service has taken it,
 //! so a failure is never a silent success.
 //! The add never waits for any of this (`worktree_trash_hand_over.rs` hands the trash over):
@@ -120,8 +121,9 @@ impl TrashLeft {
     /// which one more try may finish.
     /// Why:
     ///   What a step could not do is not proof that nothing can:
-    /// a busy volume, an entry another command holds for a
-    ///  moment or one it removed as this removal listed it all leave what the service may finish when it runs again,
+    /// a busy volume,
+    /// an entry another command holds for a moment,
+    /// or one it removed as this removal listed it all leave what the service may finish when it runs again,
     ///  and the claim's lease and `MAX_TRIES` bound the tries.
     ///
     /// In TS you'd write (pseudocode):
@@ -176,7 +178,8 @@ impl TrashLeft {
     ///  A refusal of the entries of the trash,
     ///  which one more try may empty only when every entry still at its name is the recorded object.
     /// Why:
-    ///   The reasons of the entries name what stayed, not why,
+    ///   The reasons of the entries name what stayed,
+    /// not why,
     /// so the emptying asks the trash itself:
     /// an entry that is still the object the leave-out moved may be removable when it runs again,
     /// while an entry that is not is proof that the trash is not the snapshot's own,
@@ -670,8 +673,15 @@ fn entries_are_the_recorded_objects(trash: &File, manifest: &TrashManifest) -> b
 pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), TrashLeft> {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
     let Some(held) = prepare_trash_removal(opened).map_err(TrashLeft::final_refusal)? else { return Ok(()) };
+    let own: Option<crate::worktree_trash_own_manifest::OwnManifest> = crate::worktree_trash_own_manifest::its_own(&held.trash, manifest.name.as_str());
+    if let Some(manifest_of_the_trash) = own.as_ref()
+        && let Some(reason) = crate::worktree_trash_own_manifest::written_into_after(&held.trash, manifest_of_the_trash, held.inside.as_path())
+    {
+        return Err(TrashLeft::final_refusal(reason));
+    }
     let left: Vec<String> = remove_entries(&entry_removal_of(TheRemovalOfTrashEntries { inside: held.inside.clone(), trash: Arc::clone(&held.trash), manifest: manifest.clone() }));
     if !left.is_empty() {
+        crate::worktree_trash_own_manifest::move_the_instant_forward(&held.trash, manifest);
         return Err(TrashLeft::entries_refused(left.join("; "), entries_are_the_recorded_objects(&held.trash, manifest)));
     }
     return settle_trash_removal(held);
@@ -705,8 +715,15 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         Err(refused) => return Err(TrashLeft::may_pass(format!("the directories of the trash {} could not be examined ({refused})", manifest.name))),
     };
     let Some(held) = opened_trash else { return Ok(()) };
+    let own: Option<crate::worktree_trash_own_manifest::OwnManifest> = crate::worktree_trash_own_manifest::its_own(&held.trash, manifest.name.as_str());
+    if let Some(manifest_of_the_trash) = own.as_ref()
+        && let Some(reason) = crate::worktree_trash_own_manifest::written_into_after(&held.trash, manifest_of_the_trash, held.inside.as_path())
+    {
+        return Err(TrashLeft::final_refusal(reason));
+    }
     let left: Vec<String> = remove_entries_awaiting(&entry_removal_of(TheRemovalOfTrashEntries { inside: held.inside.clone(), trash: Arc::clone(&held.trash), manifest: manifest.clone() })).await;
     if !left.is_empty() {
+        crate::worktree_trash_own_manifest::move_the_instant_forward(&held.trash, manifest);
         return Err(TrashLeft::entries_refused(left.join("; "), entries_are_the_recorded_objects(&held.trash, manifest)));
     }
     return match run_a_job_or_in_turn(held, settle_trash_removal).await {
