@@ -254,3 +254,45 @@ fn only_worktree_add_creates_worktrees() {
     assert!(!creates_worktrees(&bare));
     assert!(!creates_worktrees(&other));
 }
+
+/// What: A temporary audit seam calls the real reset classifier without a racing commit.
+/// Why: Git applies reset modes in argument order, so a later mixed mode must coordinate.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert(isIndexWriter(resolve(['reset', '--soft', '--mixed'])));
+/// ```
+#[test]
+fn audit_invocation_reset_last_mode_writes_index() {
+    // The existing fixture injects only the test's Git configuration.
+    let context: GitContext = context_with_aliases(&[]);
+    // Borrow the context and native arguments for the actual production resolver.
+    let command: ResolvedCommand = resolve_forwarded_command(&context, &args(&["reset", "--soft", "--mixed"]));
+    // The public classifier is the decision that selects index-writer coordination.
+    let writes: bool = crate::index_writer_commands::is_index_writer(&command);
+    // Print only this fixture's classification for the audit evidence.
+    println!("AUDIT reset --soft --mixed: route={:?}, writes_index={writes}", command.route);
+    // The expected safety property deliberately fails on the audited code.
+    assert!(writes, "Git's final --mixed writes the index but the wrapper skips coordination");
+}
+
+/// What: A temporary audit seam supplies an option-looking pathspec file name.
+/// Why: An option value is not a reset mode and must not turn off coordination.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert(isIndexWriter(resolve(['reset', '--pathspec-from-file', '--soft'])));
+/// ```
+#[test]
+fn audit_invocation_reset_pathspec_file_is_not_a_mode() {
+    // Borrow the empty fixture configuration rather than the user's configuration.
+    let context: GitContext = context_with_aliases(&[]);
+    // The separated value is an opaque native filename, not an option token.
+    let command: ResolvedCommand = resolve_forwarded_command(&context, &args(&["reset", "--pathspec-from-file", "--soft"]));
+    // Read the actual route-selection result without starting any coordinated writer.
+    let writes: bool = crate::index_writer_commands::is_index_writer(&command);
+    // This line names the exact fixture input and classifier result.
+    println!("AUDIT reset --pathspec-from-file --soft: route={:?}, writes_index={writes}", command.route);
+    // This assertion records the disagreement with native Git's index mutation.
+    assert!(writes, "Git consumes --soft as a file name but the wrapper skips coordination");
+}
