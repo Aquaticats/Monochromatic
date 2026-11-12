@@ -202,7 +202,7 @@ fn a_read_that_never_returns_is_ended_at_its_ceiling() {
     );
     // The words of a watched step belong to a commit's steps, and a check's read says what stayed as it was instead.
     assert!(
-        sentence.contains("The read changed nothing, so the index and the worktree are as they were; run the command again"),
+        sentence.contains("Such a query changes nothing of the repository."),
         "{sentence}"
     );
     assert!(
