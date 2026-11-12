@@ -82,8 +82,9 @@ const WORKTREE_CONFIG: &str = "config.worktree";
 ///  An entry a commit reads that the repository has gained since the fill is refused,
 /// because the member would give the commit the view of the moment it was made;
 ///  an entry it has lost is refused as well when the member still links it,
-///  because a creation of this moment makes no link at that name,
-/// and a filter or a hook that writes into the directory a link names fails on one that resolves to nothing.
+///  because a creation of this moment links no name the repository does not hold,
+/// and makes the store a filter writes into,
+///  while a filter or a hook that writes into the directory a link names fails on one that resolves to nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -263,7 +263,7 @@ fn existing_shadow_entries_are_replaced_by_links() {
 /// What:
 ///  A shared entry that a command removes between the listing and the link does not fail the link.
 /// Why:
-///  `lfs` appears when somebody starts using it and can go again;
+///  `rr-cache` appears when somebody starts resolving conflicts and can go again;
 /// a removal that lands inside a commit's creation must leave the commit building the shadow of a
 ///  repository that does not hold the entry,
 /// never failing it.
@@ -277,19 +277,60 @@ fn a_shared_entry_that_is_gone_before_it_is_linked_is_not_an_error() {
     let root: PathBuf = fixture("shadow-links-gone");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let common: PathBuf = repo.join(".git");
-    std::fs::create_dir(common.join("lfs")).expect("lfs");
+    std::fs::create_dir(common.join("rr-cache")).expect("rerere has run here");
     let (shared, own_info): (Vec<SharedEntry>, bool) = shared_entries_of(common.as_path(), common.as_path()).expect("listed");
     assert!(!own_info);
-    assert!(shared.iter().any(|entry| { return entry.name == "lfs"; }), "the listing holds lfs");
-    std::fs::remove_dir_all(common.join("lfs")).expect("another command removes lfs");
+    assert!(shared.iter().any(|entry| { return entry.name == "rr-cache"; }), "the listing holds rr-cache");
+    std::fs::remove_dir_all(common.join("rr-cache")).expect("another command removes rr-cache");
     let shadow: PathBuf = root.join("shadow");
     std::fs::create_dir(shadow.as_path()).expect("shadow");
     link_directory_entries(shared.as_slice(), shadow.as_path()).expect("a vanished entry is no failure");
-    assert!(!common.join("lfs").exists(), "the real entry is gone");
-    if let Ok(metadata) = std::fs::symlink_metadata(shadow.join("lfs").as_path()) {
+    assert!(!common.join("rr-cache").exists(), "the real entry is gone");
+    if let Ok(metadata) = std::fs::symlink_metadata(shadow.join("rr-cache").as_path()) {
         assert!(metadata.file_type().is_symlink(), "a gone entry is a link to nothing, never a copy of something");
     }
     assert!(std::fs::symlink_metadata(shadow.join("hooks").as_path()).is_ok(), "the entries that are there still link");
+    remove(root.as_path());
+}
+
+/// What:
+///  The directory a clean filter of the commit writes its object into is made when the repository has
+///  not got it yet,
+///  and the shadow links it.
+/// Why:
+///   A filter that stores into `<git-dir>/lfs` as `git-lfs` does needs that directory to be there:
+///  a shadow that links nothing leaves the object in the private tree,
+///  which is released with it,
+///  and a link that reaches nothing makes the filter fail,
+///  and the commit with it.
+///  `git-lfs` makes the directory on its first write,
+///  so a creation that makes it first holds what the next command in the real repository would hold.
+#[test]
+fn the_store_a_filter_writes_into_is_made_and_linked() {
+    let root: PathBuf = fixture("shadow-links-filter-store");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    assert!(
+        std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME).as_path()).is_err(),
+        "this repository has no store yet"
+    );
+    let shadow: PathBuf = root.join("shadow");
+    std::fs::create_dir(shadow.as_path()).expect("shadow");
+    link_shadow_entries(shadow.as_path(), common.as_path(), common.as_path()).expect("link");
+    assert!(
+        std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME).as_path()).is_ok_and(|metadata| { return metadata.is_dir(); }),
+        "the creation makes the real store"
+    );
+    assert_eq!(
+        std::fs::read_link(shadow.join(LFS_STORE_ENTRY_NAME)).expect("the store link"),
+        common.join(LFS_STORE_ENTRY_NAME),
+        "and the shadow links that one directory"
+    );
+    std::fs::write(shadow.join(LFS_STORE_ENTRY_NAME).join("written-by-a-filter"), b"x").expect("a write through the link");
+    assert!(
+        std::fs::symlink_metadata(common.join(LFS_STORE_ENTRY_NAME).join("written-by-a-filter").as_path()).is_ok(),
+        "what a filter writes through the shadow's link is the real store's"
+    );
     remove(root.as_path());
 }
 

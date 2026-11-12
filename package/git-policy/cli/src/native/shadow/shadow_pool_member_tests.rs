@@ -293,9 +293,9 @@ fn a_real_entry_at_a_shared_name_is_a_refusal() {
 ///  and the refusal names it.
 /// Why:
 ///   The link a fill made points at a directory that is gone,
-///  and a creation of this moment makes no link at that name at all,
+///  while a creation of this moment makes that directory and links it,
 ///  so the two trees are not the same view:
-/// something that writes into the directory a link names fails on one that resolves to nothing
+/// what writes into the directory a link names fails on one that resolves to nothing
 ///  (`git-lfs`'s clean filter writes its object into `<git-dir>/lfs`).
 ///  A member that is not the tree a creation makes is removed,
 ///  and the commit makes its own creation.
@@ -324,9 +324,14 @@ fn a_shared_entry_the_repository_lost_is_a_refusal() {
         "a link to nothing is not the tree a creation of this moment makes"
     );
     let fresh: PathBuf = creation(root.as_path(), &template, "created-after");
+    assert_eq!(
+        std::fs::read_link(fresh.join("lfs")).expect("the link a creation of this moment makes"),
+        common.join("lfs"),
+        "a creation makes the store the member's link could not reach"
+    );
     assert!(
-        std::fs::symlink_metadata(fresh.join("lfs").as_path()).is_err(),
-        "the creation of this moment links no lfs at all, so the member and it differ"
+        std::fs::symlink_metadata(common.join("lfs").as_path()).is_ok_and(|metadata| { return metadata.is_dir(); }),
+        "and the store it links is there"
     );
     remove(root.as_path());
 }
