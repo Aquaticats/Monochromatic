@@ -193,17 +193,17 @@ pub(crate) async fn drain_common_records_within_awaiting<H: WorkHandlers + Sync 
     // The look reads the `commondir` file and the `config` of the directory it names, and it is a job of the pool with a
     //  ceiling: a task of the runtime that made those reads itself would hold a worker for good on a store that stopped
     //  answering, and the round that awaits this drain would then never end (finding 1 of the review of `c02f49638e`).
-    let common: Option<PathBuf> = match common_directory_to_drain_within_awaiting(ceiling, git_dir).await {
-        Ok(found) => found,
+    let common: PathBuf = match common_directory_to_drain_within_awaiting(ceiling, git_dir).await {
+        Ok(Some(common)) => common,
+        // Nothing to drain here: a repository with a main worktree, a main worktree itself, or a directory with no
+        //  `commondir`, which is the synchronous face's answer.
+        Ok(None) => return Drained::default(),
         // Whether there is a common directory is not known after a look that gave no answer, which is not "this repository
         //  has none": the records there keep their lease and the round asks to be woken for them.
         Err(said) => {
             refused(said.as_str());
             return Drained { wait: Some(LOOK_AGAIN_AFTER_A_STEP_THAT_GAVE_NO_ANSWER), changes: Vec::new() };
         }
-    };
-    let Some(common) = common else {
-        return Drained::default();
     };
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     requeue_expired_awaiting(work_directory(common.as_path()).as_path(), common.as_path(), now, lease).await;

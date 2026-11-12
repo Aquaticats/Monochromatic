@@ -205,14 +205,15 @@ async fn run_awaiting(mut inbox: UnboundedReceiver<Wake>, handlers: GitHandlers,
 /// ```
 pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized>(git_dir: &Path, handlers: &H, housekeeping: Duration) -> Option<Duration> {
     let own: Option<Duration> = drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping).await;
-    let common: Option<PathBuf> = match common_directory_to_drain_awaiting(git_dir).await {
-        Ok(found) => found,
+    let common: PathBuf = match common_directory_to_drain_awaiting(git_dir).await {
+        Ok(Some(common)) => common,
+        // Nothing to run there: this repository has no bare common directory whose records the lane would run.
+        Ok(None) => return own,
         Err(said) => {
             refused(said.as_str());
             return Some(own.unwrap_or(LOOK_AGAIN_AFTER_A_STEP_THAT_GAVE_NO_ANSWER));
         }
     };
-    let Some(common) = common else { return own };
     let shared: Option<Duration> = drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping).await;
     return match (own, shared) {
         (Some(one), Some(other)) => Some(one.min(other)),
