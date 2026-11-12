@@ -135,6 +135,295 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The hourly pass before 10:00: eleven runs ended, four reviews and one continuation started (2026-11-12T09:59:00-05:00)
+
+#### State
+
+- Free space 209 GiB.
+- Under 0.6.1-alpha.13 in this repository:
+  seventy commit records,
+  sixty-eight landed,
+  median 825 ms,
+  ninetieth percentile 3,439 ms,
+  largest 14,579 ms.
+  The two that did not land are real Git's own refusals (`native-exit`, status 1) in worktrees that are mid-merge.
+- The largest,
+  at 09:13:13 on pass 17's integration branch:
+  `buildMs` 13,999 of the 14,579 ms,
+  every other step under 400 ms.
+  Whether real Git takes as long for the same commit is not measured;
+  it is over the five-second bound until a native control says otherwise,
+  and it goes to the next agent that works on the build step.
+- The user manager's reloads since the install,
+  corrected:
+  nine,
+  between 08:40:01 and 08:48:12,
+  eight of them between 154 and 487 ms and one of 2,762 ms at 08:45:30;
+  none in the seventy minutes after,
+  in which fifty-seven commits were made.
+  The section of 09:05:26 counted two.
+
+#### What ended, and nothing culled
+
+- Eleven runs ended since 09:03,
+  each by its own stop with a report,
+  none closed by the driver:
+  seven qwen4 reviews
+  (vendored-clone exemption, package repair owns its children, clean saves nested repositories,
+  commit service hands a commit its shadow, landed sweep and a reset worktree,
+  a late runtime does not fail a commit, landed removal proves again before it destroys)
+  and four continued fix runs
+  (push notices of round 231, cargo-shadow lean's deadline, the worktree-copy record that cannot be read,
+  worktree add without waiting for package repair).
+- Two Sonnet digests are being written:
+  `~/temp/agent/digest-2026-11-12T0956-work/` and `~/temp/agent/digest-2026-11-12T0956-reviews/`.
+  The review digest says for each finding whether its branch is in pass 17,
+  so that it can be weighed before that pass is merged.
+- Nothing in flight is superseded;
+  nothing was stopped.
+
+#### Started
+
+- Round 285,
+  qwen4 reviews of three of the ended fix branches at their tips:
+  push notices (`9da2d237ed`),
+  the worktree-copy record (`aba9bce1d4`),
+  worktree add without waiting (`9e1b450341`).
+- Round 286,
+  a qwen4 review of the cargo-shadow lean branch (`743059e153`).
+- Round 287,
+  the continuation of
+  `subagent-driver-a-real-batch-start-works-and-the-remaining-commands-are-usable`
+  from `58586fa985`:
+  its first run was itself closed as `idle` after 394 turns,
+  its keep-and-wake for a run that ends a turn with work of its own running was tested with a stub only,
+  and the scratch scripts are not all ported.
+- The next audits read 0.6.1-alpha.14,
+  not alpha.13:
+  pass 17 carries sixteen branches that answer the audits of alpha.12,
+  and an audit before it lands would report them again.
+
+### A wrapper killed for memory in a 512 MB scope: the holder scan's read of a descriptor record, issue 6287 (2026-11-12T09:50:16-05:00)
+
+#### What the owner said
+
+- About 09:41, quoting a desktop notification:
+  "The background service review208-rec5.scope has been terminated by the Linux kernel
+  because the system is low on memory. Consider closing unused applications or browser tabs."
+  "Is this yours? And also make sure this doesn't happen again."
+- About 09:43:
+  "I don't want you to stop the notification. I want you to fix the root cause."
+
+The notification stays as it is.
+Nothing may hide it, filter it or change the unit's out-of-memory policy to avoid it.
+
+#### What happened
+
+- The scope was started at 09:38:17 by the qwen4 reviewer of the merge-asides fix (a run of this session),
+  with `MemoryMax=512M`,
+  to run `status --porcelain` in a fixture with a wrapper built from the branch under review.
+- The kernel killed the wrapper at 09:40:23.
+  Its report: `constraint=CONSTRAINT_MEMCG`,
+  usage and limit both 524288 kB,
+  `anon 0`,
+  `file 0`,
+  `kernel 536809472`,
+  `vmalloc 535171072`;
+  the stack is `vfs_read`, `seq_read`, `seq_read_iter`, `__kvmalloc_node_noprof`.
+  The machine had 35 GiB available:
+  the kill was the scope's own cap,
+  and the notification's wording about the system is Plasma's for any unit that ends that way.
+- A trace of the same command in a scope capped at 4G
+  (`~/temp/agent/probe-recover-hang/strace.txt`):
+  3,844 opens of `/proc/<pid>/fdinfo/<n>`,
+  the last one `/proc/178989/fdinfo/3`,
+  followed by a `read` that did not return in twelve seconds.
+  That descriptor is `anon_inode:inotify`,
+  held by `fsnotifier`,
+  the file watcher of a JetBrains IDE;
+  `fs.inotify.max_user_watches` is 10000000.
+
+#### Root cause
+
+- The wrapper's scan for the process that holds a file reads the whole of `/proc/<pid>/fdinfo/<n>`
+  for every descriptor of every process of the account:
+  `package/git-policy/cli/src/native/process/process_use.rs`,
+  `descriptor_is_file_with` and `mounted_descriptor_is_file`,
+  and the same record in `open_file_of_a_descriptor.rs`.
+- For an inotify descriptor the kernel builds one record with a line per watch,
+  whole,
+  in one buffer charged to the reader,
+  before the reader gets a byte.
+  A bound on the read does not help;
+  the kind of a descriptor has to be known before its record is opened.
+- The defect is on `main` and in the installed 0.6.1-alpha.13.
+  The branch under review did not introduce it.
+  Uncapped,
+  the same read makes any command that scans for holders take minutes while such a watcher runs.
+
+#### What was done
+
+- Issue 6287 filed with the evidence and the required outcome.
+- Round 284,
+  started 09:46:37:
+  `descriptor-scan-never-reads-a-record-whose-size-another-process-decides`,
+  on `main`,
+  with a test whose control shows today's code growing with the watch count,
+  and a search of the wrapper and its commit service for every other unbounded read under `/proc` and `/sys`.
+  Working at 09:49 (twenty-two turns).
+- A note to the twelve running agents of this session at 09:46:57,
+  each delivery shown by its feed:
+  a scope or container that runs a wrapper gets at least 4G until the fix is installed;
+  a wrapper that hangs during a holder scan is this defect;
+  nobody reads `/proc/<pid>/fdinfo/<n>` of a process they did not start.
+- The same workaround,
+  labelled as one with its removal condition,
+  in `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`.
+- A second note to round 284's agent alone,
+  after 09:55:
+  the issue number,
+  the reading of `fs/seq_file.c`,
+  and that a control measures growth by `memory.peak` under a generous cap and never ends in a kill for memory.
+  Its brief already gave it the 4G floor and an 8G cap for the measurement on this machine.
+
+#### What bounds the read, and what is covered until the fix is installed
+
+- The kernel's `fs/seq_file.c` at tag `v7.3`
+  (copy at `~/temp/agent/kernel-seq-file/seq_file.v7.3.c`;
+  the machine runs 7.3.3 of a patched build,
+  so this is the upstream reading):
+  `seq_buf_alloc` allocates with `kvmalloc(size, GFP_KERNEL_ACCOUNT)` and refuses a size above `MAX_RW_COUNT`;
+  `seq_read_iter`,
+  when a record does not fit,
+  frees the buffer,
+  doubles the size and builds the record again.
+  So the size a reader asks for bounds nothing,
+  one reader holds one buffer at a time,
+  the largest buffer is 1 GiB,
+  and past it the read fails with `ENOMEM`.
+- That fits the measurement:
+  this session's own probe scope,
+  capped at 4G,
+  peaked at 580087808 bytes within twelve seconds
+  (`MemoryPeak` of `coordinator-probe-recover-hang.scope`),
+  a 512 MiB buffer and little else,
+  and the read had not returned.
+  Whether the record fits in 512 MiB or needs the 1 GiB buffer is not measured;
+  round 284's brief has that measurement under an 8G cap.
+- So the 4G of the workaround covers three such reads at once in one scope.
+  It is a bound from source,
+  not from a run to completion.
+- Every user service and scope with a memory cap,
+  read at 09:53 (`systemctl --user show '*.service' '*.scope'`):
+  the only cap under 4G is `claude-cpu-watch.service` at 256 MB,
+  whose source runs no Git and reads no descriptor record.
+  The commit-service units have no cap;
+  the `pi-*` units have 6 GiB or more,
+  the other session's `pi-optique-measure-old-commit-parser-1` among them.
+- Not covered until the fix is installed:
+  a scope an agent of another session caps under 4G and runs a wrapper in,
+  and the time the scan takes with no cap at all.
+- At 09:54:51 `fsnotifier` (PID 178989) still held the descriptor,
+  its link text `anon_inode:inotify`,
+  read with `readlink`.
+
+#### Next
+
+- When round 284 ends:
+  read its report,
+  merge with `Closes #6287`,
+  and release it in the first alpha it can go in,
+  ahead of the queue if pass 17 has already merged.
+  A qwen4 review starts alongside and does not hold the release.
+- The check at the user boundary after the install,
+  with its control first:
+  confirm by `readlink` that the watcher still holds its inotify descriptor;
+  run the holder scan with 0.6.1-alpha.13 under a large cap and read the peak;
+  then run the same command with the new release in a 512 MB scope.
+  A pass with the IDE closed proves nothing.
+- Then remove the workaround from the rules doc.
+
+### The first hourly pass after the restart: pass 17 started, what the reload's own commit printed (2026-11-12T09:05:26-05:00)
+
+#### State
+
+- Free space 244 GiB. Sixteen runs alive at 09:03, every feed moving; none superseded, nothing stopped.
+- Under 0.6.1-alpha.13: thirteen commits in this repository, twelve landed, median 1,338 ms, largest 4,481 ms.
+  The one that did not land is real Git's own refusal (`native-exit`, status 1, 140 ms) in the tokio agent's worktree, which is mid-merge.
+- The user manager's reloads since the install: two, both at 08:48, 452 ms and 225 ms,
+  requested from the units of the push-notices agent and the fast-forward agent. The manager holds 370 units.
+
+#### What two of the three digests found
+
+`~/temp/agent/digest-2026-11-12T0830-a/digest.md` and `-b/digest.md`: twenty work runs, all finished, all tips on the remote, none in `main`.
+The third digest (nine work runs and four reviews) is still being written.
+
+- The commit whose wrapper asked for the reload of 01:22:34 was read in its own session.
+  It started at 01:21:10 and returned at 01:24:54. It printed
+  "the commit service of this worktree has answered nothing for 3 seconds, so it is stopped inside its own process; it is asked to restart"
+  and then "The commit service did not start, so this commit was not made".
+  So the three-second greeting rule is the first link of the chain that ended the session, and the commit failed as well.
+  Four other agents' ordinary commands were held about three minutes in the same window.
+  This went to the issue 6286 agent by note at 08:44, with the morning's 487 ms reload at 319 units.
+- After the session was lost, the commit service could not find `git-lfs` in two worktrees, because the user manager's `PATH` lacked its folder;
+  their pushes were refused. Sent to `lfs-push-uploads-every-object-the-remote-lacks-2` by note at 09:05.
+- Eight worktree deletions waited thirty-one to sixty-five minutes behind one wave of trashes in the single slow lane (read in one run's report);
+  no branch fixes it yet. It belongs with the waves agent's branch at its next pass.
+- The landed-removal fix (`32323116f1`): the four audit scripts were run against its own build and the fixtures show the files kept.
+  Open on it: it is 188 commits behind `main`, one defect its own probe found was fixed without a test,
+  and it never ran the changeover audit's two scripts.
+
+#### Started
+
+- Round 281, `integration-pass-17-for-alpha-14` (base `main`): sixteen finished branches, the landed-removal fix first,
+  then the landed sweep, the merge asides and the named pipe, the three service-queue fixes, the waves, the late runtime, the gate failures,
+  the add that says why it waits, the ceiling's one decision, the five-second findings, the first commit after an install,
+  the pooled shadow against `.git/lfs`, and the commit-time measurement's three small fixes.
+  Its brief names the held-back branches and has it check that none comes in through another.
+  After the merges it runs the four data-loss reproductions against its own build.
+- Round 282, four qwen4 reviews: the landed-removal fix, the landed-sweep fix, the merge asides, the late runtime.
+  That makes eight qwen4 runs at once.
+
+#### The third digest, arrived at 09:06, and what was started from it at 09:07
+
+Round 283, two fix agents:
+
+- `landed-removal-second-pass-a-test-for-every-fix-and-the-changeover-scripts` (base `32323116f1`):
+  a test for the fix that has none, the four data-loss reproductions as tests that stay, the second and third audits' scripts run,
+  the two releases' removal records across a change of release, and the deletions that waited up to sixty-five minutes behind a wave of trashes.
+  It merges `main` and the landed-sweep branch first. Pass 17 takes the first pass as it stands meanwhile.
+- `removal-pool-symlink-and-nested-subvolume-fixes-brought-onto-main` (base `main`):
+  the nested-subvolume review findings were fixed on a branch cut two releases ago; this agent reproduces each on `main` and ports what still happens,
+  the symlink at a pool name first.
+
+The review's results on unreadable records went to `worktree-copy-record-that-cannot-be-read-never-stops-another-command-2` by note.
+
+`~/temp/agent/digest-2026-11-12T0830-c/digest.md`. Still open from it:
+
+- The second run of the worktree-add review confirms the reading about unreadable records for the journal, the stage claim and the unfilled record,
+  cut by cut. One point contradicts it: a commit served by the commit service in a linked worktree exited 0 with an empty journal and an empty claim.
+  Its probes ran against this machine's own runtime directory, so the service was the installed one, not the reviewed build.
+  The fix agent (`worktree-copy-record-that-cannot-be-read-never-stops-another-command-2`) is running; this goes to it.
+- Candidates for the pass after 17, by the digest's assessment:
+  the tracking-repair second pass (ready, one shared file; its `%(upstream)` fix is in the merge commit `f8ab4d48cf`, not where its report says),
+  the tokio next step, the delivered matching push and the vendored-clone exemption (each after a merge of `main` and a rerun of its modules).
+- Not ready: the gate-and-install review findings (its review found three defects in code that branch added);
+  the trash hand-over (a heavy hand merge, fourteen shared files);
+  removal while linking (its own verdict: do not merge as it stands);
+  the nested-subvolume review findings (cut from an alpha.10-era tree, 692 commits behind);
+  the cheaper add (take only its reaping fix `39578c37ec`; it measured the cost steps and did not make them cheaper).
+- Data loss still on `main`, shown through the built wrapper: a hard reset and a forced clean run with no save-first guard below `CARGO_TARGET_DIR`
+  (fixed on the vendored-clone branch); a symlink at a pool name is followed and a person's file deleted (fixed on the nested-subvolume branch).
+- The wg review is final: a hook that puts itself in the background stalls `up` or `down` for the whole ten-minute hook deadline;
+  a concurrent `up` can destroy another tunnel and two tunnels can share one policy table (both shown with shims that widen the race).
+  These go with the wg branch that is held for the owner.
+- Wrapper misbehaviour in agents' own worktrees under alpha.12: commits of 295, 201 and 158 seconds; a commit that printed its name and was then not made;
+  a wrapped `git worktree remove` that `SIGKILL` could not end because it sat in a disk wait.
+
+Left out of pass 17, with the reason: the three held-back branches (abort second pass, the LFS mask, the commit made without a service);
+`commit-records-the-bytes-git-records-and-refuses-what-git-refuses`, whose base is the commit-options branch that pass 16 could not merge;
+and the subagent-driver branch, which is another package and is not finished.
+
 ### After the restart: 0.6.1-alpha.13 published, the agent for issue 6286 started, the fleet held until the install (2026-11-12T08:39:44-05:00)
 
 The machine was restarted at 04:03:18.
