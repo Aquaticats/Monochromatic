@@ -21,6 +21,14 @@ use crate::inner_git_words::record_streams;
 use crate::merge_second_pass::Merged;
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::announce;
+/// The words a child is given,
+/// and the copies a merge keeps beside a path.
+use crate::merge_isolation_a_file_where_the_merge_puts_a_directory::{
+    KeptEntry, keep_them_aside, settle_the_copies_there, the_entries_a_directory_would_replace, the_line as the_entries_line,
+};
+use crate::merge_isolation_the_fast_forward_child::{
+    the_arguments as the_fast_forwards_child_arguments, the_merge_commit_arguments, the_output as the_fast_forwards_output,
+};
 /// The intent record.
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
 /// Recovery of records.
@@ -259,19 +267,42 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     if plan.carried.is_some() {
         reach_phase(Phase::MergeCleared)?;
     }
+    // The directory a path the merge adds needs removes whatever entry stands on the way to it, so the person's entry there is
+    //  kept whole beside it before Git's update runs; the copies a stopped command left are decided first, and a merge that
+    //  does not land puts them back (`SPEC.md`, the copies a merge keeps beside a path).
+    let replaces: Vec<Vec<u8>> = the_entries_a_directory_would_replace(root, plan.written);
+    let mut report_stderr: String = String::new();
+    if !replaces.is_empty() {
+        settle_the_copies_there(&session.context, root, git_dir, replaces.as_slice(), &mut std::io::stderr());
+        let kept: Vec<KeptEntry> = match keep_them_aside(root, git_dir, replaces.as_slice(), transaction_id.as_str()) {
+            Ok(found) => found,
+            Err(reason) => return Err(settle_a_failed_step(&place, record.as_path(), &intent, reference.as_str(), reason.as_str(), false, 2, b"")),
+        };
+        report_stderr.push_str(the_entries_line(reference.as_str(), kept.as_slice()).as_str());
+    }
     let mut overlay: Vec<(OsString, OsString)> = input.overlay.to_vec();
     overlay.push((OsString::from("GIT_REFLOG_ACTION"), OsString::from(format!("merge {reference}"))));
     let mover: Session = Session {
         context: GitContext { overlay, ..session.context.clone() },
     };
+    // A fast-forward is the step itself, so the child carries the message the person typed and its own line is the merge's
+    //  line; a merge commit's own step prints Git's line about the step instead.
+    let child: Vec<OsString> = if plan.fast_forward {
+        the_fast_forwards_child_arguments(shape, new_oid)
+    } else {
+        the_merge_commit_arguments(new_oid)
+    };
     // A start failure is handled like a refusal: the record settles whatever Git began.
-    let moved: GitOutput = match mover.run(&["merge", "--ff-only", "--no-edit", new_oid]) {
+    let moved: GitOutput = match mover.run_arguments(child.as_slice()) {
         Ok(output) => output,
         Err(reason) => GitOutput { code: None, stdout: Vec::new(), stderr: reason.into_bytes() },
     };
     if !moved.succeeded() {
         let detail: String = moved.error_text();
         let lock_taken: bool = detail.contains("index.lock");
+        // An update that stopped partway may have removed the entry a copy was made of, so the copy goes back where the path is
+        //  free and stays named where it is not, before the merge is settled.
+        settle_the_copies_there(&session.context, root, git_dir, replaces.as_slice(), &mut std::io::stderr());
         return Err(settle_a_failed_step(
             &place,
             record.as_path(),
@@ -298,7 +329,6 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     // The merge's own paths hold the merge now, and the person's two layers are merged with it: an edit away from the merge's
     //  lines comes back where it was, a staged edit stays staged, and an edit of the merge's own lines keeps both sides between
     //  markers. A carry that cannot write the index says where the bytes are and exits 0, and the next command finishes it.
-    let mut report_stderr: String = String::new();
     let mut carry_finished: bool = true;
     if plan.carried.is_some() {
         let ending: CarryEnding = carry_and_settle(session, plan, reference.as_str(), &intent, changes.as_slice(), landed, transaction_id.as_str());
@@ -317,18 +347,24 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
             drop_capture_ref(&session.context, git_dir, root, capture);
         }
     }
-    // The fast-forward carries no `--quiet`, and what Git says of it ("Updating a..b", "Fast-forward", its diffstat) is about
-    //  the wrapper's own step, not about the merge the person asked for. The person's streams carry exactly what native Git's
-    //  merge prints (the wrapper's lines below), so what Git wrote to standard output about the step is kept in the journal. What
-    //  it wrote to standard error (a warning) still reaches the person, as it did before the option was dropped.
-    record_streams(&["merge", "--ff-only", "--no-edit", new_oid], &moved.stdout, &[]);
+    // The person's streams carry exactly what native Git's merge prints. For a fast-forward that is Git's own line about the
+    //  step, because the step and the merge are one: `Updating a..b`, `Fast-forward`, the diffstat and Git's note about an
+    //  ignored `-m`, with `-q` and the stat settings hiding what they hide for Git. A merge commit's step prints `Updating
+    //  a..b` instead of its own line, so what Git wrote about that step goes to the journal and the wrapper prints the merge's
+    //  words itself. What Git wrote to standard error (a warning) reaches the person in both cases.
     let mut stdout: String = String::new();
-    if !shape.quiet {
-        stdout.push_str("Merge made by the 'ort' strategy.\n");
-        if shape.stat.unwrap_or(plan.config.stat)
-            && let Ok(stat) = session.run(&["diff", "--stat", "--summary", old_oid, new_oid])
-        {
-            stdout.push_str(String::from_utf8_lossy(&stat.stdout).as_ref());
+    if plan.fast_forward {
+        record_streams(&["merge", "--ff-only", "--no-edit", new_oid], &moved.stdout, &[]);
+        stdout.push_str(the_fast_forwards_output(shape, plan.config, moved.stdout.as_slice()).as_str());
+    } else {
+        record_streams(&["merge", "--ff-only", "--no-edit", new_oid], &moved.stdout, &[]);
+        if !shape.quiet {
+            stdout.push_str("Merge made by the 'ort' strategy.\n");
+            if shape.stat.unwrap_or(plan.config.stat)
+                && let Ok(stat) = session.run(&["diff", "--stat", "--summary", old_oid, new_oid])
+            {
+                stdout.push_str(String::from_utf8_lossy(&stat.stdout).as_ref());
+            }
         }
     }
     let mut stderr: String = String::from_utf8_lossy(&moved.stderr).into_owned();

@@ -199,15 +199,17 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     }
     // A pull that merges runs its fetch here and goes on as the `git merge FETCH_HEAD` it ends with; any other pull is native Git's.
     let merge_of_pull: CoordinatedForward;
-    // A merge that cannot create a commit (a fast-forward, or nothing to merge) is native Git's without the isolated attempt.
+    // A merge goes through the isolated merge when it makes a commit, and when it is a fast-forward that something of the
+    //  person's stands in the way of; the ordinary fast-forward is native Git's own without that attempt
+    //  (`merge_isolation_a_fast_forward_in_the_way.rs`).
     let mut isolate: bool = true;
     let forward: &CoordinatedForward = if typed.command.word() == b"pull" {
         match pull_step(typed, location.real_index_path.as_path()) {
             PullStep::Native => typed,
             PullStep::Ended(run) => return run,
-            PullStep::Merge { forward: merge, makes_commit } => {
+            PullStep::Merge { forward: merge, isolate: through_the_isolated_merge } => {
                 merge_of_pull = *merge;
-                isolate = makes_commit;
+                isolate = through_the_isolated_merge;
                 &merge_of_pull
             }
         }

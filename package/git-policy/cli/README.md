@@ -2976,6 +2976,7 @@ when all of these hold:
   or attached to it),
   `--no-edit`,
   `--ff`,
+  `--ff-only`,
   `--no-ff`,
   `-q`/`--quiet`,
   `-S`/`--gpg-sign` (with or without a key),
@@ -2998,7 +2999,11 @@ when all of these hold:
   (`is_ignorable` in `src/native/merge/merge_options.rs`;
   `--log` or `--no-log` together with `-m` is native Git's);
 - `HEAD` is not already ahead of or equal to the merged commit
-   (native Git fast-forwards and answers "Already up to date" by itself);
+   (native Git answers "Already up to date" by itself);
+- the merge is a fast-forward only when something of yours stands at the paths it writes or at an ancestor of one:
+   a fast-forward in a worktree whose paths hold nothing of yours is native Git's,
+   handed over at once,
+   and one that something stands in the way of is carried (see "A merge that fast-forwards");
 - no merge,
   rebase,
   cherry-pick or revert is in progress,
@@ -3087,6 +3092,19 @@ Now the merge runs and the person's work is carried across it:
   because the merge wrote the file.
   Bytes that only differ in line endings the path's attributes clean away are no edit either,
   so a file marked `text` with CRLF endings in the checkout is left as it is.
+- An entry of yours standing at an ancestor of a path the merge writes is kept whole beside it,
+  because the merge needs a directory there and Git's own update removes whatever stands on the way:
+  a copy of it is written under a private name beside it before the update runs,
+  the entry itself stays where it is until that update removes it,
+  and the copy is recorded in the copies a merge keeps beside a path,
+  so every later command decides it again
+  (`src/native/merge/merge_isolation_a_file_where_the_merge_puts_a_directory.rs`).
+  The line names the copy,
+  says the merge was made,
+  and says that no later command puts it back while a directory stands there;
+  a copy whose bytes the entry at the path still holds is a duplicate and goes.
+  A named pipe, a socket or a device there is refused with the other special files below,
+  because it holds no bytes a copy can keep.
 - Those paths are put back to the branch,
   so Git's own two-way update takes them as it always did.
   Each path is read again just before the write that replaces it,
@@ -3252,19 +3270,22 @@ so the wrapper copies every such file beside the Git directory first
 (`monochromatic-git-policy-cli/pull-kept/<n>`) and names each copy in that line;
 the hatch is offered only once nothing the move would overwrite is left uncopied.
 Every other pull is native Git's whole (a rebase,
-`--ff-only`,
 `--autostash`,
 `pull.ff`,
 submodules,
  a refspec with a destination,
  an abbreviated option,
 a pull with nothing stated,
-which Git refuses with its advice when the branches diverged),
+which Git refuses with its advice when the branches diverged,
+and a pull with `--ff-only` whose fetched head cannot fast-forward),
  and it keeps native Git's failures (the held lock,
 the staged index,
 the late ref update);
  run `git fetch`,
 then `git merge --no-edit origin/<branch>`.
+A pull with `--ff-only` whose fetched head can fast-forward is split the same way,
+and its merge half is carried when something of yours stands at the paths it writes,
+while a pull whose fast-forward has nothing in its way goes through the plain `git merge FETCH_HEAD` child.
 
 #### Waiting for the index lock
 
@@ -3349,6 +3370,53 @@ With a clean index the merge is native Git's,
 which writes the markers for the person to resolve in the worktree;
  the second pass then runs on the stopped merge.
 
+#### A merge that fast-forwards
+
+The owner's rules cover every merge,
+and a fast-forward is one:
+it writes exactly the paths the incoming commits change,
+so the work it can lose is the work at those paths,
+and handing it to native Git whole lost an ignored untracked file there
+and refused an unsaved edit with
+`error: Your local changes to the following files would be overwritten by merge`,
+while the same work at the same paths was carried over a diverged merge.
+The wrapper therefore decides from the paths the incoming commits write and their ancestors
+(`src/native/merge/merge_isolation_a_fast_forward_in_the_way.rs`):
+one `git status` over them,
+which lists the ignored ones too,
+the edits an `assume-unchanged` or `skip-worktree` entry hides,
+and a `stat` of each such path and of each directory on the way to it.
+That question costs about twenty milliseconds on a worktree of this repository's size
+(`doc/troubleshooting/cli-git-merge-fast-forward-carries.md`),
+and a fast-forward whose paths hold nothing of yours is still native Git's,
+handed over at once.
+
+A carried fast-forward moves the branch to the incoming commit itself:
+no merge tree is computed and no merge commit is made,
+so `--ff-only` keeps its promise that the branch only moves forward,
+and `merge.ff=only` behaves the same way.
+A merge that cannot fast-forward is native Git's own refusal,
+`fatal: Not possible to fast-forward, aborting.` under `--ff-only`,
+with nothing changed and its own advice printed.
+What you read is Git's own line about the step,
+`Updating a..b`, `Fast-forward`, the diffstat,
+and `Fast-forward (no commit created; -m option ignored)` with a message,
+and the reflog entry native Git writes is the same.
+The message typed travels to the Git child that moves the branch;
+`-q`, `--stat` and `--no-stat` do not,
+because no Git run the wrapper starts carries an option that only hides what Git prints,
+and the stat settings hide the diffstat here instead
+(`src/native/merge/merge_isolation_the_fast_forward_child.rs`).
+Everything else about a carried fast-forward is the carry the section above describes,
+path by path.
+
+A `git pull` stated to merge decides the same way after its fetch:
+a fast-forward with nothing in its way goes through the plain `git merge FETCH_HEAD` child,
+and one with something in the way goes through the isolated merge,
+so a pull carries what a typed merge carries.
+A pull with `--ff-only` whose fetched head cannot fast-forward stays native Git's whole,
+so its own refusal and advice are the answer.
+
 #### What can still end a merge with a nonzero status
 
 Each with its cause:
@@ -3356,17 +3424,24 @@ Each with its cause:
 - A conflict that no resolution settles (exit 1 from native Git,
   or `merge-isolation/merge-conflict`,
   exit 2).
-- A path the merge changes that stands as a directory,
-  or an index that holds unmerged entries:
-  the command is native Git's whole,
+- A path the merge changes that stands as a directory holding anything the merge does not itself delete (exit 1):
+  the merge stops before anything is written,
+  names the path and the files below it,
+  and changes nothing;
+  an ignored directory is refused the same way,
+  which is not native Git's own answer, measured, and the copies a merge keeps beside a path cannot hold a directory.
+  An index that holds unmerged entries is native Git's whole,
   which refuses such a checkout itself.
 - A named pipe,
-  a socket or a device standing at a path the merge writes or deletes (exit 1):
+  a socket or a device standing at a path the merge writes or deletes,
+  or at an ancestor of one (exit 1):
   it holds no bytes a merge can carry,
   and opening one for reading could wait for a writer that never comes,
   so the merge stops with every such path named before anything is written,
   and the entry is left in your checkout as it was.
   Move it out of the way and run the merge again.
+- An `--ff-only` merge, or one under `merge.ff=only`, that cannot fast-forward:
+  native Git's own refusal, exit 128, with nothing changed.
 - A merge whose commit cannot be kept on a side ref while the lock stays held:
   the command is refused with status 2,
   changes nothing and leaves the lock.
@@ -3386,7 +3461,6 @@ Each with its cause:
    branch,
   `--abort`,
   `--continue`,
-  `--ff-only`,
   abbreviated options,
   an editor,
   `merge.autostash`,

@@ -124,7 +124,6 @@ fn shapes_that_cannot_be_made_exact_are_forwarded() {
         vec!["-s", "ours", "f"],
         vec!["--strategy=ours", "f"],
         vec!["-X", "theirs", "f"],
-        vec!["--ff-only", "f"],
         vec!["--edit", "f"],
         vec!["-e", "f"],
         vec!["--signoff", "f"],

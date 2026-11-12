@@ -30,6 +30,10 @@
 //! return nativePull();
 //! ```
 
+/// The paths a fast-forward writes,
+/// and whether anything of the person's stands at them.
+use crate::auto_push_dirty_paths::diff_paths;
+use crate::merge_isolation_a_fast_forward_in_the_way::paths_in_the_way;
 /// The wait for any program's hold on the index lock,
 /// and for the commit service's own hold.
 use crate::index_holder_wait::wait_for_index_release_here;
@@ -70,110 +74,10 @@ const TAG: &str = "pullIsolation";
 /// native Git's pull reports those.
 const IN_PROGRESS_MARKERS: [&str; 6] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer"];
 
-/// The options of `git pull` that go to its merge as typed (`builtin/pull.c`,
-/// `run_merge`).
-const MERGE_OPTIONS: [&str; 17] = [
-    "--no-edit", "--edit", "--ff", "--no-ff", "--stat", "--no-stat", "-n", "--log", "--no-log", "--commit", "--no-commit",
-    "--squash", "--no-squash", "--signoff", "--no-signoff", "--verify", "--no-verify",
-];
-
-/// The options of `git pull` that go to its fetch as typed (`builtin/pull.c`,
-/// `run_fetch`).
-const FETCH_OPTIONS: [&str; 13] = [
-    "--all", "--prune", "-p", "--no-prune", "--tags", "-t", "--no-tags", "--force", "-f", "--ipv4", "-4", "--ipv6", "-6",
-];
-
-/// The options that go to both halves (`argv_push_verbosity`).
-const SHARED_OPTIONS: [&str; 4] = ["-q", "--quiet", "-v", "--verbose"];
-
-/// The settings that make the wrapper leave the pull to native Git:
-/// they add steps this does not mirror (a stash around the
-/// pull,
-/// the update of submodules after it).
-const NATIVE_ONLY_SETTINGS: [&str; 3] = ["pull.autostash", "submodule.recurse", "fetch.recursesubmodules"];
-
-/// What:
-///  What a pull reads from its command line:
-/// the arguments of its fetch,
-/// of its merge,
-/// and where the choice of merging
-///  was stated.
-/// Why:
-///   The two halves of a pull take different options,
-/// and a pull merges only when the command line or the settings say so.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type PullPlan = { fetch: string[]; merge: string[]; places: string[]; mergeStated: boolean; fastForwardStated: boolean };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PullPlan {
-    /// Options for `git fetch`,
-    /// as typed.
-    pub fetch: Vec<OsString>,
-    /// Options for `git merge`,
-    /// as typed.
-    pub merge: Vec<OsString>,
-    /// The repository and refspecs,
-    /// after the options.
-    pub places: Vec<OsString>,
-    /// `--no-rebase` or `--rebase=false` was typed,
-    /// which overrides every setting.
-    pub merge_stated: bool,
-    /// `--ff` or `--no-ff` was typed,
-    /// which is a stated way of reconciling divergent branches.
-    pub fast_forward_stated: bool,
-}
-
-/// What:
-///  Read the arguments after `pull`,
-/// by exact spelling,
-/// or nothing when any of them is not read exactly.
-/// Why:
-///   Git accepts unambiguous abbreviations and options this does not mirror (`--rebase`,
-/// `--ff-only`,
-/// `-s`,
-/// `-X`,
-///  `--autostash`,
-/// `--dry-run`,
-/// `--recurse-submodules`);
-/// a pull with one of them is native Git's whole,
-/// and so is a refspec
-///  that could move the checked-out branch (it holds a colon).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function planPull(region: string[]): PullPlan | undefined;
-/// ```
-pub fn plan_pull(region: &[OsString]) -> Option<PullPlan> {
-    // The plan being built; `Vec::new()` is an empty list like `[]`.
-    let mut plan: PullPlan = PullPlan { fetch: Vec::new(), merge: Vec::new(), places: Vec::new(), merge_stated: false, fast_forward_stated: false };
-    // `for ... in` walks the tokens in order, like `for (const token of region)`.
-    for token in region {
-        // `?` returns nothing at once when the token is not text, like an early `return undefined`.
-        let text: &str = token.to_str()?;
-        if text == "--no-rebase" || text == "--rebase=false" {
-            plan.merge_stated = true;
-        } else if MERGE_OPTIONS.contains(&text) {
-            plan.fast_forward_stated |= text == "--ff" || text == "--no-ff";
-            plan.merge.push(token.clone());
-        } else if FETCH_OPTIONS.contains(&text) {
-            plan.fetch.push(token.clone());
-        } else if SHARED_OPTIONS.contains(&text) {
-            plan.fetch.push(token.clone());
-            plan.merge.push(token.clone());
-        } else if text.starts_with('-') {
-            // An option this does not read exactly, `--` included.
-            return None;
-        } else if !plan.places.is_empty() && text.contains(':') {
-            // A refspec that names a destination could update the branch that is checked out.
-            return None;
-        } else {
-            plan.places.push(token.clone());
-        }
-    }
-    return Some(plan);
-}
+/// The command line of a pull and the halves its options go to,
+/// which a file of its own holds because the pull that runs them is at its code-line limit.
+pub use crate::pull_isolation_the_command_line::{PullPlan, plan_pull};
+use crate::pull_isolation_the_command_line::NATIVE_ONLY_SETTINGS;
 
 /// What:
 ///  What the rebase settings say about one pull.
@@ -422,7 +326,7 @@ fn line_of(output: Option<GitOutput>) -> Option<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PullStep = { kind: 'native' } | { kind: 'ended'; run: CoordinatedRun } | { kind: 'merge'; forward: CoordinatedForward; makesCommit: boolean };
+/// type PullStep = { kind: 'native' } | { kind: 'ended'; run: CoordinatedRun } | { kind: 'merge'; forward: CoordinatedForward; isolate: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PullStep {
@@ -436,10 +340,11 @@ pub enum PullStep {
     Merge {
         /// The `git merge FETCH_HEAD` that ends the pull.
         forward: Box<CoordinatedForward>,
-        /// Whether the merge creates a commit,
-        /// and so is worth the isolated attempt;
-        /// a fast-forward or a merge of nothing is not.
-        makes_commit: bool,
+        /// Whether the merge goes through the isolated merge,
+        /// which carries the person's own work over it:
+        /// a merge that makes a commit always does,
+        /// and a fast-forward does when something of the person's stands at the paths it writes.
+        isolate: bool,
     },
 }
 
@@ -603,16 +508,56 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
         return PullStep::Native;
     }
     // One start tells a merge that makes a commit from a fast-forward (the merge base is `HEAD`) and from nothing to merge (the
-    // merge base is the head); only the first is worth the isolated attempt, whose queries the other two would only waste.
+    // merge base is the head). A merge that makes a commit is worth the isolated attempt. A fast-forward is native Git's own
+    // while nothing of the person's stands at the paths it writes, and is carried here when something does, as a typed merge
+    // is (`SPEC.md`, "Carry edits forward"), so the paths it writes are what decide that.
     let bases: Option<GitOutput> = ask(&context, &["merge-base", "--all", "HEAD", heads[0].as_str()]);
-    let makes_commit: bool = match bases {
+    let fast_forward: bool = match bases {
         Some(found) => {
             let listed: String = String::from_utf8_lossy(&found.stdout).trim().to_owned();
-            found.code != Some(0) || (listed != curr_head && listed != heads[0])
+            found.code == Some(0) && listed == curr_head
         }
+        // A question that could not be answered leaves the whole pull to native Git.
+        None => return PullStep::Native,
+    };
+    // `--ff-only` states that the branch may move only by a fast-forward, and a merge that cannot fast-forward is native Git's,
+    //  whose refusal and advice (`fatal: Not possible to fast-forward, aborting.`) are its own; the pull then runs again as a
+    //  whole, and its fetch is idempotent.
+    if !fast_forward && plan.fast_forward_only {
+        debug(TAG, "native Git runs the whole pull again: --ff-only was typed and the merge cannot fast-forward");
+        return PullStep::Native;
+    }
+    let isolate: bool = !fast_forward || match the_paths_the_pull_writes(&context, curr_head.as_str(), heads[0].as_str()) {
+        // Nothing of the person's stands there, so the `git merge FETCH_HEAD` child is the whole answer and no isolated
+        //  attempt is wasted on the ordinary case.
+        Some(written) => !matches!(paths_in_the_way(&context, root, written.as_slice()), Some(found) if found.is_empty()),
+        // A difference that could not be read is no answer, so the merge is carried and asks again.
         None => true,
     };
-    return PullStep::Merge { forward: Box::new(merge_forward(forward, &plan, overlay)), makes_commit };
+    return PullStep::Merge { forward: Box::new(merge_forward(forward, &plan, overlay)), isolate };
+}
+
+/// What:
+///  The paths a pull's merge writes,
+///  from the difference between the branch and the fetched head.
+/// Why:
+///   A fast-forward writes exactly the paths the two commits differ in,
+///  and the question whether anything of the
+///  person's stands at those paths is what decides whether native Git's own merge is the whole answer.
+///  A difference that gave no answer is
+///  reported as such,
+///  so the caller carries the merge rather than leave the person's file to whatever Git does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const written = diffPaths((await git(['diff-tree', '-r', '--name-only', '-z', '--no-renames', head, fetched])).stdout);
+/// ```
+fn the_paths_the_pull_writes(context: &GitContext, head: &str, fetched: &str) -> Option<Vec<Vec<u8>>> {
+    let found: GitOutput = ask(context, &["diff-tree", "-r", "--name-only", "-z", "--no-renames", head, fetched])?;
+    if !found.succeeded() {
+        return None;
+    }
+    return Some(diff_paths(found.stdout.as_slice()));
 }
 
 /// Controls for the pull's reading stay out of the release executable.

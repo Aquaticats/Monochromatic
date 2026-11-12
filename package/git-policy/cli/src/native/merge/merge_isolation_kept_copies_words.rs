@@ -32,6 +32,12 @@ use crate::merge_isolation_kept_copies::KeptCopy;
 ///  the path it belongs to,
 ///  the two commands that end it,
 /// and the end a later command performs by itself.
+///  A directory standing at the path is the one shape where no command puts the copy back:
+/// the merge that made that
+///  directory wrote the branch's own paths there,
+/// so the copy's bytes have no path of their own and only the person decides
+///  where they belong;
+/// the line says that rather than offering a `mv` that would move the file into the directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,6 +49,24 @@ pub(crate) fn say_the_copy_stays<W: Write + ?Sized>(out: &mut W, copy: &KeptCopy
     } else {
         "A merge set it aside for"
     };
+    // A directory standing at the path is what a merge puts there when it writes a path below it.
+    let a_directory: bool = std::fs::symlink_metadata(copy.location.as_path()).map(|found| found.is_dir()).unwrap_or(false);
+    if a_directory {
+        let _said = out.write_all(
+            format!(
+                "monochromatic-git-policy-cli: {} holds a copy of an entry, and a directory stands at {} because the merge wrote the \
+                 branch's own paths there, so the copy has no path of its own in the checkout and stays where it is; nothing of yours \
+                 was removed. {whose} that path. `mv -- {} <a name of your own>` keeps it under that name and `rm -- {}` drops it, and \
+                 no later command puts it back while a directory stands there.\n",
+                copy.aside.display(),
+                copy.location.display(),
+                copy.aside.display(),
+                copy.aside.display()
+            )
+            .as_bytes(),
+        );
+        return;
+    }
     let _said = out.write_all(
         format!(
             "monochromatic-git-policy-cli: {} holds a copy of a file, and {} holds something else, so the copy stays where it is and \

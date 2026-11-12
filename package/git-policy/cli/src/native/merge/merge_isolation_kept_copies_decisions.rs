@@ -313,7 +313,7 @@ enum Fate {
 /// ```ts
 /// await settleKeptCopy({ context, root, gitDir, copy, aside, change, capture, live, stderr });
 /// ```
-async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
+pub(crate) async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
     context: &GitContext,
     root: &Path,
     git_dir: &Path,

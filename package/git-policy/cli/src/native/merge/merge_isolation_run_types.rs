@@ -155,12 +155,20 @@ pub struct Plan<'a> {
     pub root: &'a Path,
     /// The commit the branch holds before the merge.
     pub old_oid: &'a str,
-    /// The merge commit.
+    /// The commit the branch moves to:
+    /// the merge commit,
+    /// or the incoming commit itself when the merge fast-forwards.
     pub new_oid: &'a str,
     /// The person's own work in the paths the merge changes,
     /// kept outside the checkout before the first of them is written,
     /// or nothing when those paths held none of it.
     pub carried: Option<&'a Capture>,
+    /// Whether this merge is a fast-forward,
+    /// which makes no merge commit and prints Git's own line about the step.
+    pub fast_forward: bool,
+    /// The paths the merge writes,
+    /// from the top of the worktree.
+    pub written: &'a [Vec<u8>],
 }
 
 /// The text a finding or failure puts on standard error,

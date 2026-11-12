@@ -223,7 +223,7 @@ fn write_private(location: &Path, bytes: &[u8], mode: &str, transaction_id: &str
 /// ```ts
 /// function writeEntry(named, bytes, mode): void; // symlink(target) for 120000, else write + chmod
 /// ```
-fn write_entry(named: &Path, bytes: &[u8], mode: &str) -> Result<(), String> {
+pub(crate) fn write_entry(named: &Path, bytes: &[u8], mode: &str) -> Result<(), String> {
     if mode == SYMBOLIC_LINK_MODE {
         #[cfg(unix)]
         {

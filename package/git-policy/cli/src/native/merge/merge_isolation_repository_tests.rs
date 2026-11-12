@@ -640,3 +640,297 @@ fn diverged_with_a_hidden_edit(name: &str, mark: &str) -> (PathBuf, PathBuf) {
     std::fs::write(repo.join("a.txt"), b"base\nthe person's own line\n").expect("file");
     return (parent, repo);
 }
+
+/// What:
+///  How many parents the branch's commit has,
+///  which is one for the commit a fast-forward moves the branch to and two for a merge commit.
+/// Why:
+///   `rev-list --parents` prints the commit and then its parents,
+///  so the count of its fields says what a fast-forward
+///  promises: no merge commit was made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const parents = (repo) => gitText(repo, ['rev-list', '--parents', '-n1', 'HEAD']).split(' ').length - 1;
+/// ```
+fn parents_of_the_head(repo: &Path) -> usize {
+    return git_text(repo, &["rev-list", "--parents", "-n1", "HEAD"]).split(' ').count() - 1;
+}
+
+/// What:
+///  A repository whose `feature` is strictly ahead of `main` by one commit that changes `a.txt`.
+/// Why:
+///   A merge of it is a fast-forward,
+///  which is the shape the wrapper used to hand to native Git whole,
+///  so every control about it
+///  builds the same branch and adds the person's state alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = aFastForwardedBranch('ff-plain'); // main is feature's parent
+/// ```
+fn a_fast_forwarded_branch(name: &str) -> (PathBuf, PathBuf) {
+    let parent: PathBuf = fixture(format!("merge-ff-{name}").as_str());
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"one\ntwo\nthree\n").expect("file");
+    std::fs::write(repo.join("keep.txt"), b"keep\n").expect("file");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("a.txt"), b"one\ntwo\nthree\nthe other branch's line\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    return (parent, repo);
+}
+
+/// What:
+///  The same branch,
+///  whose one incoming commit adds `new.txt`,
+///  which this repository's ignore rules cover.
+/// Why:
+///   An ignored untracked file at a path the incoming commit adds is the file native Git's fast-forward
+///  overwrites without a word, which is the loss the carry closed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = aFastForwardedBranchAdding('ignored', 'new.txt', true);
+/// ```
+fn a_fast_forwarded_branch_adding(name: &str, added: &str, ignored: bool) -> (PathBuf, PathBuf) {
+    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch(name);
+    if ignored {
+        std::fs::write(repo.join(".gitignore"), format!("{added}\n")).expect("file");
+        git(repo.as_path(), &["add", "--", ".gitignore"]);
+        git(repo.as_path(), &["commit", "--quiet", "--message=ignore"]);
+        git(repo.as_path(), &["switch", "--quiet", "feature"]);
+        git(repo.as_path(), &["rebase", "--quiet", "main"]);
+    }
+    std::fs::write(repo.join(added), b"the branch's own line\n").expect("file");
+    git(repo.as_path(), &["add", "--force", "--", added]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=add"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    return (parent, repo);
+}
+
+/// What:
+///  A fast-forward in a worktree with nothing unsaved in the way is still native Git's,
+///  which is the control that keeps the ordinary case as cheap as it was.
+/// Why:
+///  The whole command is handed over,
+///  so the wrapper changes nothing and Git's own fast-forward runs it;
+///  a wrapper that carried this
+///  case would pay the carry's reads on every fast-forward a person types.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', '--no-edit', 'feature'])).toEqual({ kind: 'forward' });
+/// ```
+#[test]
+fn a_fast_forward_with_nothing_unsaved_is_native_gits() {
+    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch("plain");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+    assert_eq!(outcome, IsolatedMerge::Forward { notice: None });
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "the wrapper moved nothing, so native Git runs it");
+    assert!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/"]).is_empty(), "no capture was made");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A fast-forward over an unsaved edit in a file the incoming commit changes is carried,
+///  and the branch still moves by a
+///  fast-forward alone.
+/// Why:
+///  Native Git refuses such a merge with `Your local changes ... would be overwritten by merge`,
+///  while the same
+///  merge of a diverged branch carries the edit;
+///  the owner's answer "Carry edits forward" and "Manual merge should never fail
+///  too." are what the fast-forward shape owed as well (`SPEC.md`, "Carry edits forward").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', '--no-edit', 'feature'])).toHaveCode(0); expect(repo.a.txt).toHold(both lines); expect(head).toBe(feature);
+/// ```
+#[test]
+fn a_fast_forward_over_an_unsaved_edit_is_carried() {
+    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch("unsaved");
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    std::fs::write(repo.join("a.txt"), b"the person's own line\ntwo\nthree\n").expect("file");
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+    assert!(is_completed(&outcome), "{outcome:?}");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), feature, "the branch moved to the incoming commit itself");
+    assert_eq!(parents_of_the_head(repo.as_path()), 1, "no merge commit was made");
+    let content: String = std::fs::read_to_string(repo.join("a.txt")).expect("a.txt");
+    assert!(content.contains("the person's own line"), "the unsaved edit is carried: {content}");
+    assert!(content.contains("the other branch's line"), "the merge's own line is there: {content}");
+    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1", "--", "a.txt"]), " M a.txt", "the edit is still unsaved");
+    assert!(git_text(repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/"]).is_empty(), "the capture's ref went with the merge");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A fast-forward keeps an ignored file of the person's at a path its commit adds,
+///  where native Git overwrites it with no copy and no
+///  notice.
+/// Why:
+///   The bytes are the only copy of what the person wrote,
+///  and the carry of a diverged merge already kept them;
+///  the same
+///  work at the same path cannot be kept or lost depending on whether the other side is strictly ahead
+///  (owner's rule
+///  "never discard user data";
+///  `SPEC.md`, "Carry edits forward", which names the ignored untracked files of the
+///  person's).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', '--no-edit', 'feature'])).toHaveCode(0); expect(repo['new.txt']).toHold("PERSON-MARKER");
+/// ```
+#[test]
+fn a_fast_forward_keeps_an_ignored_file_at_a_path_it_adds() {
+    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch_adding("ignored", "new.txt", true);
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    std::fs::write(repo.join("new.txt"), b"PERSON-MARKER 7f3a\n").expect("file");
+    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "", "the ignore rule hides the file, which is the premise");
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+    assert!(is_completed(&outcome), "{outcome:?}");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), feature, "the branch moved to the incoming commit itself");
+    let content: String = std::fs::read_to_string(repo.join("new.txt")).expect("new.txt");
+    assert!(content.contains("PERSON-MARKER 7f3a"), "the person's bytes are carried: {content}");
+    assert!(content.contains("the branch's own line"), "the commit's own line is there: {content}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  An edit that an `assume-unchanged` or `skip-worktree` entry hides is carried over a fast-forward too.
+/// Why:
+///   Every status read treats a marked path as "do not compare",
+///  so the question about the paths a fast-forward writes
+///  has to compare the bytes with the entry to see the edit at all;
+///  the carry of a diverged merge does that
+///  (`merge_isolation_marks_the_status_hides.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const mark of ['--assume-unchanged', '--skip-worktree']) expect(attempted(repo, ['merge', '--no-edit', 'feature'])).toHaveCode(0);
+/// ```
+#[test]
+fn a_fast_forward_over_an_edit_an_index_mark_hides_is_carried() {
+    for mark in ["--assume-unchanged", "--skip-worktree"] {
+        let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch(mark.trim_start_matches("--"));
+        let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+        git(repo.as_path(), &["update-index", mark, "--", "a.txt"]);
+        std::fs::write(repo.join("a.txt"), b"the person's own line\ntwo\nthree\n").expect("file");
+        assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=all"]), "", "{mark}: the mark hides the edit, which is the premise");
+        let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+        assert!(is_completed(&outcome), "{mark}: {outcome:?}");
+        assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), feature, "{mark}: the branch moved to the incoming commit");
+        let content: String = std::fs::read_to_string(repo.join("a.txt")).expect("a.txt");
+        assert!(content.contains("the person's own line"), "{mark}: the hidden edit is carried: {content}");
+        assert!(content.contains("the other branch's line"), "{mark}: the merge's own line is there: {content}");
+        remove(parent.as_path());
+    }
+}
+
+/// What:
+///  The bytes of a `--ff-only` fast-forward are carried as any other fast-forward's,
+///  and a merge that cannot fast-forward stays native Git's,
+///  whose refusal keeps that option's promise.
+/// Why:
+///  `--ff-only` states that the branch may move only by a fast-forward;
+///  carrying the person's work does not
+///  break that promise, because the branch still moves to the incoming commit alone,
+///  and a merge that would make a
+///  commit has to keep Git's own refusal (`fatal: Not possible to fast-forward`,
+///  exit 128).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(attempted(repo, ['merge', '--no-edit', '--ff-only', 'feature'])).toHaveCode(0); expect(attempted(diverged, same)).toEqual({ kind: 'forward' });
+/// ```
+#[test]
+fn an_ff_only_fast_forward_is_carried_and_a_diverged_one_is_native_gits() {
+    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch("ff-only");
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    std::fs::write(repo.join("a.txt"), b"the person's own line\ntwo\nthree\n").expect("file");
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "--ff-only", "feature"], &[]);
+    assert!(is_completed(&outcome), "{outcome:?}");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), feature, "the branch moved to the incoming commit itself");
+    assert_eq!(parents_of_the_head(repo.as_path()), 1, "no merge commit was made");
+    assert!(std::fs::read_to_string(repo.join("a.txt")).expect("a.txt").contains("the person's own line"), "the edit is carried");
+    remove(parent.as_path());
+    let (parent, repo): (PathBuf, PathBuf) = a_fast_forwarded_branch("ff-only-diverged");
+    std::fs::write(repo.join("keep.txt"), b"a commit main has and feature does not\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "--ff-only", "feature"], &[]);
+    assert_eq!(refused, IsolatedMerge::Forward { notice: None }, "the refusal is native Git's, with its own words");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was changed");
+    remove(parent.as_path());
+}
+
+/// What:
+///  An entry standing at an ancestor of a path the merge writes is kept whole beside it,
+///  and the line names the copy,
+///  in a
+///  merge that creates a commit and in one that fast-forwards.
+/// Why:
+///   Git's own update removes whatever stands on the way to the directory an added path needs:
+/// measured,
+///  an ignored regular file `dir` was gone after a merge that added `dir/x.txt`,
+///  with no copy and no notice;
+///  a directory and the person's file cannot share one path,
+///  so the merge keeps its own content there and the
+///  person's entry is kept beside it
+///  (`SPEC.md`, the copies a merge keeps beside a path).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const shape of ['fast-forward', 'merge-commit']) expect(merged(repo, shape).stderr).toMatch(/kept whole at/); expect(dirIsADirectory).toBe(true);
+/// ```
+#[test]
+fn an_entry_at_an_ancestor_of_an_added_path_is_kept_whole_in_both_shapes() {
+    for (label, fast_forward) in [("fast-forward", true), ("merge-commit", false)] {
+        let parent: PathBuf = fixture(format!("merge-ancestor-{label}").as_str());
+        let repo: PathBuf = repository(parent.as_path(), "repo");
+        std::fs::write(repo.join("a.txt"), b"one\ntwo\nthree\n").expect("file");
+        std::fs::write(repo.join(".gitignore"), b"dir\n").expect("file");
+        git(repo.as_path(), &["add", "--all"]);
+        git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+        git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+        std::fs::create_dir(repo.join("dir")).expect("the directory the added path needs");
+        std::fs::write(repo.join("dir/x.txt"), b"the branch's own line\n").expect("file");
+        git(repo.as_path(), &["add", "--force", "--", "dir/x.txt"]);
+        git(repo.as_path(), &["commit", "--quiet", "--message=add"]);
+        git(repo.as_path(), &["switch", "--quiet", "main"]);
+        // The branch's directory is empty once the branch left the checkout, and the person's ignored FILE takes that name:
+        //  a checkout may leave it behind or prune it, so whatever is there goes.
+        if repo.join("dir").is_dir() {
+            std::fs::remove_dir(repo.join("dir")).expect("the emptied directory");
+        }
+        if !fast_forward {
+            std::fs::write(repo.join("a.txt"), b"one\ntwo\nthree\na commit main has\n").expect("file");
+            git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+        }
+        std::fs::write(repo.join("dir"), b"PERSON-MARKER 7f3a\n").expect("the person's ignored file");
+        let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+        let (code, stderr): (i32, String) = match outcome {
+            IsolatedMerge::Finished { code, stderr, .. } => (code, stderr),
+            other => panic!("{label}: the merge is the wrapper's to carry, and it was forwarded: {other:?}"),
+        };
+        assert_eq!(code, 0, "{label}: {stderr}");
+        assert!(stderr.contains("kept whole at"), "{label}: the line names the copy: {stderr}");
+        assert!(repo.join("dir").is_dir(), "{label}: the merge wrote the directory its path needs");
+        assert_eq!(git_text(repo.as_path(), &["ls-files", "--", "dir/x.txt"]), "dir/x.txt", "{label}: the added path is in the index");
+        let kept: Vec<String> = std::fs::read_dir(repo.as_path())
+            .expect("the worktree")
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with(".cli-git-recovery"))
+            .map(|entry| std::fs::read_to_string(entry.path()).unwrap_or_default())
+            .collect();
+        assert_eq!(kept.len(), 1, "{label}: one copy waits beside the path, and it holds the person's bytes: {kept:?}");
+        assert!(kept[0].contains("PERSON-MARKER 7f3a"), "{label}: {kept:?}");
+        let records: usize = std::fs::read_dir(repo.join(".git/monochromatic-git-policy-cli-kept-copies")).map_or(0, Iterator::count);
+        assert_eq!(records, 1, "{label}: the copy is recorded, so a later command decides it again");
+        remove(parent.as_path());
+    }
+}

@@ -10,7 +10,6 @@
 //!  Any other option (a strategy,
 //! `--squash`,
 //! `--no-commit`,
-//! `--ff-only`,
 //! `--edit`,
 //! an abbreviation Git would
 //!  accept) is not guessed:
@@ -33,13 +32,18 @@ use std::ffi::OsString;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FastForwardChoice {
-    /// Neither `--ff` nor `--no-ff`;
+    /// None of `--ff`,
+    /// `--ff-only` and `--no-ff`;
     /// `merge.ff` decides.
     Default,
     /// `--ff`.
     Allowed,
     /// `--no-ff`.
     Never,
+    /// `--ff-only`:
+    /// the branch moves only when the merge is a fast-forward,
+    /// and native Git refuses it otherwise.
+    Only,
 }
 
 /// How the merge commit is signed.
@@ -199,7 +203,10 @@ pub fn parse_merge_shape(region: &[OsString]) -> ParsedMerge {
         match text {
             "--no-edit" => shape.no_edit = true,
             "-q" | "--quiet" => shape.quiet = true,
+            // The three tie-break each other in the order they are typed, as `parse_options` sets one variable for
+            //  them (`builtin/merge.c`) and the last one written decides.
             "--ff" => shape.fast_forward = FastForwardChoice::Allowed,
+            "--ff-only" => shape.fast_forward = FastForwardChoice::Only,
             "--no-ff" => shape.fast_forward = FastForwardChoice::Never,
             // `git merge -h` of 2.56.0 documents `--[no-]summary` as a synonym to `--stat`,
             //  and native Git 2.56.0 prints and hides the end-of-merge diffstat with it.

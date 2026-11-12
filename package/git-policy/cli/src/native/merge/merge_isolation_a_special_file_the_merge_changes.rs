@@ -36,17 +36,24 @@
 //! ```
 
 use crate::auto_push_dirty_paths::listed;
+use crate::merge_isolation_a_file_where_the_merge_puts_a_directory::the_entries_a_directory_would_replace;
 use crate::merge_isolation_changes::worktree_path;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
 /// What:
 ///  Every path of `paths` whose worktree entry is a named pipe,
-/// a socket or a device.
+/// a socket or a device,
+///  and every entry of that kind at an ancestor of one of them.
 /// Why:
 ///   These are exactly the paths whose bytes no capture can hold and whose open no command may wait on,
 /// so the merge
 ///  stops before Git's update of the checkout meets one.
+///  An entry at an ancestor is the same loss:
+/// Git removes whatever stands on the way to the directory it
+///  needs for an added path,
+/// and a pipe there has no copy either
+/// (`merge_isolation_a_file_where_the_merge_puts_a_directory.rs`).
 ///  A directory is judged by `merge_isolation_a_directory_the_merge_replaces`,
 /// which holds files the
 ///  person may have written,
@@ -55,16 +62,17 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function aSpecialFileTheMergeChanges(root, paths) { return paths.filter((p) => holdsNoBytes(join(root, p))); }
+/// function aSpecialFileTheMergeChanges(root, paths) { return [...paths, ...entriesADirectoryWouldReplace(root, paths)].filter((p) => holdsNoBytes(join(root, p))); }
 /// ```
 pub fn a_special_file_the_merge_changes(root: &Path, paths: &[Vec<u8>]) -> Vec<Vec<u8>> {
     let mut found: Vec<Vec<u8>> = Vec::new();
-    for path in paths {
+    for path in paths.iter().chain(the_entries_a_directory_would_replace(root, paths).iter()) {
         let location: PathBuf = worktree_path(root, path.as_slice());
-        if holds_no_bytes(location.as_path()) {
+        if holds_no_bytes(location.as_path()) && !found.contains(path) {
             found.push(path.clone());
         }
     }
+    found.sort();
     return found;
 }
 
@@ -110,10 +118,10 @@ fn holds_no_bytes(location: &Path) -> bool {
 /// ```
 pub fn the_line(reference: &str, found: &[Vec<u8>]) -> String {
     return format!(
-        "monochromatic-git-policy-cli: git merge {reference}: the worktree holds {} where this merge writes or deletes a path, and a \
-         named pipe, a socket or a device holds no bytes a merge can carry, so the merge was not made and nothing in the worktree, \
-         the index or the branch changed. Move each of them out of the way with a name of your own and run the merge again; they are \
-         still in your checkout as they were.\n",
+        "monochromatic-git-policy-cli: git merge {reference}: the worktree holds {} where this merge writes or deletes a path, or where \
+         it needs a directory to stand, and a named pipe, a socket or a device holds no bytes a merge can carry, so the merge was not \
+         made and nothing in the worktree, the index or the branch changed. Move each of them out of the way with a name of your own \
+         and run the merge again; they are still in your checkout as they were.\n",
         listed(found)
     );
 }
