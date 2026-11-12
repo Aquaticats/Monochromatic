@@ -9,6 +9,11 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { mkdirSync as makeScratchBase } from 'node:fs';
+import { countTagStarts } from './markup-scan.mjs';
+import {
+  needRuleNames,
+  withoutNeedRule
+} from './need-rule-scan.mjs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
@@ -88,6 +93,22 @@ const template = readFileSync(
   templatePath,
   'utf8'
 );
+// The builder reaches its scans through its own module import, so the fixture needs that module
+// beside the copies it writes.
+for (const module of [
+  'markup-scan.mjs'
+]) {
+  copyFileSync(
+    join(
+      root,
+      module
+    ),
+    join(
+      fixture,
+      module
+    )
+  );
+}
 const builder = join(
   fixture,
   'settings-pane.mjs'
@@ -1141,7 +1162,10 @@ const cases = [
     })
   },
 ];
-function runCase(testCase) {
+function runCase({
+  testCase,
+  deleted
+}) {
   const input = structuredClone(manifest);
   const undo = [];
   if (testCase.manifest) testCase.manifest(input);
@@ -1215,6 +1239,12 @@ function runCase(testCase) {
     manifestPath,
     JSON.stringify(manifest)
   );
+  // A deleted rule must stop reporting its own name; another rule may still refuse the same input.
+  if (deleted && (!run.stderr
+    .includes(`[${testCase.rule}]`))) return;
+  if (deleted) {
+    throw new Error(`Deleted Settings-pane rule still reports: ${testCase.rule}`);
+  }
   if ((run.status === 0) || (!run.stderr
     .includes(`[${testCase.rule}]`))) {
     throw new Error(`Expected Settings-pane rejection absent: ${testCase.rule}; got ${run.status === 0 ? 'acceptance' : run.stderr
@@ -1235,15 +1265,6 @@ const relaxed = join(
   'settings-pane-relaxed.mjs'
 );
 const hostile = 'settings-pane-<!--<script>.png';
-function ruleLine({
-  source,
-  rule
-}) {
-  const lines = source.split('\n')
-    .filter(line => line.includes(`need({ rule: '${rule}',`));
-  if (lines.length !== 1) throw new Error(`Exact Settings-pane rule line absent: ${  rule}`);
-  return `${lines[0]  }\n`;
-}
 function encodingHolds() {
   const input = structuredClone(manifest);
   const item = pick({
@@ -1283,7 +1304,10 @@ function encodingHolds() {
   );
   if (run.status !== 0) throw new Error(`Relaxed Settings-pane builder failed: ${  run.stderr}`);
   if ((!built.includes(String.raw`settings-pane-\u003c!--\u003cscript>.png`)) || built.includes(hostile)
-    || ((built.match(/<script\b/gi) ?? []).length !== 1)) {
+    || (countTagStarts({
+      text: built,
+      name: 'script'
+    }) !== 1)) {
     throw new Error('Expected Settings-pane rejection absent: script-encoding; got an unencoded image name in the page script');
   }
 }
@@ -1298,7 +1322,7 @@ try {
     ),
     'utf8'
   );
-  const rules = [...new Set([...source.matchAll(/need\(\{ rule: '([a-z-]+)',/g)].map(match => match[1]))];
+  const rules = needRuleNames({ source });
   const covered = new Set(cases.map(testCase => testCase.rule));
   const uncovered = rules.filter(rule => !covered.has(rule));
   const unknown = [...covered].filter(rule => !rules.includes(rule));
@@ -1315,42 +1339,41 @@ try {
       ...rules,
       'script-encoding'
     ].includes(target)))) throw new Error('Unknown Settings-pane consumer mutation.');
-    const encoding = `.replace('__SETTINGS_PANE_IMAGES__', () => JSON.stringify(images).replaceAll('<', '\\\\u003c'));`;
-    if (source.split(encoding)
-      .length
-      !== 2) throw new Error('Exact Settings-pane script encoding absent.');
+    // The builder escapes `<` inside the embedded image table, so an image name cannot end the page
+    // script. Both fragments are matched as text rather than as one formatted statement, so reflowing
+    // the helper cannot disable this control without the run failing here.
+    const imagesSlot = '\'__SETTINGS_PANE_IMAGES__\',';
+    const escapeCall = 'String.raw`\\u003c`';
+    for (const fragment of [
+      imagesSlot,
+      escapeCall
+    ]) {
+      if (source.split(fragment)
+        .length
+        !== 2) throw new Error(`Exact Settings-pane script encoding absent: ${fragment}`);
+    }
     let subject = source;
     if (target === 'script-encoding') subject = source.replace(
-      encoding,
-      `.replace('__SETTINGS_PANE_IMAGES__', () => JSON.stringify(images));`
+      escapeCall,
+      '\'<\''
     );
-    else if (target !== undefined) subject = source.replace(
-      ruleLine({
-        source,
-        rule: target
-      }),
-      ''
-    );
+    else if (target !== undefined) subject = withoutNeedRule({
+      source,
+      rule: target
+    });
     writeFileSync(
       builder,
       subject
     );
     writeFileSync(
       relaxed,
-      subject.replace(
-        ruleLine({
-          source,
+      withoutNeedRule({
+        source: withoutNeedRule({
+          source: subject,
           rule: 'witness-path'
         }),
-        ''
-      )
-        .replace(
-        ruleLine({
-          source,
-          rule: 'witness-filename'
-        }),
-        ''
-        )
+        rule: 'witness-filename'
+      })
     );
     positive();
     if (target === undefined) {
@@ -1412,7 +1435,12 @@ try {
       );
     }
     // With one rule deleted only that rule's cases run; each must then stop reporting the rule.
-    for (const testCase of cases) if ((target === undefined) || (testCase.rule === target)) runCase(testCase);
+    for (const testCase of cases) {
+      if ((target === undefined) || (testCase.rule === target)) runCase({
+        testCase,
+        deleted: target !== undefined
+      });
+    }
     if ((target === undefined) || [
       'script-encoding',
       'witness-path',

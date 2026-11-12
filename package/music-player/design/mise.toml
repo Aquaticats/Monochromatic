@@ -396,6 +396,8 @@ run = [
   "node prose-dashes-test.mjs",
   "node prose-emphasis-test.mjs",
   "node crease-floor-question-test.mjs",
+  "node markup-scan-test.mjs",
+  "node need-rule-scan-test.mjs",
 ]
 
 [tasks."test:prose:dashes"]

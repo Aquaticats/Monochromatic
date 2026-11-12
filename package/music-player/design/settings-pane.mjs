@@ -5,6 +5,10 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { inflateSync } from 'node:zlib';
+import {
+  countTagStarts,
+  hasRequiredControlMarker
+} from './markup-scan.mjs';
 
 //region Rule helper and pinned artifact, not a stored preference or a working setting
 const questions = join(
@@ -24,8 +28,9 @@ const artifact = {
   systemImageFingerprint: 'google/sdk_gphone16k_x86_64/emu64xa16k:17/CE2A.260420.050/16231978:user/dev-keys',
   renderer: 'Android Emulator OpenGL ES Translator (llvmpipe (LLVM 20.1.2, 256 bits))',
 };
-// Every rule is one `need` statement on one line with a unique name. The consumer test deletes
-// exactly that line and expects its own case to stop reporting the name, so no rule goes unexercised.
+// Every rule is one multi-line `need` statement with a unique name. The consumer test reads those
+// statements out of this file's own text, deletes one whole statement and expects its case to stop
+// reporting the name, so no rule goes unexercised.
 function need({
   rule,
   holds,
@@ -1269,16 +1274,24 @@ if (process.argv[2] === 'build') {
   });
   need({
     rule: 'no-input-control',
-    holds: !/<input\b/i.test(html),
+    holds: countTagStarts({
+      text: html,
+      name: 'input'
+    }) === 0,
     detail: 'review must not hold input controls; observations use one optional text area'
   });
-  const required = /<(?:textarea|select)\b(?:[^"'<>]|"[^"]*"|'[^']*')*?\srequired(?:\s|=|>)/i.test(html);
   need({
     rule: 'no-required-field',
-    holds: !required,
+    holds: !hasRequiredControlMarker({ text: html }),
     detail: 'review must not require an answer'
   });
-  const fields = ((html.match(/<textarea\b/gi) ?? []).length === 2) && ((html.match(/<select\b/gi) ?? []).length === 3);
+  const fields = (countTagStarts({
+    text: html,
+    name: 'textarea'
+  }) === 2) && (countTagStarts({
+    text: html,
+    name: 'select'
+  }) === 3);
   need({
     rule: 'observation-fields-only',
     holds: fields,

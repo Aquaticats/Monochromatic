@@ -6,6 +6,13 @@ import {
   writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
+import {
+  boundsRectangle,
+  hasClipboardUse,
+  hasExternalSubresourceReference,
+  hasQuotedAttributeValue,
+  tagElements
+} from './markup-scan.mjs';
 
 const root = process.cwd();
 const templatePath = join(
@@ -230,23 +237,32 @@ function assertHistoricalBlankConnector({
   scene,
   mode
 }) {
-  const nodes = [...xml.matchAll(/<node\b[^>]*>/g)].map((match) => match[0]);
+  const nodes = tagElements({
+    text: xml,
+    name: 'node'
+  });
   const crossing = nodes.filter((node) => node.includes('package="dev.monochromatic.musicplayer"') &&
-    (/text="[^"]+"/.test(node) || /content-desc="[^"]+"/.test(node)
+    (hasQuotedAttributeValue({
+      text: node,
+      attribute: 'text'
+    }) || hasQuotedAttributeValue({
+      text: node,
+      attribute: 'content-desc'
+    })
       ||
       node.includes('clickable="true"')
       || node.includes('focusable="true"')
       || node.includes('scrollable="true"')))
     .find((node) => {
-      const bounds = node.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
-      if (!bounds) throw new Error(`${basename({
+      const bounds = boundsRectangle({ text: node });
+      if (bounds === undefined) throw new Error(`${basename({
         ...scene,
         mode
       })}: semantic app node has no parseable bounds: ${node.slice(
         0,
         350
       )}`);
-      return (Number(bounds[1]) < 1_068) && (Number(bounds[3]) > 1_009);
+      return (bounds.left < 1_068) && (bounds.right > 1_009);
     });
   if (crossing) throw new Error(`${basename({
     ...scene,
@@ -383,7 +399,7 @@ function validate() {
   ].some((placeholder) => html.includes(placeholder))) {
     throw new Error('Fold Search review still has a placeholder.');
   }
-  if (/<script\s+[^>]*src=|<link\s+[^>]*href=/i.test(html) || /navigator\.clipboard|clipboardData|execCommand\(\s*['"]copy/.test(html)) {
+  if (hasExternalSubresourceReference({ text: html }) || hasClipboardUse({ text: html })) {
     throw new Error('Fold Search review depends on external resources or a clipboard API.');
   }
   if (html.includes('Slint design captures') || html.includes('Expanded desktop window')
