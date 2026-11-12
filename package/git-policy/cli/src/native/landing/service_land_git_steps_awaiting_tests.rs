@@ -44,6 +44,7 @@ fn a_request(repository: &Path, base: &str, path: &str, captured: u64) -> Commit
         cleanup: None,
         index: common.join("index"),
         scratch: common.join("monochromatic-git-policy-cli-service-a-control"),
+        shadow: None,
         captured,
         holder: String::new(),
     };
