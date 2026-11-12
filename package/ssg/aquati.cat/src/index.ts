@@ -106,7 +106,6 @@ export { html as postListHtml, } from './component/post-list.ts';
 export {
   css as questionCheckboxStyles,
   QuestionCheckbox,
-  type QuestionOption as QuestionCheckboxOption,
 } from './component/question-checkbox.ts';
 
 /**
@@ -117,8 +116,21 @@ export {
 export {
   css as questionRadioStyles,
   QuestionRadio,
-  type QuestionOption as QuestionRadioOption,
 } from './component/question-radio.ts';
+
+/**
+ Quiz question machinery both components delegate to: the shared renderer and
+ stylesheet generator, the option shape they render, and the question kinds.
+
+ @internal
+ */
+export {
+  type QuestionGroupProps,
+  questionGroupStyles,
+  type QuestionInput,
+  type QuestionOption,
+  renderQuestionGroup,
+} from './component/question-group.ts';
 
 /**
  Footer newsticker markup and styles.
