@@ -69,14 +69,17 @@ fn copies_directory(copies: &[SavedCopy]) -> Option<PathBuf> {
 ///   The person learns where their work went,
 ///  and that the operation's own state (its conflict markers and the staged merge result) is not among it,
 ///  because that state is what the abort exists to let go.
+///  The command and the operation are named apart,
+///  because `git am --abort` can end a rebase that applies patches,
+///  and a notice that said "before the am" would be false.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function savedBeforeAbortNotice(operation: AbortOperation, copies: SavedCopy[]): string;
+/// function savedBeforeAbortNotice(operation: AbortOperation, inProgress: AbortOperation, copies: SavedCopy[]): string;
 /// ```
-pub fn saved_before_abort_notice(operation: AbortOperation, copies: &[SavedCopy]) -> String {
+pub fn saved_before_abort_notice(operation: AbortOperation, in_progress: AbortOperation, copies: &[SavedCopy]) -> String {
     let command: &str = abort_command_text(operation);
-    let word: &str = operation_name(operation);
+    let word: &str = operation_name(in_progress);
     let mut text: String = format!(
         "monochromatic-git-policy-cli: this worktree holds changes besides the {word} in progress, and {command} discards them; the wrapper saved them \
          first, so nothing you wrote is lost.\n"
@@ -113,14 +116,16 @@ pub fn saved_before_abort_notice(operation: AbortOperation, copies: &[SavedCopy]
 ///   The command would discard work that is not on disk anywhere else,
 ///  so it is refused and the person is told what to fix;
 ///  saving the file by hand and passing the hatch stays the way through.
+///  The operation in progress is named apart from the command,
+///  because one abort form can end another operation's state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function copy_failed_text(operation: AbortOperation, subject: string, reason: string): string;
+/// function copyFailedText(operation: AbortOperation, inProgress: AbortOperation, subject: string, reason: string): string;
 /// ```
-pub fn copy_failed_text(operation: AbortOperation, subject: &str, reason: &str) -> String {
+pub fn copy_failed_text(operation: AbortOperation, in_progress: AbortOperation, subject: &str, reason: &str) -> String {
     let command: &str = abort_command_text(operation);
-    let word: &str = operation_name(operation);
+    let word: &str = operation_name(in_progress);
     return format!(
         "monochromatic-git-policy-cli: the {word} in progress holds changes besides its own, and your copy of them could not be saved ({subject}: \
          {reason}), so {command} is rejected and nothing was changed. Free the space or fix the permissions of the Git directory and run the \

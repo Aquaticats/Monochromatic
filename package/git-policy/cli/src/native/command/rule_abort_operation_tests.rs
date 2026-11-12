@@ -1,18 +1,23 @@
 //! What:
-//!  The abort forms' operations and the state that shows an operation waiting.
+//!  The abort forms' operations, the state that makes each abort live,
+//!  and the record each form restores its tree from.
 //! Why:
 //!  The mappings are the whole decision:
-//!  a form that names another operation's abort must be left to Git,
-//!  and a state file read as the wrong operation would let the wrong command go.
+//!  a form whose own state is absent is Git's to refuse,
+//!  and a state read as the wrong operation's,
+//!  or a restored revision named from the wrong record,
+//!  would let a command go with the person's work left unsaved.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! expect(abortedOperation(GuardedCommand.AbortPick)).toBe('pick');
-//! expect(waitingOperation(state({ rebaseApplyApplying: true }))).toBe('am');
+//! expect(abortIsLive('rebase', state({ mergeHead: true, rebaseMerge: true }))).toBe(true);
+//! expect(restoredRevision('rebase', state({ rebaseMerge: true }))).toEqual({ stateFile: 'rebase-merge/orig-head' });
 //! ```
 
 use super::{
-    AbortOperation, OperationState, aborted_operation, aborts_the_waiting_operation, operation_name, restored_revision,
+    AbortOperation, OperationState, RESTORED_REVISION_NAMES, RestoredRevision, aborted_operation, abort_is_live,
+    in_progress_operation, operation_name, restored_revision,
 };
 use crate::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsStr;
@@ -28,6 +33,62 @@ fn nothing() -> OperationState {
         rebase_apply_applying: false,
         sequencer: false,
     };
+}
+
+/// A conflicted merge: `MERGE_HEAD` alone.
+fn merge_conflict() -> OperationState {
+    let mut state: OperationState = nothing();
+    state.merge_head = true;
+    return state;
+}
+
+/// A merge step of `git rebase --rebase-merges`: `MERGE_HEAD` beside `rebase-merge`.
+fn rebase_merges_merge_step() -> OperationState {
+    let mut state: OperationState = merge_conflict();
+    state.rebase_merge = true;
+    return state;
+}
+
+/// A rebase that stopped with conflicts, with the merge backend.
+fn rebase_merge_stop() -> OperationState {
+    let mut state: OperationState = nothing();
+    state.rebase_merge = true;
+    return state;
+}
+
+/// A rebase that stopped with conflicts, with the apply backend.
+fn rebase_apply_stop() -> OperationState {
+    let mut state: OperationState = nothing();
+    state.rebase_apply_rebasing = true;
+    return state;
+}
+
+/// An `am` that stopped with conflicts.
+fn am_stop() -> OperationState {
+    let mut state: OperationState = nothing();
+    state.rebase_apply_applying = true;
+    return state;
+}
+
+/// A single cherry-pick that stopped with conflicts.
+fn pick_single() -> OperationState {
+    let mut state: OperationState = nothing();
+    state.cherry_pick_head = true;
+    return state;
+}
+
+/// A single revert that stopped with conflicts.
+fn revert_single() -> OperationState {
+    let mut state: OperationState = nothing();
+    state.revert_head = true;
+    return state;
+}
+
+/// A cherry-pick or revert sequence that stopped, between or at its picks.
+fn pick_sequence() -> OperationState {
+    let mut state: OperationState = nothing();
+    state.sequencer = true;
+    return state;
 }
 
 /// Every abort form names its operation,
@@ -61,61 +122,104 @@ fn every_operation_has_its_own_name() {
     assert_eq!(names.len(), 4);
 }
 
-/// Each state names the operation Git's own abort reads.
+/// Each abort form is live exactly while the state its own command reads is there,
+///  and another operation's state never makes it live.
 #[test]
-fn each_state_names_the_operation_that_writes_it() {
-    let mut state: OperationState = nothing();
-    assert_eq!(super::waiting_operation(state), None);
-    state.merge_head = true;
-    assert_eq!(super::waiting_operation(state), Some(AbortOperation::Merge));
-    state = nothing();
-    state.rebase_merge = true;
-    assert_eq!(super::waiting_operation(state), Some(AbortOperation::Rebase));
-    state = nothing();
-    state.rebase_apply_rebasing = true;
-    assert_eq!(super::waiting_operation(state), Some(AbortOperation::Rebase));
-    state = nothing();
-    state.cherry_pick_head = true;
-    assert_eq!(super::waiting_operation(state), Some(AbortOperation::Pick));
-    state = nothing();
-    state.revert_head = true;
-    assert_eq!(super::waiting_operation(state), Some(AbortOperation::Pick));
-    state = nothing();
-    state.sequencer = true;
-    assert_eq!(super::waiting_operation(state), Some(AbortOperation::Pick));
-    state = nothing();
-    state.rebase_apply_applying = true;
-    assert_eq!(super::waiting_operation(state), Some(AbortOperation::Am));
-}
-
-/// An abort that names another operation's state does not match the one waiting.
-#[test]
-fn an_abort_matches_only_its_own_operation() {
-    for (aborted, waiting, matches) in [
-        (AbortOperation::Merge, AbortOperation::Merge, true),
-        (AbortOperation::Rebase, AbortOperation::Rebase, true),
-        (AbortOperation::Pick, AbortOperation::Pick, true),
-        (AbortOperation::Am, AbortOperation::Am, true),
-        (AbortOperation::Merge, AbortOperation::Rebase, false),
-        (AbortOperation::Pick, AbortOperation::Merge, false),
-        (AbortOperation::Am, AbortOperation::Rebase, false),
-        (AbortOperation::Rebase, AbortOperation::Am, false),
+fn each_abort_form_is_live_only_with_its_own_state() {
+    // What each form's own command reads, as real Git 2.56.0 answered.
+    for (operation, state) in [
+        (AbortOperation::Merge, merge_conflict()),
+        (AbortOperation::Merge, rebase_merges_merge_step()),
+        (AbortOperation::Rebase, rebase_merge_stop()),
+        (AbortOperation::Rebase, rebase_apply_stop()),
+        (AbortOperation::Rebase, rebase_merges_merge_step()),
+        (AbortOperation::Pick, pick_single()),
+        (AbortOperation::Pick, revert_single()),
+        (AbortOperation::Pick, pick_sequence()),
+        (AbortOperation::Am, am_stop()),
+        // `git am --abort` ends a rebase that applies patches (measured).
+        (AbortOperation::Am, rebase_apply_stop()),
     ] {
-        assert_eq!(aborts_the_waiting_operation(aborted, waiting), matches, "{aborted:?} against {waiting:?}");
+        assert!(abort_is_live(operation, state), "{operation:?} must be live in {state:?}");
+    }
+    // The states that only neighbour a form's own state.
+    for (operation, state) in [
+        // A merge step of a rebase is not a merge to `git rebase --abort`; the rebase state is what makes it live.
+        (AbortOperation::Rebase, merge_conflict()),
+        // An `am` in progress is refused by `git rebase --abort` (`It looks like 'git am' is in progress.`).
+        (AbortOperation::Rebase, am_stop()),
+        (AbortOperation::Merge, rebase_merge_stop()),
+        (AbortOperation::Merge, pick_sequence()),
+        (AbortOperation::Pick, merge_conflict()),
+        (AbortOperation::Pick, rebase_apply_stop()),
+        // A rebase with the merge backend leaves no `rebase-apply`, and `git am --abort` refuses it (measured).
+        (AbortOperation::Am, rebase_merge_stop()),
+        (AbortOperation::Am, merge_conflict()),
+    ] {
+        assert!(!abort_is_live(operation, state), "{operation:?} must not be live in {state:?}");
+    }
+    for operation in [AbortOperation::Merge, AbortOperation::Rebase, AbortOperation::Pick, AbortOperation::Am] {
+        assert!(!abort_is_live(operation, nothing()), "{operation:?} with nothing in progress");
     }
 }
 
-/// The revision an abort writes back is `ORIG_HEAD` for every abort form,
-///  which Git records before each of them stops.
+/// A rebase that applies patches is a rebase to `git am --abort`,
+///  which ends it; a rebase to `git rebase --abort` stays a rebase.
 #[test]
-fn the_restored_revision_is_named_for_each_operation() {
-    for operation in [AbortOperation::Merge, AbortOperation::Rebase, AbortOperation::Pick, AbortOperation::Am] {
-        assert_eq!(restored_revision(operation), OsStr::new("ORIG_HEAD"), "{operation:?}");
+fn an_am_abort_that_ends_a_rebase_names_the_rebase() {
+    assert_eq!(in_progress_operation(AbortOperation::Am, am_stop()), AbortOperation::Am);
+    assert_eq!(in_progress_operation(AbortOperation::Am, rebase_apply_stop()), AbortOperation::Rebase);
+    assert_eq!(in_progress_operation(AbortOperation::Rebase, rebase_apply_stop()), AbortOperation::Rebase);
+    assert_eq!(in_progress_operation(AbortOperation::Merge, am_stop()), AbortOperation::Merge);
+}
+
+/// Each abort form restores the commit its own implementation reads,
+///  measured with Git 2.56.0 by moving `ORIG_HEAD` and each record apart.
+#[test]
+fn each_abort_form_names_the_record_it_restores() {
+    for (operation, state, expected) in [
+        // `git merge --abort` resets to `HEAD`, whatever `ORIG_HEAD` says.
+        (AbortOperation::Merge, merge_conflict(), RestoredRevision::Named(OsStr::new("HEAD"))),
+        (AbortOperation::Merge, rebase_merges_merge_step(), RestoredRevision::Named(OsStr::new("HEAD"))),
+        // Each rebase backend records its original head in its own directory.
+        (AbortOperation::Rebase, rebase_merge_stop(), RestoredRevision::StateFile(OsStr::new("rebase-merge/orig-head"))),
+        (AbortOperation::Rebase, rebase_apply_stop(), RestoredRevision::StateFile(OsStr::new("rebase-apply/orig-head"))),
+        // One pick never moved `HEAD`; a sequence recorded the start it resets to.
+        (AbortOperation::Pick, pick_single(), RestoredRevision::Named(OsStr::new("HEAD"))),
+        (AbortOperation::Pick, revert_single(), RestoredRevision::Named(OsStr::new("HEAD"))),
+        (AbortOperation::Pick, pick_sequence(), RestoredRevision::StateFile(OsStr::new("sequencer/head"))),
+        // The one form that reads `ORIG_HEAD`, which it also reads during a rebase it ends.
+        (AbortOperation::Am, am_stop(), RestoredRevision::Named(OsStr::new("ORIG_HEAD"))),
+        (AbortOperation::Am, rebase_apply_stop(), RestoredRevision::Named(OsStr::new("ORIG_HEAD"))),
+    ] {
+        assert_eq!(restored_revision(operation, state), expected, "{operation:?} in {state:?}");
+    }
+}
+
+/// Every record a form restores from is one the state query asks Git for,
+///  so reading it never needs a second start.
+#[test]
+fn every_record_a_form_restores_is_asked_for() {
+    for (operation, state) in [
+        (AbortOperation::Merge, merge_conflict()),
+        (AbortOperation::Rebase, rebase_merge_stop()),
+        (AbortOperation::Rebase, rebase_apply_stop()),
+        (AbortOperation::Pick, pick_single()),
+        (AbortOperation::Pick, pick_sequence()),
+        (AbortOperation::Am, am_stop()),
+    ] {
+        if let RestoredRevision::StateFile(record) = restored_revision(operation, state) {
+            assert!(
+                RESTORED_REVISION_NAMES.contains(&record.to_str().expect("a record of text")),
+                "{record:?} is not asked for"
+            );
+        }
     }
 }
 
 /// The state query asks for one path per operation state,
-///  in the order the presence facts read.
+///  in the order the presence facts read,
+///  and one for every record a form restores.
 #[test]
 fn the_state_query_names_every_state_entry() {
     let asked: Vec<String> = super::OPERATION_STATE_NAMES.iter().map(|name| { return (*name).to_string(); }).collect();
@@ -124,4 +228,8 @@ fn the_state_query_names_every_state_entry() {
         vec!["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply/rebasing", "rebase-apply/applying"]
     );
     assert_eq!(super::SEQUENCER_DIRECTORY, "sequencer");
+    assert_eq!(
+        RESTORED_REVISION_NAMES.to_vec(),
+        vec!["rebase-merge/orig-head", "rebase-apply/orig-head", "sequencer/head"]
+    );
 }
