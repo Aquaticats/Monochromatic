@@ -27,6 +27,10 @@ pub mod lfs_upload_plan_awaiting;
 /// and the default remote derived from it.
 pub mod lfs_upload_settings;
 
+/// Whether this clone's tracking refs for a remote describe the server a push goes to,
+/// asked of the destination itself.
+pub mod lfs_destination_confirms_tracking_refs;
+
 /// Hides the credentials inside URLs in the text relayed from `git-lfs`.
 pub mod lfs_output_mask;
 

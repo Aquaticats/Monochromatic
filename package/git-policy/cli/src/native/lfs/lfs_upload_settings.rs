@@ -346,12 +346,74 @@ pub fn resolve_push_remote(named: Option<OsString>, query: Query<'_>) -> Result<
     return Ok(OsString::from(default_remote(branch.as_deref(), all.as_slice())));
 }
 
-/// Whether Git reads this configuration text as true.
-pub(crate) fn reads_as_true(value: &str) -> bool {
-    for spelling in ["true", "yes", "on", "1", ""] {
-        if value.eq_ignore_ascii_case(spelling) {
-            return true;
-        }
+/// What:
+///  Whether Git reads the configuration key `key` as true,
+/// asked of Git rather than of a list of spellings kept
+///  here.
+/// Why:
+///   Git's boolean grammar is Git's:
+/// `2`, `-1` and `0x10` are true,
+/// an empty value is false,
+/// `TRUE` is true,
+///  and a value it cannot read stops the push it belongs to.
+/// A list here disagreed with all four of those, and a
+///  boolean read wrongly is a push that publishes what it did not upload.
+/// The key is asked only when the settings hold a
+///  value for it,
+/// so a push in a repository without it costs no Git start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// setting(all, key) === undefined ? false : query(['config', '--type=bool', '--get', key]) === 'true'
+/// ```
+pub(crate) fn git_says_true(all: &[(String, String)], key: &str, query: Query<'_>) -> Result<bool, PlanError> {
+    if setting(all, key).is_none() {
+        return Ok(false);
     }
-    return false;
+    return boolean_of(key, query.ask(&["config", "--type=bool", "--get", key]));
+}
+
+/// What:
+///  The same answer,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round of the service runs as tasks,
+/// and a question asked on the synchronous face is refused from
+///  there;
+/// the question and the reading of its answer are the synchronous face's,
+/// so the two cannot
+///  disagree about a boolean.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await gitSaysTrue(all, key, query)
+/// ```
+pub(crate) async fn git_says_true_awaiting(all: &[(String, String)], key: &str, query: QueryAwaiting<'_>) -> Result<bool, PlanError> {
+    if setting(all, key).is_none() {
+        return Ok(false);
+    }
+    return boolean_of(key, query.ask(&["config", "--type=bool", "--get", key]).await);
+}
+
+/// What:
+///  The boolean one finished answer states,
+/// or the refusal that ends the push.
+/// Why:
+///   `git config --type=bool --get` prints `true` or `false` and nothing else;
+/// any other answer and any
+///  failure mean Git could not read the value,
+/// and a push Git would refuse must not be planned as one that
+///  skips its objects.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// answer === 'true' ? true : answer === 'false' || answer === '' ? false : throw new PlanError(key)
+/// ```
+fn boolean_of(key: &str, answer: Result<String, String>) -> Result<bool, PlanError> {
+    return match answer {
+        Ok(text) if text == "true" => Ok(true),
+        Ok(text) if text == "false" || text.is_empty() => Ok(false),
+        Ok(text) => Err(PlanError(format!("git config --type=bool {key}: Git answered {text:?}"))),
+        Err(why) => Err(PlanError(format!("git config --type=bool {key}: {why}"))),
+    };
 }

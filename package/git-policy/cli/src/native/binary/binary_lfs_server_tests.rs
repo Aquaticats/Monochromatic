@@ -302,14 +302,19 @@ fn lfs_world(fixture: &Fixture) -> Option<(PathBuf, PathBuf, LfsServer, Vec<u8>)
     return Some((repo, origin, server, content));
 }
 
-/// The object name a pointer file records.
-fn pointer_oid(fixture: &Fixture, repo: &Path) -> String {
-    let pointer: String = super::commit::git_text(fixture, repo, &["cat-file", "blob", "HEAD:big.bin"]);
+/// The object name a pointer file at `rev:path` records.
+fn pointer_oid_at(fixture: &Fixture, repo: &Path, rev_path: &str) -> String {
+    let pointer: String = super::commit::git_text(fixture, repo, &["cat-file", "blob", rev_path]);
     return pointer
         .lines()
         .find_map(|line| { return line.strip_prefix("oid sha256:"); })
         .expect("a pointer file has an oid line")
         .to_owned();
+}
+
+/// The object name the pointer file at `HEAD:big.bin` records.
+fn pointer_oid(fixture: &Fixture, repo: &Path) -> String {
+    return pointer_oid_at(fixture, repo, "HEAD:big.bin");
 }
 
 /// The origin's `main` seen from outside.
@@ -477,6 +482,111 @@ fn a_remote_with_a_push_url_keeps_the_full_scan() {
     assert_eq!(second.code, Some(0), "{stderr}");
     assert_eq!(batches(&server), after_first + 1, "the full scan asked about the known object again: {stderr}");
     assert_eq!(server.uploads().len(), 1, "an object the server has is not sent twice");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A second bare origin and the server behind it,
+/// with the remote name and `lfs.url` moved onto them.
+/// Why:
+///   `git remote set-url` leaves this clone's tracking refs describing the server it fetched from,
+/// and a push that
+///  takes them as what the new server holds publishes pointers whose objects never travelled.
+fn move_origin(fixture: &Fixture, repo: &Path) -> (PathBuf, LfsServer) {
+    let origin: PathBuf = fixture.root.join("second.git");
+    git(fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "second.git"]);
+    let server: LfsServer = LfsServer::start(origin.clone());
+    git(fixture, repo, &["config", "lfs.url", format!("http://127.0.0.1:{}/lfs", server.port).as_str()]);
+    git(fixture, repo, &["remote", "set-url", "origin", origin.to_str().expect("UTF-8")]);
+    return (origin, server);
+}
+
+/// A commit that adds one LFS file on a branch of its own,
+/// made by real Git so that no auto-push runs,
+/// leaving the
+///  worktree on `main`.
+fn side_branch_with_a_pointer(fixture: &Fixture, repo: &Path, content: &[u8]) -> String {
+    git(fixture, repo, &["switch", "--quiet", "--create", "side"]);
+    std::fs::write(repo.join("side.bin"), content).expect("side.bin");
+    let added: Observed = observe(
+        &mut super::commit::wrapped_commit(fixture, repo, &["add", "--", "side.bin"]),
+        b"",
+    );
+    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
+    let mut path: std::ffi::OsString = fixture.root.join("bin").into_os_string();
+    path.push(":/usr/bin:/bin");
+    let committed = direct(fixture)
+        .current_dir(repo)
+        .env("PATH", path)
+        .args(["commit", "--quiet", "--message=side"])
+        .output()
+        .expect("commit starts");
+    assert!(committed.status.success(), "{}", String::from_utf8_lossy(committed.stderr.as_slice()));
+    let oid: String = pointer_oid_at(fixture, repo, "side:side.bin");
+    git(fixture, repo, &["switch", "--quiet", "main"]);
+    return oid;
+}
+
+/// What:
+///  A remote whose URL was moved to another server uploads the objects again,
+/// to the server the push goes to.
+/// Why:
+///   The tracking refs describe the server the last fetch saw;
+/// taking them as what the new server holds
+///  sends nothing and publishes a pointer whose content is nowhere.
+#[test]
+fn a_remote_whose_url_moved_uploads_its_objects_to_the_new_server() {
+    let fixture: Fixture = fixture("lfs-real-moved-url");
+    let Some((repo, first_origin, first, content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let pushed: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
+    assert_eq!(first.uploads().len(), 1, "the first server holds the object: {}", stderr_of(&pushed));
+    let (second_origin, second): (PathBuf, LfsServer) = move_origin(&fixture, repo.as_path());
+    let moved: Observed = push_main(&fixture, repo.as_path(), &[]);
+    let stderr: String = stderr_of(&moved);
+    assert_eq!(moved.code, Some(0), "{stderr}");
+    assert_ne!(published_main(&fixture, second_origin.as_path()), "absent", "the ref moved on the new server: {stderr}");
+    let uploads: Vec<Upload> = second.uploads();
+    assert_eq!(uploads.len(), 1, "the object reached the server the push went to: {stderr}");
+    assert_eq!(uploads[0].bytes, content, "and it is the object's content: {stderr}");
+    drop(second);
+    drop(first);
+    remove_settled(&fixture);
+    let _first_origin: PathBuf = first_origin;
+}
+
+/// What:
+///  A mirror Git reads from a numeric true value publishes every branch and uploads every object.
+/// Why:
+///   `remote.<name>.mirror=2` is true to Git and was false to the plan,
+/// so the other branches were published
+///  with pointers whose objects never travelled.
+#[test]
+fn a_numeric_mirror_uploads_the_objects_of_every_branch_it_publishes() {
+    let fixture: Fixture = fixture("lfs-real-numeric-mirror");
+    let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let side_oid: String = side_branch_with_a_pointer(&fixture, repo.as_path(), [content.as_slice(), b"side"].concat().as_slice());
+    git(&fixture, repo.as_path(), &["config", "remote.origin.mirror", "2"]);
+    let read: String = super::commit::git_text(&fixture, repo.as_path(), &["config", "--type=bool", "--get", "remote.origin.mirror"]);
+    assert_eq!(read.trim(), "true", "Git reads the fixture's value as true");
+    let pushed: Observed = observe(&mut super::commit::wrapped_commit(&fixture, repo.as_path(), &["push", "origin"]), b"");
+    let stderr: String = stderr_of(&pushed);
+    assert_eq!(pushed.code, Some(0), "{stderr}");
+    let side_published = direct(&fixture)
+        .current_dir(origin.as_path())
+        .args(["rev-parse", "--verify", "--quiet", "refs/heads/side"])
+        .output()
+        .expect("rev-parse starts");
+    assert!(side_published.status.success(), "the mirror published the side branch: {stderr}");
+    let uploads: Vec<Upload> = server.uploads();
+    let names: Vec<&str> = uploads.iter().map(|upload| { return upload.oid.as_str(); }).collect();
+    assert!(names.contains(&side_oid.as_str()), "the side branch's object was uploaded: {names:?} {stderr}");
+    assert_eq!(uploads.len(), 2, "both objects travelled once: {names:?} {stderr}");
     drop(server);
     remove_settled(&fixture);
 }
