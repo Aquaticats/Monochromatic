@@ -51,3 +51,70 @@ fn a_step_whose_own_job_outlasted_its_ceiling_says_so() {
     let _let_go = let_go.send(());
     drop(runtime);
 }
+
+/// The branch and commit every item of these controls names.
+const BRANCH: &str = "refs/heads/main";
+const OID: &str = "0123456789abcdef0123456789abcdef01234567";
+
+/// A work item for one push of `git_dir`.
+fn a_push(git_dir: &Path) -> crate::work_item::WorkItem {
+    return crate::work_item::WorkItem {
+        kind: crate::work_item::WorkKind::Push,
+        repository: git_dir.parent().expect("the repository of a Git directory").to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
+        branch_ref: String::from(BRANCH),
+        oid: String::from(OID),
+        parent: String::new(),
+        created: String::from("2026-01-01T00:00:00.000Z"),
+        tries: 0,
+    };
+}
+
+/// What:
+///  A look that could not answer asks for another round,
+///  never for nothing.
+/// Why:
+///   Its answer is what wakes the service once another instance's lease runs out,
+///  and nothing else wakes it when there is no push plan and no journal to read:
+/// an answer of "no claim is held" then leaves a push claimed for good,
+///  waiting for a command the person may never type.
+/// The only place of the process's bound is held here,
+/// which is the state a store that answers slowly leaves behind,
+/// so the look cannot run at all.
+#[test]
+fn a_look_that_gave_no_answer_asks_for_another_round() {
+    let root: PathBuf = crate::test_support::fixture("storage-claim-look-no-answer");
+    let work_dir: PathBuf = root.join("work");
+    let repository: PathBuf = root.join("repository");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
+    let lease: Duration = crate::service_work::CLAIM_LEASE;
+    crate::work_item::enqueue(work_dir.as_path(), &a_push(git_dir.as_path())).expect("enqueue");
+    let _claimed = crate::work_item::claim_next_of(work_dir.as_path(), &ClaimTime::read(), &[crate::work_item::WorkKind::Push]).expect("claim").expect("one claim");
+    assert!(
+        crate::work_item_recovery::next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease).is_some(),
+        "positive control: the claim another instance holds runs out its lease, so a wake is owed"
+    );
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(crate::parallel_test_support::ONE_PLACE);
+    let (started, has_started) = std::sync::mpsc::channel::<()>();
+    let (release, waiting) = std::sync::mpsc::channel::<()>();
+    let holder = std::thread::spawn(move || {
+        let answer = crate::lazy_runtime::run_on_runtime(crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+            let _told = started.send(());
+            let _held = waiting.recv();
+        }))
+        .expect("the holder's runtime");
+        answer.expect("the holder's job");
+    });
+    assert!(has_started.recv_timeout(PATIENCE).is_ok(), "the only place of the process's bound is held");
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime for the control");
+    let answered: Option<Duration> = runtime.block_on(next_claim_expiry_awaiting(work_dir.as_path(), &ClaimTime::read(), lease));
+    let _let_go = release.send(());
+    holder.join().expect("the holder");
+    drop(runtime);
+    assert!(
+        answered.is_some(),
+        "the look gave no answer, so the round must be woken again rather than told that no claim is held"
+    );
+    crate::test_support::remove(root.as_path());
+}

@@ -316,3 +316,8 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + ?Sized>(git_
     }
     return;
 }
+
+/// Drain controls stay out of the release executable.
+#[cfg(test)]
+#[path = "service_work_drains_awaiting_tests.rs"]
+mod tests;
