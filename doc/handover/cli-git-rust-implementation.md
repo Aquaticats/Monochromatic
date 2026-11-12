@@ -135,6 +135,31 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### Pass 16 closed by its driver with two merges to go, and continued (2026-11-12T01:19:27-05:00)
+
+The first run of integration pass 16 ended at 01:16:47, `endReason` `idle`, after 238 turns.
+It had not finished: it started a build with its `process` tool, ended its turn saying it would be brought back when the build ended,
+and the scratch driver closed the run 129 seconds after that first `settled` record of the whole run.
+The review of the worktree-add change was lost the same way an hour earlier.
+
+What it left, checked at 01:17:53:
+
+- twenty-one merges on `integrate/git-policy-cli-pass-16-for-alpha-13`, the last `510a56e135` at 01:04:45;
+- one uncommitted repair in `package/git-policy/cli/src/native/shadow/shadow_pool_member.rs`;
+- its notes and merge messages in `/home/user/temp/agent/pi-integration-pass-16/`.
+
+The continuation started at 01:19:27 in the same worktree and unit name
+(batch `agents-batch-round-269.json`, brief `integration-pass-16-for-alpha-13-continued-prompt.md`, run folder `integration-pass-16-for-alpha-13-2`).
+Its brief names the state left, tells it to look for the earlier build before starting one,
+and has it run builds and tests as foreground commands.
+0.6.1-alpha.13 is released when it ends.
+
+The driver defect went to `subagent-driver-a-real-batch-start-works-and-the-remaining-commands-are-usable-1` by note at 01:19:
+a run that settles while a process it started still runs is kept and brought back, and the summary tells that end apart from a true idle end.
+Until the driver does that, `rules-every-pi-brief-carries.md` carries a labelled workaround:
+a step whose result the next step needs runs as a foreground command with a bound.
+Runs already started have not read it; a run that ends early with a build running is restarted with a continuation brief.
+
 ### The last three Kimi audits of alpha.12 routed, and round 277 started (2026-11-12T01:13:26-05:00)
 
 `~/temp/agent/digest-2026-11-12T0045/digest.md` covers the audits of the commit service's landing,
