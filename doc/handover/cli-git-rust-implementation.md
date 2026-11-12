@@ -135,6 +135,83 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
+### The owner's answers of 2026-11-12T12:11:18-05:00, through the question tool: a slow push, finished records, a way back, a foreign subvolume
+
+The answers were read before 12:11:18.
+Each pick is quoted as the owner gave it.
+
+#### A slow server and a typed push (item 3.7)
+
+- Asked:
+  how "Stop only on no progress" and "nothing should ever wait forever or indefinitely" meet,
+  since a server that sends one byte every few seconds holds a typed push without end.
+- The owner: "Minimum rate (Recommended)".
+- So:
+  progress means at least a stated number of bytes within a stated window;
+  under it the push stops with a message.
+  The two values are measured on real pushes and put to the owner before a release carries them.
+
+#### How long the commit service remembers a finished request (item 3.6)
+
+- Asked:
+  `README.md` says the records are pruned by count, `SPEC.md` says they are kept by age,
+  and an audit landed one commit twice by resending a request after a thousand other landings.
+- The owner: "Age and count together (Recommended)".
+- So:
+  a record is pruned only when it is both older than a stated age and beyond a stated count;
+  the code and both documents follow that.
+
+#### A way back from a bad wrapper release (item 3.3)
+
+- Asked: whether the previous release stays on disk.
+- The owner, in their own words:
+  "Leave as it is. A way back is intentionally not given, to avoid agents from becoming lazy."
+- So:
+  nothing is kept and no test of a reinstall is added;
+  a bad release is answered by a fixed release.
+  No agent is briefed to build or to rely on a way back.
+
+#### A subvolume someone else put inside a worktree being removed (item 3.1)
+
+- Asked: what follows from "make the wrapper work in that case." for a subvolume or mount the wrapper did not make.
+- The owner: "Remove around it (Recommended)".
+- So:
+  everything else in the worktree is removed and Git forgets the worktree;
+  the foreign subvolume or mount is left where it stands, with the folders that lead to it,
+  and the wrapper says so.
+  The path stays occupied until the item is moved.
+  This was not built or tried when it was offered, and the question said so.
+
+#### The owner adds to the systemd answer (typed after 12:11:18, while these were being recorded)
+
+- "Also regarding systemd answer: We're also supposed to workaround systemd issues."
+- It adds to the section
+  "The owner: "Remove systemd as a hard dependency. Bazel doesn't need it."":
+  besides needing no service manager and using one only as an enhancement,
+  the wrapper works around the defects of systemd it meets.
+- This session's reading, to be corrected if wrong:
+  a defect of systemd is never a reason for a wrapper command to fail, to wait, or to tell a person to act;
+  the wrapper detects the state and gets its own work done another way.
+  The cases on record are those of issue 6286
+  (a manager-wide reload that holds every start for seconds or minutes,
+  and systemd v262.1 reading an expired reply as a lost bus name, `src/core/unit.c:3576`, `src/core/service.c:5975`),
+  a start request that is not answered within a bound,
+  and a unit left in a failed or stale state by an earlier release.
+- Sent as a note to the two agents on that path,
+  `commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager-1` (round 297)
+  and `reload-fix-brought-onto-main-where-a-program-link-already-is-1` (round 301):
+  `~/temp/agent/notes-to-send/2026-11-12T1214-the-wrapper-also-works-around-defects-of-the-service-manager.md`.
+
+#### What these start
+
+- Round 308, three runs:
+  `push-stops-when-fewer-than-a-stated-number-of-bytes-move-in-a-stated-window` (on `main`),
+  `finished-records-of-the-commit-service-are-pruned-only-when-old-and-beyond-a-count` (on `main`),
+  `removal-goes-around-a-subvolume-or-mount-it-did-not-make`
+  (on `fix/git-policy-cli-removal-pool-symlink-and-nested-subvolume-fixes-brought-onto-main`, `f941f71d77`).
+- Free space was 102 GiB at 12:11:18, two above the launcher's gate, so these wait at the gate until space returns.
+- Of the consolidated list, twenty-two items are still to ask.
+
 ### A typed push of a branch that was not checked out published a merge labelled with the checked-out branch (2026-11-12T12:00:10-05:00)
 
 #### The eleven local-only branches are on the remote
