@@ -30,13 +30,11 @@
 //! wakeTheService(gitDir); // route from the environment, provision, wake; a failure is not the command's
 //! ```
 
-use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
-use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::service_provision::provision;
-use crate::service_provision_host_and_manager::units_record_dir_of;
+use crate::service_client::{ClientConfig, wake};
+use crate::service_commit_starts_the_server::make_sure_a_server_exists;
 use crate::service_route::{Route, route_from_environment};
 use crate::transaction_git::GitContext;
-use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use std::path::Path;
 
 /// What:
@@ -77,29 +75,18 @@ pub struct AskTheService<'a> {
 
 impl WakeTheService for AskTheService<'_> {
     fn wake(&self, git_dir: &Path) {
-        let Some(Route { address, provision: host }) = route_from_environment(self.context.real_git.as_path(), git_dir) else {
+        let Some(Route { address, host }) = route_from_environment(self.context.real_git.as_path(), git_dir) else {
             return;
         };
         if let Some(setup) = host.as_ref()
-            && provision(setup).is_err()
+            && make_sure_a_server_exists(setup).is_err()
         {
             return;
         }
-        let config: ClientConfig = ClientConfig {
-            address,
-            activation: Activation::Managed,
-            // The held push's record is durable, so the wake waits the hand-over's own greeting bound.
-            start_wait: HAND_OVER_GREETING_WAIT,
-            heartbeat_silence: HEARTBEAT_SILENCE,
-            start_watch: host.as_ref().map(manager_watch_for),
-            keep_fresh: None,
-            answer_ceiling: ANSWER_CEILING,
-            withdraw_ceiling: WITHDRAW_CEILING,
-            waiting_notice_after: waiting_notice_after(),
-            extra_wait: SHORT_EXTRA_WAIT,
-            start_ceiling: HAND_OVER_GREETING_WAIT,
-            units_record_dir: host.as_ref().map(units_record_dir_of),
-        };
+        // The held push's record is durable, so the wake waits the hand-over's own greeting bound.
+        let mut config: ClientConfig = crate::service_client::client_config(address, host.as_ref());
+        config.start_wait = HAND_OVER_GREETING_WAIT;
+        config.start_ceiling = HAND_OVER_GREETING_WAIT;
         // The wake's own lines are not the command's report, and a service that cannot be reached is not its failure.
         let mut silent: std::io::Sink = std::io::sink();
         let _woken: Result<(), crate::service_messages::ClientFailure> = wake(&config, git_dir, None, &mut silent);

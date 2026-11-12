@@ -140,17 +140,16 @@ fn config_for(fixture: &Fixture, name: &str, answer_ceiling: Duration) -> Client
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime_for(name).as_path(), git_dir.as_path());
     return ClientConfig {
         address: Bind::Path(socket),
-        activation: Activation::Managed,
+        activation: Activation::StartedByTheWrapper,
         start_wait: PATIENCE,
         heartbeat_silence: PATIENCE,
-        start_watch: None,
+        starter: None,
         keep_fresh: None,
         answer_ceiling,
         withdraw_ceiling: PATIENCE,
         waiting_notice_after: PATIENCE,
         extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: PATIENCE,
-        units_record_dir: None,
     };
 }
 

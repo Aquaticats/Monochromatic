@@ -35,9 +35,8 @@
 //! const result = await tryServiceCommit(invocation, checks, request); // undefined only when no service can be reached
 //! ```
 
-use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
+use crate::service_commit_input_notes_and_embedded_commit::commit_client_config;
 use crate::service_server::Bind;
-use crate::service_provision::ProvisionHost;
 use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktree;
 /// The look for the commit a request that was already sent made.
 use crate::service_commit_fitting_request::embedded_that_fits;
@@ -61,7 +60,7 @@ use crate::service_commit_args::{opens_editor, parse_service_commit};
 use crate::service_handoff::ServiceHandoff;
 use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again};
 /// Provisioning the service before the first submission.
-use crate::service_provision::provision_when_needed;
+use crate::service_commit_starts_the_server::ensure_a_server;
 use crate::service_branch_shows::refused_when_the_branch_switched;
 /// The result of a commit that landed,
 /// and the work after it.
@@ -113,7 +112,7 @@ pub fn service_commit<F: RepositoryFacts>(
     request: &StageRequest,
     timing: &mut CommitTiming,
 ) -> Result<ServiceCommit, TransactionStop> {
-    let (address, provisioning): (Bind, Option<ProvisionHost>) = route_for_this_worktree(invocation, timing)?;
+    let (address, host): (Bind, Option<crate::service_host_of_a_worktree::ServiceHost>) = route_for_this_worktree(invocation, timing)?;
     let after: &[OsString] = arguments_after_subcommand(invocation.arguments, invocation.subcommand_index);
     let id: String = match random_uuid() {
         Ok(made) => made,
@@ -128,7 +127,7 @@ pub fn service_commit<F: RepositoryFacts>(
     // Whether this line asks for the one fixup whose commit Git makes from the branch and not from the index: such a commit
     //  is empty by design, and the commit a moved branch makes of it is written from the fields Git stored.
     let rewords: bool = crate::service_commit_line_reissued::rewords_a_commit(invocation.arguments, invocation.subcommand_index);
-    let config: ClientConfig = managed_client_config(address, provisioning.as_ref());
+    let config: ClientConfig = commit_client_config(address, host.as_ref());
     // The name carries the request's identity and, per attempt, that attempt's number: the service removes the tree of the attempt
     //  whose landing is over, and the next attempt's tree must be another directory, or that removal would take it.
     // The service builds the commits it can from the command line; real Git builds the rest in a scratch repository. Which
@@ -280,9 +279,9 @@ pub fn service_commit<F: RepositoryFacts>(
         drop(clock);
         timing.end_build();
         reach_service_phase(Phase::ServicePrepared)?;
-        // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
-        //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
-        provisioned = provision_when_needed(provisioning.as_ref(), provisioned, &mut timing.provision)?;
+        // The first commit that reaches the service starts it, and only then: a commit that was declined, blocked by a
+        //  policy, or abandoned in the editor never needs it.
+        provisioned = ensure_a_server(host.as_ref(), provisioned, &mut timing.provision)?;
         // The commit's scratch directory is renewed while the commit waits, however long: the sweep of a later command, and the
         //  removal of an abandoned tree, would otherwise take it from under a wait that outlasts its age.
         //  Both bounds of that wait, the renewed directory and the notices a terminal which stopped draining cannot hold, are

@@ -87,9 +87,6 @@ bytes = { workspace = true }
 tower-service = { workspace = true }
 webpki-roots = { workspace = true }
 rustls = { workspace = true, default-features = false, features = ["ring", "std", "tls12"] }
-# The user manager's D-Bus client (`service/systemd_dbus.rs`), on the process's tokio runtime, as the owner chose (2026-11-07: "zbus 6,
-# and I suppose the lack of a blocking api can be worked around."). Its own `tokio` feature picks the runtime that is current.
-zbus = { workspace = true, default-features = false, features = ["tokio"] }
 # Git stores every loose object and every packed entry as a zlib stream; the in-process repository reads
 # (`src/native/repo_read_*`) inflate them with this pure Rust decoder instead of starting `git cat-file`.
 # It adds two packages (itself and `adler2`) to the lockfile; the measurement is in
@@ -195,7 +192,6 @@ tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
 tower-service = ">=0.3.3"
 webpki-roots = ">=1.0.12"
-zbus = { version = ">=6.2.1", default-features = false }
 
 # Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
 [lints.rust.unexpected_cfgs]

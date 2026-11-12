@@ -37,9 +37,8 @@ use crate::repo_read_layout::{RepoLayout, read_layout_in};
 ///  and one answer without its terminating line feed.
 use crate::hooks_path_values::{path_answer, without_the_terminator};
 use crate::service_instance::{SOCKET_DIRECTORY, socket_path, try_instance_of};
-use crate::service_provision::{ProvisionHost, RETIREMENT_WAIT};
+use crate::service_host_of_a_worktree::{ServiceHost, state_dir_of};
 use crate::service_server::Bind;
-use crate::systemd_dbus::session_bus_path;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::transaction_git_awaiting::run_git_awaiting;
 use crate::wait_ceilings::ROUTE_STATE_CEILING;
@@ -73,10 +72,9 @@ pub fn remembered_own_executable() -> Option<&'static Path> {
 pub struct RouteInputs<'a> {
     /// `XDG_RUNTIME_DIR`.
     pub runtime_dir: Option<&'a Path>,
-    /// `DBUS_SESSION_BUS_ADDRESS`.
-    pub bus_address: Option<&'a str>,
-    /// `XDG_CONFIG_HOME`.
-    pub config_home: Option<&'a Path>,
+    /// `XDG_STATE_HOME`,
+    /// where the services' journals live.
+    pub state_home: Option<&'a Path>,
     /// `HOME`.
     pub home: Option<&'a Path>,
     /// The running wrapper's own executable.
@@ -89,47 +87,35 @@ pub struct RouteInputs<'a> {
 }
 
 /// How a commit reaches the service:
-/// through the service at `address`,
-/// after provisioning when `provision` is present.
+/// the address it looks at,
+/// and what starting a server there needs.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Route {
     /// Where the service listens.
     pub address: Bind,
-    /// What to set up,
-    /// or to check is set up,
-    /// first;
-    /// absent only when a socket exists and the wrapper cannot set up
-    ///  a service itself (no session bus,
-    /// or no executable of its own to name).
-    pub provision: Option<ProvisionHost>,
-}
-
-/// The directory a user's own unit files live in.
-pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
-    // The configuration home when one is set, else `.config` under the home directory.
-    if let Some(directory) = config_home {
-        return Some(directory.join("systemd").join("user"));
-    }
-    let directory: &Path = home?;
-    return Some(directory.join(".config").join("systemd").join("user"));
+    /// What this command knows about the worktree's service,
+    /// which is what starts it;
+    /// absent only when the wrapper has no executable of its own to start,
+    /// and then only a socket another program made can be used.
+    pub host: Option<ServiceHost>,
 }
 
 /// What:
 ///  Decides the route.
 /// Why:
-///   Provisioning needs the session bus socket and the wrapper's own executable,
-/// and it is always handed back when both are there,
-///  even when the socket exists:
-/// the socket outlives an upgrade,
-/// and the units it activates may name a program the upgrade
-///  removed.
-/// Whether anything must be written is decided where the units are read (`provision`),
-/// so this decision stays
-///  free of reads.
-/// A socket that exists without the means to provision is used as it is,
+///   Starting the server needs the runtime folder, the worktree's instance and the wrapper's own executable,
+/// and with those three there is always a route:
+/// the wrapper starts the server itself,
+/// so nothing here depends on a session bus,
+/// a service manager or a file any of them holds.
+/// A socket that exists without an executable to start is used as it is,
 /// whoever made it;
-/// with neither
-///  the socket nor the means there is no route.
+/// with neither the socket nor the executable there is no route.
+/// The journal's home comes from `XDG_STATE_HOME` or the home directory,
+/// and an account that names neither keeps its journal in the runtime folder,
+/// which lasts the login session:
+/// a commit still lands,
+/// and the cost is that a record does not outlive a logout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -137,33 +123,26 @@ pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<
 /// ```
 pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     let runtime_dir = inputs.runtime_dir?;
-    // A Git directory that cannot be resolved (a link to a drive that is not mounted) names no instance: no socket path or
-    // unit instance is made for it.
+    // A Git directory that cannot be resolved (a link to a drive that is not mounted) names no instance: no socket path is made
+    //  for it.
     let instance: String = try_instance_of(inputs.git_dir).ok()?;
     let socket: PathBuf = socket_path(runtime_dir, instance.as_str());
-    let socket_exists: bool = socket.exists();
-    // A bus socket that is not there is no bus to provision through.
-    let bus: PathBuf = match session_bus_path(inputs.bus_address, Some(runtime_dir)) {
-        Some(path) if path.exists() => path,
-        _ => return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None },
-    };
-    // The service is a mode of the wrapper's own executable (`service_main.rs`), so the unit names that file; a path that
-    //  is not a file (a deleted executable) is no program for a unit to name.
+    // The service is a mode of the wrapper's own executable (`service_main.rs`); a path that is not a file (a deleted
+    //  executable) is no program to start.
     let service_binary: PathBuf = match inputs.own_executable {
         Some(executable) if executable.is_file() => executable.to_path_buf(),
-        _ => return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None },
+        _ => return if socket.exists() { Some(Route { address: Bind::Path(socket), host: None }) } else { None },
     };
-    let host: ProvisionHost = ProvisionHost {
+    let state_dir: PathBuf = state_dir_of(inputs.state_home, inputs.home).unwrap_or_else(|| runtime_dir.to_path_buf());
+    let host: ServiceHost = ServiceHost {
         runtime_dir: runtime_dir.to_path_buf(),
-        user_unit_dir: user_unit_dir(inputs.config_home, inputs.home),
-        bus,
+        state_dir,
         service_binary,
         git: inputs.real_git.to_path_buf(),
         instance,
         git_dir: inputs.git_dir.to_path_buf(),
-        retirement_wait: RETIREMENT_WAIT,
     };
-    return Some(Route { address: Bind::Path(socket), provision: Some(host) });
+    return Some(Route { address: Bind::Path(socket), host: Some(host) });
 }
 
 /// What `git monochromatic-git-policy-cli service status` prints and exits with.
@@ -378,13 +357,11 @@ pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> 
     //  `HOME` reads that home here. No service chooses a route (a service start goes to `service_main` before any command's
     //  route is picked), so this read never answers with a manager's home while serving.
     let runtime: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
-    let config_home: Option<PathBuf> = non_empty_path_variable("XDG_CONFIG_HOME");
+    let state_home: Option<PathBuf> = non_empty_path_variable("XDG_STATE_HOME");
     let home: Option<PathBuf> = non_empty_path_variable("HOME");
-    let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     return choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
-        bus_address: bus_address.as_deref(),
-        config_home: config_home.as_deref(),
+        state_home: state_home.as_deref(),
         home: home.as_deref(),
         own_executable: remembered_own_executable(),
         real_git,

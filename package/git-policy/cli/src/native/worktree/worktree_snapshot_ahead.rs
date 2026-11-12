@@ -52,16 +52,14 @@ use crate::hexadecimal_of_bytes::hexadecimal_of_bytes;
 use crate::iso_time::now_iso;
 use crate::path_bytes::path_bytes_of;
 use crate::random_id::random_uuid;
-use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for, wake};
+use crate::service_client::{ClientConfig, START_WAIT, wake};
 use crate::service_messages::render;
-use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::service_provision::provision;
-use crate::service_provision_host_and_manager::units_record_dir_of;
+use crate::service_commit_starts_the_server::make_sure_a_server_exists;
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
 use crate::subvolume_sha::sha256;
 use crate::transaction_git::GitContext;
-use crate::wait_ceilings::{ANSWER_CEILING, SHORT_EXTRA_WAIT, START_CEILING, WITHDRAW_CEILING, waiting_notice_after};
+use crate::wait_ceilings::START_CEILING;
 use crate::work_item::{Enqueued, WorkItem, WorkKind, enqueue, requeue_after_giving_up};
 use crate::worktree_remove_hand_over::DELETE_REFERENCE;
 use crate::worktree_snapshot_index_step::Proof;
@@ -574,28 +572,17 @@ pub fn deletion_item(git_dir: &Path, pool: &Path, name: &OsStr) -> WorkItem {
 /// wakeService({ context, commonDir });
 /// ```
 fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), String> {
-    let Some(Route { address, provision: host }) = route_from_environment(context.real_git.as_path(), git_dir) else {
+    let Some(Route { address, host }) = route_from_environment(context.real_git.as_path(), git_dir) else {
         return Err(String::from("no commit service can be started from this session"));
     };
     if let Some(setup) = host.as_ref()
-        && let Err(failure) = provision(setup)
+        && let Err(failure) = make_sure_a_server_exists(setup)
     {
         return Err(render(&failure));
     }
-    let config: ClientConfig = ClientConfig {
-        address,
-        activation: Activation::Managed,
-        start_wait: START_WAIT,
-        heartbeat_silence: HEARTBEAT_SILENCE,
-        start_watch: host.as_ref().map(manager_watch_for),
-        keep_fresh: None,
-        answer_ceiling: ANSWER_CEILING,
-        withdraw_ceiling: WITHDRAW_CEILING,
-        waiting_notice_after: waiting_notice_after(),
-        extra_wait: SHORT_EXTRA_WAIT,
-        start_ceiling: START_CEILING,
-        units_record_dir: host.as_ref().map(units_record_dir_of),
-    };
+    let mut config: ClientConfig = crate::service_client::client_config(address, host.as_ref());
+    config.start_wait = START_WAIT;
+    config.start_ceiling = START_CEILING;
     let mut silent: std::io::Sink = std::io::sink();
     return match wake(&config, git_dir, None, &mut silent) {
         Ok(()) => Ok(()),

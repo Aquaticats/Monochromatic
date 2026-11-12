@@ -27,7 +27,7 @@
 use crate::service_client_settings_and_watches::RECONNECTS;
 pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_retire};
 use crate::service_client_listen_and_ask_to_retire::{Heard, a_message_is_already_here, listen, read_message};
-pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
+pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, START_NOTICE_GRACE, client_config};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;

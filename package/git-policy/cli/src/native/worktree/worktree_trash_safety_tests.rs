@@ -837,7 +837,7 @@ fn a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes() {
 /// A reach with no service and a provisioner that sets nothing up,
 /// for the controls that never want a service touched.
 fn no_service_reach<'a>() -> Reach<'a> {
-    return Reach { router: &|_git: &Path, _directory: &Path| return None, provisioner: &|_host: &crate::service_provision::ProvisionHost| return Ok(()), start_wait: std::time::Duration::from_millis(400) };
+    return Reach { router: &|_git: &Path, _directory: &Path| return None, provisioner: &|_host: &crate::service_host_of_a_worktree::ServiceHost| return Ok(()), start_wait: std::time::Duration::from_millis(400) };
 }
 
 /// Restores the mode of a directory when dropped,

@@ -43,15 +43,14 @@
 
 use crate::diagnostic_log::debug;
 use crate::iso_time::now_iso;
-use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
+use crate::service_client::{ClientConfig, wake};
 use crate::service_messages::{ClientFailure, render};
-use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::service_provision::{ProvisionHost, provision};
-use crate::service_provision_host_and_manager::units_record_dir_of;
+use crate::service_commit_starts_the_server::make_sure_a_server_exists;
+use crate::service_host_of_a_worktree::ServiceHost;
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
 use crate::transaction_git::GitContext;
-use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::work_item::{Enqueued, FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_trash::{PendingTrash, TRASH_PARENT, TRASH_REFERENCE};
 use std::io::Write;
@@ -66,11 +65,11 @@ const TAG: &str = "worktreeTrashHandOver";
 /// injected so a control never reaches the real service.
 pub type Router<'a> = &'a dyn Fn(&Path, &Path) -> Option<Route>;
 
-/// Sets up what the service needs before it can be reached,
+/// Starts the worktree's server when nothing answers,
 /// as a commit does for its first message;
 /// injected so a control
-///  never reaches the session bus.
-pub type Provisioner<'a> = &'a dyn Fn(&ProvisionHost) -> Result<(), ClientFailure>;
+///  never starts a process.
+pub type Provisioner<'a> = &'a dyn Fn(&ServiceHost) -> Result<(), ClientFailure>;
 
 /// What:
 ///  How the service is reached:
@@ -85,13 +84,13 @@ pub type Provisioner<'a> = &'a dyn Fn(&ProvisionHost) -> Result<(), ClientFailur
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Reach = { router: (git: string, gitDir: string) => Route | undefined; provisioner: (host: ProvisionHost) => void; startWait: number };
+/// type Reach = { router: (git: string, gitDir: string) => Route | undefined; provisioner: (host: ServiceHost) => void; startWait: number };
 /// ```
 pub struct Reach<'a> {
     /// Finds the service's address for a Git directory.
     pub router: Router<'a>,
-    /// Sets up the repository's socket activation,
-    /// which a repository whose units were never installed does not have.
+    /// Starts the repository's server,
+    /// which is not running until a command needs it.
     pub provisioner: Provisioner<'a>,
     /// The longest wait for the service to start.
     pub start_wait: Duration,
@@ -102,7 +101,7 @@ pub struct Reach<'a> {
 /// when the route names one,
 /// and answer the failure the setup gave.
 /// Why:
-///   A repository whose service units were never installed needs them before its service can be reached,
+///   A repository whose service is not running needs a start before it can be reached,
 /// and the failure is what the person reads when that cannot be done;
 /// naming the step as its own function keeps the state it needs (the provisioner) a parameter.
 ///
@@ -110,8 +109,8 @@ pub struct Reach<'a> {
 /// ```ts
 /// const provisionedHost = (provisioner, host) => (host === undefined ? undefined : provisioner(host));
 /// ```
-fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ProvisionHost>) -> Option<ClientFailure> {
-    let setup: &ProvisionHost = host?;
+fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ServiceHost>) -> Option<ClientFailure> {
+    let setup: &ServiceHost = host?;
     return (provisioner)(setup).err();
 }
 
@@ -133,7 +132,7 @@ fn provisioned_host(provisioner: Provisioner<'_>, host: Option<&ProvisionHost>) 
 /// handOverToTheService({ context, trash, notices });
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, trash: &PendingTrash, notices: &mut dyn Write) -> Result<(), String> {
-    return hand_over_with(context, trash, notices, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
+    return hand_over_with(context, trash, notices, &Reach { router: &route_from_environment, provisioner: &make_sure_a_server_exists, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
 /// What:
@@ -263,25 +262,14 @@ pub fn hand_over_with(context: &GitContext, trash: &PendingTrash, notices: &mut 
     let told: Result<(), String> = match (reach.router)(context.real_git.as_path(), trash.common_dir.as_path()) {
         // The record stays for the next wake a command of this repository gives, which is every commit and every add.
         None => Err(String::from("no commit service can be started from this session")),
-        Some(Route { address, provision: host }) => match provisioned_host(reach.provisioner, host.as_ref()) {
+        Some(Route { address, host }) => match provisioned_host(reach.provisioner, host.as_ref()) {
             Some(failure) => Err(render(&failure)),
             None => {
-                let config: ClientConfig = ClientConfig {
-                    address,
-                    activation: Activation::Managed,
-                    start_wait: reach.start_wait,
-                    heartbeat_silence: HEARTBEAT_SILENCE,
-                    start_watch: host.as_ref().map(manager_watch_for),
-                    keep_fresh: None,
-                    answer_ceiling: ANSWER_CEILING,
-                    withdraw_ceiling: WITHDRAW_CEILING,
-                    waiting_notice_after: waiting_notice_after(),
-                    extra_wait: SHORT_EXTRA_WAIT,
-                    // A wake reads the record once and returns: with a manager to ask, the commit's start ceiling would hold the add
-                    //  for a start this command does not need, so the wait ends at the hand-over's own bound.
-                    start_ceiling: reach.start_wait,
-                    units_record_dir: host.as_ref().map(units_record_dir_of),
-                };
+                // A wake reads the record once and returns: the commit's start ceiling would hold the add for a start this
+                //  command does not need, so the wait ends at the hand-over's own bound.
+                let mut config: ClientConfig = crate::service_client::client_config(address, host.as_ref());
+                config.start_wait = reach.start_wait;
+                config.start_ceiling = reach.start_wait;
                 // The wait says what it is for, and the line is the add's own: the trash is handed over once, so there is no
                 //  second report of it.
                 match wake(&config, trash.common_dir.as_path(), None, notices) {

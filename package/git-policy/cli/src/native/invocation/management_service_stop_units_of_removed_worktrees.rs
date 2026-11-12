@@ -2,10 +2,10 @@
 //! `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees`:
 //! stops,
 //! when the person asks,
-//! the commit service units of every worktree that no longer exists,
+//! the commit service of every worktree that no longer exists,
 //! and the note `doctor` adds about them.
 //! Why:
-//! Removing a worktree used to leave its socket unit listening and its service unit running
+//! Removing a worktree used to leave its socket and its service running
 //! (`service_units_of_removed_worktrees.rs`);
 //! the wrapper's own removals now stop them,
 //! and this command stops what an earlier release,
@@ -16,26 +16,25 @@
 //! a command the person runs,
 //! never something a commit waits for,
 //! and `doctor` only reports a count and names this command.
-//! It stops units only for a worktree whose Git directory is missing while the repository that held it is there,
+//! It stops a service only for a worktree whose Git directory is missing while the repository that held it is there,
 //! never for an instance that maps to nothing,
-//! and only through the user manager.
+//! and by asking that service over its own address:
+//! nothing here names a service manager.
 //! A stopped instance's journal goes with its note and its socket file when it holds nothing but the records of the
-//! batches that landed;
+//! batches that landed and no process of it is left;
 //! a journal that holds work is kept and named,
 //! never discarded.
-//! Nothing here starts a unit.
+//! Nothing here starts a service.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await stopUnitsOfRemovedWorktrees({ runtimeDir, stateDir }, manager)
+//! await stopUnitsOfRemovedWorktrees({ runtimeDir, stateDir })
 //! ```
 
 use crate::action::Action;
 use crate::child_environment::environment_value;
 use crate::management_service_settle_earlier_batches::state_dir_of;
-use crate::service_provision_host_and_manager::Manager;
 use crate::service_units_of_removed_worktrees::{SweepOutcome, UnitFolders, UnitWorktree, stop_units_of_gone_worktrees, survey, worktree_of};
-use crate::systemd_dbus::{Bus, EXCHANGE_WAIT, session_bus_path};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -124,27 +123,27 @@ fn refused(reason: &str) -> Action {
 }
 
 /// What:
-/// Stops the units of every removed worktree through `manager`
+/// Stops the service of every removed worktree
 /// and says what was stopped,
 /// what was refused,
 /// and what could not be matched.
 /// Why:
 ///   Status 0 means every unit of a gone worktree was stopped or there was none;
-/// a refusal of the manager is status 1 with its reason,
+/// a service that could not be stopped is status 1 with its reason,
 /// and the stopped ones stay stopped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// stopUnitsAction(folders, manager) // { code, stdout, stderr }
+/// stopUnitsAction(folders) // { code, stdout, stderr }
 /// ```
-pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Manager) -> Action {
+pub(crate) fn stop_units_action(folders: &UnitFolders<'_>) -> Action {
     // Named before the stop, which removes a note the name may come from.
     let mut named: Vec<(String, String)> = Vec::new();
     for instance in survey(folders).gone {
         let path: String = path_of(folders, instance.as_str());
         named.push((instance, path));
     }
-    let outcome: SweepOutcome = stop_units_of_gone_worktrees(manager, folders);
+    let outcome: SweepOutcome = stop_units_of_gone_worktrees(folders);
     let mut stdout: String = String::new();
     for instance in &outcome.stopped {
         let mut path: &str = UNKNOWN_WORKTREE;
@@ -153,14 +152,14 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
                 path = known_path.as_str();
             }
         }
-        stdout.push_str(format!("stopped the commit service units of the removed worktree {path} (instance {instance})\n").as_str());
+        stdout.push_str(format!("stopped the commit service of the removed worktree {path} (instance {instance})\n").as_str());
     }
     if outcome.stopped.is_empty() && outcome.failed.is_empty() {
-        stdout.push_str("no commit service unit belongs to a removed worktree\n");
+        stdout.push_str("no commit service belongs to a removed worktree\n");
     }
     let mut stderr: String = String::new();
     for (instance, reason) in &outcome.failed {
-        stderr.push_str(format!("{COMMAND}: the units of instance {instance} were not stopped: {reason}; run the command again\n").as_str());
+        stderr.push_str(format!("{COMMAND}: the service of instance {instance} was not stopped: {reason}; run the command again\n").as_str());
     }
     if !outcome.survey.unmapped.is_empty() {
         stderr.push_str(
@@ -191,10 +190,10 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
 
 /// What:
 /// Plans the command from the process's environment:
-/// connects to the session bus and stops the units.
+/// reads the folders and stops the services.
 /// Why:
-///   The units belong to the user's manager,
-/// so a missing runtime directory or an unreachable bus is a refusal with its remedy,
+///   The services live under the user's runtime directory,
+/// so a missing one is a refusal with its remedy,
 /// and nothing is stopped by any other means.
 ///
 /// In TS you'd write (pseudocode):
@@ -203,26 +202,9 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
 /// ```
 pub(crate) fn plan_stop_units_of_removed_worktrees(environment: &[(OsString, OsString)]) -> Action {
     let Some(runtime_dir) = runtime_dir_of(environment) else {
-        return refused("XDG_RUNTIME_DIR is not set, so there is no user runtime directory whose units could be looked at; run it from a login session");
+        return refused("XDG_RUNTIME_DIR is not set, so there is no user runtime directory whose services could be looked at; run it from a login session");
     };
     let state: Option<PathBuf> = state_dir_of(environment);
     let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
-    let address: Option<OsString> = environment_value(environment, "DBUS_SESSION_BUS_ADDRESS");
-    let address_text: Option<&str> = match &address {
-        Some(value) => value.to_str(),
-        None => None,
-    };
-    let socket: PathBuf = match session_bus_path(address_text, Some(runtime_dir.as_path())) {
-        Some(path) if path.exists() => path,
-        _ => return refused("the user's session bus was not found, so the units cannot be stopped through the manager; run it from a login session"),
-    };
-    return match Bus::connect(socket.as_path(), EXCHANGE_WAIT) {
-        Ok(mut bus) => stop_units_action(&folders, &mut bus),
-        Err(error) => refused(format!("the user's session bus could not be reached ({error:?})").as_str()),
-    };
+    return stop_units_action(&folders);
 }
-
-/// Controls stay out of the release executable.
-#[cfg(test)]
-#[path = "management_service_stop_units_of_removed_worktrees_tests.rs"]
-mod tests;

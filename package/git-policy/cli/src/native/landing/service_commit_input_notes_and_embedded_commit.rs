@@ -17,14 +17,11 @@
 //! argumentsAfterSubcommand(args, index); standardInputFor(invocation); await embeddedCommit(invocation, parsed)
 //! ```
 
-use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for};
+use crate::service_client::{ClientConfig, START_WAIT, client_config};
 use crate::service_instance::try_instance_of;
-use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::service_messages::{ClientFailure, render};
-use crate::service_provision::platform_without_manager;
 use std::path::{Path, PathBuf};
 use crate::service_server::Bind;
-use crate::service_provision::ProvisionHost;
+use crate::service_host_of_a_worktree::ServiceHost;
 use crate::service_route::{Route, RouteInputs, choose_route, non_empty_path_variable, remembered_own_executable, worktree_git_dir};
 use crate::commit_timing::CommitTiming;
 use crate::commit_transaction::{CommitInvocation, TransactionStop, failed};
@@ -227,76 +224,68 @@ pub(crate) fn embedded_commit(invocation: &CommitInvocation<'_>, parsed: Service
 /// What:
 ///  Where the service of this worktree is reached and,
 /// when it may have to be started,
-/// how to provision it.
+/// and what starts its server.
 /// Why:
 ///  The route depends on the process environment and on the worktree's own Git directory,
 /// which names the service instance;
 ///  a commit outside a repository,
-/// or on a machine with no way to start a service,
+/// or one whose account names no runtime directory,
 /// stops here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { address, provision } = routeForThisWorktree(invocation, timing); // throws outside a repository
+/// const { address, host } = routeForThisWorktree(invocation, timing); // throws outside a repository
 /// ```
-pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing: &mut CommitTiming) -> Result<(Bind, Option<ProvisionHost>), TransactionStop> {
+pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing: &mut CommitTiming) -> Result<(Bind, Option<ServiceHost>), TransactionStop> {
     // The environment read here is the invocation's own, on the same terms as `route_from_environment` reads it: `main`
     //  hands the entry `std::env::vars_os()` and nothing changes the wrapper's own environment, so the home this commit was
     //  started with is the home its service route is chosen from.
     let runtime: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
-    let config_home: Option<PathBuf> = non_empty_path_variable("XDG_CONFIG_HOME");
+    let state_home: Option<PathBuf> = non_empty_path_variable("XDG_STATE_HOME");
     let home: Option<PathBuf> = non_empty_path_variable("HOME");
-    let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     // The worktree's own Git directory names the service instance, so no route exists outside a repository.
     let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Err(repository_not_found(invocation)) };
     let route: Option<Route> = choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
-        bus_address: bus_address.as_deref(),
-        config_home: config_home.as_deref(),
+        state_home: state_home.as_deref(),
         home: home.as_deref(),
         own_executable: remembered_own_executable(),
         real_git: invocation.context.real_git.as_path(),
         git_dir: git_dir.as_path(),
     });
-    let Some(Route { address, provision: provisioning }) = route else {
+    let Some(Route { address, host }) = route else {
         return Err(refusal_without_route(git_dir.as_path()));
     };
-    // From here on the commit is recorded; one that stopped above, on a machine with no way to start a service, took no time
-    //  worth splitting and leaves no record (nothing it does changes the repository).
+    // From here on the commit is recorded; one that stopped above, with no address to reach and no program to start the
+    //  service with, took no time worth splitting and leaves no record (nothing it does changes the repository).
     timing.place_at(git_dir.as_path());
-    return Ok((address, provisioning));
+    return Ok((address, host));
 }
 
 /// What:
 ///  The settings of the client that submits a commit to the service:
 /// the address,
 /// the waits and ceilings,
-/// and the watch on the
-///  service manager when the service may have to be started.
+/// and what starting the
+///  server needs.
 /// Why:
 ///  The retry loop copies it for each wait and adds the scratch directory to keep fresh.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const config = managedClientConfig(address, provisioning)
+/// const config = commitClientConfig(address, host)
 /// ```
-pub(crate) fn managed_client_config(address: Bind, provisioning: Option<&ProvisionHost>) -> ClientConfig {
-    return ClientConfig {
-        address,
-        activation: Activation::Managed,
-        start_wait: START_WAIT,
-        heartbeat_silence: HEARTBEAT_SILENCE,
-        start_watch: provisioning.map(manager_watch_for),
-        keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING, waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
-        units_record_dir: provisioning.map(crate::service_provision_host_and_manager::units_record_dir_of),
-    };
+pub(crate) fn commit_client_config(address: Bind, host: Option<&ServiceHost>) -> ClientConfig {
+    let mut config: ClientConfig = client_config(address, host);
+    config.start_wait = START_WAIT;
+    return config;
 }
 
 /// What:
 ///  The stop for a worktree that has no route to a service.
 /// Why:
 ///  The cause is named:
-/// a Git directory that cannot be resolved (a link to a drive that is not mounted) is not a machine without a service manager.
+/// a Git directory that cannot be resolved (a link to a drive that is not mounted) is not an account without a runtime directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -308,7 +297,11 @@ pub(crate) fn refusal_without_route(git_dir: &Path) -> TransactionStop {
             "{unreachable}, so this commit was not made and nothing was written. If the repository is on a drive that is not mounted, mount it and run the commit again."
         ));
     }
-    return TransactionStop::Message(render(&ClientFailure::NoActivation(platform_without_manager())));
+    return TransactionStop::Message(String::from(
+        "no way to reach the commit service was found: this command has no XDG_RUNTIME_DIR and no executable of its own to start \
+         the service with, so the commit was not made and nothing was written. Run it from your login session, where \
+         XDG_RUNTIME_DIR is set.",
+    ));
 }
 
 /// Controls of the stop for a worktree without a route.

@@ -83,17 +83,16 @@ fn a_read_only_failure_is_the_frozen_move_one_only_when_the_move_record_covers_t
 fn reach_settings(address: &str) -> ClientConfig {
     return ClientConfig {
         address: Bind::Abstract(String::from(address)),
-        activation: Activation::Managed,
+        activation: Activation::StartedByTheWrapper,
         start_wait: Duration::from_millis(300),
         heartbeat_silence: Duration::from_millis(200),
-        start_watch: None,
+        starter: None,
         keep_fresh: None,
         answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,
         withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
         waiting_notice_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
         extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: crate::wait_ceilings::START_CEILING,
-        units_record_dir: None,
     };
 }
 

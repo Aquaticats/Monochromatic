@@ -28,7 +28,7 @@ fn no_service(_git: &Path, _git_dir: &Path) -> Option<Route> {
 }
 
 /// A provisioner that has nothing to set up.
-fn nothing_to_set_up(_host: &crate::service_provision::ProvisionHost) -> Result<(), crate::service_messages::ClientFailure> {
+fn nothing_to_set_up(_host: &crate::service_host_of_a_worktree::ServiceHost) -> Result<(), crate::service_messages::ClientFailure> {
     return Ok(());
 }
 

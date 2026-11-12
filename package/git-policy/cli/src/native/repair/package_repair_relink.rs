@@ -29,9 +29,9 @@ use crate::diagnostic_log::debug;
 use crate::iso_time::now_iso;
 use crate::service_client::wake;
 use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
-use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
+use crate::service_commit_input_notes_and_embedded_commit::commit_client_config;
 use crate::service_messages::{ClientFailure, render};
-use crate::service_provision::provision;
+use crate::service_commit_starts_the_server::make_sure_a_server_exists;
 use crate::service_route::route_from_environment;
 use crate::service_server::Bind;
 use crate::service_work::work_directory;
@@ -433,11 +433,11 @@ pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Re
 /// handOverToTheService({ context, commonDir, destination, entry });
 /// ```
 pub fn hand_over_to_the_service(context: &GitContext, common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Result<(), NotTaken> {
-    return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &provision, start_wait: HAND_OVER_GREETING_WAIT });
+    return hand_over_with(context, common_dir, destination, entry, &Reach { router: &route_from_environment, provisioner: &make_sure_a_server_exists, start_wait: HAND_OVER_GREETING_WAIT });
 }
 
 /// What:
-///  `hand_over_to_the_service` with the route finder and the provisioner injected,
+///  `hand_over_to_the_service` with the route finder and the starter injected,
 /// so a control reaches no service and no session bus.
 /// Why:
 ///   The same reach a prewarm is handed over with,
@@ -472,7 +472,7 @@ pub fn hand_over_with(context: &GitContext, common_dir: &Path, destination: &Pat
     let reason: String = match (reach.router)(context.real_git.as_path(), common_dir) {
         None => String::from("no commit service can be started from this session"),
         Some(route) => {
-            let crate::service_route::Route { address, provision: host } = route;
+            let crate::service_route::Route { address, host } = route;
             let reached: Result<(), String> = match host.as_ref() {
                 Some(setup) => match (reach.provisioner)(setup) {
                     Ok(()) => wake_the_service(address, host.as_ref(), common_dir, reach.start_wait),
@@ -518,8 +518,8 @@ fn not_written(reason: String) -> NotTaken {
 /// ```ts
 /// const wakeTheService = (address, host, commonDir, startWait) => { const config = { ...managedClientConfig(address, host), startWait, startCeiling: startWait }; wake(config, commonDir, undefined, silent) };
 /// ```
-fn wake_the_service(address: Bind, host: Option<&crate::service_provision::ProvisionHost>, common_dir: &Path, start_wait: std::time::Duration) -> Result<(), String> {
-    let config: ClientConfig = ClientConfig { start_wait, start_ceiling: start_wait, ..managed_client_config(address, host) };
+fn wake_the_service(address: Bind, host: Option<&crate::service_host_of_a_worktree::ServiceHost>, common_dir: &Path, start_wait: std::time::Duration) -> Result<(), String> {
+    let config: ClientConfig = ClientConfig { start_wait, start_ceiling: start_wait, ..commit_client_config(address, host) };
     let mut silent: std::io::Sink = std::io::sink();
     return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
 }

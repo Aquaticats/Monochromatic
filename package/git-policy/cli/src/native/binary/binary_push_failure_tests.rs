@@ -277,10 +277,9 @@ fn push_item(setup: &Setup, commit: &str) -> WorkItem {
 fn wake_service(setup: &Setup) {
     let config: ClientConfig = ClientConfig {
         address: Bind::Path(socket_for(setup.service.runtime.as_path(), setup.repo.join(".git").as_path())),
-        activation: Activation::Managed,
+        activation: Activation::StartedByTheWrapper,
         start_wait: PATIENCE,
-        heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: PATIENCE,
-            units_record_dir: None,
+        heartbeat_silence: PATIENCE, starter: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: PATIENCE,
 };
     wake(&config, common_dir(setup).as_path(), None, &mut std::io::sink()).expect("the service takes the wake");
 }

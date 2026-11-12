@@ -33,11 +33,9 @@
 
 use crate::diagnostic_log::{debug, warn};
 use crate::service_instance::{socket_path, try_instance_of};
-use crate::service_provision_host_and_manager::Manager;
 use crate::service_units_of_removed_worktrees::{
     JournalAfterStop, UnitFolders, forget_stopped_instance, note_path, remove_journal_of_a_stopped_instance, stop_units, worktree_is_gone,
 };
-use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, session_bus_path};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_remove_registry::registered_worktree;
 use std::path::{Path, PathBuf};
@@ -106,7 +104,7 @@ fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
 }
 
 /// What:
-/// Stops the units of the worktree after a removal,
+/// Stops the service of the worktree after a removal,
 /// when its Git directory is gone and it had units,
 /// and removes the note,
 /// the socket file and the journal of an instance nothing serves again.
@@ -115,15 +113,15 @@ fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
 ///   A removal that Git refused leaves the Git directory,
 /// and the worktree's units are then still its own.
 /// A journal kept for a client that may still read it,
-/// or for a service the manager does not yet report gone,
+/// or for a service whose process is still there,
 /// keeps the note and the socket file too,
 /// and the next sweep finishes when both are over.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await stopUnitsAfterRemoval(about, folders, manager) // false: nothing to stop
+/// await stopUnitsAfterRemoval(about, folders) // false: nothing to stop
 /// ```
-pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders<'_>, manager: &mut dyn Manager) -> Result<bool, CallError> {
+pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders<'_>) -> Result<bool, String> {
     if !worktree_is_gone(about.git_dir.as_path()) {
         debug(TAG, format!("{} is still there; its units stay", about.git_dir.display()).as_str());
         return Ok(false);
@@ -131,11 +129,10 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
     if !has_units(folders, about.instance.as_str()) {
         return Ok(false);
     }
-    manager.within(EXCHANGE_WAIT);
-    stop_units(manager, about.instance.as_str())?;
-    // A stop answers when the manager queued the job, so one question more says the service's processes are gone,
-    //  and only then may the journal it writes be removed.
-    let quiet: bool = crate::service_is_gone_after_a_stop::service_is_gone(manager, about.instance.as_str());
+    stop_units(folders, about.instance.as_str())?;
+    // The service is asked to leave, and its own note says when its process is gone, and only then may the journal it writes
+    //  be removed.
+    let quiet: bool = crate::service_is_gone_after_a_stop::service_is_gone(folders.runtime_dir.join(crate::service_instance::SOCKET_DIRECTORY).as_path(), about.instance.as_str());
     match remove_journal_of_a_stopped_instance(folders.state_dir, about.instance.as_str(), quiet) {
         Some(JournalAfterStop::HoldsWork(kept)) => {
             forget_stopped_instance(folders.runtime_dir, about.instance.as_str());
@@ -170,12 +167,12 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
 }
 
 /// What:
-/// Stops the units of a removed worktree through the session manager,
+/// Stops the service of a removed worktree,
 /// and only logs a failure.
 /// Why:
 ///   The removal the person asked for has already happened,
-/// and a manager that cannot be reached is not a reason to fail it;
-/// the units are stopped by the next sweep.
+/// and a service that cannot be stopped is not a reason to fail it;
+/// it is stopped by the next sweep.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -191,22 +188,10 @@ pub fn stop_units_of_removed_worktree(about: &WorktreeAboutToGo) {
     if !worktree_is_gone(about.git_dir.as_path()) || !has_units(&folders, about.instance.as_str()) {
         return;
     }
-    let address: Option<String> = non_empty_variable("DBUS_SESSION_BUS_ADDRESS");
-    let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
-        warn(TAG, format!("no session bus was found, so the units of the removed worktree {} keep running", about.git_dir.display()).as_str());
-        return;
-    };
-    let mut bus: Bus = match Bus::connect(socket.as_path(), EXCHANGE_WAIT) {
-        Ok(connected) => connected,
-        Err(error) => {
-            warn(TAG, format!("the session bus could not be reached ({error:?}), so the units of the removed worktree {} keep running", about.git_dir.display()).as_str());
-            return;
-        }
-    };
-    match stop_units_after_removal(about, &folders, &mut bus) {
-        Ok(true) => debug(TAG, format!("stopped the units of the removed worktree {}", about.git_dir.display()).as_str()),
+    match stop_units_after_removal(about, &folders) {
+        Ok(true) => debug(TAG, format!("stopped the service of the removed worktree {}", about.git_dir.display()).as_str()),
         Ok(false) => {}
-        Err(error) => warn(TAG, format!("the units of the removed worktree {} were not stopped ({error:?}); a later sweep tries again", about.git_dir.display()).as_str()),
+        Err(reason) => warn(TAG, format!("the service of the removed worktree {} was not stopped ({reason}); a later sweep tries again", about.git_dir.display()).as_str()),
     }
 }
 
@@ -243,8 +228,3 @@ fn state_dir_of_the_user() -> Option<PathBuf> {
 fn state_dir_under_home(home: String) -> PathBuf {
     return PathBuf::from(home).join(".local").join("state");
 }
-
-/// Removal hook controls stay out of the release executable.
-#[cfg(test)]
-#[path = "worktree_removal_stops_units_tests.rs"]
-mod tests;

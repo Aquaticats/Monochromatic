@@ -33,16 +33,14 @@ use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{open_directory_at, open_root, rename_at};
 use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
 use crate::iso_time::now_iso;
-use crate::service_client::{Activation, ClientConfig, manager_watch_for, wake};
+use crate::service_client::{ClientConfig, wake};
 use crate::service_messages::render;
-use crate::service_protocol::HEARTBEAT_SILENCE;
-use crate::service_provision::provision;
+use crate::service_commit_starts_the_server::make_sure_a_server_exists;
 use crate::real_git::{ResolutionInputs, ResolvedGit, process_resolution_inputs, resolve_real_git};
-use crate::service_provision_host_and_manager::units_record_dir_of;
 use crate::service_route::{Route, route_from_environment};
 use crate::service_work::work_directory;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
-use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
+use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use crate::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::service_work::Verdict;
 use std::ffi::{OsStr, OsString};
@@ -216,11 +214,11 @@ fn record_the_removal(common_dir: &Path, parent_path: &Path, id: u64) -> Result<
 /// wakeService({ context, gitDir });
 /// ```
 pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), String> {
-    let Some(Route { address, provision: host }) = route_from_environment(context.real_git.as_path(), git_dir) else {
+    let Some(Route { address, host }) = route_from_environment(context.real_git.as_path(), git_dir) else {
         return Err(String::from("no commit service can be started from this session"));
     };
     if let Some(setup) = host.as_ref()
-        && let Err(failure) = provision(setup)
+        && let Err(failure) = make_sure_a_server_exists(setup)
     {
         return Err(render(&failure));
     }
@@ -228,20 +226,9 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
     //       bound and never the commit's start wait.
     // Why:  A person removing a worktree waits for none of what the service does with the record, and every later command of the
     //       repository wakes the same service (`wait_ceilings.rs`, `HAND_OVER_GREETING_WAIT`).
-    let config: ClientConfig = ClientConfig {
-        address,
-        activation: Activation::Managed,
-        start_wait: HAND_OVER_GREETING_WAIT,
-        heartbeat_silence: HEARTBEAT_SILENCE,
-        start_watch: host.as_ref().map(manager_watch_for),
-        keep_fresh: None,
-        answer_ceiling: ANSWER_CEILING,
-        withdraw_ceiling: WITHDRAW_CEILING,
-        waiting_notice_after: waiting_notice_after(),
-        extra_wait: SHORT_EXTRA_WAIT,
-        start_ceiling: HAND_OVER_GREETING_WAIT,
-        units_record_dir: host.as_ref().map(units_record_dir_of),
-    };
+    let mut config: ClientConfig = crate::service_client::client_config(address, host.as_ref());
+    config.start_wait = HAND_OVER_GREETING_WAIT;
+    config.start_ceiling = HAND_OVER_GREETING_WAIT;
     let mut silent: std::io::Sink = std::io::sink();
     return match wake(&config, git_dir, None, &mut silent) {
         Ok(()) => Ok(()),

@@ -1,7 +1,6 @@
 //! Controls for the words that select the service mode and for the places that may use them.
 
 use super::*;
-use crate::service_provision::{SERVICE_UNIT, SERVICE_UNIT_NAME};
 use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use std::path::Path;
 
@@ -78,16 +77,23 @@ fn an_option_that_is_not_text_is_refused() {
     assert_eq!(service_options(arguments.as_slice()), Err(OsString::from_vec(vec![b'/', 0xff, b'x'])));
 }
 
-/// The unit's `ExecStart` starts the program with the very words that select the mode,
-/// so the unit and the dispatch cannot drift.
+/// The words the wrapper starts the service with select the mode and name the worktree's files,
+/// so the start and the dispatch cannot drift.
 #[test]
-fn the_unit_starts_the_program_with_the_service_mode_words() {
-    let exec: &str = SERVICE_UNIT.lines().find(|line| { return line.starts_with("ExecStart="); }).expect("an ExecStart line");
-    let after_program: Vec<&str> = exec.trim_start_matches("ExecStart=").split_whitespace().skip(1).collect();
-    assert_eq!(after_program.iter().take(SERVICE_WORDS.len()).copied().collect::<Vec<&str>>(), SERVICE_WORDS.to_vec(), "{exec}");
-    assert!(exec.trim_start_matches("ExecStart=").starts_with("@SERVICE_BINARY@ "), "{exec}");
-    assert!(SERVICE_UNIT_NAME.ends_with(".service"));
-    assert!(SERVICE_UNIT.lines().any(|line| { return line == "SyslogIdentifier=monochromatic-git-policy-cli-service"; }), "the journal identifier stays");
+fn the_start_names_the_service_mode_words_and_the_worktrees_files() {
+    let server = crate::service_server_start_by_the_wrapper::ServerToStart {
+        socket: std::path::PathBuf::from("/run/user/1000/monochromatic-git-policy-cli/3f9a.sock"),
+        instance: String::from("3f9a"),
+        journal: std::path::PathBuf::from("/state/monochromatic-git-policy-cli/service/3f9a"),
+        git: std::path::PathBuf::from("/usr/bin/git"),
+        program: std::path::PathBuf::from("/bin/git"),
+    };
+    let arguments: Vec<String> = server.arguments().iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    let first: Vec<String> = arguments.iter().take(SERVICE_WORDS.len()).cloned().collect();
+    assert_eq!(first, SERVICE_WORDS.map(String::from).to_vec());
+    assert!(arguments.windows(2).any(|pair| { return pair[0] == "--instance" && pair[1] == "3f9a"; }));
+    assert!(arguments.windows(2).any(|pair| { return pair[0] == "--path"; }));
+    assert!(arguments.windows(2).any(|pair| { return pair[0] == "--journal"; }));
 }
 
 /// The source files of this crate that are not controls,

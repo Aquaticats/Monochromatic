@@ -40,13 +40,10 @@ use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_query_refs::tracking_ref;
 use crate::repo_read_refs::{RefValue, Refs};
 use crate::repo_read_tree::parse_commit;
-use crate::service_client::{Activation, ClientConfig, manager_watch_for};
-use crate::service_protocol::HEARTBEAT_SILENCE;
+use crate::service_client::ClientConfig;
 use crate::service_handoff::{ServiceHandoff, hand_over_push, write_push_record};
 use crate::service_messages::{render};
 use crate::push_trigger_log::{Decision, Origin, Outcome, record_decision};
-use crate::service_messages::platform_remedy;
-use crate::service_provision::platform_without_manager;
 use crate::service_route::{Route, route_from_environment};
 use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
 use std::collections::{HashSet, VecDeque};
@@ -406,27 +403,23 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
         let _written = writeln!(stderr, "{}", render(&failure));
         return;
     }
-    let Some(Route { address, provision }) = route_from_environment(watch.real_git.as_path(), watch.layout.git_dir.as_path()) else {
+    let Some(Route { address, host }) = route_from_environment(watch.real_git.as_path(), watch.layout.git_dir.as_path()) else {
         record_ending(watch, command, Outcome::Declined, "no-route", "no way to reach the commit service");
         // Terminal output error: the message is the only report of a push that waits for a service.
         // This is a merge or a pull that already happened, so the words say what became of its push, never that a commit was not made.
         let _written = writeln!(
             stderr,
-            "monochromatic-git-policy-cli: {branch} was queued to be pushed, and no way to reach the commit service was found now. {} The push stays queued: the next command that reaches the service pushes it.",
-            platform_remedy(platform_without_manager())
+            "monochromatic-git-policy-cli: {branch} was queued to be pushed, and no way to reach the commit service was found now: this command has no XDG_RUNTIME_DIR and no executable of its own to start the service with. The push stays queued: the next command that reaches the service pushes it."
         );
         return;
     };
     let handoff: ServiceHandoff = ServiceHandoff {
-        config: ClientConfig {
-            address,
-            activation: Activation::Managed,
+        config: {
             // The push record is durable, so the wake waits the hand-over's own greeting bound.
-            start_wait: HAND_OVER_GREETING_WAIT,
-            heartbeat_silence: HEARTBEAT_SILENCE,
-            start_watch: provision.as_ref().map(manager_watch_for),
-            keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: HAND_OVER_GREETING_WAIT, waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
-            units_record_dir: provision.as_ref().map(crate::service_provision_host_and_manager::units_record_dir_of),
+            let mut config: ClientConfig = crate::service_client::client_config(address, host.as_ref());
+            config.start_wait = HAND_OVER_GREETING_WAIT;
+            config.start_ceiling = HAND_OVER_GREETING_WAIT;
+            config
         },
         repository: watch.layout.worktree_root.clone(),
         git_dir: watch.layout.git_dir.clone(),

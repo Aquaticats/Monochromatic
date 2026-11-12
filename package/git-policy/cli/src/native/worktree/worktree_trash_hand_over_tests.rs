@@ -53,7 +53,7 @@ fn no_service(_git: &Path, _git_dir: &Path) -> Option<Route> {
 }
 
 /// A provisioner that has nothing to set up.
-fn nothing_to_set_up(_host: &crate::service_provision::ProvisionHost) -> Result<(), crate::service_messages::ClientFailure> {
+fn nothing_to_set_up(_host: &crate::service_host_of_a_worktree::ServiceHost) -> Result<(), crate::service_messages::ClientFailure> {
     return Ok(());
 }
 
@@ -158,7 +158,7 @@ fn a_routine_hand_over_wakes_the_service_and_says_nothing() {
     let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-woken", name.as_str(), 3);
     let address: String = format!("trash-hand-over-{}", std::process::id());
     let service: FixtureService = serve_this_release(address.as_str());
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
+    let route: Route = Route { address: Bind::Abstract(address), host: None };
     let pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
     let mut notices: Vec<u8> = Vec::new();
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
@@ -193,7 +193,7 @@ fn a_hand_over_that_took_over_an_earlier_adds_trash_says_so_once() {
     let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-taken-over", name.as_str(), 1);
     let address: String = format!("trash-hand-over-taken-over-{}", std::process::id());
     let service: FixtureService = serve_this_release(address.as_str());
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
+    let route: Route = Route { address: Bind::Abstract(address), host: None };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
     let mut pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
     pending.taken_over = 1;
@@ -236,9 +236,9 @@ fn a_quiet_add_says_nothing_and_hands_the_same_record_over() {
 fn a_provisioning_failure_keeps_the_record_and_names_the_managers_reason() {
     let name: String = "4".repeat(40);
     let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-provision", name.as_str(), 1);
-    let route: Route = Route { address: Bind::Abstract(String::from("trash-hand-over-never-bound")), provision: Some(unreachable_host()) };
+    let route: Route = Route { address: Bind::Abstract(String::from("trash-hand-over-never-bound")), host: Some(unreachable_host()) };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
-    let refusing = |_host: &crate::service_provision::ProvisionHost| return Err(crate::service_messages::ClientFailure::CouldNotStart(String::from("the session bus refused the call")));
+    let refusing = |_host: &crate::service_host_of_a_worktree::ServiceHost| return Err(crate::service_messages::ClientFailure::CouldNotStart(String::from("the session bus refused the call")));
     let pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
     let mut notices: Vec<u8> = Vec::new();
     let mut reach = reach(&router, &refusing);
@@ -299,16 +299,14 @@ fn the_handler_is_done_with_a_record_whose_worktree_was_removed() {
 
 /// A provisioning host that no control reaches:
 /// the provisioner of a control is a closure.
-fn unreachable_host() -> crate::service_provision::ProvisionHost {
-    return crate::service_provision::ProvisionHost {
+fn unreachable_host() -> crate::service_host_of_a_worktree::ServiceHost {
+    return crate::service_host_of_a_worktree::ServiceHost {
         runtime_dir: PathBuf::from("/nonexistent-runtime"),
-        user_unit_dir: None,
-        bus: PathBuf::from("/nonexistent-bus"),
+        state_dir: std::path::PathBuf::from("/nonexistent/state"),
         service_binary: PathBuf::from("/nonexistent-service"),
         git: PathBuf::from("/nonexistent-git"),
         instance: String::from("fixture-instance"),
         git_dir: PathBuf::new(),
-        retirement_wait: std::time::Duration::from_millis(10),
     };
 }
 
@@ -406,7 +404,7 @@ fn a_service_that_keeps_talking_does_not_hold_the_hand_over() {
     let (root, worktree, common, manifest) = worktree_with_planted_trash("hand-over-chatty", name.as_str(), 1);
     let address: String = format!("trash-hand-over-chatty-{}", std::process::id());
     let service: ChattyService = serve_heartbeats(address.as_str());
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
+    let route: Route = Route { address: Bind::Abstract(address), host: None };
     let pending: PendingTrash = pending_of(worktree.as_path(), common.as_path(), manifest.clone());
     let router = move |_git: &Path, _directory: &Path| return Some(route.clone());
     let (sender, receiver) = std::sync::mpsc::channel::<Result<(), String>>();

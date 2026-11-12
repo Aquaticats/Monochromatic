@@ -1,8 +1,7 @@
 //! Controls for the route decision:
-//! an existing socket is used as it is,
-//! the session bus and the wrapper's own executable together
-//!  mean the wrapper provisions,
-//! and anything less has no route.
+//! a runtime directory, the worktree's Git directory and the wrapper's own executable
+//!  are the whole of it,
+//! and nothing here needs a session bus or a service manager.
 
 use super::*;
 use crate::service_instance::socket_for;
@@ -29,22 +28,15 @@ fn machine(name: &str) -> Machine {
     return Machine { wrapper: programs.join("git"), runtime, root, git_dir };
 }
 
-fn inputs<'a>(machine: &'a Machine, bus_address: Option<&'a str>) -> RouteInputs<'a> {
+fn inputs<'a>(machine: &'a Machine) -> RouteInputs<'a> {
     return RouteInputs {
         runtime_dir: Some(machine.runtime.as_path()),
-        bus_address,
-        config_home: None,
+        state_home: Some(machine.root.as_path()),
         home: Some(machine.root.as_path()),
         own_executable: Some(machine.wrapper.as_path()),
         real_git: Path::new(GIT),
         git_dir: machine.git_dir.as_path(),
     };
-}
-
-fn add_bus(machine: &Machine) -> String {
-    let bus: PathBuf = machine.runtime.join("bus");
-    std::fs::write(&bus, b"").expect("bus stand-in");
-    return format!("unix:path={}", bus.display());
 }
 
 fn add_program(machine: &Machine) -> PathBuf {
@@ -53,71 +45,44 @@ fn add_program(machine: &Machine) -> PathBuf {
     return machine.wrapper.clone();
 }
 
-/// A socket that exists is used as it is,
-/// with nothing to set up.
+/// What: A runtime directory, a worktree and the wrapper's own executable are a route, with what starting needs.
+/// Why:  The wrapper starts the server itself, so no bus and no unit take part in the decision.
 #[test]
-fn an_existing_socket_is_used_as_it_is() {
+fn the_program_and_the_runtime_directory_mean_a_route() {
+    let machine: Machine = machine("route-program");
+    add_program(&machine);
+    let route: Option<Route> = choose_route(&inputs(&machine));
+    let Some(Route { address, host }) = route else { panic!("a route expected") };
+    assert_eq!(address, Bind::Path(socket_for(machine.runtime.as_path(), machine.git_dir.as_path())));
+    let host = host.expect("what starting needs comes with the route");
+    assert_eq!(host.instance, crate::service_instance::instance_of(machine.git_dir.as_path()));
+    assert_eq!(host.journal(), crate::service_journal_folder_of_an_instance::journal_of(&machine.root.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current), host.instance.as_str()));
+    remove(machine.root.as_path());
+}
+
+/// What: Without an executable, an existing socket is still used as it is, and otherwise nothing.
+/// Why:  A socket another program made is reachable; with neither the socket nor a program there is nothing to reach.
+#[test]
+fn an_existing_socket_is_used_without_a_program() {
     let machine: Machine = machine("route-socket");
     let socket: PathBuf = socket_for(machine.runtime.as_path(), machine.git_dir.as_path());
-    std::fs::create_dir_all(socket.parent().expect("parent")).expect("directory");
-    std::fs::write(&socket, b"").expect("socket stand-in");
-    assert_eq!(choose_route(&inputs(&machine, None)), Some(Route { address: Bind::Path(socket), provision: None }));
+    std::fs::create_dir_all(socket.parent().expect("the socket's folder")).expect("socket folder");
+    std::fs::write(socket.as_path(), b"").expect("a socket file");
+    assert_eq!(choose_route(&inputs(&machine)), Some(Route { address: Bind::Path(socket.clone()), host: None }));
+    std::fs::remove_file(socket.as_path()).expect("the socket file goes");
+    assert_eq!(choose_route(&inputs(&machine)), None, "neither a socket nor a program is no route");
     remove(machine.root.as_path());
 }
 
-/// A socket that exists does not end the wrapper's care for the units:
-/// the socket is the manager's and outlives an upgrade,
-///  so with the bus and the program the provisioning check is still handed back,
-/// and `provision` decides from the files.
+/// What: No runtime directory is no route at all.
+/// Why:  The address, the log and the notes live there, and a relative or absent folder names no place.
 #[test]
-fn an_existing_socket_still_hands_back_the_provisioning_check() {
-    let machine: Machine = machine("route-socket-check");
-    let socket: PathBuf = socket_for(machine.runtime.as_path(), machine.git_dir.as_path());
-    std::fs::create_dir_all(socket.parent().expect("parent")).expect("directory");
-    std::fs::write(&socket, b"").expect("socket stand-in");
-    let address: String = add_bus(&machine);
-    let program: PathBuf = add_program(&machine);
-    let route: Option<Route> = choose_route(&inputs(&machine, Some(address.as_str())));
-    let Some(Route { address: bind, provision: Some(host) }) = route else { panic!("the provisioning check expected") };
-    assert_eq!(bind, Bind::Path(socket));
-    assert_eq!(host.service_binary, program);
-    remove(machine.root.as_path());
-}
-
-/// The session bus and the service program together mean the wrapper sets the service up itself,
-/// from the facts it found.
-#[test]
-fn the_bus_and_the_program_mean_provisioning() {
-    let machine: Machine = machine("route-provision");
-    let address: String = add_bus(&machine);
-    let program: PathBuf = add_program(&machine);
-    let route: Option<Route> = choose_route(&inputs(&machine, Some(address.as_str())));
-    let Some(Route { address: bind, provision: Some(host) }) = route else { panic!("provisioning expected") };
-    assert_eq!(bind, Bind::Path(socket_for(machine.runtime.as_path(), machine.git_dir.as_path())));
-    assert_eq!(host.service_binary, program);
-    assert_eq!(host.git, PathBuf::from(GIT));
-    assert_eq!(host.runtime_dir, machine.runtime);
-    assert_eq!(host.bus, machine.runtime.join("bus"));
-    assert_eq!(host.user_unit_dir, Some(machine.root.join(".config").join("systemd").join("user")));
-    remove(machine.root.as_path());
-}
-
-/// Without the bus,
-/// or without the program,
-/// or without a runtime directory,
-/// and with no socket,
-/// there is no route.
-#[test]
-fn anything_less_has_no_route() {
-    let machine: Machine = machine("route-none");
-    assert_eq!(choose_route(&inputs(&machine, None)), None, "no bus, no program");
-    let address: String = add_bus(&machine);
-    assert_eq!(choose_route(&inputs(&machine, Some(address.as_str()))), None, "a bus but no program");
+fn no_runtime_directory_is_no_route() {
+    let machine: Machine = machine("route-no-runtime");
     add_program(&machine);
-    assert_eq!(choose_route(&RouteInputs { runtime_dir: None, ..inputs(&machine, Some(address.as_str())) }), None, "no runtime directory");
-    assert_eq!(choose_route(&RouteInputs { own_executable: None, ..inputs(&machine, Some(address.as_str())) }), None, "no executable to look beside");
-    std::fs::remove_file(machine.runtime.join("bus")).expect("bus gone");
-    assert_eq!(choose_route(&inputs(&machine, Some(address.as_str()))), None, "a program but no bus");
+    let mut route_inputs: RouteInputs<'_> = inputs(&machine);
+    route_inputs.runtime_dir = None;
+    assert_eq!(choose_route(&route_inputs), None);
     remove(machine.root.as_path());
 }
 
@@ -127,43 +92,32 @@ fn anything_less_has_no_route() {
 #[test]
 fn two_worktrees_are_routed_to_two_services() {
     let machine: Machine = machine("route-two-worktrees");
-    let address: String = add_bus(&machine);
     add_program(&machine);
     let linked: PathBuf = machine.git_dir.join("worktrees/linked");
     std::fs::create_dir_all(&linked).expect("linked worktree's git directory");
-    let first = choose_route(&inputs(&machine, Some(address.as_str())));
-    let second = choose_route(&RouteInputs { git_dir: linked.as_path(), ..inputs(&machine, Some(address.as_str())) });
-    let Some(Route { address: first_socket, provision: Some(first_host) }) = first.clone() else { panic!("provisioning expected") };
-    let Some(Route { address: second_socket, provision: Some(second_host) }) = second else { panic!("provisioning expected") };
+    let first = choose_route(&inputs(&machine));
+    let second = choose_route(&RouteInputs { git_dir: linked.as_path(), ..inputs(&machine) });
+    let Some(Route { address: first_socket, host: Some(first_host) }) = first.clone() else { panic!("a route expected") };
+    let Some(Route { address: second_socket, host: Some(second_host) }) = second else { panic!("a route expected") };
     assert_ne!(first_socket, second_socket, "two worktrees, two sockets");
     assert_ne!(first_host.instance, second_host.instance, "two worktrees, two unit instances");
-    assert_eq!(first, choose_route(&inputs(&machine, Some(address.as_str()))), "one worktree, one route");
+    assert_eq!(first, choose_route(&inputs(&machine)), "one worktree, one route");
     remove(machine.root.as_path());
 }
 
-/// The user unit directory is the configuration home's,
-/// else the home's `.config`.
-#[test]
-fn the_user_unit_directory_follows_the_configuration_home() {
-    assert_eq!(user_unit_dir(Some(Path::new("/cfg")), Some(Path::new("/home/a"))), Some(PathBuf::from("/cfg/systemd/user")));
-    assert_eq!(user_unit_dir(None, Some(Path::new("/home/a"))), Some(PathBuf::from("/home/a/.config/systemd/user")));
-    assert_eq!(user_unit_dir(None, None), None);
-}
-
-/// A Git directory that cannot be resolved has no route even when the runtime directory,
-/// the bus and the program are all there:
+/// A Git directory that cannot be resolved has no route even when the runtime directory
+/// and the program are both there:
 /// no socket path or unit instance is named for it,
 /// and nothing is created under the runtime directory.
 #[test]
 fn an_unreachable_git_directory_has_no_route_and_names_nothing() {
     let machine: Machine = machine("route-unreachable");
-    let address: String = add_bus(&machine);
     add_program(&machine);
     let link: PathBuf = machine.root.join("dangling");
     std::os::unix::fs::symlink(machine.root.join("no-such-target"), &link).expect("dangling link");
     let git_dir: PathBuf = link.join(".git");
     let before: Vec<PathBuf> = entries_of(machine.runtime.as_path());
-    let mut route_inputs: RouteInputs<'_> = inputs(&machine, Some(address.as_str()));
+    let mut route_inputs: RouteInputs<'_> = inputs(&machine);
     route_inputs.git_dir = git_dir.as_path();
     assert_eq!(choose_route(&route_inputs), None);
     assert_eq!(entries_of(machine.runtime.as_path()), before, "nothing was created");

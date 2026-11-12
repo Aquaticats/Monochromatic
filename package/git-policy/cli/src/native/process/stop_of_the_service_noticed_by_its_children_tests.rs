@@ -118,15 +118,11 @@ fn the_shutdown_settles_at_once_with_nothing_in_flight() {
     assert_eq!(settled, Settled::Completely);
 }
 
-/// The last-resort bound and the settle bound stay below the stop timeout the unit sets for itself,
-/// so the manager never kills a unit that is ending in order,
-/// and the unit's own timeout is above the host's default here,
-/// which is why the unit must set one (15 s on this host).
+/// The settle bound stays below the service's last-resort bound,
+/// so a stop that ends a batch never meets the alarm that ends the process.
 #[test]
-fn the_bounds_end_before_the_units_own_stop_timeout() {
-    let unit_timeout: Duration = Duration::from_secs(crate::service_provision_host_and_manager::STOP_TIMEOUT_SECONDS);
+fn the_bounds_end_before_the_last_resort() {
     assert!(SETTLE_CEILING < LAST_RESORT);
-    assert!(LAST_RESORT < unit_timeout, "{LAST_RESORT:?} against {unit_timeout:?}");
 }
 
 /// A handler wakes nothing in a process that did not prepare,

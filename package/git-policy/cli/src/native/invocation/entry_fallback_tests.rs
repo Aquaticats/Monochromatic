@@ -24,7 +24,6 @@ use super::tests::{inputs, stopped, text};
 use crate::action::{Action, with_leading_notice};
 use crate::push_stacking::STACKED_PUSH_MARKER;
 use crate::real_git::ResolutionInputs;
-use crate::service_provision::{ProvisionHost, SERVICE_UNIT_NAME, unit_texts};
 use crate::test_support::{REAL_GIT, fixture, remove};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -47,21 +46,9 @@ fn with_record(root: &Path, git: &Path) -> ResolutionInputs {
     let mut resolution: ResolutionInputs = inputs(root);
     resolution.path = OsString::from("empty-directory");
     resolution.service_unit = Some(root.join("unit"));
-    let host: ProvisionHost = ProvisionHost {
-        runtime_dir: root.to_path_buf(),
-        user_unit_dir: None,
-        bus: PathBuf::from("/nonexistent/bus"),
-        service_binary: PathBuf::from("/opt/tool/monochromatic-git-policy-cli"),
-        git: git.to_path_buf(),
-        instance: String::from("x"),
-        git_dir: std::path::PathBuf::new(),
-        retirement_wait: std::time::Duration::ZERO,
-    };
-    for (name, unit) in unit_texts(&host) {
-        if name == SERVICE_UNIT_NAME {
-            std::fs::write(root.join("unit"), unit).expect("unit file");
-        }
-    }
+    // The record is the note the wrapper writes beside its sockets: one line, the path of the real Git.
+    std::fs::write(root.join("unit"), format!("{}
+", git.display())).expect("the record");
     return resolution;
 }
 

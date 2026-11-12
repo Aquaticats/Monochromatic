@@ -53,12 +53,10 @@ use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::private_storage::create_private_directory_all;
 use crate::push_retry::PLAN_DIRECTORY;
 use crate::service_claim_watch::WATCH_DIRECTORY;
-use crate::service_instance::{service_unit_instance, socket_path};
+use crate::service_instance::{socket_path, SOCKET_DIRECTORY};
 use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
 use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::service_journal_record_age::{a_client_may_still_read, stamp_of};
-use crate::service_provision_host_and_manager::runtime_unit_dir;
-use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -69,12 +67,11 @@ const TAG: &str = "serviceFilesOfAnInstance";
 /// The ending of the note file that names the Git directory of an instance's worktree.
 pub const NOTE_ENDING: &str = ".git-dir";
 
-/// The folder of the notes,
-/// inside the directory the manager reads the wrapper's unit files from,
-/// where provisioning already writes and nothing else of the wrapper does.
-/// The manager looks only at unit names in that directory,
-/// so a folder of this name is no unit and starts nothing.
-pub const NOTES_FOLDER: &str = "monochromatic-git-policy-cli-worktree-notes";
+/// The folder of the notes:
+/// the socket folder,
+/// where the wrapper writes the files of each instance,
+/// so the notes live exactly as long as the sockets they name.
+pub const NOTES_FOLDER: &str = SOCKET_DIRECTORY;
 
 /// The directory of the record a landing keeps inside the journal (`service_busy.rs`),
 /// which is empty once no landing is in flight.
@@ -82,7 +79,24 @@ const LANDING_RECORD_DIRECTORY: &str = "busy";
 
 /// The note file of an instance.
 pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
-    return runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).join(format!("{instance}{NOTE_ENDING}"));
+    return runtime_dir.join(NOTES_FOLDER).join(format!("{instance}{NOTE_ENDING}"));
+}
+
+/// What:
+///  Writes `text` to `path` through a temporary file beside it and a rename.
+/// Why:
+///   A reader never sees half a note,
+/// and two writers of the same text agree without a lock:
+/// the rename is atomic and the last one wins with identical bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(`${path}.writing`, text); renameSync(`${path}.writing`, path);
+/// ```
+fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
+    let temporary: PathBuf = path.with_extension("writing");
+    std::fs::write(&temporary, text)?;
+    return std::fs::rename(&temporary, path);
 }
 
 /// What:
@@ -106,7 +120,8 @@ pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> st
     if matches!(std::fs::read_to_string(&path), Ok(current) if current == text) {
         return Ok(());
     }
-    create_private_directory_all(runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).as_path())?;
+    let folder: PathBuf = runtime_dir.join(NOTES_FOLDER);
+    create_private_directory_all(folder.as_path())?;
     return write_atomically(path.as_path(), text.as_str());
 }
 
@@ -448,7 +463,7 @@ pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: 
     if !service_is_gone {
         return Some(JournalAfterStop::StillRead(KeptJournal {
             journal,
-            entry: service_unit_instance(instance),
+            entry: format!("the service of the instance {instance}"),
             reason: String::from("the service that writes it may still be running"),
         }));
     }
@@ -491,8 +506,3 @@ pub fn forget_stopped_instance(runtime_dir: &Path, instance: &str) {
         }
     }
 }
-
-/// Controls stay out of the release executable.
-#[cfg(test)]
-#[path = "service_files_of_a_stopped_instance_tests.rs"]
-mod tests;

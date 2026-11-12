@@ -25,7 +25,7 @@ use crate::child_environment::environment_value;
 ///  which decides the overlay of a command the caller typed.
 use crate::control_terminal::{Terminal, control_terminal};
 use crate::real_git_candidate::{CandidateKind, classify_candidate};
-use crate::real_git_record::service_unit_file;
+use crate::real_git_record::record_file;
 /// `pub use` re-exports names so callers keep importing the resolution from this module.
 pub use crate::real_git_resolution::{RecordedGit, ResolvedGit, resolve_real_git};
 /// What:
@@ -548,7 +548,7 @@ pub fn host_platform() -> Platform {
 }
 
 /// What:
-///  The unit file of the commit service below a runtime directory,
+///  The note that records the real Git below a runtime directory,
 ///  when that directory is an absolute path.
 /// Why:
 ///   A relative runtime directory would name a different file for each directory the wrapper runs in,
@@ -556,7 +556,7 @@ pub fn host_platform() -> Platform {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function serviceUnitBelow(runtime: string): string | undefined { return isAbsolute(runtime) ? serviceUnitFile(runtime) : undefined; }
+/// function recordBelow(runtime: string): string | undefined { return isAbsolute(runtime) ? recordFile(runtime) : undefined; }
 /// ```
 fn service_unit_below(runtime: OsString) -> Option<PathBuf> {
     let directory: PathBuf = PathBuf::from(runtime);
@@ -565,7 +565,7 @@ fn service_unit_below(runtime: OsString) -> Option<PathBuf> {
         return None;
     }
     // `Some(...)` wraps the unit file's path.
-    return Some(service_unit_file(directory.as_path()));
+    return Some(record_file(directory.as_path()));
 }
 
 /// What:
@@ -600,12 +600,12 @@ pub fn process_resolution_inputs(
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();
     let path_extensions: OsString = environment_value(environment, "PATHEXT")
         .unwrap_or(OsString::from(DEFAULT_WINDOWS_PATH_EXTENSIONS));
-    // What: The unit file is looked for below an absolute runtime directory only.
+    // What: The record is looked for below an absolute runtime directory only.
     // Why:  A relative one would name a different file for each directory the wrapper runs in, which is no record.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const runtime = env.XDG_RUNTIME_DIR; const serviceUnit = runtime && isAbsolute(runtime) ? serviceUnitFile(runtime) : undefined;
+    // const runtime = env.XDG_RUNTIME_DIR; const record = runtime && isAbsolute(runtime) ? recordFile(runtime) : undefined;
     // ```
     let service_unit: Option<PathBuf> =
         environment_value(environment, "XDG_RUNTIME_DIR").and_then(service_unit_below);

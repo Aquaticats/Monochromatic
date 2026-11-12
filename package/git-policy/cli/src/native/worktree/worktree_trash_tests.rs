@@ -309,7 +309,7 @@ fn the_add_hands_the_trash_over_and_leaves_it_standing() {
     let manifest: TrashManifest = plant_trash(worktree.as_path(), name.as_str(), 2);
     let pending_trash: PendingTrash = PendingTrash { destination: worktree.clone(), common_dir: common_dir.clone(), manifest: manifest.clone(), taken_over: 0, quiet: false };
     let mut notices: Vec<u8> = Vec::new();
-    let _why: String = hand_over_with(&git_context(), &pending_trash, &mut notices, &Reach { router: &|_git: &Path, _directory: &Path| return None, provisioner: &|_host: &crate::service_provision::ProvisionHost| return Ok(()), start_wait: std::time::Duration::from_millis(400) })
+    let _why: String = hand_over_with(&git_context(), &pending_trash, &mut notices, &Reach { router: &|_git: &Path, _directory: &Path| return None, provisioner: &|_host: &crate::service_host_of_a_worktree::ServiceHost| return Ok(()), start_wait: std::time::Duration::from_millis(400) })
         .expect_err("a session with no service is reported to the caller");
     assert!(worktree.join(TRASH_PARENT).join(&name).join("d0/file").is_file(), "the add deletes nothing");
     let record: PathBuf = state_directory(work_directory(common_dir.as_path()).as_path(), "pending").join(format!("trash-{name}"));

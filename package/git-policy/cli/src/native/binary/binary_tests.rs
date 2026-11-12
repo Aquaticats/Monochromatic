@@ -140,8 +140,6 @@ mod never_self_start;
 /// the wrapper falls back to the Git its commit service was set up with
 ///  when that record passes the `PATH` candidate checks,
 /// and otherwise keeps its stop.
-#[path = "binary_installed_git_fallback_tests.rs"]
-mod installed_git_fallback;
 
 /// Configuration loading and the read-only fast path.
 #[path = "binary_policy_tests.rs"]
@@ -563,8 +561,6 @@ mod service_mode;
 /// The upgrade from the release with the service as a second program:
 /// the unit is rewritten,
 /// the old service retires.
-#[path = "binary_service_upgrade_one_executable_tests.rs"]
-mod service_upgrade_one_executable;
 
 /// A commit whose prepared content was pruned before it landed:
 /// prepared again once,
@@ -788,8 +784,8 @@ mod option_order_guard;
 
 /// The route of a commit and the wrapper's own provisioning of socket activation,
 /// against a stand-in session bus.
-#[path = "binary_service_provision_tests.rs"]
-mod service_provision;
+#[path = "binary_service_starts_tests.rs"]
+mod service_starts;
 
 /// A machine with no way to reach or start a service stops a commit plainly;
 /// a directory with no repository gets Git's words.
@@ -798,8 +794,6 @@ mod service_no_manager;
 
 /// The upgrade from the 0.5.4 release,
 /// run with that release's own service program.
-#[path = "binary_service_upgrade_tests.rs"]
-mod service_upgrade;
 
 /// The resident commit service as a real process:
 /// kills at each point of a batch,

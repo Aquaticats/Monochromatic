@@ -119,17 +119,16 @@ fn client(serving: &Serving, answer_ceiling: Duration, withdraw_ceiling: Duratio
 fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_ceiling: Duration, extra_wait: Duration) -> ClientConfig {
     return ClientConfig {
         address: Bind::Path(serving.socket.clone()),
-        activation: Activation::Managed,
+        activation: Activation::StartedByTheWrapper,
         start_wait: PATIENCE,
         heartbeat_silence: PATIENCE,
-        start_watch: None,
+        starter: None,
         keep_fresh: None,
         answer_ceiling,
         withdraw_ceiling,
         waiting_notice_after: PATIENCE,
         extra_wait,
         start_ceiling: PATIENCE,
-        units_record_dir: None,
     };
 }
 

@@ -26,7 +26,6 @@ use super::{
 };
 use crate::control_terminal::Terminal;
 use crate::real_git_candidate::CandidateKind;
-use crate::service_provision::{ProvisionHost, SERVICE_UNIT_NAME, unit_texts};
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -61,21 +60,9 @@ fn only_the_wrapper(root: &Path) -> ResolutionInputs {
 /// Write the unit file `root/unit` the way the wrapper renders it,
 /// naming `git`.
 fn write_unit(root: &Path, git: &Path) {
-    let host: ProvisionHost = ProvisionHost {
-        runtime_dir: root.to_path_buf(),
-        user_unit_dir: None,
-        bus: PathBuf::from("/nonexistent/bus"),
-        service_binary: PathBuf::from("/opt/tool/monochromatic-git-policy-cli"),
-        git: git.to_path_buf(),
-        instance: String::from("x"),
-        git_dir: std::path::PathBuf::new(),
-        retirement_wait: std::time::Duration::ZERO,
-    };
-    for (name, text) in unit_texts(&host) {
-        if name == SERVICE_UNIT_NAME {
-            std::fs::write(root.join("unit"), text).expect("unit file");
-        }
-    }
+    // The record is the note the wrapper writes beside its sockets: one line, the path of the real Git.
+    std::fs::write(root.join("unit"), format!("{}
+", git.display())).expect("the record");
 }
 
 /// A Git that `PATH` does not show,

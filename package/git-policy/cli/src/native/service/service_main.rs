@@ -273,7 +273,7 @@ pub fn run(arguments: &[String]) -> i32 {
     //  anything is read, created or bound, so no stray server and no stray directory is left.
     if matches!(address, Bind::Inherited) && !crate::service_server::socket_passed_in() {
         crate::service_error!(
-            "monochromatic-git-policy-cli service run is started by the service manager, which passes it the listening socket of one worktree's commit service; no socket was passed in and no address was named, so nothing was started. Nothing needs starting by hand: the first commit in a worktree sets the service up. For a development run name an address with --path <socket> or --abstract <name>"
+            "monochromatic-git-policy-cli service run needs the address of the commit service it serves: the wrapper starts it with --path <sock> and the instance of the worktree, and a development run names --path <sock> or --abstract <name>. Nothing was started and nothing was created. Nothing needs starting by hand: the first commit in a worktree starts its service."
         );
         return EXIT_NOT_LISTENING;
     }
@@ -312,6 +312,16 @@ pub fn run(arguments: &[String]) -> i32 {
         crate::service_error!("cannot create the journal directory {}: {error}", journal.display());
         return EXIT_REFUSED;
     }
+    // What: The folder an address sits in must exist and be private before the address is bound.
+    // Why:  The bind fails in a folder that is not there, and a folder others may enter would let them connect to a service
+    //       that carries a review credential.
+    if let Bind::Path(socket) = &address
+        && let Some(directory) = socket.parent()
+        && let Err(error) = crate::service_socket_directory_only_this_account_may_open::ensure_private(directory)
+    {
+        crate::service_error!("cannot make the folder of the address {} private: {error}", socket.display());
+        return EXIT_NOT_LISTENING;
+    }
     let listener = match bind(&address) {
         Ok(listener) => listener,
         Err(error) => {
@@ -319,6 +329,19 @@ pub fn run(arguments: &[String]) -> i32 {
             return EXIT_NOT_LISTENING;
         }
     };
+    // What: The address is this process's once it is bound, and the note that names this process is written now.
+    // Why:  A note written before the bind could name a process nothing can reach, and the folder's mode and the address's
+    //       mode are what keeps the review credential this service carries to this account.
+    let mut own_files: Option<crate::service_server_files_of_a_running_instance::OwnFiles> = None;
+    if let (Bind::Path(socket), Some(instance)) = (&address, named_instance.as_deref()) {
+        match crate::service_server_files_of_a_running_instance::take(socket.as_path(), Some(instance)) {
+            Ok(taken) => own_files = Some(taken),
+            Err(error) => {
+                crate::service_error!("cannot keep the address {} to this account alone: {error}", socket.display());
+                return EXIT_NOT_LISTENING;
+            }
+        }
+    }
     let context: LandContext = LandContext {
         git: GitContext { real_git: git, overlay: crate::child_environment::service_child_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
         journal,
@@ -352,6 +375,10 @@ pub fn run(arguments: &[String]) -> i32 {
     //  filled before the first commit that would compile it.
     crate::service_rules_precompile::warm_remembered(context.journal.as_path());
     serve(listener, &context, &settings);
+    // The end of the service: the address and the note go with it, so nothing looks for a service that exited.
+    if let Some(files) = own_files {
+        files.remove();
+    }
     return 0;
 }
 

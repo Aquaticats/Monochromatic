@@ -28,7 +28,7 @@ fn no_service(_git: &Path, _git_dir: &Path) -> Option<Route> {
 }
 
 /// A provisioner that has nothing to set up.
-fn nothing_to_set_up(_host: &crate::service_provision::ProvisionHost) -> Result<(), crate::service_messages::ClientFailure> {
+fn nothing_to_set_up(_host: &crate::service_host_of_a_worktree::ServiceHost) -> Result<(), crate::service_messages::ClientFailure> {
     return Ok(());
 }
 
@@ -215,7 +215,7 @@ fn a_hand_over_a_service_answers_keeps_its_record_queued() {
     std::fs::create_dir_all(&destination).expect("the worktree");
     let address: String = format!("relink-hand-over-{}", std::process::id());
     let service: FixtureService = serve_this_release(address.as_str());
-    let route: Route = Route { address: Bind::Abstract(address), provision: None };
+    let route: Route = Route { address: Bind::Abstract(address), host: None };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
     let written: RelinkEntry = entry(destination.as_path());
     hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &nothing_to_set_up)).expect("a service took the record");
@@ -244,11 +244,11 @@ fn a_hand_over_whose_record_was_taken_elsewhere_leaves_the_add_its_own_run() {
     std::fs::create_dir_all(&common).expect("the common directory");
     std::fs::create_dir_all(&destination).expect("the worktree");
     let pending: PathBuf = state_directory(work_directory(common.as_path()).as_path(), PENDING);
-    let route: Route = Route { address: Bind::Abstract(format!("relink-never-bound-{}", std::process::id())), provision: Some(unreachable_host()) };
+    let route: Route = Route { address: Bind::Abstract(format!("relink-never-bound-{}", std::process::id())), host: Some(unreachable_host()) };
     let router = |_git: &Path, _directory: &Path| return Some(route.clone());
     // The claim a service makes: the record leaves `pending` before the add takes it back.
     let claimed_from: PathBuf = pending.clone();
-    let claiming_pending = move |_host: &crate::service_provision::ProvisionHost| {
+    let claiming_pending = move |_host: &crate::service_host_of_a_worktree::ServiceHost| {
         for name in pending_names(claimed_from.as_path()) {
             std::fs::remove_file(claimed_from.join(name)).expect("the record leaves pending");
         }
@@ -295,16 +295,14 @@ fn reach<'a>(router: crate::worktree_trash_hand_over::Router<'a>, provisioner: c
 
 /// A host a control never reaches,
 /// so a route that names one still fails its start.
-fn unreachable_host() -> crate::service_provision::ProvisionHost {
-    return crate::service_provision::ProvisionHost {
+fn unreachable_host() -> crate::service_host_of_a_worktree::ServiceHost {
+    return crate::service_host_of_a_worktree::ServiceHost {
         runtime_dir: PathBuf::from("/nonexistent-runtime"),
-        user_unit_dir: None,
-        bus: PathBuf::from("/nonexistent-bus"),
+        state_dir: std::path::PathBuf::from("/nonexistent/state"),
         service_binary: PathBuf::from("/nonexistent-service"),
         git: PathBuf::from("/nonexistent-git"),
         instance: String::from("fixture-instance"),
         git_dir: PathBuf::new(),
-        retirement_wait: std::time::Duration::from_millis(10),
     };
 }
 

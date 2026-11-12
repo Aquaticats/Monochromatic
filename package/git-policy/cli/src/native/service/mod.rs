@@ -102,6 +102,29 @@ pub mod service_server_shutdown_after_a_stop;
 /// read at a service's start on a thread of its own.
 pub mod service_journal_restored_at_start;
 
+/// Starts a worktree's commit service when nothing answers at its address,
+/// one command at a time.
+pub mod service_server_start_by_the_wrapper;
+
+/// Starts the service's program as a process that outlives the command and the terminal.
+pub mod service_server_start_spawns_a_detached_process;
+
+/// The note that says which process is a worktree's commit service,
+/// and how a reused process number is told apart from it.
+pub mod service_server_pid_note_of_an_instance;
+
+/// The file the service's output goes to,
+/// its cap and its truncation at each start.
+pub mod service_server_log_file_of_an_instance;
+
+/// The socket folder and socket file,
+/// enterable and openable by this account alone.
+pub mod service_socket_directory_only_this_account_may_open;
+
+/// The address and the note a running service owns,
+/// made at its start and removed as it ends.
+pub mod service_server_files_of_a_running_instance;
+
 /// The commit service's loop.
 pub mod service_server;
 
@@ -174,53 +197,32 @@ pub mod service_client_why_withdrawn;
 /// and asking an older service to retire.
 pub mod service_client_listen_and_ask_to_retire;
 
-/// The settings of one client run and the watch on the service manager's answer.
+/// The settings of one client run,
+/// and what starts the server when nothing answers.
 pub mod service_client_settings_and_watches;
 
 /// Reaching the commit service,
 /// starting it when nothing answers.
 pub mod service_client_reach_service;
 
-/// What provisioning knows about the machine and the manager it asks,
-/// the earlier release's unit names and what a refused call is to the person.
-pub mod service_provision_host_and_manager;
-
-/// The retirement of the single service of the earlier releases.
-pub mod service_provision_earlier_service_retirement;
-
-/// The wrapper's own provisioning of the commit service's socket activation.
-pub mod service_provision;
-
-/// The states in which provisioning already knows no service can answer this command,
-/// so the command says why instead of waiting out the start ceiling.
-pub mod service_provision_refusals_before_the_wait;
-
-/// The record of the unit texts the service manager was last told about,
-/// which tells an installation it runs from files a kill left behind.
-pub mod service_provision_loaded_unit_texts;
-
-/// Checks and writes on the unit files of the commit service.
-pub mod service_provision_unit_file_ownership_and_writes;
-
-/// A minimal D-Bus client for the user session bus,
-/// for the provisioning's two calls.
-pub mod systemd_dbus;
-
-/// The D-Bus wire format of the user manager client:
-/// calls written,
-/// replies read.
-pub mod systemd_dbus_wire_format;
-
 /// Which commit service instance belongs to a worktree:
 /// its name,
-/// socket and unit instances.
+/// its socket and its journal folder.
 pub mod service_instance;
 
 /// The files an instance of the commit service keeps between runs:
-/// the note beside its socket,
-/// the note and socket file that say it has units,
+/// the note beside its socket that names its worktree,
 /// and the journal that remembers its batches.
 pub mod service_files_of_a_stopped_instance;
+
+/// What one command knows about a worktree's service:
+/// its folders,
+/// its socket,
+/// its journal and its program.
+pub mod service_host_of_a_worktree;
+
+/// Makes the worktree's server exist when a commit first needs it.
+pub mod service_commit_starts_the_server;
 
 /// The commit service units of worktrees that no longer exist:
 /// which worktree a unit belongs to,
@@ -239,15 +241,6 @@ pub mod service_journal_folder_of_an_instance;
 /// Whether a stopped service's processes are gone,
 /// which is what lets the journal it writes be removed.
 pub mod service_is_gone_after_a_stop;
-
-/// A manager that records the stops it is asked for,
-/// for the controls of the units of removed worktrees.
-#[cfg(test)]
-pub mod service_unit_manager_recorder_test_support;
-
-/// One disposable machine for the controls of the units of removed worktrees and of the files an instance keeps.
-#[cfg(test)]
-pub mod service_units_fixture_test_support;
 
 /// One entry from the wrapper a person ran to the journal,
 /// sent without waiting.
