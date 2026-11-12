@@ -172,7 +172,7 @@ So the claim rests on the documented kernel behaviour and on the crate's own
 code,
 not on a reproduction here.
 
-One arrangement *was* measured on 2026-11-12,
+One arrangement **was** measured on 2026-11-12,
 because it needs no privilege and no mount:
 the cgroup v2 `io` controller on this host is delegated to the user manager,
 and a scope that carries
