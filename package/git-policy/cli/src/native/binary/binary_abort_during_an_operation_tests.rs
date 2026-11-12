@@ -25,7 +25,7 @@
 //! ```
 
 use super::support::{
-    Fixture, Observed, TIME_BOUND_SECONDS, bounded_for, direct, executable, fixture, git, remove, repository, run_wrapped, stderr_of,
+    Fixture, Observed, bounded_for, direct, executable, fixture, git, remove, repository, run_wrapped, stderr_of,
 };
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -881,8 +881,8 @@ fn a_rebase_abort_after_a_reset_at_an_edit_step_reads_the_rebases_own_record() {
         plain(&fixture, linked.as_path(), &["rev-parse", "--path-format=absolute", "--git-path", "rebase-merge/orig-head"]).trim(),
     ))
     .expect("the rebase's own record");
-    let record: &str = record.trim();
-    let tracks: String = plain(&fixture, linked.as_path(), &["ls-tree", record, "local.env"]);
+    let recorded: &str = record.trim();
+    let tracks: String = plain(&fixture, linked.as_path(), &["ls-tree", recorded, "local.env"]);
     assert!(tracks.contains("local.env"), "the rebase's record tracks local.env: {tracks}");
     // The split-commit step a person takes at an edit stop.
     attempt(&fixture, linked.as_path(), &["reset", "--quiet", "HEAD^"]);

@@ -71,8 +71,8 @@ fn a_change_after_the_copy_is_saved_again_before_the_command() {
     // The edit that lands in the window the first copy cannot see.
     std::fs::write(root.join("a.txt"), b"resolved again, after the copy\n").expect("the later edit");
     plan_the_last_chance(plan);
-    let said: Option<String> = save_again_before_the_command().expect("the later edit is copied");
-    let said: String = said.expect("a second copy is announced");
+    let copied: Option<String> = save_again_before_the_command().expect("the later edit is copied");
+    let said: String = copied.expect("a second copy is announced");
     assert!(said.contains("a.txt"), "{said}");
     assert!(said.contains("changed again"), "{said}");
     assert!(said.contains("second copy"), "{said}");

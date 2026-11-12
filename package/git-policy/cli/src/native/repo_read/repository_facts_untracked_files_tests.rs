@@ -37,26 +37,26 @@ fn the_untracked_file_at_a_tracked_path_is_named() {
     std::fs::write(repo.join("victim.txt"), b"tracked\n").expect("tracked file");
     git(repo.as_path(), &["add", "--", "victim.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    let mut facts: GitFacts = facts_for(repo.as_path());
+    let mut tracked: GitFacts = facts_for(repo.as_path());
     assert_eq!(
-        untracked_files_the_tree_tracks(&mut facts, OsStr::new("HEAD")).expect("the tree reads"),
+        untracked_files_the_tree_tracks(&mut tracked, OsStr::new("HEAD")).expect("the tree reads"),
         Vec::<String>::new(),
         "a tracked file Git knows is not an untracked one"
     );
     std::fs::remove_file(repo.join("victim.txt")).expect("the tracked file goes");
     git(repo.as_path(), &["rm", "--quiet", "--cached", "--", "victim.txt"]);
     std::fs::write(repo.join("victim.txt"), b"the person's own file\n").expect("the untracked file");
-    let mut facts: GitFacts = facts_for(repo.as_path());
+    let mut after: GitFacts = facts_for(repo.as_path());
     assert_eq!(
-        untracked_files_the_tree_tracks(&mut facts, OsStr::new("HEAD")).expect("the tree reads"),
+        untracked_files_the_tree_tracks(&mut after, OsStr::new("HEAD")).expect("the tree reads"),
         vec![String::from("victim.txt")],
         "the untracked file at a path HEAD tracks is the one Git refuses to write over"
     );
     // A file at a path the tree never held is not in the way of the tree.
     std::fs::write(repo.join("elsewhere.txt"), b"unrelated\n").expect("another untracked file");
-    let mut facts: GitFacts = facts_for(repo.as_path());
+    let mut again: GitFacts = facts_for(repo.as_path());
     assert_eq!(
-        untracked_files_the_tree_tracks(&mut facts, OsStr::new("HEAD")).expect("the tree reads"),
+        untracked_files_the_tree_tracks(&mut again, OsStr::new("HEAD")).expect("the tree reads"),
         vec![String::from("victim.txt")],
         "only the untracked file at a path the tree tracks is named"
     );
