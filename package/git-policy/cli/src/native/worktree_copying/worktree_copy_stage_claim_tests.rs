@@ -2375,19 +2375,28 @@ fn a_snapshot_holding_a_newer_entry_is_kept() {
     remove(root.as_path());
 }
 
-/// A snapshot a person made before the record is not the stage that record's creation made:
-/// every entry of it predates the instant the record holds,
-/// and its shape is a btrfs snapshot and nothing more,
-/// so the identity the record never gained is the only thing that would have told the two apart.
+/// A snapshot a person made before the record is not the stage that record's creation made,
+/// although the filesystem's own numbers run the way a proof by transaction needs them to.
 /// Why the control reads this way:
-///  a reaping that takes the shape for the identity deletes the person's snapshot and the only copy of a file in it.
+///  a source subvolume's generation only advances with the transactions that write its own tree,
+///  while a snapshot made later carries the transaction that ran when it was made,
+///  so a proof that compares the two can call a person's snapshot the wrapper's and delete the only copy of a file in it.
+///  The commit below puts the control in that state every time instead of waiting for another writer of this
+///  machine's filesystem to commit it, which is how the failure was found: once in a suite of 476 controls.
 #[test]
 fn a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left() {
     let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("claim-add-window-replacement") else { return };
     let repo: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
     std::fs::write(repo.join("mine.txt"), b"the only copy of this file").expect("the file a person keeps");
+    crate::fs_btrfs_test_support::commit_the_filesystem(root.as_path());
+    let generation: u64 = crate::fs_btrfs_ioctl::subvolume_info(repo.as_path()).expect("the source").generation;
     let backup: PathBuf = root.join("a-persons-snapshot");
     crate::fs_btrfs_ioctl::snapshot_create_at(repo.as_path(), backup.as_path()).expect("the person's own snapshot");
+    let made_in: u64 = crate::fs_btrfs_ioctl::subvolume_info(backup.as_path()).expect("the person's snapshot").transid_at_creation;
+    assert!(
+        made_in > generation,
+        "the filesystem says the person's snapshot was made in transaction {made_in}, later than the source's generation {generation}"
+    );
     std::fs::remove_file(repo.join("mine.txt")).expect("the backup now holds the only copy");
     // Every entry of the backup predates the instant the record below names.
     std::thread::sleep(std::time::Duration::from_millis(20));
