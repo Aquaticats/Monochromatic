@@ -392,6 +392,10 @@ fn a_kept_reference_another_command_wrote_after_the_read_is_not_replaced() {
 fn a_built_commit_survives_a_prune_when_the_write_of_its_scratch_reference_is_left_running() {
     let mut world: World = world("service-land-side-ref-scratch-left-running");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    // The repository names a shared-file mode, even the one that shares nothing, which is one of the settings whose write the
+    //  landing leaves to Git (`side_reference_written_here.rs`): this control is about the wait for Git's write of the batch's
+    //  own reference, so that write must be Git's.
+    git(world.repo.as_path(), &["config", "core.sharedRepository", "false"]);
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let commit: String = built.commit.clone().expect("the commit Git built");
     let program: PathBuf = world.root.join("git-stuck-on-the-scratch-reference");
