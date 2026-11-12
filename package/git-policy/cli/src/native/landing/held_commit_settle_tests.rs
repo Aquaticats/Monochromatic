@@ -627,6 +627,7 @@ fn a_record_that_gives_no_answer_holds_no_worker_and_is_not_an_absent_one() {
         tokio::time::sleep(THE_TICK).await;
         tick.store(true, std::sync::atomic::Ordering::SeqCst);
     });
+    let read_began: std::time::Instant = std::time::Instant::now();
     let reading = {
         let journal: PathBuf = held.journal.clone();
         runtime.spawn(async move { return super::intent_within(SHORT_CEILING, journal.as_path(), 1).await; })
@@ -641,6 +642,8 @@ fn a_record_that_gives_no_answer_holds_no_worker_and_is_not_an_absent_one() {
     std::thread::sleep(PAST_THE_CEILING);
     release_the_pipe(open.as_path());
     let answered: super::IntentLook = runtime.block_on(async { return reading.await.expect("the read task ends"); });
+    // The read's own time is what the ceiling bounds: the rest of this control's reads take as long as the host makes them.
+    assert!(read_began.elapsed() < THE_PATIENCE, "the read ended at its ceiling and never waited on the file without end: {} ms", read_began.elapsed().as_millis());
     assert!(ran_beside, "the task beside a record that gives no answer still runs, so no worker is held by that read");
     assert!(matches!(answered, super::IntentLook::NoAnswer), "a look that gave nothing in time is not the answer that no record is there");
     let finished: Option<crate::service_journal::Intent> = runtime.block_on(async { return super::finished_awaiting(held.journal.as_path(), 1).await; });
@@ -677,6 +680,5 @@ fn a_record_that_gives_no_answer_holds_no_worker_and_is_not_an_absent_one() {
         other => panic!("a readable record is answered as one the batch holds: {}", describes(&other)),
     }
     let _context = context;
-    assert!(began.elapsed() < THE_PATIENCE, "the read ended at its ceiling and never waited on the file without end: {} ms", began.elapsed().as_millis());
     remove(root.as_path());
 }

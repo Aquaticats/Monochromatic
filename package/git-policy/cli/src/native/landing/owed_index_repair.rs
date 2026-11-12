@@ -265,7 +265,8 @@ fn set_to_head_with(git: &GitContext, repository: &Path, index: &Path, paths: &[
 /// Why:
 ///   A task of the runtime may neither wait on a filesystem nor enter the runtime to wait for a child,
 /// and the
-///  copy, the put back and the removal above wait in the kernel on the disk the repository is on.
+///  copy,
+/// the put back and the removal above wait in the kernel on the disk the repository is on.
 /// The copies keep
 ///  no ceiling:
 /// a copy that was abandoned half-written is a file nothing waits for,
@@ -1179,11 +1180,6 @@ fn worktree_object(git: &GitContext, repository: &Path, name: &[u8]) -> Result<O
 /// # Errors
 ///
 /// As `worktree_object`.
-/// `worktree_object_awaiting` with the wait `ceiling` grants its look at the path.
-///
-/// # Errors
-///
-/// As `worktree_object_awaiting`.
 async fn worktree_object_within(ceiling: Duration, git: &GitContext, repository: &Path, name: &[u8]) -> Result<Option<(String, String)>, FailureCode> {
     let path: OsString = <OsString as std::os::unix::ffi::OsStringExt>::from_vec(name.to_vec());
     let held: PathBuf = repository.join(path.as_os_str());

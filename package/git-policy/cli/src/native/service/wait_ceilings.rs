@@ -488,7 +488,8 @@ pub const AFTER_COMMIT_STATE_CEILING: Duration = START_CEILING;
 ///  gives serves better.
 pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 
-/// The longest a storage step of the commit's own repair, replay or settlement waits:
+/// The longest a storage step of the commit's own repair,
+/// replay or settlement waits:
 /// the look at the private index file a replay captured,
 /// the look and the link read of a worktree path the repair compares,
 /// the reads of a batch's record a

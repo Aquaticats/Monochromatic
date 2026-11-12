@@ -247,7 +247,8 @@ fn release_the_pipe(path: &Path) {
 /// the entry the commit's own index holds and the worktree's content,
 /// and a task that reads another one of them leaves another commit out.
 /// The live index is
-///  never written by either face, so the control also pins that no staging of the person's is replaced.
+///  never written by either face,
+/// so the control also pins that no staging of the person's is replaced.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

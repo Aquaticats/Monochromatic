@@ -1,5 +1,7 @@
 //! Controls for the awaited faces of the entries this module reads:
-//! both faces read one tree, one index, one whole listing and one move the same,
+//! both faces read one tree,
+//! one index,
+//! one whole listing and one move the same,
 //! and a read whose Git must be
 //!  asked is answered inside a task where the synchronous face is refused.
 

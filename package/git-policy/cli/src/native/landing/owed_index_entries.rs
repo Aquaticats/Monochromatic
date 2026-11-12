@@ -212,8 +212,10 @@ fn tree_entries_of(stdout: &[u8]) -> BTreeMap<Vec<u8>, Entry> {
 /// with a path that holds unmerged stages marked as a conflict's.
 /// Why:
 ///  Both faces read an index listing through this one function,
-/// so a conflict is marked, and a stage-zero entry
-///  replaced by a later one, the same way for the two.
+/// so a conflict is marked,
+/// and a stage-zero entry
+///  replaced by a later one,
+/// the same way for the two.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -389,7 +391,9 @@ fn unborn_request(repository: &Path) -> GitRequest {
 /// What:
 ///  Whether Git's answer to `unborn_request` says the head names no commit.
 /// Why:
-///   An unborn branch has no head to hold an entry: nothing is there, and a commit that owes an index update must not stop for it.
+///   An unborn branch has no head to hold an entry:
+/// nothing is there,
+/// and a commit that owes an index update must not stop for it.
 /// Only `rev-parse --verify --quiet`'s own answer for a name that is no object means that:
 ///  exit 1 with nothing on the standard error.
 /// A probe that failed for any other reason is a failure to know the head,
