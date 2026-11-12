@@ -50,6 +50,10 @@ struct ServerState {
     /// Every batch request received,
     /// answered or not.
     batches: usize,
+    /// The request line of every request received,
+    /// in the order they arrived,
+    /// so a control can check which URL a server was really asked for.
+    requests: Vec<String>,
 }
 
 /// A running LFS server on a loopback port.
@@ -129,7 +133,10 @@ fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState
     let Some((request_line, body)) = read_request(stream) else {
         return;
     };
-    if request_line.starts_with("POST /lfs/objects/batch ") {
+    state.lock().expect("state").requests.push(request_line.clone());
+    // A URL may carry a path of its own before `objects/batch`, which is what one control checks the
+    // mask against, so the route is found by what the call is and not by where it starts.
+    if request_line.contains("/objects/batch ") {
         {
             let mut seen = state.lock().expect("state");
             seen.batches += 1;
@@ -174,9 +181,12 @@ fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState
             })
             .collect();
         respond(stream, "200 OK", format!("{{\"transfer\":\"basic\",\"objects\":[{}]}}", objects.join(",")).as_str());
-    } else if request_line.starts_with("POST /lfs/locks/verify ") {
+    } else if request_line.contains("/locks/verify ") {
         respond(stream, "200 OK", "{\"ours\":[],\"theirs\":[]}");
-    } else if let Some(rest) = request_line.strip_prefix("PUT /lfs/objects/") {
+    } else if request_line.contains("/info/refs") {
+        // Git's own handshake, answered with a refusal, so the words Git prints name the URL it used.
+        respond(stream, "403 Forbidden", "the stand-in server refuses this repository");
+    } else if let Some(rest) = request_line.split("PUT ").nth(1).and_then(|rest| { return rest.split("/objects/").nth(1); }) {
         let oid: String = rest.split(' ').next().unwrap_or_default().to_owned();
         let seen: String = origin_main(origin);
         state.lock().expect("state").uploads.push(Upload { oid, bytes: body, origin_main: seen });
@@ -510,6 +520,81 @@ fn a_server_error_ends_a_typed_push_at_once() {
     assert!(!stderr.contains("secret"), "{stderr}");
     assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
     assert!(server.uploads().is_empty());
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  The words of an upload the server refused show the server,
+/// its port and the path,
+/// and hide the made-up user and password in front of the host and the made-up secrets written as a path
+///  segment and as a query value.
+/// Why:
+///   The owner's decision of 2026-11-12T10:32:10-05:00,
+///  "Mask recognised secrets only",
+///  made the recognition the whole protection of a relayed line,
+/// so this runs that line through the built wrapper,
+///  the real `git-lfs` and a local server,
+/// with a secret in every place an `lfs.url` can carry one.
+#[test]
+fn an_upload_refused_by_a_server_shows_its_url_and_hides_the_secrets_in_it() {
+    let fixture: Fixture = fixture("lfs-real-url-shown");
+    let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let url: String = format!("http://fakeuser:fakeone@127.0.0.1:{}/tokenvalue/lfs?token=fakequery", server.port);
+    git(&fixture, repo.as_path(), &["config", "lfs.url", url.as_str()]);
+    server.state.lock().expect("state").fail_batches = 1;
+    let pushed: Observed = push_main(&fixture, repo.as_path(), &[]);
+    let stderr: String = stderr_of(&pushed);
+    assert_ne!(pushed.code, Some(0), "{stderr}");
+    for secret in ["fakeuser", "fakeone", "tokenvalue", "fakequery"] {
+        assert!(!stderr.contains(secret), "{secret} reached the line: {stderr}");
+    }
+    assert!(
+        stderr.contains(&format!(
+            "Server error http://<credentials>@127.0.0.1:{}/<credentials>/lfs?token=<credentials> from HTTP 503",
+            server.port
+        )),
+        "{stderr}"
+    );
+    let asked: Vec<String> = server.state.lock().expect("state").requests.clone();
+    assert!(asked.iter().any(|line| { return line.contains("/tokenvalue/lfs"); }), "the server was asked for the URL that carries the secret: {asked:?}");
+    assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A push whose destination refuses shows that destination with its path as it was written,
+///  its user and password hidden and the made-up secret in the path hidden,
+/// and the server really was asked for that URL.
+/// Why:
+///   Git names the destination it could not reach,
+/// and a destination can carry a token in a path segment;
+/// the path a person reads is what the owner asked to keep.
+#[test]
+fn a_push_whose_destination_refuses_shows_it_and_hides_the_secret_in_its_path() {
+    let fixture: Fixture = fixture("lfs-real-destination-shown");
+    let Some((repo, origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let destination: String = format!("http://fakeuser:fakeone@127.0.0.1:{}/tokenvalue/owner/repo.git", server.port);
+    git(&fixture, repo.as_path(), &["config", "remote.origin.pushurl", destination.as_str()]);
+    let pushed: Observed = push_main(&fixture, repo.as_path(), &[]);
+    let stderr: String = stderr_of(&pushed);
+    assert_ne!(pushed.code, Some(0), "{stderr}");
+    for secret in ["fakeuser", "fakeone", "tokenvalue"] {
+        assert!(!stderr.contains(secret), "{secret} reached the line: {stderr}");
+    }
+    assert!(stderr.contains(&format!("127.0.0.1:{}", server.port)), "the server a person acts on is named: {stderr}");
+    assert!(stderr.contains("<credentials>/owner/repo.git"), "the path is shown and the secret in it is hidden: {stderr}");
+    let asked: Vec<String> = server.state.lock().expect("state").requests.clone();
+    assert!(
+        asked.iter().any(|line| { return line.contains("/tokenvalue/owner/repo.git/info/refs"); }),
+        "the server was asked for the URL that carries the secret: {asked:?}"
+    );
+    assert_eq!(published_main(&fixture, origin.as_path()), "absent", "{stderr}");
     drop(server);
     remove_settled(&fixture);
 }

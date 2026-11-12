@@ -101,14 +101,48 @@ so a token made of lowercase letters alone was copied through,
 and it masked only after the output was cut at the 4 MiB it keeps,
 so a credential whose `@` fell past the cut was relayed whole.
 The review of `1b8b6fad9d` (2026-11-11T16:01:40-05:00) reported both,
-and the wrapper now hides every path segment and every query and fragment key as well,
+so the wrapper then hid every path segment and every query and fragment key as well,
 keeping the scheme,
 host,
 port and separators,
-and masks the kept head of an output as a text that may go on,
+and masked the kept head of an output as a text that may go on,
 so an authority cut before its `@` is hidden whole.
-That answers the open question this file left for the owner (hide the whole path);
-the owner may veto it for the path's readability.
+
+### The owner overturned that on 2026-11-12: mask recognised secrets only
+
+The rule that hid the whole path,
+the query and the fragment was decided by the coordinating session with the veto open,
+and the owner answered on 2026-11-12T10:32:10-05:00
+(item 1.9 of `doc/handover/cli-git-rust-implementation.md`):
+"Mask recognised secrets only".
+A URL is shown as it was written,
+and only what a rule recognizes as a secret in it is replaced by `<credentials>`.
+The cost was stated in the question and stands:
+a secret of a shape the mask does not know is printed.
+
+The limits of the rule,
+which are the reason this file is still open:
+
+- a short secret,
+  shorter than 32 hexadecimal characters,
+  32 letters and digits with a digit,
+  or 24 base64 characters with both cases and a digit,
+  is printed unless its name or its place says what it is;
+- a secret made of ordinary words that names nothing
+  (a branch-like value under `ref`, for example) is printed,
+  because no rule can tell it from the label it reads as;
+- a secret in a host name is printed:
+  the host stays readable on purpose,
+  and no issuer puts a token there;
+- a credential of a shape no rule names
+  (a new token format of a host whose documentation the wrapper has not read) is printed.
+
+What the rule does catch is written in
+`package/git-policy/cli/SPEC.md`,
+"An LFS upload",
+with the documentation each shape comes from,
+and in `package/git-policy/cli/src/native/lfs/lfs_output_mask_shapes.rs`.
+
 `git-lfs`'s own `.git/lfs/logs/*.log` files are outside the wrapper and still hold the URL it used.
 
 ## Inventory of every copy (paths and counts; nothing edited or deleted)

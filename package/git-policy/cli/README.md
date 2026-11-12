@@ -390,18 +390,42 @@ Read-only commands,
   with `git-lfs`'s own words,
   so that you push again.
   The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the secrets
-   of every URL replaced by `<credentials>`:
-  the userinfo,
-  every path segment,
-  and every query and fragment key and value,
-  so a person still reads the scheme,
-  host and port and whether the URL carried a path or a query.
-  A segment,
-  key or value is hidden however plain it looks,
-  because a token made only of lowercase letters reads as a label;
-  the head of an output kept at its 4 MiB cap is hidden whole where a URL reaches that end,
+   of every URL replaced by `<credentials>`.
+  A URL is shown as it was written:
+  the scheme,
+  host,
+  port,
+  path,
+  query and fragment,
+  with the user information and only what is recognized as a secret replaced by `<credentials>`.
+  This is the owner's decision of 2026-11-12T10:32:10-05:00 ("Mask recognised secrets only",
+   item 1.9 of `doc/handover/cli-git-rust-implementation.md`).
+  What is recognized:
+  the token formats GitHub and GitLab document, by their prefix;
+  the names a signed URL gives its signature (`X-Amz-Signature`, `X-Amz-Credential`,
+   `X-Amz-Security-Token`, `X-Goog-Signature`, `sig`, `signature`, `token`, `access_token`,
+   `key` and their relatives,
+   case-insensitively);
+  the credential after a `Bearer`, `Basic` or `RemoteAuth` word;
+  and a run of random characters long enough to be a key
+   (32 hexadecimal characters, 32 letters and digits holding a digit,
+   or 24 base64 characters holding both cases and a digit),
+  each of them also once percent-encoded.
+  A path segment is read by the same names, which is how a lowercase path token such as `tokenvalue`
+   is hidden without a rule of its own.
+  The list,
+  with the documentation each shape comes from,
+  is in `src/native/lfs/lfs_output_mask_shapes.rs` and `SPEC.md`, "An LFS upload".
+  An LFS object's name (64 lowercase hexadecimal characters) is shown where an LFS server puts one,
+   because it is the thing a person needs of a failed upload.
+  The limit of the decision, stated with it:
+  a short secret,
+  a secret made of ordinary words,
+  a secret in a host name,
+  and a credential of a shape no rule knows are printed.
+  The head of an output kept at its 4 MiB cap is hidden whole where a URL reaches that end,
   since a user and a token cut before their `@` would read as a host.
-  The punctuation that ends a URL in a sentence stays after the mask.
+  The punctuation that ends a URL in a sentence stays after it.
   The owner's rule,
   quoted:
   "Never print or commit secrets".
@@ -3847,10 +3871,11 @@ Real Git keeps the normal standard streams.
 The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MONOCHROMATIC_VERBOSE=true`,
  and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words,
 which can name a remote.
- The userinfo of any URL in such a line,
-every path segment,
-and every query and fragment key and value are replaced by `<credentials>`,
+ The user information of any URL in such a line,
+and every part of it a rule recognizes as a secret,
+are replaced by `<credentials>`,
 and every control character by a space.
+ The list of what is recognized is in "Git LFS" above.
 
 ## Configuration
 
@@ -7364,9 +7389,10 @@ a warning line on the stream).
 Every line ends with `at_ms=<milliseconds since the epoch>`,
 the time of its event,
 on both paths.
-The userinfo of any URL in a line,
-every path segment,
-and every query and fragment key and value are replaced by `<credentials>`.
+The user information of any URL in a line,
+and every part of it a rule recognizes as a secret,
+are replaced by `<credentials>`
+(the list is in "Git LFS" above).
 
 The lines,
 each prefixed `monochromatic-git-policy-cli-service:` on standard error and identified as `monochromatic-git-policy-cli-service` in the journal:

@@ -9804,33 +9804,150 @@ The step:
   with the secrets of every URL replaced by `<credentials>` (standard output stays
   the caller's).
   What counts as a secret is one rule for every line the wrapper prints or journals,
-  in `src/native/lfs/lfs_output_mask.rs`:
-  the userinfo of the URL,
-  which ends at the last `@` of its authority,
-  and everything after that authority:
-  every path segment,
-  and every key and value of its query and of its fragment.
-  What a URL keeps is its scheme,
-  its host and its port,
-  and the separators `/`,
-  `?`,
-  `#`,
-  `&` and `=`,
-  so a person still reads which server answered,
-  and whether the URL carried a path,
-  a query or a fragment.
-  Nothing in the shape of a word tells a token from a name a person reads,
-  so a path segment,
-  a query key and a fragment key is hidden however plain it looks:
-  a token made of lowercase letters alone reads exactly as `lfs` or `objects` does.
-  This replaced the rule of `f1f08fbb35` (2026-11-11T09:20:48-05:00),
-  which kept a plain label and so copied a lowercase token through,
-  and it answers the question that rule left for the owner (a mask that hides more is the one that
-  cannot leak,
-  and the owner may veto it for the path's readability).
+  in `src/native/lfs/lfs_output_mask.rs` (which reads the parts of a URL) and
+  `src/native/lfs/lfs_output_mask_shapes.rs` (which recognizes a secret in a part):
+  a URL is shown as it was written,
+  and only what a rule recognizes as a secret in it is replaced by `<credentials>`.
+  The owner decided this on 2026-11-12T10:32:10-05:00
+  (item 1.9 of `doc/handover/cli-git-rust-implementation.md`,
+  "Mask recognised secrets only"),
+  overturning the rule of `5fb84145cf` that hid the user information,
+  the whole path,
+  the query and the fragment;
+  the cost was stated in the question that put it, and is the limit stated below.
+  The user information is hidden always,
+  because no byte of a URL tells a user's name from a token,
+  and the rest of the authority ends at the last `@` before it,
+  so an `@` in a path,
+  a query or a bracketed IPv6 host is left alone.
+  What is recognized as a secret,
+  each rule with the documentation its shape comes from:
+  - The token formats the Git hosts issue,
+  by the prefix its documentation fixes,
+  with the body length and alphabet of the rule set this repository's scanner ships
+  (`package/forbidden-strings/cli/data/builtin-rules.txt`,
+  every length a minimum so a token that grows keeps being recognized).
+  GitHub, from its credential types reference
+  (<https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-programmatic-access-to-your-organization/github-credential-types>):
+  `ghp_`,
+  `github_pat_`,
+  `gho_`,
+  `ghu_`,
+  `ghs_`,
+  `ghr_`.
+  GitLab, from its token overview's prefix table
+  (<https://docs.gitlab.com/security/tokens/#token-prefixes>):
+  `glpat-`,
+  `gloas-`,
+  `gldt-`,
+  `glrt-`,
+  `glrtr-`,
+  `glcbt-`,
+  `glptt-`,
+  `glft-`,
+  `glimt-`,
+  `glagent-`,
+  `glsoat-`,
+  and the runner registration prefix `GR1348941`.
+  A Gitea or Codeberg token has no prefix:
+  it is 40 hexadecimal characters
+  (`go-gitea/gitea` pull request 21959),
+  and the run rule below is what recognizes it.
+  - The names a signed URL gives its signature,
+  matched case-insensitively after percent decoding and with the separators a name is written with
+  (`-`,
+  `_`,
+  `.`) taken out,
+  so `api-key`,
+  `api_key` and `apiKey` are one name:
+  `token`,
+  `secret`,
+  `password`,
+  `passwd`,
+  `passphrase`,
+  `credential`,
+  `signature`,
+  `apikey`,
+  `accesskey`,
+  `accessid`,
+  `privatekey`,
+  `bearer`,
+  `authorization`,
+  `sastoken`,
+  `jwt`,
+  and `sig`,
+  `key`,
+  `auth`,
+  `sas`,
+  `jwt`,
+  `session` matched whole.
+  That covers AWS Signature Version 4's `X-Amz-Signature`,
+  `X-Amz-Credential` and `X-Amz-Security-Token`
+  (<https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html>),
+  the same parameters in a Cloudflare R2 presigned URL
+  (<https://developers.cloudflare.com/r2/api/s3/presigned-urls/>),
+  Google Cloud Storage's `X-Goog-Signature` and `X-Goog-Credential`
+  (<https://cloud.google.com/storage/docs/access-control/signed-urls>),
+  and Azure's shared access signature in `sig`
+  (<https://learn.microsoft.com/en-us/rest/api/storageservices/create-service-sas>).
+  A path segment is read by the same names,
+  which is what hides the lowercase path token the audit found:
+  the segment `tokenvalue` holds the stem `token`,
+  and no special case names it.
+  - A credential after a `Bearer`,
+  `Basic` or `RemoteAuth` word,
+  in the text between URLs and in a part of a URL,
+  at least 16 bytes of base64,
+  which is longer than the words of a sentence (`authentication` is 14)
+  and shorter than the base64 of `user:password` (20).
+  `RemoteAuth` is git-lfs's own scheme
+  (<https://github.com/git-lfs/git-lfs/blob/main/docs/api/authentication.md>).
+  - A run of random characters long enough to be a key:
+  32 hexadecimal characters, in either case,
+  which is 128 bits and the length of an MD5 hash and of a Gitea token;
+  32 letters and digits holding a digit;
+  or 24 base64 or base64url characters holding a lowercase letter,
+  an uppercase letter and a digit,
+  which is 144 bits and what keeps the rule off a hyphenated release name and off a camelCase
+  identifier with no digit in it.
+  - Each of the above once percent-decoded,
+  so `%2F` and `%40` spell what they stand for,
+  and a token written encoded is read as the token it is.
+  An LFS object's name is not a secret:
+  it is a hash of the object's own bytes,
+  and it is the one thing a person needs of a failed object upload,
+  so a whole path segment of exactly 64 lowercase hexadecimal characters is shown when it is the last
+  segment of the path or the segment after `objects`,
+  which is where a content-addressed store puts the object it names
+  (`docs/api/batch.md` of git-lfs,
+  and this repository's own server,
+  which answers a batch with `href` of `<origin>/<oid>`,
+  `package/config/lfs-r2-worker/src/batch.ts`).
+  The same 64 characters in a query,
+  in a fragment,
+  or in the middle of a path are hidden,
+  and a secret written as a whole path segment of exactly that shape in one of those two places is
+  shown with the object's name:
+  no rule can tell the two apart,
+  and the reading taken is that the object's name is what a person must see.
+  What is not recognized, and is therefore printed,
+  is the limit of that decision:
+  - a secret shorter than the run rules above,
+  such as a six-character access code;
+  - a secret made of ordinary words that names nothing,
+  such as `?ref=bluebird`,
+  because no rule can tell it from a branch name;
+  - a secret in a host name,
+  such as `https://<token>.example.invalid/`,
+  because the host is the one part of a URL a person must read and no issuer we know puts a secret
+  there;
+  - a credential of a shape no rule here names,
+  such as a new token format of a host whose documentation this package has not read;
+  - the first bytes of a token when an output is cut inside it,
+  shorter than the rule that would recognize it.
   The punctuation that ends a URL in a sentence,
   a comma or a closing bracket,
-  is printed after the mask,
+  is printed after whatever the URL showed,
   so a URL written in parentheses keeps its bracket.
   The owner's rule,
   quoted:
