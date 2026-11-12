@@ -9,10 +9,13 @@ export {
   type GitQuestion,
   ReviewGitError,
   type ReviewMaterial,
+  type ReviewReading,
+  ReviewReadingError,
   codeFilesAmong,
   materialOfAReview,
   outputOfGit,
   rangeOfABranch,
+  readingIn,
 } from './material-of-a-review.ts';
 export {
   CHANGE_DIFF_FILE_NAME,
@@ -24,12 +27,14 @@ export {
   REVIEW_BRANCH_PREFIX,
   REVIEW_BRIEF_FILE_NAME,
   REVIEW_FILE_NAME,
+  REVIEW_READING_FILE_NAME,
   REVIEW_RUN_PREFIX,
   branchOfAReview,
   briefFileOfAReview,
   changeNameOfBranch,
   diffFileOfAReview,
   reproductionsFolderOfAReview,
+  readingFileOfAReview,
   reviewFileOfAReview,
   reviewFolderOf,
   runNameOfAReview,
@@ -55,10 +60,11 @@ export {
 export {
   FIX_BRIEF_PLACEHOLDERS,
   FIX_BRIEF_WALL_SECONDS,
+  FIX_RUN_PREFIX,
   branchOfAFixFor,
   briefOfAFix,
-  changeNameOfAFixFor,
   fixBriefValues,
+  fixRunNameOf,
   placeholdersInTheFixBrief,
 } from './fix-brief.ts';
 export {

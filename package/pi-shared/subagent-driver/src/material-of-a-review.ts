@@ -112,6 +112,98 @@ export async function outputOfGit({
 }
 
 /**
+ What a review read, kept beside its own files so a fix that answers it knows where to start.
+
+ A review reads a commit, the ranges that named the change, and the source folder under it. The branch a review read moves on as
+ soon as anyone commits to it, and a fix started at the branch would answer a change nobody reviewed, so the commit itself is
+ what is kept.
+ */
+export type ReviewReading = {
+  /**
+   The change the review read.
+   */
+  readonly review: string;
+
+  /**
+   The commit under review, which a fix that answers it starts at.
+   */
+  readonly commit: string;
+
+  /**
+   What changed, each as `git diff` takes a range.
+   */
+  readonly ranges: readonly string[];
+
+  /**
+   The folder whose changes were reviewed, from the top of the checkout.
+   */
+  readonly source: string;
+};
+
+/**
+ A record of what a review read that cannot be read as one.
+ */
+export class ReviewReadingError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'ReviewReadingError';
+}
+
+/**
+ Reads what a review recorded it read.
+
+ @param shown - the record as it was written
+
+ @param file - the file the record came from, for the message
+
+ @returns what the review read
+
+ @throws ReviewReadingError when the record does not name a commit, its ranges and its source folder
+
+ @example
+ ```ts
+ const reading = readingIn({ shown: '{"review":"a","commit":"abc","ranges":["main...fix/a"],"source":"package/a/src"}', file: 'a/what-the-review-read.json', },);
+ ```
+ */
+export function readingIn({
+  shown,
+  file,
+}: {
+  readonly shown: string;
+  readonly file: string;
+}): ReviewReading {
+  /**
+   The record, of any shape.
+   */
+  const kept: unknown = JSON.parse(shown,);
+  if ((typeof kept) !== 'object') {
+    throw new ReviewReadingError(`${file} holds no JSON object naming what the review read`,);
+  }
+  /**
+   The fields the record was written with.
+   */
+  const fields = kept as Partial<Record<keyof ReviewReading, unknown>>;
+  if (
+    ((typeof fields.review) !== 'string') || ((typeof fields.commit) !== 'string')
+    || ((typeof fields.source) !== 'string') || (!Array.isArray(fields.ranges,))
+    || (!fields.ranges.every(function isARange(range,) {
+      return (typeof range) === 'string';
+    },))
+  ) {
+    throw new ReviewReadingError(
+      `${file} names no review, commit, ranges and source folder, so where a fix for it would start cannot be read`,
+    );
+  }
+  return {
+    review: fields.review,
+    commit: fields.commit,
+    ranges: fields.ranges as readonly string[],
+    source: fields.source,
+  };
+}
+
+/**
  Reads the range that names what a branch changed, from the integration branch that holds it.
 
  A branch the integration already merged has an empty `integration...branch`, and a reviewer given it reads nothing. Its own

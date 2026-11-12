@@ -17,11 +17,13 @@ import {
   NO_SYNTHETIC_HOST_LOAD,
   TemplatePlaceholderError,
   branchOfAFixFor,
+  branchOfAReview,
   briefOfAFix,
-  changeNameOfAFixFor,
   fixBriefValues,
+  fixRunNameOf,
   placeholdersIn,
   placeholdersInTheFixBrief,
+  runNameOfAReview,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -39,17 +41,17 @@ function aReview(): string {
 }
 
 /**
- The change the review read, which the fix is named after.
+ What the review read, as its own brief words it.
 
- @returns the change's name
+ @returns what was reviewed
 
  @example
  ```ts
- const change = aChange();
+ const subject = aSubject();
  ```
  */
-function aChange(): string {
-  return 'rewrite-the-gate';
+function aSubject(): string {
+  return `main...${aReview()} at commit ${aBase()}`;
 }
 
 /**
@@ -150,6 +152,7 @@ function aBriefRequest(): {
   readonly review: string;
   readonly branch: string;
   readonly base: string;
+  readonly subject: string;
   readonly packageFolder: string;
   readonly reviewsFolder: string;
   readonly checkoutFolder: string;
@@ -159,6 +162,7 @@ function aBriefRequest(): {
     review: aReview(),
     branch: branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },),
     base: aBase(),
+    subject: aSubject(),
     packageFolder: aPackageFolder(),
     reviewsFolder: aReviewsFolder(),
     checkoutFolder: aCheckoutFolder(),
@@ -184,13 +188,15 @@ await describe({
   name: '',
   children: [
     describe({
-      name: changeNameOfAFixFor.name,
+      name: fixRunNameOf.name,
       children: [
         it({
-          name: 'names a fix after the change a review read, without the round that wrote the review, and leaves a name without a round alone',
+          name: 'names a fix run of its own, saying which review it fixes and sharing nothing with that review\'s run',
           fn: async () => {
-            expect(changeNameOfAFixFor({ review: aReview(), },),).toBe(aChange(),);
-            expect(changeNameOfAFixFor({ review: aChange(), },),).toBe(aChange(),);
+            expect(fixRunNameOf({ review: aReview(), },),).toBe(`fix-of-${aReview()}`,);
+            // The review's own run and worktree are what a fix used to collide with.
+            expect(fixRunNameOf({ review: aReview(), },),).not.toBe(runNameOfAReview({ review: aReview(), },),);
+            expect(fixRunNameOf({ review: aReview(), },),).toContain(aReview(),);
           },
         },),
       ],
@@ -199,10 +205,15 @@ await describe({
       name: branchOfAFixFor.name,
       children: [
         it({
-          name: 'puts a fix on a branch of the change name under the namespace its caller names, so no branch name says which model reviewed it',
+          name: 'puts a fix on a branch of its own under the namespace its caller names, never on the reviewed change\'s branch or the review\'s own',
           fn: async () => {
             expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },),)
-              .toBe(`${aBranchPrefix()}${aChange()}`,);
+              .toBe(`${aBranchPrefix()}${aReview()}`,);
+            expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },),)
+              .not.toBe(branchOfAReview({ review: aReview(), },),);
+            // Two rounds of one change answer on two branches, so the second does not find the first one's commits.
+            expect(branchOfAFixFor({ review: `${aReview()}`, branchPrefix: aBranchPrefix(), },),)
+              .not.toBe(branchOfAFixFor({ review: 'rewrite-the-gate-round-134', branchPrefix: aBranchPrefix(), },),);
             expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },).toLowerCase(),)
               .not.toContain('kimi',);
             expect(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },).toLowerCase(),)
@@ -255,16 +266,17 @@ await describe({
           },
         },),
         it({
-          name: 'names the package, the branch, the commit, the worktree and the review\'s files, so an agent reads the review it answers',
+          name: 'names the package, the branch, the commit, what the review read, the worktree and the review\'s files, so an agent reads the review it answers',
           fn: async () => {
             expect(aBrief(),).toContain(aPackageFolder(),);
             expect(aBrief(),).toContain(branchOfAFixFor({ review: aReview(), branchPrefix: aBranchPrefix(), },),);
             expect(aBrief(),).toContain(aBase(),);
+            expect(aBrief(),).toContain(aSubject(),);
             expect(aBrief(),).toContain(join(
               aCheckoutFolder(),
               '.claude',
               'worktrees',
-              `pi-${aChange()}`,
+              `pi-${fixRunNameOf({ review: aReview(), },)}`,
             ),);
             expect(aBrief(),).toContain(join(aReviewsFolder(), aReview(), 'review.md',),);
             expect(aBrief(),).toContain(join(aReviewsFolder(), aReview(), 'change.diff',),);

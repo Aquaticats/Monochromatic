@@ -114,9 +114,16 @@ export {
 } from './checkout-of-a-command.ts';
 export {
   PI_LOAD_FAILURE_TEXT,
+  PI_START_CHECK_MEMORY_SECONDS,
+  type PiStartAnswer,
+  type PiStartCheckOutcome,
+  type PiStartCheckRecord,
+  type StartChecks,
   StartRefusedError,
+  answersIn,
   baseProblemIn,
   piProblemIn,
+  piStartCheckFileIn,
   nameProblemIn,
   promptProblemIn,
   startRefusalsIn,

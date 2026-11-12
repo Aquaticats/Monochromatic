@@ -30,68 +30,40 @@ export const FIX_BRIEF_PLACEHOLDERS: readonly string[] = [
   'WORKTREE',
   'BRANCH',
   'BASE',
+  'REVIEW_SUBJECT',
   'REVIEW_FILE',
   'DIFF_FILE',
   'REPRODUCTIONS_FOLDER',
 ];
 
 /**
- The middle of a review's name that says which round wrote it, which is not part of the change it reviewed.
+ The start of the run name of a fix, so a fix that answers the review `x` is the run `fix-of-x` and never the run of the review it
+ answers.
  */
-const ROUND_MARKER = '-round-';
+export const FIX_RUN_PREFIX = 'fix-of-';
 
 /**
- Reads whether text is one or more digits and nothing else.
+ Reads the run name of a fix agent, which says what it fixes and shares nothing with the review's own run: the two used to be
+ named alike, and their worktrees and units could not stand beside each other.
 
- @param text - the text to read
+ @param review - the review whose defects the fix answers, as `rewrite-the-gate-round-133`
 
- @returns whether it is digits alone
+ @returns the run's name, as `fix-of-rewrite-the-gate-round-133`
 
  @example
  ```ts
- const digits = isDigits('133');
+ const run = fixRunNameOf({ review: 'rewrite-the-gate-round-133', },);
  ```
  */
-function isDigits(text: string,): boolean {
-  if (text === '') {
-    return false;
-  }
-  for (const character of text) {
-    if ((character < '0') || (character > '9')) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- Reads the change a review read, which is the review's name without the round that wrote it.
-
- @param review - the review's name, as `fix-the-gate-round-133` or `fix-the-gate`
-
- @returns the change's name, which a fix agent's run and branch are named after
-
- @example
- ```ts
- const change = changeNameOfAFixFor({ review: 'fix-the-gate-round-133', },);
- ```
- */
-export function changeNameOfAFixFor({ review, }: { readonly review: string },): string {
-  /**
-   Where the round marker starts, or minus one when the name carries none.
-   */
-  const marker = review.lastIndexOf(ROUND_MARKER,);
-  if ((marker === (-1)) || (!isDigits(review.slice(marker + ROUND_MARKER.length,)))) {
-    return review;
-  }
-  return review.slice(
-    0,
-    marker,
-  );
+export function fixRunNameOf({ review, }: { readonly review: string },): string {
+  return `${FIX_RUN_PREFIX}${review}`;
 }
 
 /**
  Reads the branch a fix agent's work goes on.
+
+ The branch is named after the review it answers, never after the change alone: a change's own branch is one an agent already has
+ checked out, so Git would refuse the fix's worktree, and two rounds of review would otherwise answer on one branch.
 
  @param review - the review whose defects the fix answers
 
@@ -111,7 +83,7 @@ export function branchOfAFixFor({
   readonly review: string;
   readonly branchPrefix: string;
 }): string {
-  return `${branchPrefix}${changeNameOfAFixFor({ review, },)}`;
+  return `${branchPrefix}${review}`;
 }
 
 /**
@@ -121,7 +93,9 @@ export function branchOfAFixFor({
 
  @param branch - the branch the fix's work goes on
 
- @param base - the commit or branch the fix starts at
+ @param base - the commit the review read, which the fix starts at
+
+ @param subject - what the review read, in the review's own words, so the brief names the change it answers
 
  @param packageFolder - the package the fix changes, from the top of the checkout
 
@@ -135,13 +109,14 @@ export function branchOfAFixFor({
 
  @example
  ```ts
- const values = fixBriefValues({ review: 'fix-the-gate-round-133', branch: 'fix/fix-the-gate', base: 'abc123', packageFolder: 'package/a', reviewsFolder: '/reviews', checkoutFolder: '/repo', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
+ const values = fixBriefValues({ review: 'fix-the-gate-round-133', branch: 'fix/fix-the-gate-round-133', base: 'abc123', subject: 'main...fix/fix-the-gate at commit abc123', packageFolder: 'package/a', reviewsFolder: '/reviews', checkoutFolder: '/repo', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
  ```
  */
 export function fixBriefValues({
   review,
   branch,
   base,
+  subject,
   packageFolder,
   reviewsFolder,
   checkoutFolder,
@@ -150,6 +125,7 @@ export function fixBriefValues({
   readonly review: string;
   readonly branch: string;
   readonly base: string;
+  readonly subject: string;
   readonly packageFolder: string;
   readonly reviewsFolder: string;
   readonly checkoutFolder: string;
@@ -160,10 +136,11 @@ export function fixBriefValues({
     PACKAGE: packageFolder,
     WORKTREE: worktreeFolderOf({
       checkoutFolder,
-      runName: changeNameOfAFixFor({ review, },),
+      runName: fixRunNameOf({ review, },),
     },),
     BRANCH: branch,
     BASE: base,
+    REVIEW_SUBJECT: subject,
     REVIEW_FILE: reviewFileOfAReview({
       reviewsFolder,
       review,
@@ -186,7 +163,9 @@ export function fixBriefValues({
 
  @param branch - the branch the fix's work goes on
 
- @param base - the commit or branch the fix starts at
+ @param base - the commit the review read, which the fix starts at
+
+ @param subject - what the review read, as its brief words it
 
  @param packageFolder - the package the fix changes, from the top of the checkout
 
@@ -202,13 +181,14 @@ export function fixBriefValues({
 
  @example
  ```ts
- const brief = briefOfAFix({ review: 'fix-the-gate-round-133', branch: 'fix/fix-the-gate', base: 'abc123', packageFolder: 'package/a', reviewsFolder: '/reviews', checkoutFolder: '/repo', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
+ const brief = briefOfAFix({ review: 'fix-the-gate-round-133', branch: 'fix/fix-the-gate-round-133', base: 'abc123', subject: 'main...fix/fix-the-gate at commit abc123', packageFolder: 'package/a', reviewsFolder: '/reviews', checkoutFolder: '/repo', rulesFile: '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md', },);
  ```
  */
 export function briefOfAFix({
   review,
   branch,
   base,
+  subject,
   packageFolder,
   reviewsFolder,
   checkoutFolder,
@@ -217,6 +197,7 @@ export function briefOfAFix({
   readonly review: string;
   readonly branch: string;
   readonly base: string;
+  readonly subject: string;
   readonly packageFolder: string;
   readonly reviewsFolder: string;
   readonly checkoutFolder: string;
@@ -228,6 +209,7 @@ export function briefOfAFix({
       review,
       branch,
       base,
+      subject,
       packageFolder,
       reviewsFolder,
       checkoutFolder,

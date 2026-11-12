@@ -1,6 +1,6 @@
 /**
- Reading the fix brief writer's command line: which reviews, the commit a fix starts at, its branch namespace, its package, the
- batch list, and the refusals of an option that cannot be used.
+ Reading the fix brief writer's command line: which reviews, its branch namespace, its package, the batch list, and the refusals
+ of an option that cannot be used. No commit is read here: each review records the commit it read.
 
  @module
  */
@@ -47,7 +47,6 @@ function aCheckoutFolder(): string {
 function requiredWords(): readonly string[] {
   return [
     '--review=a-round-1',
-    '--base=abc123',
     '--branch-prefix=fix/',
     '--package=package/a',
   ];
@@ -60,7 +59,7 @@ await describe({
       name: parseFixBriefOptions.name,
       children: [
         it({
-          name: 'reads each review in the order given, the base, the branch namespace, the package, the folders a coordinator has always had, and a wall the scratch writers gave a fix',
+          name: 'reads each review in the order given, the branch namespace, the package, the folders a coordinator has always had, and a wall the scratch writers gave a fix',
           fn: async () => {
             expect(parseFixBriefOptions({
               commandLine: [
@@ -70,7 +69,6 @@ await describe({
               checkoutFolder: aCheckoutFolder(),
             },),).toEqual({
               reviews: ['a-round-1', 'b-round-2',],
-              base: 'abc123',
               branchPrefix: 'fix/',
               packageFolder: 'package/a',
               reviewsFolder: join(homedir(), ...DEFAULT_REVIEWS_FOLDER_IN_HOME,),
@@ -112,7 +110,7 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a command line naming no review, no base, no branch namespace or no package, and a wall that is not a number above zero',
+          name: 'refuses a command line naming no review, no branch namespace or no package, and a wall that is not a number above zero',
           fn: async () => {
             expect(() => parseFixBriefOptions({
               commandLine: [],
@@ -120,7 +118,6 @@ await describe({
             },),).toThrow(FixBriefOptionsError,);
             expect(() => parseFixBriefOptions({
               commandLine: [
-                '--base=abc123',
                 '--branch-prefix=fix/',
                 '--package=package/a',
               ],
@@ -129,15 +126,6 @@ await describe({
             expect(() => parseFixBriefOptions({
               commandLine: [
                 '--review=a',
-                '--branch-prefix=fix/',
-                '--package=package/a',
-              ],
-              checkoutFolder: aCheckoutFolder(),
-            },),).toThrow('--base is required',);
-            expect(() => parseFixBriefOptions({
-              commandLine: [
-                '--review=a',
-                '--base=abc123',
                 '--package=package/a',
               ],
               checkoutFolder: aCheckoutFolder(),
@@ -145,7 +133,6 @@ await describe({
             expect(() => parseFixBriefOptions({
               commandLine: [
                 '--review=a',
-                '--base=abc123',
                 '--branch-prefix=fix/',
               ],
               checkoutFolder: aCheckoutFolder(),

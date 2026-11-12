@@ -1,6 +1,7 @@
 /**
- Reads the command line of `write-a-fix-brief-for-each-review`: which reviews found the defects, the commit a fix starts at, the
- namespace its branch lives under, the package it changes, and where the briefs and their batch list go.
+ Reads the command line of `write-a-fix-brief-for-each-review`: which reviews found the defects, the namespace a fix's branch
+ lives under, the package it changes, and where the briefs and their batch list go. The commit a fix starts at is not an option:
+ each review records the commit it read, and a fix starts there.
 
  @module
  */
@@ -22,18 +23,13 @@ import {
  The command's command line, for the error message.
  */
 export const FIX_BRIEFS_USAGE: string =
-  'write-a-fix-brief-for-each-review --review=<name> [--review=<name>]... --base=<commit or branch> --branch-prefix=<prefix> '
+  'write-a-fix-brief-for-each-review --review=<name> [--review=<name>]... --branch-prefix=<prefix> '
     + '--package=<folder> [--reviews-folder=<folder>] [--runs-folder=<folder>] [--batch-file=<file>] [--wall-seconds=<n>]';
 
 /**
  The option that names one review whose defects a fix answers, which may be given once per review.
  */
 const REVIEW_OPTION = '--review=';
-
-/**
- The option that names the commit or branch every fix starts at.
- */
-const BASE_OPTION = '--base=';
 
 /**
  The option that names the namespace a fix branch lives under.
@@ -84,7 +80,7 @@ export class FixBriefOptionsError extends Error {
 
  @example
  ```ts
- throw fixBriefOptionsErrorOf('--base is required.',);
+ throw fixBriefOptionsErrorOf('--branch-prefix is required.',);
  ```
  */
 function fixBriefOptionsErrorOf(message: string,): Error {
@@ -99,11 +95,6 @@ export type FixBriefOptions = {
    The reviews whose defects the fixes answer, in the order given.
    */
   readonly reviews: readonly string[];
-
-  /**
-   The commit or branch every fix starts at.
-   */
-  readonly base: string;
 
   /**
    The namespace a fix branch lives under.
@@ -150,11 +141,11 @@ export type FixBriefOptions = {
 
  @returns what the fix brief writer was asked for
 
- @throws FixBriefOptionsError when no review, base, branch prefix or package is named, or a limit cannot be read
+ @throws FixBriefOptionsError when no review, branch prefix or package is named, or a limit cannot be read
 
  @example
  ```ts
- const options = parseFixBriefOptions(['--review=a', '--base=abc123', '--branch-prefix=fix/', '--package=package/a',], '/repo',);
+ const options = parseFixBriefOptions(['--review=a', '--branch-prefix=fix/', '--package=package/a',], '/repo',);
  ```
  */
 export function parseFixBriefOptions({
@@ -181,18 +172,6 @@ export function parseFixBriefOptions({
   if (reviews.length === 0) {
     throw fixBriefOptionsErrorOf(`--review is required at least once.\nUsage: ${FIX_BRIEFS_USAGE}`,);
   }
-  /**
-   The commit or branch every fix starts at.
-   */
-  const base = requiredText({
-    value: optionIn({
-      commandLine,
-      option: BASE_OPTION,
-    },),
-    name: 'base',
-    usage: FIX_BRIEFS_USAGE,
-    errorOf: fixBriefOptionsErrorOf,
-  },);
   /**
    The namespace a fix branch lives under.
    */
@@ -247,7 +226,6 @@ export function parseFixBriefOptions({
   },);
   return {
     reviews,
-    base,
     branchPrefix,
     packageFolder,
     reviewsFolder: (reviewsFolder === '')

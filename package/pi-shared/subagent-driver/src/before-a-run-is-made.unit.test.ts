@@ -25,10 +25,12 @@ import {
   ENTRY_REASON_CHARACTERS,
   type CommandOutput,
   type GitRunner,
+  PI_START_CHECK_MEMORY_SECONDS,
   baseProblemIn,
   checkoutFolderOf,
   nameProblemIn,
   piProblemIn,
+  piStartCheckFileIn,
   promptProblemIn,
   reasonInFailedStart,
   startRefusalsIn,
@@ -123,16 +125,49 @@ await describe({
           },
         },),
         it({
-          name: 'takes a folder a worktree marks with a file for a checkout, which is what a linked worktree carries',
+          name: 'answers the repository a linked worktree belongs to, so a command finds the same checkout in the worktree and in the repository',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             A worktree, whose marker is a file naming the checkout it was made from.
+             The repository the worktree was made from.
+             */
+            const repository = join(folder.path, 'checkout',);
+            /**
+             This worktree's Git directory, inside the repository's own.
+             */
+            const worktreeGitDirectory = join(repository, '.git', 'worktrees', 'pi-a',);
+            await mkdir(worktreeGitDirectory, { recursive: true, },);
+            await writeFile(join(worktreeGitDirectory, 'commondir',), '../..\n',);
+            /**
+             A worktree, whose marker is a file naming the Git directory it was given.
              */
             const worktree = join(folder.path, 'pi-a',);
             await mkdir(join(worktree, 'package',), { recursive: true, },);
-            await writeFile(join(worktree, CHECKOUT_MARKER,), 'gitdir: /checkout/.git/worktrees/pi-a\n',);
-            expect(await checkoutFolderOf({ from: join(worktree, 'package',), },),).toBe(worktree,);
+            await writeFile(join(worktree, CHECKOUT_MARKER,), `gitdir: ${worktreeGitDirectory}\n`,);
+            expect(await checkoutFolderOf({ from: join(worktree, 'package',), },),).toBe(repository,);
+            // The repository itself answers the same folder, which is what makes every command agree wherever it is run.
+            expect(await checkoutFolderOf({ from: join(repository, 'package',), },),).toBe(join(repository,),);
+          },
+        },),
+        it({
+          name: 'answers the repository of a worktree whose Git directory names no shared one, from the place Git keeps it',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The repository the worktree was made from.
+             */
+            const repository = join(folder.path, 'checkout',);
+            /**
+             A worktree, whose Git directory names no shared one.
+             */
+            const worktree = join(folder.path, 'pi-b',);
+            await mkdir(join(repository, '.git', 'worktrees', 'pi-b',), { recursive: true, },);
+            await mkdir(worktree, { recursive: true, },);
+            await writeFile(
+              join(worktree, CHECKOUT_MARKER,),
+              `gitdir: ${join(repository, '.git', 'worktrees', 'pi-b',)}\n`,
+            );
+            expect(await checkoutFolderOf({ from: worktree, },),).toBe(repository,);
           },
         },),
         it({
@@ -318,7 +353,7 @@ await describe({
             /**
              The reasons one start that can work for none of them is refused.
              */
-            const refusals = await startRefusalsIn({
+            const { refusals, } = await startRefusalsIn({
               promptFile: join(folder.path, 'no-prompt.md',),
               git: answering({
                 status: 1,
@@ -343,12 +378,13 @@ await describe({
               runName: 'copy-route',
               sessionPath: '/bin',
               home: folder.path,
+              runsFolder: folder.path,
             },);
             expect(refusals.length,).toBe(3,);
           },
         },),
         it({
-          name: 'refuses nothing when every check passes',
+          name: 'refuses nothing when every check passes, and answers no warning either',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -375,7 +411,57 @@ await describe({
               runName: 'copy-route',
               sessionPath: '/bin',
               home: folder.path,
-            },),).toEqual([],);
+              runsFolder: folder.path,
+            },),).toEqual({
+              refusals: [],
+              warnings: [],
+            },);
+          },
+        },),
+        it({
+          name: 'answers a Pi this check killed as a warning beside the passes, never as a refusal',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A prompt file a run could be given.
+             */
+            const prompt = join(folder.path, 'a-prompt.md',);
+            await writeFile(prompt, 'Answer with one line.\n',);
+            /**
+             What the start settled.
+             */
+            const checks = await startRefusalsIn({
+              promptFile: prompt,
+              git: answering({
+                status: 0,
+                stdout: 'a-commit\n',
+                stderr: '',
+              },).git,
+              checkoutFolder: folder.path,
+              base: 'main',
+              run: async function answered(request,) {
+                return (request.command === 'pi')
+                  ? {
+                    status: (-1),
+                    stdout: '',
+                    stderr: '',
+                    problem: 'Command failed: pi --help',
+                    killedByItsOwnBound: true,
+                  }
+                  : {
+                    status: 0,
+                    stdout: 'not-found\n',
+                    stderr: '',
+                  };
+              },
+              runName: 'copy-route',
+              sessionPath: '/bin',
+              home: folder.path,
+              runsFolder: folder.path,
+            },);
+            expect(checks.refusals,).toEqual([],);
+            expect(checks.warnings.length,).toBe(1,);
+            expect(checks.warnings[0],).toContain('own bound',);
           },
         },),
       ],
@@ -437,7 +523,7 @@ await describe({
           },
         },),
         it({
-          name: 'names a Pi that would not start at all, saying what it answered',
+          name: 'names a Pi that failed, and what it printed, which is the refusal a start with a broken Pi answers with',
           fn: async () => {
             expect((await piProblemIn({
               run: async function answered() {
@@ -451,6 +537,195 @@ await describe({
               home: '/home/a',
               folder: '/repo',
             },)).problem,).toContain('error while loading shared libraries',);
+          },
+        },),
+        it({
+          name: 'asks Pi once and answers the next start in the same session, home and checkout from what it kept',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             How many times Pi was asked.
+             */
+            const asked: string[] = [];
+            /**
+             What Pi answers, which is its help and a load failure nothing found.
+             */
+            const run = async function answered() {
+              asked.push('pi',);
+              return {
+                status: 0,
+                stdout: 'Usage: pi\n',
+                stderr: '',
+              };
+            };
+            expect(await piProblemIn({
+              run,
+              sessionPath: '/session/bin',
+              home: '/home/a',
+              folder: '/repo',
+              runsFolder: folder.path,
+            },),).toEqual({},);
+            expect(await piProblemIn({
+              run,
+              sessionPath: '/session/bin',
+              home: '/home/a',
+              folder: '/repo',
+              runsFolder: folder.path,
+            },),).toEqual({},);
+            expect(asked.length,).toBe(1,);
+          },
+        },),
+        it({
+          name: 'asks again when the answer it kept is older than the memory, or another session, home or checkout asks',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             How many times Pi was asked.
+             */
+            const asked: string[] = [];
+            const run = async function answered() {
+              asked.push('pi',);
+              return {
+                status: 0,
+                stdout: 'Usage: pi\n',
+                stderr: '',
+              };
+            };
+            /**
+             An answer asked just past the memory, which no start may reuse.
+             */
+            const tooOld = new Date(Date.now() - ((PI_START_CHECK_MEMORY_SECONDS + 1) * 1_000),).toISOString();
+            await writeFile(
+              piStartCheckFileIn({ runsFolder: folder.path, },),
+              JSON.stringify({
+                askedAt: tooOld,
+                outcome: 'starts',
+                sessionPath: '/session/bin',
+                home: '/home/a',
+                folder: '/repo',
+              },),
+            );
+            await piProblemIn({
+              run,
+              sessionPath: '/session/bin',
+              home: '/home/a',
+              folder: '/repo',
+              runsFolder: folder.path,
+            },);
+            // Another session, another home and another checkout are other questions, whatever the record says.
+            await piProblemIn({
+              run,
+              sessionPath: '/other/bin',
+              home: '/home/a',
+              folder: '/repo',
+              runsFolder: folder.path,
+            },);
+            await piProblemIn({
+              run,
+              sessionPath: '/session/bin',
+              home: '/home/b',
+              folder: '/repo',
+              runsFolder: folder.path,
+            },);
+            await piProblemIn({
+              run,
+              sessionPath: '/session/bin',
+              home: '/home/a',
+              folder: '/other-repo',
+              runsFolder: folder.path,
+            },);
+            expect(asked.length,).toBe(4,);
+          },
+        },),
+        it({
+          name: 'answers a Pi this check killed as a warning naming the bound, and keeps that so no start waits on it twice',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             How many times Pi was asked.
+             */
+            const asked: string[] = [];
+            const run = async function answered() {
+              asked.push('pi',);
+              return {
+                status: (-1),
+                stdout: '',
+                stderr: '',
+                problem: 'Command failed: pi --help',
+                killedByItsOwnBound: true,
+              };
+            };
+            /**
+             What the first start is told.
+             */
+            const first = await piProblemIn({
+              run,
+              sessionPath: '/session/bin',
+              home: '/home/a',
+              folder: '/repo',
+              runsFolder: folder.path,
+            },);
+            expect(first.problem,).toBeUndefined();
+            expect(first.warning,).toContain('own bound',);
+            expect(first.warning,).toContain('this check\'s own bound',);
+            /**
+             What the start after it is told, which asks nothing.
+             */
+            const second = await piProblemIn({
+              run,
+              sessionPath: '/session/bin',
+              home: '/home/a',
+              folder: '/repo',
+              runsFolder: folder.path,
+            },);
+            expect(second.problem,).toBeUndefined();
+            expect(second.warning,).toContain('killed',);
+            expect(asked.length,).toBe(1,);
+          },
+        },),
+        it({
+          name: 'answers a Pi killed by a signal from outside this check as a warning that names the signal',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             What one start is told about a Pi somebody else killed.
+             */
+            const answer = await piProblemIn({
+              run: async function answered() {
+                return {
+                  status: (-1),
+                  stdout: '',
+                  stderr: '',
+                  problem: 'Command failed: pi --help',
+                  signal: 'SIGTERM',
+                };
+              },
+              sessionPath: '/session/bin',
+              home: '/home/a',
+              folder: '/repo',
+              runsFolder: folder.path,
+            },);
+            expect(answer.problem,).toBeUndefined();
+            expect(answer.warning,).toContain('SIGTERM',);
+            expect(answer.warning,).toContain('from outside this check',);
+          },
+        },),
+        it({
+          name: 'names a Pi that never ran at all, which is neither a status nor a signal',
+          fn: async () => {
+            expect((await piProblemIn({
+              run: async function answered() {
+                return {
+                  status: (-1),
+                  stdout: '',
+                  stderr: '',
+                  problem: 'spawn pi ENOENT',
+                };
+              },
+              sessionPath: '/bin',
+              home: '/home/a',
+              folder: '/repo',
+            },)).problem,).toContain('spawn pi ENOENT',);
           },
         },),
       ],

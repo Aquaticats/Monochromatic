@@ -23,6 +23,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  answerModelError,
   type CommandRequest,
   type ConnectionToPi,
   COMMAND_ANSWER_MILLISECONDS,
@@ -31,7 +32,9 @@ import {
   type PiRecord,
   POLL_MILLISECONDS,
   type RecordOfPiRun,
+  type RetryWaiting,
   startRecordOfPiRun,
+  type WatchRequest,
   watchUntilEnded,
 } from '../dist/final/node/index.mjs';
 
@@ -639,6 +642,47 @@ await describe({
         expect(summary.retries,).toBe(0,);
         expect(summary.modelError,).toBe(FAILURE_TEXT,);
         expect(summary.modelErrorAttempts,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'sends no attempt that fell due once the run wall clock had passed, which is the moment a look can straddle',
+      fn: async () => {
+        await using run = await startRunThatFailed({ atWork: false, },);
+        /**
+         The messages the watch sent, which an attempt sent past the run's own clock would join.
+         */
+        const sent: string[] = [];
+        /**
+         Where the watch stands: one attempt owed to the failure, and due now.
+         */
+        const retry: RetryWaiting = {
+          owed: {
+            at: Date.now() - 1,
+            problem: FAILURE_TEXT,
+          },
+        };
+        /**
+         The watch, whose run's wall clock has already passed: a look reads the limits and then answers the error it found, and
+         a folder read that straddles the deadline is what let one go on 2026-11-12.
+         */
+        const watch: WatchRequest = {
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            milliseconds: HOLD_MILLISECONDS,
+            retryCap: 3,
+          },),
+          inbox: run.inbox,
+          deadline: Date.now() - 1,
+        };
+        expect(await answerModelError({
+          watch,
+          retry,
+        },),).toBe('wall-clock',);
+        expect(sent,).toEqual([],);
+        // A prompt nobody sent is no attempt the run made.
+        expect(run.record.retriesTaken(),).toBe(0,);
       },
     },),
     it({

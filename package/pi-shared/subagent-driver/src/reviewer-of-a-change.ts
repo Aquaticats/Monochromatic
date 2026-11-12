@@ -75,6 +75,12 @@ export const REVIEW_BRIEF_FILE_NAME = 'brief.md';
 export const REVIEW_FILE_NAME = 'review.md';
 
 /**
+ The file that records what a review read: the commit, the ranges and the source folder it was given. A fix that answers the
+ review starts at that commit, which is the only place it can be read from once the branch has moved on.
+ */
+export const REVIEW_READING_FILE_NAME = 'what-the-review-read.json';
+
+/**
  Reads the change name a branch is reviewed as: the branch without the type that says what kind of work it is.
 
  @param branch - the branch, as `fix/rewrite-the-gate` or `feat/a-batch-in-a-unit`
@@ -242,6 +248,36 @@ export function reproductionsFolderOfAReview({
       review,
     },),
     REPRODUCTIONS_FOLDER_NAME,
+  );
+}
+
+/**
+ Reads the file that records what one review read.
+
+ @param reviewsFolder - folder that holds one folder per review
+
+ @param review - the change the review reads
+
+ @returns the file's path
+
+ @example
+ ```ts
+ const file = readingFileOfAReview({ reviewsFolder: '/reviews', review: 'a', },);
+ ```
+ */
+export function readingFileOfAReview({
+  reviewsFolder,
+  review,
+}: {
+  readonly reviewsFolder: string;
+  readonly review: string;
+}): string {
+  return join(
+    reviewFolderOf({
+      reviewsFolder,
+      review,
+    },),
+    REVIEW_READING_FILE_NAME,
   );
 }
 

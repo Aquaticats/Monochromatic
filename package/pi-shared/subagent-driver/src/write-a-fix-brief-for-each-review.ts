@@ -11,6 +11,7 @@
 
 import {
   access,
+  readFile,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -21,14 +22,20 @@ import { errorCodeOf, } from './error-code-of.ts';
 import {
   branchOfAFixFor,
   briefOfAFix,
-  changeNameOfAFixFor,
+  fixRunNameOf,
 } from './fix-brief.ts';
+import {
+  type ReviewReading,
+  ReviewReadingError,
+  readingIn,
+} from './material-of-a-review.ts';
 import {
   FIX_BRIEFS_USAGE,
   parseFixBriefOptions,
 } from './parse-fix-brief-options.ts';
 import {
   diffFileOfAReview,
+  readingFileOfAReview,
   reviewFileOfAReview,
 } from './reviewer-of-a-change.ts';
 import { rulesFileIn, } from './rules-every-pi-brief-carries.ts';
@@ -95,6 +102,53 @@ async function isThere(path: string,): Promise<boolean> {
 }
 
 /**
+ Reads what one review recorded it read.
+
+ @param review - the review whose defects the fix answers
+
+ @param reviewsFolder - folder that holds one folder per review
+
+ @returns what the review read, or nothing when it recorded nothing readable
+
+ @example
+ ```ts
+ const reading = await readingOfAReview({ review: 'a-round-1', reviewsFolder: '/reviews', },);
+ ```
+ */
+async function readingOfAReview({
+  review,
+  reviewsFolder,
+}: {
+  readonly review: string;
+  readonly reviewsFolder: string;
+}): Promise<{ readonly reading?: ReviewReading }> {
+  /**
+   The file that records what the review read.
+   */
+  const file = readingFileOfAReview({
+    reviewsFolder,
+    review,
+  },);
+  try {
+    return { reading: readingIn({
+      shown: await readFile(
+        file,
+        'utf8',
+      ),
+      file,
+    },), };
+  }
+  catch (error) {
+    // A review that recorded nothing, or recorded something no reader can follow, gives a fix no commit to start at; the
+    // caller says so in one line and the other reviews go on.
+    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (error instanceof ReviewReadingError) || (error instanceof SyntaxError)) {
+      return {};
+    }
+    throw error;
+  }
+}
+
+/**
  The batch entries the briefs make, in the order the reviews were given.
  */
 const entries: BatchEntry[] = [];
@@ -103,18 +157,32 @@ const entries: BatchEntry[] = [];
  */
 const lines: string[] = [];
 /**
- How many reviews got no brief because their own files are not there, counted as its work goes.
+ How many reviews got no brief, counted as its work goes.
  */
 const counts = { withoutAReview: 0, };
 /* oxlint-disable eslint/no-await-in-loop -- one review after another, each read before its brief is written, so a missing file
    names the review it belongs to. See doc/lint/sequential-awaits.md. */
 for (const review of options.reviews) {
   /**
-   The run and branch the fix lives on, named after the change the review read.
+   The run and branch the fix lives on, named after the review it answers.
    */
-  const fixName = changeNameOfAFixFor({ review, },);
+  const fixName = fixRunNameOf({ review, },);
   /**
-   The files the brief sends the agent to.
+   What the review recorded it read, which is where the fix starts.
+   */
+  const { reading, } = await readingOfAReview({
+    review,
+    reviewsFolder: options.reviewsFolder,
+  },);
+  /**
+   The file that records what the review read, which a fix starts at.
+   */
+  const readingFile = readingFileOfAReview({
+    reviewsFolder: options.reviewsFolder,
+    review,
+  },);
+  /**
+   The files the brief sends the agent to, with the record of what it read.
    */
   const wanted: readonly string[] = [
     reviewFileOfAReview({
@@ -125,6 +193,7 @@ for (const review of options.reviews) {
       reviewsFolder: options.reviewsFolder,
       review,
     },),
+    readingFile,
   ];
   /**
    The files among them that are not there.
@@ -140,6 +209,11 @@ for (const review of options.reviews) {
     counts.withoutAReview += 1;
     continue;
   }
+  if (reading === undefined) {
+    lines.push(`${fixName}: ${readingFile} names no commit, ranges and source folder, so where a fix would start cannot be read`,);
+    counts.withoutAReview += 1;
+    continue;
+  }
   /**
    The branch the fix's work goes on.
    */
@@ -147,6 +221,10 @@ for (const review of options.reviews) {
     review,
     branchPrefix: options.branchPrefix,
   },);
+  /**
+   What the review read, in its own words, which the brief names so a fix answers the change that was reviewed.
+   */
+  const subject = `${reading.ranges.join(' and ',)} at commit ${reading.commit}`;
   /**
    The file the brief is written to, which the batch list's entry reads.
    */
@@ -159,7 +237,8 @@ for (const review of options.reviews) {
     briefOfAFix({
       review,
       branch,
-      base: options.base,
+      base: reading.commit,
+      subject,
       packageFolder: options.packageFolder,
       reviewsFolder: options.reviewsFolder,
       checkoutFolder,
@@ -170,11 +249,11 @@ for (const review of options.reviews) {
   entries.push({
     name: fixName,
     branch,
-    base: options.base,
+    base: reading.commit,
     prompt: promptFile,
     wall: options.wallSeconds,
   },);
-  lines.push(`${fixName}: brief at ${promptFile}; branch ${branch} at ${options.base}`,);
+  lines.push(`${fixName}: brief at ${promptFile}; branch ${branch} at ${reading.commit}, what the review read: ${subject}`,);
 }
 /* oxlint-enable eslint/no-await-in-loop */
 if (options.batchFile !== undefined) {

@@ -206,7 +206,10 @@ catch (error) {
  Every other reason this start is refused, which is read before anything is made: a start that was refused leaves no worktree, no
  run folder and no unit, and spends no provider slot on a run that could not have worked.
  */
-const refusals = await startRefusalsIn({
+const {
+  refusals,
+  warnings,
+} = await startRefusalsIn({
   promptFile: options.promptFile,
   git,
   checkoutFolder: options.checkoutFolder,
@@ -215,9 +218,15 @@ const refusals = await startRefusalsIn({
   runName: options.name,
   sessionPath,
   home: env.HOME ?? '',
+  runsFolder: options.runsFolder,
 },);
 if (refusals.length > 0) {
   throw new StartRefusedError(`${options.name} was not started:\n${refusals.join('\n')}`,);
+}
+// A question this start could not get an answer to is no reason to refuse a run, and saying nothing about it would hide that the
+// session's extensions were never checked.
+for (const warning of warnings) {
+  console.error(`${options.name}: ${warning}`,);
 }
 
 if (!readOnlyInMain) {

@@ -15,11 +15,11 @@ export const FIX_THE_DEFECTS_A_REVIEW_FOUND_TEMPLATE: string = `Read \`@RULES@\`
 
 Never generate synthetic host load in any session or subagent: no \`stress-ng\`, busy loops, \`--stress-count\`, or repeated full test runs; cap the test's own container (\`--cpus\` sized to the test) instead.
 
-You are working on \`@PACKAGE@\` in the worktree \`@WORKTREE@\`, on branch \`@BRANCH@\`. It starts at \`@BASE@\`, the commit a review just read. Run every command and make every edit inside that worktree.
+You are working on \`@PACKAGE@\` in the worktree \`@WORKTREE@\`, on branch \`@BRANCH@\`. It starts at \`@BASE@\`, the commit the review read. Run every command and make every edit inside that worktree.
 
 ## The task
 
-A review of \`@BASE@\` reported defects. Its text is \`@REVIEW_FILE@\`, the change it read is \`@DIFF_FILE@\` beside it, and its reproduction scripts are in \`@REPRODUCTIONS_FOLDER@\` beside it. Read all three.
+A review of \`@REVIEW_SUBJECT@\` reported defects. Its text is \`@REVIEW_FILE@\`, the change it read is \`@DIFF_FILE@\` beside it, and its reproduction scripts are in \`@REPRODUCTIONS_FOLDER@\` beside it. Read all three.
 
 The project's requirements the review judged against, which also bind your fix: never discard user data; a commit never fails where real Git would succeed; nothing waits forever; no command waits on another agent's command; the code cleans up after itself.
 

@@ -55,6 +55,24 @@ await describe({
         expect(Date.now() - startedAt,).toBeLessThan(LONG_SLEEP_SECONDS * 1_000,);
         expect(output.status,).toBe(-1,);
         expect(output.problem,).toBeDefined();
+        // The bound is named as what ended it, so a caller never reads a command its own bound killed as one that failed.
+        expect(output.killedByItsOwnBound,).toBe(true,);
+        expect(output.signal,).toBe('SIGKILL',);
+      },
+    },),
+    it({
+      name: 'answers a signal from outside as the signal that ended the command, never as its own bound',
+      fn: async () => {
+        /**
+         What a command that is signalled by something else leaves.
+         */
+        const output = await runCommandWithChildProcess({
+          command: 'sh',
+          words: ['-c', 'kill -TERM $$',],
+        },);
+        expect(output.status,).toBe(-1,);
+        expect(output.signal,).toBe('SIGTERM',);
+        expect(output.killedByItsOwnBound,).toBeUndefined();
       },
     },),
     it({

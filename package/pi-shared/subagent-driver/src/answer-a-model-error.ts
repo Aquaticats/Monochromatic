@@ -242,7 +242,8 @@ function noteRetryAnswer({
  A failure another attempt may fix is waited out and then answered with a continuation prompt: Pi drops an assistant message
  that ended in an error when it builds the request for the model, so the attempt reads the last state the model produced
  successfully. The delay grows with each attempt and is cut to the time the run has left, so no attempt is waited for past the
- run's own wall clock. The attempt also waits for Pi to rest: a prompt handed to a Pi that is at work is queued behind that run
+ run's own wall clock, and an attempt that falls due once that clock has passed is not sent at all. The attempt also waits for
+ Pi to rest: a prompt handed to a Pi that is at work is queued behind that run
  or refused, and the error it answers may yet be recovered by that run's own reply. For the same reason nothing is decided on the
  failure while Pi is at work. Once the retries a run allows have gone, and Pi is at rest, the run ends on the error, as it ended
  before any of this existed.
@@ -307,6 +308,13 @@ export async function answerModelError(
     }
     else if (Date.now() < owed.at) {
       return 'still-running';
+    }
+    else if (millisecondsLeftUntil(watch.deadline,) === 0) {
+      // A look reads the run's limits and then answers the error it found, and the delay owed to that error is cut to the time
+      // the run had left, so an attempt falls due at the very moment the run's wall clock passes. A prompt sent then starts a
+      // turn no bound covers, and the run ends on its wall clock at this same look, so the attempt is not sent. On 2026-11-12 a
+      // look whose folder read straddled that moment sent one, and the run's own test saw a retry it never reached.
+      return 'wall-clock';
     }
     else {
       return await answerWithAnotherAttempt({
