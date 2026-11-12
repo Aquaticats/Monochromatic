@@ -35,6 +35,7 @@ import {
   type GitRunner,
   finishedTurnsIn,
   kindOfRun,
+  WORKTREE_ADD_TIMEOUT_MILLISECONDS,
   makeWorktree,
   nextRunNumber,
   parseWorktreeLauncherOptions,
@@ -84,18 +85,19 @@ function answered(status: number, stdout = '',): CommandOutput {
  */
 function standInGit(answers: readonly CommandOutput[],): {
   readonly git: GitRunner;
-  readonly asked: { readonly words: readonly string[]; readonly folder: string }[];
+  readonly asked: { readonly words: readonly string[]; readonly folder: string; readonly timeoutMilliseconds?: number }[];
 } {
   /**
    What git was asked.
    */
-  const asked: { readonly words: readonly string[]; readonly folder: string }[] = [];
+  const asked: { readonly words: readonly string[]; readonly folder: string; readonly timeoutMilliseconds?: number }[] = [];
   return {
     asked,
     git: async function gitIn(request,) {
       asked.push({
         words: request.words,
         folder: request.folder,
+        ...(request.timeoutMilliseconds === undefined ? {} : { timeoutMilliseconds: request.timeoutMilliseconds, }),
       },);
       return answers[Math.min(asked.length, answers.length) - 1] ?? answered(0,);
     },
@@ -457,6 +459,88 @@ await describe({
             },),).toContain(`new branch feat/b at ${base}`,);
             expect(fresh.asked[1]?.words,).toContain('-b',);
             expect(fresh.asked[1]?.words.at(-1),).toBe(base,);
+          },
+        },),
+        it({
+          name: 'tries a worktree add again after a killed attempt, clearing what that attempt left, and asks for a bound of its own',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A git whose first add is killed and whose second succeeds.
+             */
+            const git = standInGit([
+              answered(1, ''),
+              {
+                status: (-1),
+                stdout: '',
+                stderr: '',
+                problem: 'did not answer within 120000 milliseconds',
+              },
+              answered(0, ''),
+              answered(0, 'refs/heads/feat/a\n'),
+              answered(0, ''),
+            ],);
+            /**
+             The worktree the second attempt makes.
+             */
+            const worktree = join(folder.path, '.claude', 'worktrees', 'pi-a',);
+            /**
+             The line the launcher prints.
+             */
+            const line = await makeWorktree({
+              git: git.git,
+              checkoutFolder: folder.path,
+              worktree,
+              branch: 'feat/a',
+              base: 'main',
+            },);
+            expect(line,).toContain('new branch feat/a at main',);
+            // The killed add is followed by the removal of what it left, and then by the add that worked.
+            expect(git.asked.map(function question(ask,) {
+              return ask.words.join(' ',);
+            },),).toEqual([
+              'rev-parse --verify --quiet refs/heads/feat/a',
+              `worktree add -b feat/a ${worktree} main`,
+              `worktree remove --force ${worktree}`,
+              // The killed attempt made the branch, so the second attempt takes it rather than asking for a new one.
+              'rev-parse --verify --quiet refs/heads/feat/a',
+              `worktree add ${worktree} feat/a`,
+            ],);
+            expect(git.asked[1]?.timeoutMilliseconds,).toBe(WORKTREE_ADD_TIMEOUT_MILLISECONDS,);
+            expect(git.asked[2]?.timeoutMilliseconds,).toBe(WORKTREE_ADD_TIMEOUT_MILLISECONDS,);
+          },
+        },),
+        it({
+          name: 'answers the last of its attempts when every worktree add is killed, naming the attempts and what git said',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A git whose every add is killed, and whose removals answer.
+             */
+            const git = standInGit([
+              answered(1, ''),
+              {
+                status: (-1),
+                stdout: '',
+                stderr: '',
+                problem: 'did not answer within 900000 milliseconds',
+              },
+              answered(0, ''),
+              answered(0, 'refs/heads/feat/a\n'),
+              {
+                status: (-1),
+                stdout: '',
+                stderr: '',
+                problem: 'did not answer within 900000 milliseconds',
+              },
+            ],);
+            await expect(makeWorktree({
+              git: git.git,
+              checkoutFolder: folder.path,
+              worktree: join(folder.path, '.claude', 'worktrees', 'pi-a',),
+              branch: 'feat/a',
+              base: 'main',
+            },),).rejects.toThrow('did not answer within 900000 milliseconds',);
           },
         },),
         it({

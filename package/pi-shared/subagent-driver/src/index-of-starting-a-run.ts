@@ -153,6 +153,7 @@ export {
   type WorktreeOutcome,
   WorktreeFolderOccupiedError,
   branchExists,
+  WORKTREE_ADD_TIMEOUT_MILLISECONDS,
   makeWorktree,
   removeWorktree,
   worktreeOutcomeOf,

@@ -43,13 +43,14 @@ export function gitRunnerOf(run: RunCommand,): GitRunner {
   return function gitIn({
     words,
     folder,
+    timeoutMilliseconds = GIT_TIMEOUT_SECONDS * MILLISECONDS_PER_SECOND,
   }) {
     return run({
       command: 'git',
       words,
       folder,
       environment: GIT_ENVIRONMENT,
-      timeoutMilliseconds: GIT_TIMEOUT_SECONDS * MILLISECONDS_PER_SECOND,
+      timeoutMilliseconds,
     },);
   };
 }

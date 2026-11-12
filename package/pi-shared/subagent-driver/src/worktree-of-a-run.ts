@@ -29,7 +29,41 @@ const MISSING_PATH_CODE = 'ENOENT';
 export type GitRunner = (request: {
   readonly words: readonly string[];
   readonly folder: string;
+
+  /**
+   How long this question may take, when it needs a bound of its own: making a worktree copies the checkout, which a loaded
+   machine stretches far past what any other git question costs.
+   */
+  readonly timeoutMilliseconds?: number;
 }) => Promise<CommandOutput>;
+
+//region Constants
+
+/**
+ How long `git worktree add` may take, in minutes: making a worktree on this machine copies the checkout's ignored state, and the
+ wrapper says so while it copies. Fifteen minutes is a bound rather than a measurement, sized for a loaded machine: on
+ 2026-11-11 several adds ran at once, the wrapper reported one still copying after 110 seconds, and the two-minute bound every
+ other git question gets killed it, which lost two reviews.
+ */
+const WORKTREE_ADD_MINUTES = 15;
+
+/**
+ Milliseconds in one minute.
+ */
+const MILLISECONDS_PER_MINUTE = 60_000;
+
+/**
+ How long `git worktree add` may take.
+ */
+export const WORKTREE_ADD_TIMEOUT_MILLISECONDS: number = WORKTREE_ADD_MINUTES * MILLISECONDS_PER_MINUTE;
+
+/**
+ How many times one start tries to make its worktree. A first attempt killed by its own bound leaves a partly made worktree and
+ a registered path behind, so the next attempt starts by clearing what this start made, and one kill does not lose the run.
+ */
+const WORKTREE_ADD_ATTEMPTS = 2;
+
+//endregion Constants
 
 /**
  The commit or branch a run's new branch starts at when the caller names none, which is what every launcher started from before a
@@ -223,42 +257,98 @@ export async function makeWorktree({
     }
   }
   /**
-   Whether the branch the run works on already exists.
+   Whether the branch the run works on was there before this start asked anything, which says which of the two things the add
+   did: one killed after `-b` leaves its branch behind, so a later attempt takes that branch instead of asking again.
    */
-  const branchIsThere = await branchExists({
+  const branchWasThere = await branchExists({
     git,
     checkoutFolder,
     branch,
   },);
+
+  /**
+   Makes the worktree, and clears what a killed attempt left before the next one.
+
+   @returns what git answered to the attempt that ended the loop
+
+   @throws GitCommandFailedError when every attempt failed, which cannot happen because the last one returns its answer
+
+   @example
+   ```ts
+   const added = await addTheWorktree();
+   ```
+   */
+  async function addTheWorktree(): Promise<CommandOutput> {
+    /* oxlint-disable eslint/no-await-in-loop -- one attempt, then the clearing of what it left, then the next attempt: the
+       second attempt depends on the first having ended. See doc/lint/sequential-awaits.md. */
+    for (let attempt = 1; attempt <= WORKTREE_ADD_ATTEMPTS; attempt += 1) {
+      // Asked again on each attempt: an attempt killed after `-b` made the branch leaves it there, and the next attempt must
+      // take that branch rather than fail on a name that already exists.
+      /**
+       Whether the branch the run works on is there now.
+       */
+      const branchIsThereNow = (attempt === 1)
+        ? branchWasThere
+        : await branchExists({
+          git,
+          checkoutFolder,
+          branch,
+        },);
+      /**
+       What git answered this attempt.
+       */
+      const attempted = await git({
+        folder: checkoutFolder,
+        words: branchIsThereNow
+          ? [
+            'worktree',
+            'add',
+            worktree,
+            branch,
+          ]
+          : [
+            'worktree',
+            'add',
+            '-b',
+            branch,
+            worktree,
+            base,
+          ],
+        timeoutMilliseconds: WORKTREE_ADD_TIMEOUT_MILLISECONDS,
+      },);
+      if ((attempted.status === 0) || (attempt === WORKTREE_ADD_ATTEMPTS)) {
+        return attempted;
+      }
+      // A failed add may have made the folder and registered the path before its bound killed it. Both are this start's own,
+      // because the folder held no worktree when this began, so they are cleared and the attempt is made again.
+      await git({
+        folder: checkoutFolder,
+        words: [
+          'worktree',
+          'remove',
+          '--force',
+          worktree,
+        ],
+        // Removing what a killed add left is the same copy the add was making, so it gets the same bound.
+        timeoutMilliseconds: WORKTREE_ADD_TIMEOUT_MILLISECONDS,
+      },);
+    }
+    /* oxlint-enable eslint/no-await-in-loop */
+    // The loop returns its last attempt, so this is reached only if the count is ever set below one.
+    throw new GitCommandFailedError(`git worktree add was attempted ${String(WORKTREE_ADD_ATTEMPTS,)} times for ${worktree}, which is no number of attempts`,);
+  }
   /**
    What git answered about making the worktree.
    */
-  const added = await git({
-    folder: checkoutFolder,
-    words: branchIsThere
-      ? [
-        'worktree',
-        'add',
-        worktree,
-        branch,
-      ]
-      : [
-        'worktree',
-        'add',
-        '-b',
-        branch,
-        worktree,
-        base,
-      ],
-  },);
+  const added = await addTheWorktree();
   if (added.status !== 0) {
     throw new GitCommandFailedError(
-      `git worktree add failed for ${worktree}: ${added.problem
+      `git worktree add failed for ${worktree} after ${String(WORKTREE_ADD_ATTEMPTS,)} attempts: ${added.problem
         ?? added.stderr
           .trim()}`,
     );
   }
-  return branchIsThere
+  return branchWasThere
     ? `worktree add: status ${String(added.status,)} (existing branch ${branch}, which keeps its own commits, so the base ${base} was not used)`
     : `worktree add: status ${String(added.status,)} (new branch ${branch} at ${base})`;
 }
