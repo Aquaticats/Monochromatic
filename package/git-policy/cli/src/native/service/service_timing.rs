@@ -687,11 +687,18 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
         return Delivery::Stderr;
     }
     let text: String = stamped_line(one_line(masked.as_str(), MESSAGE_LIMIT).as_str(), at_ms);
-    // On the journal's stream a line that finds no room is dropped, never waited for.
-    if sink().on_stream() {
-        return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut StreamWriter::stderr());
-    }
-    return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr());
+    // What: A line the service cannot write at once is kept and dropped rather than waited for, whatever its standard error
+    //       is; the wrapper's own standard error, where a person reads it, is still waited for.
+    // Why:  A service's standard error is the journal, a pipe or a FIFO, and a reader that stops reading holds a `write_all`
+    //       in the kernel for as long as it does not read.
+    //       The audit of release 0.6.1-alpha.14 connected the service's standard error to a full FIFO and a landing was held
+    //       7.35 s longer than real Git took until the auditor drained it, and by reading it would be held for as long as
+    //       nothing reads.
+    //       The service's own entries also travel to the journal as datagrams, so what a FIFO drops is what the stream would
+    //       have dropped anyway (`journald_native.rs`).
+    let mut never_waits: StreamWriter = StreamWriter::stderr();
+    let waiter: &mut dyn std::io::Write = if sink().on_stream() || in_service() { &mut never_waits } else { &mut std::io::stderr() };
+    return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), waiter);
 }
 
 /// What:

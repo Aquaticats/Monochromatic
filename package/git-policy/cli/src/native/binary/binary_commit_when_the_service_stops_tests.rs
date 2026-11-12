@@ -29,7 +29,7 @@ use super::support::{
 };
 use git_policy_cli::service_instance::socket_for;
 use git_policy_cli::service_protocol::{HEARTBEAT_SILENCE, PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_service};
-use git_policy_cli::wait_ceilings::{REQUEST_WRITE_CEILING, REQUEST_WRITE_SILENCE};
+use git_policy_cli::service_client::START_WAIT;
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -343,8 +343,10 @@ fn a_commit_whose_service_stopped_reading_fails_at_the_write_bound() {
     let words: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
     assert_eq!(stand_in.greeted.load(Ordering::SeqCst), 1, "the stand-in greeted the commit once");
     assert_eq!(ran.code, Some(1), "a commit whose service stopped reading fails: {words}");
-    assert!(took >= REQUEST_WRITE_SILENCE, "the write is waited for no less than its silence bound: {took:?}");
-    assert!(took < REQUEST_WRITE_SILENCE + REQUEST_WRITE_CEILING, "and it ends at the write's own bound: {took:?}");
+    // The write waits on progress and not on a clock: its silence window is the one a service that works may keep, and the
+    //  whole request has the wait a start is granted.
+    assert!(took >= HEARTBEAT_SILENCE, "the write is waited for no less than its silence bound: {took:?}");
+    assert!(took < HEARTBEAT_SILENCE + START_WAIT, "and it ends at the write's own bound: {took:?}");
     assert!(words.contains("stopped reading"), "the words name what stopped: {words}");
     assert!(words.contains("took no part of this commit's request"), "they name what the service did not take: {words}");
     assert!(words.contains("was not made"), "the commit says it was not made: {words}");
@@ -471,6 +473,50 @@ fn a_service_that_wakes_after_the_failure_makes_no_commit() {
     let again: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
     assert_eq!(again.code, Some(0), "the retry lands: {}", String::from_utf8_lossy(again.stderr.as_slice()));
     assert_ne!(head_of(&fixture, repo.as_path()), before, "and it is the commit the person asked for once");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit that finds an instance holding its socket and answering nothing ends within the wait a start is granted,
+///  and the same commit reaches a live service when it is run again.
+/// Why:
+///  A service that was told to stop keeps its socket until it ends,
+/// and the manager starts the next instance only when it has gone:
+/// measured on this machine on 2026-11-12,
+/// a client waited 37,327 ms for a socket a dying instance still held,
+/// and 34 of its 35 connection tries were refused.
+/// The wait is bounded, and the connect to a socket nothing accepts on no longer waits in the kernel
+/// (`CONNECT_CEILING`),
+/// so a client that finds such an instance ends at the start wait with words that name it,
+/// and its next run reaches the service that is there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const standIn = standIn(fixture, repo, 'say-nothing'); await fails(); drop(standIn); await wrappedCommit(fixture); expect(landed)
+/// ```
+#[test]
+fn a_commit_that_finds_a_dying_instance_ends_within_the_start_wait() {
+    let fixture: Fixture = fixture("dying-instance");
+    let repo: PathBuf = staged_repository(&fixture, "repo", 1);
+    let before: String = head_of(&fixture, repo.as_path());
+    let arguments: Vec<String> = commit_arguments(&fixture, "repo");
+    let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    let stand_in: StandIn = stand_in(&fixture, repo.as_path(), Duty::SayNothing);
+    let began: Instant = Instant::now();
+    let ran: Observed = observe(&mut wrapped_against_stand_in(&fixture, &stand_in, repo.as_path(), borrowed.as_slice(), COMMIT_BOUND_SECONDS), b"");
+    let took: Duration = began.elapsed();
+    let words: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
+    assert!(stand_in.accepted.load(Ordering::SeqCst) > 0, "the stand-in took the connection of the commit");
+    assert_eq!(ran.code, Some(1), "a commit whose service answers nothing fails: {words}");
+    assert!(took >= START_WAIT, "the wait is the one a start is granted: {took:?}");
+    assert!(took < START_WAIT + HEARTBEAT_SILENCE + HEARTBEAT_SILENCE, "and it ends there rather than waiting for the instance: {took:?}");
+    assert!(words.contains("Nothing has answered"), "the words name what did not answer: {words}");
+    assert!(words.contains("was not made"), "and that the commit was not made: {words}");
+    // The instance that held the socket is gone, which is what the manager waits for before it starts the next one.
+    drop(stand_in);
+    let again: Observed = observe(&mut wrapped_commit(&fixture, repo.as_path(), borrowed.as_slice()), b"");
+    assert_eq!(again.code, Some(0), "the same commit reaches a live service and lands: {}", String::from_utf8_lossy(again.stderr.as_slice()));
+    assert_ne!(head_of(&fixture, repo.as_path()), before, "and the branch is at a new commit");
     remove_settled(&fixture);
 }
 

@@ -303,9 +303,24 @@ fn messages_quote_their_constants_and_facts() {
         for command in [STATUS_COMMAND, RESTART_ONE_UNIT_COMMAND] {
             assert!(words.contains(command), "{failure:?} names {command}: {words}");
         }
-        assert!(words.contains(CHECK_COMMANDS[0]), "{failure:?} names what shows whether the commit was made: {words}");
         assert!(!words.contains(RESTART_COMMAND), "{failure:?} must not restart every service of the account: {words}");
         assert!(!words.contains(LOG_COMMAND), "{failure:?} must not read the journal of every service: {words}");
+    }
+    // A commit that was not made says so and says the staged work is untouched; one whose result nobody knows yet names the
+    //  read that shows it.
+    for not_made in [
+        ClientFailure::ServiceNotReading { took_nothing: true },
+        ClientFailure::ServiceNotReading { took_nothing: false },
+        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
+    ] {
+        let words: String = render(&not_made);
+        assert!(words.contains(NOTHING_CHANGED), "{not_made:?} says nothing in the repository changed: {words}");
+        assert!(words.contains("was not made"), "{not_made:?} says the commit was not made: {words}");
+    }
+    for unsure in [ClientFailure::ServiceSilent, ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread }] {
+        let words: String = render(&unsure);
+        assert!(words.contains(CHECK_COMMANDS[0]), "{unsure:?} names what shows whether the commit was made: {words}");
+        assert!(!words.contains(NOTHING_CHANGED), "{unsure:?} must not claim nothing changed: {words}");
     }
     let silent: String = render(&ClientFailure::ServiceSilent);
     assert!(!silent.contains("raise") && !silent.contains("setting"), "the text must not name a setting that does not exist: {silent}");
@@ -322,7 +337,9 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
             failure,
             ClientFailure::MayNotHaveLanded
                 | ClientFailure::ServiceSilent
-                | ClientFailure::ServiceSilentAfterPreparing { .. }
+                // The branch was read afterwards: `NotMade` is the one of the three that knows the commit was not made,
+                //  and `Made` says so.
+                | ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Made | WhatTheBranchShows::Unread }
                 | ClientFailure::WithdrawalUnconfirmed { .. }
                 | ClientFailure::InterruptedNotKnown { .. }
                 | ClientFailure::WorkNotHandedOver(_)

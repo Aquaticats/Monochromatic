@@ -525,7 +525,7 @@ pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> Sta
             stderr: format!(
                 "{what} took a connection and sent nothing for {} seconds, so it is running and has stopped inside itself: it was \
                  frozen, a debugger holds it, or it waits for a disk that never answers. Starting it again does not help, because the \
-                 service manager believes it runs.{unit} Restart that unit with `systemctl --user restart` and the unit name above, \
+                 service manager believes it runs.{unit} Restart that unit with `systemctl --user restart` and the unit name printed here, \
                  then run the commit again.\n",
                 HAND_OVER_GREETING_WAIT.as_secs()
             ),
