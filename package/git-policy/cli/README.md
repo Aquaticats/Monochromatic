@@ -2567,6 +2567,8 @@ No write to another file is rejected either:
 and a `--file` whose path is not the shared file:
 the path is resolved from the directory the command runs in,
 which the command's `-C` chain moves and `--work-tree` does not,
+and which is the top of the working tree for the Git a `!` alias's shell runs,
+because Git changes there before it starts that shell,
 so `git config --file ../repo/.git/config <key> <value>`,
 the same relative path under a `--work-tree` that names another directory,
 an absolute spelling,
