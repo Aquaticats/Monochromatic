@@ -265,30 +265,22 @@ pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> V
 }
 
 /// What:
-///  The queries that list what the worktree holds at or below `paths` that Git did not put there,
-///  either the entries its ignore rules do not cover or the ones they do,
-///  one argument list per bounded start.
-///  `bool` asks for the ignored ones.
+///  The arguments of one `git ls-files` listing of the whole worktree,
+///  after the invocation's global options.
+///  `&[&str]` borrows the listing's own option words.
 /// Why:
-///   A forced tree write replaces or deletes both kinds,
-///  and the two are separate answers because Git lists them separately;
-///  `--directory` names a directory the worktree holds whole as one entry (`nested/`),
-///  which is the entry a save must keep whole,
-///  and a nested repository is reported exactly that way.
-///  The paths are asked about alone, so no query walks a worktree nobody asked about.
+///   A rule that lists what the worktree holds asks Git once over the whole worktree,
+///  with every directory it holds whole collapsed into one entry,
+///  and turns off a caller's `--literal-pathspecs` so the `:(top,literal)` magic other listings
+///  write stays magic;
+///  `-z` keeps every answer's bytes exactly as they are.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function worktreeEntryQueries(globalPrefix: string[], paths: string[], ignored: boolean): string[][];
+/// function listingArguments(globalPrefix: string[], selection: string[]): string[];
 /// ```
-pub fn worktree_entry_queries(global_prefix: &[OsString], paths: &[Vec<u8>], ignored: bool) -> Vec<Vec<OsString>> {
-    let selection: &[&str] = if ignored {
-        &["--others", "--ignored", "--exclude-standard", "--directory"]
-    } else {
-        &["--others", "--exclude-standard", "--directory"]
-    };
-    let head: Vec<OsString> = listing_head(global_prefix, selection);
-    return chunked_pathspec_queries(head.as_slice(), paths);
+pub fn listing_arguments(global_prefix: &[OsString], selection: &[&str]) -> Vec<OsString> {
+    return listing_head(global_prefix, selection);
 }
 
 /// What:
