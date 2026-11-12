@@ -176,9 +176,21 @@ The third digest (nine work runs and four reviews) is still being written.
 - Round 282, four qwen4 reviews: the landed-removal fix, the landed-sweep fix, the merge asides, the late runtime.
   That makes eight qwen4 runs at once.
 
-#### The third digest, arrived at 09:08, not yet routed
+#### The third digest, arrived at 09:06, and what was started from it at 09:07
 
-`~/temp/agent/digest-2026-11-12T0830-c/digest.md`. For the next pass:
+Round 283, two fix agents:
+
+- `landed-removal-second-pass-a-test-for-every-fix-and-the-changeover-scripts` (base `32323116f1`):
+  a test for the fix that has none, the four data-loss reproductions as tests that stay, the second and third audits' scripts run,
+  the two releases' removal records across a change of release, and the deletions that waited up to sixty-five minutes behind a wave of trashes.
+  It merges `main` and the landed-sweep branch first. Pass 17 takes the first pass as it stands meanwhile.
+- `removal-pool-symlink-and-nested-subvolume-fixes-brought-onto-main` (base `main`):
+  the nested-subvolume review findings were fixed on a branch cut two releases ago; this agent reproduces each on `main` and ports what still happens,
+  the symlink at a pool name first.
+
+The review's results on unreadable records went to `worktree-copy-record-that-cannot-be-read-never-stops-another-command-2` by note.
+
+`~/temp/agent/digest-2026-11-12T0830-c/digest.md`. Still open from it:
 
 - The second run of the worktree-add review confirms the reading about unreadable records for the journal, the stage claim and the unfilled record,
   cut by cut. One point contradicts it: a commit served by the commit service in a linked worktree exited 0 with an empty journal and an empty claim.
