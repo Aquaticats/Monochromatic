@@ -300,6 +300,35 @@ try {
     templatePath,
     template
   );
+  // A second form, or a remote asset, would make the page something other than one
+  // self-contained offline review.
+  for (const [replacement, diagnostic] of [
+    [
+      '<form id="review-form"></form><form></form>',
+      'one-form boundary'
+    ],
+    [
+      '<form id="review-form"><script src="https://example.test/a.js"></script>',
+      'remote-asset boundary'
+    ]
+  ]) {
+    writeFileSync(
+      templatePath,
+      template.replace(
+        ('<form id="review-form">'),
+        replacement
+      )
+    );
+    if ((invoke('build')
+      .status
+      !== 0) || (invoke('validate')
+        .status
+        === 0)) throw new Error(`Offline evidence boundary failed: ${  diagnostic}`);
+    writeFileSync(
+      templatePath,
+      template
+    );
+  }
   positive();
   const output = join(
     fixture,

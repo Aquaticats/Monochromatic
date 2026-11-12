@@ -219,6 +219,29 @@ const output = join(
   questions,
   'track-menu.html'
 );
+//region The offline evidence grammar, scanned instead of matched
+const WORD_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';
+
+// Whether a one-character string is a member of the boundary test's word set.
+function isWordCharacter(character) {
+  return (character !== '') && WORD_CHARACTERS.includes(character);
+}
+
+// The number of `<form` openers in `html` whose next character is not a word character,
+// which is what a boundary after the tag name asks for. The end of the text counts as
+// one, and the tag name is read in the case the page writes it.
+function countFormOpeners(html) {
+  const OPENER = '<form';
+  let count = 0;
+  let index = html.indexOf(OPENER);
+  while (index !== -1) {
+    if (!isWordCharacter(html.charAt(index + OPENER.length))) count += 1;
+    index = html.indexOf(OPENER, index + 1);
+  }
+  return count;
+}
+//endregion The offline evidence grammar, scanned instead of matched
+
 if (process.argv[2] === 'build') {
   writeFileSync(
     output,
@@ -243,7 +266,7 @@ if (process.argv[2] === 'build') {
   ]) {
     if (!html.includes(marker)) throw new Error(`Track-menu review is missing ${  marker}`);
   }
-  if (((html.match(/<form\b/g) ?? []).length !== 1) ||
+  if ((countFormOpeners(html) !== 1) ||
     /__TRACK_MENU_IMAGES__|<script\b[^>]*\bsrc=|<link\b[^>]*\bhref=|<img\b[^>]*\bsrc="https?:/i.test(html)
     ||
     /<input\b[^>]*\btype="radio"|<textarea\b(?:[^"'<>]|"[^"]*"|'[^']*')*?\srequired(?:\s|=|>)/i.test(html)) {
