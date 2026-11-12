@@ -2324,11 +2324,22 @@ The rule is:
   which deletes the untracked files and keeps the ignored ones.
   `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
   A `git clean -X` that names its own exclusions (`-e`,
-  `--exclude`) is measured by Git's own dry runs of that clean,
-  because those patterns decide what it deletes and a status cannot see them:
-  the clean as typed and the same clean without the patterns are printed by Git,
-  and the command is refused while only the patterns call a path ignored,
-  because that path is an untracked file the clean would lose.
+  `--exclude`) runs too,
+  by the owner's decision of 2026-11-12 ("Keep allow and log"):
+  what those patterns call ignored is ignored for this clean,
+  so it deletes it,
+  exits with Git's own status and leaves its audit line.
+- A clean whose second `-f` would delete a nested Git repository is refused,
+  and the refusal names the repository and says that its own history and its uncommitted files exist nowhere else.
+  The same clean with one force keeps every nested repository and deletes everything beside it,
+  and `--no-enforce-worktree` directly after `clean` runs the command as real Git runs it and deletes the repository.
+  Nothing is copied and nothing is moved:
+  the worktree is exactly as the command found it.
+  The same refusal covers an interactive clean,
+  whose menu would offer the repository after Git has started.
+  The boundary is Git's own:
+  the check reads the clean's dry run before Git starts,
+  so a repository another command creates between that reading and Git's own deletion is deleted by Git.
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.
@@ -2664,7 +2675,7 @@ the highest is
 The rotated files are kept up to 32 MiB together,
 oldest removed first,
 and
- a rotated file with a `saved-conflict` or `saved-nested-repository` line whose copy still exists is never removed,
+ a rotated file with a `saved-conflict` line whose copy still exists is never removed,
 which can take the log past 32 MiB.
  The reading of a rotated file to see whether it names a copy happens on a thread of its own,
 never on the command's path.

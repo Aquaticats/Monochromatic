@@ -74,7 +74,7 @@ use crate::rule_shared_remote_messages::shared_remote_settings_message;
 use crate::rule_worktree_dirty::index_file_is_absent;
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
-use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
+use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form};
 /// The common Git directory,
 ///  for naming the file every worktree shares.
 use crate::worktree_identity::common_directory;
@@ -216,6 +216,13 @@ fn refuse_shared_remote_settings(
         SHARED_REMOTE_SETTINGS_CODE,
         shared_remote_settings_message(&change.setting, shared_file.as_path(), main_checkout.as_path()),
     );
+}
+
+/// The clock reading the conflict copies and the abort copies are named with,
+/// in milliseconds since the Unix epoch.
+pub(crate) fn now_milliseconds() -> i64 {
+    let elapsed: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
 }
 
 /// What:
@@ -381,8 +388,6 @@ pub(crate) fn check_linked_worktree(
             region,
             seen,
             dirty: None,
-            discarded_limits,
-            notices,
         });
     };
     let tree: Option<TargetTree> = target_tree(command, region);
@@ -430,8 +435,6 @@ pub(crate) fn check_linked_worktree(
                 region,
                 seen,
                 dirty: Some(false),
-                discarded_limits,
-                notices,
             });
         }
         Err(message) => return fact_unavailable(message),

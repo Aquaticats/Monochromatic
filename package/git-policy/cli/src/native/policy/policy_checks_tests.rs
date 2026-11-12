@@ -950,8 +950,10 @@ fn a_tree_that_tracks_an_ignored_path_is_rejected_in_a_clean_linked_worktree() {
 ///  with or without its own `-e`/`--exclude` patterns,
 ///  and leaves one `allowed` line that asks no question.
 /// Why:
-///   The owner answered on 2026-11-12 ("Keep allow and log", the answer of 2026-11-10 standing against the audits)
-///  that `git clean -fX` and `-fx` delete ignored files, exit 0 and are logged:
+///   The owner answered on 2026-11-12 ("Keep allow and log",
+///  the answer of 2026-11-10 standing against the audits)
+///  that `git clean -fX` and `-fx` delete ignored files,
+///  exit 0 and are logged:
 ///  an ignored file is no reason to refuse them,
 ///  and a path its `-e` patterns make ignored is one of those files,
 ///  so nothing about ignored files is measured in a linked worktree.
@@ -994,6 +996,48 @@ fn a_clean_of_ignored_files_runs_in_a_linked_worktree() {
 
 /// What:
 ///  linked-worktree-only:
+///  a clean that would delete a nested Git repository is refused,
+///  the refusal names it and the opt-out,
+///  and the repository is still whole where it was.
+/// Why:
+///   The owner's rule of 2026-11-12 is that a command which could destroy a person's data is refused and
+///   names what it would destroy;
+///  a clean's second force deletes a repository with its own history and uncommitted files,
+///  and no copy of that work exists anywhere else.
+#[test]
+fn a_clean_that_would_delete_a_nested_repository_is_refused() {
+    let directory: std::path::PathBuf = crate::command_test_support::fixture("policy-clean-nested-repository");
+    let main: std::path::PathBuf = directory.join("main");
+    let linked: std::path::PathBuf = directory.join("linked");
+    std::fs::create_dir_all(linked.join("nested/.git")).expect("a nested repository");
+    std::fs::write(linked.join("nested/tracked.txt"), b"modified user data\n").expect("its work");
+    std::fs::create_dir_all(main.as_path()).expect("the main checkout");
+    let mut facts: ScriptedFacts = scripted_facts();
+    facts.location = Ok(linked_worktree(
+        main.to_str().expect("utf-8 fixture path"),
+        linked.to_str().expect("utf-8 fixture path"),
+    ));
+    facts.clean_deletes = Ok(vec![b"Would remove nested/".to_vec()]);
+    let (outcome, questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, &["clean", "-f", "-f", "-d", "-X"], facts);
+    let PolicyOutcome::Findings(findings) = outcome else {
+        panic!("the clean was not refused: {questions:?}")
+    };
+    assert_eq!(findings.len(), 1, "{questions:?}");
+    assert_eq!(findings[0].code, "linked-worktree-required", "{questions:?}");
+    assert!(findings[0].message.contains("nested"), "{}", findings[0].message);
+    assert!(findings[0].message.contains("--no-enforce-worktree"), "{}", findings[0].message);
+    assert!(findings[0].message.contains("nothing was deleted"), "{}", findings[0].message);
+    assert_eq!(
+        std::fs::read_to_string(linked.join("nested/tracked.txt")).expect("the repository is where it was"),
+        "modified user data\n"
+    );
+    assert!(linked.join("nested/.git").exists(), "the refused clean moved the repository");
+    crate::command_test_support::remove(directory.as_path());
+}
+
+/// What:
+///  linked-worktree-only:
 ///  a clean with a second force asks Git what it would delete,
 ///  stops when that reading failed or never answered,
 ///  and asks nothing for one force or for an interactive clean.
@@ -1004,7 +1048,7 @@ fn a_clean_of_ignored_files_runs_in_a_linked_worktree() {
 ///  the one clean Git refuses itself is known from its region before any reading;
 ///  one force is Git's own protection of every nested repository,
 ///  and an interactive clean is answered after Git starts,
-///  so its repositories are kept out of that menu by the fixed transform instead of being moved before it.
+///  so its menu is read before Git starts and a repository it would offer is refused.
 #[test]
 fn a_clean_with_a_second_force_asks_what_git_would_delete() {
     let two_forces: Vec<&str> = vec!["clean", "-f", "-f", "-d", "-X"];
@@ -1054,15 +1098,15 @@ fn a_clean_with_a_second_force_asks_what_git_would_delete() {
         one_questions.iter().all(|question| { return !question.starts_with("clean-would-delete:"); }),
         "{one_questions:?}"
     );
-    // A menu is answered after Git starts: the repositories are kept out of it by the transform, never moved first.
+    // A menu is answered after Git starts, so an interactive clean is read here too: a repository the menu would
+    //  offer is refused before the menu exists, and this scripted answer names none.
     let interactive: Vec<&str> = vec!["clean", "-i", "-f", "-f", "-d", "-X"];
     let (interactive_outcome, interactive_questions): (PolicyOutcome, Vec<String>) =
         pre_forward(PolicyId::LinkedWorktreeOnly, interactive.as_slice(), dirty_in(linked_worktree("/r", "/w"), false));
     assert_eq!(interactive_outcome, clean(), "{interactive_questions:?}");
-    assert!(
-        interactive_questions
-            .iter()
-            .all(|question| { return !question.starts_with("clean-would-delete:"); }),
+    assert_eq!(
+        interactive_questions.iter().filter(|question| { return question.starts_with("clean-would-delete:"); }).count(),
+        1,
         "{interactive_questions:?}"
     );
     // The main checkout refuses the same clean before any of this is asked.

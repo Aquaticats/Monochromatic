@@ -150,7 +150,8 @@ pub struct CleanRegion {
     pub descends: bool,
     /// How many forces Git acts on;
     ///  the second and third also remove a nested repository.
-    ///  It is a running count, so a negated `--force` sets it back to zero.
+    ///  It is a running count,
+    ///  so a negated `--force` sets it back to zero.
     pub forces: usize,
     /// The patterns `-e`/`--exclude` added to the ignore rules this clean applies,
     ///  exactly as their bytes were written.
@@ -171,7 +172,8 @@ pub struct CleanRegion {
 ///  `if (force > 1) rm_flags = 0`).
 ///  A count that only added every `-f` read `clean -f --no-force -f -d -X` as two forces,
 ///  which moved a repository aside for a clean Git keeps it through,
-///  and `clean -ff -d -X --no-force` as two, which moved one for a clean Git refuses.
+///  and `clean -ff -d -X --no-force` as two,
+///  which moved one for a clean Git refuses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

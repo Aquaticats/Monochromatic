@@ -10116,8 +10116,7 @@ then `final-newline`.
 The transform order is atomic push,
 commit only,
 status hints off,
-ignored files kept,
-then the one force an interactive clean runs with when its menu would offer a nested repository.
+then ignored files kept.
 
 Without `--cli-git-keep-going`,
 the first unpatched error stops the pass.
@@ -15277,7 +15276,7 @@ and the whole history of an ordinary audit log
 (782,685 bytes in 1,619 lines over twenty days).
 The audit log's generations are the only ones whose lines name something outside the log,
 so before the pass removes one it reads it,
-and a generation holding a `saved-conflict` or `saved-nested-repository` line whose copy place exists stays past the bound;
+and a generation holding a `saved-conflict` line whose copy place exists stays past the bound;
 so does one that cannot be read,
 one with either of those lines that cannot be parsed,
 and one that names a place the line could not show as text,
@@ -15937,7 +15936,7 @@ whichever rule calls it ignored.
 A `-x` clean deletes every untracked file whether a pattern calls it ignored or not,
 so a tracked change or an untracked file still refuses it,
 and a plain `-f` clean asks about tracked and untracked work with no reading of its own.
-A clean in a linked worktree that deletes ignored files with two or more forces as Git counts them keeps every nested Git repository first.
+A clean in a linked worktree that deletes ignored files with two or more forces as Git counts them is refused while it would delete a nested Git repository.
 The count is Git's own (`OPTION_COUNTUP`):
 each `-f`/`--force` adds one,
 and a negated `--force` sets it back to zero,
@@ -15976,14 +15975,15 @@ because a second `-f` deletes a bare repository as an ordinary ignored directory
 The wrapper walks only the paths Git named,
 never the worktree,
 and it opens no directory below a repository it found,
-because moving that one takes everything inside it.
+because the refusal names only the outermost of two,
+and that one holds everything inside it.
 The look inside those paths runs on an awaited thread for no longer than the read ceiling a Git query has,
 because a directory read or a metadata lookup on a mount whose server stopped answering never returns;
 a look that gives no answer in that time stops the command and names the directory.
 Git's one-force answer is no list of the same repositories and is not read:
 at one force the directory walk skips every nested repository itself (`DIR_SKIP_NESTED_GIT`),
 without a word,
-so a repository below an untracked directory was deleted unsaved while that answer named nothing,
+so a repository below an untracked directory was deleted unrefused while that answer named nothing,
 and `msg_would_skip_git_dir` reaches the answer only for a repository inside a directory the answer already lists.
 A path Git had to quote (a name holding a newline,
 a quote or another byte it cannot print) is decoded
@@ -15993,38 +15993,33 @@ A path that is not a plain relative path names nothing the wrapper may look insi
 a path reached through a symbolic link is removed as the link alone,
 and a directory the wrapper cannot open stops the command,
 because what it holds was not seen.
-Only the outermost of two repositories is kept,
-because moving a repository takes everything inside it.
-Each repository is moved whole to
-`<common git dir>/monochromatic-git-policy-cli/discarded/<stamp>/<path below the worktree>`,
-the clean then runs as typed,
-the person is told where each one is before Git starts,
-and the audit line carries `outcome` `saved-nested-repository` with one `copies` entry per repository,
-written `<path> => <place>`.
-A rename keeps every byte and the repository's own `.git` without copying anything,
-the place is the folder the age and size limits already prune,
-and a generation whose line names a copy still on disk outlives those limits like a saved conflicted file's.
-A move the system refuses stops the command and puts back every repository that save had already moved,
-so the worktree is exactly as it was;
-a put-back the system refuses in turn is the one exception,
-and the rejection names that repository and the place it is,
-because nothing else would.
-The deliberate way to delete such a repository with the rest is the escape hatch,
-which the rejection names.
-An interactive clean is not moved at all:
-its menu is answered after Git starts,
-so nothing can ask the person before Git deletes,
-and a repository moved before the menu is one the person never chose to delete,
-while a person who then quits has a worktree a command that deleted nothing has changed.
-Such a clean runs with `--no-force -f` written at the end of its own options when its menu would offer a nested repository,
-which lands Git on the one force at which it keeps every nested repository itself,
-the menu then offers exactly what the clean deletes,
-and the notice names the repository that stayed,
-the same clean without `-i` (which saves it whole first) and the escape hatch (which deletes it with the rest).
-The pair is not written where the person asked for the worktree enforcement to be skipped.
+A clean that would delete one of them is refused,
+and the rejection names each repository,
+says that its own history and its uncommitted files exist nowhere else,
+and names every way forward:
+the same clean with one force,
+which is Git's own protection of a nested repository and deletes everything beside it,
+moving the repository out of the ignored directory first,
+and the escape hatch,
+which runs the clean as real Git runs it and deletes the repository with the rest.
+The wrapper keeps no copy of the repository and moves nothing:
+the worktree is exactly as the command found it.
+The audit line carries `outcome` `rejected` and `facts.nestedRepositories`,
+the paths the refusal named,
+so a later reader sees what the command would have deleted.
+The same refusal covers an interactive clean,
+whose menu would offer the repository after Git has started:
+the clean is read before Git starts and refused with the same words.
 A dry run that did not answer stops the command instead of reading as Git's refusal of the clean:
 a nonzero exit is no proof that the clean which runs afterwards refuses,
-and a failed read followed by that clean deleted a repository no copy held.
+and that clean is rejected with what the failed read said,
+naming no repository because none was seen.
+The window between that reading and Git's own deletion is the wrapper's own remaining work plus Git's start-up;
+a repository another command creates inside it is deleted by Git,
+with no refusal and no copy,
+and nothing inside the wrapper can close it:
+the check is over before Git starts,
+so only a lock every creating command honours would.
 The one clean Git refuses itself is the one that writes `-x` together with `-X`,
 which `cmd_clean` refuses before it reads anything;
 that region says so before any reading,
@@ -16737,8 +16732,7 @@ with `schemaVersion`,
 `exempt`,
 `hatch`,
 `logged`,
-`saved-conflict`,
-`saved-nested-repository` or `saved-abort`),
+`saved-conflict` or `saved-abort`),
 `dirty`,
 `cwd` and `arguments`.
 Each path and argument this line names is written beside its text as its bytes
@@ -16751,9 +16745,7 @@ the line exists to attribute a loss to it.
 The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
-and so do a `saved-nested-repository` line,
-whose places hold the repositories a clean would have deleted,
-and a `saved-abort` line.
+and so does a `saved-abort` line.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,

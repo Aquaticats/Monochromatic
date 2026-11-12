@@ -163,7 +163,6 @@ pub fn run_policy_pass<F: RepositoryFacts>(
         let transformed: TransformResult = apply_fixed_transforms(
             arguments.as_slice(),
             request.controls.commit_only_escaped,
-            request.controls.escaped.contains(&PolicyId::LinkedWorktreeOnly),
             &mut checks.facts,
         );
         // A transform that kept or changed something says so before Git runs (`checks.notices`).

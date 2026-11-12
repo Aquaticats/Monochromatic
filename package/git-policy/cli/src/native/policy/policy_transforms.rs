@@ -4,8 +4,7 @@
 //!       atomic push,
 //!  commit-only,
 //!  status hints off,
-//!  ignored files kept,
-//!  then the one force an interactive clean runs with when its menu would offer a nested repository.
+//!  then ignored files kept.
 //! Why:
 //!  These are not policies:
 //!  they have no severity and cannot be configured.
@@ -16,7 +15,6 @@
 //!      before `git status`,
 //!  `--no-overwrite-ignore` to a `git checkout` or `git switch`
 //!      that changes files,
-//!  and `--no-force -f` to an interactive `git clean` whose menu would offer a nested Git repository,
 //!  and the commit-only transform can reject a commit.
 //!  The
 //!      decisions belong to the pure rule cores;
@@ -47,8 +45,6 @@ use crate::policy_events::PolicyEvent;
 use crate::repository_facts::RepositoryFacts;
 use crate::rule_argument_rewrite::ArgumentRewrite;
 use crate::rule_keep_ignored_files::keep_ignored_files;
-use crate::rule_clean_interactive_nested_repositories::{CapDecision, keep_nested_repositories_out_of_an_interactive_menu};
-use crate::rule_linked_worktree_nested_repository_messages::kept_out_of_an_interactive_menu_notice;
 use crate::rule_atomic_push::atomic_push;
 use crate::rule_commit_only::{
     CommitOnlyDecision, decide_commit_only, resolve_index_state, resolve_sequencer_state,
@@ -278,7 +274,6 @@ fn commit_only_stage(
 pub fn apply_fixed_transforms(
     arguments: &[OsString],
     commit_only_escaped: bool,
-    worktree_escaped: bool,
     facts: &mut dyn RepositoryFacts,
 ) -> TransformResult {
     // `match` unpacks the rewrite; a region Git refuses (`Err`) is left as it is.
@@ -301,33 +296,16 @@ pub fn apply_fixed_transforms(
         ArgumentRewrite::Rewritten(rewritten) => rewritten,
         ArgumentRewrite::Unchanged => commit.arguments,
     };
-    let after_ignored: Vec<OsString> = match keep_ignored_files(after_status.as_slice()) {
-        ArgumentRewrite::Rewritten(rewritten) => rewritten,
-        ArgumentRewrite::Unchanged => after_status,
-    };
-    // An interactive clean cannot be asked what it will delete, so a nested repository it would offer is kept out of the
-    //  menu by one force, unless the person asked for the worktree enforcement to be skipped.
-    let mut notices: Vec<String> = Vec::<String>::new();
-    if worktree_escaped {
-        return TransformResult {
-            arguments: after_ignored,
-            events: Vec::<PolicyEvent>::new(),
-            complete: true,
-            notices,
-        };
-    }
-    return match keep_nested_repositories_out_of_an_interactive_menu(after_ignored.as_slice(), facts) {
-        CapDecision::Unchanged => TransformResult {
-            arguments: after_ignored,
-            events: Vec::<PolicyEvent>::new(),
-            complete: true,
-            notices,
+    // A nested repository an interactive clean's menu would offer is refused by the linked-worktree policy before this
+    //  stage runs, so no transform reads a clean at all.
+    return TransformResult {
+        arguments: match keep_ignored_files(after_status.as_slice()) {
+            ArgumentRewrite::Rewritten(rewritten) => rewritten,
+            ArgumentRewrite::Unchanged => after_status,
         },
-        CapDecision::Capped { arguments: capped, repositories } => {
-            notices.push(kept_out_of_an_interactive_menu_notice(repositories.as_slice()));
-            TransformResult { arguments: capped, events: Vec::<PolicyEvent>::new(), complete: true, notices }
-        }
-        CapDecision::Stopped { message } => incomplete(after_ignored.as_slice(), message),
+        events: Vec::<PolicyEvent>::new(),
+        complete: true,
+        notices: Vec::<String>::new(),
     };
 }
 
