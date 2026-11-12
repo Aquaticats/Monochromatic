@@ -1220,7 +1220,9 @@ Measured on 2026-11-12 in a disposable fixture:
 That is the error a record used to settle as,
  and nobody can act on it.
 
-**A second `--force`, and `git worktree prune`, are answered too.**
+**A second `--force`,
+and `git worktree prune`,
+are answered too.**
 A second `--force` is what a person types when the first removal failed,
  which is exactly the removal this section is about,
  so the wrapper reads the force up to the two times Git itself does and serves the removal the same way.

@@ -270,7 +270,8 @@ fn a_removal_gits_walk_could_not_empty_leaves_no_folder() {
 ///  so a removal killed between its record and the end of Git's walk leaves a folder nothing registers.
 ///  The record the removal wrote before Git ran is the only thing that names it,
 ///  and the next command of the repository is what finishes the removal from it:
-///  without that, a person is left with a directory at their worktree's path that no command of this program knows about.
+///  without that,
+/// a person is left with a directory at their worktree's path that no command of this program knows about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -102,7 +102,9 @@ pub struct RemovePlan {
     pub operand: OsString,
     /// How many times the person forced the removal,
     /// which is what makes Git remove a worktree that holds changes
-    ///  and, asked twice, one that is locked.
+    ///  and,
+    /// asked twice,
+    /// one that is locked.
     pub force: ForceAsked,
 }
 
@@ -112,8 +114,10 @@ pub struct RemovePlan {
 /// Why:
 ///   Git reads `-f` in any cluster of short flags and `--force` as any unambiguous abbreviation of it,
 ///  so the spellings a person types for this command are the counts:
-///  `-f`, `-ff` and a cluster holding two `f`s,
-///  and `--f`, `--for` and the rest of the long name.
+///  `-f`,
+/// `-ff` and a cluster holding two `f`s,
+///  and `--f`,
+/// `--for` and the rest of the long name.
 ///  A token with an `=` carries a value `--force` does not take,
 ///  which Git refuses,
 ///  so it is no force here either.
@@ -134,10 +138,24 @@ fn forces_asked(token: &OsString) -> Option<usize> {
         return (!named.is_empty() && full.starts_with(named)).then_some(1);
     }
     let letters: &[u8] = bytes.strip_prefix(b"-")?;
-    if letters.is_empty() || !letters.iter().all(|letter| *letter == b'f') {
+    if letters.is_empty() || !letters.iter().all(is_an_f) {
         return None;
     }
     return Some(letters.len());
+}
+
+/// Whether one letter of a short token is the `f` the force is spelled with.
+/// Why:
+///   A cluster of only `f`s is `-f` asked that many times,
+///  and any other letter is an option whose effect this plan would not know,
+///  so the loop that reads the cluster names this one question.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAnF = (letter) => letter === 'f';
+/// ```
+fn is_an_f(letter: &u8) -> bool {
+    return *letter == b'f';
 }
 
 /// What:
@@ -178,7 +196,7 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
             continue;
         }
         if !options_end && bytes.starts_with(b"-") {
-            let Some(asked) = forces_asked(token) else { return None };
+            let asked: usize = forces_asked(token)?;
             forces += asked;
             if forces > 2 {
                 return None;
@@ -191,24 +209,25 @@ pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start:
         }
         operand = Some(token);
     }
-    let operand: &OsString = operand?;
+    let named: &OsString = operand?;
     let force: ForceAsked = match forces {
         0 => ForceAsked::No,
         1 => ForceAsked::Once,
         _ => ForceAsked::Twice,
     };
     // Joined to the start directory an empty operand would name that directory, while Git answers that '' is not a working tree.
-    if operand.is_empty() {
+    if named.is_empty() {
         return None;
     }
     // Git matches the typed name against the registered paths first, and a name that matches one of them names that worktree.
     if let Some(common) = common_dir
-        && let Some(target) = crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
+        && let Some(target) = crate::worktree_remove_registry::path_git_picks_for_operand(common, named.as_os_str())
     {
-        return Some(RemovePlan { target, operand: operand.clone(), force });
+        return Some(RemovePlan { target, operand: named.clone(), force });
     }
-    let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
-    return target.is_dir().then_some(RemovePlan { target, operand: operand.clone(), force });
+    let typed: PathBuf = start.join(named);
+    let found: PathBuf = std::fs::canonicalize(typed).ok()?;
+    return found.is_dir().then_some(RemovePlan { target: found, operand: named.clone(), force });
 }
 
 /// Removal plan controls stay out of the release executable.

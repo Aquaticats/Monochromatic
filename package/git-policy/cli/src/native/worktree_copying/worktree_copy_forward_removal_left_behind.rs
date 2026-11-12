@@ -45,6 +45,28 @@ pub(super) fn remembered_before_git(the_removal: Option<&RemovePlan>, the_reposi
 }
 
 /// What:
+///  Settle the relink record of a worktree this removal took,
+///  and say it.
+/// Why:
+///  The record names a directory nothing will relink,
+///  so the removal that took it settles it (`package_repair_relink_of_a_removed_worktree.rs`),
+///  and this is the command that must do it:
+///  the record is the only place the queued work is written down,
+///  and nothing else looks at it again once the worktree is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const line of cancelTheRelinkOf(gone.commonDir, gone.worktree)) stderr.write(line);
+/// ```
+pub(super) fn settle_the_relink_of(gone: &crate::worktree_removal_stops_units::WorktreeAboutToGo) {
+    use std::io::Write as _;
+    for line in crate::package_repair_relink_of_a_removed_worktree::cancel_the_relink_of(gone.common_dir.as_path(), gone.worktree.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
+}
+
+/// What:
 ///  Finish the folder the removal recorded once Git returned,
 ///  say what happened on standard error,
 ///  and keep Git's own status.

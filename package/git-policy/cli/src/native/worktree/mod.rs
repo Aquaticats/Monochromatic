@@ -151,6 +151,10 @@ pub mod worktree_removal_left_behind_record;
 /// and with the record that names it.
 pub mod worktree_removal_left_behind_folder;
 
+/// The service's own removal of one whole worktree a command handed over,
+/// with Git's own judgment of what it would keep as the verdict.
+pub mod worktree_remove_hand_over_of_a_worktree;
+
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
 pub mod worktree_path_failure_message;

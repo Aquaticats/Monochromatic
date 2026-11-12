@@ -164,8 +164,10 @@ fn replacing_tool(scene: &Scene) -> String {
 ///  so a person who removes the worktree straight away leaves exactly this record.
 ///  A tool started there would rewrite link layouts in a directory a removal is about to delete,
 ///  and a record left waiting is work queued for a worktree nothing will relink.
-///  The control reads the queue the service claims from, which is what a record nothing settled is:
-///  before this, the removal settled nothing and the queue offered the record to the next round.
+///  The control reads the queue the service claims from,
+/// which is what a record nothing settled is:
+///  before this,
+/// the removal settled nothing and the queue offered the record to the next round.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -529,7 +531,9 @@ fn a_refusal_names_the_worktree_the_record_carries() {
 /// Why:
 ///  A removal waits for no relink,
 ///  and a tool left writing into a renamed or deleted directory keeps a process for a directory that is gone
-///  and answers with a failure nobody can act on (`SPEC.md`, "Cheap worktree creation and removal on btrfs, XFS and
+///  and answers with a failure nobody can act on (`SPEC.md`,
+/// "Cheap worktree creation and removal on btrfs,
+/// XFS and
 ///  overlayfs").
 ///  The rename is what the wrapper's own removal does on btrfs before the service deletes the subvolume,
 ///  so the state this control builds is the everyday one.

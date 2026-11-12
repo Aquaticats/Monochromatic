@@ -34,8 +34,10 @@ fn the_plan_names_one_directory_and_no_option() {
 /// Why:
 ///   A second force is what a person types when the first removal failed,
 ///  which is exactly the removal this wrapper exists to finish,
-///  and Git reads the count twice over: any force skips its cleanliness proof
-///  (`remove_worktree`, `if (!force) check_clean_worktree(...)`),
+///  and Git reads the count twice over:
+/// any force skips its cleanliness proof
+///  (`remove_worktree`,
+/// `if (!force) check_clean_worktree(...)`),
 ///  and a force given twice is also the permission to unlock a worktree.
 ///  A form the plan did not read was the whole removal handed to Git's own walk,
 ///  and a folder a writer defeated then stayed behind with nothing pointing at it.
