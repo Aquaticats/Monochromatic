@@ -44,7 +44,8 @@ fn a_snapshot_made_from_the_recorded_source_after_the_record_is_proved() {
 ///  a reaping that proves a folder by the transaction that created it deletes the person's snapshot and the only copy
 ///  of a file in it,
 ///  because the source's generation is older than the last committed transaction;
-///  this control holds the state in which that misreading happens, without a transaction anywhere in the proof.
+///  this control holds the state in which that misreading happens,
+/// without a transaction anywhere in the proof.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_snapshot_made_before_the_record_is_not_proved() {
@@ -95,7 +96,8 @@ fn a_plain_directory_is_not_proved() {
 /// Why a plain directory is not this case:
 ///  `BTRFS_IOC_GET_SUBVOL_INFO` answers for the subvolume that holds any directory,
 ///  so a plain directory names the subvolume it sits in and never itself,
-///  and a plain directory takes no snapshot at all (the kernel refuses it, as the control below shows),
+///  and a plain directory takes no snapshot at all (the kernel refuses it,
+/// as the control below shows),
 ///  so no folder ever exists for such a source to be judged by.
 #[cfg(target_os = "linux")]
 #[test]

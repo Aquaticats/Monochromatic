@@ -37,7 +37,8 @@
 //! so a subvolume's generation only advances with the transactions that write its own tree.
 //! It can therefore be older than the filesystem's last commit,
 //! and a snapshot a person makes after that commit carries a later creation transaction and was
-//!  proved to be the wrapper's: the deletion this record exists to prevent.
+//!  proved to be the wrapper's:
+//! the deletion this record exists to prevent.
 //! A committed transaction would have to be forced to tell the two apart,
 //! and a forced commit is a flush of the whole filesystem on the add's waiting path
 //! (`SPEC.md`,

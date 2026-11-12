@@ -268,7 +268,8 @@ fn was_taken_away(masks: &[u32]) -> bool {
 /// Why the control reads this way:
 ///  the end state is the same either way,
 ///  and only the events of the call tell the two apart,
-///  so the positive control below watches a claim whose folder nothing names being moved, which the same watch sees.
+///  so the positive control below watches a claim whose folder nothing names being moved,
+/// which the same watch sees.
 #[cfg(target_os = "linux")]
 #[test]
 fn settling_an_unreadable_claim_never_takes_its_own_name_away() {
@@ -312,7 +313,8 @@ const CHILD_VARIABLE: &str = "CLI_GIT_REAP_CHILD";
 const CHILD_COMMON_VARIABLE: &str = "CLI_GIT_REAP_CHILD_COMMON";
 
 /// The body the parent starts in a child process:
-/// it reaps the journal root of the common directory its environment names, and prints every line it settled.
+/// it reaps the journal root of the common directory its environment names,
+/// and prints every line it settled.
 /// Run without the child's variable it returns at once and checks nothing.
 #[test]
 fn child_reaps_the_journal_root_its_environment_names() {
@@ -328,7 +330,8 @@ fn child_reaps_the_journal_root_its_environment_names() {
 
 /// The notices a second process's reap of `common` printed.
 /// Why it says so when no test ran:
-///  a name that matches no test ends with success and runs nothing, and a control would pass on that.
+///  a name that matches no test ends with success and runs nothing,
+/// and a control would pass on that.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -394,7 +397,8 @@ fn a_reap_in_another_process_keeps_the_record_of_a_stage_that_still_stands() {
 /// Why the control reads this way:
 ///  the destination record is what said the stage belongs to an add,
 ///  and a command that settles that record while another settles the claim leaves the stage's own record as the only
-///  thing that keeps it from being taken for a copy's own folder, which is removed without asking what it holds.
+///  thing that keeps it from being taken for a copy's own folder,
+/// which is removed without asking what it holds.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_reap_in_another_process_keeps_the_stage_of_an_add_whose_destination_record_is_gone() {

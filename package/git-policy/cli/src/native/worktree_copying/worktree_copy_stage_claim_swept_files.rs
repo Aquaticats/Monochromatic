@@ -89,7 +89,11 @@ pub(crate) fn remove_records_nothing_claims(root: &Path) -> Result<bool, Worktre
             continue;
         }
         // A record whose container stands is that folder's only proof, so it stays until the folder is settled.
-        if read_made_record(path.as_path()).is_some_and(|made: crate::worktree_copy_stage_made_object::MadeObject| { return std::fs::symlink_metadata(made.container.as_path()).is_ok(); }) {
+        let stands: bool = match read_made_record(path.as_path()) {
+            Some(made) => std::fs::symlink_metadata(made.container.as_path()).is_ok(),
+            None => false,
+        };
+        if stands {
             continue;
         }
         unclaimed.push(path);

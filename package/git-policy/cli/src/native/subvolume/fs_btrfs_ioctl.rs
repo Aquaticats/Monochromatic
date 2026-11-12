@@ -700,7 +700,8 @@ pub struct SubvolumeInfo {
     /// The instant this subvolume was created,
     /// from the root item's `otime`,
     /// which `create_pending_snapshot` writes from `current_time()` (`fs/btrfs/transaction.c`).
-    /// That is the coarse realtime clock (`fs/inode.c`), so it is compared with an instant read from the same clock.
+    /// That is the coarse realtime clock (`fs/inode.c`),
+    /// so it is compared with an instant read from the same clock.
     pub created: SystemTime,
     /// The latest transaction that changed this subvolume.
     pub generation: u64,

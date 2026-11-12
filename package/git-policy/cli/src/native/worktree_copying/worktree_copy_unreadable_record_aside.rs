@@ -140,7 +140,8 @@ pub fn move_aside(common_dir: &Path, record: &Path, moved_name: &OsStr) -> Resul
 /// Why:
 ///   A claim's name must never be absent while its writer's records still stand:
 /// the sweeps read an absent claim as "no add stands behind these records",
-/// remove the record that proves the stage folder, and the stage is then taken for a copy's own and removed with
+/// remove the record that proves the stage folder,
+/// and the stage is then taken for a copy's own and removed with
 ///  whatever a person put in it.
 /// A link is one step that never replaces a name and never takes the name it links,
 /// so the bytes stand where a person reads them and at the name every reader uses,
@@ -183,7 +184,9 @@ pub fn keep_aside(common_dir: &Path, record: &Path, kept_name: &OsStr) -> Result
 /// rather than that something else went wrong.
 /// Why:
 ///   A directory has no second name (`EPERM`),
-/// a filesystem may refuse links (`ENOSYS`, `EPERM`, `EXDEV`),
+/// a filesystem may refuse links (`ENOSYS`,
+/// `EPERM`,
+/// `EXDEV`),
 /// and one record may have no more (`EMLINK`);
 /// every other refusal is a fault the person reads.
 ///
