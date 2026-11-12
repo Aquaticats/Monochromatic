@@ -49,6 +49,10 @@ use std::path::Path;
 /// and `Stdio` (what its standard input is attached to).
 use std::process::{Command, Output, Stdio};
 
+/// Imports `Duration` and `Instant`,
+/// which the grace a stopped tool gets is measured with.
+use std::time::{Duration, Instant};
+
 /// What:
 /// `use search_shadow::constants::SHADOWED_NAMES;` imports the names the `link` subcommand shadows,
 /// the same declaration that subcommand iterates.
@@ -61,8 +65,11 @@ use std::process::{Command, Output, Stdio};
 /// import { SHADOWED_NAMES } from 'search_shadow/constants';
 /// ```
 use search_shadow::constants::SHADOWED_NAMES;
-/// Imports the output cap, the exit code of a run it stopped, and the exit code of a run whose output could not be passed on.
-use search_shadow::constants::{CAPPED_EXIT_CODE, MAX_OUTPUT_BYTES, OUTPUT_FAILED_EXIT_CODE};
+/// Imports the output cap, the exit code of a run it stopped, the exit code of a run whose output could not be passed on,
+/// and the exit code of a real tool that cannot start.
+use search_shadow::constants::{CAPPED_EXIT_CODE, EXEC_FAILED_EXIT_CODE, MAX_OUTPUT_BYTES, OUTPUT_FAILED_EXIT_CODE};
+/// Imports the grace a stopped tool gets before it is killed.
+use search_shadow::output_cap::STOP_GRACE;
 /// Imports the exit code for a missing real tool and the priority level the shim uses.
 use search_shadow::constants::NOT_FOUND_EXIT_CODE;
 use search_shadow::priority::LOWEST_BEST_EFFORT_LEVEL;
@@ -519,10 +526,12 @@ fn stops_any_shadowed_tool_that_prints_past_the_cap() {
 /// so with a terminal on standard output the shadow still replaces itself and prints everything.
 #[test]
 fn does_not_cap_an_output_a_terminal_shows() {
-    // `script` (util-linux) is what gives the shadow a terminal; without it this case cannot be shown at all.
-    if Command::new("script").arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_err() {
-        return;
-    }
+    // `script` (util-linux) is what gives the shadow a terminal. A host without it cannot show this case at all, so the
+    // case fails rather than passing while proving nothing.
+    assert!(
+        Command::new("script").arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok(),
+        "this case needs `script` from util-linux for a terminal on the shadow's standard output"
+    );
     let (root, path_variable) = make_world();
     let past_the_cap: u64 = MAX_OUTPUT_BYTES + 4096;
     write_script(&root.path().join("real"), "rg", &script_printing(past_the_cap));
@@ -618,4 +627,36 @@ fn the_wide_walk_variable_does_not_lift_the_lost_pipe_refusal() {
     assert_eq!(output.status.code(), Some(2), "{stderr}");
     assert!(stderr.contains("standard input is a pipe"), "{stderr}");
     assert!(output.stdout.is_empty(), "the real tool must not have run");
+}
+
+/// A tool that keeps running after the cap closed its pipe is killed once its grace is over,
+/// so a search that is stopped can never hold the caller.
+#[test]
+fn kills_a_tool_that_keeps_running_after_the_cap_closed_its_pipe() {
+    let (root, path_variable) = make_world();
+    // Past the cap this fixture's pipe is closed; it ignores that and goes on running, as a tool blocked on something
+    // other than its own output does.
+    write_script(&root.path().join("real"), "rg", &format!("{}\nexec sleep 60", script_printing(MAX_OUTPUT_BYTES * 2)));
+    let started: Instant = Instant::now();
+
+    let output = run_rg(root.path(), &texts(&["X", "."]), root.path(), &path_variable, &[]);
+    let elapsed: Duration = started.elapsed();
+
+    assert_eq!(output.stdout.len() as u64, MAX_OUTPUT_BYTES, "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(CAPPED_EXIT_CODE));
+    assert!(elapsed >= STOP_GRACE, "the tool is given its grace before the kill: {elapsed:?}");
+    assert!(elapsed < STOP_GRACE + Duration::from_secs(20), "the tool was left running: {elapsed:?}");
+}
+
+/// A real tool that exists but cannot be started is reported the same way through the capped path.
+#[test]
+fn exits_126_when_the_capped_path_cannot_start_the_real_tool() {
+    let (root, path_variable) = make_world();
+    fs::write(root.path().join("real").join("rg"), "#!/nonexistent/interpreter\n").expect("write a script with a bad interpreter");
+
+    let output = run_rg(root.path(), &texts(&["foo"]), root.path(), &path_variable, &[]);
+
+    assert_eq!(output.status.code(), Some(EXEC_FAILED_EXIT_CODE));
+    assert!(output.stdout.is_empty(), "the real tool must not have run");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("could not start"));
 }

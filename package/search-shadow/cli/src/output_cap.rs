@@ -65,10 +65,12 @@ use crate::shadow_identity::{StartMode, Vetted, mark_start, vet};
 /// How long a stopped tool gets to end by itself before it is killed.
 /// It is the same grace this repository's push cap gives a stopped `git push`,
 /// and a tool that finds its pipe closed ends at once in every case measured (`rg`, `find`, `du`, `tree`).
-const STOP_GRACE: Duration = Duration::from_secs(5);
+pub const STOP_GRACE: Duration = Duration::from_secs(5);
 
-/// How often the stop looks at the tool while it waits.
-const STOP_POLL: Duration = Duration::from_millis(10);
+/// How often the stop looks at the tool while it waits:
+/// the interval the push cap's own stop polls at (`STOP_POLL` in
+/// `package/git-policy/cli/src/native/push/bounded_push.rs`).
+pub const STOP_POLL: Duration = Duration::from_millis(10);
 
 /// The most bytes read from the tool's pipe at once,
 /// the same size as a Linux pipe buffer,
