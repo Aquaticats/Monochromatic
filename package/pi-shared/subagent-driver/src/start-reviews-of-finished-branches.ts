@@ -16,16 +16,21 @@ import {
   env,
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import { gitRunnerOf, } from './git-command.ts';
+import {
+  keepFailedOutput,
+  reportOnStandardError,
+} from './kept-start-failure.ts';
 import { saveTheLastMessage, } from './last-message-of-a-review.ts';
 import { outputOfGit, } from './material-of-a-review.ts';
 import { parseStartReviewsOptions, } from './parse-start-reviews-options.ts';
-import { requiredOutputOf, } from './required-output-of-a-command.ts';
 import { FOCUS_OF_A_CHANGE_REVIEW, } from './review-brief.ts';
 import {
   briefFileOfAReview,
   reviewFileOfAReview,
+  runNameOfAReview,
 } from './reviewer-of-a-change.ts';
 import { startReviews, } from './reviews-of-finished-branches.ts';
 import { rulesFileIn, } from './rules-every-pi-brief-carries.ts';
@@ -44,14 +49,7 @@ const MISSING_PATH_CODE = 'ENOENT';
 /**
  The top of the checkout this command runs in, which every git question and worktree is about.
  */
-const checkoutFolder = await requiredOutputOf({
-  run: runCommandWithChildProcess,
-  command: 'git',
-  words: [
-    'rev-parse',
-    '--show-toplevel',
-  ],
-},);
+const checkoutFolder = await checkoutFolderOf({ from: process.cwd(), },);
 
 /**
  What this run of the command was asked for.
@@ -160,12 +158,34 @@ const started = await startReviews({
         rulesFile: rulesFileIn({ checkoutFolder, },),
       },);
     },
-    start: async function start({ words, },) {
-      return await startThroughTheRetryingStart({
+    start: async function start({
+      review,
+      words,
+    },) {
+      /**
+       What the retrying start answered for this review.
+       */
+      const answered = await startThroughTheRetryingStart({
         entry: retryingStart,
         words,
         environment: env,
       },);
+      if (answered.status === 0) {
+        return answered;
+      }
+      /**
+       Where the whole of what the failed start printed was kept.
+       */
+      const kept = await keepFailedOutput({
+        runsFolder: options.runsFolder,
+        name: runNameOfAReview({ review, },),
+        output: answered.output,
+        report: reportOnStandardError,
+      },);
+      return {
+        ...answered,
+        ...kept,
+      };
     },
     save: async function save({ review, },) {
       return await saveTheLastMessage({

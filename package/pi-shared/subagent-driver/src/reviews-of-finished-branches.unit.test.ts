@@ -20,6 +20,7 @@ import {
   REVIEW_TURN_CAP,
   REVIEW_WALL_SECONDS,
   type BriefOfOneReview,
+  entryLineOf,
   type ReviewStartingSeams,
   type StartOfOneReview,
   branchOfAReview,
@@ -458,9 +459,20 @@ await describe({
              */
             const started = await startReviews(aStartRequest({ changes: [aChange(), anotherChange(),], seams, },),);
             expect(asked.saves,).toEqual([aChange(), anotherChange(),],);
-            expect(started.lines,).toContain(`${runNameOfAReview({ review: aChange(), },)}: start ended ${
-               String(failedStatus,)}`,);
-            expect(started.lines,).toContain(`${runNameOfAReview({ review: anotherChange(), },)}: start ended none`,);
+            expect(started.lines,).toContain(entryLineOf({
+              name: runNameOfAReview({ review: aChange(), },),
+              started: {
+                output: 'why',
+                status: failedStatus,
+              },
+            },),);
+            expect(started.lines,).toContain(entryLineOf({
+              name: runNameOfAReview({ review: anotherChange(), },),
+              started: {
+                output: '',
+                startProblem: 'no such command',
+              },
+            },),);
             expect(started.lines,).toContain(`reviews ended with statuses ${String(failedStatus,)} none`,);
             expect(started.statuses,).toEqual([String(failedStatus,), 'none',],);
           },

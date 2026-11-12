@@ -15,6 +15,7 @@ import {
   BATCH_DEFAULT_TASK_COUNT,
   BATCH_RETRY_PERIOD_SECONDS,
   BATCH_STAGGER_MILLISECONDS,
+  entryLineOf,
   type StartedEntry,
 } from './batch-list.ts';
 import { rangeOfABranch, } from './material-of-a-review.ts';
@@ -98,9 +99,15 @@ export type BriefOfOneReview = {
 };
 
 /**
- What starting one review's run answered: the retrying start's status, or why it could not be started.
+ What starting one review's run answered: the retrying start's status, or why it could not be started, and where the whole of what
+ a failed start printed was kept.
  */
-export type StartOfOneReview = StartedEntry;
+export type StartOfOneReview = StartedEntry & {
+  /**
+   The file a failed start's whole output was kept in, when it was kept.
+   */
+  readonly keptAt?: string;
+};
 
 /**
  The seams the starter asks, so a test can answer them without a unit, a worktree or a process.
@@ -334,7 +341,11 @@ export async function startReviews({
      */
     const run = runNameOfAReview({ review, },);
     if (start.status !== 0) {
-      lines.push(`${run}: start ended ${statusTextOf(start,)}`,);
+      lines.push(entryLineOf({
+        name: run,
+        started: start,
+        ...((start.keptAt === undefined) ? {} : { keptAt: start.keptAt, }),
+      },),);
     }
     // oxlint-disable-next-line eslint/no-await-in-loop -- one review after another, because a saved file is read from that review's own run; see doc/lint/sequential-awaits.md
     lines.push((await seams.save({ review, },)).line,);

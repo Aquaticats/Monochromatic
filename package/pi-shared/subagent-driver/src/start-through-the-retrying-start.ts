@@ -10,7 +10,7 @@
 import { spawn, } from 'node:child_process';
 import { once, } from 'node:events';
 import {
-  ENTRY_OUTPUT_TAIL_CHARACTERS,
+  ENTRY_OUTPUT_KEPT_CHARACTERS,
   type StartedEntry,
 } from './batch-list.ts';
 import { siblingCommandEntry, } from './sibling-command-entry.ts';
@@ -79,7 +79,7 @@ export async function startThroughTheRetryingStart({
   /**
    The end of what it printed, on either stream.
    */
-  const printed = tailKeeper({ characters: ENTRY_OUTPUT_TAIL_CHARACTERS, },);
+  const printed = tailKeeper({ characters: ENTRY_OUTPUT_KEPT_CHARACTERS, },);
   child.stdout
     .on(
     'data',

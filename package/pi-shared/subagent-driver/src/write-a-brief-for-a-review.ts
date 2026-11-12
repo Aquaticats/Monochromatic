@@ -10,23 +10,16 @@
  */
 
 import { argv, } from 'node:process';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import { gitRunnerOf, } from './git-command.ts';
 import { parseReviewBriefOptions, } from './parse-review-brief-options.ts';
-import { requiredOutputOf, } from './required-output-of-a-command.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
 import { writeReviewBrief, } from './writing-a-review-brief.ts';
 
 /**
  The top of the checkout this command runs in, which every path it writes is read from.
  */
-const checkoutFolder = await requiredOutputOf({
-  run: runCommandWithChildProcess,
-  command: 'git',
-  words: [
-    'rev-parse',
-    '--show-toplevel',
-  ],
-},);
+const checkoutFolder = await checkoutFolderOf({ from: process.cwd(), },);
 
 /**
  What this run of the command was asked for.

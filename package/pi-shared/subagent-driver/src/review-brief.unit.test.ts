@@ -214,6 +214,14 @@ await describe({
           },
         },),
         it({
+          name: 'asks for the review file as soon as the reading is done, marked not final, because a review that ends with no file is lost',
+          fn: async () => {
+            expect(aBrief(),).toContain('marked at its top as not final',);
+            expect(aBrief(),).toContain('A review that ends with no file is lost',);
+            expect(aBrief(),).toContain('every command\'s working folder stays inside',);
+          },
+        },),
+        it({
           name: 'names the commit, each file to read, the focus and the review file, and asks for the review file before the end',
           fn: async () => {
             expect(aBrief(),).toContain(aCommit(),);

@@ -43,14 +43,20 @@ export const WAKE_LIMIT = 5;
 export const WORK_POLL_MILLISECONDS = 30_000;
 
 /**
- The starts a Kimi run's name carries: a review's and an audit's, which name the review or audit and not the code it reads.
+ The starts a review's run name carries: this package's own `review-`, and the `kimi-review-` of the scratch runs it replaced.
+ Each names the review and not the code the review reads, and a review keeps its scratch folder under that name.
  */
-const KIMI_REVIEW_START = 'kimi-review-';
+const REVIEW_STARTS: readonly string[] = [
+  'review-',
+  'kimi-review-',
+];
 
 /**
- The start of a Kimi audit's run name.
+ The starts an audit's run name carries, which name the audit and not the code it reads.
  */
-const KIMI_AUDIT_START = 'kimi-audit-';
+const AUDIT_STARTS: readonly string[] = [
+  'kimi-audit-',
+];
 
 /**
  How many of the run's own processes a note names. The head says what is working, and a note of thirty entries stops being read.
@@ -90,12 +96,18 @@ export type ProcessAtAFolder = {
  ```
  */
 export function ownComponentOf({ runName, }: { readonly runName: string },): string {
-  if (runName.startsWith(KIMI_REVIEW_START,)) {
-    return runName.slice(KIMI_REVIEW_START.length,);
-  }
-  return runName.startsWith(KIMI_AUDIT_START,)
-    ? runName.slice(KIMI_AUDIT_START.length,)
-    : runName;
+  /**
+   The start this run name carries, if it carries one.
+   */
+  const start = [
+    ...REVIEW_STARTS,
+    ...AUDIT_STARTS,
+  ].find(function isTheStart(candidate,) {
+    return runName.startsWith(candidate,);
+  },);
+  return (start === undefined)
+    ? runName
+    : runName.slice(start.length,);
 }
 
 /**

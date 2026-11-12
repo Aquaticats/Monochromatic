@@ -98,6 +98,7 @@ await describe({
           name: 'reads the name a folder of a review or an audit carries, and leaves every other run name whole',
           fn: async () => {
             expect(ownComponentOf({ runName: 'kimi-review-a-round-8', },),).toBe('a-round-8',);
+            expect(ownComponentOf({ runName: 'review-a-round-8', },),).toBe('a-round-8',);
             expect(ownComponentOf({ runName: 'kimi-audit-b', },),).toBe('b',);
             expect(ownComponentOf({ runName: 'copy-route', },),).toBe('copy-route',);
           },
@@ -244,6 +245,34 @@ await describe({
               processes,
               excludingPid: 0,
             },),).toEqual(['14 cargo', '15 node',],);
+          },
+        },),
+        it({
+          name: 'counts a build a scope started, which runs outside the run\'s unit, because its working folder is the review\'s own',
+          fn: async () => {
+            /**
+             A build a review started in its own scratch folder, and a build of another review, which the scope keeps running
+             under systemd rather than under the run's unit.
+             */
+            const processes: readonly ProcessAtAFolder[] = [
+              {
+                pid: 21,
+                folder: '/home/user/temp/agent/change-reviews/a-round-208/run/home',
+                command: 'cargo',
+              },
+              {
+                pid: 22,
+                folder: '/home/user/temp/agent/change-reviews/b-round-208/run/home',
+                command: 'cargo',
+              },
+            ];
+            expect(processesStillWorkingFor({
+              runName: 'review-a-round-208',
+              worktree: '/repo/.claude/worktrees/pi-review-a-round-208',
+              runFolder: '/runs/review-a-round-208-1',
+              processes,
+              excludingPid: 0,
+            },),).toEqual(['21 cargo',],);
           },
         },),
       ],

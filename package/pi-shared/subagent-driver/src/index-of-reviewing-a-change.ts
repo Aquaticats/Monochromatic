@@ -75,6 +75,10 @@ export {
 } from './reviews-of-finished-branches.ts';
 export { writeReviewBrief, } from './writing-a-review-brief.ts';
 export {
+  keepFailedOutput,
+  reportOnStandardError,
+} from './kept-start-failure.ts';
+export {
   FIX_BRIEFS_USAGE,
   FixBriefOptionsError,
   type FixBriefOptions,

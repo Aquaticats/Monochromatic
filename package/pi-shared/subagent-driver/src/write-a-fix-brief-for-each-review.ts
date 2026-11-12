@@ -16,6 +16,7 @@ import {
 import { join, } from 'node:path';
 import { argv, } from 'node:process';
 import type { BatchEntry, } from './batch-list.ts';
+import { checkoutFolderOf, } from './checkout-of-a-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
   branchOfAFixFor,
@@ -23,13 +24,11 @@ import {
   changeNameOfAFixFor,
 } from './fix-brief.ts';
 import { parseFixBriefOptions, } from './parse-fix-brief-options.ts';
-import { requiredOutputOf, } from './required-output-of-a-command.ts';
 import {
   diffFileOfAReview,
   reviewFileOfAReview,
 } from './reviewer-of-a-change.ts';
 import { rulesFileIn, } from './rules-every-pi-brief-carries.ts';
-import { runCommandWithChildProcess, } from './run-command.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -39,14 +38,7 @@ const MISSING_PATH_CODE = 'ENOENT';
 /**
  The top of the checkout this command runs in, which the briefs' paths are read from.
  */
-const checkoutFolder = await requiredOutputOf({
-  run: runCommandWithChildProcess,
-  command: 'git',
-  words: [
-    'rev-parse',
-    '--show-toplevel',
-  ],
-},);
+const checkoutFolder = await checkoutFolderOf({ from: process.cwd(), },);
 
 /**
  What this run of the command was asked for.

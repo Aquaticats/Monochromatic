@@ -21,7 +21,7 @@ Never start a service manager on this machine (\`systemd --user\`, \`/usr/lib/sy
 
 Your review counts only if it is its own. Do not read anything under \`/var/home/user/temp/agent/kimi-reviews\`, \`/var/home/user/temp/agent/qwen-trials\`, or \`@REVIEWS_FOLDER@\` outside your own review folder, or any other run's folder under \`@RUNS_FOLDER@\`. Those hold other reviewers' answers. Do not run \`ps\` with \`args\`, or anything else that lists other processes' command lines. Look only at the commit you start on and the diff you are given: no other branch or worktree, no GitHub (\`gh\`), no web search about this repository, no session logs under \`~/.claude\` or \`~/.pi\`. Every claim that you reproduced something must match a command you really ran. Your whole session can be read afterwards.
 
-Change no file in this worktree, and do not commit or push. Scratch goes under \`@SCRATCH_FOLDER@\`. You may build and run the code, but only on disposable repositories under a disposable \`HOME\` and \`XDG_RUNTIME_DIR\`, in a command limited with \`systemd-run --user --scope\`. Never print the environment or read a credential file. If the model provider refuses or flags your content, stop and say so.
+Change no file in this worktree, and do not commit or push. Scratch goes under \`@SCRATCH_FOLDER@\`, and every command's working folder stays inside \`@SCRATCH_FOLDER@\` or this worktree, so work you leave running is still yours and the launcher resumes you when it ends. You may build and run the code, but only on disposable repositories under a disposable \`HOME\` and \`XDG_RUNTIME_DIR\`, in a command limited with \`systemd-run --user --scope\`. Never print the environment or read a credential file. If the model provider refuses or flags your content, stop and say so.
 
 Review @SUBJECT@.
 Read each of these files in full before you answer:
@@ -32,4 +32,4 @@ Report only concrete defects. For each one give the file and line, the exact seq
 Leave out style, naming, and anything you cannot state as a sequence and a wrong result. Finding nothing is a good result.
 Look hardest at: @FOCUS@
 
-Write your review to \`@REVIEW_FILE@\` and return the same text as your final message; write your review file before anything else you do at the end.`;
+Write your review to \`@REVIEW_FILE@\` as soon as your reading is done, marked at its top as not final, and replace it when the runs you started have finished; write your review file before anything else you do at the end. A review that ends with no file is lost, and nobody can read what it found.`;
