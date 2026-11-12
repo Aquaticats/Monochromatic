@@ -178,8 +178,8 @@ fn holds(outer: &[u8], inner: &[u8]) -> bool {
     if outer == inner {
         return true;
     }
-    let outer: &[u8] = outer.strip_suffix(b"/").unwrap_or(outer);
-    return !outer.is_empty() && inner.starts_with(outer) && inner.get(outer.len()) == Some(&b'/');
+    let holding: &[u8] = outer.strip_suffix(b"/").unwrap_or(outer);
+    return !holding.is_empty() && inner.starts_with(holding) && inner.get(holding.len()) == Some(&b'/');
 }
 
 /// The paths the worktree holds where the form writes, and the answer reading.
